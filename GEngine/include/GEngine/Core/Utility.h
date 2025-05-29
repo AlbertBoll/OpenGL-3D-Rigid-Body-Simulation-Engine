@@ -3,17 +3,17 @@
 #include<utility>
 #include<variant>
 
+
+#define NONCOPYABLE(className) className(const className&) = delete;\
+								className& operator=(const className&) = delete
+	
+#define NONMOVABLE(className) className(className&&) = delete;\
+								className& operator=(className&&) = delete
+	
+#define NONCOPYMOVABLE(className)  NONCOPYABLE(className);\
+									NONMOVABLE(className)
 namespace GEngine
 {
-	#define NONCOPYABLE(className) className(const className&) = delete;\
-								   className& operator=(const className&) = delete
-	
-	#define NONMOVABLE(className) className(className&&) = delete;\
-								  className& operator=(className&&) = delete
-	
-	#define NONCOPYMOVABLE(className)  NONCOPYABLE(className);\
-									   NONMOVABLE(className)
-
 	template<typename T, typename deleter = std::default_delete<T>>
 	using ScopedPtr = std::unique_ptr<T, deleter>;
 

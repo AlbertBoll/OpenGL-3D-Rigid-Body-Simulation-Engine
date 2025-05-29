@@ -394,6 +394,8 @@ namespace GEngine
 
         void Fire(Args... args) { for (auto& delegate : mDelegates) delegate.Invoke(std::forward<Args>(args)...); }
 
+        void Emit(Args... args) { for (auto& delegate : mDelegates) delegate.Invoke(std::forward<Args>(args)...); }
+
     private:
         std::vector<Delegate<Ret(Args...)>> mDelegates;
     };
@@ -442,8 +444,12 @@ namespace GEngine
 
    // #define Connect(sender, signal, receiver, className ,slot) (sender).signal.Connect<className, slot>(receiver)
 
-    #define Connection(sender, signal, receiver, className,...) (sender).signal.Connect<className, __VA_ARGS__>(receiver)
+    //#define Connection(sender, signal, receiver, className,...) (sender).signal.Connect<className, __VA_ARGS__>(receiver)
+    //#define Disconnection(sender, signal, delegate_) (sender).signal.Disconnect(delegate_)
+
+    #define Connection(sender, signal, receiver, ...) (sender).signal.Connect<std::decay_t<decltype(receiver)>, __VA_ARGS__>(receiver)
     #define Disconnection(sender, signal, delegate_) (sender).signal.Disconnect(delegate_)
+
 
 # if 0
 	/*template<typename>class SlotBase;

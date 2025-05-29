@@ -1,18 +1,21 @@
 #pragma once
 
 
-namespace GEngine::Event
+namespace GEngine
 {
-	
-
-	class MouseEvent
+	namespace Event
 	{
-		
-	public:
-		static void OnMouseButtonClick(SDL_MouseButtonEvent& e);
-		static void OnMouseButtonRelease(SDL_MouseButtonEvent& e);
-		static void OnMouseMove(SDL_MouseMotionEvent& e);
-		static void OnMouseWheel(SDL_MouseWheelEvent& e);
-	};
+
+
+		class MouseEvent
+		{
+
+		public:
+			static void OnMouseButtonClick(SDL_MouseButtonEvent& e);
+			static void OnMouseButtonRelease(SDL_MouseButtonEvent& e);
+			static void OnMouseMove(SDL_MouseMotionEvent& e);
+			static void OnMouseWheel(SDL_MouseWheelEvent& e);
+		};
+	}
 
 }

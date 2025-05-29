@@ -28,7 +28,7 @@ namespace GEngine
 		T m_Property{};
 
 
-		Signal<void(const Property&)> m_PropertySignal;
+		Signal<void(const Property&)> OnPropertyChangeSignal;
 
 		Property(const T& property) : m_Property{ property } {}
 
@@ -41,16 +41,61 @@ namespace GEngine
 
 		Property& operator = (const Property& other)
 		{
-			if (m_Property != other.m_Property)
+			if (this != &other)
 			{
-				m_Property = other.m_Property;
-				m_PropertySignal(*this);
+				if (m_Property != other.m_Property)
+				{
+					m_Property = other.m_Property;
+					OnPropertyChangeSignal.Emit(*this);
+				}
 			}
 
 			return *this;
 		}
 
 		operator T()const { return m_Property; }
+
+		Property<T> operator + (const Property<T>& other)
+		{
+			return m_Property + other.m_Property;
+		}
+
+		Property<T>& operator += (const Property<T>& other)
+		{
+			m_Property += other.m_Property;
+			OnPropertyChangeSignal.Emit(*this);
+			return *this;
+		}
+
+		Property<T> operator - (const Property<T>& other)
+		{
+			return m_Property - other.m_Property;
+		}
+
+		Property<T>& operator -= (const Property<T>& other)
+		{
+			m_Property -= other.m_Property;
+			OnPropertyChangeSignal.Emit(*this);
+			return *this;
+		}
+
+		Property<T> operator * (const Property<T>& other)
+		{
+			return m_Property * other.m_Property;
+		}
+
+		Property<T>& operator *= (const Property<T>& other)
+		{
+			m_Property *= other.m_Property;
+			OnPropertyChangeSignal.Emit(*this);
+			return *this;
+		}
+
+		template<typename ... Ts>
+		Property& Emplace(Ts&& ... ts)
+		{
+			::new(&m_Property) T(std::forward<Ts>(ts)...);
+		}
 
 		friend std::ostream& operator<<(std::ostream& os, const Property& m){ os << m.m_Property; return os; }
 	};

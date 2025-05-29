@@ -15,6 +15,7 @@ namespace GEngine
        // unsigned int m_Vao{};
         Geometry* m_Geometry{};
         RefPtr<Material> m_Material{};
+        Vec2f m_TextureOffset{0.f, 0.f};
         //bool bInstanced = false;
 
     public:
@@ -31,6 +32,16 @@ namespace GEngine
         //Entity& operator = (Entity&& other)noexcept;
 
         void UpdateRenderSettings() const;
+
+        void CalculateTextureOffset(int numOfRow, int index)
+        {
+            int column = index % numOfRow;//m_TextureIndex % m_NumOfRows;
+            int row = index / numOfRow;
+
+            m_TextureOffset =  { (float)column / numOfRow, (float)row / numOfRow };
+        }
+
+        Vec2f GetTextureOffset()const { return m_TextureOffset; }
 
         RenderSetting& GetRenderSetting() { return m_Material->GetRenderSetting(); }
         void SetRenderMode(RenderMode mode);
@@ -76,7 +87,10 @@ namespace GEngine
         }
 
 
+
         void Render(CameraBase* camera)override;
+
+        virtual void Move(){}
     
     };
 

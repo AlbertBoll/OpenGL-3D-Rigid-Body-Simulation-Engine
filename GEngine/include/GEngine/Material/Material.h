@@ -2,6 +2,7 @@
 
 #include <unordered_map>
 #include <Assets/Shaders/Shader.h>
+#include"Component/Component.h"
 
 
 
@@ -9,6 +10,8 @@ namespace GEngine
 {
 	//using namespace Graphic;
 	//class GEngine::Graphic::Shader;
+
+	class Actor;
 
 	enum class DrawMode
 	{
@@ -41,6 +44,15 @@ namespace GEngine
 		Point,
 		Line,
 		Surface
+	};
+
+	struct MaterialProperty
+	{
+		float ShineDamper = 1.0f;
+		float Reflectivity = 0.f;
+		bool HasTransparency = false;
+		bool HasFakeLighting = false;
+
 	};
 
 	struct PointSetting
@@ -83,12 +95,20 @@ namespace GEngine
 
 	class Material
 	{
+
 	protected:
 
 		friend class Entity;
+		friend class SpriteEntity;
+		MaterialProperty m_MaterialProp;
 		RenderSetting m_RenderSetting;
 		Asset::Shader* m_Shader{};
+		
 		std::unordered_multimap<unsigned int, std::pair<unsigned int, unsigned int>> m_TextureList;
+
+		inline static std::string base_shader_dir = "../GEngine/include/GEngine/Assets/Shaders/";
+
+
 
 	public:
 		Material() = default;
@@ -103,10 +123,40 @@ namespace GEngine
 
 		virtual void UpdateRenderSettings() {}
 
+		void SetTransparency(bool hasTransparency)
+		{
+			m_MaterialProp.HasTransparency = hasTransparency;
+		}
+
+		void SetFakeLighting(bool useFakeLighting)
+		{
+			m_MaterialProp.HasFakeLighting = useFakeLighting;
+		}
+
+		unsigned int GetShaderID()const
+		{
+			return m_Shader->GetHandle();
+		}
+
+		bool IsTransparency()const { return m_MaterialProp.HasTransparency; }
+
+		bool IsFakeLighting()const { return m_MaterialProp.HasFakeLighting; }
+
 		void SetRenderMode(RenderMode mode) { m_RenderSetting.m_RenderMode = mode; }
+
+		MaterialProperty& GetMaterialProperty() { return m_MaterialProp; }
+
+
+
 
 		template <typename T>
 		void SetUniforms(const std::map<std::string, T>& uniforms);
+
+		template <typename T>
+		void SetUniforms(const std::string& uniformName, const std::vector<T>& uniforms);
+
+		template <typename T>
+		void SetUniforms(const std::map<std::string, std::vector<T>>& uniforms);
 
 
 		virtual void SetRenderSettings(const RenderSetting& settings) { m_RenderSetting = settings; }
@@ -120,12 +170,18 @@ namespace GEngine
 
 		void UseProgram()const;
 
+		void SetMaterialProperty(const MaterialProperty& prop)
+		{
+			m_MaterialProp = prop;
+		}
+
+
+		virtual void UploadUniforms(){}
+
 		void BindTextureUniforms(int TexTarget);
 		void BindTextureUniforms();
 		virtual void UseUniformBufferObject(const std::string& uniformBlockName) {}
 	};
-
-
 
 	template<typename T>
 	inline void Material::SetUniforms(const std::map<std::string, T>& uniforms)
@@ -133,15 +189,45 @@ namespace GEngine
 		//UseProgram();
 		for (auto& [uniformName, ele] : uniforms)
 		{
-			if (auto name = m_Shader->GetUniformLocations().find(uniformName); name != m_Shader->GetUniformLocations().end())
-			{
+			//if (auto name = m_Shader->GetUniformLocations().find(uniformName); name != m_Shader->GetUniformLocations().end())
+			//{
+			m_Shader->SetUniform(uniformName.c_str(), ele);
+				//m_TextureList.emplace(1, 1);
+			//}
+		}
+
+	}
+
+
+	template<typename T>
+	inline void Material::SetUniforms(const std::map<std::string, std::vector<T>>& uniforms)
+	{
+		//UseProgram();
+		for (auto& [uniformName, ele] : uniforms)
+		{
+			//if (auto name = m_Shader->GetUniformLocations().find(uniformName); name != m_Shader->GetUniformLocations().end())
+			//{
 				m_Shader->SetUniform(uniformName.c_str(), ele);
 				//m_TextureList.emplace(1, 1);
-			}
+			//}
 		}
 
 		
 	}
+
+	template<typename T>
+	inline void Material::SetUniforms(const std::string& uniformName, const std::vector<T>& uniforms)
+	{
+	
+		//if (auto name = m_Shader->GetUniformLocations().find(uniformName); name != m_Shader->GetUniformLocations().end())
+		//{
+		m_Shader->SetUniform(uniformName.c_str(), uniforms);
+			
+		//}
+	
+
+	}
+
 
 	template <>
 	inline void Material::SetUniforms<std::pair<unsigned, std::pair<unsigned, unsigned>>>(
@@ -155,7 +241,6 @@ namespace GEngine
 		}
 
 	}
-
 
 
 }

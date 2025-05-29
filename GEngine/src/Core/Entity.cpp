@@ -113,32 +113,10 @@ namespace GEngine
 	void Entity::Render(CameraBase* camera)
 	{
 
-		/*if (m_Visible)
-		{
-			UseShaderProgram();
-
-			BindVAO();
-
-			SetUniforms<Mat4>({ {"uModel", GetWorldTransform()},
-							{"uView", camera->m_View},
-							{"uProjection", camera->m_Projection} });
-
-			SetUniforms<Vec3f>({ {"uCameraPos", camera->GetWorldPosition()} });
-
-			BindTexture(m_Material->GetTextureTarget());
-
-			UpdateRenderSettings();
-
-			if (m_Material->m_RenderSetting.m_RenderMode == RenderMode::Arrays) ArraysDraw();
-			else if (m_Material->m_RenderSetting.m_RenderMode == RenderMode::Elements) ElementsDraw();
-
-		}*/
-
 		auto is_visible = bool_variant(m_Visible);
 		auto is_ArraysDraw = bool_variant(m_Material->m_RenderSetting.m_RenderMode == RenderMode::Arrays);
 		auto is_ElementDraw = bool_variant(m_Material->m_RenderSetting.m_RenderMode == RenderMode::Elements);
-		//auto is_ArraysInstanceDraw = bool_variant(m_Material->m_Setting.m_RenderMode == RenderMode::ArraysInstanced);
-		//auto is_ElementsInstanceDraw = bool_variant(m_Material->m_Setting.m_RenderMode == RenderMode::ElementsInstanced);
+	
 
 		std::visit([&](auto b_visible, auto b_ArrayDraw, auto b_ElementDraw)
 		{
@@ -148,20 +126,25 @@ namespace GEngine
 
 				BindVAO();
 
-				SetUniforms<Mat4>({ {"uModel", GetWorldTransform()},
-								{"uView", camera->m_View},
-								{"uProjection", camera->m_Projection} });
+				SetUniforms<Mat4>({ {"u_model", GetWorldTransform()} ,
+								{"u_view", camera->m_View},
+								{"u_projection", camera->m_Projection} });
 
-				SetUniforms<Vec3f>({ {"uCameraPos", camera->GetWorldPosition()} });
-				//SetUniforms<bool>({ {"uUseVertexColor", false } });
-				//SetUniforms<Vec4f>({ {"uBaseColor", {1.f, 1.f, 1.f, 1.f} } });
+				SetUniforms<Vec3f>({ {"u_cameraPosition", camera->GetWorldPosition()} });
+				//SetUniforms<bool>({ {"u_useVertexColor", false } });
+				//SetUniforms<Vec4f>({ {"u_baseColor", {1.f, 1.f, 1.f, 1.f} } });
+				SetUniforms<Vec2f>({ {"u_offset", GetTextureOffset()} });
+				//BindTexture(m_Material->GetTextureTarget());
+				GetMaterial()->BindTextureUniforms();
+			
 
-				BindTexture(m_Material->GetTextureTarget());
+				GetMaterial()->UploadUniforms();
 
 				UpdateRenderSettings();
 
 				if constexpr (b_ArrayDraw) ArraysDraw();
 				else if constexpr (b_ElementDraw) ElementsDraw();
+				
 			}
 
 		}, is_visible, is_ArraysDraw, is_ElementDraw);

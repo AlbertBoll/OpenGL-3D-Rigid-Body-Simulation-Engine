@@ -7,9 +7,10 @@
 #include <GEngine/Core/BaseApp.h>
 #include <GEngine/Extras/CameraRig.h>
 #include <GEngine/Core/Log.h>
-#include <GEngine/SceneObjects/BoxEntity.h>
+#include <GEngine/Scene/BoxEntity.h>
 #include <external/imgui/imgui_internal.h>
 #include<GEngine/Math/Matrix.h>
+#include <GEngine/Core/Group.h>
 
 namespace GEngine
 {
@@ -36,7 +37,21 @@ namespace GEngine
 			ImGui::Separator();
 			ImGui::Text("%s", tag.c_str());
 			ImGui::Separator();*/
-			DrawEntityNode(p);
+		
+			if (auto it = dynamic_cast<Group<Entity>*>(p); it != nullptr)
+			{
+				auto& collection = it->GetCollections();
+				for (auto entity : collection)
+				{
+					DrawEntityNode(entity);
+				}
+			}
+
+			else
+			{
+				DrawEntityNode(p);
+			}
+			
 		}
 
 		if (ImGui::IsWindowHovered() && ImGui::IsMouseDown(0))

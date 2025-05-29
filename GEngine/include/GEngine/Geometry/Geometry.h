@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <variant>
 #include "Core/Utility.h"
+#include <Physics/Bounds.h>
 
 
 namespace GEngine
@@ -15,6 +16,9 @@ namespace GEngine
 	private:
 
 		friend class Entity;
+		friend class SpriteEntity;
+		friend struct MeshComponent;
+
 		std::unordered_map<unsigned int, std::variant<Attribute<Vec4f>,
 			Attribute<Vec3f>,
 			Attribute<Vec2f>,
@@ -39,6 +43,12 @@ namespace GEngine
 		bool b_HasRecursive = false;
 		bool b_UseIndexBuffer = false;
 
+	protected:
+		std::vector<Vec3f> m_UniquePoints;
+		
+
+		//Bounds m_Bounds;
+
 	public:
 
 		Geometry();
@@ -47,10 +57,11 @@ namespace GEngine
 
 		virtual ~Geometry();
 
-
-
+		int GetIndicesCount()const { return m_IndicesCount; }
+		int GetVerticesCount()const { return m_VertexCount; }
+		bool IsUsingIndexBuffer()const { return b_UseIndexBuffer; }
 		void CountVertices();
-
+		unsigned int GetVAO()const { return m_Vao; }
 		void BindVAO()const;
 		void UnBindVAO()const;
 
@@ -58,17 +69,23 @@ namespace GEngine
 
 		auto& GetAttributes() { return m_Attributes; }
 
+
 		template<typename Attrib>
 		void AddAttributes(const Attrib& data);
 
 		template<typename Attrib, typename... Attribs>
 		void AddAttributes(const Attrib& data, const Attribs&... rest);
-
+		void AddEntityID(int entityID);
+	
 		void ApplyTransform(const Mat4& transform, unsigned int location = 0, bool bNormal = false);
 
 		void Merge(Geometry* otherGeo);
 
-		//virtual Geometry* Create() = 0;
+		//std::vector<Vec3f> GetPoints()
+		Bounds BuildBounds(const std::vector<Vec3f>& pts);
+		//Bounds GetBounds()const { return m_Bounds; }
+		std::vector<Vec3f> GetPoints(const Vec3f& scale = {1, 1, 1});
+		std::vector<Vec3f> GetUniquePoints(const Vec3f& scale = { 1, 1, 1 });
 	};
 
 

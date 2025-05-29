@@ -55,6 +55,31 @@ namespace GEngine::Math
 			return glm::scale(glm::mat4(1.0f), { s, s, s });
 		}
 
+		static Vec3f GetTranslation(const Mat4& invView)
+		{
+			return { invView[3][0], invView[3][1], invView[3][2] };
+		}
+
+
+		static Vec3f GetZAxis(const Mat4& invView)
+		{
+			return glm::normalize(Vec3f{ invView[2][0], invView[2][1], invView[2][2] });
+		
+		}
+
+
+		static Vec3f GetXAxis(const Mat4& invView)
+		{
+			return glm::normalize(Vec3f{ invView[0][0], invView[0][1], invView[0][2] });
+
+		}
+
+		static Vec3f GetYAxis(const Mat4& invView)
+		{
+			return glm::normalize(Vec3f{ invView[1][0], invView[1][1], invView[1][2] });
+
+		}
+
 		static glm::mat4 MakeScale(const Vec3f& scale)
 		{
 			return glm::scale(glm::mat4(1.0f), scale);
@@ -233,6 +258,7 @@ namespace GEngine::Math
 			Result[3][0] = -dot(s, eye);
 			Result[3][1] = -dot(u, eye);
 			Result[3][2] = dot(f, eye);
+			
 			return Result;
 
 		}

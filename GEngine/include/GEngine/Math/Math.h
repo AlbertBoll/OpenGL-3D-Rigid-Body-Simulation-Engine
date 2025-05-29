@@ -3,6 +3,8 @@
 #include "glm/glm.hpp"
 #include "glm/gtc/quaternion.hpp"
 #include <glm/gtx/quaternion.hpp>
+#include <vector>
+#include <iostream>
 
 namespace GEngine
 {
@@ -59,6 +61,93 @@ namespace GEngine
 				return false;
 			}
 		}
+
+		inline Mat3 Minor(const Mat4& rows, const int i, const int j)
+		{
+			Mat3 minor;
+
+			int yy = 0;
+			for (int y = 0; y < 4; y++) {
+				if (y == j) {
+					continue;
+				}
+
+				int xx = 0;
+				for (int x = 0; x < 4; x++) {
+					if (x == i) {
+						continue;
+					}
+
+					minor[yy][xx] = rows[y][x];
+					xx++;
+				}
+
+				yy++;
+			}
+			return minor;
+		}
+
+		inline float Cofactor(const Mat4& rows, const int i, const int j) 
+		{
+			const Mat3 minor = Minor(rows, i, j);
+			const float C = float(pow(-1, i + 1 + j + 1)) * glm::determinant(minor); //minor.Determinant();
+			return C;
+		}
+
+		inline float BarryCentric(Vec3f p1, Vec3f p2, Vec3f p3, Vec2f pos)
+		{
+			float det = (p2.z - p3.z) * (p1.x - p3.x) + (p3.x - p2.x) * (p1.z - p3.z);
+			float l1 = ((p2.z - p3.z) * (pos.x - p3.x) + (p3.x - p2.x) * (pos.y - p3.z)) / det;
+			float l2 = ((p3.z - p1.z) * (pos.x - p3.x) + (p1.x - p3.x) * (pos.y - p3.z)) / det;
+			float l3 = 1.0f - l1 - l2;
+			return l1 * p1.y + l2 * p2.y + l3 * p3.y;
+		}
+
+
+		inline bool IsValid(const Vec3f& vec) 
+		{
+			if (vec.x * 0.0f != vec.x * 0.0f) 
+			{
+				return false;
+			}
+
+			if (vec.y * 0.0f != vec.y * 0.0f) 
+			{
+				return false;
+			}
+
+			if (vec.z * 0.0f != vec.z * 0.0f) 
+			{
+				return false;
+			}
+
+			return true;
+		}
+
+		inline void GetOrtho(const Vec3f& n, Vec3f& u, Vec3f& v) 
+		{
+			// Get the orthonormal basis for the normal vectorVec3f
+		/*	Vec3f n_{};
+			if (glm::length(n) >= 0.000001f)
+			{
+				n_ = glm::normalize(n);
+			}
+			else
+			{
+				n_ = n;
+			}*/
+			Vec3f n_ = glm::normalize(n);
+		
+			//const Vec3f w = (n_.z * n_.z > 0.9f * 0.9f) ? Vec3f(1, 0, 0) : Vec3f(0, 0, 1);
+			const Vec3f w = (n_.y * n_.y > 0.9f * 0.9f) ? Vec3f(1, 0, 0) : Vec3f(0, 1, 0);
+			u = glm::normalize(glm::cross(w, n_));
+
+			v = glm::normalize(glm::cross(n_, u));
+
+			u = glm::normalize(glm::cross(v, n_));
+		
+		}
+
 
 		template <typename T>
 		T Max(const T& a, const T& b)
@@ -257,7 +346,7 @@ namespace GEngine
 			// Transform vector by matrix
 			static Vector2 Transform(const Vector2& vec, const class Matrix3& mat, float w = 1.0f);
 
-			static const Vector2 Zero;
+			//static const Vector2 Zero;
 			static const Vector2 Zero;
 			static const Vector2 UnitX;
 			static const Vector2 UnitY;
@@ -800,6 +889,10 @@ namespace GEngine
 				return Matrix4(temp);
 			}
 
+		
+				
+
+
 			// Create a rotation matrix from a quaternion
 			static Matrix4 CreateFromQuaternion(const class Quaternion& q);
 
@@ -1037,7 +1130,359 @@ namespace GEngine
 			static const Quaternion Identity;
 		};
 
-	}
+
+		template<size_t N>
+		class Vec
+		{
+		public:
+			Vec(): m_N(N), m_Data(N) {}	// default constructor
+			Vec(const Vec& rhs);
+			Vec& operator = (const Vec& rhs);
+			Vec& operator = (const std::vector<float>& rhs);
+			Vec(const std::vector<float>& rhs) : m_N(N), m_Data(rhs) {}	// constructor from vector
+
+
+			float  operator[] (const int idx) const { return m_Data[idx]; }
+			float& operator[] (const int idx) { return m_Data[idx]; }
+			const Vec& operator *= (float rhs);
+			Vec			operator * (float rhs) const;
+			Vec			operator + (const Vec& rhs) const;
+			Vec			operator - (const Vec& rhs) const;
+			const Vec& operator += (const Vec& rhs);
+			const Vec& operator -= (const Vec& rhs);
+
+			float Dot(const Vec& rhs) const;
+			void Zero();
+
+		public:
+			size_t m_N{N};
+			std::vector<float> m_Data;
+		};
+
+
+		template<size_t N>
+		inline Vec<N>::Vec(const Vec& rhs)
+		{
+			m_N = rhs.m_N;
+			m_Data = rhs.m_Data;
+		}
+
+		template<size_t N>
+		inline Vec<N>& Vec<N>::operator=(const Vec& rhs)
+		{
+			m_N = rhs.m_N;
+			m_Data = rhs.m_Data;
+			return *this;
+		}
+
+		template<size_t N>
+		inline Vec<N>& Vec<N>::operator=(const std::vector<float>& rhs)
+		{
+			m_N = rhs.size();
+			m_Data = rhs;
+			return *this;
+		}
+
+		template<size_t N>
+		inline const Vec<N>& Vec<N>::operator*=(float rhs)
+		{
+			for (size_t i = 0; i < m_N; ++i)
+			{
+				m_Data[i] *= rhs;
+			}
+			return *this;
+		}
+
+		template<size_t N>
+		inline Vec<N> Vec<N>::operator*(float rhs) const
+		{
+			Vec<N> retVal = *this;
+			retVal *= rhs;
+			return retVal;
+		}
+
+		template<size_t N>
+		inline Vec<N> Vec<N>::operator+(const Vec& rhs) const
+		{
+			Vec<N> retVal = *this;
+			retVal += rhs;
+			return retVal;
+		}
+
+		template<size_t N>
+		inline Vec<N> Vec<N>::operator-(const Vec& rhs) const
+		{
+			Vec<N> retVal = *this;
+			retVal -= rhs;
+			return retVal;
+		}
+
+		template<size_t N>
+		inline const Vec<N>& Vec<N>::operator+=(const Vec& rhs)
+		{
+			for (int i = 0; i < m_N; i++) {
+				m_Data[i] += rhs.m_Data[i];
+			}
+			return *this;
+		}
+
+		template<size_t N>
+		inline const Vec<N>& Vec<N>::operator-=(const Vec& rhs)
+		{
+			for (int i = 0; i < m_N; i++) {
+				m_Data[i] -= rhs.m_Data[i];
+			}
+			return *this;
+		}
+
+		template<size_t N>
+		inline float Vec<N>::Dot(const Vec& rhs) const
+		{
+			float sum = 0;
+			for (int i = 0; i < N; i++) {
+				sum += m_Data[i] * rhs.m_Data[i];
+			}
+			return sum;
+		}
+
+		template<size_t N>
+		inline void Vec<N>::Zero()
+		{
+			std::fill(m_Data.begin(), m_Data.end(), 0.f);
+		}
+
+		template<size_t M, size_t N>
+		class Mat
+		{
+		public:
+			Mat() : m_NumOfRow(M), m_NumOfColumn(N), m_Data(M) {}	// default constructor
+
+			Mat(const Mat& rhs) {
+				*this = rhs;
+			}
+
+			Vec<N> operator[] (const int idx) const { return m_Data[idx]; }
+			Vec<N>& operator[] (const int idx) { return m_Data[idx]; }
+
+			const Mat& operator = (const Mat& rhs);
+			const Mat& operator *= (float rhs);
+
+			Vec<M> operator * (const Vec<N>& rhs) const;
+
+			template<size_t RC>
+			Mat<M, RC> operator * (const Mat<N, RC>& rhs) const;
+			Mat operator * (float rhs) const;
+
+			void Zero();
+			Mat<N, M> Transpose() const;
+
+		public:
+			size_t m_NumOfRow{M};	// M rows
+			size_t m_NumOfColumn{N};	// N columns
+			std::vector<Vec<N>> m_Data{M};
+		};
+
+		/*template<size_t N>
+		class Mat 
+		{
+		public:
+			Mat() = default;
+			Mat(const Mat& rhs) {
+				*this = rhs;
+			}
+			~Mat() {}
+
+			const Mat& operator = (const Mat& rhs);
+			
+			void Identity();
+			void Zero();
+			void Transpose();
+
+			void operator *= (float rhs);
+			Vec<N> operator * (const Vec<N>& rhs);
+			Mat operator * (const Mat& rhs);
+
+		public:
+			size_t m_Dimension{N};
+			std::vector<Vec<N>> m_Rows{N};
+		};*/
+
+
+		template<size_t M, size_t N>
+		inline const Mat<M, N>& Mat<M, N>::operator=(const Mat& rhs)
+		{
+			// TODO: insert return statement here
+			m_NumOfRow = rhs.m_NumOfRow;
+			m_NumOfColumn = rhs.m_NumOfColumn;
+			m_Data = rhs.m_Data;
+			return *this;
+		}
+
+		template<size_t M, size_t N>
+		inline const Mat<M, N>& Mat<M, N>::operator*=(float rhs)
+		{
+			for (int m = 0; m < M; m++) {
+				m_Data[m] *= rhs;
+			}
+			return *this;
+		}
+
+		template<size_t M, size_t N>
+		inline Vec<M> Mat<M, N>::operator*(const Vec<N>& rhs) const
+		{
+			Vec<M> retVal{};
+			for (int m = 0; m < M; m++) {
+				retVal[m] = m_Data[m].Dot(rhs);
+			}
+			return retVal;
+		}
+
+		template<size_t M, size_t N>
+		inline Mat<M, N> Mat<M, N>::operator*(float rhs) const
+		{
+			Mat<M, N> retVal = *this;
+			retVal *= rhs;
+			return retVal;
+		}
+
+		template<size_t M, size_t N>
+		inline void Mat<M, N>::Zero()
+		{
+			for (int i = 0; i < M; i++)
+			{
+				m_Data[i].Zero();
+			}
+		}
+
+		template<size_t M, size_t N>
+		inline Mat<N, M> Mat<M, N>::Transpose() const
+		{
+			Mat<N, M> retVal;
+			for (int i = 0; i < N; i++)
+			{
+				for (int j = 0; j < M; j++)
+				{
+					retVal.m_Data[i][j] = m_Data[j][i];
+				}
+			}
+
+			return retVal;
+		}
+
+	
+
+		template<size_t M, size_t N>
+		template<size_t RC>
+		inline Mat<M, RC> Mat<M, N>::operator*(const Mat<N, RC>& rhs) const
+		{
+			Mat<M, RC> retVal;
+			Mat<RC, N> tranposedRHS = rhs.Transpose();
+			for (int m = 0; m < M; m++)
+			{
+				for (int j = 0; j < RC; j++)
+				{
+					retVal[m][j] = m_Data[m].Dot(tranposedRHS.m_Data[j]);
+				}
+			}
+			return retVal;
+		}
+
+		template<size_t N>
+		using MatN = Mat<N, N>;
+
+		template<size_t dim, size_t size>
+		Vec<size> LCP_GaussSeidel(const Mat<dim, dim>& A, const Vec<size>& b) {
+			//const int N = b.m_N;
+			Vec<size> x{};
+			x.Zero();
+
+			for (int iter = 0; iter < size; iter++) {
+				for (int i = 0; i < size; i++) {
+					float dx = (b[i] - A[i].Dot(x)) / A[i][i];
+					if (dx * 0.0f == dx * 0.0f) {
+						x[i] = x[i] + dx;
+					}
+				}
+			}
+			return x;
+		}
+
+		template<size_t dim, size_t size>
+		Vec<size> LCP_GaussSeidelVerbose(const Mat<dim, dim>& A, const Vec<size>& b) {
+			//const int N = b.m_N;
+			Vec<size> x{};
+			x.Zero();
+
+			for (int iter = 0; iter < 5; iter++) {
+				printf("Iteration %d: ", iter);
+				for (int i = 0; i < size; i++) {
+					float dx = (b[i] - A[i].Dot(x)) / A[i][i];
+					if (dx * 0.0f == dx * 0.0f) {
+						x[i] = x[i] + dx;
+					}
+					printf("%.2f ", x[i]);
+				}
+				printf("\n");
+			}
+			return x;
+		}
+
+		inline bool are_same_point(const Vec3f& a, const Vec3f& b) {
+			double epsilon = 1e-6;
+			return std::fabs(a.x - b.x) < epsilon && std::fabs(a.y - b.y) < epsilon && std::fabs(a.z - b.z);
+		}
+
+		inline std::vector<Vec3f> GenerateDiamond()
+		{
+			std::vector<Vec3f> Diamond(56, { 0, 0, 0 });
+			Vec3f pts[4 + 4];
+			/*pts[0] = Vec3f(0.1f, 0, -1);
+			pts[1] = Vec3f(1, 0, 0);
+			pts[2] = Vec3f(1, 0, 0.1f);
+			pts[3] = Vec3f(0.4f, 0, 0.4f);*/
+			pts[0] = Vec3f(0.1f, -1.f, 0);
+			pts[1] = Vec3f(1, 0, 0);
+			pts[2] = Vec3f(1, 0.1f, 0.f);
+			pts[3] = Vec3f(0.4f, 0.4f, 0.f);
+
+			const float pi = acosf(-1.0f);
+			const Quat quatHalf = glm::angleAxis(2.0f * pi * 0.125f * 0.5f, Vec3f{ 0, 1, 0 });
+			pts[4] = Vec3f(0.8f, 0.3f, 0.f);
+			/*pts[4] = glm::transpose(glm::toMat3(quatHalf)) * pts[4];
+			pts[5] = glm::transpose(glm::toMat3(quatHalf)) * pts[1];
+			pts[6] = glm::transpose(glm::toMat3(quatHalf)) * pts[2];*/
+			pts[4] = glm::toMat3(quatHalf) * pts[4];
+			pts[5] = glm::toMat3(quatHalf) * pts[1];
+			pts[6] = glm::toMat3(quatHalf) * pts[2];
+
+			const Quat quat = glm::angleAxis(2.0f * pi * 0.125f, Vec3f{ 0, 1, 0 });
+			int idx = 0;
+			for (int i = 0; i < 7; i++) {
+				Diamond[idx] = pts[i];
+				idx++;
+			}
+
+			Quat quatAccumulator{ 1, 0, 0, 0 };
+			for (int i = 1; i < 8; i++)
+			{
+				quatAccumulator = quatAccumulator * quat;
+				for (int pt = 0; pt < 7; pt++) {
+					//Diamond[idx] = glm::transpose(glm::toMat3(quatAccumulator)) * pts[pt];
+					Diamond[idx] = glm::toMat3(quatAccumulator) * pts[pt];
+					idx++;
+				}
+			}
+
+			return Diamond;
+		}
+
+		inline unsigned char FloatToByte_n11(const float f) {
+			int i = (int)(f * 127 + 128);
+			return (unsigned char)i;
+		}
+
+}		
+		
 
 
 	namespace Color

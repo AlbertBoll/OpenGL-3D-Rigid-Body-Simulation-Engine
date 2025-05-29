@@ -116,7 +116,16 @@ namespace GEngine
 		
 		void UnregisterEvent(const std::string& eventName)
 		{
+			//auto events = m_EventCallBackList.find(eventName);
+			//m_EventCallBackList.find(eventName);
+			
+			for (auto [itr, rangeEnd] = m_EventCallBackList.equal_range(eventName); itr != rangeEnd; ++itr)
+			{
+				delete itr->second;
+			}
+
 			m_EventCallBackList.erase(eventName);
+			
 		}
 
 

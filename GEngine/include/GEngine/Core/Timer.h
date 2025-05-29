@@ -10,7 +10,7 @@ namespace GEngine
 	public:
 		Timer() { Reset(); }
 
-		~Timer() { std::cout << ElapsedSeconds() << "s" << std::endl; }
+		~Timer() { std::cout << ElapsedMilliSeconds() << "ms" << std::endl; }
 
 		void Reset()
 		{
@@ -19,19 +19,28 @@ namespace GEngine
 
 		float Elapsed() const
 		{
-			return static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - m_Start).count());
+			return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - m_Start).count() * 0.001f * 0.001f * 0.001f;
+		}
+
+		float ElapsedMilliSeconds() const
+		{
+			return Elapsed() * 1000.0f;
 		}
 
 		float ElapsedSeconds() const
 		{
-			return Elapsed() / 1000.f;
+			return ElapsedMilliSeconds() * 1000.0f;
 		}
 
 	private:
 		std::chrono::time_point<std::chrono::high_resolution_clock> m_Start;
+
 	};
 
 #define Timeit(x) std::cout<<#x<<": ";\
+Timer timer;
+
+#define Timeit_()\
 Timer timer;
 
 }

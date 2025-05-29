@@ -2,9 +2,4 @@
 #include "Camera/Camera.h"
 
 
-namespace GEngine::Camera
-{
 
-
-
-}

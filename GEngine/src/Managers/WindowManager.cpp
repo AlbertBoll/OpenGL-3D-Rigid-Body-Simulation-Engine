@@ -14,6 +14,8 @@ namespace GEngine::Manager
 				p.second->ShutDown();
 			}
 		}
+
+		m_Windows.clear();
 	}
 
 	ScopedPtr<WindowManager> WindowManager::GetScopedInstance()
@@ -75,7 +77,7 @@ namespace GEngine::Manager
 		m_Windows.erase(ID);
 		/*if (--m_NumOfWindows == 0)
 		{
-			SDLWindow::FreeContext();
+			FreeContext();
 			
 		}*/
 	}

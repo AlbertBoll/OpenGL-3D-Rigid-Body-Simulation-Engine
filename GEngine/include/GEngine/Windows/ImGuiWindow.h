@@ -14,11 +14,11 @@ namespace GEngine
 
 	class SDLWindow;
 
-	class ImGuiWindow
+	class ImGuiWindow_
 	{
 	public:
-		ImGuiWindow() {}
-		~ImGuiWindow() { ShutDown(); };
+		ImGuiWindow_() {}
+		~ImGuiWindow_() { ShutDown(); };
 
 		void Initialize(SDLWindow* window, const ImGuiWindowProperties& ImGuiWindowProps = ImGuiWindowProperties{});
 		void ShutDown();

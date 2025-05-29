@@ -45,6 +45,19 @@ namespace GEngine::Shape
 				vertexNormalData.insert(vertexNormalData.end(), { normal, normal, normal, normal, normal, normal });
 			}
 
+			m_UniquePoints = positionData;
+			std::sort(m_UniquePoints.begin(), m_UniquePoints.end(), [](const Vec3f& a, const Vec3f& b) {
+				if (a.x != b.x)
+					return a.x < b.x;
+				else if (a.y != b.y)
+					return a.y < b.y;
+				else
+					return a.z < b.z;
+				});
+
+			auto last = std::unique(m_UniquePoints.begin(), m_UniquePoints.end(), are_same_point);
+			m_UniquePoints.erase(last, m_UniquePoints.end());
+
 			AddAttributes(positionData, colorData, uvData, vertexNormalData);
 			UnBindVAO();
 		}

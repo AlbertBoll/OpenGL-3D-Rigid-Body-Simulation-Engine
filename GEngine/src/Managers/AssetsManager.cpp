@@ -5,7 +5,10 @@
 
 namespace GEngine::Manager
 {
-	Asset::Texture* AssetsManager::GetTexture(const std::string& texture_file, 
+	static std::string image_base_dir = "../GEngine/include/GEngine/Assets/Images/";
+	static std::string image_extension = ".png";
+
+	Asset::Texture* AssetsManager::GetTexture(const std::string& imageFilePath, 
 									   const std::string& uniform_name,
 									   const std::string& extension, 
 									   const Asset::TextureInfo& info)
@@ -15,22 +18,41 @@ namespace GEngine::Manager
 			return nullptr;
 		}*/
 
-		if (auto it = m_TextureMap.find(texture_file); it != m_TextureMap.end())
+		std::string image_dir = !info.b_CubeMap? image_base_dir + imageFilePath + extension: image_base_dir + imageFilePath;
+
+		//std::string image_dir = image_base_dir + imageFilePath + image_extension;
+
+		if (auto it = m_TextureMap.find(image_dir); it != m_TextureMap.end())
 		{
 			return it->second;
 		}
 
-		Asset::Texture* new_Texture = new(std::nothrow) Asset::Texture(texture_file, extension, info);
+		Asset::Texture* new_Texture = new(std::nothrow) Asset::Texture(image_dir, extension, info);
 		ASSERT(new_Texture);
 
 		if (!uniform_name.empty()) new_Texture->SetUniformName(uniform_name);
 
-		m_TextureMap.emplace(texture_file, new_Texture);
+		m_TextureMap.emplace(imageFilePath, new_Texture);
 
 		return new_Texture;
 
 
 
+	}
+
+	Asset::Texture* AssetsManager::GetCascadedFrameBufferTexture(const CascadeShadowFrameBuffer& fb, const std::string& uniform_name)
+	{
+		if (auto it = m_FrameBufferTextures.find(FrameBufferMapType::CascadedShadowMap); it != m_FrameBufferTextures.end())
+		{
+			return it->second;
+		}
+
+		Asset::TextureInfo info;
+		info.m_TextureSpec.m_TexTarget = GL_TEXTURE_2D_ARRAY;
+		auto* new_texture = new(std::nothrow) Asset::Texture(fb.GetLightDepthMaps(), info, uniform_name);
+		ASSERT(new_texture);
+		m_FrameBufferTextures.emplace(FrameBufferMapType::CascadedShadowMap, new_texture);
+		return new_texture;
 	}
 
 	Asset::Texture* AssetsManager::GetTextTexture(const std::string& str,

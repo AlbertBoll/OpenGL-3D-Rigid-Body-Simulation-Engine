@@ -24,6 +24,7 @@
 #include <chrono>
 #include <iostream>
 #include <functional>
+
 #include "sdl2/SDL.h"
 #include <sdl2/SDL_ttf.h>
 #include <fstream>

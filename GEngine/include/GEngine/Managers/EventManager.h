@@ -4,68 +4,74 @@
 
 union SDL_Event;
 
-namespace GEngine::Manager
+namespace GEngine
 {
-
-	struct MouseScrollWheelParam
+	namespace Manager
 	{
-		unsigned int ID;
-		float X;
-		float Y;
-	};
+		struct MouseScrollWheelParam
+		{
+			unsigned int ID;
+			float X;
+			float Y;
+		};
 
 
-	struct MouseMoveParam
-	{
-		unsigned int ID;
-		int32_t XPos;
-		int32_t YPos;
-	};
+		struct MouseMoveParam
+		{
+			unsigned int ID;
+			int32_t XPos;
+			int32_t YPos;
+			int32_t XRel;
+			int32_t YRel;
+		};
 
-	struct MouseButtonParam
-	{
+		struct MouseButtonParam
+		{
 
-		unsigned int ID;
-		int32_t X;
-		int32_t Y;
-		uint8_t Button;
-		uint8_t Clicks;
-	};
+			unsigned int ID;
+			int32_t X;
+			int32_t Y;
+			uint8_t Button;
+			uint8_t Clicks;
+		};
 
-	struct WindowCloseParam
-	{
+		struct WindowCloseParam
+		{
 
-		unsigned int ID;
-	};
-
-
-	struct WindowResizeParam
-	{
-		unsigned int ID;
-		int Width;
-		int Height;
-	};
+			unsigned int ID;
+		};
 
 
-	class EventManager: ManagerBase<EventManager>
-	{
-		friend class ManagerBase<EventManager>;
+		struct WindowResizeParam
+		{
+			unsigned int ID;
+			int Width;
+			int Height;
+		};
 
 
-	public:
-		static ScopedPtr<EventManager> GetScopedInstance();
-		void Initialize();
-		void OnEvent(SDL_Event& e);
-		EventDispatcher& GetEventDispatcher() { return m_EventDispatcher; }
+		class EventManager : ManagerBase<EventManager>
+		{
+			friend class ManagerBase<EventManager>;
 
-	private:
-		friend class GEngine;
-		EventManager() = default;
-	
-	private:
-		EventDispatcher m_EventDispatcher;
 
-	
-	};
+		public:
+			EventManager() = default;
+			static ScopedPtr<EventManager> GetScopedInstance();
+			void Initialize();
+			void OnEvent(SDL_Event& e);
+			EventDispatcher& GetEventDispatcher() { return m_EventDispatcher; }
+
+		private:
+			friend class GEngine;
+			//EventManager() = default;
+
+		private:
+			EventDispatcher m_EventDispatcher;
+
+
+		};
+
+	}
 
 }

@@ -63,6 +63,28 @@ namespace GEngine::Manager
                 return ButtonState::Held;
     }
 
+    void MouseState::SetCursorMode(CursorMode mode)
+    {
+
+        auto input = BaseApp::GetEngine().GetInputManager();
+        switch (mode)
+        {
+        case CursorMode::NORMAL:
+            input->SetRelativeMouseMode(false);
+            //SDL_ShowCursor(SDL_ENABLE);
+            break;
+        case CursorMode::HIDDEN:
+            input->SetRelativeMouseMode(true);
+            break;
+        case CursorMode::LOCKED:
+            input->SetRelativeMouseMode(true);
+            //SDL_SetWindowGrab
+            //SDL_ShowCursor(SDL_DISABLE);
+            break;
+        }
+
+    }
+
 
 
 
@@ -109,6 +131,7 @@ namespace GEngine::Manager
 
     void InputManager::Initialize()
     {
+
         // Keyboard
         // Assign current state pointer
         m_InputState.m_Keyboard.m_CurrentState = SDL_GetKeyboardState(nullptr);
@@ -165,27 +188,44 @@ namespace GEngine::Manager
     void InputManager::Update()
     {
 
-       int x = 0, y = 0;
-       
+        int x = 0;
+        int y = 0;
+
         if (m_InputState.m_Mouse.m_IsRelative)
         {
-          
-                m_InputState.m_Mouse.m_CurrentButtons =
-                    SDL_GetRelativeMouseState(&x, &y);
+
+            m_InputState.m_Mouse.m_CurrentButtons =
+                SDL_GetRelativeMouseState(&x, &y);
+            m_InputState.m_Mouse.m_XRel = x;
+            m_InputState.m_Mouse.m_YRel = y;
+            if (m_SDLWindow->GetSDLWindow())
+            {
+                SDL_SetWindowGrab(m_SDLWindow->GetSDLWindow(), SDL_TRUE);
+            }
+                
         }
 
-       else
+        else
         {
             m_InputState.m_Mouse.m_CurrentButtons =
                 SDL_GetMouseState(&x, &y);
-        }
-        
+            m_InputState.m_Mouse.m_MousePos.x = x;
+            m_InputState.m_Mouse.m_MousePos.y = y;
 
-        m_InputState.m_Mouse.m_MousePos.x = static_cast<float>(x);
-        m_InputState.m_Mouse.m_MousePos.y = static_cast<float>(y);
+            if (m_SDLWindow->GetSDLWindow())
+            {
+                SDL_SetWindowGrab(m_SDLWindow->GetSDLWindow(), SDL_FALSE);
+            }
 
-        // Controller
-        // Buttons
+         }
+
+
+
+         /*  m_InputState.m_Mouse.m_MousePos.x = static_cast<float>(x);
+           m_InputState.m_Mouse.m_MousePos.y = static_cast<float>(y);*/
+
+           // Controller
+           // Buttons
         if (m_InputState.m_Controller.m_IsConnected)
         {
             for (int i = 0; i < GENGINE_CONTROLLER_BUTTON_MAX; i++)
@@ -217,8 +257,9 @@ namespace GEngine::Manager
             m_InputState.m_Controller.m_RightStick = Filter2D(x, y);
 
         }
-    }
+        
 
+    }
 
     void InputManager::ProcessEvent(SDL_Event& event)
     {
@@ -284,7 +325,7 @@ namespace GEngine::Manager
         if (length < deadZone)
         {
             //dir = Vector2::Zero;
-            dir = Vector2{0.f, 0.f};
+            dir = Vector2{ 0.f, 0.f };
         }
         else
         {

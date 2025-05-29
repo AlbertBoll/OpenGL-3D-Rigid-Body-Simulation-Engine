@@ -13,7 +13,7 @@ static std::string bold_dir = "../GEngine/include/GEngine/Assets/Fonts/OpenSans-
 namespace GEngine
 {
 	using namespace Input::Key;
-	void ImGuiWindow::Initialize(SDLWindow* window, const ImGuiWindowProperties& ImGuiWindowProps)
+	void ImGuiWindow_::Initialize(SDLWindow* window, const ImGuiWindowProperties& ImGuiWindowProps)
 	{
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
@@ -78,19 +78,19 @@ namespace GEngine
 	
 	}
 
-	void ImGuiWindow::ShutDown()
+	void ImGuiWindow_::ShutDown()
 	{
 		ImGui_ImplOpenGL3_Shutdown();
 		ImGui_ImplSDL2_Shutdown();
 		ImGui::DestroyContext();
 	}
 
-	bool ImGuiWindow::HandleSDLEvent(SDL_Event& e)
+	bool ImGuiWindow_::HandleSDLEvent(SDL_Event& e)
 	{
 		return ImGui_ImplSDL2_ProcessEvent(&e);
 	}
 
-	void ImGuiWindow::BeginRender(SDLWindow* window)
+	void ImGuiWindow_::BeginRender(SDLWindow* window)
 	{
 		ImGuiIO& io = ImGui::GetIO();
 		io.DisplaySize = ImVec2{ static_cast<float>(window->GetScreenWidth()), static_cast<float>(window->GetScreenHeight()) };
@@ -102,7 +102,7 @@ namespace GEngine
 		ImGuizmo::BeginFrame();
 	}
 
-	void ImGuiWindow::EndRender(SDLWindow* window)
+	void ImGuiWindow_::EndRender(SDLWindow* window)
 	{
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -117,7 +117,7 @@ namespace GEngine
 		}
 	}
 
-	void ImGuiWindow::SetDarkThemeColors()
+	void ImGuiWindow_::SetDarkThemeColors()
 	{
 		auto& colors = ImGui::GetStyle().Colors;
 		colors[ImGuiCol_WindowBg] = ImVec4{ 0.1f, 0.105f, 0.11f, 1.0f };
@@ -150,12 +150,12 @@ namespace GEngine
 		colors[ImGuiCol_TitleBgCollapsed] = ImVec4{ 0.15f, 0.1505f, 0.151f, 1.0f };
 	}
 
-	bool ImGuiWindow::WantCaptureMouse()
+	bool ImGuiWindow_::WantCaptureMouse()
 	{
 		return ImGui::GetIO().WantCaptureMouse;
 	}
 
-	bool ImGuiWindow::WantCaptureKeyBoard()
+	bool ImGuiWindow_::WantCaptureKeyBoard()
 	{
 		return ImGui::GetIO().WantCaptureKeyboard;
 	}

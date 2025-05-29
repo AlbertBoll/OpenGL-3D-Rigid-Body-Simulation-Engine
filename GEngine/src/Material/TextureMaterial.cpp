@@ -17,8 +17,8 @@ namespace GEngine
 		SetRenderSettings(setting);
 
 		UseProgram();
-		SetUniforms<std::pair<GLuint, std::pair<GLuint, GLuint>>>({ {"uTexture", {m_RenderSetting.m_TexTarget, {texture.GetTextureID(), 1}} } });
-		SetUniforms<Vec3f>({ {"uBaseColor", {1.0f, 1.0f, 1.0f}} });
+		SetUniforms<std::pair<GLuint, std::pair<GLuint, GLuint>>>({ {"u_texture", {m_RenderSetting.m_TexTarget, {texture.GetTextureID(), 1}} } });
+		SetUniforms<Vec3f>({ {"u_baseColor", {1.0f, 1.0f, 1.0f}} });
 		
 		UpdateRenderSettings();
 

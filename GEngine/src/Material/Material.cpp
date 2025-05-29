@@ -2,6 +2,7 @@
 #include <Assets/Shaders/Shader.h>
 #include "Material/Material.h"
 #include "Managers/ShaderManager.h"
+#include <Core/Actor.h>
 
 
 namespace GEngine

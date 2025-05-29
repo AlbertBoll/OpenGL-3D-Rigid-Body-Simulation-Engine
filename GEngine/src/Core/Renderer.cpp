@@ -19,38 +19,23 @@ namespace GEngine
 	void Renderer::Initialize(const Math::Vec3f& clearColor)
 	{
 
-		//GENGINE_CORE_INFO("OpenGL Info:\n  \t\t\t\t  Vendor: {}\n  \t\t\t        Renderer: {}\n  \t\t\t         Version: {}", (const char*)glGetString(GL_VENDOR), 
-																															  //(const char*)glGetString(GL_RENDERER), 
-																															  //(const char*)glGetString(GL_VERSION));
-		//auto& engine = BaseApp::GetEngine();
-		//auto& windows = engine.GetWindowManager()->GetWindows();
-		//auto window = engine.GetWindowManager()->GetInternalWindow(1);
-		//window->BeginRender();
-
+		GENGINE_CORE_INFO("OpenGL Info:\n  \t\t\t\t  Vendor: {}\n  \t\t\t        Renderer: {}\n  \t\t\t         Version: {}", (const char*)glGetString(GL_VENDOR), 
+																															  (const char*)glGetString(GL_RENDERER), 
+																															  (const char*)glGetString(GL_VERSION));
 		//enable depth test
 		glEnable(GL_DEPTH_TEST);
-
+		glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 		//enable blending
+
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 		//Enable multi-sampling
 		glEnable(GL_MULTISAMPLE);
-		//auto window = windows[1];
-		//for (auto& [windowID, window] : windows)
-		//{
-		//	//enable depth test
-		//	glEnable(GL_DEPTH_TEST);
-
-		//	//enable blending
-		//	glEnable(GL_BLEND);
-		//	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-		//	//Enable multi-sampling
-		//	glEnable(GL_MULTISAMPLE);
+	
 
 		glClearColor(clearColor.r, clearColor.g, clearColor.b, 1.0f);
-		//}
+		
 	
 	}
 
@@ -69,12 +54,12 @@ namespace GEngine
 
 	void Renderer::Clear()
 	{
-		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+		glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	}
 
 
-	void Renderer::RenderBegin(CameraBase* camera, Window* window, bool bClearColor, bool bClearDepth, RenderTarget* target)
+	/*void Renderer::RenderBegin(CameraBase* camera, Window* window, bool bClearColor, bool bClearDepth, RenderTarget* target)
 	{
 		if (!target)
 		{
@@ -93,7 +78,7 @@ namespace GEngine
 		if (bClearDepth) glClear(GL_DEPTH_BUFFER_BIT);
 
 		camera->OnUpdateView();
-	}
+	}*/
 
 	void Renderer::RenderBegin(CameraBase* camera, RenderTarget* target)
 	{
@@ -109,7 +94,9 @@ namespace GEngine
 			glViewport(0, 0, target->GetWidth(), target->GetHeight());
 		}
 
-		camera->OnUpdateView();
+		if(camera)
+			camera->OnUpdateView();
+	
 	}
 
 	void Renderer::RenderBegin(CameraBase* camera, bool bClearColor, bool bClearDepth, RenderTarget* target)
@@ -129,12 +116,14 @@ namespace GEngine
 		if (bClearColor) glClear(GL_COLOR_BUFFER_BIT);
 		if (bClearDepth) glClear(GL_DEPTH_BUFFER_BIT);
 
-		camera->OnUpdateView();
+		if (camera)
+			camera->OnUpdateView();
 	}
 
 	void Renderer::RenderScene(Actor* scene, CameraBase* camera)
 	{
 		Render(scene, camera);
+		glDepthFunc(GL_LESS);
 	}
 
 	void Renderer::RenderBeginHUD(CameraBase* camera)
@@ -143,15 +132,30 @@ namespace GEngine
 		camera->OnUpdateView();
 	}
 
-	void Renderer::Render(Actor* root, CameraBase* camera)
+	void Renderer::Render(Actor* scene, CameraBase* camera)
 	{
-		auto children = root->GetChildrenRef();
+		/*auto children = root->GetChildrenRef();
 		if (children.empty())return;
 		for (auto& child : children)
 		{
 			child->Render(camera);
 
 			Render(child, camera);
+		}*/
+
+		if(scene && camera)
+			scene->Render(camera);
+	}
+
+	void Renderer::RenderHelper(Actor* entity, CameraBase* camera)
+	{
+		auto children = entity->GetChildrenRef();
+		//if (children.empty())return;
+		for (auto& child : children)
+		{
+			child->Render(camera);
+
+			RenderHelper(child, camera);
 		}
 	}
 	

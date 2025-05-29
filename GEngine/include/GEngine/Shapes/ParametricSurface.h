@@ -5,6 +5,7 @@
 
 namespace GEngine::Shape
 {
+	
 	using namespace Math;
 	class ParametricSurface : public Geometry
 	{
@@ -123,8 +124,8 @@ namespace GEngine::Shape
 
 					nA = vertexNormals[x][y];
 					nB = vertexNormals[x + 1][y];
-					nC = vertexNormals[x][y + 1];
-					nD = vertexNormals[x + 1][y + 1];
+					nC = vertexNormals[x + 1][y + 1];
+					nD = vertexNormals[x][y + 1];
 
 					positionData.insert(positionData.end(),
 						{ first_point, second_point, third_point, first_point, third_point, fourth_point });
@@ -141,8 +142,20 @@ namespace GEngine::Shape
 				}
 			}
 
+			m_UniquePoints = positionData;
+			std::sort(m_UniquePoints.begin(), m_UniquePoints.end(), [](const Vec3f& a, const Vec3f& b) {
+				if (a.x != b.x)
+					return a.x < b.x;
+				else if (a.y != b.y)
+					return a.y < b.y;
+				else
+					return a.z < b.z;
+				});
+
+			auto last = std::unique(m_UniquePoints.begin(), m_UniquePoints.end(), are_same_point);
+			m_UniquePoints.erase(last, m_UniquePoints.end());
 			AddAttributes(positionData, colorData, uvData, vertexNormalData);
-			//AddAttributes(positionData, colorData, uvData, vertexNormalData, faceNormalData);
+			//AddAttributes(positionData, colorData, uvData, faceNormalData);
 			//UnBindVAO();
 		}
 

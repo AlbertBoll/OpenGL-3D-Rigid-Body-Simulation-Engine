@@ -4,6 +4,7 @@
 
 
 
+
 namespace GEngine
 {
 	//using namespace GEngine::Asset;
@@ -46,6 +47,109 @@ namespace GEngine
 		RenderTargetAttachmentSpecification Attachments;
 
 		bool SwapChainTarget = false;
+	};
+
+	class FinalFrameBuffer
+	{
+	public:
+		FinalFrameBuffer(unsigned int resolution_x, unsigned int resolution_y);
+		unsigned int GetFBO() const { return m_FBO; }
+		unsigned int GetColorMap() const { return m_ColorMap; }
+		unsigned int GetMousePickMap() const { return m_MousePickMap; }
+		void OnResize(unsigned int width, unsigned int height);
+		Math::Vec2f GetResolution()const;
+		int ReadPixel(int x, int y)const;
+		void Bind() const;
+		void UnBind() const;
+		void BindReadFrameBuffer()const;
+		void BindDefaultDrawFrameBuffer() const;
+		void ClearMousePickAttachment(int value)const;
+		void BlitFrameBuffer()const;
+
+	private:
+		void Invalidate();
+	private:
+		unsigned int m_FBO{};
+		unsigned int m_ColorMap{};
+		unsigned int m_MousePickMap{};
+		unsigned int m_DepthMap{};
+		unsigned int m_Width{};
+		unsigned int m_Height{};
+	};
+
+	class MousePickFrameBuffer
+	{
+	public:
+		MousePickFrameBuffer(unsigned int resolution_x, unsigned int resolution_y);
+
+		unsigned int GetLightFBO() const { return m_MousePickFBO; }
+		unsigned int GetMousePickMap() const { return m_MousePickColorMap; }
+		void OnResize(unsigned int width, unsigned int height);
+		Math::Vec2f GetResolution()const;
+		int ReadPixel(int x, int y)const;
+		void Bind() const;
+		void UnBind() const;
+		void ClearAttachment(uint32_t attachmentindex, int value)const;
+	
+	private:
+		void Invalidate();
+	private:
+		unsigned int m_MousePickFBO{};
+		unsigned int m_MousePickColorMap{};
+		unsigned int m_MousePickDepthMap{};
+		unsigned int m_Width{};
+		unsigned int m_Height{};
+	};
+	
+
+	class CascadeShadowFrameBuffer
+	{
+	public:
+		CascadeShadowFrameBuffer(unsigned int resolution_x, unsigned int resolution_y, unsigned int depth);
+		
+		unsigned int GetLightFBO() const { return m_LightFBO; }
+		unsigned int GetLightDepthMaps() const { return m_LightDepthMaps; }
+		//unsigned int GetMousePickMap() const { return m_MousePickMap; }
+		void OnResize(unsigned int width, unsigned int height);
+		Math::Vec2f GetResolution()const;
+		int ReadPixel(int x, int y);
+		void Bind() const;
+		void UnBind() const;
+		
+	
+	private:
+		void Invalidate(unsigned int depth);
+	private:
+		unsigned int m_LightFBO{};
+		unsigned int m_LightDepthMaps{};
+		//unsigned int m_MousePickMap{};
+		unsigned int m_Width{};
+		unsigned int m_Height{};
+	};
+
+	enum class UniformType
+	{
+		VEC2F,
+		VEC3F,
+		VEC4F,
+		MATRIX_2_2,
+		MATRIX_3_3,
+		MATRIX_4_4
+	};
+
+	template<UniformType Type>
+	class UniformBufferObject
+	{
+	public:
+		UniformBufferObject(unsigned int max_size, unsigned int bind_point = 0);
+		unsigned int GetUBO() const { return m_UBO; }
+		unsigned int GetUniformTypeSize() const { return m_UniformTypeSize; }
+		
+	private:
+		unsigned int m_UBO{};
+		unsigned int m_MaxSize{};
+		unsigned int m_BindingPoint{};
+		unsigned int m_UniformTypeSize{};
 	};
 
 	class RenderTarget
@@ -95,6 +199,15 @@ namespace GEngine
 		void RenderSize(const Math::Vec2f& resolution = { 512, 512 });
 
 		unsigned int& GetSamples() { return m_Samples; }
+		void SetSamples(int new_Sample) 
+		{
+			if (new_Sample != m_Samples)
+			{
+				m_Samples = new_Sample;
+				Invalidate();
+			}
+				
+		}
 
 		void OnResize(uint32_t width, uint32_t height);
 
@@ -105,7 +218,8 @@ namespace GEngine
 		//Asset::Texture* m_Texture{};
 		int m_Width{};
 		int m_Height{};
-		unsigned int m_Samples = 4;
+
+		unsigned int m_Samples = 8;
 		unsigned int m_FrameBufferID{};
 		unsigned int m_RenderBufferID{};
 		unsigned int m_ColorAttachmentID{};
@@ -118,5 +232,7 @@ namespace GEngine
 		//uint32_t m_DepthAttachment = 0;
 	
 	};
+
+
 }
 

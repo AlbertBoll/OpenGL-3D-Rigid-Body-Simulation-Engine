@@ -3,6 +3,7 @@
 #include "Managers/ShapeManager.h"
 #include "Managers/ShaderManager.h"
 #include "Material/TextureMaterial.h"
+#include "Character/Character.h"
 #include "Camera/PerspectiveCamera.h"
 #include "EntryPoint.h"
 #include "Core/Renderer.h"
@@ -11,62 +12,66 @@
 #include <GEngine/Shapes/SmoothSphere.h>
 #include <external/glm/gtc/type_ptr.hpp>
 #include <GEngine/Extras/Grid.h>
-#include "Core/Entity.h"
+#include <Camera/PlayerCamera.h>
 #include "Extras/CameraRig.h"
 #include "Core/RenderTarget.h"
 #include <GEngine/Material/BasicMaterial.h>
-#include <SceneObjects/BoxEntity.h>
+#include <Scene/BoxEntity.h>
+#include <Scene/SkyBoxEntity.h>
 #include <imguizmo/ImGuizmo.h>
 #include <Math/Matrix.h>
 #include <Core/SceneGraph.h>
+#include <GEngine/Core/RawModel.h>
+#include <GEngine/Material/LightTextureMaterial.h>
+#include <GEngine/Material/TerrainLightMaterial.h>
+#include <random>
+#include <iostream>
+#include "Shapes/Terrain.h"
+#include <Material/NormalLightTextureMaterial.h>
+#include "Light/LightEntity.h"
+#include <Animation/Animation.h>
+#include <Material/AnimatedMaterial.h>
+#include "Animation/AnimatedModel.h"
 
-static std::string base_dir = "../GEngine/include/GEngine/Assets/Images/";
-
+//#include "Audio/AudioSystem.h"
+#include <fmod/fmod_studio.hpp>
 
 SceneApp::~SceneApp()
 {
 	Manager::AssetsManager::FreeAllResources();
 	Manager::ShaderManager::FreeShader();
 	Manager::ShapeManager::FreeShape();
+	if(m_AudioSystem)
+		m_AudioSystem->Shutdown();
+	if (m_EditorCamera) delete m_EditorCamera;
+	
 }
 
 void SceneApp::Update(Timestep ts)
 {
-	//Renderer::RenderBegin(m_SceneCamera);
-	//m_Sphere->SetPosition(Pos.x, Pos.y, 0.f);
-	//m_Sphere_->RotateY(ts, false);
-	//m_Plane->GetMaterial()->SetUniforms<bool>({ {"uUseVertexColor", false} });
-	
 
+	m_AnimationSystem->UpdateAnimation(ts);
 	if (m_ViewportSize.x > 0.f && m_ViewportSize.y > 0.f && (m_RenderTarget->GetWidth() != m_ViewportSize.x || m_RenderTarget->GetHeight() != m_ViewportSize.y))
 	{
 		m_EditorCamera->OnResize((int)m_ViewportSize.x, (int)m_ViewportSize.y);
 		m_RenderTarget->OnResize((uint32_t)m_ViewportSize.x, (uint32_t)m_ViewportSize.y);
 	}
 
-	m_MilkyWay->RotateY(ts * 0.01f);
-
-	//m_Sun->RotateY(ts);
-	
-	//m_Earth->RotateY(-ts);
-	//m_Earth->RotateY(-ts, false);
-	//m_Earth->RotateY(-ts);
-	//m_Moon->RotateY(ts);
-	//m_Moon->RotateY(-ts);
-
-
-
-
-
-	//
 	
 	if (m_ViewportForcused)
 	{
 		m_CameraRig->Update(ts);
+	
 	}
 
-	//Renderer::RenderScene(m_Scene.get(), m_SceneCamera);
+	m_SkyBox->RotateY(ts * 0.01f);
+	m_AudioSystem->Update(ts);
 
+	auto backgroundMusic = m_MusicEvent.GetPlayState();
+	if (backgroundMusic == Audio::PLAYBACK_STOPPING)
+		m_MusicEvent.Restart();
+
+	
 }
 
 void SceneApp::Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)
@@ -79,89 +84,398 @@ void SceneApp::Initialize(const std::initializer_list<WindowProperties>& Windows
 	//Initialize BaseApp 
 	BaseApp::Initialize(WindowsPropertyList);
 
-	m_Panel = CreateScopedPtr<SceneHierarchyPanel>(this, m_Scene.get());
+	GENGINE_CORE_INFO("Initialize Audio System...");
+	
+	m_AudioSystem = CreateScopedPtr<Audio::AudioSystem>();
+	m_AudioSystem->Initialize();
 
-	//m_Panel->SetContext(m_Scene.get());
-	/*m_SkyCamera = CreateScopedPtr<PerspectiveCamera>(45.0f, 1.0f);
-	m_SkyCamera->SetTag("SkyCamera");*/
+	GENGINE_CORE_INFO("Initialize 3D Renderer...");
+	Renderer::Initialize();
 
-	auto environmentTex = AssetsManager::GetTexture(base_dir + "stars_milky_way.jpg", "uTexture");
-	auto environmentTexMaterial = CreateRefPtr<TextureMaterial>(*environmentTex);
-	//auto environmentSphere = ShapeManager::_GetShape<SmoothSphere>("EnvironmentSphere", 200.f);
-	auto environmentSphere = ShapeManager::GetShape("EnvironmentSphere");
-	m_MilkyWay = new Entity(environmentSphere, environmentTexMaterial);
-	m_MilkyWay->SetTag("Milky Way");
 
-	auto environmentPlane = ShapeManager::GetShape("Box");
-	auto planeMaterial = CreateRefPtr<BasicMaterial>();
-	m_Plane = new BoxEntity(environmentPlane, planeMaterial);
-	m_Plane->SetTag("Plane");
-	m_Plane->SetPosition({ -8, 0, 0 });
-	m_Plane->Scale(2);
+	auto width = WindowsPropertyList.begin()->m_Width;
+	auto height = WindowsPropertyList.begin()->m_Height;
+
+	GENGINE_CORE_INFO("Initialize Perspective Camera...");
+	m_EditorCamera = new PerspectiveCamera(
+		45.0f, static_cast<float>(width) / static_cast<float>(height), 0.1f, 10000.f);
+	m_EditorCamera->SetTag("Editor Camera");
+	m_EditorCamera->SetActive(true);
+	
+	//barrel code
+	auto barrelTexNormal = AssetsManager::GetTexture("barrelNormalreflection", "u_normalTexture");
+	auto barrelTexDiffuse = AssetsManager::GetTexture("barrelreflection", "u_diffuseTexture");
+	auto textures = { barrelTexDiffuse , barrelTexNormal };
+	auto barrelMaterial = CreateRefPtr<NormalLightTextureMaterial>(textures, "normal");
+	auto barrelGeo = ShapeManager::GetModel("barrel");
+
+	
+	auto barrel = new Entity(barrelGeo, barrelMaterial);
+	
+	barrel->SetTag("barrel");
+
+	barrel->SetPosition({ 40.f, 5.f, -60.f });
 	
 
-	auto SunTex = AssetsManager::GetTexture(base_dir + "sun.jpg", "uTexture");
-	auto EarthTex = AssetsManager::GetTexture(base_dir + "earth_day.jpg", "uTexture");
-	auto MoonTex = AssetsManager::GetTexture(base_dir + "moon.jpg", "uTexture");
-	auto SunMaterial = CreateRefPtr<TextureMaterial>(*SunTex);
-	auto EarthMaterial = CreateRefPtr<TextureMaterial>(*EarthTex);
-	auto MoonMaterial = CreateRefPtr<TextureMaterial>(*MoonTex);
-	auto sphereGeo = ShapeManager::GetShape("SmoothSphere");
-	m_Grid = new Grid(60, 20);
-	m_Grid->RotateX(Math::PiOver2);
-	m_Grid->SetTag("World Grid");
+	
+	auto terrainGeo = new Terrain(0, -1, 900);
 
-	m_Sun = new Entity(sphereGeo, SunMaterial);
-	m_Sun->SetTag("Sun");
 
-	m_Earth = new Entity(sphereGeo, EarthMaterial);
-	m_Earth->SetTag("Earth");
+	
+	LightComponents lights;
+	lights.Positions.Name = "u_lightPosition";
+	Vec3f lightPos1 = {0.f, 1000.f, -7000.f};
+	Vec3f lightPos2 = { 185, terrainGeo->GetTerrainHeight(185, -293) + 14, -293 };
+	Vec3f lightPos3 = { 370, terrainGeo->GetTerrainHeight(370, -300) + 14, -300 };
+	Vec3f lightPos4 = { 293, terrainGeo->GetTerrainHeight(293, -305) + 14, -305 };
 
-	m_Moon = new Entity(sphereGeo, MoonMaterial);
-	m_Moon->SetTag("Moon");
+	lights.Positions.Data = { lightPos1, lightPos2, lightPos3, lightPos4 };
 
-	m_Sun->Scale(3.f, false);
-	m_Earth->Scale(1/3.f);
-	m_Moon->Scale(1 / 2.f, true);
 
-	m_MilkyWay->GetRenderSetting().m_RenderMode = RenderMode::Elements;
-	m_MilkyWay->GetRenderSetting().m_Mode = DrawMode::TRIANGLE_STRIP;
 
-	m_Sun->GetRenderSetting().m_RenderMode = RenderMode::Elements;
-	m_Sun->GetRenderSetting().m_Mode = DrawMode::TRIANGLE_STRIP;
+	lights.Colors.Name = "u_lightColor";
 
-	m_Earth->GetRenderSetting().m_RenderMode = RenderMode::Elements;
-	m_Earth->GetRenderSetting().m_Mode = DrawMode::TRIANGLE_STRIP;
+	Vec3f lightCol1 = {0.3f, 0.3f, 0.3f};
+	Vec3f lightCol2 = {2.f, 0.f, 0.f};
+	Vec3f lightCol3 = {0, 2, 2.f};
+	Vec3f lightCol4 = {2, 2, 0};
 
-	m_Moon->GetRenderSetting().m_RenderMode = RenderMode::Elements;
-	m_Moon->GetRenderSetting().m_Mode = DrawMode::TRIANGLE_STRIP;
+	Vec3f lightCol5 = { 0, 1, 1 };
+
+	Vec3f lightCol6 = { 1, 0, 1 };
+
+	lights.Colors.Data = { lightCol1, lightCol2, lightCol3, lightCol4};
+
+	lights.Attenuations.Name = "u_lightAttuentation";
+	Vec3f lightAtt1 = { 1.f, 0.f, 0.f };
+	Vec3f lightAtt2 = { 1.f, 0.01f, 0.002f };
+	Vec3f lightAtt3 = { 1.f, 0.01f, 0.002f };
+	Vec3f lightAtt4 = { 1.f, 0.01f, 0.002f };
+	Vec3f lightAtt5 = { 1.f, 0.01f, 0.002f };
+	Vec3f lightAtt6 = { 1.f, 0.01f, 0.002f };
+
+	lights.Attenuations.Data = { lightAtt1, lightAtt2, lightAtt3, lightAtt4 };
+
+	LightEntity* ambient_light = new LightEntity();
+	ambient_light->SetTag("Ambient Light");
+	ambient_light->SetPos("u_lightPosition")
+				 ->SetColor("u_lightColor", lightCol1)
+				 ->SetAttenuation("u_lightAttuentation", lightAtt1);
+	ambient_light->SetPosition(lightPos1);
+
+
+
+	LightEntity* lamp_light_1 = new LightEntity();
+	lamp_light_1->SetTag("LampLight_1");
+	lamp_light_1->SetPos("u_lightPosition")
+				->SetColor("u_lightColor", lightCol2)
+				->SetAttenuation("u_lightAttuentation", lightAtt2);
+
+	lamp_light_1->SetPosition(0, 14.f, 0);
+
+
+
+	LightEntity* lamp_light_2 = new LightEntity();
+	lamp_light_2->SetTag("LampLight_2");
+	lamp_light_2->SetPos("u_lightPosition")
+				->SetColor("u_lightColor", lightCol3)
+				->SetAttenuation("u_lightAttuentation", lightAtt3);
+
+	lamp_light_2->SetPosition(0, 14.f, 0);
+
+
+	LightEntity* lamp_light_3 = new LightEntity();
+	lamp_light_3->SetTag("LampLight_3");
+	lamp_light_3->SetPos("u_lightPosition")
+				->SetColor("u_lightColor", lightCol4)
+				->SetAttenuation("u_lightAttuentation", lightAtt4);
+
+
+	lamp_light_3->SetPosition(0, 14.f, 0);
+
+
+	LightEntity* lamp_light_4 = new LightEntity();
+	lamp_light_4->SetTag("LampLight_4");
+	lamp_light_4->SetPos("u_lightPosition")
+		->SetColor("u_lightColor", lightCol5)
+		->SetAttenuation("u_lightAttuentation", lightAtt5);
+
+
+	lamp_light_4->SetPosition(0, 0, 9);
+
+	LightEntity* lamp_light_5 = new LightEntity();
+	lamp_light_5->SetTag("LampLight_5");
+	lamp_light_5->SetPos("u_lightPosition")
+		->SetColor("u_lightColor", lightCol6)
+		->SetAttenuation("u_lightAttuentation", lightAtt6);
+
+
+	lamp_light_5->SetPosition(0, 0, 9);
+
+	barrel->Add(lamp_light_4);
+
+
+	m_Scene->Push({ ambient_light, lamp_light_1, lamp_light_2, lamp_light_3, lamp_light_4, lamp_light_5 });
+
+
+	FogComponent fog;
+	fog.Density.Name = "u_density";
+	fog.Density.Data = 0.002f;
+	fog.Gradient.Name = "u_gradient";
+	fog.Gradient.Data = 5.f;
+
+	TextureComponent MultiTexture;
+	MultiTexture.NumOfRows.Name = "u_numberOfRows";
+	MultiTexture.NumOfRows.Data = 2;
+
+	TextureComponent normalTexture;
+	normalTexture.NumOfRows.Name = "u_numberOfRows";
+	normalTexture.NumOfRows.Data = 1;
+
+	SkyBoxComponent skyBoxComponent;
+	skyBoxComponent.FogAmbientColor.Name = "u_FogColor";
+	skyBoxComponent.FogAmbientColor.Data = {0.5f, 0.5f, 0.5f};
+	skyBoxComponent.LowerLimit.Name = "u_LowerLimit";
+	skyBoxComponent.LowerLimit.Data = 0.f;
+	
+	skyBoxComponent.UpperLimit.Name = "u_UpperLimit";
+	skyBoxComponent.UpperLimit.Data = 100.f;
+
+	skyBoxComponent.BlendFactor.Name = "u_BlendFactor";
+	skyBoxComponent.BlendFactor.Data = 0.5f;
+
+	auto terrainBackGroundTex = AssetsManager::GetTexture("grassy3", "u_backgroundTexture");
+	auto terrainRTex = AssetsManager::GetTexture("dirt", "u_rTexture");
+	auto terrainGTex = AssetsManager::GetTexture("pinkFlowers", "u_gTexture");
+	auto terrainBTex = AssetsManager::GetTexture("mossPath256", "u_bTexture");
+	auto terrainBlendMapTex = AssetsManager::GetTexture("blendMap", "u_blendMap");
+	auto terrainMaterial = CreateRefPtr<TerrainLightMaterial>(std::vector{ terrainBackGroundTex, terrainRTex, terrainGTex, terrainBTex, terrainBlendMapTex });
+	terrainMaterial->SetLightComponent(lights).SetFogComponent(fog);
+
+	
+	AnimatedModel* model = new AnimatedModel("../GEngine/include/GEngine/Assets/AnimatedModels/dancing_vampire.dae");
+
+	auto vampireTexNormal = AssetsManager::GetTexture("Vampire_normal", "u_normalTexture");
+	auto vampireTexDiffuse = AssetsManager::GetTexture("Vampire_diffuse", "u_diffuseTexture");
+	auto vampiretextures = { vampireTexDiffuse , vampireTexNormal };
+	auto vampireMaterial = CreateRefPtr<AnimatedMaterial>(vampiretextures, "animated");
+	auto vampireGeo = ShapeManager::GetModels("dancing_vampire")[0];
+	
+	m_VampireGroup = new Group<Entity>(vampireGeo, vampireMaterial.get());
+
+	Animation* animation = new Animation("../GEngine/include/GEngine/Assets/AnimatedModels/dancing_vampire.dae", model);
+	m_AnimationSystem = CreateScopedPtr<AnimationSystem>(animation);
+
+	vampireMaterial->SetAnimationSystem(m_AnimationSystem.get());
+	
+	vampireMaterial->SetFogComponent(fog).SetTextureComponent(normalTexture);
+	auto vampire = new Entity(vampireGeo, vampireMaterial);
+
+	vampire->SetPosition({ 60.f, 0.f, -60.f });
+	vampire->Scale(7);
+	vampire->SetTag("vampire");
+	vampire->Add(lamp_light_5);
+
+	lamp_light_5->Scale(1/7.f, false);
+	vampire->CalculateTextureOffset(1, 0);
+	m_VampireGroup->Push(vampire);
+
+
+
+	m_TerrainGroup = new Group<Entity>(terrainGeo, terrainMaterial.get());
+	m_Terrain1 = new Entity(terrainGeo, terrainMaterial);
+	m_Terrain1->SetPosition({ 0, 0, -900 });
+	m_Terrain1->SetTag("Terrain1");
+	m_Terrain2 = new Entity(terrainGeo, terrainMaterial);
+	m_Terrain2->SetPosition({ -800, 0, -800 });
+	m_Terrain2->SetTag("Terrain2");
+
+	m_TerrainGroup->Push(m_Terrain1);
+
+
+	m_Terrains.insert(m_Terrains.end(), { m_Terrain1, m_Terrain2 });
+
 	
 
-	m_Sun->SetPosition({ 0.0, 0.f, 0.f });
+
+	/*auto personGeo = ShapeManager::GetModel("person");
+	auto personTex = AssetsManager::GetTexture("mirror_reflect");
+	auto personMaterial = CreateRefPtr<LightTextureMaterial>(*personTex);
+
+	personMaterial->SetFogComponent(fog).SetLightComponent(lights).SetTextureComponent(normalTexture);
+
+
+	m_Person = new Character(personGeo, personMaterial);
+
+
+	m_Person->SetTerrain(terrainGeo);
 	
-	m_Scene->Add(m_MilkyWay);
-	m_Scene->Add(m_Sun);
-	m_Sun->Add(m_Earth);
-	m_Earth->Add(m_Moon);
+	m_Person->CalculateTextureOffset(1, 0);
+	m_Person->SetTag("Person");
+	m_Person->Scale(0.4f);*/
+
+
+
+	CameraSetting setting;
+	setting.m_PerspectiveSetting.m_FieldOfView = 45.f;
+	setting.m_PerspectiveSetting.m_AspectRatio = static_cast<float>(width) / static_cast<float>(height);
+	setting.m_PerspectiveSetting.m_Near = 0.1f;
+	setting.m_PerspectiveSetting.m_Far = 10000.f;
+
+
+	auto lampGeo = ShapeManager::GetModel("lamp");
+	auto lampTex = AssetsManager::GetTexture("lamp");
+	auto lampMaterial = CreateRefPtr<LightTextureMaterial>(*lampTex);
+	lampMaterial->SetFogComponent(fog).SetLightComponent(lights).SetTextureComponent(normalTexture);
+	lampMaterial->GetMaterialProperty().HasFakeLighting = true;
+	m_LampGroup = new Group<Entity>(lampGeo, lampMaterial.get());
+	auto lamp1 = new Entity(lampGeo, lampMaterial);
+	lamp1->SetTag("Lamp_1");
+	
+	lamp1->SetPosition({ 185, terrainGeo->GetTerrainHeight(185, -293), -293 });
+	lamp1->Add(lamp_light_1);
+
+	auto lamp2 = new Entity(lampGeo, lampMaterial);
+	lamp2->SetPosition({ 370, terrainGeo->GetTerrainHeight(370, -300), -300 });
+	lamp2->SetTag("Lamp_2");
+	lamp2->Add(lamp_light_2);
+
+
+	auto lamp3 = new Entity(lampGeo, lampMaterial);
+	lamp3->SetPosition({ 293, terrainGeo->GetTerrainHeight(293, -305), -305 });
+	lamp3->SetTag("Lamp_3");
+	lamp3->Add(lamp_light_3);
+
+	m_LampGroup->Push({ lamp1, lamp2, lamp3 });
+
 	
 
-	m_Earth->SetPosition({ 3.5f, 0.f, 0.f });
-	m_Moon->SetPosition({ 6.5f, 0.0f, 0.0f });
-	//m_CameraRig = CreateScopedPtr<CameraRig>(true);
-	m_CameraRig =new CameraRig(true);
+
+	auto treeGeo = ShapeManager::GetModel("tree");
+	auto grassGeo = ShapeManager::GetModel("plant");
+	auto flowerGeo = ShapeManager::GetModel("plant");
+	auto fernGeo = ShapeManager::GetModel("fern");
+	auto lowPolyTreeGeo = ShapeManager::GetModel("lowPolyTree");
+	auto pineGeo = ShapeManager::GetModel("pine");
+
+	auto treeTex = AssetsManager::GetTexture("tree");
+	auto grassTex = AssetsManager::GetTexture("grassTexture");
+	auto fernTex = AssetsManager::GetTexture("Multifern");
+	auto flowerTex = AssetsManager::GetTexture("flower");
+	auto lowPolyTreeTex = AssetsManager::GetTexture("MultilowPolyTree");
+	auto pineTex = AssetsManager::GetTexture("pine");
+
+	auto treeMaterial = CreateRefPtr<LightTextureMaterial>(*treeTex);
+	auto grassMaterial = CreateRefPtr<LightTextureMaterial>(*grassTex);
+	auto fernMaterial = CreateRefPtr<LightTextureMaterial>(*fernTex);
+	auto flowerMaterial = CreateRefPtr<LightTextureMaterial>(*flowerTex);
+	auto lowPolyTreeMaterial = CreateRefPtr<LightTextureMaterial>(*lowPolyTreeTex);
+	auto pineMaterial = CreateRefPtr<LightTextureMaterial>(*pineTex);
+	pineMaterial->GetMaterialProperty().ShineDamper = 10.f;
+	pineMaterial->GetMaterialProperty().Reflectivity = 0.1f;
+
+	treeMaterial->SetFogComponent(fog).SetLightComponent(lights).SetTextureComponent(normalTexture);
+	grassMaterial->SetFogComponent(fog).SetLightComponent(lights).SetTextureComponent(normalTexture);
+	fernMaterial->SetFogComponent(fog).SetLightComponent(lights).SetTextureComponent(MultiTexture);
+	flowerMaterial->SetFogComponent(fog).SetLightComponent(lights).SetTextureComponent(normalTexture);
+	lowPolyTreeMaterial->SetFogComponent(fog).SetLightComponent(lights).SetTextureComponent(MultiTexture);
+	pineMaterial->SetFogComponent(fog).SetLightComponent(lights).SetTextureComponent(normalTexture);
+	barrelMaterial->SetFogComponent(fog).SetLightComponent(lights).SetTextureComponent(normalTexture);
+
+	m_BarrelGroup = new Group<Entity>(barrelGeo, barrelMaterial.get());
+	m_BarrelGroup->Push(barrel);
+
+	m_TreeGroup = new Group<Entity>(treeGeo, treeMaterial.get());
+	m_GrassGroup = new Group<Entity>(grassGeo, grassMaterial.get());
+	m_FernGroup = new Group<Entity>(fernGeo, fernMaterial.get());
+	m_FlowerGroup = new Group<Entity>(flowerGeo, flowerMaterial.get());
+	m_LowPolyTreeGroup = new Group<Entity>(lowPolyTreeGeo, lowPolyTreeMaterial.get());
+	m_PineGroup = new Group<Entity>(pineGeo, pineMaterial.get());
+
+	grassMaterial->GetMaterialProperty().HasFakeLighting = true;
+	grassMaterial->GetMaterialProperty().HasTransparency = true;
+
+	flowerMaterial->GetMaterialProperty().HasFakeLighting = true;
+	flowerMaterial->GetMaterialProperty().HasTransparency = true;
+
+	fernMaterial->GetMaterialProperty().HasTransparency = true;
+
+	pineMaterial->GetMaterialProperty().HasTransparency = true;
+
+
+	static std::default_random_engine e;
+	static std::uniform_real_distribution<> float_dis(0, 1);
+	static std::uniform_int_distribution<> int_dis(0, 3);
+
+
+	for (int i = 0; i < 400; i++)
+	{
+
+		if (i % 2 == 0)
+		{
+			Entity * fern = new Entity(fernGeo, fernMaterial);
+			fern->CalculateTextureOffset(2, int_dis(e));
+			fern->SetPosition((float)float_dis(e) * 800.f + 20.f, 0.f, (float)float_dis(e) * -600.f - 20.f);
+			fern->SetPositionY(terrainGeo->GetTerrainHeight(fern->GetPosition().x, fern->GetPosition().z));
+
+			fern->Scale(0.6f);
+			fern->SetTag("fern_" + std::to_string(i));
+			m_FernGroup->Push(fern);
+
+
+		}
+
+		if (i % 3 == 0)
+		{
+			Entity* pine = new Entity(pineGeo, pineMaterial);
+			pine->CalculateTextureOffset(1, 0);
+			pine->SetPosition((float)float_dis(e) * 800.f + 20.f, 0.f, (float)float_dis(e) * -600.f - 20.f);
+			pine->SetPositionY(terrainGeo->GetTerrainHeight(pine->GetPosition().x, pine->GetPosition().z));
+			//pine->Scale(3.f);
+			pine->SetTag("pine_" + std::to_string(i));
+			m_PineGroup->Push(pine);
+		}
+
+	}
+
+
+	m_Scene->Push({ m_TerrainGroup, m_FernGroup, m_PineGroup, m_LampGroup, m_BarrelGroup, m_VampireGroup });
+
+	
+	auto DragonGeo = ShapeManager::GetModel("dragon");
+	DragonGeo->ApplyTransform(Matrix::MakeRotationY(-Math::PiOver2), 0);
+	DragonGeo->ApplyTransform(Matrix::MakeRotationY(-Math::PiOver2), 2, true);
+	auto DragonTex = AssetsManager::GetTexture("white");
+
+	auto DragonMaterial = CreateRefPtr<LightTextureMaterial>(*DragonTex);
+	DragonMaterial->SetFogComponent(fog).SetLightComponent(lights).SetTextureComponent(normalTexture);
+	DragonMaterial->GetMaterialProperty().ShineDamper = 10;
+	DragonMaterial->GetMaterialProperty().Reflectivity = 1;
+	m_Dragon = new Entity(DragonGeo, DragonMaterial);
+	m_Dragon->CalculateTextureOffset(1, 0);
+
+	m_Dragon->SetTag("Dragon");
+	m_Dragon->SetPosition({ 30, 0, -60});
+
+	
+	m_Scene->Add(m_Dragon);
+
+
+	m_CameraRig = new CameraRig(true);
 	m_CameraRig->SetTag("Camera Rig");
-
-	m_CameraRig->SetPosition({ 0.f, 8.f, 20.f });
-
 	m_CameraRig->Attach(m_EditorCamera);
 
-	m_Scene->Add(m_CameraRig);
-	m_Scene->Add(m_Grid);
-	
-	m_Scene->Add(m_Plane);
 
-	SceneGraph::GenerateSceneGraph(m_Scene.get());
-	//m_SceneCamera->SetTag("Scene Camera");
+	m_CameraRig->SetPosition({ 5.f, 50.f, -100.f });
+	
+
+	m_Scene->Add(m_CameraRig);
+
+	m_SkyBox = new SkyBoxEntity(skyBoxComponent);
+	m_SkyBox->SetTag("SkyBox");
+
+	m_Scene->Add(m_SkyBox);
+
 
 	auto MouseScrollWheelEvent = new Events<void(MouseScrollWheelParam)>("MouseScrollWheel");
 
@@ -174,14 +488,11 @@ void SceneApp::Initialize(const std::initializer_list<WindowProperties>& Windows
 
 				if (auto p = windows.find(scrollWheelParam.ID); p != windows.end())
 				{
-					//GENGINE_CORE_INFO("Mouse scroll wheel at the {}. x: {}   y: {}", p->second->GetTitle(), scrollWheelParam.X, scrollWheelParam.Y);
+					
 					MouseState.SetScrollWheel(Vector2(
 						static_cast<float>(scrollWheelParam.X),
-						static_cast<float>(scrollWheelParam.Y)));
-					//const float clamp_zoom_level = glm::clamp(m_CameraSetting.m_PerspectiveSetting.m_FieldOfView * new_zoom_level, 15.f, 90.f);
-					//const float clamp_zoom_level = glm::clamp(m_SceneCamera->GetZoomLevel() - 0.03f * scrollWheelParam.Y, 0.2f, 1.5f);
-					//m_SceneCamera->OnScroll(clamp_zoom_level);
-				
+						static_cast<float>(scrollWheelParam.Y)));					
+					GENGINE_CORE_INFO("{}, {}", scrollWheelParam.X, scrollWheelParam.Y);
 					m_EditorCamera->OnScroll(scrollWheelParam.Y);
 
 				}
@@ -192,8 +503,10 @@ void SceneApp::Initialize(const std::initializer_list<WindowProperties>& Windows
 
 	GetEventManager()->GetEventDispatcher().RegisterEvent(MouseScrollWheelEvent);
 
+	m_Panel = CreateScopedPtr<SceneHierarchyPanel>(this, m_Scene.get());
+	m_MusicEvent = m_AudioSystem->PlayEvent("event:/EnteringValley");
+	m_BackgroundMusicEvent = m_AudioSystem->PlayEvent("event:/HyruleFieldMainTheme");
 	
-
 }
 
 void SceneApp::Initialize(const WindowProperties& prop)
@@ -207,6 +520,18 @@ void SceneApp::Initialize(const WindowProperties& prop)
 	Initialize({ prop });
 	
 	
+}
+
+Vec2f SceneApp::GetMousePosInViewPort()
+{
+	auto [mx, my] = ImGui::GetMousePos();
+	mx -= m_ViewportBounds[0].x;
+	my -= m_ViewportBounds[0].y;
+
+	auto viewportSize = m_ViewportBounds[1] - m_ViewportBounds[0];
+	int MouseX = (int)mx;
+	int MouseY = (int)my;
+	return{ MouseX, MouseY };
 }
 
 void SceneApp::ImGuiRender()
@@ -397,7 +722,7 @@ void SceneApp::ImGuiRender()
 
 	ImGui::Text("Indices: %d", stats.m_IndicesCount);
 
-	if (m_Sun)
+	/*if (m_Sun)
 	{
 		ImGui::Separator();
 		ImGui::Text("%s", m_Sun->GetTag().c_str());
@@ -424,10 +749,84 @@ void SceneApp::ImGuiRender()
 			}
 		}
 		
-	}
+	}*/
 
 
 	ImGui::End();
+
+	ImGui::Begin("Graphic Setting");
+
+	ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowItemOverlap | ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed;
+	ImGui::Separator();
+	if (ImGui::TreeNodeEx((void*)(uint64_t)1, flags, "Anti Aliasing"))
+	{
+		const char* numOfAnti[] = {"1x", "2x", "4x", "8x", "16x"};
+		const char* currentAntiLevel = numOfAnti[BitSetIndex(m_Aliasing)];
+		if (ImGui::BeginCombo("##combo", currentAntiLevel))
+		{
+			for (auto i = 0; i < 5; i++)
+			{
+				bool isSelected = (currentAntiLevel == numOfAnti[i]);
+
+				if (ImGui::Selectable(numOfAnti[i], isSelected))
+				{
+					m_Aliasing = 1 << i;
+					currentAntiLevel = numOfAnti[BitSetIndex(m_Aliasing)];
+
+				}
+
+				if (isSelected)
+				{
+					ImGui::SetItemDefaultFocus();
+				}
+			}
+
+			ImGui::EndCombo();
+
+
+		}
+
+		int AntiLevel = (int)std::pow(2, BitSetIndex(m_Aliasing));
+		
+		m_RenderTarget->SetSamples(AntiLevel);
+
+		ImGui::TreePop();
+	}
+
+	
+
+	ImGui::End();
+
+	ImGui::Separator();
+	ImGui::Begin("Skybox");
+	auto& skyboxComp = m_SkyBox->GetSkyBoxComponent();
+	auto& lowerLimit = skyboxComp.LowerLimit.Data;
+	auto& upperLimit = skyboxComp.UpperLimit.Data;
+	auto& fogColor = skyboxComp.FogAmbientColor.Data;
+	ImGui::ColorEdit3("FogColor", glm::value_ptr(fogColor));
+	ImGui::DragFloat("LowerLimit", &lowerLimit, 1.f, 0.f, 100.f);
+	ImGui::DragFloat("UpperLimit", &upperLimit, 1.f, 0.f, 100.f);
+	ImGui::End();
+
+	ImGui::Separator();
+	ImGui::Begin("Terrain");
+	auto terrainMaterial = dynamic_cast<TerrainLightMaterial*>(m_Terrain1->GetMaterial());
+	auto& fogComp = terrainMaterial->GetFogComponent();
+	auto& density = fogComp.Density.Data;
+	auto& gradient = fogComp.Gradient.Data;
+	auto& reflectity = terrainMaterial->GetMaterialProperty().Reflectivity;
+	auto& shine_damper = terrainMaterial->GetMaterialProperty().ShineDamper;
+
+	ImGui::DragFloat("density", &density, 0.001f, 0.f, 1.f);
+	ImGui::DragFloat("gradient", &gradient, 0.01f, 0.f, 10.f);
+	ImGui::DragFloat("reflectivity", &reflectity, 0.01f, 0.f, 1.f);
+	ImGui::DragFloat("shinedamper", &shine_damper, 0.01f, 0.f, 1.f);
+	
+
+
+	ImGui::End();
+
+
 
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 });
 
@@ -477,13 +876,20 @@ void SceneApp::ImGuiRender()
 	//ImGui::End();
 	ImGui::Begin("Viewport");
 
+	auto viewportOffset = ImGui::GetCursorPos();
+
+	//GENGINE_CORE_INFO("{0}, {1}", viewportOffset.x, viewportOffset.y);
 	m_ViewportForcused = ImGui::IsWindowFocused();
 	m_ViewportHovered = ImGui::IsWindowHovered();
 	//GENGINE_INFO("Focused: {}", ImGui::IsWindowFocused());
 	//GENGINE_INFO("Hovered: {}", ImGui::IsWindowHovered());
-
+	
 	auto viewportPanelSize = ImGui::GetContentRegionAvail();
 	m_ViewportSize = { viewportPanelSize.x, viewportPanelSize.y };
+
+
+
+	//GENGINE_CORE_INFO("({}, {})", viewportPanelSize.x, viewportPanelSize.y);
 	
 	/*if (m_ViewportSize != *((Vec2f*)(&viewportPanelSize)) && viewportPanelSize.x > 0 && viewportPanelSize.y > 0)
 	{
@@ -494,11 +900,13 @@ void SceneApp::ImGuiRender()
 
 	//GENGINE_WARN()
 	//auto winsize = ImGui::GetWindowSize();
+	
 	if (m_ViewportHovered)
 	{
 		ImGui::CaptureMouseFromApp(false);
-		
-		//GENGINE_CORE_INFO("Hoverd");
+		auto pos = GetMousePosInViewPort();
+
+		//GENGINE_CORE_INFO("{}, {}", pos.x, pos.y);
 	}
 
 	if (m_ViewportForcused)
@@ -513,7 +921,32 @@ void SceneApp::ImGuiRender()
 	else
 		ImGui::Image(reinterpret_cast<void*>(m_RenderTarget->GetScreenAttachmentID()), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
 	
+	auto windowSize = ImGui::GetWindowSize();
+	auto minBound = ImGui::GetWindowPos();
+
+	//auto viewportOffset = ImGui::GetMousePos();
+	//auto[x, y] = ImGui::GetMousePos();
+	//GENGINE_CORE_INFO("{0}, {1}", x, y);
+
+	minBound.x += viewportOffset.x;
+	minBound.y += viewportOffset.y;
+
+	ImVec2 maxBound = { minBound.x + windowSize.x, minBound.y + windowSize.y };
+
+	m_ViewportBounds[0] = { minBound.x, minBound.y };
+	m_ViewportBounds[1] = { maxBound.x, maxBound.y };
+	
 	//Gizmos
+
+	//auto[mx, my] = ImGui::GetMousePos();
+	////GENGINE_CORE_INFO("{0}, {1}", mx, my);
+	//mx -= m_ViewportBounds[0].x;
+	//my -= m_ViewportBounds[0].y;
+
+	//auto viewportSize = m_ViewportBounds[1] - m_ViewportBounds[0];
+	//int MouseX = (int)mx;
+	//int MouseY = (int)my;
+	//GENGINE_CORE_INFO("{0}, {1}", mx, my);
 
 	float winWidth{};
 	float winHeight{};
@@ -560,6 +993,18 @@ void SceneApp::ImGuiRender()
 	ImGui::PopStyleVar();
 
 	ImGui::End();
+}
+
+uint8_t SceneApp::BitSetIndex(uint8_t num)
+{
+	uint8_t i = 1, index = 0;
+	while (!(i & num))
+	{
+		i = i << 1;
+		index++;
+	}
+
+	return index;
 }
 
 

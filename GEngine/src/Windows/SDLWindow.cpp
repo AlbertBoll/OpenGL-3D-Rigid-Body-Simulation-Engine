@@ -92,7 +92,7 @@ namespace GEngine
 			SDL_GL_SetSwapInterval(1);
 		}
 
-		m_ImGuiWindow = new ImGuiWindow();
+		m_ImGuiWindow = new ImGuiWindow_();
 		m_ImGuiWindow->Initialize(this, winProp.ImGuiWindowProperties);
 		
 
@@ -107,18 +107,15 @@ namespace GEngine
 	{
 		//GENGINE_CORE_INFO("Release Window!");
 		SDL_DestroyWindow(m_Window);
+		//delete m_Window;
 		m_Window = nullptr;
 		FreeContext();
 		
-		//m_ImGuiWindow->ShutDown();
 		delete m_ImGuiWindow;
-		//m_ImGuiWindow = nullptr;
+		m_ImGuiWindow = nullptr;
 		std::cout << "delete" << std::endl;
 			
 			
-		
-		
-		//SDL_Quit();
 	}
 
 	void SDLWindow::SetTitle(const std::string& title) const
@@ -126,7 +123,7 @@ namespace GEngine
 		SDL_SetWindowTitle(m_Window, title.c_str());
 	}
 
-	ImGuiWindow* SDLWindow::GetImGuiWindow() const
+	ImGuiWindow_* SDLWindow::GetImGuiWindow() const
 	{
 		return m_ImGuiWindow;
 	}
@@ -236,6 +233,7 @@ namespace GEngine
 
 	void SDLWindow::OnResize(int new_width, int new_height)
 	{
+	
 		m_ScreenWidth = new_width;
 		m_ScreenHeight = new_height;
 		//m_ScreenWidth = ImGui::GetWindowSize().x;

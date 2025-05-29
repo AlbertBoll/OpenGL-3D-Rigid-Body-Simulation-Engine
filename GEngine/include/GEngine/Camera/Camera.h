@@ -1,8 +1,10 @@
 #pragma once
 #include "Core/Actor.h"
+#include "Math/Math.h"
 
 namespace GEngine
 {
+
 
 	enum class CameraType
 	{
@@ -43,12 +45,28 @@ namespace GEngine
 	};
 
 
+	//class _Camera
+	//{
+	//public:
+	//	_Camera() = default;
+	//	_Camera(const Mat4& projection)
+	//		: m_Projection(projection) {}
+
+	//	virtual ~_Camera() = default;
+
+	//	const Mat4& GetProjection() const { return m_Projection; }
+	//protected:
+	//	Mat4 m_Projection = Mat4(1.0f);
+	//};
+	
 
 	class CameraBase: public Actor
 	{
 
-
 		friend class Entity;
+		friend class SpriteEntity;
+		friend class Renderer2D;
+
 	public:
 		CameraBase(): Actor(){}
 		CameraBase(const CameraSetting& camera): m_CameraSetting{camera}{}
@@ -84,6 +102,7 @@ namespace GEngine
 		bool& GetIsFixAspectRatio() { return m_IsFixAspectRatio; }
 		virtual void MouseRotate(const Vec2f& delta) {};
 		virtual void MousePan(const Vec2f& delta) {};
+	
 
 	private:
 		

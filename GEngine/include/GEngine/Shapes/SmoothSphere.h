@@ -6,7 +6,7 @@ namespace GEngine::Shape
 	class SmoothSphere : public Geometry
 	{
 	public:
-        SmoothSphere(float radius = 1.0f, int u_resolution = 64, int v_resolution = 64) : Geometry()
+        SmoothSphere(float radius = 0.5f, int u_resolution = 64, int v_resolution = 64) : Geometry()
         {
 
             std::vector<Vec3f> positions;

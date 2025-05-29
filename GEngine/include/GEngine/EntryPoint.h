@@ -1,6 +1,8 @@
 #pragma once
+//#define SDL_MAIN_HANDLED
 #include "Core/BaseApp.h"
-
+//#include"Physics/ShapeSphere.h"
+#include<iostream>
 
 using namespace GEngine;
 
@@ -10,19 +12,48 @@ BaseApp* CreateApp();
 //define in client app
 extern WindowProperties winProp;
 
-//extern WindowProperties winProp_;
-
 
 int main(int argc, char* args[])
 {
+
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 	auto app = CreateApp();
 	
 	app->Initialize({ winProp });
+
 	app->Run();
 
 
 	delete app;
+	
+	//using namespace GEngine;
+
+	//PhysicalShape* sphere = new ShapeSphere(0.5f);
+	//PhysicalShape* sphere_ = new ShapeSphere(0.4f);
+	
+
+	//std::cout << typeid(sphere).hash_code() << std::endl;
+
+	//std::cout << typeid(sphere_).hash_code() << std::endl;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 	//SceneApp app{};
 	//auto f = [](float u, float v) {return Vec3f{ u, v, 1.f }; };

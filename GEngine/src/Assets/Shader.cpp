@@ -225,6 +225,11 @@ namespace GEngine::Asset
 		glUseProgram(m_ProgramHandle);
 	}
 
+	void Shader::UnBind() const
+	{
+		glUseProgram(0);
+	}
+
 	int Shader::GetHandle() const
 	{
 		return m_ProgramHandle;
@@ -497,7 +502,11 @@ namespace GEngine::Asset
 		glUniform1i(loc, textureUnit);
 	}
 
-
+	template<>
+	void Shader::SetUniform<Math::Mat4>(const char* name, const std::vector<Math::Mat4>& data)
+	{
+		glUniformMatrix4fv(GetUniformLocation(name), data.size(), false, (float*)&data[0][0]);
+	}
 	
 	using namespace Math;
 

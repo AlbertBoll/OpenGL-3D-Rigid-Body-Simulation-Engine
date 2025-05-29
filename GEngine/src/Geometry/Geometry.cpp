@@ -55,6 +55,15 @@ namespace GEngine
 		b_UseIndexBuffer = true;
 	}
 
+	void Geometry::AddEntityID(int entityID)
+	{
+		std::vector<int> entityIDData(m_VertexCount, entityID);
+		BindVAO();
+		AddAttributes(entityIDData);
+		UnBindVAO();
+
+	}
+
 	void Geometry::ApplyTransform(const Mat4& transform, unsigned int location, bool bNormal)
 	{
 		if (auto it = m_Attributes.find(location); it != m_Attributes.end())
@@ -120,5 +129,51 @@ namespace GEngine
 
 		CountVertices();
 	}
+
+	//void Geometry::BuildBounds(const std::vector<Vec3f>& pts)
+	//{
+	//
+	//	for (auto& pt: pts) {
+	//		m_Bounds.Expand(pt);
+	//	}
+	//}
+
+	Bounds Geometry::BuildBounds(const std::vector<Vec3f>& pts)
+	{
+		 Bounds bounds;
+		 for (auto& pt : pts)
+		 {
+			 bounds.Expand(pt);
+		 }
+
+		 return bounds;
+	}
+
+	std::vector<Vec3f> Geometry::GetPoints(const Vec3f& scale)
+	{
+		auto pts = std::get<Attribute<Vec3f>>(m_Attributes[0]).m_Data;
+		for (auto& pt : pts)
+		{
+			pt *= scale;
+		}
+		return pts;
+
+	}
+
+	std::vector<Vec3f> Geometry::GetUniquePoints(const Vec3f& scale)
+	{
+		std::vector<Vec3f> temp = m_UniquePoints;
+		for (auto& pt : temp)
+		{
+			pt *= scale;
+		}
+		return temp;
+	}
+
+	//std::vector<Vec3f> Geometry::GetPoints()
+	//{
+	//	Attribute<Vec3f> positionAttr = std::get<Attribute<Vec3f>>(m_Attributes[0]);
+	//	return positionAttr.m_Data;
+	//}
 
 }

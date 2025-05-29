@@ -9,7 +9,12 @@
 #include "Windows/SDLWindow.h"
 
 
-using namespace GEngine::Event;
+//using namespace GEngine::Event;
+
+//namespace GEngine
+//{
+//	class Event;
+//}
 
 
 namespace GEngine::Manager
@@ -31,7 +36,7 @@ namespace GEngine::Manager
 		using namespace GEngine;
 
 		//auto AppQuitEvent = new Events<void()>("ApplicationQuit");
-		auto WindowCloseEvent = new Events<void(WindowCloseParam)>("WindowClose");
+		//auto WindowCloseEvent = new Events<void(WindowCloseParam)>("WindowClose");
 		//auto KeyPressEvent = new Events<void(const char*)>("KeyPress");
 		//auto KeyRepeatEvent = new Events<void(const char*)>("KeyRepeat");
 		//auto KeyReleaseEvent = new Events<void(const char*)>("KeyRelease");
@@ -52,8 +57,12 @@ namespace GEngine::Manager
 		MouseMoveEvent->Subscribe([](const MouseMoveParam& moveParam)
 			{
 				auto& mouseState = BaseApp::GetEngine().GetInputManager()->GetMouseState();
-				mouseState.m_XRel = moveParam.XPos;
-				mouseState.m_YRel = moveParam.YPos;			
+				//mouseState.SetCursorMode(CursorMode::HIDDEN);
+				mouseState.m_XRel = moveParam.XRel;
+				mouseState.m_YRel = moveParam.YRel;	
+				mouseState.m_MousePos.x = (float)moveParam.XPos;
+				mouseState.m_MousePos.y = (float)moveParam.YPos;
+				//GENGINE_INFO("x: {}, y: {}", mouseState.m_XRel, mouseState.m_YRel);
 
 			});
 
@@ -123,27 +132,27 @@ namespace GEngine::Manager
 
 
 
-		WindowCloseEvent->Subscribe(([](WindowCloseParam windowParam)
-			{
-				auto windows = BaseApp::GetWindowManager();
-				if (auto p = windows->GetWindows().find(windowParam.ID); p != windows->GetWindows().end())
-				{
-					//GENGINE_CORE_INFO("Window with ID {} was closed", windowParam.ID);
-					windows->RemoveWindow(windowParam.ID);
-					//GENGINE_CORE_INFO("Window Manager Size {}", windows->GetWindows().size());
+		//WindowCloseEvent->Subscribe(([](WindowCloseParam windowParam)
+		//	{
+		//		auto windows = BaseApp::GetWindowManager();
+		//		if (auto p = windows->GetWindows().find(windowParam.ID); p != windows->GetWindows().end())
+		//		{
+		//			//GENGINE_CORE_INFO("Window with ID {} was closed", windowParam.ID);
+		//			windows->RemoveWindow(windowParam.ID);
+		//			//GENGINE_CORE_INFO("Window Manager Size {}", windows->GetWindows().size());
 
-					//auto& numWindows = windows->GetNumOfWindows();
-					//if (numWindows == 0) {
-						//BaseApp::GetEngine().ShutDown();
-						//GENGINE_CORE_INFO("ShutDown!");
+		//			//auto& numWindows = windows->GetNumOfWindows();
+		//			//if (numWindows == 0) {
+		//				//BaseApp::GetEngine().ShutDown();
+		//				//GENGINE_CORE_INFO("ShutDown!");
 
-					//}
-				}
-			}));
+		//			//}
+		//		}
+		//	}));
 
 	
 
-		m_EventDispatcher.RegisterEvent(WindowCloseEvent);
+		//m_EventDispatcher.RegisterEvent(WindowCloseEvent);
 		//m_EventDispatcher.RegisterEvent(KeyPressEvent);
 		//m_EventDispatcher.RegisterEvent(KeyRepeatEvent);
 		//m_EventDispatcher.RegisterEvent(KeyReleaseEvent);
@@ -151,16 +160,16 @@ namespace GEngine::Manager
 		//m_EventDispatcher.RegisterEvent(MouseButtonReleaseEvent);
 		m_EventDispatcher.RegisterEvent(MouseMoveEvent);
 	
-
+		
 	}
 
 
 
 	void EventManager::OnEvent(SDL_Event& e)
 	{
-		
+
 		auto window = static_cast<SDLWindow*>(BaseApp::GetWindowManager()->GetInternalWindow(1));
-		while(SDL_PollEvent(&e))
+		while (SDL_PollEvent(&e))
 		{
 			if (BaseApp::GetWindowManager()->GetNumOfWindows() != 0)
 				window->GetImGuiWindow()->HandleSDLEvent(e);
@@ -168,20 +177,22 @@ namespace GEngine::Manager
 			switch (e.type)
 			{
 			case SDL_QUIT:
-			//case SDL_KEYDOWN:
+				//case SDL_KEYDOWN:
 				m_EventDispatcher.DispatchEvent("AppClose");
+				std::cout << "App close event" << std::endl;
 				break;
 
-			case SDL_KEYDOWN:
-				if (!e.key.repeat)
-				{
-					m_EventDispatcher.DispatchEvent("AppQuit");
-					//m_EventDispatcher.DispatchEvent("KeyPress", SDL_GetKeyName(e.key.keysym.sym));
-				}
+				//case SDL_KEYDOWN:
+				//	if (!e.key.repeat)
+				//	{
+				//		m_EventDispatcher.DispatchEvent("AppQuit");
+				//		//std::cout << "App quit event" << std::endl;
+				//		//m_EventDispatcher.DispatchEvent("KeyPress", SDL_GetKeyName(e.key.keysym.sym));
+				//	}
 
-				//else 
-					//m_EventDispatcher.DispatchEvent("KeyRepeat", SDL_GetKeyName(e.key.keysym.sym));
-				break;
+				//	//else 
+				//		//m_EventDispatcher.DispatchEvent("KeyRepeat", SDL_GetKeyName(e.key.keysym.sym));
+				//	break;
 
 			case SDL_MOUSEWHEEL:
 
@@ -190,38 +201,42 @@ namespace GEngine::Manager
 																						   .Y = e.wheel.preciseY });
 				break;
 
-			//case SDL_KEYUP:
-				//m_EventDispatcher.DispatchEvent("KeyRelease", SDL_GetKeyName(e.key.keysym.sym));
-				//break;
+				//case SDL_KEYUP:
+					//m_EventDispatcher.DispatchEvent("KeyRelease", SDL_GetKeyName(e.key.keysym.sym));
+					//break;
 
-			//case SDL_MOUSEBUTTONDOWN:
-			/*	m_EventDispatcher.DispatchEvent("MouseButtonPress", MouseButtonParam{ .ID = e.button.windowID, 
-																					   .X = e.button.x, 
-					                                                                   .Y = e.button.y ,
-					                                                                   .Button = e.button.button, 
-					                                                                   .Clicks = e.button.clicks });
-			
-				break;*/
+			case SDL_MOUSEBUTTONDOWN:
+				m_EventDispatcher.DispatchEvent("MouseButtonPress", MouseButtonParam{ .ID = e.button.windowID,
+																						.X = e.button.x,
+																						.Y = e.button.y ,
+																						.Button = e.button.button,
+																						.Clicks = e.button.clicks });
 
-				//break;
+				break;
 
-			//case SDL_MOUSEBUTTONUP:
-				/*m_EventDispatcher.DispatchEvent("MouseButtonRelease", MouseButtonParam{ .ID = e.button.windowID,
-																					    .X = e.button.x,
-																					    .Y = e.button.y ,
-																					    .Button = e.button.button,
-																					    .Clicks = e.button.clicks });*/
+					//break;
 
-				//break;
+				//case SDL_MOUSEBUTTONUP:
+					/*m_EventDispatcher.DispatchEvent("MouseButtonRelease", MouseButtonParam{ .ID = e.button.windowID,
+																							.X = e.button.x,
+																							.Y = e.button.y ,
+																							.Button = e.button.button,
+																							.Clicks = e.button.clicks });*/
+
+																							//break;
 
 
-			
+
 
 			case SDL_MOUSEMOTION:
 				m_EventDispatcher.DispatchEvent("MouseMove", MouseMoveParam{ .ID = e.button.windowID,
-																			 .XPos = e.motion.xrel,
-																			 .YPos = e.motion.yrel });
-				
+																			 .XPos = e.motion.x,
+																			 .YPos = e.motion.y,
+																			 .XRel = e.motion.xrel,
+																			 .YRel = e.motion.yrel });
+
+				//std::cout << "X: " << e.motion.x << " Y: " << e.motion.y << std::endl;
+
 				break;
 
 			case SDL_WINDOWEVENT:
@@ -230,23 +245,27 @@ namespace GEngine::Manager
 				if (e.window.event == SDL_WINDOWEVENT_CLOSE)
 				{
 					m_EventDispatcher.DispatchEvent("WindowClose", WindowCloseParam{ .ID = e.window.windowID });
+					std::cout << "window close event" << std::endl;
 				}
 
 				else if (e.window.event == SDL_WINDOWEVENT_RESIZED)
 				{
-					m_EventDispatcher.DispatchEvent("WindowResize", WindowResizeParam{ .ID = e.window.windowID, 
-						                                                               .Width =  e.window.data1, 
-						                                                               .Height = e.window.data2 });
+					m_EventDispatcher.DispatchEvent("WindowResize", WindowResizeParam{ .ID = e.window.windowID,
+																					   .Width = e.window.data1,
+																					   .Height = e.window.data2 });
 				}
 
 				break;
 
-
 			}
-			
+			case SDL_KEYDOWN:
+				if (e.key.keysym.sym == SDLK_p)
+					m_EventDispatcher.DispatchEvent("AppPause");
+				else if (e.key.keysym.sym == SDLK_r)
+					m_EventDispatcher.DispatchEvent("AppResume");
+				break;
 			}
 		}
 	}
-
 
 }

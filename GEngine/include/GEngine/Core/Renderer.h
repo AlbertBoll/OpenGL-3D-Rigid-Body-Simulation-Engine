@@ -35,12 +35,12 @@ namespace GEngine
 	public:
 
 		static void ImGuiRender();
-		static void Initialize(const Vec3f& clearColor = { 0.1f, 0.1f, 0.1f });
+		static void Initialize(const Vec3f& clearColor = { 0.5f, 0.5f, 0.5f });
 
 		static void Set(const RenderParam& param);
 		static void Clear();
 
-		static void RenderBegin(CameraBase* camera, Window* window, bool bClearColor = true, bool bClearDepth = true, RenderTarget* target = nullptr);
+		//static void RenderBegin(CameraBase* camera, Window* window, bool bClearColor = true, bool bClearDepth = true, RenderTarget* target = nullptr);
 
 		static void RenderBegin(CameraBase* camera, RenderTarget* target);
 
@@ -49,7 +49,7 @@ namespace GEngine
 
 		static void RenderBeginHUD(CameraBase* camera);
 
-		static void Render(Actor* root, CameraBase* camera);
+		static void Render(Actor* scene, CameraBase* camera);
 
 		static RenderStats& GetRenderStats() { return m_RenderStats; }
 
@@ -63,6 +63,8 @@ namespace GEngine
 		{
 			return { m_WindowWidth, m_WindowHeight };
 		}
+
+		static void RenderHelper(Actor* entity, CameraBase* camera);
 
 	private:
 		inline static int m_WindowWidth{};

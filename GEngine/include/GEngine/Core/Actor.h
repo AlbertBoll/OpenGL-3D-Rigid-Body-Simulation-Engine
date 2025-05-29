@@ -41,12 +41,14 @@ namespace GEngine
 		void SetTag(const std::string& name) { m_Tag = name; }
 
 		void PrintLocalTransform()const;
+		Vec2f Get2DPosition()const { return Vec2f(m_LocalTransformComponent.Translation); }
 
-		//void PrintGlobalTransform();
 
 		virtual void Update(Timestep ts) {}
 
 		virtual void Render(CameraBase* camera){}
+
+		//virtual void Render() {}
 
 
 		//Add smarter child pointer
@@ -125,6 +127,13 @@ namespace GEngine
 		
 		void Translate(float x, float y, float z, bool isLocal = true);
 
+		void TranslateX(float x, bool isLocal = true);
+		void TranslateY(float y, bool isLocal = true);
+		void TranslateZ(float z, bool isLocal = true);
+
+		void IncrementPosX(float deltaX);
+		void IncrementPosY(float deltaY);
+		void IncrementPosZ(float deltaZ);
 
 		void RotateX(float angle, bool isLocal = true);
 
@@ -132,9 +141,9 @@ namespace GEngine
 
 		void SetPitch(float pitch);
 
-		float GetPitch()const { return ToRadians(m_LocalTransformComponent.Rotation.x); }
-		float GetYaw()const { return ToRadians(m_LocalTransformComponent.Rotation.y); }
-
+		float GetPitch()const { return m_LocalTransformComponent.Rotation.x; }
+		float GetYaw()const { return m_LocalTransformComponent.Rotation.y; }
+		float Yaw()const { return Math::ToDegrees(m_LocalTransformComponent.Rotation.y); }
 		void SetRoll(float roll);
 		
 
@@ -202,6 +211,9 @@ namespace GEngine
 		Vec3f GetForwardDirection() const;
 		Vec3f GetUpDirection() const;
 		Vec3f GetRightDirection() const;
+
+		bool GetVisibility()const { return m_Visible; }
+
 
 	protected:
 		std::vector<ScopedPtr<Actor>> m_Children;

@@ -7,6 +7,7 @@
 #include "Inputs/ControllerCodes.h"
 
 
+
 #define GENGINE_MAX_KEYCODES 512
 #define GENGINE_BUTTON(x) (1 << ((x)-1))
 #define GENGINE_CONTROLLER_BUTTON_MAX 21
@@ -23,6 +24,13 @@ namespace GEngine
 	class SDLWindow;
 }
 
+enum class CursorMode
+{
+	NORMAL = 0,
+	HIDDEN = 1,
+	LOCKED = 2
+};
+
 namespace GEngine::Manager
 {
 	using namespace Math;
@@ -37,10 +45,13 @@ namespace GEngine::Manager
 	};
 
 
+
+
 	//Helper for keyboard input
 	class KeyboardState
 	{
 	public:
+	
 		ButtonState GetKeyState(GEngineKeyCode keyCode)const;
 	
 		bool IsKeyHeld(GEngineKeyCode keyCode)const { return GetKeyState(keyCode) == ButtonState::Held; };
@@ -57,7 +68,7 @@ namespace GEngine::Manager
 	//Helper for mouse input
 	class MouseState
 	{
-
+		
 	public:
 		const Vector2& GetPosition() const { return m_MousePos; }
 		const Vector2& GetScrollWheel() const { return m_ScrollWheel; }
@@ -70,6 +81,11 @@ namespace GEngine::Manager
 		bool isButtonReleased(GEngineMouseCode button) const { return GetButtonState(button) == ButtonState::Released; }
 		[[nodiscard]] bool IsRelative() const { return m_IsRelative; }
 
+		int32_t GetDX()const { return m_XRel; }
+		int32_t GetDY()const { return m_YRel; }
+		float GetDWheel()const { return m_ScrollWheel.y; }
+		void SetCursorMode(CursorMode mode);
+		
 		
 	public:
 		friend class MouseEvent;
@@ -79,8 +95,8 @@ namespace GEngine::Manager
 		uint32_t m_CurrentButtons;
 		uint32_t m_PreviousButtons;
 
-		int32_t m_XRel{};
-		int32_t m_YRel{};
+		int m_XRel{};
+		int m_YRel{};
 
 		//Are we in relative mouse mode
 		bool m_IsRelative;
@@ -138,7 +154,7 @@ namespace GEngine::Manager
 	
 		
 	public:
-
+		
 		
 		static ScopedPtr<InputManager> GetScopedInstance();
 

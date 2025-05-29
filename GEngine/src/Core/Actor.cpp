@@ -44,7 +44,7 @@ namespace GEngine
 
 	Actor::~Actor()
 	{
-		std::cout << m_Tag.Name << " Desrtuctor was called!" << std::endl;
+		std::cout << m_Tag.Name << " Destructor was called!" << std::endl;
 	}
 
 	//void Actor::PrintGlobalTransform()
@@ -110,7 +110,7 @@ namespace GEngine
 
 				else if constexpr (!condition)
 				{
-					return m_Parent->GetWorldTransform() * (Mat4)m_LocalTransformComponent;
+					return m_Parent->GetWorldTransform() * m_LocalTransformComponent.Transform;
 				}
  
 			}, condition);
@@ -124,12 +124,12 @@ namespace GEngine
 			{
 				if constexpr (condition)
 				{
-					return (Mat4)m_LocalTransformComponent;
+					return m_LocalTransformComponent.Transform;
 				}
 
 				else if constexpr (!condition)
 				{
-					return m_Parent->GetWorldTransform() * (Mat4)m_LocalTransformComponent;
+					return m_Parent->GetWorldTransform() * m_LocalTransformComponent.Transform;
 				}
 
 			}, condition);
@@ -143,7 +143,7 @@ namespace GEngine
 	Mat4& Actor::GetLocalTransform()
 	{
 
-		return m_LocalTransformComponent.Transform;
+		return (Mat4&)m_LocalTransformComponent;
 	
 	}
 
@@ -167,22 +167,74 @@ namespace GEngine
 				else if constexpr (!is_local)
 					m_LocalTransformComponent.Transform = transform * m_LocalTransformComponent.Transform;
 			}, is_local);
-		
-		
+
+	
 	}
 
 
 	void Actor::Translate(float x, float y, float z, bool isLocal)
 	{
-		m_LocalTransformComponent.Translation.x += x;
-		m_LocalTransformComponent.Translation.y += y;
-		m_LocalTransformComponent.Translation.z += z;
+		
+
+
+		//m_LocalTransformComponent.Transform[3][0] = m_LocalTransformComponent.Translation.x;
+		//m_LocalTransformComponent.Transform[3][1] = m_LocalTransformComponent.Translation.y;
+		//m_LocalTransformComponent.Transform[3][2] = m_LocalTransformComponent.Translation.z;
 		ApplyTransform(Matrix::MakeTranslation(x, y, z), isLocal);
+
+		m_LocalTransformComponent.Translation = { m_LocalTransformComponent.Transform[3][0],
+		m_LocalTransformComponent.Transform[3][1], m_LocalTransformComponent.Transform[3][2] };
+		//m_LocalTransformComponent.Translation.x += x;
+		//m_LocalTransformComponent.Translation.y += y;
+		//m_LocalTransformComponent.Translation.z += z;
+	}
+
+	void Actor::TranslateX(float x, bool isLocal)
+	{
+		//m_LocalTransformComponent.Translation.x += x;
+		ApplyTransform(Matrix::MakeTranslation(x, 0, 0), isLocal);
+		m_LocalTransformComponent.Translation = { m_LocalTransformComponent.Transform[3][0],
+		m_LocalTransformComponent.Transform[3][1], m_LocalTransformComponent.Transform[3][2] };
+
+	}
+
+	void Actor::TranslateY(float y, bool isLocal)
+	{
+		//m_LocalTransformComponent.Translation.y += y;
+		ApplyTransform(Matrix::MakeTranslation(0, y, 0), isLocal);
+		m_LocalTransformComponent.Translation = { m_LocalTransformComponent.Transform[3][0],
+		m_LocalTransformComponent.Transform[3][1], m_LocalTransformComponent.Transform[3][2] };
+	}
+
+	void Actor::TranslateZ(float z, bool isLocal)
+	{
+		//m_LocalTransformComponent.Translation.z += z;
+		ApplyTransform(Matrix::MakeTranslation(0, 0, z), isLocal);
+		m_LocalTransformComponent.Translation = { m_LocalTransformComponent.Transform[3][0],
+		m_LocalTransformComponent.Transform[3][1], m_LocalTransformComponent.Transform[3][2] };
+	}
+
+	void Actor::IncrementPosX(float deltaX)
+	{
+		m_LocalTransformComponent.Translation.x += deltaX;
+		m_LocalTransformComponent.Transform[3][0] = m_LocalTransformComponent.Translation.x;
+	}
+
+	void Actor::IncrementPosY(float deltaY)
+	{
+		m_LocalTransformComponent.Translation.y += deltaY;
+		m_LocalTransformComponent.Transform[3][1] = m_LocalTransformComponent.Translation.y;
+	}
+
+	void Actor::IncrementPosZ(float deltaZ)
+	{
+		m_LocalTransformComponent.Translation.z += deltaZ;
+		m_LocalTransformComponent.Transform[3][2] = m_LocalTransformComponent.Translation.z;
 	}
 
 	void Actor::RotateX(float angle, bool isLocal)
 	{
-		//m_LocalTransformComponent.Rotation.x += angle;
+		m_LocalTransformComponent.Rotation.x += angle;
 		//m_LocalTransformComponent.ReCalculateTransform();
 		ApplyTransform(Matrix::MakeRotationX(angle), isLocal);
 	}
@@ -207,7 +259,7 @@ namespace GEngine
 
 	void Actor::RotateY(float angle, bool isLocal)
 	{
-		//m_LocalTransformComponent.Rotation.y += angle;
+		m_LocalTransformComponent.Rotation.y += angle;
 		//m_LocalTransformComponent.ReCalculateTransform();
 		ApplyTransform(Matrix::MakeRotationY(angle), isLocal);
 	}
@@ -226,7 +278,7 @@ namespace GEngine
 
 	void Actor::RotateZ(float angle, bool isLocal)
 	{
-		//m_LocalTransformComponent.Rotation.z += angle;
+		m_LocalTransformComponent.Rotation.z += angle;
 		//m_LocalTransformComponent.ReCalculateTransform();
 		ApplyTransform(Matrix::MakeRotationZ(angle), isLocal);
 	}
@@ -244,7 +296,7 @@ namespace GEngine
 
 	void Actor::SetScale(const Vec3f& scale, bool isLocal)
 	{
-		//m_LocalTransformComponent.Scale = scale;
+		m_LocalTransformComponent.Scale = scale;
 		ApplyTransform(Matrix::MakeScale(scale), isLocal);
 	}
 
@@ -300,16 +352,19 @@ namespace GEngine
 
 	void Actor::SetPositionX(float x)
 	{
+		m_LocalTransformComponent.Translation.x = x;
 		m_LocalTransformComponent.Transform[3][0] = x;
 	}
 
 	void Actor::SetPositionY(float y)
 	{
+		m_LocalTransformComponent.Translation.y = y;
 		m_LocalTransformComponent.Transform[3][1] = y;
 	}
 
 	void Actor::SetPositionZ(float z)
 	{
+		m_LocalTransformComponent.Translation.z = z;
 		m_LocalTransformComponent.Transform[3][2] = z;
 	}
 
@@ -333,7 +388,14 @@ namespace GEngine
 
 	void Actor::LookAt(const Vec3f& target_position)
 	{
-		m_LocalTransformComponent = Matrix::MakeLookAt(GetWorldPosition(), target_position);
+		m_LocalTransformComponent = glm::inverse(Matrix::MakeLookAt(GetWorldPosition(), target_position));
+		Vec3f translation, rotation, scale;
+		if (Matrix::DecomposeTransform(m_LocalTransformComponent, translation, rotation, scale))
+		{
+			m_LocalTransformComponent.Translation = translation;
+			m_LocalTransformComponent.Rotation = { Math::ToDegrees(rotation.x), Math::ToDegrees(rotation.y), Math::ToDegrees(rotation.z) };
+		}
+		
 	}
 
 	Mat3 Actor::GetStrongRotationMatrix() const

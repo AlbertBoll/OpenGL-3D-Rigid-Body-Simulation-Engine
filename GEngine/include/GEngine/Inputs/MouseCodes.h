@@ -16,5 +16,7 @@ namespace GEngine::Input
 			GENGINE_BUTTON_X2 = 5,
 
 		} GEngineMouseCode;
+
+
 	}
 }

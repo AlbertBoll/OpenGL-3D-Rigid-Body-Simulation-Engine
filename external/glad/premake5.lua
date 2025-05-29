@@ -23,7 +23,7 @@ project "glad"
 		"system:windows"
 	}
 	buildoptions "/MTd"
-	systemversion "10.0"
+	systemversion "latest"
 
 
 	-- MACOS

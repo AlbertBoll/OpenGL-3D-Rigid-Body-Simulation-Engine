@@ -8,7 +8,7 @@ struct SDL_Window;
 namespace GEngine
 {
     class BaseApp;
-    class ImGuiWindow;
+    class ImGuiWindow_;
 
     class SDLWindow: public Window
     {
@@ -23,7 +23,7 @@ namespace GEngine
         virtual void ShutDown() override; 
         virtual void SetTitle(const std::string& title) const override;
         SDL_Window* GetSDLWindow()const { return m_Window; }
-        ImGuiWindow* GetImGuiWindow()const;
+        ImGuiWindow_* GetImGuiWindow()const;
         // Inherited via Window
         virtual uint32_t GetWindowID() const override;
         void* GetContext() { return m_Context; }
@@ -36,7 +36,7 @@ namespace GEngine
 
     private:
         SDL_Window* m_Window{};
-        ImGuiWindow* m_ImGuiWindow{};
+        ImGuiWindow_* m_ImGuiWindow{};
         void* m_Context{};
 
 

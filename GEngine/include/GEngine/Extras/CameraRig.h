@@ -32,7 +32,7 @@ namespace GEngine
     {
 
     public:
-        CameraRig(bool bAttachToControlledActor = false, float units_per_seconds = 5.0f, float degree_per_seconds = 40.0f);
+        CameraRig(bool bAttachToControlledActor = false, float units_per_seconds = 30.0f, float degree_per_seconds = 40.0f);
        // ~CameraRig()override { if(m_RigAttachment)delete m_RigAttachment; }
         void Attach(Actor* child);
         void SetYawSpeed(float YawSpeed);

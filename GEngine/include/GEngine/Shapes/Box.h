@@ -127,8 +127,35 @@ namespace GEngine::Shape
 
 			AddAttributes(positionData, colorData, uvData, normalData);
 			UnBindVAO();
+			//BuildBounds(positionData);
 		}
 
+
+	};
+
+
+	class SkyBox : public Geometry
+	{
+	public:
+		SkyBox(float width = 2000.0f, float height = 2000.0f, float depth = 2000.0f) : Geometry()
+		{
+			//position
+			Vec3f p0 = { -width / 2.f, -height / 2.f, -depth / 2.f };
+			Vec3f p1 = { width / 2.f, -height / 2.f, -depth / 2.f };
+			Vec3f p2 = { -width / 2.f,  height / 2.f, -depth / 2.f };
+			Vec3f p3 = { width / 2.f,  height / 2.f, -depth / 2.f };
+			Vec3f p4 = { -width / 2.f, -height / 2.f,  depth / 2.f };
+			Vec3f p5 = { width / 2.f, -height / 2.f,  depth / 2.f };
+			Vec3f p6 = { -width / 2.f,  height / 2.f,  depth / 2.f };
+			Vec3f p7 = { width / 2.f,  height / 2.f,  depth / 2.f };
+
+			std::vector<Vec3f> positionData = { p5, p1, p3, p5, p3, p7, p0, p4, p6, p0, p6, p2,
+											   p6, p7, p3, p6, p3, p2, p0, p1, p5, p0, p5, p4,
+											   p4, p5, p7, p4, p7, p6, p1, p0, p2, p1, p2, p3 };
+
+			AddAttributes(positionData);
+			UnBindVAO();
+		}
 
 	};
 	

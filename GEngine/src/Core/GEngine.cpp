@@ -54,7 +54,6 @@ namespace GEngine
 			GENGINE_CORE_INFO("Initialize SDL");
 
 
-			//
 			//int code = SDL_Init(SDL_INIT_EVERYTHING);
 			int code = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER);
 
@@ -65,23 +64,26 @@ namespace GEngine
 
 			GENGINE_CORE_INFO("SDL {}.{}.{}", (uint32_t)version.major, (uint32_t)version.minor, (uint32_t)version.patch);
 
-			//SDL_DisplayMode mode;
+			SDL_DisplayMode mode;
 			SDL_GetDesktopDisplayMode(0, &mode);
 			GENGINE_CORE_INFO("Display width: {}. Display height: {}. Refresh Rate: {}", mode.w, mode.h, mode.refresh_rate);
 
 			GENGINE_CORE_INFO("Initialize Window Manager...");
 			
+			
 			m_WindowManager = Manager::WindowManager::GetScopedInstance();
 
-		
+		    
 			GetWindowManager()->AddWindows(WindowsPropertyList);
+			
+
 
 			GENGINE_CORE_INFO("Initialize Input Manager...");
 			
 			m_InputManager = Manager::InputManager::GetScopedInstance();
 			m_InputManager->Initialize();
 
-			//m_WindowManager->GetInternalWindow(1)->BeginRender();
+			////m_WindowManager->GetInternalWindow(1)->BeginRender();
 
 			GENGINE_CORE_INFO("Initialize Event Manager...");
 
@@ -99,9 +101,7 @@ namespace GEngine
 			{
 				GENGINE_CORE_ERROR("Failed to initialize SDL_ttf");
 			}
-
-			//GENGINE_CORE_INFO("Initialize Renderer...");
-			Renderer::Initialize();
+			
 			
 	}
 

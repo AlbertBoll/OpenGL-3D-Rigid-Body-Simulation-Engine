@@ -1,18 +1,18 @@
-# C++ and OpenGL 3D Rigid body Simulation Engine
+# C++ and OpenGL 3D Real Time Game Physics Rigid Body Simulator 
+Real time rigid body game physics<bp/><bp/>
 
-A real time rigid body physics simulator<br/><br/>
+## Demo
+- **1. Sphere Sphere Collision and Response**
+![me](https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine/blob/main/gif/rigid%20sphere%20collision.gif)<bp/><bp/>
 
+- **2. Box Box Collision and Response**
+![me](https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine/blob/main/gif/rigid%20box%20collision.gif)<bp/><bp/>
 
-## Sphere Sphere rigid body collision and response
-![me](https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine/blob/main/gif/rigid%20sphere%20collision.gif)<br/><br/>
+- **3. Convex Shape Collision and Response**
+![me](https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine/blob/main/gif/rigid%20convex%20collision.gif)<bp/><bp/>
 
-## Box Box rigid body collision and response
-![me](https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine/blob/main/gif/rigid%20box%20collision.gif)<br/><br/>
+- **4. Convex Sphere Collision and Response**
+![me](https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine/blob/main/gif/convex%20sphere%20collision.gif)<bp/><bp/>
 
-## Convex Convex rigid body collision and response
-![me](https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine/blob/main/gif/rigid%20convex%20collision.gif)<br/><br/>
-
-## Sphere Convex rigid body collision and response
-![me](https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine/blob/main/gif/convex%20sphere%20collision.gif)<br/><br/>
-
-
+- **5. Sphere Box Collision and Response**
+![me](https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine/blob/main/gif/box_sphere_collision.gif)

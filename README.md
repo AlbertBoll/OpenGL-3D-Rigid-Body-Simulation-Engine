@@ -20,8 +20,6 @@ Real time rigid body game physics<bp/><bp/>
 
 
 ## References
-Collision detection and response for rigid body were inspired based on series of books **Game Physics In One Weekend** [1]. **Game Physics The Next Week**[2] and **Game Physics The Rest Of Your Life** [3].
-
-- [1] https://gamephysicsweekend.github.io/pdfs/GamePhysicsInOneWeekend.pdf
-- [2] https://gamephysicsweekend.github.io/pdfs/GamePhysicsTheNextWeek.pdf
-- [3] https://gamephysicsweekend.github.io/pdfs/GamePhysicsTheRestOfYourLife.pdf
+Collision detection was implemented with the help of GJK [1] and EPA [2]
+- [1] https://ieeexplore.ieee.org/document/2083
+- [2] https://graphics.stanford.edu/courses/cs468-01-fall/Papers/van-den-bergen.pdf

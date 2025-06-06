@@ -406,15 +406,22 @@ namespace GEngine
 			
 			if (entity.HasAllComponents<RenderComponent>() && entity.HasAnyComponents<DirectionalLightComponent, PointLightComponent, SpotLightComponent>())
 			{
+
 				auto renderId = entity.GetComponent<RenderComponent>().Shader->GetHandle();
 
 				m_LightEntities[renderId - 1].emplace_back((entt::entity)entity, this);
+			/*	if (entity.HasAllComponents<MeshComponent>())
+				{
+					m_GroupEntities[renderId - 1].emplace_back((entt::entity)entity, this);
+				}*/
 			}
 			else if (entity.HasAllComponents<RenderComponent>() && !entity.HasAnyComponents<DirectionalLightComponent, PointLightComponent, SpotLightComponent>())
 			{
+
 				auto renderId = entity.GetComponent<RenderComponent>().Shader->GetHandle();
 				m_GroupEntities[renderId - 1].emplace_back((entt::entity)entity, this);
 			}
+
 
 		}
 	}
@@ -453,6 +460,7 @@ namespace GEngine
 				body->m_Shape = new ShapeSphere(sphere_fixure.Radius);
 				Connection(transform, OnScaleChanged, *static_cast<ShapeSphere*>(body->m_Shape), &ShapeSphere::HandleScaleChanged);
 				
+				
 				rigid_body.RuntimeBody = body;
 			}
 
@@ -469,7 +477,7 @@ namespace GEngine
 				body->m_Position = box_fixure.Property.m_Position;
 				body->m_Orientation = box_fixure.Property.m_Orientation;
 				body->Type = rigid_body.Type;
-				auto pts = entity.GetComponent<MeshComponent>().m_Geometry->GetPoints();
+				auto pts = entity.GetComponent<MeshComponent>().m_Geometry->GetPoints(transform.Scale);
 				
 				//std::cout << entity.GetComponent<TagComponent>().Name << std::endl;
 				/*for (auto& pt : pts)
@@ -478,7 +486,7 @@ namespace GEngine
 				}*/
 				body->m_Shape = new ShapeBox(pts);
 				Connection(transform, OnScaleChanged, *body->m_Shape, &PhysicalShape::HandleScaleChanged);
-				
+				//transform.SetScale(2);
 				/*auto bound = body->m_Shape->GetBounds();
 				std::cout << "Box Bounds: " << bound.mins.x << " " << bound.mins.y << " " << bound.mins.z << std::endl;
 				std::cout << "Box Bounds: " << bound.maxs.x << " " << bound.maxs.y << " " << bound.maxs.z << std::endl;*/

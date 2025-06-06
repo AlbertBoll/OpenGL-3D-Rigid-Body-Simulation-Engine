@@ -50,9 +50,10 @@ namespace GEngine
 	public:
 
 		static void CascadedShadowPreRender(_Scene* scene);
+		static void PointShadowPreRender(_Scene* scene, Shader* point_shadow_depth_shader, const std::vector<Mat4>& shadowTransforms, const Vec3f& lightPos, float far_plane);
 		static void MousePickPreRender(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader);
 	
-		static void CascadedShadowSceneRender(_Scene* scene, _EditorCamera& camera, const std::vector<float>& shadowCascadeLevels);
+		static void CascadedShadowSceneRender(_Scene* scene, _EditorCamera& camera, const std::vector<float>& shadowCascadeLevels, float far_plane);
 		static void SceneRender(_Scene* scene, _EditorCamera& camera);
 		static void BeginRender(_EditorCamera& camera, RenderTarget* target);
 		static void BeginRender(_EditorCamera& camera, const Vec4f& color = {0.1f, 0.1f, 0.1f, 1.f});
@@ -87,6 +88,8 @@ namespace GEngine
 
 		static std::vector<Mat4> GetLightSpaceMatrices(const _EditorCamera& camera, const Vec3f& lightDir, const std::vector<float>& shadowCascadeLevels);
 
+		static std::vector<Mat4> GetShadowTransformMatrices(const Mat4& shadowProj, const Vec3f& lightPos);
+
 		static Vec2f GetSurfaceSize()
 		{
 			return { m_WindowWidth, m_WindowHeight };
@@ -100,12 +103,13 @@ namespace GEngine
 		static void UpdateRenderSetting(const SurfaceSetting_& SurfaceSetting);
 		static void CascadedShadowScenePass(_Scene* scene, _EditorCamera& camera, Shader* cascade_shader, const std::vector<float>& shadowCascadeLevels, const FinalFrameBuffer& fb);
 		static void CascadedShadowPass(_Scene* scene, Shader* depth_shader, const CascadeShadowFrameBuffer& fb);
+		static void PointShadowPass(_Scene* scene, Shader* depth_shader, const PointShadowFrameBuffer& fb, const Vec3f& lightPos, float near_plane, float far_plane);
 		static void MousePickPass(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader, const MousePickFrameBuffer& fb);
 
 		template<typename uniformbuffer>
 		static void SetupUBO(const uniformbuffer& ubo, const _EditorCamera& camera, const Vec3f& lightDir, const std::vector<float>& shadowCascadeLevels);
 
-	
+		static void PointLightsVisualize(_Scene* scene, const _EditorCamera& camera, Shader* point_light_shader);
 
 
 	private:

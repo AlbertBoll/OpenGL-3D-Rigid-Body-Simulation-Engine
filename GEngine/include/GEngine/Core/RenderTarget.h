@@ -102,6 +102,27 @@ namespace GEngine
 	};
 	
 
+	class PointShadowFrameBuffer
+	{
+	public:
+		PointShadowFrameBuffer(unsigned int resolution_x, unsigned int resolution_y);
+		unsigned int GetDepthMapFBO() const { return m_DepthMapFBO; }
+		unsigned int GetDepthCubeMaps() const { return m_DepthCubeMaps; }
+		void OnResize(unsigned int width, unsigned int height);
+		Math::Vec2f GetResolution()const;
+		void Bind() const;
+		void UnBind() const;
+
+	private:
+		void Invalidate();
+
+	private:
+		unsigned int m_DepthMapFBO{};
+		unsigned int m_DepthCubeMaps{};
+		unsigned int m_Width{};
+		unsigned int m_Height{};
+	};
+
 	class CascadeShadowFrameBuffer
 	{
 	public:

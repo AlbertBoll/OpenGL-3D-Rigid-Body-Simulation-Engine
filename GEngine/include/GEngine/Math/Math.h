@@ -138,8 +138,8 @@ namespace GEngine
 			}*/
 			Vec3f n_ = glm::normalize(n);
 		
-			//const Vec3f w = (n_.z * n_.z > 0.9f * 0.9f) ? Vec3f(1, 0, 0) : Vec3f(0, 0, 1);
-			const Vec3f w = (n_.y * n_.y > 0.9f * 0.9f) ? Vec3f(1, 0, 0) : Vec3f(0, 1, 0);
+			const Vec3f w = (n_.z * n_.z > 0.9f * 0.9f) ? Vec3f(1, 0, 0) : Vec3f(0, 0, 1);
+			//const Vec3f w = (n_.y * n_.y > 0.9f * 0.9f) ? Vec3f(0, 0, 1) : Vec3f(0, 1, 0);
 			u = glm::normalize(glm::cross(w, n_));
 
 			v = glm::normalize(glm::cross(n_, u));

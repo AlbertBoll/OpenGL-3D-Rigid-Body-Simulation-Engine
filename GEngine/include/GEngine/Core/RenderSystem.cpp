@@ -14,16 +14,47 @@ namespace GEngine
 
 	void RenderSystem::MousePickPreRender(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader)
 	{
+		mouse_pick_shader->SetUniform("u_view", camera.GetViewMatrix());
+		mouse_pick_shader->SetUniform("u_projection", camera.GetProjection());
 
 		auto& render_groups = scene->GetGroupEntities();
+		auto& light_groups = scene->GetLightEntities();
+		for (auto& group : light_groups)
+		{
+			if (!group.empty())
+			{
+				auto& renderComp = group[0].GetComponent<RenderComponent>();
+				for (auto& entity : group)
+				{
+					if (entity.HasAllComponents<MeshComponent>())
+					{
+						mouse_pick_shader->SetUniform("u_EntityID", int((entt::entity)entity));
+
+						auto geoComp = entity.GetComponent<MeshComponent>();
+						geoComp.m_Geometry->BindVAO();
+
+						mouse_pick_shader->SetUniform("u_model", entity.GetComponent<Transform3DComponent>().GetTransform());
+
+						if (geoComp.m_Geometry->IsUsingIndexBuffer())
+						{
+							ElementsDraw((unsigned int)renderComp.RenderSettings.DrawStyle, geoComp.m_Geometry->GetIndicesCount());
+						}
+						else
+						{
+							ArraysDraw((unsigned int)renderComp.RenderSettings.DrawStyle, geoComp.m_Geometry->GetVerticesCount());
+						}
+					}
+				}
+			}
+		}
+
 
 		for (auto& group : render_groups)
 		{
 			if (!group.empty())
 			{
 				auto& renderComp = group[0].GetComponent<RenderComponent>();
-				mouse_pick_shader->SetUniform("u_view", camera.GetViewMatrix());
-				mouse_pick_shader->SetUniform("u_projection", camera.GetProjection());
+				
 
 				for (auto& entity : group)
 				{
@@ -32,13 +63,8 @@ namespace GEngine
 					auto geoComp = entity.GetComponent<MeshComponent>();
 					geoComp.m_Geometry->BindVAO();
 
-					if (entity.HasAllComponents<Transform3DComponent>())
-					{
-						auto& comp = entity.GetComponent<Transform3DComponent>();
-
-						mouse_pick_shader->SetUniform("u_model", entity.GetComponent<Transform3DComponent>().GetTransform());
-					}
-
+					mouse_pick_shader->SetUniform("u_model", entity.GetComponent<Transform3DComponent>().GetTransform());
+					
 					if (geoComp.m_Geometry->IsUsingIndexBuffer())
 					{
 						ElementsDraw((unsigned int)renderComp.RenderSettings.DrawStyle, geoComp.m_Geometry->GetIndicesCount());
@@ -65,9 +91,7 @@ namespace GEngine
 				{
 					auto& renderComp = group[0].GetComponent<PreRenderPassComponent>();
 					auto shader = renderComp.Shader;
-					auto id = renderComp.Shader->GetHandle();
-					shader->Bind();
-
+				
 					for (auto& entity : group)
 					{
 						//auto view = scene->View<Transform3DComponent, MeshComponent>();
@@ -95,8 +119,59 @@ namespace GEngine
 		}
 	}
 
+	void RenderSystem::PointShadowPreRender(_Scene* scene, Shader* point_shadow_depth_shader, const std::vector<Mat4>& shadowTransforms, const Vec3f& lightPos, float far_plane)
+	{
+		auto& render_groups = scene->GetGroupEntities();
+		for (int i = 0; i < shadowTransforms.size(); ++i)
+		{
+			std::string shadowMatrixName = "shadowMatrices[" + std::to_string(i) + "]";
+			point_shadow_depth_shader->SetUniform(shadowMatrixName.c_str(), shadowTransforms[i]);
+		}
+
+		point_shadow_depth_shader->SetUniform("lightPos", lightPos);
+
+		point_shadow_depth_shader->SetUniform("far_plane", far_plane);
+
+		for (auto& group : render_groups)
+		{
+			if (!group.empty())
+			{
+				if (group[0].HasAllComponents<RenderComponent>())
+				{
+					auto& renderComp = group[0].GetComponent<RenderComponent>();
+					//auto shader = renderComp.Shader;
+					/*auto id = renderComp.Shader->GetHandle();
+					shader->Bind();*/
+
+					for (auto& entity : group)
+					{
+						//auto view = scene->View<Transform3DComponent, MeshComponent>();
+						auto geoComp = entity.GetComponent<MeshComponent>();
+						geoComp.m_Geometry->BindVAO();
+
+						if (entity.HasAllComponents<Transform3DComponent>())
+						{
+							auto& comp = entity.GetComponent<Transform3DComponent>();
+
+							point_shadow_depth_shader->SetUniform("u_model", entity.GetComponent<Transform3DComponent>().GetTransform());
+						}
+
+						if (geoComp.m_Geometry->IsUsingIndexBuffer())
+						{
+							ElementsDraw((unsigned int)renderComp.RenderSettings.DrawStyle, geoComp.m_Geometry->GetIndicesCount());
+						}
+						else
+						{
+							ArraysDraw((unsigned int)renderComp.RenderSettings.DrawStyle, geoComp.m_Geometry->GetVerticesCount());
+						}
+					}
+				}
+			}
+		}
+	}
+
 	
-	void RenderSystem::CascadedShadowSceneRender(_Scene* scene, _EditorCamera& camera, const std::vector<float>& shadowCascadeLevels)
+	void RenderSystem::CascadedShadowSceneRender(_Scene* scene, _EditorCamera& camera, const std::vector<float>& shadowCascadeLevels, float far_plane)
 	{
 
 		auto& render_groups = scene->GetGroupEntities();
@@ -116,6 +191,11 @@ namespace GEngine
 				shader->SetUniform("viewPos", camera.GetPosition());
 				shader->SetUniform("farPlane", camera.GetFarClip());
 				shader->SetUniform("cascadeCount", (int)shadowCascadeLevels.size());
+				shader->SetUniform("reverse_normals", false);
+				shader->SetUniform("pointShadowfarPlane", far_plane);
+				
+
+				//shader->SetUniform("lightDir", camera.GetLightSpaceMatrix());
 				
 				for (size_t i = 0; i < shadowCascadeLevels.size(); ++i)
 				{
@@ -144,21 +224,16 @@ namespace GEngine
 					}
 				}
 
-
-				/*if (group[0].HasAllComponents<DirectionalLightComponent>())
-				{
-					auto& dirLightComp = group[0].GetComponent<DirectionalLightComponent>();
-					dirLightComp.LoadUniforms(shader);
-				}*/
-
-				//auto geo = geoComp.m_Geometry;
-
-				//shader->SetUniform(dirLightComp.ambient.Name.c_str(), camera.GetProjection());
-				//texturesComp.BindTextures(shader);
-				//geoComp.m_Geometry->BindVAO();
-
 				for (auto& entity : group)
 				{
+					/*if (entity.HasAllComponents<PointLightComponent>())
+					{
+						shader->SetUniform("draw_point_Light", true);
+					}
+					else
+					{
+						shader->SetUniform("draw_point_Light", false);
+					}*/
 					//auto view = scene->View<Transform3DComponent, MeshComponent>();
 					auto geoComp = entity.GetComponent<MeshComponent>();
 					geoComp.m_Geometry->BindVAO();
@@ -590,6 +665,19 @@ namespace GEngine
 		return ret;
 	}
 
+	std::vector<Mat4> RenderSystem::GetShadowTransformMatrices(const Mat4& shadowProj, const Vec3f& lightPos)
+	{
+		std::vector<Mat4> shadowTransforms;
+		shadowTransforms.reserve(6);
+		shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + Vec3f(1.0f, 0.0f, 0.0f), Vec3f(0.0f, -1.0f, 0.0f))); // right
+		shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + Vec3f(-1.0f, 0.0f, 0.0f), Vec3f(0.0f, -1.0f, 0.0f))); // left
+		shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + Vec3f(0.0f, 1.0f, 0.0f), Vec3f(0.0f, 0.0f, 1.0f))); // up
+		shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + Vec3f(0.0f, -1.0f, 0.0f), Vec3f(0.0f, 0.0f, -1.0f))); // down
+		shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + Vec3f(0.0f, 0.0f, 1.0f), Vec3f(0.0f, -1.0f, 0.0f))); // back
+		shadowTransforms.push_back(shadowProj * glm::lookAt(lightPos, lightPos + Vec3f(0.0f, 0.0f, -1.0f), Vec3f(0.0f, -1.0f, 0.0f))); // front
+		return shadowTransforms;
+	}
+
 
 	void RenderSystem::UpdateRenderSetting(const RenderSetting_& renderSetting)
 	{
@@ -686,7 +774,21 @@ namespace GEngine
 		CascadedShadowPreRender(scene);
 		glCullFace(GL_BACK);
 		fb.UnBind();
-		//glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	
+	}
+
+	void RenderSystem::PointShadowPass(_Scene* scene, Shader* depth_shader, const PointShadowFrameBuffer& fb, const Vec3f& lightPos, float near_plane, float far_plane)
+	{
+		depth_shader->Bind();
+		fb.Bind();
+		glViewport(0, 0, fb.GetResolution().x, fb.GetResolution().y);
+		glClear(GL_DEPTH_BUFFER_BIT);
+		float aspect = fb.GetResolution().x / fb.GetResolution().y; // Assuming square shadow map for simplicity
+		Mat4 perpective = glm::perspective(glm::radians(90.0f), aspect, near_plane, far_plane);
+		std::vector<Mat4> shadowTransforms = GetShadowTransformMatrices(perpective, lightPos);
+		PointShadowPreRender(scene, depth_shader, shadowTransforms, lightPos, far_plane);
+		fb.UnBind();
+
 	}
 
 	void RenderSystem::CascadedShadowScenePass(_Scene* scene, _EditorCamera& camera, Shader* cascade_shader, const std::vector<float>& shadowCascadeLevels, const FinalFrameBuffer& fb)
@@ -696,7 +798,7 @@ namespace GEngine
 		glViewport(0, 0, fb.GetResolution().x, fb.GetResolution().y);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		fb.ClearMousePickAttachment(-1); // Clear the color attachment to -1
-		CascadedShadowSceneRender(scene, camera, shadowCascadeLevels);
+		//CascadedShadowSceneRender(scene, camera, shadowCascadeLevels);
 		fb.UnBind();
 
 	}
@@ -717,6 +819,46 @@ namespace GEngine
 		
 		fb.UnBind();
 		
+	}
+
+	void RenderSystem::PointLightsVisualize(_Scene* scene, const _EditorCamera& camera, Shader* point_light_shader)
+	{
+
+		auto& light_groups = scene->GetLightEntities();
+
+		point_light_shader->Bind();
+		point_light_shader->SetUniform("u_view", camera.GetViewMatrix());
+		point_light_shader->SetUniform("u_projection", camera.GetProjection());
+
+		for (auto& group : light_groups)
+		{
+			if (!group.empty())
+			{
+				const auto& renderComp = group[0].GetComponent<RenderComponent>();
+				for(auto& ent: scene->GetAllEntitiesWith<PointLightComponent, MeshComponent>())
+				{
+					_Entity entity = { ent, scene };
+					const auto& comp = entity.GetComponent<Transform3DComponent>();
+					const auto& pointLightComp = entity.GetComponent<PointLightComponent>();
+					pointLightComp.LoadUniforms(point_light_shader);
+					point_light_shader->SetUniform("u_model", comp.GetTransform());
+					const auto& geoComp = entity.GetComponent<MeshComponent>();
+					geoComp.m_Geometry->BindVAO();
+
+					if (geoComp.m_Geometry->IsUsingIndexBuffer())
+					{
+						ElementsDraw((unsigned int)renderComp.RenderSettings.DrawStyle, geoComp.m_Geometry->GetIndicesCount());
+					}
+					else
+					{
+						ArraysDraw((unsigned int)renderComp.RenderSettings.DrawStyle, geoComp.m_Geometry->GetVerticesCount());
+					}
+
+				}
+			}
+		}
+
+
 	}
 
 }

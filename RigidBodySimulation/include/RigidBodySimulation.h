@@ -44,6 +44,7 @@ private:
 	_Entity m_GridEntity;
 	_Entity m_AxisEntity;
 	_Entity m_SkyBoxEntity;
+	_Entity m_PointLightEntity;
 	
 	_EditorCamera m_EditorCamera_;
 	RefPtr<_Scene> m_ActiveScene;
@@ -61,8 +62,11 @@ private:
 	Vec2f m_ViewportSize = { 0.0f, 0.0f };
 	Vec2f m_ViewportBounds[2];
 	Vec3f m_LightDirection;// = { 20.f, 50.0f, 20.f };
+	Vec3f m_LightPos;
 	bool m_IsPause = false;
 	std::vector<float> m_ShadowCascadeLevels;
+	float m_NearPlane = 0.1f;
+	float m_FarPlane = 40.0f;
 
 
 	Asset::Texture* m_IconPlay{};

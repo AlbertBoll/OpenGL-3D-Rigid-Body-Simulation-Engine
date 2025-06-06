@@ -239,14 +239,17 @@ namespace GEngine
 
 		struct PointLightComponent
 		{
+
 			Uniform<float> constant;
 			Uniform<float> linear;
 			Uniform<float> quadratic;
 
+			Uniform<Vec3f> position;
 			Uniform<Vec3f> ambient;
 			Uniform<Vec3f> diffuse;
 			Uniform<Vec3f> specular;
 			void LoadUniforms(Asset::Shader* shader)const;
+
 
 		};
 

@@ -28,7 +28,8 @@ namespace GEngine::Manager
 
 	enum class FrameBufferMapType
 	{
-		CascadedShadowMap
+		CascadedShadowMap,
+		PointShadowMap
 	};
 
 	class AssetsManager
@@ -45,7 +46,7 @@ namespace GEngine::Manager
 								   const std::string& extension = ".png", 
 								   const Asset::TextureInfo& info = Asset::TextureInfo{});
 		static Asset::Texture* GetCascadedFrameBufferTexture(const CascadeShadowFrameBuffer& fb, const std::string& uniform_name = "");
-
+		static Asset::Texture* GetPointShadowFrameBufferTexture(const PointShadowFrameBuffer& fb, const std::string& uniform_name = "");
 		static Asset::Texture* GetTextTexture(const std::string& str,
 									   const std::string& font_file = "../Assets/Fonts/Carlito-Regular.ttf",
 									   int pointSize = 24,

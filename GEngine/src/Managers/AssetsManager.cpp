@@ -55,6 +55,21 @@ namespace GEngine::Manager
 		return new_texture;
 	}
 
+	Asset::Texture* AssetsManager::GetPointShadowFrameBufferTexture(const PointShadowFrameBuffer& fb, const std::string& uniform_name)
+	{
+		if (auto it = m_FrameBufferTextures.find(FrameBufferMapType::PointShadowMap); it != m_FrameBufferTextures.end())
+		{
+			return it->second;
+		}
+
+		Asset::TextureInfo info;
+		info.m_TextureSpec.m_TexTarget = GL_TEXTURE_CUBE_MAP;
+		auto* new_texture = new(std::nothrow) Asset::Texture(fb.GetDepthCubeMaps(), info, uniform_name);
+		ASSERT(new_texture);
+		m_FrameBufferTextures.emplace(FrameBufferMapType::PointShadowMap, new_texture);
+		return new_texture;
+	}
+
 	Asset::Texture* AssetsManager::GetTextTexture(const std::string& str,
 										   const std::string& font_file, 
 										   int pointSize, 

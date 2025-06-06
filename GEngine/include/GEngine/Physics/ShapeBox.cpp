@@ -116,8 +116,8 @@ namespace GEngine
 
 		Bounds bounds;
 		for (int i = 0; i < 8; i++) {
-			//corners[i] = glm::transpose(glm::toMat3(orient)) * corners[i] + pos;
-			corners[i] = glm::toMat3(orient) * corners[i] + pos;
+			corners[i] = glm::transpose(glm::toMat3(orient)) * corners[i] + pos;
+			//corners[i] = glm::toMat3(orient) * corners[i] + pos;
 			bounds.Expand(corners[i]);
 		}
 

@@ -42,6 +42,8 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	GENGINE_CORE_INFO("Initialize Render System...");
 	RenderSystem::Initialize();
 
+	m_FarPlane = 100;
+
 	//initialize scene and camera
 	m_EditorScene = CreateRefPtr<_Scene>();
 	m_ActiveScene = m_EditorScene;
@@ -51,14 +53,25 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 
 	auto cascadeShadowMapShader = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping_depth.vert", base_shader_dir + "shadow_mapping_depth.gs", base_shader_dir + "shadow_mapping_depth.frag" });
 	auto cascadedRenderShader = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping.vert", base_shader_dir + "shadow_mapping.frag" });
+	auto pointLightRenderShader = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping.vert", base_shader_dir + "point_light_sphere_visual.frag" });
 
 	using namespace Shape;
 	//auto smoothSphereGeo = ShapeManager::_GetShape<Sphere>("Sphere", 1);
+	auto pointLightGeo = ShapeManager::GetShape("PointLight");
 	auto smoothSphereGeo = ShapeManager::GetShape("Sphere");
 	auto DiamondGeo = ShapeManager::GetShape("Diamond");
 	//auto floorSphereGeo = ShapeManager::GetShape("FloorSphere");
 	auto lightShadowPreRenderComponent = PreRenderPassComponent{};
 	lightShadowPreRenderComponent.Shader = cascadeShadowMapShader;
+
+
+	auto pointLightRenderComponent = RenderComponent{};
+	pointLightRenderComponent.Shader = pointLightRenderShader;
+	pointLightRenderComponent.RenderSettings.m_PrimitivesSetting.surfaceSetting = {};
+	pointLightRenderComponent.RenderSettings.m_PrimitivesSetting.surfaceSetting.bDoubleSide = false;
+	pointLightRenderComponent.RenderSettings.DrawMode = pointLightGeo->IsUsingIndexBuffer() ? DrawMode_::Elements : DrawMode_::Arrays;
+	//lightRenderComponent.RenderSettings.DrawStyle = DrawStyle_::TRIANGLE_STRIP;
+	pointLightRenderComponent.RenderSettings.DrawStyle = DrawStyle_::TRIANGLES;
 
 
 	auto lightShadowRenderComponent = RenderComponent{};
@@ -78,11 +91,12 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 
 	//Load Sphere Texture
 	Texture* wood_diffuse = AssetsManager::GetTexture("Sphere/wood_diffuse", "diffuseTexture");
-	Texture* depth_map = AssetsManager::GetCascadedFrameBufferTexture(*m_CascadeShadowFrameBuffer, "shadowMap");
+	Texture* cascade_shadow_depth_map = AssetsManager::GetCascadedFrameBufferTexture(*m_CascadeShadowFrameBuffer, "shadowMap");
+	Texture* point_shadow_depth_map = AssetsManager::GetPointShadowFrameBufferTexture(*m_PointShadowFrameBuffer, "pointShadowDepthMap");
 	Texture* gloss_diffuse = AssetsManager::GetTexture("Sphere/Tiles012_4K-JPG_Color", "diffuseTexture");
 
-	TexturesComponent sphereTextureComp({ gloss_diffuse, depth_map});
-	TexturesComponent boxTextureComp({ wood_diffuse, depth_map });
+	TexturesComponent sphereTextureComp({ gloss_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });
+	TexturesComponent boxTextureComp({ wood_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });
 	//TexturesComponent sphereTextureComp({ wood_diffuse,  wood_metallic});
 	sphereTextureComp.PreBindTextures(cascadedRenderShader);
 	boxTextureComp.PreBindTextures(cascadedRenderShader);
@@ -90,15 +104,33 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 
 	//Load ambient light
 	auto ambientLightEntity = m_ActiveScene->CreateEntity("ambient_light");
+	m_PointLightEntity = m_ActiveScene->CreateEntity("point_light");
+	
+
 	DirectionalLightComponent dirLightComp;
 	m_LightDirection = glm::normalize(Vec3f{ 20.f, 50.0f, 20.f });
+	m_LightPos = Vec3f{ 0.f, 15.f, -5.f };
+
+	PointLightComponent pointLightComp;
+	pointLightComp.position = { "lightPos", m_LightPos };
+	pointLightComp.ambient = { "pointlightColor", {0.8f, 0.2f, 0.1f} };
+	//pointLightComp.ambient = { "pointlightColor", {0.3f, 0.3f, 0.3f} };
+
+
 	dirLightComp.direction = { "lightDir", m_LightDirection };
 	/*dirLightComp.ambient = { "u_dirLight.ambient", {0.3f, 0.3f, 0.3f} };
 	dirLightComp.diffuse = { "u_dirLight.diffuse", {0.4f, 0.4f, 0.4f} };
 	dirLightComp.specular = { "u_dirLight.specular", {0.2f, 0.2f, 0.2f} };*/
 	ambientLightEntity.AddOrReplaceComponent<DirectionalLightComponent>(dirLightComp);
 	ambientLightEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
+
+	m_PointLightEntity.AddOrReplaceComponent<PointLightComponent>(pointLightComp);
+	m_PointLightEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
+	m_PointLightEntity.AddOrReplaceComponent<Transform3DComponent>(m_LightPos);
+	//pointLightEntity.AddOrReplaceComponent<RenderComponent>(pointLightRenderComponent);
+	m_PointLightEntity.AddOrReplaceComponent<MeshComponent>(pointLightGeo);
 	m_ActiveScene->PushToRenderList(ambientLightEntity);
+	m_ActiveScene->PushToRenderList(m_PointLightEntity);
 
 
 	MaterialComponent matComp;
@@ -116,69 +148,88 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	sphereFixtureComp.Property.m_Elasticity = 0.5f;
 	sphereFixtureComp.Property.m_Friction = 0.5f;
 	sphereFixtureComp.Property.m_InvMass = 1.f;
+	//sphereFixtureComp.Property.m_LinearVelocity = { -60.f, 0.f, 0.f };
 	sphereFixtureComp.Property.m_LinearVelocity = { 0.f, 0.f, 0.f };
 	
-	//_Entity woodSphereEntity = m_ActiveScene->CreateEntity("wood_sphere_0");
-	////smoothSphereGeo->AddEntityID(int((entt::entity)woodSphereEntity));
-	//woodSphereEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
-	//woodSphereEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
-	//woodSphereEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 20.f, 10.0f, 0.f });
+	_Entity woodSphereEntity = m_ActiveScene->CreateEntity("wood_sphere_0");
+	//smoothSphereGeo->AddEntityID(int((entt::entity)woodSphereEntity));
+	woodSphereEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
+	woodSphereEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
+	woodSphereEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 30.f, 5.0f, 0.f });
+	//sphereFixtureComp.Radius *= woodSphereEntity.GetComponent<Transform3DComponent>().Scale.x;
+	sphereFixtureComp.Property.m_Position = woodSphereEntity.GetComponent<Transform3DComponent>().Translation;
+	sphereFixtureComp.Property.m_Orientation = woodSphereEntity.GetComponent<Transform3DComponent>().QuatRotation;
+	woodSphereEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
+	woodSphereEntity.AddOrReplaceComponent<SphereFixture3DComponent>(sphereFixtureComp);
+	woodSphereEntity.AddOrReplaceComponent<TexturesComponent>(sphereTextureComp);
+	woodSphereEntity.AddOrReplaceComponent<MeshComponent>(smoothSphereGeo);
+	//woodSphereEntity.AddOrReplaceComponent<DirectionalLightComponent>(dirLightComp);
+	woodSphereEntity.AddOrReplaceComponent<MaterialComponent>(matComp);
+	//m_ActiveScene->PushToRenderList(woodSphereEntity);
+
+
+	//ConvexFixture3DComponent convexFixtureComp;
+
+	//
+	//convexFixtureComp.Property.m_Elasticity = 0.5f;
+	//convexFixtureComp.Property.m_Friction = 0.5f;
+	//convexFixtureComp.Property.m_InvMass = 1.f;
+	//convexFixtureComp.Property.m_AngularVelocity = { 5.f, 0.f, 5.f };
+	//convexFixtureComp.Property.m_LinearVelocity = { 60.f, 0.f, 0.f };
+	//_Entity DiamondEntity = m_ActiveScene->CreateEntity("Diamond");
+	//DiamondEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
+	//DiamondEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
+	//DiamondEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ -30, 5.f, 0 });
 	////sphereFixtureComp.Radius *= woodSphereEntity.GetComponent<Transform3DComponent>().Scale.x;
-	//sphereFixtureComp.Property.m_Position = woodSphereEntity.GetComponent<Transform3DComponent>().Translation;
-	//sphereFixtureComp.Property.m_Orientation = woodSphereEntity.GetComponent<Transform3DComponent>().QuatRotation;
-	//woodSphereEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
-	//woodSphereEntity.AddOrReplaceComponent<SphereFixture3DComponent>(sphereFixtureComp);
-	//woodSphereEntity.AddOrReplaceComponent<TexturesComponent>(sphereTextureComp);
-	//woodSphereEntity.AddOrReplaceComponent<MeshComponent>(smoothSphereGeo);
+	//convexFixtureComp.Property.m_Position = DiamondEntity.GetComponent<Transform3DComponent>().Translation;
+	//convexFixtureComp.Property.m_Orientation = DiamondEntity.GetComponent<Transform3DComponent>().QuatRotation;
+	//DiamondEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
+	//DiamondEntity.AddOrReplaceComponent<ConvexFixture3DComponent>(convexFixtureComp);
+	//DiamondEntity.AddOrReplaceComponent<TexturesComponent>(sphereTextureComp);
+	//DiamondEntity.AddOrReplaceComponent<MeshComponent>(DiamondGeo);
 	////woodSphereEntity.AddOrReplaceComponent<DirectionalLightComponent>(dirLightComp);
-	//woodSphereEntity.AddOrReplaceComponent<MaterialComponent>(matComp);
-	
+	//DiamondEntity.AddOrReplaceComponent<MaterialComponent>(matComp);
+	//m_ActiveScene->PushToRenderList(DiamondEntity);
+	//int count = 0;
+	//int offset = 2;
+	//for (int z = 1; z < 4; z++)
+	//{
+	//	for (int x = 0; x < 4; x++)
+	//	{
+	//		for (int y = 0; y < 4; y++)
+	//		{
+	//			float yy = float(z - 1) * sphereFixtureComp.Radius * 2.f;
+	//			float xx = float(x - 1) * sphereFixtureComp.Radius * 2.f;
+	//			float zz = float(y - 1) * sphereFixtureComp.Radius * 2.f;
+	//			_Entity DiamondEntity = m_ActiveScene->CreateEntity("Diamond_" + std::to_string(count));
 
-
-	ConvexFixture3DComponent convexFixtureComp;
-
-	
-	convexFixtureComp.Property.m_Elasticity = 0.5f;
-	convexFixtureComp.Property.m_Friction = 0.5f;
-	convexFixtureComp.Property.m_InvMass = 1.f;
-	convexFixtureComp.Property.m_AngularVelocity = { 0.f, 0.f, 0.f };
-	convexFixtureComp.Property.m_LinearVelocity = { 0.f, 0.f, 0.f };
-
-	int count = 0;
-	int offset = 2;
-	for (int x = 0; x < 3; x++)
-	{
-		for (int y = 0; y < 3; y++)
-		{
-			_Entity DiamondEntity = m_ActiveScene->CreateEntity("Diamond_" + std::to_string(count));
-
-			//DiamondGeo->AddEntityID(int((entt::entity)DiamondEntity));
-			//DiamondGeo->AddAttributes(std::vector<Vec1i>(DiamondGeo->GetVerticesCount(), DiamondEntity));
-			DiamondEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
-			DiamondEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
-			DiamondEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ -20.f + x * offset, 20.0f, 0.f + y * offset });
-			//sphereFixtureComp.Radius *= woodSphereEntity.GetComponent<Transform3DComponent>().Scale.x;
-			convexFixtureComp.Property.m_Position = DiamondEntity.GetComponent<Transform3DComponent>().Translation;
-			convexFixtureComp.Property.m_Orientation = DiamondEntity.GetComponent<Transform3DComponent>().QuatRotation;
-			DiamondEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
-			DiamondEntity.AddOrReplaceComponent<ConvexFixture3DComponent>(convexFixtureComp);
-			DiamondEntity.AddOrReplaceComponent<TexturesComponent>(sphereTextureComp);
-			DiamondEntity.AddOrReplaceComponent<MeshComponent>(DiamondGeo);
-			//woodSphereEntity.AddOrReplaceComponent<DirectionalLightComponent>(dirLightComp);
-			DiamondEntity.AddOrReplaceComponent<MaterialComponent>(matComp);
-			m_ActiveScene->PushToRenderList(DiamondEntity);
-			count++;
-		}
-	}
-	
+	//			//DiamondGeo->AddEntityID(int((entt::entity)DiamondEntity));
+	//			//DiamondGeo->AddAttributes(std::vector<Vec1i>(DiamondGeo->GetVerticesCount(), DiamondEntity));
+	//			DiamondEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
+	//			DiamondEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
+	//			DiamondEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ xx, 20.f + yy, zz });
+	//			//sphereFixtureComp.Radius *= woodSphereEntity.GetComponent<Transform3DComponent>().Scale.x;
+	//			convexFixtureComp.Property.m_Position = DiamondEntity.GetComponent<Transform3DComponent>().Translation;
+	//			convexFixtureComp.Property.m_Orientation = DiamondEntity.GetComponent<Transform3DComponent>().QuatRotation;
+	//			DiamondEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
+	//			DiamondEntity.AddOrReplaceComponent<ConvexFixture3DComponent>(convexFixtureComp);
+	//			DiamondEntity.AddOrReplaceComponent<TexturesComponent>(sphereTextureComp);
+	//			DiamondEntity.AddOrReplaceComponent<MeshComponent>(DiamondGeo);
+	//			//woodSphereEntity.AddOrReplaceComponent<DirectionalLightComponent>(dirLightComp);
+	//			DiamondEntity.AddOrReplaceComponent<MaterialComponent>(matComp);
+	//			m_ActiveScene->PushToRenderList(DiamondEntity);
+	//			count++;
+	//		}
+	//	}
+	//}
 	
 	static int i = 0;
 	//load dynamic sphere body
-	for (int z = 1; z < 4; z++)
+	for (int z = 1; z < 5; z++)
 	{
-		for (int x = 0; x < 3; x++)
+		for (int x = 0; x < 4; x++)
 		{
-			for (int y = 0; y < 3; y++)
+			for (int y = 0; y < 4; y++)
 			{
 				float yy = float(z - 1) * sphereFixtureComp.Radius * 2.f;
 				float xx = float(x - 1) * sphereFixtureComp.Radius * 2.f;
@@ -186,7 +237,7 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 				_Entity woodSphereEntity = m_ActiveScene->CreateEntity("wood_sphere" + std::to_string(i++));
 				woodSphereEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
 				woodSphereEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
-				woodSphereEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 20+xx, 20.f + yy, zz }, Vec3f{ 1.f, 1.f, 1.f });
+				woodSphereEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ xx, 10.f + yy, zz }, Vec3f{ 1.f, 1.f, 1.f });
 				//sphereFixtureComp.Radius *= woodSphereEntity.GetComponent<Transform3DComponent>().Scale.x;
 				sphereFixtureComp.Property.m_Position = woodSphereEntity.GetComponent<Transform3DComponent>().Translation;
 				sphereFixtureComp.Property.m_Orientation = woodSphereEntity.GetComponent<Transform3DComponent>().QuatRotation;
@@ -223,29 +274,29 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	//woodBoxEntity.AddOrReplaceComponent<TexturesComponent>(boxTextureComp);
 	//woodBoxEntity.AddOrReplaceComponent<MeshComponent>(box);
 	
-	offset = 2.f;
+	//float offset = 2.f;
 
-	for (int y = 0; y <3; y++)
-	{
-		for (int x = 0; x < 3; x++)
-		{
-			//float x = i % 2 == 0 ? -0.7f : 0.7f;
-			_Entity woodBoxEntity = m_ActiveScene->CreateEntity("wood_box");
+	//for (int y = 0; y < 4; y++)
+	//{
+	//	for (int x = 0; x < 4; x++)
+	//	{
+	//		//float x = i % 2 == 0 ? -0.7f : 0.7f;
+	//		_Entity woodBoxEntity = m_ActiveScene->CreateEntity("wood_box");
 
-			woodBoxEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
-			woodBoxEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
-			woodBoxEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ -30.f + x * offset + 0.3f, 1.5f + y * offset, 0.f });
-			//woodBoxEntity.GetComponent<Transform3DComponent>().SetRotation({ Math::Pi / 4.f, 0.f, 0.f });
-			boxFixtureComp.Property.m_Position = woodBoxEntity.GetComponent<Transform3DComponent>().Translation;
-			boxFixtureComp.Property.m_Orientation = woodBoxEntity.GetComponent<Transform3DComponent>().QuatRotation;
-			woodBoxEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
-			woodBoxEntity.AddOrReplaceComponent<BoxFixture3DComponent>(boxFixtureComp);
-			woodBoxEntity.AddOrReplaceComponent<TexturesComponent>(boxTextureComp);
-			woodBoxEntity.AddOrReplaceComponent<MeshComponent>(box);
-			m_ActiveScene->PushToRenderList(woodBoxEntity);
+	//		woodBoxEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
+	//		woodBoxEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
+	//		woodBoxEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ x * (offset+0.01f), 1.5f + y * offset, 0.f }, Vec3f{0.f}, Vec3f{2.f});
+	//		//woodBoxEntity.GetComponent<Transform3DComponent>().SetRotation({ Math::Pi / 4.f, 0.f, 0.f });
+	//		boxFixtureComp.Property.m_Position = woodBoxEntity.GetComponent<Transform3DComponent>().Translation;
+	//		boxFixtureComp.Property.m_Orientation = woodBoxEntity.GetComponent<Transform3DComponent>().QuatRotation;
+	//		woodBoxEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
+	//		woodBoxEntity.AddOrReplaceComponent<BoxFixture3DComponent>(boxFixtureComp);
+	//		woodBoxEntity.AddOrReplaceComponent<TexturesComponent>(boxTextureComp);
+	//		woodBoxEntity.AddOrReplaceComponent<MeshComponent>(box);
+	//		m_ActiveScene->PushToRenderList(woodBoxEntity);
 
-		}
-	}
+	//	}
+	//}
 
 	//m_ActiveScene->PushToRenderList(woodBoxEntity);
 	//m_ActiveScene->PushToRenderList(DiamondEntity);
@@ -328,10 +379,10 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	Texture* plane_diffuse = AssetsManager::GetTexture("Wall/wallpaper_albedo", "diffuseTexture");
 	//Texture* plane_metallic = AssetsManager::GetTexture("Wall/wallpaper_metallic", "u_material.specular");
 
-	TexturesComponent planeTextureComp({ plane_diffuse, depth_map });//, plane_metallic
+	TexturesComponent planeTextureComp({ plane_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });//, plane_metallic
 	planeTextureComp.Tiling = { "u_tiling", {3.f, 3.f} };
 
-	TexturesComponent planeTextureComp_({ plane_diffuse, depth_map });//, plane_metallic
+	TexturesComponent planeTextureComp_({ plane_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });//, plane_metallic
 	planeTextureComp_.Tiling = { "u_tiling", {1.5f, 1.5f} };
 
 	planeTextureComp.PreBindTextures(cascadedRenderShader);
@@ -620,6 +671,7 @@ void RigidBodySimulationApp::Update(Timestep ts)
 
 void RigidBodySimulationApp::Render()
 {
+
 	static int i = 0;
 	RenderSystem::GetRenderStats().m_ArrayDrawCall = 0;
 	RenderSystem::GetRenderStats().m_ElementsDrawCall = 0;
@@ -645,20 +697,34 @@ void RigidBodySimulationApp::Render()
 	auto mousePickShader = ShaderManager::GetShaderProgram({ base_shader_dir + "mouse_pick.vert", base_shader_dir + "mouse_pick.frag" });
 	RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get());
 
-	//shadow pass
+	//point shadow pass
+	auto pointLightShadowShader = ShaderManager::GetShaderProgram({ base_shader_dir + "point_shadows_depth.vert", base_shader_dir + "point_shadows_depth.gs", base_shader_dir + "point_shadows_depth.frag" });
+	RenderSystem::PointShadowPass(m_ActiveScene.get(), pointLightShadowShader, *m_PointShadowFrameBuffer, m_LightPos, m_NearPlane, m_FarPlane);
+
+	//cascade shadow pass
 	auto cascadeShadowMapShader = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping_depth.vert", base_shader_dir + "shadow_mapping_depth.gs", base_shader_dir + "shadow_mapping_depth.frag" });
 	RenderSystem::CascadedShadowPass(m_ActiveScene.get(), cascadeShadowMapShader, *m_CascadeShadowFrameBuffer);
 
-	RenderSystem::BeginRender(m_EditorCamera_);
+	
+
+
 
 	// scene render to frame buffer
-	auto cascadeSceneShader = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping.vert", base_shader_dir + "shadow_mapping.frag" });
+	//auto cascadeSceneShader = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping.vert", base_shader_dir + "shadow_mapping.frag" });
 	/*RenderSystem::CascadedShadowScenePass(m_ActiveScene.get(), m_EditorCamera_, cascadeSceneShader,  m_ShadowCascadeLevels, *m_FinalFrameBuffer);
 	m_FinalFrameBuffer->BindReadFrameBuffer();
 	m_FinalFrameBuffer->BindDefaultDrawFrameBuffer();
 	m_FinalFrameBuffer->BlitFrameBuffer();*/
 	//m_FinalFrameBuffer->UnBind();
-	RenderSystem::CascadedShadowSceneRender(m_ActiveScene.get(), m_EditorCamera_, m_ShadowCascadeLevels);
+
+	//start normal render
+	RenderSystem::BeginRender(m_EditorCamera_);
+	RenderSystem::CascadedShadowSceneRender(m_ActiveScene.get(), m_EditorCamera_, m_ShadowCascadeLevels, m_FarPlane);
+
+	//visualize point lights
+	auto visualShader = ShaderManager::GetShaderProgram({ base_shader_dir + "point_light_sphere_visual.vert", base_shader_dir + "point_light_sphere_visual.frag" });
+	RenderSystem::PointLightsVisualize(m_ActiveScene.get(), m_EditorCamera_, visualShader);
+	
 	////RenderSystem::SceneRender(m_ActiveScene.get(), m_EditorCamera_);
 	RenderSystem::SkyBoxRender(m_SkyBoxEntity, m_EditorCamera_);
 

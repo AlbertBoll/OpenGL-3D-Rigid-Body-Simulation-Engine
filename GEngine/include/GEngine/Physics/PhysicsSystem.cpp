@@ -242,7 +242,7 @@ namespace GEngine
 
 			{
 				//Timeit("	m_Manifolds Solve")
-				const int maxIters = 5;
+				const int maxIters = 1;
 				for (int iters = 0; iters < maxIters; iters++)
 				{
 					m_Manifolds.Solve();
@@ -251,7 +251,7 @@ namespace GEngine
 
 			{
 				//Timeit("	m_Manifolds PostSolve")
-				m_Manifolds.PostSolve();
+				//m_Manifolds.PostSolve();
 			}
 
 

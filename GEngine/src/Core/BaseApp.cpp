@@ -121,6 +121,7 @@ namespace GEngine
             //m_RenderTarget = CreateScopedPtr<RenderTarget>(Vec2f{ m_SDLWindow->GetScreenWidth(), m_SDLWindow->GetScreenHeight() });
           
 			m_CascadeShadowFrameBuffer = CreateScopedPtr<CascadeShadowFrameBuffer>(8192, 8192, 5);
+			m_PointShadowFrameBuffer = CreateScopedPtr<PointShadowFrameBuffer>(8192, 8192);
 			m_MousePickFrameBuffer = CreateScopedPtr<MousePickFrameBuffer>(m_SDLWindow->GetScreenWidth(), m_SDLWindow->GetScreenHeight());
 			m_FinalFrameBuffer = CreateScopedPtr<FinalFrameBuffer>(m_SDLWindow->GetScreenWidth(), m_SDLWindow->GetScreenHeight());
 			m_UniformBufferObject = CreateScopedPtr<UniformBufferObject<UniformType::MATRIX_4_4>>(16);

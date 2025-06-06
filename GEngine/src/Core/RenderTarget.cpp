@@ -369,6 +369,70 @@ namespace GEngine
 		Invalidate();
 	}
 
+
+	PointShadowFrameBuffer::PointShadowFrameBuffer(unsigned int resolution_x, unsigned int resolution_y) : m_Width(resolution_x), m_Height(resolution_y)
+	{
+		Invalidate();
+	}
+
+	void PointShadowFrameBuffer::OnResize(unsigned int width, unsigned int height)
+	{
+		m_Width = width;
+		m_Height = height;
+		Invalidate();
+	}
+
+	Math::Vec2f PointShadowFrameBuffer::GetResolution() const
+	{
+		return { m_Width, m_Height };
+	}
+
+	void PointShadowFrameBuffer::Bind() const
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, m_DepthMapFBO);
+	}
+
+	void PointShadowFrameBuffer::UnBind() const
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	}
+
+	void PointShadowFrameBuffer::Invalidate()
+	{
+		if (m_DepthMapFBO)
+		{
+			glDeleteFramebuffers(1, &m_DepthMapFBO);
+			glDeleteTextures(1, &m_DepthCubeMaps);
+		}
+		// Create a frame buffer
+		glGenFramebuffers(1, &m_DepthMapFBO);
+		//glBindFramebuffer(GL_FRAMEBUFFER, m_DepthMapFBO);
+
+		glGenTextures(1, &m_DepthCubeMaps);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, m_DepthCubeMaps);
+
+		for (unsigned int i = 0; i < 6; ++i)
+		{
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_DEPTH_COMPONENT, m_Width, m_Height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+		}
+
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
+
+		// attach depth texture as FBO's depth buffer
+		glBindFramebuffer(GL_FRAMEBUFFER, m_DepthMapFBO);
+		glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, m_DepthCubeMaps, 0);
+		glDrawBuffer(GL_NONE);
+		glReadBuffer(GL_NONE);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
+
+	}
+
 	CascadeShadowFrameBuffer::CascadeShadowFrameBuffer(unsigned int resolution_x, unsigned int resolution_y, unsigned int depth) : m_Width(resolution_x), m_Height(resolution_y)
 	{
 		Invalidate(depth);

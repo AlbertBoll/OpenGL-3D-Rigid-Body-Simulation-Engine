@@ -27,7 +27,7 @@ namespace GEngine
 
 		// Convert tangent space from model space to world space
 		Vec3f normal = glm::transpose(glm::toMat3(m_bodyA->m_Orientation)) * m_Normal;
-		//Vec3f normal = glm::toMat3(m_bodyA->m_Orientation) * m_normal;
+		//Vec3f normal = glm::toMat3(m_bodyA->m_Orientation) * m_Normal;
 
 		u = glm::transpose(glm::toMat3(m_bodyA->m_Orientation)) * u;
 		v = glm::transpose(glm::toMat3(m_bodyA->m_Orientation)) * v;

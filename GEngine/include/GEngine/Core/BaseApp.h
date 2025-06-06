@@ -63,6 +63,7 @@ namespace GEngine
 		//Camera::_EditorCamera m_EditorCamera_;
 		ScopedPtr<Scene> m_Scene;
 		ScopedPtr<RenderTarget> m_RenderTarget{};
+		ScopedPtr<PointShadowFrameBuffer> m_PointShadowFrameBuffer{};
 		ScopedPtr<CascadeShadowFrameBuffer> m_CascadeShadowFrameBuffer{};
 		ScopedPtr<MousePickFrameBuffer> m_MousePickFrameBuffer{};
 		ScopedPtr<FinalFrameBuffer> m_FinalFrameBuffer{};

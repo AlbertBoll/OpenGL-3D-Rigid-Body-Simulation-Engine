@@ -73,24 +73,25 @@ namespace GEngine
 
 		void PointLightComponent::LoadUniforms(Asset::Shader* shader) const
 		{
+			shader->SetUniform(position.Name.c_str(), position.Data);
 			shader->SetUniform(ambient.Name.c_str(), ambient.Data);
-			shader->SetUniform(diffuse.Name.c_str(), diffuse.Data);
+			/*shader->SetUniform(diffuse.Name.c_str(), diffuse.Data);
 			shader->SetUniform(specular.Name.c_str(), specular.Data);
 			shader->SetUniform(constant.Name.c_str(), constant.Data);
 			shader->SetUniform(linear.Name.c_str(), linear.Data);
-			shader->SetUniform(quadratic.Name.c_str(), quadratic.Data);
+			shader->SetUniform(quadratic.Name.c_str(), quadratic.Data);*/
 		}
 
 		void SpotLightComponent::LoadUniforms(Asset::Shader* shader) const
 		{
-			shader->SetUniform(ambient.Name.c_str(), ambient.Data);
+			/*shader->SetUniform(ambient.Name.c_str(), ambient.Data);
 			shader->SetUniform(diffuse.Name.c_str(), diffuse.Data);
 			shader->SetUniform(specular.Name.c_str(), specular.Data);
 			shader->SetUniform(constant.Name.c_str(), constant.Data);
 			shader->SetUniform(linear.Name.c_str(), linear.Data);
 			shader->SetUniform(quadratic.Name.c_str(), quadratic.Data);
 			shader->SetUniform(cutOff.Name.c_str(), cutOff.Data);
-			shader->SetUniform(outerCutOff.Name.c_str(), outerCutOff.Data);
+			shader->SetUniform(outerCutOff.Name.c_str(), outerCutOff.Data);*/
 			shader->SetUniform(direction.Name.c_str(), direction.Data);
 		}
 

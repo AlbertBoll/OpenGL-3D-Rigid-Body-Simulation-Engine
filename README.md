@@ -1,7 +1,7 @@
 # C++ and OpenGL 3D Real Time Game Physics Rigid Body Simulator 
 Real time rigid body game physics<bp/><bp/>
 
-## Demo
+## Rigid body collision and response Demo
 - **1. Sphere Sphere Collision and Response**
 ![me](https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine/blob/main/gif/rigid%20sphere%20collision.gif)<bp/><bp/>
 
@@ -16,6 +16,9 @@ Real time rigid body game physics<bp/><bp/>
 
 - **5. Sphere Box Collision and Response**
 ![me](https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine/blob/main/gif/box_sphere_collision.gif)<bp/><bp/>
+
+## Shadow Demo(using cascade shadow map and omnidirectional shadow map techniques)
+![me](https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine/blob/main/gif/omnidirectional_and_cascade_shadow.gif)<bp/><bp/>
 
 
 

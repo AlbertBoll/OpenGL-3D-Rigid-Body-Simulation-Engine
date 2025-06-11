@@ -20,7 +20,8 @@ Real time rigid body game physics<bp/><bp/>
 ## Shadow Demo(using cascade shadow map and omnidirectional shadow map techniques)
 ![me](https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine/blob/main/gif/omnidirectional_and_cascade_shadow.gif)<bp/><bp/>
 
-
+## PBR + Cascade Shadow + omnidirectional shadow Demo(implement physical based rendering with cascade shadow map and omnidirectional shadow map techniques)
+![me](https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine/blob/main/gif/pbr_cascadeshadow.gif)<bp/><bp/>
 
 ## References
 Collision detection was implemented with the help of GJK [1] and EPA [2]

@@ -14,7 +14,7 @@ void main()
 {         
     // ambient
     
-    vec3 color = pow(pointlightColor, vec3(1.0/0.8)); // Convert to linear space
+    vec3 color = pow(pointlightColor, vec3(1.0/0.9)); // Convert to linear space
     
     FragColor = vec4(color, 1.0);
 //    float brightness = dot(FragColor.rgb, vec3(0.2126, 0.7152, 0.0722));

@@ -299,8 +299,10 @@ namespace GEngine
 
 		struct MaterialComponent
 		{
+			Uniform<Vec3f> Metalness;
 			Uniform<float> Reflectivity;
 			Uniform<float> ShineDamper;
+			void LoadUniforms(Asset::Shader* shader)const;
 		};
 
 		struct TextureComponent

@@ -253,12 +253,13 @@ namespace GEngine
 						UpdateRenderSetting(renderComp.RenderSettings.m_PrimitivesSetting.surfaceSetting);
 					}
 
-					/*if (entity.HasAllComponents<MaterialComponent>())
+					if (entity.HasAllComponents<MaterialComponent>())
 					{
 						auto& it = entity.GetComponent<MaterialComponent>();
-						shader->SetUniform(it.Reflectivity.Name.c_str(), it.Reflectivity.Data);
+						//shader->SetUniform(it.Reflectivity.Name.c_str(), it.Reflectivity.Data);
+						it.LoadUniforms(shader);
 
-					}*/
+					}
 
 					if (entity.HasAllComponents<HelperMaterialComponent>())
 					{

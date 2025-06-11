@@ -31,7 +31,7 @@ namespace GEngine
 				TextureList[texture->GetTextureID()] = {texture->GetTextureInfo().m_TextureSpec.m_TexTarget, i};
 				shader->SetUniform(str.c_str(), std::pair<unsigned int, std::pair<unsigned, unsigned>>{texture->GetTextureInfo().m_TextureSpec.m_TexTarget, {texture->GetTextureID(), i++}});
 			}
-			//shader->UnBind();
+			shader->UnBind();
 		}
 
 		void TexturesComponent::LoadUniforms(Asset::Shader* shader)const
@@ -68,6 +68,7 @@ namespace GEngine
 			/*shader->SetUniform(ambient.Name.c_str(), ambient.Data);
 			shader->SetUniform(diffuse.Name.c_str(), diffuse.Data);
 			shader->SetUniform(specular.Name.c_str(), specular.Data);*/
+			shader->SetUniform(ambient.Name.c_str(), ambient.Data);
 			shader->SetUniform(direction.Name.c_str(), direction.Data);
 		}
 
@@ -95,7 +96,12 @@ namespace GEngine
 			shader->SetUniform(direction.Name.c_str(), direction.Data);
 		}
 
-		
+		void MaterialComponent::LoadUniforms(Asset::Shader* shader) const
+		{
+			shader->SetUniform(Metalness.Name.c_str(), Metalness.Data);
+			//shader->SetUniform(Reflectivity.Name.c_str(), Reflectivity.Data);
+			//shader->SetUniform(ShineDamper.Name.c_str(), ShineDamper.Data);
+		}
 
 
 

@@ -52,7 +52,7 @@ namespace GEngine
 			bool b_CubeMap{ false };
 			bool b_HDR{ false };
 			bool b_GenerateMipmap{ false };
-			bool b_GammaCorrection{ false };
+			bool b_GammaCorrection{ true };
 
 
 

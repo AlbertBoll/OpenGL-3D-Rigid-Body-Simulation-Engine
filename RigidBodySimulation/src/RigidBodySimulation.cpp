@@ -52,8 +52,8 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	m_ShadowCascadeLevels = {cameraFarClip / 50.f, cameraFarClip / 25.0f, cameraFarClip / 10.0f, cameraFarClip / 2.f,  cameraFarClip};
 
 	auto cascadeShadowMapShader = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping_depth.vert", base_shader_dir + "shadow_mapping_depth.gs", base_shader_dir + "shadow_mapping_depth.frag" });
-	auto cascadedRenderShader = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping.vert", base_shader_dir + "shadow_mapping.frag" });
-	auto pointLightRenderShader = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping.vert", base_shader_dir + "point_light_sphere_visual.frag" });
+	auto cascadedRenderShader = ShaderManager::GetShaderProgram({ base_shader_dir + "pbr_cascade_shadow.vert", base_shader_dir + "pbr_cascade_shadow.frag" });
+	auto pointLightRenderShader = ShaderManager::GetShaderProgram({ base_shader_dir + "pbr_cascade_shadow.vert", base_shader_dir + "point_light_sphere_visual.frag" });
 
 	using namespace Shape;
 	//auto smoothSphereGeo = ShapeManager::_GetShape<Sphere>("Sphere", 1);
@@ -95,7 +95,34 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	Texture* point_shadow_depth_map = AssetsManager::GetPointShadowFrameBufferTexture(*m_PointShadowFrameBuffer, "pointShadowDepthMap");
 	Texture* gloss_diffuse = AssetsManager::GetTexture("Sphere/Tiles012_4K-JPG_Color", "diffuseTexture");
 
-	TexturesComponent sphereTextureComp({ gloss_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });
+	//TexturesComponent sphereTextureComp({ gloss_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });
+	//TexturesComponent boxTextureComp({ wood_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });
+	////TexturesComponent sphereTextureComp({ wood_diffuse,  wood_metallic});
+	//sphereTextureComp.PreBindTextures(cascadedRenderShader);
+	//boxTextureComp.PreBindTextures(cascadedRenderShader);
+
+
+	//Load PBR Texture for sphere
+	/*Texture* sphere_albedo = AssetsManager::GetTexture("PBR/subtle_black_granite/subtle-black-granite_albedo", "albedoMap");
+	Texture* sphere_normal = AssetsManager::GetTexture("PBR/subtle_black_granite/subtle-black-granite_normal-dx", "normalMap");
+	Texture* sphere_metallic = AssetsManager::GetTexture("PBR/subtle_black_granite/subtle-black-granite_metallic", "metallicMap");
+	Texture* sphere_roughness = AssetsManager::GetTexture("PBR/subtle_black_granite/subtle-black-granite_roughness", "roughnessMap");
+	Texture* sphere_ao = AssetsManager::GetTexture("PBR/subtle_black_granite/subtle-black-granite_ao", "aoMap");*/
+	Texture* sphere_albedo = AssetsManager::GetTexture("PBR/rustediron/rustediron2_basecolor", "albedoMap");
+	Texture* sphere_normal = AssetsManager::GetTexture("PBR/rustediron/rustediron2_normal", "normalMap");
+	Texture* sphere_metallic = AssetsManager::GetTexture("PBR/rustediron/rustediron2_metallic", "metallicMap");
+	Texture* sphere_roughness = AssetsManager::GetTexture("PBR/rustediron/rustediron2_roughness", "roughnessMap");
+	Texture* sphere_ao = AssetsManager::GetTexture("PBR/subtle_black_granite/subtle-black-granite_ao", "aoMap");
+
+	//Load PBR Texture for sphere
+	Texture* floor_albedo = AssetsManager::GetTexture("PBR/base_white_tile/base-white-tile_albedo", "albedoMap");
+	Texture* floor_normal = AssetsManager::GetTexture("PBR/base_white_tile/base-white-tile_normal-dx", "normalMap");
+	Texture* floor_metallic = AssetsManager::GetTexture("PBR/base_white_tile/base-white-tile_metallic", "metallicMap");
+	Texture* floor_roughness = AssetsManager::GetTexture("PBR/base_white_tile/base-white-tile_roughness", "roughnessMap");
+	Texture* floor_ao = AssetsManager::GetTexture("PBR/base_white_tile/base-white-tile_ao", "aoMap");
+
+	//TexturesComponent sphereTextureComp({ gloss_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });
+	TexturesComponent sphereTextureComp({ sphere_albedo, sphere_normal, sphere_metallic, sphere_roughness, sphere_ao, point_shadow_depth_map, cascade_shadow_depth_map });
 	TexturesComponent boxTextureComp({ wood_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });
 	//TexturesComponent sphereTextureComp({ wood_diffuse,  wood_metallic});
 	sphereTextureComp.PreBindTextures(cascadedRenderShader);
@@ -109,17 +136,18 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 
 	DirectionalLightComponent dirLightComp;
 	m_LightDirection = glm::normalize(Vec3f{ 20.f, 50.0f, 20.f });
-	m_LightPos = Vec3f{ 0.f, 15.f, -5.f };
+	m_LightPos = Vec3f{ 0.f, 15.f, -10.f };
 
 	PointLightComponent pointLightComp;
 	pointLightComp.position = { "lightPos", m_LightPos };
 	pointLightComp.ambient = { "pointlightColor", {0.8f, 0.2f, 0.1f} };
-	//pointLightComp.ambient = { "pointlightColor", {0.3f, 0.3f, 0.3f} };
+	//pointLightComp.ambient = { "pointlightColor", {1.f, 1.f, 1.f} };
+	//pointLightComp.ambient = { "pointlightColor", {0.5f, 0.5f, 0.5f} };
 
 
 	dirLightComp.direction = { "lightDir", m_LightDirection };
-	/*dirLightComp.ambient = { "u_dirLight.ambient", {0.3f, 0.3f, 0.3f} };
-	dirLightComp.diffuse = { "u_dirLight.diffuse", {0.4f, 0.4f, 0.4f} };
+	dirLightComp.ambient = { "directionallightColor", {0.7f, 0.7f, 0.7f} };
+	/*dirLightComp.diffuse = {"u_dirLight.diffuse", {0.4f, 0.4f, 0.4f}};
 	dirLightComp.specular = { "u_dirLight.specular", {0.2f, 0.2f, 0.2f} };*/
 	ambientLightEntity.AddOrReplaceComponent<DirectionalLightComponent>(dirLightComp);
 	ambientLightEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
@@ -134,7 +162,7 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 
 
 	MaterialComponent matComp;
-	matComp.Reflectivity = { "u_material.shininess", 32.f };
+	matComp.Metalness = { "metalness", Vec3f(0.8f)};
 
 
 
@@ -353,7 +381,7 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	info.m_TextureSpec.m_WrapT = 0x812F;
 	info.b_CubeMap = true;
 	info.b_HDR = false;
-	info.b_GammaCorrection = false;
+	info.b_GammaCorrection = true;
 	Texture* tex1 = AssetsManager::GetTexture("SkyBox/Day/", "u_skyBoxDay", ".png", info);
 
 	auto skyBoxTextureComp = TexturesComponent{ {tex1} };
@@ -375,15 +403,18 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	_Entity planeEntity = m_ActiveScene->CreateEntity("wood_plane");
 	
 	//Load Plane Texture
-	AssetsManager::GetTexture("Sphere/wood_diffuse", "diffuseTexture");
+	//AssetsManager::GetTexture("Sphere/wood_diffuse", "diffuseTexture");
 	Texture* plane_diffuse = AssetsManager::GetTexture("Wall/wallpaper_albedo", "diffuseTexture");
 	//Texture* plane_metallic = AssetsManager::GetTexture("Wall/wallpaper_metallic", "u_material.specular");
 
-	TexturesComponent planeTextureComp({ plane_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });//, plane_metallic
-	planeTextureComp.Tiling = { "u_tiling", {3.f, 3.f} };
+	//TexturesComponent planeTextureComp({ plane_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });//, plane_metallic
+	TexturesComponent planeTextureComp({ floor_albedo, floor_normal, floor_metallic, floor_roughness, floor_ao, point_shadow_depth_map, cascade_shadow_depth_map });//, plane_metallic
+	planeTextureComp.Tiling = { "u_tiling", {2.f, 2.f} };
 
-	TexturesComponent planeTextureComp_({ plane_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });//, plane_metallic
-	planeTextureComp_.Tiling = { "u_tiling", {1.5f, 1.5f} };
+	//TexturesComponent planeTextureComp_({ plane_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });//, plane_metallic
+	TexturesComponent planeTextureComp_({ floor_albedo, floor_normal, floor_metallic, floor_roughness, floor_ao, point_shadow_depth_map, cascade_shadow_depth_map });//, plane_metallic
+	planeTextureComp_.Tiling = { "u_tiling", {2.f, 0.2f} };
+
 
 	planeTextureComp.PreBindTextures(cascadedRenderShader);
 	planeTextureComp_.PreBindTextures(cascadedRenderShader);
@@ -400,7 +431,7 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	planeFixtureComp.Property.m_Friction = 0.5f;
 	planeFixtureComp.Property.m_Elasticity = 0.5f;
 	//planeFixtureComp.Bounds = planeGeo->GetBounds();
-
+	matComp.Metalness = { "metalness", Vec3f(0.08f) };
 	planeEntity.AddOrReplaceComponent<MeshComponent>(planeGeo);
 	planeEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
 	planeEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
@@ -409,6 +440,7 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	planeFixtureComp.Property.m_Position = planeEntity.GetComponent<Transform3DComponent>().Translation;
 	planeFixtureComp.Property.m_Orientation = planeEntity.GetComponent<Transform3DComponent>().QuatRotation;
 	planeEntity.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
+	//planeEntity.AddOrReplaceComponent<BoxFixture3DComponent>(sphereTextureComp);
 	planeEntity.AddOrReplaceComponent<MaterialComponent>(matComp);
 	m_ActiveScene->PushToRenderList(planeEntity);
 	

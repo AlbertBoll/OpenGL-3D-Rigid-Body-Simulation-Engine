@@ -485,6 +485,7 @@ namespace GEngine
 					std::cout << pt.x << " " << pt.y << " " << pt.z << std::endl;
 				}*/
 				body->m_Shape = new ShapeBox(pts);
+
 				Connection(transform, OnScaleChanged, *body->m_Shape, &PhysicalShape::HandleScaleChanged);
 				//transform.SetScale(2);
 				/*auto bound = body->m_Shape->GetBounds();

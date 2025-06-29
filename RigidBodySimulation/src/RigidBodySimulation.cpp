@@ -43,6 +43,12 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	RenderSystem::Initialize();
 
 	m_FarPlane = 100;
+	m_DebugKDTreeVisualizer = CreateScopedPtr<DebugKDTreeVisualizer>();
+	//m_DebugBoundingBoxComp = CreateRefPtr<DebugAABBBoundingBoxComponent>();
+	//m_DebugBoundingBoxComp->bVisible = true;
+
+	m_ObjectsPoints.reserve(100);
+	m_KDTreePoints.reserve(2000);
 
 	//initialize scene and camera
 	m_EditorScene = CreateRefPtr<_Scene>();
@@ -179,20 +185,20 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	//sphereFixtureComp.Property.m_LinearVelocity = { -60.f, 0.f, 0.f };
 	sphereFixtureComp.Property.m_LinearVelocity = { 0.f, 0.f, 0.f };
 	
-	_Entity woodSphereEntity = m_ActiveScene->CreateEntity("wood_sphere_0");
-	//smoothSphereGeo->AddEntityID(int((entt::entity)woodSphereEntity));
-	woodSphereEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
-	woodSphereEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
-	woodSphereEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 30.f, 5.0f, 0.f });
-	//sphereFixtureComp.Radius *= woodSphereEntity.GetComponent<Transform3DComponent>().Scale.x;
-	sphereFixtureComp.Property.m_Position = woodSphereEntity.GetComponent<Transform3DComponent>().Translation;
-	sphereFixtureComp.Property.m_Orientation = woodSphereEntity.GetComponent<Transform3DComponent>().QuatRotation;
-	woodSphereEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
-	woodSphereEntity.AddOrReplaceComponent<SphereFixture3DComponent>(sphereFixtureComp);
-	woodSphereEntity.AddOrReplaceComponent<TexturesComponent>(sphereTextureComp);
-	woodSphereEntity.AddOrReplaceComponent<MeshComponent>(smoothSphereGeo);
-	//woodSphereEntity.AddOrReplaceComponent<DirectionalLightComponent>(dirLightComp);
-	woodSphereEntity.AddOrReplaceComponent<MaterialComponent>(matComp);
+	//_Entity woodSphereEntity = m_ActiveScene->CreateEntity("wood_sphere_0");
+	////smoothSphereGeo->AddEntityID(int((entt::entity)woodSphereEntity));
+	//woodSphereEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
+	//woodSphereEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
+	//woodSphereEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 30.f, 5.0f, 0.f });
+	////sphereFixtureComp.Radius *= woodSphereEntity.GetComponent<Transform3DComponent>().Scale.x;
+	//sphereFixtureComp.Property.m_Position = woodSphereEntity.GetComponent<Transform3DComponent>().Translation;
+	//sphereFixtureComp.Property.m_Orientation = woodSphereEntity.GetComponent<Transform3DComponent>().QuatRotation;
+	//woodSphereEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
+	//woodSphereEntity.AddOrReplaceComponent<SphereFixture3DComponent>(sphereFixtureComp);
+	//woodSphereEntity.AddOrReplaceComponent<TexturesComponent>(sphereTextureComp);
+	//woodSphereEntity.AddOrReplaceComponent<MeshComponent>(smoothSphereGeo);
+	////woodSphereEntity.AddOrReplaceComponent<DirectionalLightComponent>(dirLightComp);
+	//woodSphereEntity.AddOrReplaceComponent<MaterialComponent>(matComp);
 	//m_ActiveScene->PushToRenderList(woodSphereEntity);
 
 
@@ -251,6 +257,20 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	//	}
 	//}
 	
+	auto DebugBoundingVolumeShader = ShaderManager::GetShaderProgram({ base_shader_dir + "basic.vert", base_shader_dir + "basic.frag" });
+	//auto gridGeo = ShapeManager::GetShape("GridHelper");
+	auto DebugRenderComp = DebugRenderComponent{};
+	DebugRenderComp.Shader = DebugBoundingVolumeShader;
+	DebugRenderComp.RenderSettings.m_PrimitivesSetting.lineSetting.lineType = LineType_::Segments;
+	DebugRenderComp.RenderSettings.m_PrimitivesSetting.lineSetting.lineWidth = 1.f;
+	DebugRenderComp.RenderSettings.DrawStyle = DrawStyle_::LINES;
+	DebugRenderComp.RenderSettings.DrawMode = DrawMode_::Arrays;
+
+	AABBBoundingBoxComponent aabbComponent;
+	aabbComponent.bVisible = true;
+
+	//RefPtr<DebugAABBBoundingBoxComponent> debugBoundingBoxComp = CreateRefPtr<DebugAABBBoundingBoxComponent>();
+
 	static int i = 0;
 	//load dynamic sphere body
 	for (int z = 1; z < 5; z++)
@@ -265,7 +285,7 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 				_Entity woodSphereEntity = m_ActiveScene->CreateEntity("wood_sphere" + std::to_string(i++));
 				woodSphereEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
 				woodSphereEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
-				woodSphereEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ xx, 10.f + yy, zz }, Vec3f{ 1.f, 1.f, 1.f });
+				woodSphereEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ xx, 10.f + yy, zz });
 				//sphereFixtureComp.Radius *= woodSphereEntity.GetComponent<Transform3DComponent>().Scale.x;
 				sphereFixtureComp.Property.m_Position = woodSphereEntity.GetComponent<Transform3DComponent>().Translation;
 				sphereFixtureComp.Property.m_Orientation = woodSphereEntity.GetComponent<Transform3DComponent>().QuatRotation;
@@ -275,6 +295,10 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 				woodSphereEntity.AddOrReplaceComponent<MeshComponent>(smoothSphereGeo);
 				//woodSphereEntity.AddOrReplaceComponent<DirectionalLightComponent>(dirLightComp);
 				woodSphereEntity.AddOrReplaceComponent<MaterialComponent>(matComp);
+				woodSphereEntity.AddOrReplaceComponent<AABBBoundingBoxComponent>(aabbComponent);
+				woodSphereEntity.AddOrReplaceComponent<DebugRenderComponent>(DebugRenderComp);
+				woodSphereEntity.AddOrReplaceComponent<DebugAABBBoundingBoxMeshComponent>();
+				//woodSphereEntity.AddOrReplaceComponent<RefPtr<DebugAABBBoundingBoxComponent>>(debugBoundingBoxComp);
 				m_ActiveScene->PushToRenderList(woodSphereEntity);
 			}
 		}
@@ -399,8 +423,7 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 
 
 	
-	//Load Plane
-	_Entity planeEntity = m_ActiveScene->CreateEntity("wood_plane");
+	
 	
 	//Load Plane Texture
 	//AssetsManager::GetTexture("Sphere/wood_diffuse", "diffuseTexture");
@@ -421,40 +444,33 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 
 	rigidBodyComp.Type = BodyType::Static;
 
-	
-
-	auto planeGeo = ShapeManager::GetShape("RectangularPlane");
-	//planeGeo->AddEntityID(int((entt::entity)planeEntity));
-	//planeGeo->AddAttributes(std::vector<Vec1i>(planeGeo->GetVerticesCount(), planeEntity));
+	//Load Plane
+	_Entity planeEntity = m_ActiveScene->CreateEntity("wood_plane");
+	auto planeGeo = ShapeManager::GetShape("Box");
 	BoxFixture3DComponent planeFixtureComp;
 	planeFixtureComp.Property.m_InvMass = 0.f;
 	planeFixtureComp.Property.m_Friction = 0.5f;
 	planeFixtureComp.Property.m_Elasticity = 0.5f;
-	//planeFixtureComp.Bounds = planeGeo->GetBounds();
 	matComp.Metalness = { "metalness", Vec3f(0.08f) };
 	planeEntity.AddOrReplaceComponent<MeshComponent>(planeGeo);
 	planeEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
 	planeEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
 	planeEntity.AddOrReplaceComponent<TexturesComponent>(planeTextureComp);
 	planeEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
+	planeEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{}, Vec3f{}, Vec3f{100, 1, 100});
 	planeFixtureComp.Property.m_Position = planeEntity.GetComponent<Transform3DComponent>().Translation;
 	planeFixtureComp.Property.m_Orientation = planeEntity.GetComponent<Transform3DComponent>().QuatRotation;
 	planeEntity.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
-	//planeEntity.AddOrReplaceComponent<BoxFixture3DComponent>(sphereTextureComp);
 	planeEntity.AddOrReplaceComponent<MaterialComponent>(matComp);
 	m_ActiveScene->PushToRenderList(planeEntity);
 	
 	
-	auto WallGeo_1 = ShapeManager::_GetShape<Box>("RectangularWall_1", 1, 10, 100);
 	_Entity wallEntity_1 = m_ActiveScene->CreateEntity("wall_entity_1");
-	//WallGeo_1->AddEntityID(int((entt::entity)wallEntity_1));
-	//WallGeo_1->AddAttributes(std::vector<Vec1i>(WallGeo_1->GetVerticesCount(), wallEntity_1));
-	wallEntity_1.AddOrReplaceComponent<MeshComponent>(WallGeo_1);
+	wallEntity_1.AddOrReplaceComponent<MeshComponent>(planeGeo);
 	wallEntity_1.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
 	wallEntity_1.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
 	wallEntity_1.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
-	wallEntity_1.AddOrReplaceComponent<Transform3DComponent>(Vec3f{-50.f, 4.5f, 0.f});
-	//planeFixtureComp.Property.m_Friction = 0.f;
+	wallEntity_1.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ -49.5f, 4.5f, 0.f }, Vec3f{0, glm::pi<float>() / 2.0f, 0}, Vec3f{100, 10, 1});
 	planeFixtureComp.Property.m_Position = wallEntity_1.GetComponent<Transform3DComponent>().Translation;
 	planeFixtureComp.Property.m_Orientation = wallEntity_1.GetComponent<Transform3DComponent>().QuatRotation;
 	wallEntity_1.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
@@ -462,15 +478,13 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	wallEntity_1.AddOrReplaceComponent<MaterialComponent>(matComp);
 	m_ActiveScene->PushToRenderList(wallEntity_1);
 
-	//auto WallGeo_2 = ShapeManager::_GetShape<Box>("RectangularWall", 1, 10, 100);
+
 	_Entity wallEntity_2 = m_ActiveScene->CreateEntity("wall_entity_2");
-	//WallGeo_1->AddAttributes(std::vector<Vec1i>(WallGeo_1->GetVerticesCount(), wallEntity_2));
-	//WallGeo_1->AddEntityID(int((entt::entity)wallEntity_2));
-	wallEntity_2.AddOrReplaceComponent<MeshComponent>(WallGeo_1);
+	wallEntity_2.AddOrReplaceComponent<MeshComponent>(planeGeo);
 	wallEntity_2.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
 	wallEntity_2.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
 	wallEntity_2.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
-	wallEntity_2.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 50.f, 4.5f, 0.f });
+	wallEntity_2.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 49.5f, 4.5f, 0.f }, Vec3f{ 0, glm::pi<float>() / 2.0f, 0 }, Vec3f{ 100, 10, 1});
 	planeFixtureComp.Property.m_Position = wallEntity_2.GetComponent<Transform3DComponent>().Translation;
 	planeFixtureComp.Property.m_Orientation = wallEntity_2.GetComponent<Transform3DComponent>().QuatRotation;
 	wallEntity_2.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
@@ -478,15 +492,13 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	wallEntity_2.AddOrReplaceComponent<MaterialComponent>(matComp);
 	m_ActiveScene->PushToRenderList(wallEntity_2);
 
-	auto WallGeo_2 = ShapeManager::_GetShape<Box>("RectangularWall_2", 100.f, 10.f, 1.f);
+
 	_Entity wallEntity_3 = m_ActiveScene->CreateEntity("wall_entity_3");
-	//WallGeo_2->AddEntityID(int((entt::entity)wallEntity_3));
-	//WallGeo_2->AddAttributes(std::vector<Vec1i>(WallGeo_2->GetVerticesCount(), wallEntity_3));
-	wallEntity_3.AddOrReplaceComponent<MeshComponent>(WallGeo_2);
+	wallEntity_3.AddOrReplaceComponent<MeshComponent>(planeGeo);
 	wallEntity_3.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
 	wallEntity_3.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
 	wallEntity_3.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
-	wallEntity_3.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 0.f, 4.5f, 50.f });
+	wallEntity_3.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 0.f, 4.5f, 49.5f }, Vec3f{}, Vec3f{ 100, 10, 1 });
 	planeFixtureComp.Property.m_Position = wallEntity_3.GetComponent<Transform3DComponent>().Translation;
 	planeFixtureComp.Property.m_Orientation = wallEntity_3.GetComponent<Transform3DComponent>().QuatRotation;
 	wallEntity_3.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
@@ -494,14 +506,13 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	wallEntity_3.AddOrReplaceComponent<MaterialComponent>(matComp);
 	m_ActiveScene->PushToRenderList(wallEntity_3);
 
-	_Entity wallEntity_4 = m_ActiveScene->CreateEntity("wall_entity_3");
-	//WallGeo_2->AddEntityID(int((entt::entity)wallEntity_4));
-	//WallGeo_2->AddAttributes(std::vector<Vec1i>(WallGeo_2->GetVerticesCount(), wallEntity_4));
-	wallEntity_4.AddOrReplaceComponent<MeshComponent>(WallGeo_2);
+
+	_Entity wallEntity_4 = m_ActiveScene->CreateEntity("wall_entity_4");
+	wallEntity_4.AddOrReplaceComponent<MeshComponent>(planeGeo);
 	wallEntity_4.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
 	wallEntity_4.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
 	wallEntity_4.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
-	wallEntity_4.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 0.f, 4.5f, -50.f });
+	wallEntity_4.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 0.f, 4.5f, -49.5f }, Vec3f{}, Vec3f{ 100, 10, 1 });
 	planeFixtureComp.Property.m_Position = wallEntity_4.GetComponent<Transform3DComponent>().Translation;
 	planeFixtureComp.Property.m_Orientation = wallEntity_4.GetComponent<Transform3DComponent>().QuatRotation;
 	wallEntity_4.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
@@ -535,13 +546,21 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	//rigister window resize event and mouse click, scroll event
 	auto AppPauseEvent = new Events<void()>("AppPause");
 	auto AppResumeEvent = new Events<void()>("AppResume");
+	auto debugshowEvent = new Events<void()>("DebugShow");
+
+	auto viewPortEvent = new Events<void()>("ViewportChange");
+
 	auto WindowResizeEvent = new Events<void(WindowResizeParam)>("WindowResize");
 	auto MouseScrollEvent = new Events<void(MouseScrollWheelParam)>("MouseScrollWheel");
 	//auto MouseClickEvent = new Events<void(MouseButtonParam)>("MouseButtonPress");
 
 	AppPauseEvent->Subscribe([this]() { m_IsPause = true; });
 	AppResumeEvent->Subscribe([this]() { m_IsPause = false; });
-
+	debugshowEvent->Subscribe([this]() { m_IsShowDebugBoundingBox = !m_IsShowDebugBoundingBox; });
+	viewPortEvent->Subscribe([this]() 
+		{
+			m_EditorCamera_.OnViewportViewDirectionChange();
+		});
 	/*MouseClickEvent->Subscribe([this](const MouseButtonParam& mouseParam)
 		{
 			m_MousePickFrameBuffer->Bind();
@@ -591,6 +610,8 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	GetEventManager()->GetEventDispatcher().RegisterEvent(MouseScrollEvent);
 	GetEventManager()->GetEventDispatcher().RegisterEvent(AppPauseEvent);
 	GetEventManager()->GetEventDispatcher().RegisterEvent(AppResumeEvent);
+	GetEventManager()->GetEventDispatcher().RegisterEvent(debugshowEvent);
+	GetEventManager()->GetEventDispatcher().RegisterEvent(viewPortEvent);
 	//GetEventManager()->GetEventDispatcher().RegisterEvent(MouseClickEvent);
 }
 
@@ -749,9 +770,43 @@ void RigidBodySimulationApp::Render()
 	m_FinalFrameBuffer->BlitFrameBuffer();*/
 	//m_FinalFrameBuffer->UnBind();
 
+	
+
 	//start normal render
 	RenderSystem::BeginRender(m_EditorCamera_);
+
+
 	RenderSystem::CascadedShadowSceneRender(m_ActiveScene.get(), m_EditorCamera_, m_ShadowCascadeLevels, m_FarPlane);
+
+	//visualize debug bounding boxes
+	if (m_IsShowDebugBoundingBox)
+	{
+		//auto debugBoundingBoxShader = ShaderManager::GetShaderProgram({ base_shader_dir + "basic.vert", base_shader_dir + "basic.frag" });
+		//RenderSystem::VisualizeDebugBoundingVolume(m_ActiveScene.get(), m_EditorCamera_, debugBoundingBoxShader, *m_DebugBoundingBoxComp.get());
+		RenderSystem::VisualizeDebugBoundingVolume(m_ActiveScene.get(), m_EditorCamera_);
+	}
+
+	//visualize kdtree
+	if(!m_IsShowKDTree)
+	{
+		
+		for (auto& e : m_ActiveScene->GetAllEntitiesWith<Transform3DComponent, RigidBody3DComponent>())
+		{
+			_Entity entity{ e, m_ActiveScene.get() };
+			auto& transform = entity.GetComponent<Transform3DComponent>();
+			m_ObjectsPoints.push_back(transform.Translation);
+
+		}
+		//auto debugShader = ShaderManager::GetShaderProgram({ base_shader_dir + "basic.vert", base_shader_dir + "basic.frag" });
+
+		////FilledKDTreePoints();
+		//m_KDTree.ConstructKDTree(m_ObjectsPoints);
+		//m_KDTree.CollectBoxes(m_KDTreePoints);
+		//RenderSystem::KDTreeVisualize(m_ActiveScene.get(), m_EditorCamera_, debugShader, m_KDTreePoints, *m_DebugKDTreeVisualizer);
+		m_ObjectsPoints.clear();
+		m_KDTreePoints.clear();
+		m_KDTree.ClearNode();
+	}
 
 	//visualize point lights
 	auto visualShader = ShaderManager::GetShaderProgram({ base_shader_dir + "point_light_sphere_visual.vert", base_shader_dir + "point_light_sphere_visual.frag" });
@@ -833,6 +888,19 @@ void RigidBodySimulationApp::OnMouseClicked()
 		//std::cout << "Pixel Data: " << pixel_data << std::endl;
 		//m_MousePickFrameBuffer->UnBind();
 	}
+}
+
+void RigidBodySimulationApp::FilledKDTreePoints()
+{
+	//auto& entities = m_ActiveScene->GetAllEntitiesWith<Transform3DComponent, RigidBody3DComponent>();
+	/*for (auto& e : m_ActiveScene->GetAllEntitiesWith<Transform3DComponent, RigidBody3DComponent>())
+	{
+		_Entity entity{ e, m_ActiveScene.get() };
+		auto& transform = entity.GetComponent<Transform3DComponent>();
+		m_KDTreePoints.push_back(transform.Translation);
+	
+	}*/
+
 }
 
 

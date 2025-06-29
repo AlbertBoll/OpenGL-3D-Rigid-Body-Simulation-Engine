@@ -4,6 +4,8 @@
 namespace GEngine::Buffer
 {
 
+
+
 	using namespace Math;
 	template<typename T>
 	class Attribute
@@ -17,13 +19,17 @@ namespace GEngine::Buffer
 
 	public:
 
-		Attribute() = default;
+		//Attribute() = default;
+		Attribute();
 		Attribute(std::vector<T> data);
 	
 
 		[[nodiscard]] unsigned int GetBufferRef()const { return m_BufferRef; }
 
 		void LoadData() const;
+		void LoadAABBNullData() const;
+		void LoadKDTreeNullData() const;
+
 
 		void AddData(const std::vector<T>& data)
 		{
@@ -32,7 +38,7 @@ namespace GEngine::Buffer
 
 		void AssociateSlot(unsigned int location);
 
-		void AssociateAttributeName(unsigned int programRef, const std::string& variableName);
+		//void AssociateAttributeName(unsigned int programRef, const std::string& variableName);
 
 
 	};

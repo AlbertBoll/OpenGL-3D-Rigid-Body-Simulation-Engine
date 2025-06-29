@@ -61,6 +61,8 @@ namespace GEngine
 		static void Set(const RenderParam_& param);
 		static void Clear(const Vec3f& clearColor = { 0.1f, 0.1f, 0.1f });
 		static void OnMouseClicked(_Scene* scene, const MousePickFrameBuffer& fb);
+		static void VisualizeDebugBoundingVolume(_Scene* scene, _EditorCamera& camera, Shader* debug_shader, DebugAABBBoundingBoxComponent& debug_bounding_box);
+		static void VisualizeDebugBoundingVolume(_Scene* scene, _EditorCamera& camera);
 
 		static void SetSurfaceSize(int new_width, int new_height)
 		{
@@ -109,6 +111,7 @@ namespace GEngine
 		template<typename uniformbuffer>
 		static void SetupUBO(const uniformbuffer& ubo, const _EditorCamera& camera, const Vec3f& lightDir, const std::vector<float>& shadowCascadeLevels);
 
+		static void KDTreeVisualize(_Scene* scene, _EditorCamera& camera, Shader* debug_shader, std::vector<Vec3f>& m_Points, const DebugKDTreeVisualizer& debug_kd_tree_visualizer);
 		static void PointLightsVisualize(_Scene* scene, const _EditorCamera& camera, Shader* point_light_shader);
 
 

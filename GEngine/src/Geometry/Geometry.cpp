@@ -47,6 +47,21 @@ namespace GEngine
 		glBindVertexArray(0);
 	}
 
+	void Geometry::BindVBO() const
+	{
+		for(auto& buff: m_Buffers)
+		glBindBuffer(GL_ARRAY_BUFFER, buff);
+	}
+
+	void Geometry::ReSizeVBO(unsigned int size) const
+	{
+		BindVBO();
+		for (auto& buff : m_Buffers)
+		{
+			glBufferData(GL_ARRAY_BUFFER, size * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+		}
+	}
+
 	void Geometry::AddIndices(const std::vector<unsigned int>& data)
 	{
 		m_IndexBuffer = IndexBuffer(data);
@@ -54,6 +69,40 @@ namespace GEngine
 		m_IndicesCount = (int)data.size();
 		b_UseIndexBuffer = true;
 	}
+
+	void Geometry::LoadSubDataDynamically(const Bounds& bounds)
+	{
+		auto mins = bounds.mins + Vec3f{ 0.02f, 0.02f, 0.02f };
+		auto maxs = bounds.maxs - Vec3f{ 0.02f, 0.02f, 0.02f };
+		Vec3f vertices[24] = {
+			{mins.x, mins.y, mins.z}, {maxs.x, mins.y, mins.z},
+			{maxs.x, maxs.y, mins.z}, {mins.x, maxs.y, mins.z},
+			{mins.x, mins.y, maxs.z}, {maxs.x, mins.y, maxs.z},
+			{maxs.x, maxs.y, maxs.z}, {mins.x, maxs.y, maxs.z},
+			{mins.x, mins.y, mins.z}, {mins.x, maxs.y, mins.z},
+			{maxs.x, mins.y, mins.z}, {maxs.x, maxs.y, mins.z},
+			{mins.x, mins.y, maxs.z}, {mins.x, maxs.y, maxs.z},
+			{maxs.x, mins.y, maxs.z}, {maxs.x, maxs.y, maxs.z},
+			{mins.x, mins.y, mins.z}, {mins.x, mins.y, maxs.z},
+			{maxs.x, mins.y, mins.z}, {maxs.x, mins.y, maxs.z},
+			{mins.x, maxs.y, mins.z}, {mins.x, maxs.y, maxs.z},
+			{maxs.x, maxs.y, mins.z}, {maxs.x, maxs.y, maxs.z}
+		};
+		glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
+	}
+
+	void Geometry::LoadKDTreeVisualizerDynamically(const std::vector<Vec3f>& data)
+	{
+		glBufferSubData(GL_ARRAY_BUFFER, 0, data.size() * sizeof(Vec3f), data.data());
+	}
+
+	template<typename T>
+	void Geometry::AddAttribute()
+	{
+		Attribute attribute = Attribute<T>();
+	}
+
+	template void Geometry::AddAttribute<Vec3f>();
 
 	void Geometry::AddEntityID(int entityID)
 	{

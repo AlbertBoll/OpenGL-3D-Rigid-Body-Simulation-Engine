@@ -18,18 +18,20 @@ namespace GEngine
 		friend class Entity;
 		friend class SpriteEntity;
 		friend struct MeshComponent;
+		friend struct DebugAABBBoundingBoxMeshComponent;
+		friend struct DebugKDTreeVisualizer;
 
 		std::unordered_map<unsigned int, std::variant<Attribute<Vec4f>,
-			Attribute<Vec3f>,
-			Attribute<Vec2f>,
-			Attribute<Vec1f>,
-			Attribute<Vec1i>,
-			Attribute<Vec2i>,
-			Attribute<Vec3i>,
-			Attribute<Vec4i>,
-			Attribute<Mat2>,
-			Attribute<Mat3>,
-			Attribute<Mat4>>> m_Attributes;
+													  Attribute<Vec3f>,
+													  Attribute<Vec2f>,
+													  Attribute<Vec1f>,
+													  Attribute<Vec1i>,
+													  Attribute<Vec2i>,
+													  Attribute<Vec3i>,
+													  Attribute<Vec4i>,
+													  Attribute<Mat2>,
+													  Attribute<Mat3>,
+													  Attribute<Mat4>>> m_Attributes;
 
 		IndexBuffer m_IndexBuffer; // Hold index buffer
 
@@ -64,10 +66,17 @@ namespace GEngine
 		unsigned int GetVAO()const { return m_Vao; }
 		void BindVAO()const;
 		void UnBindVAO()const;
+		void BindVBO()const;
+		void ReSizeVBO(unsigned int size) const;
 
 		void AddIndices(const std::vector<unsigned int>& data);
 
 		auto& GetAttributes() { return m_Attributes; }
+
+		void LoadSubDataDynamically(const Bounds& bounds);
+
+		void LoadKDTreeVisualizerDynamically(const std::vector<Vec3f>& data);
+
 
 
 		template<typename Attrib>
@@ -75,6 +84,10 @@ namespace GEngine
 
 		template<typename Attrib, typename... Attribs>
 		void AddAttributes(const Attrib& data, const Attribs&... rest);
+
+		template<typename T>
+		void AddAttribute();
+
 		void AddEntityID(int entityID);
 	
 		void ApplyTransform(const Mat4& transform, unsigned int location = 0, bool bNormal = false);

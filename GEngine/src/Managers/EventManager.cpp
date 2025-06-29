@@ -263,6 +263,10 @@ namespace GEngine::Manager
 					m_EventDispatcher.DispatchEvent("AppPause");
 				else if (e.key.keysym.sym == SDLK_r)
 					m_EventDispatcher.DispatchEvent("AppResume");
+				else if (e.key.keysym.sym == SDLK_SPACE)
+					m_EventDispatcher.DispatchEvent("DebugShow");
+				else
+					m_EventDispatcher.DispatchEvent("ViewportChange");
 				break;
 			}
 		}

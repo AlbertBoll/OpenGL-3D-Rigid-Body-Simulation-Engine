@@ -10,6 +10,11 @@ namespace GEngine
 			NONE, FLYCAM, ARCBALL
 		};
 
+		enum class ViewportMode
+		{
+			DEFAULT, TOP, BOTTOM, LEFT, RIGHT, FRONT, BACK
+		};
+
 		class _EditorCamera : public _Camera
 		{
 		public:
@@ -17,6 +22,8 @@ namespace GEngine
 			_EditorCamera(float fov, float aspectRatio, float nearClip, float farClip);
 			_EditorCamera(const float degFov, const float width, const float height, const float nearP, const float farP);
 			void Initialize();
+			void Initialize(ViewportMode mode);
+
 			void OnUpdate(Timestep ts);
 			//void OnEvent(Event& e);
 
@@ -38,6 +45,7 @@ namespace GEngine
 			float GetPitch() const { return m_Pitch; }
 			float GetYaw() const { return m_Yaw; }
 			bool OnMouseScroll(float new_zoom_level);
+			void OnViewportViewDirectionChange();
 			[[nodiscard]] float GetFOV() const { return m_FOV; }
 			[[nodiscard]] float GetAspectRatio() const { return m_AspectRatio; }
 			[[nodiscard]] float GetNearClip() const { return m_NearClip; }

@@ -6,6 +6,8 @@
 #include "Assets/Shaders/Shader.h"
 #include "Geometry/Geometry.h"
 #include "BaseApp.h"
+#include "Physics/PhysicsBody.h"
+#include "Physics/Shape.h"
 
 namespace GEngine
 {
@@ -269,6 +271,15 @@ namespace GEngine
 						shader->SetUniform(it.UsingVertexColor.Name.c_str(), it.UsingVertexColor.Data);
 						UpdateRenderSetting(renderComp.RenderSettings.m_PrimitivesSetting.lineSetting);
 					}
+
+					//if (entity.HasAllComponents<RefPtr<DebugAABBBoundingBoxComponent>, DebugRenderComponent>())
+					//{
+					//	auto& DebugRenderComp = entity.GetComponent<DebugRenderComponent>();
+					//	auto& DebugAABBBoundingBoxComponent = entity.GetComponent<RefPtr<DebugAABBBoundingBoxComponent>>();
+					//	/*DebugRenderComp.Shader->Bind();
+					//	preRenderComp.Shader->SetUniform("u_view", camera.GetViewMatrix());
+					//	preRenderComp.Shader->SetUniform("u_projection", camera.GetProjection());*/
+					//}
 					//if (entity.HasAllComponents<MeshComponent>())
 					//{
 						//auto geo = entity.GetComponent<MeshComponent>().m_Geometry;
@@ -506,6 +517,8 @@ namespace GEngine
 			//m_MousePickFrameBuffer->UnBind();
 		}
 	}
+
+	
 
 	void RenderSystem::SkyBoxRender(_Entity skybox, _EditorCamera& camera)
 	{
@@ -820,6 +833,99 @@ namespace GEngine
 		
 		fb.UnBind();
 		
+	}
+
+	void RenderSystem::VisualizeDebugBoundingVolume(_Scene* scene, _EditorCamera& camera)
+	{
+		bool first_enter = true;
+		for (auto& ent : scene->GetAllEntitiesWith<DebugAABBBoundingBoxMeshComponent, Transform3DComponent, RigidBody3DComponent, DebugRenderComponent, AABBBoundingBoxComponent>())
+		{
+			auto entity = _Entity(ent, scene);
+			auto& bounding_box = entity.GetComponent<AABBBoundingBoxComponent>();
+			auto& geo = entity.GetComponent<DebugAABBBoundingBoxMeshComponent>().m_AABB;
+			auto& debug_shader_comp = entity.GetComponent<DebugRenderComponent>();
+			if (bounding_box.bVisible)
+			{
+				if (first_enter)
+				{
+					//auto& debug_shader_comp = entity.GetComponent<DebugRenderComponent>();
+					auto debug_shader = debug_shader_comp.Shader;
+					auto& bounding_box = entity.GetComponent<AABBBoundingBoxComponent>();
+					debug_shader->Bind();
+					bounding_box.LoadUniforms(debug_shader);
+					debug_shader->SetUniform("u_view", camera.GetViewMatrix());
+					debug_shader->SetUniform("u_projection", camera.GetProjection());
+					debug_shader->SetUniform("u_model", Mat4(1.0f));
+					UpdateRenderSetting(debug_shader_comp.RenderSettings.m_PrimitivesSetting.lineSetting);
+					geo->BindVAO();
+					geo->BindVBO();
+					first_enter = false;
+				}
+				auto& transform = entity.GetComponent<Transform3DComponent>();
+				auto& rigidBody = entity.GetComponent<RigidBody3DComponent>();
+				auto bound = rigidBody.RuntimeBody->m_Shape->GetBounds(transform.Translation, transform.QuatRotation);
+				geo->LoadSubDataDynamically(bound);
+				ArraysDraw((unsigned int)debug_shader_comp.RenderSettings.DrawStyle, 72);
+			}
+
+		}
+	}
+
+	void RenderSystem::VisualizeDebugBoundingVolume(_Scene* scene, _EditorCamera& camera, Shader* debug_shader, DebugAABBBoundingBoxComponent& debug_bounding_box)
+	{
+		//auto& render_groups = scene->GetGroupEntities();
+		debug_shader->Bind();
+		debug_shader->SetUniform("u_view", camera.GetViewMatrix());
+		debug_shader->SetUniform("u_projection", camera.GetProjection());
+		debug_shader->SetUniform("u_model", Mat4(1.0f)); 
+		debug_bounding_box.BindVAO();
+		debug_bounding_box.BindVBO();
+
+
+		bool first_enter = true;
+		if (debug_bounding_box.bVisible)
+		{
+			debug_bounding_box.LoadUniforms(debug_shader);
+			for (auto& ent : scene->GetAllEntitiesWith<Transform3DComponent, RigidBody3DComponent, DebugRenderComponent>())
+			{
+				auto entity = _Entity(ent, scene);
+				
+				auto& transform = entity.GetComponent<Transform3DComponent>();
+				auto& rigidBody = entity.GetComponent<RigidBody3DComponent>();
+				auto& renderComp = entity.GetComponent<DebugRenderComponent>();
+				if (first_enter)
+				{
+					UpdateRenderSetting(renderComp.RenderSettings.m_PrimitivesSetting.lineSetting);
+					first_enter = false;
+				}
+				auto bound = rigidBody.RuntimeBody->m_Shape->GetBounds(transform.Translation, transform.QuatRotation);
+				debug_bounding_box.LoadDynamicalBuffer(bound);
+				//debug_bounding_box.LoadUniforms(debug_shader);
+				
+				
+				ArraysDraw((unsigned int)renderComp.RenderSettings.DrawStyle, 72);
+
+			}
+		}
+	}
+
+	
+
+	void RenderSystem::KDTreeVisualize(_Scene* scene, _EditorCamera& camera, Shader* debug_shader, std::vector<Vec3f>& m_Points, const DebugKDTreeVisualizer& debug_kd_tree_visualizer)
+	{
+		debug_shader->Bind();
+		debug_shader->SetUniform("u_view", camera.GetViewMatrix());
+		debug_shader->SetUniform("u_projection", camera.GetProjection());
+		debug_shader->SetUniform("u_model", Mat4(1.0f));
+		debug_kd_tree_visualizer.m_KDTree->BindVAO();
+		debug_kd_tree_visualizer.m_KDTree->BindVBO();
+		debug_kd_tree_visualizer.LoadUniforms(debug_shader);
+		LineSetting_ lineSetting;
+		//lineSetting.lineType = LineSetting_::lineType::Loop;
+		glEnable(GL_LINE_SMOOTH);
+		glLineWidth(lineSetting.lineWidth);
+		debug_kd_tree_visualizer.m_KDTree->LoadKDTreeVisualizerDynamically(m_Points);
+		ArraysDraw(GL_LINES, m_Points.size());
 	}
 
 	void RenderSystem::PointLightsVisualize(_Scene* scene, const _EditorCamera& camera, Shader* point_light_shader)

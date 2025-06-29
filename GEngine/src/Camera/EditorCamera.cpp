@@ -172,6 +172,7 @@ namespace GEngine::Camera
 	void _EditorCamera::Initialize()
 	{
 		constexpr Vec3f position = { -40.f, 40.f, 40.f };
+		//constexpr Vec3f position = { -40.f, 0.f, 0.f };
 		m_Distance = glm::distance(position, m_FocalPoint);
 
 		//m_Yaw = 3.0f * glm::pi<float>() / 4.0f;
@@ -181,6 +182,71 @@ namespace GEngine::Camera
 		m_Pitch = glm::pi<float>() / 4.0f;
 
 		m_Position = CalculatePosition();
+		const Quat orientation = GetOrientation();
+		m_Direction = glm::eulerAngles(orientation) * (180.0f / glm::pi<float>());
+		m_ViewMatrix = glm::translate(Mat4(1.0f), m_Position) * glm::toMat4(orientation);
+		m_ViewMatrix = glm::inverse(m_ViewMatrix);
+	}
+
+	void _EditorCamera::Initialize(ViewportMode mode)
+	{
+		constexpr Vec3f position = { -50.f, 20.f, 50.f };
+		switch (mode)
+		{
+		case ViewportMode::DEFAULT:
+			Initialize();
+			break;
+		case ViewportMode::TOP:
+			//m_Position = { 0.f, 100.f, 0.f };
+			m_FocalPoint = { 0.f, 0.f, 0.f };
+			m_Yaw = 0.0f;
+			m_Pitch = glm::pi<float>() / 2.0f;
+			break;
+		case ViewportMode::BOTTOM:
+			//m_Position = { 0.f, -100.f, 0.f };
+			m_FocalPoint = { 0.f, 0.f, 0.f };
+			m_Yaw = 0.0f;
+			m_Pitch = -glm::pi<float>() / 2.0f;
+			break;
+		case ViewportMode::LEFT:
+			//m_Position = { -100.f, 0.f, 0.f };
+			m_FocalPoint = { 0.f, position.y, 0.f };
+			m_Yaw = glm::pi<float>() / 2.0f;
+			m_Pitch = 0.0f;
+			break;
+		case ViewportMode::RIGHT:
+			//m_Position = { 100.f, 0.f, 0.f };
+			m_FocalPoint = { 0.f, position.y, 0.f };
+			m_Yaw = -glm::pi<float>() / 2.0f;
+			m_Pitch = 0.0f;
+			break;
+		case ViewportMode::FRONT:
+			/*m_Position = { 0.f, 40.f, -40.f };
+			m_FocalPoint = { 0.f, 20.f, -20.f };*/
+			//m_Position = { 0.f, 0.f, 100.f };
+			m_FocalPoint = { 0.f, position.y, 0.f };
+			m_Yaw = 0.f;
+			m_Pitch = 0.f;
+			/*m_Yaw = glm::pi<float>();
+			m_Pitch = glm::pi<float>() / 4.0f;*/
+			break;
+		case ViewportMode::BACK:
+			//m_Position = { -0.f, -0.f, -100.f };
+			m_FocalPoint = { 0.f, position.y, 0.f };
+			/*m_Position = { -40.f, -40.f, -40.f };
+			m_FocalPoint = { -20.f, -20.f, -20.f };*/
+			m_Yaw = glm::pi<float>();
+			m_Pitch = 0.f;
+			/*m_Yaw = glm::pi<float>();
+			m_Pitch = -glm::pi<float>() / 4.0f;*/
+			break;
+		default:
+			GENGINE_CORE_ERROR("Unknown viewport mode");
+		}
+
+		m_Distance = glm::distance(position, m_FocalPoint);
+		m_Position = CalculatePosition();
+		
 		const Quat orientation = GetOrientation();
 		m_Direction = glm::eulerAngles(orientation) * (180.0f / glm::pi<float>());
 		m_ViewMatrix = glm::translate(Mat4(1.0f), m_Position) * glm::toMat4(orientation);
@@ -390,6 +456,41 @@ namespace GEngine::Camera
 		}
 		
 		return true;
+	}
+
+	void _EditorCamera::OnViewportViewDirectionChange()
+	{
+		auto& key_input = BaseApp::GetInputManager()->GetInputState();
+		if (key_input.m_Keyboard.IsKeyPressed(GENGINE_KEY_I))
+		{
+			Initialize(ViewportMode::FRONT);
+		}
+		else if (key_input.m_Keyboard.IsKeyPressed(GENGINE_KEY_K))
+		{
+			Initialize(ViewportMode::BACK);
+		}
+		else if (key_input.m_Keyboard.IsKeyPressed(GENGINE_KEY_J))
+		{
+			Initialize(ViewportMode::LEFT);
+		}
+		else if (key_input.m_Keyboard.IsKeyPressed(GENGINE_KEY_L))
+		{
+			Initialize(ViewportMode::RIGHT);
+		}
+		else if (key_input.m_Keyboard.IsKeyPressed(GENGINE_KEY_U))
+		{
+			Initialize(ViewportMode::TOP);
+		}
+		else if (key_input.m_Keyboard.IsKeyPressed(GENGINE_KEY_O))
+		{
+			Initialize(ViewportMode::BOTTOM);
+		}
+		else if (key_input.m_Keyboard.IsKeyPressed(GENGINE_KEY_TAB))
+		{
+			Initialize(ViewportMode::DEFAULT);
+		}
+		
+		
 	}
 
 	void _EditorCamera::MousePan(const Vec2f& delta)

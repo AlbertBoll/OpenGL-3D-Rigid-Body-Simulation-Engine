@@ -23,6 +23,8 @@
 #include <Sprite/SpriteGeometry.h>
 #include "Shapes/AxisHelper.h"
 #include "Shapes/PointLightHelper.h"
+#include "Shapes/AABBBoundingBox.h"
+#include "Shapes/KDTreeVisualizer.h"
 
 namespace GEngine
 {
@@ -60,10 +62,11 @@ namespace GEngine
 			RegisterShape(AxisHelper);
 			RegisterShape(Diamond);
 			RegisterShape(PointLightHelper);
-			_RegisterShape(SmoothSphere, EnvironmentSphere, 1000.f);
-			_RegisterShape(SmoothSphere, FloorSphere, 80.f);
-			_RegisterShape(Box, RectangularPlane, 100.f, 1.f, 100.f);
-			_RegisterShape(Sphere, FloorBaseSphere, 80.f);
+			RegisterShape(AABBBoundingBox);
+			RegisterShape(KDTreeVisualizer);
+			//_RegisterShape(SmoothSphere, EnvironmentSphere, 1000.f);
+			//_RegisterShape(SmoothSphere, FloorSphere, 80.f);
+			//_RegisterShape(Sphere, FloorBaseSphere, 80.f);
 			_RegisterShape(Sphere, PointLight, 0.5f, 32, 32);
 		}
 

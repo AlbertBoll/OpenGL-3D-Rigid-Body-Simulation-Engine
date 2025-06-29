@@ -4,6 +4,21 @@
 namespace GEngine::Buffer
 {
 	template<typename T>
+	Attribute<T>::Attribute()
+	{
+		//glGenVertexArrays(1, &m_VAO);
+		glGenBuffers(1, &m_BufferRef);
+
+		//glBindVertexArray(m_VAO);
+		glBindBuffer(GL_ARRAY_BUFFER, m_BufferRef);
+
+		glBufferData(GL_ARRAY_BUFFER, 24 * sizeof(Vec3f), nullptr, GL_DYNAMIC_DRAW);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, b_Normalized, 0, (void*)0);
+		glBindVertexArray(0);
+	}
+
+	template<typename T>
 	Attribute<T>::Attribute(std::vector<T> data): m_Data(std::move(data))
 	{
 		glGenBuffers(1, &m_BufferRef);
@@ -18,9 +33,29 @@ namespace GEngine::Buffer
 	}
 
 	template<typename T>
+	void Attribute<T>::LoadAABBNullData() const
+	{
+		glBindBuffer(GL_ARRAY_BUFFER, m_BufferRef);
+		glBufferData(GL_ARRAY_BUFFER, 24 * sizeof(Vec3f), nullptr, GL_DYNAMIC_DRAW);
+	}
+
+	template<typename T>
+	void Attribute<T>::LoadKDTreeNullData() const
+	{
+		glBindBuffer(GL_ARRAY_BUFFER, m_BufferRef);
+		glBufferData(GL_ARRAY_BUFFER, 25000, nullptr, GL_DYNAMIC_DRAW); // No data for KDTree visualization
+		//glBindBuffer(GL_ARRAY_BUFFER, 0);
+	}
+
+
+	template<typename T>
 	void Attribute<T>::AssociateSlot(unsigned int location)
 	{
-		LoadData();
+		if (!m_Data.empty())
+			LoadData();
+		else
+			LoadKDTreeNullData();
+			//LoadAABBNullData();
 
 		glEnableVertexAttribArray(location);
 
@@ -113,104 +148,104 @@ namespace GEngine::Buffer
 
 	}
 
-	template<typename T>
-	void Attribute<T>::AssociateAttributeName(unsigned int programRef, const std::string& variableName)
-	{
-		LoadData();
+	//template<typename T>
+	//void Attribute<T>::AssociateAttributeName(unsigned int programRef, const std::string& variableName)
+	//{
+	//	LoadData();
 
-		GLint variableRef = glGetAttribLocation(programRef, variableName.c_str());
+	//	GLint variableRef = glGetAttribLocation(programRef, variableName.c_str());
 
-		if (variableRef == -1) return;
+	//	if (variableRef == -1) return;
 
-		glEnableVertexAttribArray(variableRef);
+	//	glEnableVertexAttribArray(variableRef);
 
-		if constexpr (std::is_same_v<T, Vec1f>)
-		{
-			glVertexAttribPointer(variableRef, 1, GL_FLOAT, b_Normalized, 0, nullptr);
-		}
+	//	if constexpr (std::is_same_v<T, Vec1f>)
+	//	{
+	//		glVertexAttribPointer(variableRef, 1, GL_FLOAT, b_Normalized, 0, nullptr);
+	//	}
 
-		else if constexpr (std::is_same_v<T, Vec2f>)
-		{
-			glVertexAttribPointer(variableRef, 2, GL_FLOAT, b_Normalized, 0, nullptr);
-		}
+	//	else if constexpr (std::is_same_v<T, Vec2f>)
+	//	{
+	//		glVertexAttribPointer(variableRef, 2, GL_FLOAT, b_Normalized, 0, nullptr);
+	//	}
 
-		else if constexpr (std::is_same_v<T, Vec3f>)
-		{
-			glVertexAttribPointer(variableRef, 3, GL_FLOAT, b_Normalized, 0, nullptr);
-		}
+	//	else if constexpr (std::is_same_v<T, Vec3f>)
+	//	{
+	//		glVertexAttribPointer(variableRef, 3, GL_FLOAT, b_Normalized, 0, nullptr);
+	//	}
 
-		else if constexpr (std::is_same_v<T, Vec4f>)
-		{
-			glVertexAttribPointer(variableRef, 4, GL_FLOAT, b_Normalized, 0, nullptr);
-		}
+	//	else if constexpr (std::is_same_v<T, Vec4f>)
+	//	{
+	//		glVertexAttribPointer(variableRef, 4, GL_FLOAT, b_Normalized, 0, nullptr);
+	//	}
 
-		else if constexpr (std::is_same_v<T, Vec1i>)
-		{
-			glVertexAttribIPointer(variableRef, 1, GL_INT, 0, nullptr);
-		}
+	//	else if constexpr (std::is_same_v<T, Vec1i>)
+	//	{
+	//		glVertexAttribIPointer(variableRef, 1, GL_INT, 0, nullptr);
+	//	}
 
-		else if constexpr (std::is_same_v<T, Vec2i>)
-		{
-			glVertexAttribIPointer(variableRef, 2, GL_INT, 0, nullptr);
-		}
+	//	else if constexpr (std::is_same_v<T, Vec2i>)
+	//	{
+	//		glVertexAttribIPointer(variableRef, 2, GL_INT, 0, nullptr);
+	//	}
 
-		else if constexpr (std::is_same_v<T, Vec3i>)
-		{
-			glVertexAttribIPointer(variableRef, 3, GL_INT, 0, nullptr);
-		}
+	//	else if constexpr (std::is_same_v<T, Vec3i>)
+	//	{
+	//		glVertexAttribIPointer(variableRef, 3, GL_INT, 0, nullptr);
+	//	}
 
-		else if constexpr (std::is_same_v<T, Vec4i>)
-		{
-			glVertexAttribIPointer(variableRef, 4, GL_INT, 0, nullptr);
-		}
+	//	else if constexpr (std::is_same_v<T, Vec4i>)
+	//	{
+	//		glVertexAttribIPointer(variableRef, 4, GL_INT, 0, nullptr);
+	//	}
 
-		/*else if constexpr (std::is_same_v<T, bool>)
-		{
-			glVertexAttribIPointer(variableRef, 1, GL_INT, 0, nullptr);
-		}*/
+	//	/*else if constexpr (std::is_same_v<T, bool>)
+	//	{
+	//		glVertexAttribIPointer(variableRef, 1, GL_INT, 0, nullptr);
+	//	}*/
 
-		else if constexpr (std::is_same_v<T, Mat2>)
-		{
-			for (uint8_t i = 0; i < 2; i++)
-			{
-				glVertexAttribPointer(variableRef, 2, GL_FLOAT, b_Normalized, sizeof(Mat2), (void*)(i * sizeof(Vec2f) + 0));
-				glVertexAttribDivisor(variableRef, 1);
-				glEnableVertexAttribArray(++variableRef);
-			}
+	//	else if constexpr (std::is_same_v<T, Mat2>)
+	//	{
+	//		for (uint8_t i = 0; i < 2; i++)
+	//		{
+	//			glVertexAttribPointer(variableRef, 2, GL_FLOAT, b_Normalized, sizeof(Mat2), (void*)(i * sizeof(Vec2f) + 0));
+	//			glVertexAttribDivisor(variableRef, 1);
+	//			glEnableVertexAttribArray(++variableRef);
+	//		}
 
-		}
+	//	}
 
-		else if constexpr (std::is_same_v<T, Mat3>)
-		{
-			for (uint8_t i = 0; i < 3; i++)
-			{
-				glVertexAttribPointer(variableRef, 3, GL_FLOAT, b_Normalized, sizeof(Mat3), (void*)(i * sizeof(Vec3f) + 0));
-				glVertexAttribDivisor(variableRef, 1);
-				glEnableVertexAttribArray(++variableRef);
-			}
+	//	else if constexpr (std::is_same_v<T, Mat3>)
+	//	{
+	//		for (uint8_t i = 0; i < 3; i++)
+	//		{
+	//			glVertexAttribPointer(variableRef, 3, GL_FLOAT, b_Normalized, sizeof(Mat3), (void*)(i * sizeof(Vec3f) + 0));
+	//			glVertexAttribDivisor(variableRef, 1);
+	//			glEnableVertexAttribArray(++variableRef);
+	//		}
 
-		}
+	//	}
 
-		else if constexpr (std::is_same_v<T, Mat4>)
-		{
-			for (uint8_t i = 0; i < 4; i++)
-			{
-				glVertexAttribPointer(variableRef, 4, GL_FLOAT, b_Normalized, sizeof(Mat4), (void*)(i * sizeof(Vec4f) + 0));
-				glVertexAttribDivisor(variableRef, 1);
-				glEnableVertexAttribArray(++variableRef);
-			}
+	//	else if constexpr (std::is_same_v<T, Mat4>)
+	//	{
+	//		for (uint8_t i = 0; i < 4; i++)
+	//		{
+	//			glVertexAttribPointer(variableRef, 4, GL_FLOAT, b_Normalized, sizeof(Mat4), (void*)(i * sizeof(Vec4f) + 0));
+	//			glVertexAttribDivisor(variableRef, 1);
+	//			glEnableVertexAttribArray(++variableRef);
+	//		}
 
-		}
+	//	}
 
 
-		else
-		{
-			GENGINE_CORE_ERROR("Unknown data type: {}", typeid(T).name());
-		}
+	//	else
+	//	{
+	//		GENGINE_CORE_ERROR("Unknown data type: {}", typeid(T).name());
+	//	}
 
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
+	//	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-	}
+	//}
 
 
 	template class Attribute<Vec1f>;

@@ -6,6 +6,7 @@
 #include <filesystem>
 #include "Audio/AudioSystem.h"
 #include "Physics/PhysicsSystem.h"
+#include <SpatialPartition/KDTree.h>
 
 namespace GEngine
 {
@@ -37,6 +38,8 @@ private:
 	void ImGuiRender() override;
 	void UI_Toolbar();
 	void OnMouseClicked();
+	void FilledKDTreePoints();
+
 
 private:
 	_Entity m_Sphere;
@@ -64,11 +67,16 @@ private:
 	Vec3f m_LightDirection;// = { 20.f, 50.0f, 20.f };
 	Vec3f m_LightPos;
 	bool m_IsPause = false;
+	bool m_IsShowDebugBoundingBox = false;
+	bool m_IsShowKDTree = false;
 	std::vector<float> m_ShadowCascadeLevels;
 	float m_NearPlane = 0.1f;
 	float m_FarPlane = 40.0f;
-
-
+	ScopedPtr<DebugKDTreeVisualizer> m_DebugKDTreeVisualizer{};
+	KDTree m_KDTree{};
+	std::vector<Point3D<float>> m_ObjectsPoints;
+	std::vector<Vec3f> m_KDTreePoints;
+	//RefPtr<DebugAABBBoundingBoxComponent> m_DebugBoundingBoxComp;
 	Asset::Texture* m_IconPlay{};
 	Asset::Texture* m_IconPause{};
 	Asset::Texture* m_IconStep{};

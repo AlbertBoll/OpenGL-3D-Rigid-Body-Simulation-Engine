@@ -27,6 +27,13 @@ namespace GEngine
 		class Texture;
 		class Shader;
 	}
+
+	namespace Shape
+	{
+		class AABBBoundingBox;
+	}
+
+	class Shape::AABBBoundingBox;
 	
 	//using namespace Asset;
 
@@ -96,13 +103,32 @@ namespace GEngine
 
 		};
 
+		class AABBBoundingBox;
 		struct MeshComponent
 		{
 			Geometry* m_Geometry{};
 			MeshComponent(Geometry* geo);
-			MeshComponent() = default;
+			//MeshComponent(Shape::AABBBoundingBox* bound_volume);
 
 		};
+
+
+		struct DebugKDTreeVisualizer
+		{
+			Geometry* m_KDTree{};
+			DebugKDTreeVisualizer();
+			Uniform<Vec4f> Color = { "u_baseColor", {1.0f, 1.0f, 1.0f, 1.0f} };
+			void LoadUniforms(Asset::Shader* shader) const;
+			//operator Geometry& () { return *m_KDTree; }
+		};
+
+
+		struct DebugAABBBoundingBoxMeshComponent
+		{
+			Geometry* m_AABB{};
+			DebugAABBBoundingBoxMeshComponent();
+		};
+
 
 		struct Transform3DComponent
 		{
@@ -124,6 +150,8 @@ namespace GEngine
 			{
 			}*/
 			
+			
+
 			Transform3DComponent(const Vec3f& translation, const Vec3f& euler_rotation = { 0.0f, 0.0f, 0.0f }, const Vec3f& scale = { 1.0f, 1.0f, 1.0f }) : Translation(translation), Scale(scale), EulerRotation(euler_rotation)
 			{
 				QuatRotation = Quat(EulerRotation);
@@ -430,6 +458,12 @@ namespace GEngine
 
 		};
 
+		struct DebugRenderComponent
+		{
+			Asset::Shader* Shader{};
+			RenderSetting_ RenderSettings{};
+		};
+
 		struct PreRenderPassComponent
 		{
 			Asset::Shader* Shader{};
@@ -477,6 +511,7 @@ namespace GEngine
 			//BodyType Type = BodyType::Static;
 			Vec3f m_Position{ 0.f };
 			Quat m_Orientation{ 1.0f, 0.f, 0.f, 0.f };
+			Vec3f m_Scale{ 1.f, 1.f, 1.f };
 
 			Vec3f m_LinearVelocity{ 0.f };
 			Vec3f m_AngularVelocity{ 0.f };
@@ -523,6 +558,37 @@ namespace GEngine
 			RigidBody3D* RuntimeBody{};
 			//RigidBodyBody3DProperty Property{};
 
+		};
+
+		struct DebugAABBBoundingBoxComponent
+		{
+			//Bounds Bounds;
+			Uniform<Vec4f> Color = { "u_baseColor", {1.0f, 1.0f, 1.0f, 1.0f} };
+			bool bVisible = false;
+			DebugAABBBoundingBoxComponent();
+			~DebugAABBBoundingBoxComponent();
+			void LoadUniforms(Asset::Shader* shader) const;
+			void LoadDynamicalBuffer(const Bounds& bounds);
+			void BindVAO();
+			void BindVBO();
+			DebugAABBBoundingBoxComponent(const DebugAABBBoundingBoxComponent&) = delete;
+			DebugAABBBoundingBoxComponent& operator=(const DebugAABBBoundingBoxComponent&) = delete;
+
+
+		private:
+			void SetUpBuffers();
+			unsigned int m_VAO = 0;
+			unsigned int m_VBO = 0;
+			
+			
+			//DebugAABBBoundingBoxComponent(const Bounds& bounds) : Bounds(bounds) {}
+		};
+
+		struct AABBBoundingBoxComponent
+		{
+			Uniform<Vec4f> Color = { "u_baseColor", {1.0f, 1.0f, 1.0f, 1.0f} };
+			bool bVisible = false;
+			void LoadUniforms(Asset::Shader* shader) const;
 		};
 
 		

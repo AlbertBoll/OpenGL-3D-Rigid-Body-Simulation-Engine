@@ -9,6 +9,8 @@
 
 namespace GEngine
 {
+	
+
 	namespace Manager
 	{
 		class ShapeManager
@@ -17,7 +19,6 @@ namespace GEngine
 
 			static void Initialize();
 			static void Register(const std::string& shape_name, Geometry* new_shape);
-
 
 			template<typename T, typename...Args>
 			static void __Register(const std::string& shape_name, Args&&...args);
@@ -44,6 +45,16 @@ namespace GEngine
 		private:
 			inline static std::unordered_map<std::string, Geometry*> m_Shapes;
 			inline static std::unordered_map<std::string, std::vector<Geometry*>> _m_Shapes;
+
+		private:
+			struct EnumClassHash
+			{
+				template <typename T>
+				std::size_t operator()(T t) const
+				{
+					return static_cast<std::size_t>(t);
+				}
+			};
 		};
 
 

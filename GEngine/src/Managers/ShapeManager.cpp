@@ -67,7 +67,7 @@ namespace GEngine
 			//_RegisterShape(SmoothSphere, EnvironmentSphere, 1000.f);
 			//_RegisterShape(SmoothSphere, FloorSphere, 80.f);
 			//_RegisterShape(Sphere, FloorBaseSphere, 80.f);
-			_RegisterShape(Sphere, PointLight, 0.5f, 32, 32);
+			//_RegisterShape(Sphere, PointLight, 0.5f, 32, 32);
 		}
 
 		void ShapeManager::Register(const std::string& shape_name, Geometry* new_shape)

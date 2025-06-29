@@ -322,9 +322,7 @@ namespace GEngine
 
                 Timestep dt_sec = dt_us * 0.001f * 0.001f;
 
-                //update
-                
-                    
+                //update                              
                 Update(dt_sec);
                 
 

@@ -8,4 +8,5 @@ uniform int u_EntityID;
 void main()
 {
 	o_EntityID = u_EntityID;
+	//o_EntityID = 50;
 }

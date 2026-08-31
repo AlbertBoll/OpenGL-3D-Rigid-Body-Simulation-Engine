@@ -2,7 +2,7 @@
 //out vec4 FragColor;
 
 layout(location = 0) out vec4 FragColor;
-//layout(location = 1) out int o_EntityID;
+layout(location = 1) out int o_EntityID;
 
 in VS_OUT {
     vec3 FragPos;
@@ -31,6 +31,8 @@ uniform vec3 directionallightColor;
 
 uniform float pointShadowfarPlane;
 uniform bool shadows;
+
+uniform int u_EntityID;
 
 uniform vec3 metalness;
 
@@ -303,7 +305,7 @@ void main()
     color = pow(color, vec3(1.0/1.8));
     
     FragColor = vec4(color, 1.0);
-
+    o_EntityID = 50;
 
 
    /* vec2 uvs = vec2(fs_in.TexCoords.x * u_tiling.x, fs_in.TexCoords.y * u_tiling.y);

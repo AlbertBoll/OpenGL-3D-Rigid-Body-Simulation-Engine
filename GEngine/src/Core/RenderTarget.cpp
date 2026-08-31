@@ -111,10 +111,26 @@ namespace GEngine
 	RenderTarget::~RenderTarget()
 	{
 		//if (m_Texture) delete m_Texture;
-		
-		glDeleteFramebuffers(1, &m_FrameBufferID);
-		glDeleteRenderbuffers(1, &m_RenderBufferID);
-		glDeleteTextures(1, &m_ColorAttachmentID);
+		if (m_FrameBufferID)
+		{
+			glDeleteFramebuffers(1, &m_FrameBufferID);
+			glDeleteRenderbuffers(1, &m_RenderBufferID);
+			glDeleteTextures(1, &m_ColorAttachmentID);
+			glDeleteTextures(1, &m_MousePickColorID);
+		}
+
+		if(m_ScreenFrameBufferID)
+		{
+			glDeleteFramebuffers(1, &m_ScreenFrameBufferID);
+			glDeleteTextures(1, &m_ScreenColorAttachmentID);
+		}
+
+		if (m_MousePickFrameBufferID)
+		{
+			glDeleteFramebuffers(1, &m_MousePickFrameBufferID);
+			glDeleteTextures(1, &m_MousePickColorAttachmentID);
+		}
+
 
 		//GENGINE_CORE_INFO("Render Targer destructor was called.");
 
@@ -154,7 +170,20 @@ namespace GEngine
 			glDeleteFramebuffers(1, &m_FrameBufferID);
 			glDeleteRenderbuffers(1, &m_RenderBufferID);
 			glDeleteTextures(1, &m_ColorAttachmentID);
+			//glDeleteTextures(1, &m_MousePickColorID);
 		}
+
+		if (m_ScreenFrameBufferID)
+		{
+			glDeleteFramebuffers(1, &m_ScreenFrameBufferID);
+			glDeleteTextures(1, &m_ScreenColorAttachmentID);
+		}
+
+		/*if (m_MousePickFrameBufferID)
+		{
+			glDeleteFramebuffers(1, &m_MousePickFrameBufferID);
+			glDeleteTextures(1, &m_MousePickColorAttachmentID);
+		}*/
 
 	    //m_Texture = new Asset::Texture(info);
 		
@@ -164,6 +193,7 @@ namespace GEngine
 		// Create a frame buffer
 		glGenFramebuffers(1, &m_FrameBufferID);
 		glBindFramebuffer(GL_FRAMEBUFFER, m_FrameBufferID);
+	
 		glGenTextures(1, &m_ColorAttachmentID);
 		glBindTexture(textureMode, m_ColorAttachmentID);
 
@@ -177,7 +207,7 @@ namespace GEngine
 		else
 		{
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m_Width, m_Height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-			glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_ColorAttachmentID, 0);
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_ColorAttachmentID, 0);
 		}
 
 		//check if hardware support anisotropic filtering
@@ -190,10 +220,33 @@ namespace GEngine
 			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, largest);
 		}
 
-		glTexParameteri(textureMode, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(textureMode, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(textureMode, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(textureMode, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(textureMode, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 		glTexParameteri(textureMode, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(textureMode, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+		//glGenTextures(1, &m_MousePickColorID);
+		//glBindTexture(textureMode, m_MousePickColorID);
+
+		//if (multisampled)
+		//{
+		//	glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, m_Samples, GL_R32I, m_Width, m_Height, GL_TRUE);
+		//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D_MULTISAMPLE, m_MousePickColorID, 0);
+		//}
+		//else
+		//{
+		//	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32I, m_Width, m_Width, 0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, nullptr);
+		//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, m_MousePickColorID, 0);	// we only need a mouse color buffer
+		//}
+
+		/*glTexParameteri(textureMode, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(textureMode, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(textureMode, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		glTexParameteri(textureMode, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(textureMode, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);*/
+		//glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, m_MousePickColorID, 0);	// we only need a mouse color buffer
+
 
 		glGenRenderbuffers(1, &m_RenderBufferID);
 		glBindRenderbuffer(GL_RENDERBUFFER, m_RenderBufferID);
@@ -202,13 +255,19 @@ namespace GEngine
 		else glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, m_Width, m_Height);
 
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_RenderBufferID);
-		glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+		GLenum drawBuffers[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+		glDrawBuffers(2, drawBuffers);
+		
+		//Unbind the frame buffer
+		//glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
 		//Assert the frame buffer created successfully
 		ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE, "Framebuffer status error");
-		//UnBind();
+		UnBind();
 
 		if (multisampled) InvalidatePostProcessing();
+		//if (b_MousePickEnabled) InvalidateMousePickProcessing();
 
 	}
 
@@ -286,7 +345,7 @@ namespace GEngine
 	
 		glGenTextures(1, &m_ScreenColorAttachmentID);
 		glBindTexture(GL_TEXTURE_2D, m_ScreenColorAttachmentID);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, m_Width, m_Height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m_Width, m_Height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
@@ -295,8 +354,34 @@ namespace GEngine
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_ScreenColorAttachmentID, 0);	// we only need a color buffer
 
 		ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE, "Framebuffer status error");
-		//UnBind();
+		UnBind();
 
+	}
+
+	void RenderTarget::InvalidateMousePickProcessing()
+	{
+		if (m_MousePickFrameBufferID)
+		{
+			glDeleteFramebuffers(1, &m_MousePickFrameBufferID);
+			glDeleteTextures(1, &m_MousePickColorAttachmentID);
+		}
+
+		glGenFramebuffers(1, &m_MousePickFrameBufferID);
+		glBindFramebuffer(GL_FRAMEBUFFER, m_MousePickColorAttachmentID);
+
+		glGenTextures(1, &m_MousePickColorAttachmentID);
+		glBindTexture(GL_TEXTURE_2D, m_MousePickColorAttachmentID);
+		glTexStorage2D(GL_TEXTURE_2D, 1, GL_R32I, m_Width, m_Width);
+		//glTexImage2D(GL_TEXTURE_2D, 0, GL_R32I, m_Width, m_Width, 0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, nullptr);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_MousePickColorAttachmentID, 0);
+
+		ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE, "Framebuffer status error");
+		UnBind();
 	}
 
 	void RenderTarget::Bind(unsigned int ID) const
@@ -326,17 +411,37 @@ namespace GEngine
 		//BindFrameBuffer(m_ScreenFrameBufferID, GL_DRAW_FRAMEBUFFER);
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, m_FrameBufferID);
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_ScreenFrameBufferID);
-		glBlitFramebuffer(0, 0, m_Width, m_Height, 0, 0, m_Width, m_Height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+		glBlitFramebuffer(0, 0, m_Width, m_Height, 0, 0, m_Width, m_Height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 	}
 
-	int RenderTarget::ReadPixel(uint32_t attachmentIndex, int x, int y)
+	void RenderTarget::BindAndBlitToScreen(int index)
 	{
-		ASSERT(attachmentIndex < m_ColorAttachments.size());
-		glReadBuffer(GL_COLOR_ATTACHMENT0 + attachmentIndex);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, m_FrameBufferID);
+		glReadBuffer(GL_COLOR_ATTACHMENT0);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_ScreenFrameBufferID);
+		glDrawBuffer(GL_COLOR_ATTACHMENT0);
+		glBlitFramebuffer(0, 0, m_Width, m_Height, 0, 0, m_Width, m_Height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+	}
+
+	int RenderTarget::ReadPixel(uint32_t attachmentIndex, int x, int y)const
+	{
+		//ASSERT(attachmentIndex < m_ColorAttachments.size());
+		//glReadBuffer(GL_COLOR_ATTACHMENT0 + attachmentIndex);
+		glBindFramebuffer(GL_FRAMEBUFFER, m_MousePickFrameBufferID);
+		glReadBuffer(GL_COLOR_ATTACHMENT0);
 		int pixelData;
 		glReadPixels(x, y, 1, 1, GL_RED_INTEGER, GL_INT, &pixelData);
+		//glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		return pixelData;
 
+	}
+
+	void RenderTarget::ClearAttachment(int attachment_index, int value)const
+	{
+		
+		glClearBufferiv(GL_COLOR, attachment_index, &value);
+
+		//glClearTexImage(m_MousePickColorAttachmentID, 0, GL_RED_INTEGER, GL_INT, &value);
 	}
 
 	void RenderTarget::UnBind() const
@@ -358,11 +463,11 @@ namespace GEngine
 
 	void RenderTarget::OnResize(uint32_t width, uint32_t height)
 	{
-		if (width == 0 || height == 0 || width > s_MaxFramebufferSize || height > s_MaxFramebufferSize)
+		/*if (width == 0 || height == 0 || width > s_MaxFramebufferSize || height > s_MaxFramebufferSize)
 		{
 			GENGINE_CORE_WARN("Attempted to resize framebuffer to {0}, {1}", width, height);
 			return;
-		}
+		}*/
 
 		m_Width = width;
 		m_Height = height;
@@ -373,6 +478,16 @@ namespace GEngine
 	PointShadowFrameBuffer::PointShadowFrameBuffer(unsigned int resolution_x, unsigned int resolution_y) : m_Width(resolution_x), m_Height(resolution_y)
 	{
 		Invalidate();
+	}
+
+	PointShadowFrameBuffer::~PointShadowFrameBuffer()
+	{
+		if (m_DepthMapFBO)
+		{
+			glDeleteFramebuffers(1, &m_DepthMapFBO);
+			glDeleteTextures(1, &m_DepthCubeMaps);
+		}
+
 	}
 
 	void PointShadowFrameBuffer::OnResize(unsigned int width, unsigned int height)
@@ -436,6 +551,16 @@ namespace GEngine
 	CascadeShadowFrameBuffer::CascadeShadowFrameBuffer(unsigned int resolution_x, unsigned int resolution_y, unsigned int depth) : m_Width(resolution_x), m_Height(resolution_y)
 	{
 		Invalidate(depth);
+	}
+
+	CascadeShadowFrameBuffer::~CascadeShadowFrameBuffer()
+	{
+		if (m_LightFBO)
+		{
+			glDeleteFramebuffers(1, &m_LightFBO);
+			glDeleteTextures(1, &m_LightDepthMaps);
+		}
+	
 	}
 
 	void CascadeShadowFrameBuffer::Invalidate(unsigned int depth)
@@ -574,6 +699,16 @@ namespace GEngine
 		m_Width = resolution_x;
 		m_Height = resolution_y;
 		Invalidate();
+	}
+
+	MousePickFrameBuffer::~MousePickFrameBuffer()
+	{
+		if(m_MousePickFBO)
+		{
+			glDeleteFramebuffers(1, &m_MousePickFBO);
+			glDeleteTextures(1, &m_MousePickColorMap);
+			glDeleteTextures(1, &m_MousePickDepthMap);
+		}
 	}
 
 	void MousePickFrameBuffer::OnResize(unsigned int width, unsigned int height)

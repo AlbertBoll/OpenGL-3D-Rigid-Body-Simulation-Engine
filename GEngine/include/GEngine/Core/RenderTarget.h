@@ -75,13 +75,14 @@ namespace GEngine
 		unsigned int m_DepthMap{};
 		unsigned int m_Width{};
 		unsigned int m_Height{};
+		unsigned int m_Samples = 8;
 	};
 
 	class MousePickFrameBuffer
 	{
 	public:
 		MousePickFrameBuffer(unsigned int resolution_x, unsigned int resolution_y);
-
+		~MousePickFrameBuffer();
 		unsigned int GetLightFBO() const { return m_MousePickFBO; }
 		unsigned int GetMousePickMap() const { return m_MousePickColorMap; }
 		void OnResize(unsigned int width, unsigned int height);
@@ -106,6 +107,7 @@ namespace GEngine
 	{
 	public:
 		PointShadowFrameBuffer(unsigned int resolution_x, unsigned int resolution_y);
+		~PointShadowFrameBuffer();
 		unsigned int GetDepthMapFBO() const { return m_DepthMapFBO; }
 		unsigned int GetDepthCubeMaps() const { return m_DepthCubeMaps; }
 		void OnResize(unsigned int width, unsigned int height);
@@ -127,7 +129,7 @@ namespace GEngine
 	{
 	public:
 		CascadeShadowFrameBuffer(unsigned int resolution_x, unsigned int resolution_y, unsigned int depth);
-		
+		~CascadeShadowFrameBuffer();
 		unsigned int GetLightFBO() const { return m_LightFBO; }
 		unsigned int GetLightDepthMaps() const { return m_LightDepthMaps; }
 		//unsigned int GetMousePickMap() const { return m_MousePickMap; }
@@ -190,18 +192,21 @@ namespace GEngine
 		[[nodiscard]] int GetHeight() const { return m_Height; }
 		[[nodiscard]] int GetFrameBufferID() const { return m_FrameBufferID; }
 		[[nodiscard]] int GetScreenFrameBufferID() const { return m_ScreenFrameBufferID; }
+		[[nodiscard]] int GetMousePickFrameBufferID() const { return m_MousePickFrameBufferID; }
+		[[nodiscard]] int GetColorAttachmentID() const { return m_ColorAttachmentID; }
+		[[nodiscard]] int GetScreenAttachmentID() const { return m_ScreenColorAttachmentID; }
+		[[nodiscard]] int GetMousePickAttachmentID() const { return m_MousePickColorAttachmentID; }
 		[[nodiscard]] int GetRenderBufferID() const { return m_RenderBufferID; }
-		//[[nodiscard]] uint64_t GetTargetTextureID() const { return m_Texture->GetTextureID(); }
-		[[nodiscard]] uint64_t GetColorAttachmentID() const { return m_ColorAttachmentID; }
 		//[[nodiscard]] Asset::Texture* GetTexture() const { return m_Texture; }
 
-		[[nodiscard]] uint64_t GetScreenAttachmentID() const { return m_ScreenColorAttachmentID; }
+		
 
 		void Invalidate();
 
 		void _Invalidate();
 
 		void InvalidatePostProcessing();
+		void InvalidateMousePickProcessing();
 
 		void Bind(unsigned int ID) const;
 
@@ -210,9 +215,12 @@ namespace GEngine
 		void BindRenderBuffer()const;
 
 		void BindAndBlitToScreen();
+		void BindAndBlitToScreen(int index);
 
-		int ReadPixel(uint32_t attachmentIndex, int x, int y);
+		void ClearAttachment(int attachment_index, int value)const;
 
+		int ReadPixel(uint32_t attachmentIndex, int x, int y)const;
+		void SetMousePick(bool enable) { b_MousePickEnabled = enable; }
 		
 
 		void UnBind() const;
@@ -239,13 +247,16 @@ namespace GEngine
 		//Asset::Texture* m_Texture{};
 		int m_Width{};
 		int m_Height{};
-
-		unsigned int m_Samples = 8;
+		bool b_MousePickEnabled = true;
+		unsigned int m_Samples = 16;
 		unsigned int m_FrameBufferID{};
 		unsigned int m_RenderBufferID{};
 		unsigned int m_ColorAttachmentID{};
+		unsigned int m_MousePickColorID{};
 		unsigned int m_ScreenFrameBufferID{};
 		unsigned int m_ScreenColorAttachmentID{};
+		unsigned int m_MousePickFrameBufferID{};
+		unsigned int m_MousePickColorAttachmentID{};
 
 		std::vector<RenderTargetTextureSpecification> m_ColorAttachmentSpecifications;
 		RenderTargetSpecification m_Specification;

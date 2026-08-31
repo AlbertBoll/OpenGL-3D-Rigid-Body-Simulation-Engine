@@ -55,12 +55,14 @@ namespace GEngine
 	
 		static void CascadedShadowSceneRender(_Scene* scene, _EditorCamera& camera, const std::vector<float>& shadowCascadeLevels, float far_plane);
 		static void SceneRender(_Scene* scene, _EditorCamera& camera);
-		static void BeginRender(_EditorCamera& camera, RenderTarget* target);
+		static void BeginFinalRender(_EditorCamera& camera, RenderTarget* target = nullptr, const Vec4f& color = { 0.1f, 0.1f, 0.1f, 1.f });
 		static void BeginRender(_EditorCamera& camera, const Vec4f& color = {0.1f, 0.1f, 0.1f, 1.f});
 		static void Initialize(const Vec3f& clearColor = { 0.1f, 0.1f, 0.1f });
 		static void Set(const RenderParam_& param);
 		static void Clear(const Vec3f& clearColor = { 0.1f, 0.1f, 0.1f });
 		static void OnMouseClicked(_Scene* scene, const MousePickFrameBuffer& fb);
+		static void OnMouseClicked(_Scene* scene, const MousePickFrameBuffer& fb, const Vec2f& min_bound, const Vec2f& max_bound);
+		static void OnMouseClicked(_Scene* scene, const RenderTarget& fb, const Vec2f& min_bound, const Vec2f& max_bound);
 		static void VisualizeDebugBoundingVolume(_Scene* scene, _EditorCamera& camera, Shader* debug_shader, DebugAABBBoundingBoxComponent& debug_bounding_box);
 		static void VisualizeDebugBoundingVolume(_Scene* scene, _EditorCamera& camera);
 
@@ -107,7 +109,8 @@ namespace GEngine
 		static void CascadedShadowPass(_Scene* scene, Shader* depth_shader, const CascadeShadowFrameBuffer& fb);
 		static void PointShadowPass(_Scene* scene, Shader* depth_shader, const PointShadowFrameBuffer& fb, const Vec3f& lightPos, float near_plane, float far_plane);
 		static void MousePickPass(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader, const MousePickFrameBuffer& fb);
-
+		static void MousePickPass(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader, const MousePickFrameBuffer& fb, const Vec2f& min_bound, const Vec2f& max_bound);
+		static void FinalPassBegin(_EditorCamera& camera, RenderTarget* target);
 		template<typename uniformbuffer>
 		static void SetupUBO(const uniformbuffer& ubo, const _EditorCamera& camera, const Vec3f& lightDir, const std::vector<float>& shadowCascadeLevels);
 

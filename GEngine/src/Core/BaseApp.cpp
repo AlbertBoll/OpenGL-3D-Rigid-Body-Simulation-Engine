@@ -118,7 +118,7 @@ namespace GEngine
             m_SDLWindow = static_cast<SDLWindow*>(GetWindowManager()->GetInternalWindow(1));
             GetInputManager()->SetSDLWindow(m_SDLWindow);
             
-            //m_RenderTarget = CreateScopedPtr<RenderTarget>(Vec2f{ m_SDLWindow->GetScreenWidth(), m_SDLWindow->GetScreenHeight() });
+            m_RenderTarget = CreateScopedPtr<RenderTarget>(Vec2f{ m_SDLWindow->GetScreenWidth(), m_SDLWindow->GetScreenHeight() });
           
 			m_CascadeShadowFrameBuffer = CreateScopedPtr<CascadeShadowFrameBuffer>(8192, 8192, 5);
 			m_PointShadowFrameBuffer = CreateScopedPtr<PointShadowFrameBuffer>(8192, 8192);

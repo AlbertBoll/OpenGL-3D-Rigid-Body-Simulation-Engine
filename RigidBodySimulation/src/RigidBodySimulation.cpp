@@ -47,8 +47,8 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	//m_DebugBoundingBoxComp = CreateRefPtr<DebugAABBBoundingBoxComponent>();
 	//m_DebugBoundingBoxComp->bVisible = true;
 
-	m_ObjectsPoints.reserve(100);
-	m_KDTreePoints.reserve(2000);
+	//m_ObjectsPoints.reserve(100);
+	//m_KDTreePoints.reserve(2000);
 
 	//initialize scene and camera
 	m_EditorScene = CreateRefPtr<_Scene>();
@@ -592,6 +592,7 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 				RenderSystem::SetSurfaceSize(windowParam.Width, windowParam.Height);
 				m_MousePickFrameBuffer->OnResize(windowParam.Width, windowParam.Height);
 				m_SDLWindow->OnResize(windowParam.Width, windowParam.Height);
+				m_ViewportSize = { windowParam.Width, windowParam.Height };
 			}
 
 		
@@ -625,7 +626,7 @@ void RigidBodySimulationApp::Initialize(const WindowProperties& prop)
 
 void RigidBodySimulationApp::Update(Timestep ts)
 {
-
+	OnViewportResize(m_ViewportSize.x, m_ViewportSize.y);
 	//auto entity = m_ActiveScene->FindEntityByName("sphere");
 
 	//auto& relationship = entity.GetComponent<RelationshipComponent>();
@@ -747,8 +748,9 @@ void RigidBodySimulationApp::Render()
 	//RenderSystem::BeginRender(m_EditorCamera_);
 
 	//Mouse Pick pass
-	auto mousePickShader = ShaderManager::GetShaderProgram({ base_shader_dir + "mouse_pick.vert", base_shader_dir + "mouse_pick.frag" });
-	RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get());
+	//auto mousePickShader = ShaderManager::GetShaderProgram({ base_shader_dir + "mouse_pick.vert", base_shader_dir + "mouse_pick.frag" });
+	//RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get());
+	//RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get(), m_ViewportBounds[0], m_ViewportBounds[1]);
 
 	//point shadow pass
 	auto pointLightShadowShader = ShaderManager::GetShaderProgram({ base_shader_dir + "point_shadows_depth.vert", base_shader_dir + "point_shadows_depth.gs", base_shader_dir + "point_shadows_depth.frag" });
@@ -772,41 +774,51 @@ void RigidBodySimulationApp::Render()
 
 	
 
-	//start normal render
-	RenderSystem::BeginRender(m_EditorCamera_);
+	//Mouse Pick pass
+	auto mousePickShader = ShaderManager::GetShaderProgram({ base_shader_dir + "mouse_pick.vert", base_shader_dir + "mouse_pick.frag" });
+	//RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get());
+	RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get(), m_ViewportBounds[0], m_ViewportBounds[1]);
 
+	//start final render
+	//m_FinalFrameBuffer->Bind();
+	RenderSystem::BeginFinalRender(m_EditorCamera_, m_RenderTarget.get());
 
+	//RenderSystem::BeginRender(m_EditorCamera_);
+
+	//m_RenderTarget->ClearAttachment(1, -1);
 	RenderSystem::CascadedShadowSceneRender(m_ActiveScene.get(), m_EditorCamera_, m_ShadowCascadeLevels, m_FarPlane);
 
+	//RenderSystem::OnMouseClicked(m_ActiveScene.get(), *m_RenderTarget, m_ViewportBounds[0], m_ViewportBounds[1]);
+
 	//visualize debug bounding boxes
-	if (m_IsShowDebugBoundingBox)
-	{
+	//if (m_IsShowDebugBoundingBox)
+	//{
 		//auto debugBoundingBoxShader = ShaderManager::GetShaderProgram({ base_shader_dir + "basic.vert", base_shader_dir + "basic.frag" });
 		//RenderSystem::VisualizeDebugBoundingVolume(m_ActiveScene.get(), m_EditorCamera_, debugBoundingBoxShader, *m_DebugBoundingBoxComp.get());
-		RenderSystem::VisualizeDebugBoundingVolume(m_ActiveScene.get(), m_EditorCamera_);
-	}
+		//RenderSystem::VisualizeDebugBoundingVolume(m_ActiveScene.get(), m_EditorCamera_);
+	//}
 
 	//visualize kdtree
-	if(!m_IsShowKDTree)
-	{
-		
-		for (auto& e : m_ActiveScene->GetAllEntitiesWith<Transform3DComponent, RigidBody3DComponent>())
-		{
-			_Entity entity{ e, m_ActiveScene.get() };
-			auto& transform = entity.GetComponent<Transform3DComponent>();
-			m_ObjectsPoints.push_back(transform.Translation);
+	//if(!m_IsShowKDTree)
+	//{
+	//	
+	//	for (auto& e : m_ActiveScene->GetAllEntitiesWith<Transform3DComponent, RigidBody3DComponent>())
+	//	{
+	//		_Entity entity{ e, m_ActiveScene.get() };
+	//		auto& transform = entity.GetComponent<Transform3DComponent>();
+	//		m_ObjectsPoints.push_back(transform.Translation);
 
-		}
-		//auto debugShader = ShaderManager::GetShaderProgram({ base_shader_dir + "basic.vert", base_shader_dir + "basic.frag" });
+	//	}
+	//	//auto debugShader = ShaderManager::GetShaderProgram({ base_shader_dir + "basic.vert", base_shader_dir + "basic.frag" });
 
-		////FilledKDTreePoints();
-		//m_KDTree.ConstructKDTree(m_ObjectsPoints);
-		//m_KDTree.CollectBoxes(m_KDTreePoints);
-		//RenderSystem::KDTreeVisualize(m_ActiveScene.get(), m_EditorCamera_, debugShader, m_KDTreePoints, *m_DebugKDTreeVisualizer);
-		m_ObjectsPoints.clear();
-		m_KDTreePoints.clear();
-		m_KDTree.ClearNode();
-	}
+	//	////FilledKDTreePoints();
+	//	//m_KDTree.ConstructKDTree(m_ObjectsPoints);
+	//	//m_KDTree.CollectBoxes(m_KDTreePoints);
+	//	//RenderSystem::KDTreeVisualize(m_ActiveScene.get(), m_EditorCamera_, debugShader, m_KDTreePoints, *m_DebugKDTreeVisualizer);
+	//	m_ObjectsPoints.clear();
+	//	m_KDTreePoints.clear();
+	//	m_KDTree.ClearNode();
+	//}
 
 	//visualize point lights
 	auto visualShader = ShaderManager::GetShaderProgram({ base_shader_dir + "point_light_sphere_visual.vert", base_shader_dir + "point_light_sphere_visual.frag" });
@@ -814,11 +826,16 @@ void RigidBodySimulationApp::Render()
 	
 	////RenderSystem::SceneRender(m_ActiveScene.get(), m_EditorCamera_);
 	RenderSystem::SkyBoxRender(m_SkyBoxEntity, m_EditorCamera_);
+	//m_FinalFrameBuffer->UnBind();
 
-	//if (m_RenderTarget && m_RenderTarget->IsMultiSampled()) m_RenderTarget->BindAndBlitToScreen();
 
-	//if (m_RenderTarget)
-	//	m_RenderTarget->UnBind();
+	if (m_RenderTarget && m_RenderTarget->IsMultiSampled()) 
+		m_RenderTarget->BindAndBlitToScreen();
+
+	if (m_RenderTarget)
+		m_RenderTarget->UnBind();
+
+	
 
 	for (auto& [windowID, window] : windows)
 	{
@@ -840,7 +857,7 @@ void RigidBodySimulationApp::ImGuiRender()
 	static bool opt_fullscreen = true;
 	static bool opt_padding = false;
 	static ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_None;
-
+	//ImGui::ShowDemoWindow(&p_open);
 	// We are using the ImGuiWindowFlags_NoDocking flag to make the parent window not dockable into,
 	// because it would be confusing to have two docking targets within each others.
 	ImGuiWindowFlags window_flags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking;
@@ -855,10 +872,10 @@ void RigidBodySimulationApp::ImGuiRender()
 		window_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
 		window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
 	}
-	else
+	/*else
 	{
 		dockspace_flags &= ~ImGuiDockNodeFlags_PassthruCentralNode;
-	}
+	}*/
 
 	// When using ImGuiDockNodeFlags_PassthruCentralNode, DockSpace() will render our background
 	// and handle the pass-thru hole, so we ask Begin() to not render a background.
@@ -905,9 +922,58 @@ void RigidBodySimulationApp::ImGuiRender()
 		ImGui::EndMenuBar();
 	}
 
-	
+
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 });
+	//ImGui::ShowDemoWindow(&p_open);
+	ImGui::Begin("Viewport");
+	auto viewportMinRegion = ImGui::GetWindowContentRegionMin();
+	auto viewportMaxRegion = ImGui::GetWindowContentRegionMax();
+	auto viewportOffset = ImGui::GetWindowPos();
+	m_ViewportBounds[0] = { viewportMinRegion.x + viewportOffset.x, viewportMinRegion.y + viewportOffset.y };
+	m_ViewportBounds[1] = { viewportMaxRegion.x + viewportOffset.x, viewportMaxRegion.y + viewportOffset.y };
+	//GENGINE_CORE_INFO("{0}, {1}", viewportOffset.x, viewportOffset.y);
+
+	m_ViewportForcused = ImGui::IsWindowFocused();
+	m_ViewportHovered = ImGui::IsWindowHovered();
+
+	//GENGINE_INFO("Focused: {}", ImGui::IsWindowFocused());
+	//GENGINE_INFO("Hovered: {}", ImGui::IsWindowHovered());
+
+	auto viewportPanelSize = ImGui::GetContentRegionAvail();
+	m_ViewportSize = { viewportPanelSize.x, viewportPanelSize.y };
+
+	//m_ViewportSize = {1280, 720};
+	//m_ViewportSize = { viewportPanelSize.x, viewportPanelSize.y };
+
+	//if (m_RenderTarget && m_RenderTarget->IsMultiSampled())
+		//m_RenderTarget->BindAndBlitToScreen(0);
+
+	//ImGui::Image(reinterpret_cast<void*>(m_FinalFrameBuffer->GetColorMap()), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
+	if (!m_RenderTarget->IsMultiSampled())
+		ImGui::Image(reinterpret_cast<void*>(m_RenderTarget->GetColorAttachmentID()), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
+	else
+		ImGui::Image(reinterpret_cast<void*>(m_RenderTarget->GetScreenAttachmentID()), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
+
+	/*m_MousePickFrameBuffer->Bind();
+	RenderSystem::OnMouseClicked(m_ActiveScene.get(), *m_MousePickFrameBuffer, m_ViewportBounds[0], m_ViewportBounds[1]);
+	m_MousePickFrameBuffer->UnBind();*/
+
+	/*auto windowSize = ImGui::GetWindowSize();
+	ImVec2 minBound = ImGui::GetWindowPos();
+	minBound.x += viewportOffset.x;
+	minBound.y += viewportOffset.y;
+
+	ImVec2 maxBound = { minBound.x + windowSize.x, minBound.y + windowSize.y };
+
+	m_ViewportBounds[0] = { minBound.x, minBound.y };
+	m_ViewportBounds[1] = { maxBound.x, maxBound.y };*/
+
 
 	ImGui::End();
+	ImGui::PopStyleVar();
+
+	ImGui::End();
+
 
 	// Note: Switch this to true to enable dockspace
 	//static bool show = true;
@@ -1035,6 +1101,30 @@ void RigidBodySimulationApp::FilledKDTreePoints()
 	
 	}*/
 
+}
+
+void RigidBodySimulationApp::OnViewportResize(int viewport_x, int viewport_y)
+{
+	if (viewport_x == 0 || viewport_y == 0)
+	{
+		m_Minimized = true;
+		return;
+	}
+	else
+	{
+		m_Minimized = false;
+	}
+
+	if (viewport_x == m_SDLWindow->GetScreenWidth() && viewport_y == m_SDLWindow->GetScreenHeight())
+		return;
+	//m_ViewportSize = { viewport_x, viewport_y };
+	m_RenderTarget->OnResize(viewport_x, viewport_y);
+	m_EditorCamera_.SetViewportSize(viewport_x, viewport_y);
+	RenderSystem::SetSurfaceSize(viewport_x, viewport_y);
+	m_MousePickFrameBuffer->OnResize(viewport_x, viewport_y);
+	m_SDLWindow->OnResize(viewport_x, viewport_y);
+
+	
 }
 
 

@@ -8,6 +8,8 @@
 #include "BaseApp.h"
 #include "Physics/PhysicsBody.h"
 #include "Physics/Shape.h"
+#include <imgui/imgui.h>
+
 
 namespace GEngine
 {
@@ -224,6 +226,7 @@ namespace GEngine
 						auto it = light_entity.GetComponent<PointLightComponent>();
 						it.LoadUniforms(shader);
 					}
+					shader->SetUniform("u_EntityID", int((entt::entity)light_entity));
 				}
 
 				for (auto& entity : group)
@@ -236,10 +239,11 @@ namespace GEngine
 					{
 						shader->SetUniform("draw_point_Light", false);
 					}*/
+					
 					//auto view = scene->View<Transform3DComponent, MeshComponent>();
 					auto geoComp = entity.GetComponent<MeshComponent>();
 					geoComp.m_Geometry->BindVAO();
-					shader->SetUniform("u_entityID", int((entt::entity)entity));
+					shader->SetUniform("u_EntityID", int((entt::entity)entity));
 					if (entity.HasAllComponents<Transform3DComponent>())
 					{
 						auto& comp = entity.GetComponent<Transform3DComponent>();
@@ -423,21 +427,21 @@ namespace GEngine
 		}
 	}
 
-	void RenderSystem::BeginRender(_EditorCamera& camera, RenderTarget* target)
+	void RenderSystem::BeginFinalRender(_EditorCamera& camera, RenderTarget* target, const Vec4f& color)
 	{
-		if (!target)
+	
+		if (target)
 		{
-			glBindFramebuffer(GL_FRAMEBUFFER, 0);
-			glViewport(0, 0, m_WindowWidth, m_WindowHeight);
-		}
-
-		else
-		{
-			glBindFramebuffer(GL_FRAMEBUFFER, target->GetFrameBufferID());
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, target->GetFrameBufferID());
 			glViewport(0, 0, target->GetWidth(), target->GetHeight());
 		}
-
-
+		else
+		{
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glViewport(0, 0, camera.m_ViewportWidth, camera.m_ViewportHeight);
+		}
+		//glClearColor(color.r, color.g, color.b, color.a);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		camera.UpdateView();
 	}
 
@@ -513,9 +517,93 @@ namespace GEngine
 				str = "None";
 			}
 			std::cout << "Mouse Clicked at: " << x << ", " << y << std::endl;
+			//std::cout << "pixel value " << pixel_data << std::endl;
 			std::cout << "Entity " << str << " has been clicked" << std::endl;
 			//m_MousePickFrameBuffer->UnBind();
 		}
+	}
+
+	void RenderSystem::OnMouseClicked(_Scene* scene, const MousePickFrameBuffer& fb, const Vec2f& min_bound, const Vec2f& max_bound)
+	{
+		
+		auto [mx, my] = ImGui::GetMousePos();
+		
+		mx -= min_bound.x;
+		my -= min_bound.y;
+
+		Vec2f viewportSize = max_bound - min_bound;
+		
+		my = viewportSize.y - my; // Invert Y coordinate for OpenGL
+		int mouseX = static_cast<int>(mx);
+		int mouseY = static_cast<int>(my);
+
+	
+		if (mouseX >= 0 && mouseY >= 0 && mouseX <= (int)viewportSize.x && mouseY <= (int)viewportSize.y)
+		{
+			if (BaseApp::GetInputManager()->GetMouseState().isButtonPressed(GEngineMouseCode::GENGINE_BUTTON_LEFT))
+			{
+				int pixel_data = fb.ReadPixel(mouseX, mouseY);
+				std::string str = "None";
+				auto entity = pixel_data == -1 ? _Entity() : _Entity((entt::entity)pixel_data, scene);
+				if (entity)
+				{
+					str = entity.GetComponent<TagComponent>().Name;
+				}
+				else
+				{
+					str = "None";
+				}
+				std::cout << "Mouse Position: " << mouseX << ", " << mouseY << std::endl;
+				//std::cout << "pixel value " << pixel_data << std::endl;
+				std::cout << "Entity " << str << " has been clicked" << std::endl;
+			}
+		}
+
+		
+	}
+
+	void RenderSystem::OnMouseClicked(_Scene* scene, const RenderTarget& fb, const Vec2f& min_bound, const Vec2f& max_bound)
+	{
+		
+		fb.BindFrameBuffer(fb.GetFrameBufferID(), GL_READ_FRAMEBUFFER);
+		glReadBuffer(GL_COLOR_ATTACHMENT0);
+		fb.BindFrameBuffer(fb.GetMousePickFrameBufferID(), GL_DRAW_FRAMEBUFFER);
+		glDrawBuffer(GL_COLOR_ATTACHMENT0);
+		glBlitFramebuffer(0, 0, fb.GetWidth(), fb.GetHeight(), 0, 0, fb.GetWidth(), fb.GetHeight(), GL_COLOR_BUFFER_BIT, GL_NEAREST);
+		fb.UnBind();
+		auto [mx, my] = ImGui::GetMousePos();
+		Vec2f viewportSize = max_bound - min_bound;
+
+		mx -= min_bound.x;
+		my -= min_bound.y;
+
+		int mouseX = static_cast<int>(mx);
+		int mouseY = static_cast<int>(viewportSize.y - my);
+
+
+		if (mouseX >= 0 && mouseY >= 0 && mouseX <= (int)viewportSize.x && mouseY <= (int)viewportSize.y)
+		{
+			if (BaseApp::GetInputManager()->GetMouseState().isButtonPressed(GEngineMouseCode::GENGINE_BUTTON_LEFT))
+			{
+				int pixel_data = fb.ReadPixel(1, mouseX, mouseX);
+				std::string str = "None";
+				auto entity = pixel_data == -1 ? _Entity() : _Entity((entt::entity)pixel_data, scene);
+				/*if (entity)
+				{
+					str = entity.GetComponent<TagComponent>().Name;
+				}
+				else
+				{
+					str = "None";
+				}*/
+				std::cout << "Mouse Position: " << mouseX << ", " << mouseY << std::endl;
+				std::cout << "pixel value " << pixel_data << std::endl;
+				//std::cout << "Entity " << str << " has been clicked" << std::endl;
+			}
+		}
+
+
+		fb.BindFrameBuffer(fb.GetFrameBufferID(), GL_FRAMEBUFFER);
 	}
 
 	
@@ -833,6 +921,34 @@ namespace GEngine
 		
 		fb.UnBind();
 		
+	}
+
+	void RenderSystem::MousePickPass(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader, const MousePickFrameBuffer& fb, const Vec2f& min_bound, const Vec2f& max_bound)
+	{
+		mouse_pick_shader->Bind();
+		fb.Bind();
+		glViewport(0, 0, fb.GetResolution().x, fb.GetResolution().y);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		fb.ClearAttachment(0, -1); // Clear the color attachment to -1
+		//glDisable(GL_DEPTH_TEST);
+		//glEnable(GL_DEPTH_TEST);
+		MousePickPreRender(scene, camera, mouse_pick_shader);
+		//;
+
+		OnMouseClicked(scene, fb, min_bound, max_bound);
+
+		fb.UnBind();
+	}
+
+	void RenderSystem::FinalPassBegin(_EditorCamera& camera, RenderTarget* target)
+	{
+	
+		glBindFramebuffer(GL_FRAMEBUFFER, target->GetFrameBufferID());
+		glViewport(0, 0, target->GetWidth(), target->GetHeight());
+		
+		camera.UpdateView();
+
+
 	}
 
 	void RenderSystem::VisualizeDebugBoundingVolume(_Scene* scene, _EditorCamera& camera)

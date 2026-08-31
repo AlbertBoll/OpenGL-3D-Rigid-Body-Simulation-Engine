@@ -1,7 +1,7 @@
 #version 460
 
 in vec3 uv;
-
+//layout (location = 0) out vec4 FragColor;
 out vec4 out_color;
 
 uniform samplerCube u_SkyBoxDay;

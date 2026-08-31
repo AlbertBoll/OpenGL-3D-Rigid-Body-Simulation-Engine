@@ -39,6 +39,7 @@ private:
 	void UI_Toolbar();
 	void OnMouseClicked();
 	void FilledKDTreePoints();
+	void OnViewportResize(int viewport_x, int viewport_y);
 
 
 private:
@@ -62,7 +63,7 @@ private:
 	};
 	SceneState m_SceneState = SceneState::Edit;
 	bool m_ViewportFocused = false, m_ViewportHovered = false;
-	Vec2f m_ViewportSize = { 0.0f, 0.0f };
+	//Vec2f m_ViewportSize = { 1280.f, 400 };
 	Vec2f m_ViewportBounds[2];
 	Vec3f m_LightDirection;// = { 20.f, 50.0f, 20.f };
 	Vec3f m_LightPos;

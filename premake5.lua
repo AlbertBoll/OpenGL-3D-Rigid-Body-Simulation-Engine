@@ -8,6 +8,12 @@ workspace "GEngine"
 		"Release"
 	}
 
+newoption
+{
+	trigger = "physics-profiling",
+	description = "Enable physics profiling counters and timers"
+}
+
 tdir = "bin/%{cfg.buildcfg}/%{prj.name}"
 odir = "bin-int/%{cfg.buildcfg}/%{prj.name}"
 
@@ -80,6 +86,10 @@ project "GEngine"
 		--Ensures glad doesn't include glfw
 		"GLFW_INCLUDE_NONE"
 	}
+
+	if _OPTIONS["physics-profiling"] then
+		defines { "GE_ENABLE_PHYSICS_PROFILING" }
+	end
 
 	-- Windows
 	filter
@@ -786,6 +796,60 @@ project "Breakout"
 		{
 			"GENGINE_CONFIG_RELEASE"
 		}
+		runtime "Release"
+		symbols "off"
+		optimize "on"
+
+
+filter {}
+
+project "PhysicsBenchmark"
+	location "PhysicsBenchmark"
+	kind "ConsoleApp"
+	language "C++"
+	cppdialect "C++20"
+	staticruntime "on"
+	links "GEngine"
+
+	targetdir(tdir)
+	objdir(odir)
+
+	files
+	{
+		"%{prj.name}/src/**.cpp",
+		"%{prj.name}/README.md"
+	}
+
+	sysincludedirs
+	{
+		"GEngine/include",
+		"GEngine/include/external",
+		"GEngine/include/GEngine",
+		"%{externals.spdlog}/include",
+		"%{externals.entt}/include"
+	}
+
+	if _OPTIONS["physics-profiling"] then
+		defines { "GE_ENABLE_PHYSICS_PROFILING" }
+	end
+
+	filter "system:windows"
+		systemversion "10.0"
+		buildoptions "/MTd"
+		defines
+		{
+			"GENGINE_PLATFORM_WINDOWS",
+			"SDL_MAIN_HANDLED",
+			"_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING"
+		}
+
+	filter "configurations:Debug"
+		defines { "GENGINE_CONFIG_DEBUG" }
+		runtime "Debug"
+		symbols "on"
+
+	filter "configurations:Release"
+		defines { "GENGINE_CONFIG_RELEASE" }
 		runtime "Release"
 		symbols "off"
 		optimize "on"

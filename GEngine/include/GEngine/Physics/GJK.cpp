@@ -1,5 +1,6 @@
 #include"gepch.h"
 #include "GJK.h"
+#include "PhysicsProfile.h"
 #include "Math/Math.h"
 #include "PhysicsBody.h"
 #include "Shape.h"
@@ -350,6 +351,8 @@ namespace GEngine
 	*/
 	point_t Support(const RigidBody3D* bodyA, const RigidBody3D* bodyB, Vec3f dir, const float bias) 
 	{
+		GE_PHYSICS_PROFILE_SCOPE(supportTimeNs);
+		GE_PHYSICS_PROFILE_ADD(supportCallCount, 1);
 		dir = glm::normalize(dir);
 
 		point_t point;
@@ -506,6 +509,7 @@ namespace GEngine
 
 	bool GJK_DoesIntersect(const RigidBody3D* bodyA, const RigidBody3D* bodyB)
 	{
+		GE_PHYSICS_PROFILE_GJK_CALL();
 		const Vec3f origin(0.0f);
 
 		int numPts = 1;
@@ -516,6 +520,7 @@ namespace GEngine
 		bool doesContainOrigin = false;
 		Vec3f newDir = simplexPoints[0].xyz * -1.0f;
 		do {
+			GE_PHYSICS_PROFILE_GJK_ITERATION();
 			// Get the new point to check on
 			point_t newPt = Support(bodyA, bodyB, newDir, 0.0f);
 
@@ -561,6 +566,7 @@ namespace GEngine
 
 	bool GJK_DoesIntersect(const RigidBody3D* bodyA, const RigidBody3D* bodyB, const float bias, Vec3f& ptOnA, Vec3f& ptOnB)
 	{
+		GE_PHYSICS_PROFILE_GJK_CALL();
 		
 		const Vec3f origin(0.0f);
 
@@ -572,6 +578,7 @@ namespace GEngine
 		bool doesContainOrigin = false;
 		Vec3f newDir = simplexPoints[0].xyz * -1.0f;
 		do {
+			GE_PHYSICS_PROFILE_GJK_ITERATION();
 			// Get the new point to check on
 			point_t newPt = Support(bodyA, bodyB, newDir, 0.0f);
 
@@ -680,6 +687,7 @@ namespace GEngine
 
 	void GJK_ClosestPoints(const RigidBody3D* bodyA, const RigidBody3D* bodyB, Vec3f& ptOnA, Vec3f& ptOnB)
 	{
+		GE_PHYSICS_PROFILE_GJK_CALL();
 		
 		const Vec3f origin(0.0f);
 
@@ -693,6 +701,7 @@ namespace GEngine
 		Vec4f lambdas = Vec4f(1, 0, 0, 0);
 		Vec3f newDir = simplexPoints[0].xyz * -1.0f;
 		do {
+			GE_PHYSICS_PROFILE_GJK_ITERATION();
 			// Get the new point to check on
 			point_t newPt = Support(bodyA, bodyB, newDir, bias);
 
@@ -988,6 +997,8 @@ namespace GEngine
 
 
 	float EPA_Expand(const RigidBody3D* bodyA, const RigidBody3D* bodyB, const float bias, const point_t simplexPoints[4], Vec3f& ptOnA, Vec3f& ptOnB) {
+		GE_PHYSICS_PROFILE_SCOPE(epaTimeNs);
+		GE_PHYSICS_PROFILE_ADD(epaCallCount, 1);
 		std::vector< point_t > points;
 		std::vector< tri_t > triangles;
 		std::vector< edge_t > danglingEdges;

@@ -6,6 +6,7 @@
 #include "PhysicsWorld.h"
 #include "Broadphase.h"
 #include "GJK.h"
+#include "PhysicsProfile.h"
 #include <Core/Timer.h>
 
 namespace GEngine
@@ -147,9 +148,12 @@ namespace GEngine
 
 	void PhysicsSystem::Update(Timestep ts)
 	{
+		GE_PHYSICS_PROFILE_SCOPE(physicsWorldTimeNs);
+		GE_PHYSICS_PROFILE_ADD(stepCount, 1);
 
 		using namespace Collision;
 		{
+			GE_PHYSICS_PROFILE_SCOPE(manifoldTimeNs);
 			//Timeit("	m_Manifolds-RemoveExpired")
 			m_Manifolds.RemoveExpired();
 		}
@@ -159,9 +163,29 @@ namespace GEngine
 			auto& PhysicsBodies = m_PhysicsWorld->GetPhysicsBodies();
 			size_t size = PhysicsBodies.size();
 			auto gravity = m_PhysicsWorld->GetGravity();
+#ifdef GE_ENABLE_PHYSICS_PROFILING
+			std::uint64_t dynamicBodyCount = 0;
+			std::uint64_t activeBodyCount = 0;
+			for (const RigidBody3D* body : PhysicsBodies)
+			{
+				if (body->Type == BodyType::Dynamic)
+				{
+					++dynamicBodyCount;
+				}
+				if (body->Type != BodyType::Static)
+				{
+					++activeBodyCount;
+				}
+			}
+			GE_PHYSICS_PROFILE_SET(bodyCount, size);
+			GE_PHYSICS_PROFILE_SET(dynamicBodyCount, dynamicBodyCount);
+			GE_PHYSICS_PROFILE_SET(activeBodyCount, activeBodyCount);
+			GE_PHYSICS_PROFILE_SET(sleepingBodyCount, 0);
+#endif
 
 			// Gravity impulse
 			{
+				GE_PHYSICS_PROFILE_SCOPE(gravityTimeNs);
 				//Timeit("	apply linear impluse to dynamic entities")
 				for (size_t i = 0; i < size; i++)
 				{
@@ -177,9 +201,11 @@ namespace GEngine
 			//
 			std::vector<collisionPair_t> collisionPairs;
 			{
+				GE_PHYSICS_PROFILE_SCOPE(broadphaseTimeNs);
 				//Timeit("	BroadPhase")
 				BroadPhase(PhysicsBodies, collisionPairs, (float)ts);
 			}
+			GE_PHYSICS_PROFILE_SET(candidatePairCount, collisionPairs.size());
 
 			//
 			//	NarrowPhase (perform actual collision detection)
@@ -196,21 +222,35 @@ namespace GEngine
 				RigidBody3D* bodyA = PhysicsBodies[pair.a];
 				RigidBody3D* bodyB = PhysicsBodies[pair.b];
 
+				GE_PHYSICS_PROFILE_ADD(pairFilterCheckCount, 1);
+				GE_PHYSICS_PROFILE_SCOPE_NAMED(pairFilterTimer, pairFilterTimeNs);
+				const bool skipStaticPair = bodyA->Type == BodyType::Static && bodyB->Type == BodyType::Static;
+				GE_PHYSICS_PROFILE_STOP(pairFilterTimer);
+
 				// Skip body pairs with infinite mass
-				if (bodyA->Type == BodyType::Static && bodyB->Type == BodyType::Static)
+				if (skipStaticPair)
 				{
+					GE_PHYSICS_PROFILE_ADD(pairFilterRejectedCount, 1);
 					continue;
 				}
 
 				contact_t contact;
 
-				if(Intersect(bodyA, bodyB, (float)ts, contact))
+				GE_PHYSICS_PROFILE_ADD(narrowphaseCallCount, 1);
+				GE_PHYSICS_PROFILE_SCOPE_NAMED(narrowphaseTimer, narrowphaseTimeNs);
+				const bool didIntersect = Intersect(bodyA, bodyB, (float)ts, contact);
+				GE_PHYSICS_PROFILE_STOP(narrowphaseTimer);
+				if(didIntersect)
 				{
+					GE_PHYSICS_PROFILE_ADD(generatedContactCount, 1);
 					if (0.0f == contact.timeOfImpact)
 					{
 						//std::cout << "0.0f occurred" << std::endl;
 						
-						m_Manifolds.AddContact(contact);
+						{
+							GE_PHYSICS_PROFILE_SCOPE(manifoldTimeNs);
+							m_Manifolds.AddContact(contact);
+						}
 						
 					}
 					else
@@ -234,15 +274,26 @@ namespace GEngine
 				//std::sort(contacts.begin(), contacts.end(), CompareContacts);
 			}
 
+#ifdef GE_ENABLE_PHYSICS_PROFILING
+			const int manifoldContactCount = m_Manifolds.GetContactCount();
+			GE_PHYSICS_PROFILE_SET(manifoldCount, m_Manifolds.m_Manifolds.size());
+			GE_PHYSICS_PROFILE_SET(manifoldContactCount, manifoldContactCount);
+			GE_PHYSICS_PROFILE_SET(solverConstraintCount, manifoldContactCount);
+#endif
+
 			{
+				GE_PHYSICS_PROFILE_SCOPE(solverTimeNs);
 				//Timeit("	m_Manifolds PreSolve")
 				////Solve the Constraints
 				m_Manifolds.PreSolve(ts);
-			}
-
-			{
 				//Timeit("	m_Manifolds Solve")
 				const int maxIters = 1;
+#ifdef GE_ENABLE_PHYSICS_PROFILING
+				if (manifoldContactCount > 0)
+				{
+					GE_PHYSICS_PROFILE_ADD(solverIterationCount, maxIters);
+				}
+#endif
 				for (int iters = 0; iters < maxIters; iters++)
 				{
 					m_Manifolds.Solve();
@@ -265,13 +316,16 @@ namespace GEngine
 
 				// Position update
 				{
+					GE_PHYSICS_PROFILE_SCOPE(integrationTimeNs);
 					//Timeit("	all entities update positions and rotation")
 					for (int j = 0; j < size; j++) {
 						PhysicsBodies[j]->Update(dt);
 					}
+					GE_PHYSICS_PROFILE_ADD(integratedBodyCount, size);
 				}
 
 				{
+					GE_PHYSICS_PROFILE_SCOPE(contactResolutionTimeNs);
 					//Timeit("	Resolve contact")
 					ResolveContact(contact);
 				}
@@ -283,11 +337,13 @@ namespace GEngine
 			if (timeRemaining > 0.0f) {
 				{
 					{
+						GE_PHYSICS_PROFILE_SCOPE(integrationTimeNs);
 						//Timeit("	update entities rest")
 						for (int i = 0; i < size; i++) 
 						{
 							PhysicsBodies[i]->Update(timeRemaining);
 						}
+						GE_PHYSICS_PROFILE_ADD(integratedBodyCount, size);
 					}
 				}
 			}

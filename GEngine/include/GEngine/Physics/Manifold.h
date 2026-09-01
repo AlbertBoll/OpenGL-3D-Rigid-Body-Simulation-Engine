@@ -54,6 +54,7 @@ ManifoldCollector
 
 		void RemoveExpired();
 		void Clear() { m_Manifolds.clear(); }	// For resetting
+		int GetContactCount() const;
 
 	public:
 		std::vector<Manifold> m_Manifolds;

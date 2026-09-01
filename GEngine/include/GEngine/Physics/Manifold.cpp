@@ -234,4 +234,14 @@ namespace GEngine
 		}
 	}
 
+	int ManifoldCollector::GetContactCount() const
+	{
+		int contactCount = 0;
+		for (const Manifold& manifold : m_Manifolds)
+		{
+			contactCount += manifold.GetNumContacts();
+		}
+		return contactCount;
+	}
+
 }

@@ -1,10 +1,9 @@
-# GEngine Physics Optimization & Refactor Master Plan
+# GEngine Physics Optimization & Refactor
+---
+# 1. Purpose
 
-## 1. Purpose
+Physics Optimization & Refactor is the authoritative implementation plan for the GEngine physics optimization and refactor project.
 
-This document is the authoritative implementation plan for the GEngine physics optimization and refactor project.
-
-Codex MUST read this document before performing any physics refactor work.
 
 The project will be executed incrementally, one phase at a time.
 
@@ -25,77 +24,9 @@ Measured performance has priority over speculative optimization.
 
 ---
 
-# 2. Authoritative Inputs
+# 2. Git Safety Protocol
 
-Before starting any phase, Codex must read:
-
-```text
-docs/physics/PHYSICS_REFACTOR_PLAN.md
-docs/audit/CODEBASE_AUDIT.md
-docs/physics/PHYSICS_REFACTOR.md        # if already created
-docs/physics/PHYSICS_OPTIMIZATION.md    # if already created
-```
-
-Codex must verify audit findings against the CURRENT source tree.
-
-The audit is evidence and guidance, not permission to blindly modify code.
-
----
-
-# 3. Mandatory Human Review Workflow
-
-Every phase follows exactly this state machine:
-
-```text
-NOT STARTED
-     |
-     v
-IN PROGRESS
-     |
-     v
-IMPLEMENTATION COMPLETE
-     |
-     v
-BUILD + TEST + BENCHMARK
-     |
-     v
-AWAITING HUMAN REVIEW
-     |
-     +---------------------+
-     |                     |
-     v                     v
- APPROVED               REJECTED
-     |                     |
-     v                     v
-CHECKPOINT COMMIT        ROLLBACK
-     |                     |
-     v                     |
-NEXT PHASE <--------------+
-```
-
-Codex MUST NOT automatically move from one phase to the next.
-
-At the end of every phase, Codex MUST stop.
-
-The user must explicitly respond with one of:
-
-```text
-APPROVE PHASE <N>
-```
-
-or:
-
-```text
-REJECT PHASE <N>
-```
-
-No other wording should be interpreted as approval.
-
----
-
-# 4. Git Safety Protocol
-
-## 4.1 Dedicated Physics Refactor Branch
+## 2.1 Dedicated Physics Refactor Branch
 
 Physics refactoring should be performed on a dedicated branch:
 
@@ -117,9 +48,9 @@ C:\dev\GEngine-physics
 
 Do not overwrite unrelated working-tree changes.
 
----
 
-## 4.2 Phase Checkpoint Rule
+
+## 2.2 Phase Checkpoint Rule
 
 Every APPROVED phase gets exactly one checkpoint commit.
 
@@ -146,137 +77,7 @@ must show no unreviewed changes from the previous phase.
 
 ---
 
-## 4.3 Codex Must Not Commit Before Approval
-
-During implementation:
-
-```text
-Codex edits files
-        |
-        v
-build/test/benchmark
-        |
-        v
-human review
-```
-
-Codex MUST NOT commit the phase before human approval.
-
----
-
-## 4.4 Approval Procedure
-
-When the user sends:
-
-```text
-APPROVE PHASE N
-```
-
-Codex must:
-
-1. confirm the working tree contains only the reviewed Phase N changes;
-2. rerun required validation if necessary;
-3. create the Phase N checkpoint commit;
-4. record the commit hash in the phase report;
-5. update the plan status;
-6. stop again before beginning Phase N+1 unless the user explicitly requests it.
-
-The approved commit becomes the new baseline.
-
----
-
-## 4.5 Rejection / Rollback Procedure
-
-When the user sends:
-
-```text
-REJECT PHASE N
-```
-
-Codex must return the repository to the most recent APPROVED phase checkpoint.
-
-Codex MUST NOT use broad destructive commands such as:
-
-```text
-git clean -fd
-```
-
-or indiscriminate cleanup of the entire repository.
-
-Rollback must affect only files modified or created during the rejected phase.
-
-Tracked files modified during the rejected phase should be restored from the last approved commit.
-
-New files created exclusively by the rejected phase should be removed individually.
-
-After rollback:
-
-```text
-git status --short
-```
-
-must confirm that the rejected phase no longer exists.
-
-Then Codex must stop.
-
-The user may later request Phase N again using a revised implementation approach.
-
----
-
-# 5. Phase Review Package
-
-At the end of EVERY phase, Codex must provide a review package.
-
-Create:
-
-```text
-docs/physics/review/PHASE_<NN>_REVIEW.md
-```
-
-The review document must contain:
-
-```text
-Phase
-Objective
-Status: AWAITING HUMAN REVIEW
-
-Baseline commit
-Files modified
-Files created
-Files deleted
-
-Original problem
-Root cause
-Implementation approach
-
-Correctness changes
-Performance changes
-Architecture changes
-
-Tests added
-Tests executed
-Build results
-
-Debug x64 result
-Release x64 result
-
-Benchmark before
-Benchmark after
-Percentage improvement
-
-Known behavior changes
-Known risks
-Remaining issues
-
-git diff --stat
-git status --short
-```
-
-Codex must also provide a concise human-readable summary.
-
----
-
-# 6. Performance Measurement Rules
+# 3. Performance Measurement Rules
 
 No optimization is considered successful without measurement.
 
@@ -328,7 +129,7 @@ Do not claim percentage improvements without comparable before/after conditions.
 
 ---
 
-# 7. Permanent Tests vs Temporary Profiling
+# 4. Permanent Tests vs Temporary Profiling
 
 Permanent repository additions should include:
 
@@ -366,7 +167,7 @@ Release builds should compile expensive instrumentation out.
 
 ---
 
-# 8. Phase 00 — Physics Architecture Reconstruction
+# 5. Phase 00 — Physics Architecture Reconstruction
 
 ## Objective
 
@@ -417,11 +218,9 @@ Production physics behavior should not change.
 
 Architecture is understood and documented.
 
-Codex stops for human review.
-
 ---
 
-# 9. Phase 01 — Physics Performance Baseline
+# 6. Phase 01 — Physics Performance Baseline
 
 ## Objective
 
@@ -455,11 +254,9 @@ Profiling overhead is controlled.
 
 No physics behavior changed.
 
-Codex stops for human review.
-
 ---
 
-# 10. Phase 02 — Mathematical Correctness and Numerical Robustness
+# 7. Phase 02 — Mathematical Correctness and Numerical Robustness
 
 ## Objective
 
@@ -493,11 +290,10 @@ Regression tests demonstrate the corrected behavior.
 
 No unexpected trajectory or collision regressions.
 
-Codex stops for human review.
 
 ---
 
-# 11. Phase 03 — PhysicsBody Derived Data and Transform Refactor
+# 8. Phase 03 — PhysicsBody Derived Data and Transform Refactor
 
 ## Objective
 
@@ -540,11 +336,9 @@ Cached values produce identical expected results.
 
 Performance before/after is documented.
 
-Codex stops for human review.
-
 ---
 
-# 12. Phase 04 — Broadphase Refactor
+# 9. Phase 04 — Broadphase Refactor
 
 ## Objective
 
@@ -583,11 +377,10 @@ Candidate pair correctness preserved.
 
 Before/after scaling documented.
 
-Codex stops for human review.
 
 ---
 
-# 13. Phase 05 — GJK Core Optimization
+# 10. Phase 05 — GJK Core Optimization
 
 ## Objective
 
@@ -628,11 +421,9 @@ GJK regression tests pass.
 
 Benchmark shows measured before/after GJK performance.
 
-Codex stops for human review.
-
 ---
 
-# 14. Phase 06 — Support Mapping Optimization
+# 11. Phase 06 — Support Mapping Optimization
 
 ## Objective
 
@@ -669,11 +460,10 @@ GJK collision behavior remains correct.
 
 Support call time improvement is measured.
 
-Codex stops for human review.
 
 ---
 
-# 15. Phase 07 — Specialized Narrowphase
+# 12. Phase 07 — Specialized Narrowphase
 
 ## Objective
 
@@ -698,11 +488,9 @@ Equivalent collision tests pass.
 
 Performance benefit is demonstrated.
 
-Codex stops for human review.
-
 ---
 
-# 16. Phase 08 — Pure Collision Prediction
+# 13. Phase 08 — Pure Collision Prediction
 
 ## Objective
 
@@ -728,11 +516,9 @@ No state drift after collision queries.
 
 Before/after CPU cost documented.
 
-Codex stops for human review.
-
 ---
 
-# 17. Phase 09 — Persistent Contact Manifolds
+# 14. Phase 09 — Persistent Contact Manifolds
 
 ## Objective
 
@@ -759,11 +545,9 @@ Stack behavior remains stable.
 
 GJK call reduction is measured.
 
-Codex stops for human review.
-
 ---
 
-# 18. Phase 10 — Constraint Solver Refactor
+# 15. Phase 10 — Constraint Solver Refactor
 
 ## Objective
 
@@ -802,11 +586,9 @@ Stack stability is preserved or improved.
 
 Allocation and timing improvements are measured.
 
-Codex stops for human review.
-
 ---
 
-# 19. Phase 11 — Fixed Physics Timestep
+# 16. Phase 11 — Fixed Physics Timestep
 
 ## Objective
 
@@ -829,11 +611,10 @@ Test equivalent scenarios at different render rates.
 
 30 / 60 / 120 / 144 / 240 FPS rendering produces approximately equivalent physics trajectories.
 
-Codex stops for human review.
 
 ---
 
-# 20. Phase 12 — Sleeping System
+# 17. Phase 12 — Sleeping System
 
 ## Objective
 
@@ -865,11 +646,10 @@ Stacked scenes remain stable.
 
 Active-body reduction and physics timing improvement are measured.
 
-Codex stops for human review.
 
 ---
 
-# 21. Phase 13 — Physics Islands
+# 18. Phase 13 — Physics Islands
 
 ## Objective
 
@@ -891,11 +671,10 @@ Island membership tests pass.
 
 Physics behavior remains equivalent.
 
-Codex stops for human review.
 
 ---
 
-# 22. Phase 14 — Physics Ownership and Memory
+# 19. Phase 14 — Physics Ownership and Memory
 
 ## Objective
 
@@ -930,11 +709,10 @@ Start/stop/restart leak tests pass.
 
 No new ownership ambiguity.
 
-Codex stops for human review.
 
 ---
 
-# 23. Phase 15 — Data Layout and Cache Behavior
+# 20. Phase 15 — Data Layout and Cache Behavior
 
 ## Objective
 
@@ -963,11 +741,10 @@ Data-layout change has measured benefit.
 
 No architecture complexity without measurable value.
 
-Codex stops for human review.
 
 ---
 
-# 24. Phase 16 — Parallel Narrowphase
+# 21. Phase 16 — Parallel Narrowphase
 
 ## Objective
 
@@ -995,11 +772,10 @@ No races under available analysis tools.
 
 Scaling is measured.
 
-Codex stops for human review.
 
 ---
 
-# 25. Phase 17 — Parallel Island Solver
+# 22. Phase 17 — Parallel Island Solver
 
 ## Objective
 
@@ -1017,11 +793,10 @@ Simulation remains stable.
 
 Scaling across worker counts is measured.
 
-Codex stops for human review.
 
 ---
 
-# 26. Phase Completion Requirements
+# 23. Phase Completion Requirements
 
 A phase is NOT complete merely because the code compiles.
 
@@ -1043,79 +818,6 @@ before/after documented
 git diff reviewed
 +
 review document created
-```
-
-Only then can its status become:
-
-```text
-AWAITING HUMAN REVIEW
-```
-
----
-
-# 27. Codex Stop Rule
-
-At the end of every phase Codex MUST output:
-
-```text
-PHASE N COMPLETE — AWAITING HUMAN REVIEW
-```
-
-followed by:
-
-```text
-Baseline commit:
-Files changed:
-Tests:
-Debug build:
-Release build:
-Benchmark:
-Performance change:
-Known risks:
-Review file:
-git status:
-```
-
-Then STOP.
-
-Do not begin the next phase.
-
----
-
-# 28. Human Approval Rule
-
-If the user responds:
-
-```text
-APPROVE PHASE N
-```
-
-create the approved checkpoint commit.
-
-If the user responds:
-
-```text
-REJECT PHASE N
-```
-
-rollback Phase N only.
-
-If the user provides feedback instead of approval/rejection:
-
-```text
-REVISE PHASE N: <feedback>
-```
-
-remain in the same phase.
-
-Apply only the requested revision.
-
-Repeat validation.
-
-Return again to:
-
-```text
-AWAITING HUMAN REVIEW
 ```
 
 ---

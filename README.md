@@ -1,195 +1,1151 @@
-## GEngine Physics Performance Baseline
+# GEngine Physics Optimization & Refactor Master Plan
 
-## Phase and scope
+## 1. Purpose
 
-- Phase: 01 - Physics Performance Baseline
-- Approved entry checkpoint: `physics-phase-00-approved`
-- Checkpoint commit: `1ba94b5520fc2d03b0446e8074ead9204bbc308e`
-- Branch: `physics/refactor`
+This document is the authoritative implementation plan for the GEngine physics optimization and refactor project.
 
+Codex MUST read this document before performing any physics refactor work.
 
-This benchmark establishes the first repeatable, headless performance baseline
-for the current physics implementation. It is the reference measurement for
-later optimization phases; it does not authorize or include any later-phase
-algorithm, correctness, ownership, or scheduling changes.
+The project will be executed incrementally, one phase at a time.
 
-## Measurement environment
+The goals are:
 
-| Item | Value |
-|---|---|
-| Operating system | Windows 10 x64, build 19045 |
-| Processor | AMD64 Family 25 Model 80, 16 logical processors exposed |
-| Compiler | MSVC 19.44.35228 x64 |
-| Generator | committed Premake, Visual Studio 2022 action |
-| Build | Release x64, optimization enabled; repository's existing `/MTd` override remains |
-| Physics step | 1/120 second (`0.00833333377`) |
-| Samples | 5 warmups, then 25 measured samples per body count |
-| Execution | single process per profiling mode, counts ascending |
+* improve physics mathematical correctness;
+* improve rigid-body scalability;
+* optimize GJK and all other physics subsystems;
+* eliminate unnecessary allocations and repeated calculations;
+* improve deterministic simulation behavior;
+* improve ownership and lifetime safety;
+* prepare the physics system for future parallel execution;
+* preserve current intended collision behavior unless a behavior is proven incorrect.
 
-The benchmark uses `std::chrono::steady_clock`. Subsystem values below are
-arithmetic means over 25 samples. External step values use medians for the
-profiling-overhead comparison and also retain minimum/maximum bounds in the raw
-CSV output. Host power state and unrelated scheduling were not pinned, so small
-between-build differences should not be treated as speedups.
+Correctness has priority over performance.
 
-## Repeatable workload
+Measured performance has priority over speculative optimization.
 
-`PhysicsBenchmark` constructs a fresh scene for every sample and times exactly
-one `PhysicsSystem::Update`. Construction and destruction are outside the
-timed region. A shared production `ShapeBox` is used by every body.
+---
 
-Bodies are divided into isolated overlapping pairs spaced 10 world units apart.
-The repeating four-pair pattern is:
+# 2. Authoritative Inputs
 
-1. dynamic/static;
-2. dynamic/static;
-3. static/static, rejected by pair filtering;
-4. dynamic/dynamic.
+Before starting any phase, Codex must read:
 
-This keeps 50% of bodies dynamic and active while exercising broadphase,
-pair rejection, GJK, support mapping, EPA, contact/manifold creation, constraint
-solving, and integration. Sleeping does not exist in the current implementation
-and is therefore reported as zero. Gravity is set to zero to keep each sample's
-initial state deterministic. The benchmark verifies finite body state after the
-step and rejects missing or inconsistent profiling data.
-
-The benchmark is headless. It does not initialize SDL, OpenGL, ImGui, the
-renderer, or runtime assets, so the pre-existing font-path startup defect does
-not block physics measurement.
-
-## Profiling contract
-
-`PhysicsProfileSnapshot` exposes counters and nanosecond timers. The benchmark
-calls `ResetPhysicsProfile` immediately before every measured step and reads a
-snapshot immediately afterward.
-
-Production instrumentation is guarded by `GE_ENABLE_PHYSICS_PROFILING`.
-Generating projects normally leaves the definition absent, making hot-loop
-timers and counter updates compile to no-ops. Passing `--physics-profiling` to
-Premake enables the instrumentation explicitly, including per-support timing.
-
-Current physics execution is serial. The profile accumulator is intentionally
-non-atomic to minimize measurement disturbance; a later parallel-physics phase
-must replace it with per-thread aggregation before using it from worker threads.
-
-Metric semantics:
-
-| Metric | Definition |
-|---|---|
-| Body/dynamic/active/sleeping | Most recent step's body state counts; active means non-static because sleeping is not implemented. |
-| Candidate pairs | Pairs emitted by broadphase before filtering. |
-| Pair filter | Checks, static/static rejections, and guarded predicate time. |
-| GJK time | Inclusive time for a public GJK query; includes nested support and EPA work where invoked. |
-| GJK iterations | Main simplex-loop passes; maximum is the largest call in the sample. |
-| Support time | Inclusive time in the Minkowski support helper, including two shape support calls. |
-| EPA/contact | EPA calls/time plus successfully generated contact count. |
-| Manifold | Expiry and contact insertion time, retained manifold count, and retained contact count. |
-| Solver | Manifold pre-solve plus the existing one outer solve pass; constraint count is retained manifold contacts. |
-| Contact resolution | Ballistic positive-TOI impulse resolution; zero in this initial-overlap workload. |
-| Integration | Body `Update` calls performed by the step. |
-| PhysicsWorld total | Inclusive `PhysicsSystem::Update` wall time. |
-| External time/FPS | Benchmark wall time around the same update and its reciprocal throughput. |
-
-Inclusive timers overlap by design. GJK, support, and EPA times must not be
-summed, and the major subsystem times should not be expected to equal the world
-total exactly.
-
-## Commands
-
-Normal compile-out build and benchmark:
-
-```powershell
-& .\vendor\bin\premake\premake5.exe vs2022
-msbuild .\GEngine.sln /t:PhysicsBenchmark:Rebuild /m /nologo `
-  /p:Configuration=Release /p:Platform=x64
-.\bin\Release\PhysicsBenchmark\PhysicsBenchmark.exe `
-  --body-counts=50,100,200,500,1000,2000 --warmup=5 --samples=25
+```text
+docs/physics/PHYSICS_REFACTOR_PLAN.md
+docs/audit/CODEBASE_AUDIT.md
+docs/physics/PHYSICS_REFACTOR.md        # if already created
+docs/physics/PHYSICS_OPTIMIZATION.md    # if already created
 ```
 
-Profiling-enabled build and benchmark:
+Codex must verify audit findings against the CURRENT source tree.
 
-```powershell
-& .\vendor\bin\premake\premake5.exe --physics-profiling vs2022
-msbuild .\GEngine.sln /t:PhysicsBenchmark:Rebuild /m /nologo `
-  /p:Configuration=Release /p:Platform=x64
-.\bin\Release\PhysicsBenchmark\PhysicsBenchmark.exe `
-  --body-counts=50,100,200,500,1000,2000 --warmup=5 --samples=25
+The audit is evidence and guidance, not permission to blindly modify code.
+
+---
+
+# 3. Mandatory Human Review Workflow
+
+Every phase follows exactly this state machine:
+
+```text
+NOT STARTED
+     |
+     v
+IN PROGRESS
+     |
+     v
+IMPLEMENTATION COMPLETE
+     |
+     v
+BUILD + TEST + BENCHMARK
+     |
+     v
+AWAITING HUMAN REVIEW
+     |
+     +---------------------+
+     |                     |
+     v                     v
+ APPROVED               REJECTED
+     |                     |
+     v                     v
+CHECKPOINT COMMIT        ROLLBACK
+     |                     |
+     v                     |
+NEXT PHASE <--------------+
 ```
 
-Regenerate with the normal command after profiling so the default solution
-again compiles instrumentation out.
+Codex MUST NOT automatically move from one phase to the next.
 
-## Profile-enabled workload counts
+At the end of every phase, Codex MUST stop.
 
-All values are per step and are stable across the 25 samples.
+The user must explicitly respond with one of:
 
-| Bodies | Dynamic | Active | Sleeping | Candidates | Rejected | GJK calls | GJK avg/max iterations | Support calls | EPA calls | Contacts | Manifolds | Solver constraints/passes |
-|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 50 | 25 | 25 | 0 | 25 | 6 | 19 | 3.00 / 3 | 209 | 19 | 19 | 19 | 19 / 1 |
-| 100 | 50 | 50 | 0 | 50 | 12 | 38 | 3.00 / 3 | 418 | 38 | 38 | 38 | 38 / 1 |
-| 200 | 100 | 100 | 0 | 100 | 25 | 75 | 3.00 / 3 | 825 | 75 | 75 | 75 | 75 / 1 |
-| 500 | 250 | 250 | 0 | 250 | 62 | 188 | 3.00 / 3 | 2,068 | 188 | 188 | 188 | 188 / 1 |
-| 1,000 | 500 | 500 | 0 | 500 | 125 | 375 | 3.00 / 3 | 4,125 | 375 | 375 | 375 | 375 / 1 |
-| 2,000 | 1,000 | 1,000 | 0 | 1,000 | 250 | 750 | 3.00 / 3 | 8,250 | 750 | 750 | 750 | 750 / 1 |
+```text
+APPROVE PHASE <N>
+```
 
-## Profile-enabled subsystem timing baseline
+or:
 
-All times are mean milliseconds per physics step. `World` is inclusive.
+```text
+REJECT PHASE <N>
+```
 
-| Bodies | Gravity | Broadphase | Filter | GJK | Support | EPA | Narrowphase | Manifold | Solver | Integration | World | External median | Median FPS |
-|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 50 | 0.0001 | 0.0086 | 0.0009 | 0.2925 | 0.0366 | 0.2686 | 0.2976 | 0.4105 | 0.4937 | 0.0040 | 1.2175 | 1.2191 | 820.28 |
-| 100 | 0.0002 | 0.0171 | 0.0020 | 0.5943 | 0.0749 | 0.5451 | 0.6046 | 0.9068 | 0.9802 | 0.0083 | 2.5232 | 2.5228 | 396.38 |
-| 200 | 0.0005 | 0.0353 | 0.0041 | 1.1524 | 0.1490 | 1.0556 | 1.1729 | 1.9320 | 1.9325 | 0.0167 | 5.1018 | 5.0938 | 196.32 |
-| 500 | 0.0012 | 0.0850 | 0.0123 | 2.8903 | 0.3742 | 2.6466 | 2.9414 | 4.4673 | 4.8350 | 0.0428 | 12.4035 | 12.4219 | 80.50 |
-| 1,000 | 0.0023 | 0.1717 | 0.0341 | 5.6660 | 0.7568 | 5.1723 | 5.7670 | 9.6776 | 9.6942 | 0.0897 | 25.4737 | 25.4657 | 39.27 |
-| 2,000 | 0.0052 | 0.3376 | 0.0868 | 11.3089 | 1.5189 | 10.3125 | 11.5109 | 21.4694 | 20.0042 | 0.1890 | 53.6808 | 53.6605 | 18.64 |
+No other wording should be interpreted as approval.
 
-Contact-resolution time was `0.0000 ms` at every scale because the workload
-starts overlapped and routes contacts through persistent manifolds rather than
-the positive-time-of-impact ballistic path.
+---
 
-## Profiling overhead control
+# 4. Git Safety Protocol
 
-The same optimized Release workload was built twice from regenerated projects.
-The normal build omitted `GE_ENABLE_PHYSICS_PROFILING`; the enabled build added
-only that definition. Both used 5 warmups and 25 samples. The comparison uses
-median external wall time.
+## 4.1 Dedicated Physics Refactor Branch
 
-| Bodies | Compile-out median ms | Profile-enabled median ms | Overhead |
-|---:|---:|---:|---:|
-| 50 | 1.1788 | 1.2191 | 3.42% |
-| 100 | 2.3957 | 2.5228 | 5.31% |
-| 200 | 4.8769 | 5.0938 | 4.45% |
-| 500 | 11.8962 | 12.4219 | 4.42% |
-| 1,000 | 24.5528 | 25.4657 | 3.72% |
-| 2,000 | 51.0928 | 53.6605 | 5.03% |
+Physics refactoring should be performed on a dedicated branch:
 
-Explicit profiling overhead is bounded at 5.31% in this workload. The default
-Release build has the expensive instrumentation compiled out; its benchmark
-reported `physics_profiling=disabled` and zero for every internal counter and
-timer, while still validating finite body state and external timing.
+```text
+physics/refactor
+```
 
-## Baseline interpretation
+Prefer performing the work in a dedicated Git worktree so unrelated renderer/editor work is isolated.
 
-The measured workload is intentionally diagnostic rather than a gameplay scene.
-It provides linear, deterministic amounts of broadphase candidates, GJK/EPA
-calls, contacts, manifolds, and solver constraints at every body scale.
+Example layout:
 
-The baseline shows manifold maintenance and constraint solving as the largest
-exclusive top-level costs for this contact-heavy fixture. GJK is inclusive and
-is dominated by EPA for these overlapping boxes. These observations identify
-where later phases should measure; they are not permission to begin those
-phases or change their requirements.
+```text
+C:\dev\GEngine
+    existing development work
 
-## Limitations
+C:\dev\GEngine-physics
+    physics/refactor
+```
 
-- Results apply to the paired-overlapping-box fixture and this host/toolchain.
-- Scene setup, body allocation, and teardown are intentionally excluded.
-- The persistent transient-contact vector is warmed before measurement, so its
-  capacity-growth allocation is not represented in measured samples.
-- No sleeping system exists, so sleeping-body performance cannot yet be measured.
-- The benchmark does not exercise positive-TOI contact resolution.
-- The profiler is serial-only until a later parallel phase adds safe aggregation.
-- Existing numerical, ownership, broadphase, solver-allocation, and timestep
-  issues remain unchanged and governed by later phases.
+Do not overwrite unrelated working-tree changes.
+
+---
+
+## 4.2 Phase Checkpoint Rule
+
+Every APPROVED phase gets exactly one checkpoint commit.
+
+Example:
+
+```text
+physics: phase 00 establish baseline
+physics: phase 01 add physics profiling
+physics: phase 02 fix math robustness
+physics: phase 03 refactor body derived data
+physics: phase 04 optimize broadphase
+physics: phase 05 optimize GJK core
+```
+
+The latest approved commit is always the rollback point.
+
+At the start of each new phase:
+
+```text
+git status --short
+```
+
+must show no unreviewed changes from the previous phase.
+
+---
+
+## 4.3 Codex Must Not Commit Before Approval
+
+During implementation:
+
+```text
+Codex edits files
+        |
+        v
+build/test/benchmark
+        |
+        v
+human review
+```
+
+Codex MUST NOT commit the phase before human approval.
+
+---
+
+## 4.4 Approval Procedure
+
+When the user sends:
+
+```text
+APPROVE PHASE N
+```
+
+Codex must:
+
+1. confirm the working tree contains only the reviewed Phase N changes;
+2. rerun required validation if necessary;
+3. create the Phase N checkpoint commit;
+4. record the commit hash in the phase report;
+5. update the plan status;
+6. stop again before beginning Phase N+1 unless the user explicitly requests it.
+
+The approved commit becomes the new baseline.
+
+---
+
+## 4.5 Rejection / Rollback Procedure
+
+When the user sends:
+
+```text
+REJECT PHASE N
+```
+
+Codex must return the repository to the most recent APPROVED phase checkpoint.
+
+Codex MUST NOT use broad destructive commands such as:
+
+```text
+git clean -fd
+```
+
+or indiscriminate cleanup of the entire repository.
+
+Rollback must affect only files modified or created during the rejected phase.
+
+Tracked files modified during the rejected phase should be restored from the last approved commit.
+
+New files created exclusively by the rejected phase should be removed individually.
+
+After rollback:
+
+```text
+git status --short
+```
+
+must confirm that the rejected phase no longer exists.
+
+Then Codex must stop.
+
+The user may later request Phase N again using a revised implementation approach.
+
+---
+
+# 5. Phase Review Package
+
+At the end of EVERY phase, Codex must provide a review package.
+
+Create:
+
+```text
+docs/physics/review/PHASE_<NN>_REVIEW.md
+```
+
+The review document must contain:
+
+```text
+Phase
+Objective
+Status: AWAITING HUMAN REVIEW
+
+Baseline commit
+Files modified
+Files created
+Files deleted
+
+Original problem
+Root cause
+Implementation approach
+
+Correctness changes
+Performance changes
+Architecture changes
+
+Tests added
+Tests executed
+Build results
+
+Debug x64 result
+Release x64 result
+
+Benchmark before
+Benchmark after
+Percentage improvement
+
+Known behavior changes
+Known risks
+Remaining issues
+
+git diff --stat
+git status --short
+```
+
+Codex must also provide a concise human-readable summary.
+
+---
+
+# 6. Performance Measurement Rules
+
+No optimization is considered successful without measurement.
+
+For physics performance changes record, where applicable:
+
+```text
+Rigid body count
+Dynamic body count
+Active body count
+Sleeping body count
+
+Candidate pair count
+
+GJK calls
+GJK total time
+Average GJK iterations
+Maximum GJK iterations
+Support calls
+Support time
+EPA calls
+EPA time
+
+Contact count
+Manifold count
+
+Solver constraints
+Solver iterations
+Solver time
+
+Integration time
+
+PhysicsWorld total time
+
+Frame time / FPS when useful
+```
+
+Use representative rigid-body counts such as:
+
+```text
+50
+100
+200
+500
+1000
+2000
+```
+
+Do not claim percentage improvements without comparable before/after conditions.
+
+---
+
+# 7. Permanent Tests vs Temporary Profiling
+
+Permanent repository additions should include:
+
+```text
+Physics regression tests
+Physics math tests
+GJK tests
+Collision tests
+Physics benchmark targets
+Low-overhead optional profiling counters
+```
+
+Temporary instrumentation may be used during investigation.
+
+Temporary instrumentation must be removed before Phase approval unless explicitly useful long-term.
+
+Do not leave:
+
+```text
+std::cout inside GJK loops
+printf inside physics loops
+high-resolution clock calls around every support operation
+temporary experimental branches
+```
+
+inside production hot paths.
+
+Permanent profiling should be guarded by something similar to:
+
+```cpp
+GE_ENABLE_PHYSICS_PROFILING
+```
+
+Release builds should compile expensive instrumentation out.
+
+---
+
+# 8. Phase 00 — Physics Architecture Reconstruction
+
+## Objective
+
+Fully understand the existing physics execution path before modifying behavior.
+
+Trace:
+
+```text
+RigidBodySimulation
+-> PhysicsWorld
+-> forces/gravity
+-> broadphase
+-> pair filtering
+-> narrowphase
+-> GJK
+-> EPA/contact generation
+-> manifolds
+-> constraints
+-> solver
+-> integration
+-> ECS transform synchronization
+```
+
+Document:
+
+* files;
+* classes;
+* functions;
+* object ownership;
+* data structures;
+* hot loops;
+* update frequency;
+* mutation boundaries.
+
+## Deliverable
+
+Create:
+
+```text
+docs/physics/PHYSICS_REFACTOR.md
+```
+
+## Code modification
+
+Production physics behavior should not change.
+
+## Acceptance Gate
+
+Architecture is understood and documented.
+
+Codex stops for human review.
+
+---
+
+# 9. Phase 01 — Physics Performance Baseline
+
+## Objective
+
+Establish reliable performance measurements before optimization.
+
+Measure every major physics subsystem.
+
+Include special GJK metrics because profiling has already identified GJK as the largest current physics hotspot.
+
+Track:
+
+```text
+Broadphase
+Pair filtering
+GJK
+Support mapping
+EPA/contact
+Manifold
+Solver
+Integration
+PhysicsWorld total
+```
+
+Create a repeatable physics benchmark.
+
+## Acceptance Gate
+
+Baseline numbers exist for multiple rigid-body counts.
+
+Profiling overhead is controlled.
+
+No physics behavior changed.
+
+Codex stops for human review.
+
+---
+
+# 10. Phase 02 — Mathematical Correctness and Numerical Robustness
+
+## Objective
+
+Fix confirmed mathematical defects before performance refactors.
+
+Investigate and test:
+
+```text
+zero-vector normalization
+zero quaternion normalization
+coincident centers
+GJK degenerate directions
+near-zero solver denominators
+LCP pivots
+C / dt penetration correction
+inverseMass == 0
+degenerate barycentric denominator
+are_same_point Z epsilon bug
+NaN/Inf propagation
+```
+
+Add Debug finite-state assertions.
+
+## Important
+
+Do not change quaternion coordinate convention in this phase.
+
+## Acceptance Gate
+
+Regression tests demonstrate the corrected behavior.
+
+No unexpected trajectory or collision regressions.
+
+Codex stops for human review.
+
+---
+
+# 11. Phase 03 — PhysicsBody Derived Data and Transform Refactor
+
+## Objective
+
+Remove repeated body-space/world-space calculations.
+
+Investigate caching:
+
+```text
+rotation matrix
+inverse rotation
+world inverse inertia
+world AABB
+center-of-mass transform
+other repeated derived values
+```
+
+Use dirty flags where appropriate.
+
+Create golden rotation tests:
+
+```text
+local -> world -> local
+world -> local -> world
+
+90° X
+90° Y
+90° Z
+
+rotated asymmetric box support
+rotated inverse inertia
+```
+
+Only modify quaternion/transposition conventions if tests prove the current convention wrong.
+
+## Acceptance Gate
+
+Transform tests pass.
+
+Cached values produce identical expected results.
+
+Performance before/after is documented.
+
+Codex stops for human review.
+
+---
+
+# 12. Phase 04 — Broadphase Refactor
+
+## Objective
+
+Improve broadphase scalability and memory behavior.
+
+Investigate:
+
+```text
+SweepAndPrune1D
+endpoint reconstruction
+_alloca usage
+sorting
+qsort comparator
+bodyCount^2 reserve
+candidate rejection
+```
+
+Target improvements:
+
+```text
+persistent endpoint storage
+capacity reuse
+temporal coherence
+incremental sorting
+valid comparator
+static/static filtering
+collision layers/masks
+safe sleeping filtering
+```
+
+Do not replace SAP with another major structure unless profiling proves it is still necessary.
+
+## Acceptance Gate
+
+Candidate pair correctness preserved.
+
+Before/after scaling documented.
+
+Codex stops for human review.
+
+---
+
+# 13. Phase 05 — GJK Core Optimization
+
+## Objective
+
+Optimize the currently measured primary physics hotspot.
+
+Analyze:
+
+```text
+GJK call count
+iterations
+simplex operations
+termination
+degenerate cases
+allocation behavior
+```
+
+Target:
+
+```text
+zero heap allocation in GJK hot loop
+std::array<SupportPoint, 4> simplex
+explicit simplex count
+support A/B points retained
+remove unnecessary normalization
+squared-length tests
+iteration limit
+duplicate support detection
+lack-of-progress detection
+finite-value validation
+scale-aware epsilon
+```
+
+Do not change collision results merely to reduce iteration count.
+
+## Acceptance Gate
+
+GJK regression tests pass.
+
+Benchmark shows measured before/after GJK performance.
+
+Codex stops for human review.
+
+---
+
+# 14. Phase 06 — Support Mapping Optimization
+
+## Objective
+
+Reduce the cost of the operation called most frequently by GJK.
+
+Analyze current support functions.
+
+If vertices are repeatedly transformed into world space:
+
+```text
+world direction
+-> transform once into local space
+-> search local support
+-> transform only selected support point back to world
+```
+
+Use cached body rotation data.
+
+Implement analytical support where appropriate:
+
+```text
+Sphere
+Box
+Capsule
+```
+
+Evaluate convex-hull support caching/hill climbing only if profiling justifies it.
+
+## Acceptance Gate
+
+Support mapping correctness tests pass.
+
+GJK collision behavior remains correct.
+
+Support call time improvement is measured.
+
+Codex stops for human review.
+
+---
+
+# 15. Phase 07 — Specialized Narrowphase
+
+## Objective
+
+Avoid generic GJK where cheaper robust primitive algorithms provide measurable benefit.
+
+Evaluate:
+
+```text
+Sphere-Sphere
+Sphere-Box
+Box-Sphere
+Box-Box
+```
+
+Benchmark OBB SAT for Box-Box against GJK where appropriate.
+
+Keep generic GJK as convex fallback.
+
+## Acceptance Gate
+
+Equivalent collision tests pass.
+
+Performance benefit is demonstrated.
+
+Codex stops for human review.
+
+---
+
+# 16. Phase 08 — Pure Collision Prediction
+
+## Objective
+
+Remove mutation from collision queries.
+
+Replace patterns equivalent to:
+
+```text
+Integrate(+t)
+collision query
+Integrate(-t)
+```
+
+with immutable predicted transforms.
+
+Collision detection should read live body state but not mutate it.
+
+## Acceptance Gate
+
+Prediction regression tests pass.
+
+No state drift after collision queries.
+
+Before/after CPU cost documented.
+
+Codex stops for human review.
+
+---
+
+# 17. Phase 09 — Persistent Contact Manifolds
+
+## Objective
+
+Reduce repeated expensive narrowphase work for stable contacts.
+
+Maintain bounded persistent contacts for recurring body pairs.
+
+Track:
+
+```text
+manifold cache hits
+contacts reused
+contacts discarded
+GJK calls avoided
+```
+
+Pay special attention to box stacks and resting contacts.
+
+## Acceptance Gate
+
+Stable contacts remain correct.
+
+Stack behavior remains stable.
+
+GJK call reduction is measured.
+
+Codex stops for human review.
+
+---
+
+# 18. Phase 10 — Constraint Solver Refactor
+
+## Objective
+
+Improve solver performance and numerical behavior.
+
+Profile:
+
+```text
+constraint construction
+pre-solve
+iterations
+impulse calculation
+friction
+penetration correction
+```
+
+Replace tiny heap-backed Mat/Vec structures where dimensions are fixed.
+
+Prefer:
+
+```text
+std::array
+GLM fixed-size matrices
+specialized value types
+```
+
+Evaluate solver warm starting using cached impulses.
+
+Do not simply reduce iteration count to improve FPS.
+
+## Acceptance Gate
+
+Constraint regression tests pass.
+
+Stack stability is preserved or improved.
+
+Allocation and timing improvements are measured.
+
+Codex stops for human review.
+
+---
+
+# 19. Phase 11 — Fixed Physics Timestep
+
+## Objective
+
+Separate physics simulation frequency from render frequency.
+
+Replace render-dependent/clipped timing with:
+
+```text
+steady_clock
+fixed timestep
+accumulator
+retained remainder
+controlled backlog clamp
+optional render interpolation
+```
+
+Test equivalent scenarios at different render rates.
+
+## Acceptance Gate
+
+30 / 60 / 120 / 144 / 240 FPS rendering produces approximately equivalent physics trajectories.
+
+Codex stops for human review.
+
+---
+
+# 20. Phase 12 — Sleeping System
+
+## Objective
+
+Avoid repeatedly processing stable inactive bodies.
+
+Implement or improve sleeping based on:
+
+```text
+linear velocity
+angular velocity
+stable time threshold
+contact state
+```
+
+Wake on:
+
+```text
+impulse
+force
+transform modification
+meaningful active collision
+```
+
+## Acceptance Gate
+
+Bodies do not incorrectly remain asleep.
+
+Stacked scenes remain stable.
+
+Active-body reduction and physics timing improvement are measured.
+
+Codex stops for human review.
+
+---
+
+# 21. Phase 13 — Physics Islands
+
+## Objective
+
+Build connected components of bodies and constraints.
+
+Use islands for:
+
+```text
+sleep decisions
+solver organization
+future parallel execution
+```
+
+Do not parallelize yet.
+
+## Acceptance Gate
+
+Island membership tests pass.
+
+Physics behavior remains equivalent.
+
+Codex stops for human review.
+
+---
+
+# 22. Phase 14 — Physics Ownership and Memory
+
+## Objective
+
+Establish deterministic resource ownership.
+
+Investigate:
+
+```text
+PhysicsWorld ownership
+PhysicsBody ownership
+Shape ownership
+start/stop/restart
+temporary physics containers
+```
+
+Prefer explicit RAII ownership.
+
+Reuse:
+
+```text
+candidate pair storage
+contact storage
+manifold storage
+solver scratch buffers
+```
+
+Avoid `bodyCount * bodyCount` reservation.
+
+## Acceptance Gate
+
+Start/stop/restart leak tests pass.
+
+No new ownership ambiguity.
+
+Codex stops for human review.
+
+---
+
+# 23. Phase 15 — Data Layout and Cache Behavior
+
+## Objective
+
+Evaluate cache efficiency only after algorithmic bottlenecks have been addressed.
+
+Profile hot fields:
+
+```text
+position
+orientation
+linear velocity
+angular velocity
+inverse mass
+inverse inertia
+AABB
+active/sleep state
+```
+
+Do not perform a full AoS-to-SoA rewrite without evidence.
+
+Prefer targeted improvements.
+
+## Acceptance Gate
+
+Data-layout change has measured benefit.
+
+No architecture complexity without measurable value.
+
+Codex stops for human review.
+
+---
+
+# 24. Phase 16 — Parallel Narrowphase
+
+## Objective
+
+Parallelize independent collision queries only after they are pure.
+
+Use existing TBB where appropriate.
+
+Use:
+
+```text
+candidate pair partitioning
+thread-local contact buffers
+final merge
+```
+
+Do not use one mutex around every contact insertion.
+
+Do not allow GJK to mutate PhysicsBody state.
+
+## Acceptance Gate
+
+1-thread and multi-thread results are correct.
+
+No races under available analysis tools.
+
+Scaling is measured.
+
+Codex stops for human review.
+
+---
+
+# 25. Phase 17 — Parallel Island Solver
+
+## Objective
+
+Parallelize independent physics islands only if the solver remains a measured bottleneck.
+
+Different islands may be processed independently.
+
+Do not naively parallelize constraints belonging to the same island.
+
+## Acceptance Gate
+
+No races.
+
+Simulation remains stable.
+
+Scaling across worker counts is measured.
+
+Codex stops for human review.
+
+---
+
+# 26. Phase Completion Requirements
+
+A phase is NOT complete merely because the code compiles.
+
+Every phase must satisfy:
+
+```text
+implementation complete
++
+Debug build passes
++
+Release build passes
++
+relevant tests pass
++
+benchmark executed
++
+before/after documented
++
+git diff reviewed
++
+review document created
+```
+
+Only then can its status become:
+
+```text
+AWAITING HUMAN REVIEW
+```
+
+---
+
+# 27. Codex Stop Rule
+
+At the end of every phase Codex MUST output:
+
+```text
+PHASE N COMPLETE — AWAITING HUMAN REVIEW
+```
+
+followed by:
+
+```text
+Baseline commit:
+Files changed:
+Tests:
+Debug build:
+Release build:
+Benchmark:
+Performance change:
+Known risks:
+Review file:
+git status:
+```
+
+Then STOP.
+
+Do not begin the next phase.
+
+---
+
+# 28. Human Approval Rule
+
+If the user responds:
+
+```text
+APPROVE PHASE N
+```
+
+create the approved checkpoint commit.
+
+If the user responds:
+
+```text
+REJECT PHASE N
+```
+
+rollback Phase N only.
+
+If the user provides feedback instead of approval/rejection:
+
+```text
+REVISE PHASE N: <feedback>
+```
+
+remain in the same phase.
+
+Apply only the requested revision.
+
+Repeat validation.
+
+Return again to:
+
+```text
+AWAITING HUMAN REVIEW
+```
+
+---
+
+# 29. Final Principle
+
+This project is not a race to finish all phases.
+
+The objective is to maintain a chain of known-good physics-engine states:
+
+```text
+Baseline
+   |
+   v
+Approved Phase 00
+   |
+   v
+Approved Phase 01
+   |
+   v
+Approved Phase 02
+   |
+   v
+...
+```
+
+At every point:
+
+```text
+HEAD = latest human-approved physics implementation
+```
+
+No unreviewed phase is allowed to become the baseline for the next phase.

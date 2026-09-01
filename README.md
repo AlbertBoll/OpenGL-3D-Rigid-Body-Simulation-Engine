@@ -2,7 +2,7 @@
 ---
 # 1. Purpose
 
-Physics Optimization & Refactor is the authoritative implementation plan for the GEngine physics optimization and refactor project.
+Physics Optimization & Refactor is the authoritative implementation for the GEngine physics optimization and refactor project.
 
 
 The project will be executed incrementally, one phase at a time.

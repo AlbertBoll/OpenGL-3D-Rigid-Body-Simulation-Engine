@@ -30,7 +30,7 @@ namespace GEngine
 	====================================================
 	*/
 	static float DistanceFromLine(const Vec3f& a, const Vec3f& b, const Vec3f& pt) {
-		Vec3f ab = glm::normalize(b - a);
+		Vec3f ab = Math::NormalizeOr(b - a);
 
 		Vec3f ray = pt - a;
 		Vec3f projection = ab * glm::dot(ray, ab);	// project the ray onto ab
@@ -66,7 +66,7 @@ namespace GEngine
 	static float DistanceFromTriangle(const Vec3f& a, const Vec3f& b, const Vec3f& c, const Vec3f& pt) {
 		Vec3f ab = b - a;
 		Vec3f ac = c - a;
-		Vec3f normal = glm::normalize(glm::cross(ab, ac));
+		Vec3f normal = Math::NormalizeOr(glm::cross(ab, ac));
 		//normal.Normalize();
 
 		Vec3f ray = pt - a;
@@ -535,7 +535,7 @@ namespace GEngine
 			}
 		}
 
-		Vec3f norm = glm::normalize(dir);
+		Vec3f norm = Math::NormalizeOr(dir);
 		
 		norm *= bias;
 

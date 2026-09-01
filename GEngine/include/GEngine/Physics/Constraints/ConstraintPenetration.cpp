@@ -4,8 +4,22 @@
 
 namespace GEngine
 {
+	namespace
+	{
+		bool IsFinite(const Vec<3>& value)
+		{
+			return Math::IsFinite(value[0]) && Math::IsFinite(value[1]) && Math::IsFinite(value[2]);
+		}
+	}
+
 	void ConstraintPenetration::PreSolve(const float dt_sec)
 	{
+		GENGINE_CORE_ASSERT(Math::IsFinite(dt_sec), "Constraint timestep must be finite");
+		if (!IsFinite(m_CachedLambda))
+		{
+			m_CachedLambda.Zero();
+		}
+
 		// Get the world space position of the hinge from A's orientation
 		const Vec3f worldAnchorA = m_bodyA->BodySpaceToWorldSpace(m_anchorA);
 
@@ -26,11 +40,12 @@ namespace GEngine
 		Math::GetOrtho(m_Normal, u, v);
 
 		// Convert tangent space from model space to world space
-		Vec3f normal = glm::transpose(glm::toMat3(m_bodyA->m_Orientation)) * m_Normal;
+		const Quat orientationA = Math::QuaternionOrIdentity(m_bodyA->m_Orientation);
+		Vec3f normal = glm::transpose(glm::toMat3(orientationA)) * Math::VectorOr(m_Normal);
 		//Vec3f normal = glm::toMat3(m_bodyA->m_Orientation) * m_Normal;
 
-		u = glm::transpose(glm::toMat3(m_bodyA->m_Orientation)) * u;
-		v = glm::transpose(glm::toMat3(m_bodyA->m_Orientation)) * v;
+		u = glm::transpose(glm::toMat3(orientationA)) * u;
+		v = glm::transpose(glm::toMat3(orientationA)) * v;
 
 		m_Jacobian.Zero();
 
@@ -114,7 +129,14 @@ namespace GEngine
 		//C = std::min(0.0f, C + 0.02f);	// Add slop
 		C = std::min(0.0f, C + 0.02f);	//
 		float Beta = 0.25f;
-		m_Baumgarte = Beta * C / dt_sec;
+		if (Math::IsFinite(C) && Math::IsFinite(dt_sec) && std::fabs(dt_sec) > Math::NumericalEpsilon)
+		{
+			m_Baumgarte = Beta * C / dt_sec;
+		}
+		else
+		{
+			m_Baumgarte = 0.0f;
+		}
 
 	}
 
@@ -131,6 +153,10 @@ namespace GEngine
 
 		// Solve for the Lagrange multipliers
 		Vec<3> lambdaN = LCP_GaussSeidel(J_W_Jt, rhs);
+		if (!IsFinite(lambdaN))
+		{
+			lambdaN.Zero();
+		}
 
 		//// Accumulate the impulses and clamp to within the constraint limits
 		Vec<3> oldLambda = m_CachedLambda;
@@ -142,9 +168,12 @@ namespace GEngine
 		}
 		if (m_Friction > 0.0f) 
 		{
-			const float umg = m_Friction * 10.0f * 1.0f / (m_bodyA->m_InvMass + m_bodyB->m_InvMass);
+			const float inverseMassSum = m_bodyA->m_InvMass + m_bodyB->m_InvMass;
+			const float umg = Math::IsFinite(inverseMassSum) && inverseMassSum > Math::NumericalEpsilon
+				? m_Friction * 10.0f / inverseMassSum
+				: 0.0f;
 			const float normalForce = fabsf(lambdaN[0] * m_Friction);
-			const float maxForce = (umg > normalForce) ? umg : normalForce;
+			const float maxForce = Math::IsFinite(normalForce) ? std::max(umg, normalForce) : umg;
 			/*m_CachedLambda[1] = glm::clamp(m_CachedLambda[1], -maxForce, maxForce);
 			m_CachedLambda[2] = glm::clamp(m_CachedLambda[2], -maxForce, maxForce);*/
 			if (m_CachedLambda[1] > maxForce) {
@@ -166,6 +195,8 @@ namespace GEngine
 		// Apply the impulses
 		const Vec<12> impulses = JacobianTranspose * lambdaN;
 		ApplyImpulses(impulses);
+		m_bodyA->AssertFiniteState();
+		m_bodyB->AssertFiniteState();
 	}
 	
 }

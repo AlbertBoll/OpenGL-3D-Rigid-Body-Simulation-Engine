@@ -1,0 +1,29 @@
+# Physics Regression Tests
+
+`PhysicsTests` is the headless regression target for physics mathematical
+correctness and numerical robustness. It does not initialize SDL, OpenGL,
+ImGui, renderer state, or runtime assets.
+
+Generate and run on Windows:
+
+```powershell
+& .\vendor\bin\premake\premake5.exe vs2022
+msbuild .\PhysicsTests\PhysicsTests.vcxproj /m /nologo `
+  /p:Configuration=Debug /p:Platform=x64
+.\bin\Debug\PhysicsTests\PhysicsTests.exe
+```
+
+The executable returns nonzero if any case fails and covers:
+
+- zero custom-vector and quaternion normalization;
+- finite GLM vector/quaternion fallback normalization;
+- zero-normal orthogonal basis construction;
+- degenerate terrain and GJK barycentric denominators;
+- duplicate-point epsilon behavior on all three axes;
+- zero and near-zero LCP pivots;
+- coincident static and swept sphere contacts;
+- degenerate GJK search directions;
+- zero inverse mass under gravity;
+- zero and near-zero penetration-constraint timesteps;
+- finite body integration from a zero quaternion;
+- a one-step gravity trajectory and ordinary sphere overlap/separation results.

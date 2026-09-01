@@ -853,3 +853,52 @@ project "PhysicsBenchmark"
 		runtime "Release"
 		symbols "off"
 		optimize "on"
+
+filter {}
+
+project "PhysicsTests"
+	location "PhysicsTests"
+	kind "ConsoleApp"
+	language "C++"
+	cppdialect "C++20"
+	staticruntime "on"
+	links "GEngine"
+
+	targetdir(tdir)
+	objdir(odir)
+
+	files
+	{
+		"%{prj.name}/src/**.cpp",
+		"%{prj.name}/README.md"
+	}
+
+	sysincludedirs
+	{
+		"GEngine/include",
+		"GEngine/include/external",
+		"GEngine/include/GEngine",
+		"%{externals.spdlog}/include",
+		"%{externals.entt}/include"
+	}
+
+	filter "system:windows"
+		systemversion "10.0"
+		buildoptions "/MTd"
+		defines
+		{
+			"GENGINE_PLATFORM_WINDOWS",
+			"SDL_MAIN_HANDLED",
+			"_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING"
+		}
+
+	filter "configurations:Debug"
+		defines { "GENGINE_CONFIG_DEBUG" }
+		runtime "Debug"
+		symbols "on"
+
+	filter "configurations:Release"
+		defines { "GENGINE_CONFIG_RELEASE" }
+		runtime "Release"
+		symbols "off"
+		optimize "on"

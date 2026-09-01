@@ -14,7 +14,12 @@ namespace GEngine
 	Vec2f SignedVolume1D(const Vec3f& s1, const Vec3f& s2) {
 		Vec3f ab = s2 - s1;	// Ray from a to b
 		Vec3f ap = Vec3f(0.0f) - s1;	// Ray from a to origin
-		Vec3f p0 = s1 + ab * glm::dot(ab, ap) / glm::length2(ab);	// projection of the origin onto the line
+		const float abLengthSquared = glm::length2(ab);
+		if (!Math::IsFinite(abLengthSquared) || abLengthSquared <= Math::NumericalEpsilonSquared)
+		{
+			return Vec2f(1.0f, 0.0f);
+		}
+		Vec3f p0 = s1 + ab * glm::dot(ab, ap) / abLengthSquared;	// projection of the origin onto the line
 
 		// Choose the axis with the greatest difference/length
 		int idx = 0;
@@ -25,6 +30,10 @@ namespace GEngine
 				mu_max = mu;
 				idx = i;
 			}
+		}
+		if (!Math::IsFinite(mu_max) || std::fabs(mu_max) <= Math::NumericalEpsilon)
+		{
+			return Vec2f(1.0f, 0.0f);
 		}
 
 		// Project the simplex points and projected origin onto the axis with greatest length
@@ -76,7 +85,12 @@ namespace GEngine
 	*/
 	Vec3f SignedVolume2D(const Vec3f& s1, const Vec3f& s2, const Vec3f& s3) {
 		Vec3f normal = glm::cross(s2 - s1, s3 - s1);
-		Vec3f p0 = normal * glm::dot(s1, normal) / glm::length2(normal);
+		const float normalLengthSquared = glm::length2(normal);
+		Vec3f p0(0.0f);
+		if (Math::IsFinite(normalLengthSquared) && normalLengthSquared > Math::NumericalEpsilonSquared)
+		{
+			p0 = normal * glm::dot(s1, normal) / normalLengthSquared;
+		}
 
 		// Find the axis with the greatest projected area
 		int idx = 0;
@@ -124,7 +138,8 @@ namespace GEngine
 		}
 
 		// If the projected origin is inside the triangle, then return the barycentric points
-		if (CompareSigns(area_max, areas[0]) > 0 && CompareSigns(area_max, areas[1]) > 0 && CompareSigns(area_max, areas[2]) > 0) {
+		if (Math::IsFinite(area_max) && std::fabs(area_max) > Math::NumericalEpsilon &&
+			CompareSigns(area_max, areas[0]) > 0 && CompareSigns(area_max, areas[1]) > 0 && CompareSigns(area_max, areas[2]) > 0) {
 			Vec3f lambdas = areas / area_max;
 			return lambdas;
 		}
@@ -174,13 +189,14 @@ namespace GEngine
 
 		const float detM = C4[0] + C4[1] + C4[2] + C4[3];
 		// If the barycentric coordinates put the origin inside the simplex, then return them
-		if (CompareSigns(detM, C4[0]) > 0 && CompareSigns(detM, C4[1]) > 0 && CompareSigns(detM, C4[2]) > 0 && CompareSigns(detM, C4[3]) > 0) {
+		if (Math::IsFinite(detM) && std::fabs(detM) > Math::NumericalEpsilon &&
+			CompareSigns(detM, C4[0]) > 0 && CompareSigns(detM, C4[1]) > 0 && CompareSigns(detM, C4[2]) > 0 && CompareSigns(detM, C4[3]) > 0) {
 			Vec4f lambdas = C4 * (1.0f / detM);
 			return lambdas;
 		}
 
 		// If we get here, then we need to project the origin onto the faces and determine the closest one
-		Vec4f lambdas;
+		Vec4f lambdas(1.0f, 0.0f, 0.0f, 0.0f);
 		float dist = 1e10;
 		for (int i = 0; i < 4; i++) {
 			int j = (i + 1) % 4;
@@ -353,7 +369,7 @@ namespace GEngine
 	{
 		GE_PHYSICS_PROFILE_SCOPE(supportTimeNs);
 		GE_PHYSICS_PROFILE_ADD(supportCallCount, 1);
-		dir = glm::normalize(dir);
+		dir = Math::NormalizeOr(dir);
 
 		point_t point;
 
@@ -666,7 +682,7 @@ namespace GEngine
 			point_t& pt = simplexPoints[i];
 
 			Vec3f dir = pt.xyz - avg;	// ray from "center" to witness point
-			dir = glm::normalize(dir);
+			dir = Math::NormalizeOr(dir, simplexPoints[0].xyz);
 			
 			pt.ptA += dir * bias;
 			pt.ptB -= dir * bias;
@@ -760,7 +776,12 @@ namespace GEngine
 		s3 = s3 - pt;
 
 		Vec3f normal = glm::cross(s2 - s1, s3 - s1);
-		Vec3f p0 = normal * glm::dot(s1, normal) / glm::length2(normal);
+		const float normalLengthSquared = glm::length2(normal);
+		if (!Math::IsFinite(normalLengthSquared) || normalLengthSquared <= Math::NumericalEpsilonSquared)
+		{
+			return Vec3f(1.0f, 0.0f, 0.0f);
+		}
+		Vec3f p0 = normal * glm::dot(s1, normal) / normalLengthSquared;
 
 		// Find the axis with the greatest projected area
 		int idx = 0;
@@ -806,6 +827,11 @@ namespace GEngine
 			areas[i] = ab.x * ac.y - ab.y * ac.x;
 		}
 
+		if (!Math::IsFinite(area_max) || std::fabs(area_max) <= Math::NumericalEpsilon)
+		{
+			return Vec3f(1.0f, 0.0f, 0.0f);
+		}
+
 		Vec3f lambdas = areas / area_max;
 
 		if(!IsValid(lambdas))
@@ -829,7 +855,7 @@ namespace GEngine
 
 		Vec3f ab = b - a;
 		Vec3f ac = c - a;
-		Vec3f normal = glm::normalize(glm::cross(ab, ac));
+		Vec3f normal = Math::NormalizeOr(glm::cross(ab, ac), a);
 		return normal;
 	}
 

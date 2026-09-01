@@ -35,7 +35,7 @@ namespace GEngine
 	Vec3f ShapeBox::Support(const Vec3f& dir, const Vec3f& pos, const Quat& orient, const float bias) const
 	{
 		// Find the point in furthest in direction
-		Vec3f dir_ = glm::normalize(dir);
+		Vec3f dir_ = Math::NormalizeOr(dir);
 		//Vec3f maxPt = glm::transpose(glm::toMat3(orient)) * m_points[0] + pos;
 		Vec3f maxPt = glm::toMat3(orient) * m_points[0] + pos;
 		float maxDist = glm::dot(dir, maxPt);
@@ -51,7 +51,7 @@ namespace GEngine
 		}
 
 		//Vec3f norm = dir;
-		Vec3f norm = glm::normalize(dir) * bias;
+		Vec3f norm = Math::NormalizeOr(dir) * bias;
 		//norm *= bias;
 
 		return maxPt + norm;

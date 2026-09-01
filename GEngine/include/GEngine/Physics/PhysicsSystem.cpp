@@ -11,6 +11,17 @@
 
 namespace GEngine
 {
+	namespace
+	{
+		bool IsFiniteContact(const contact_t& contact)
+		{
+			return Math::IsFinite(contact.ptOnA_WorldSpace) && Math::IsFinite(contact.ptOnB_WorldSpace) &&
+				Math::IsFinite(contact.ptOnA_LocalSpace) && Math::IsFinite(contact.ptOnB_LocalSpace) &&
+				Math::IsFinite(contact.normal) && Math::IsFinite(contact.separationDistance) &&
+				Math::IsFinite(contact.timeOfImpact);
+		}
+	}
+
 	static int CompareContacts(const void* p1, const void* p2) {
 		contact_t a = *(contact_t*)p1;
 		contact_t b = *(contact_t*)p2;
@@ -48,6 +59,11 @@ namespace GEngine
 		const float b = glm::dot(m, rayDir); // m.Dot(rayDir);
 		const float c = glm::length2(m) - sphereRadius * sphereRadius;
 
+		if (!Math::IsFinite(a) || a <= Math::NumericalEpsilonSquared)
+		{
+			return false;
+		}
+
 		const float delta = b * b - a * c;
 		const float invA = 1.0f / a;
 
@@ -65,8 +81,7 @@ namespace GEngine
 
 	bool SphereSphereStatic(const ShapeSphere* sphereA, const ShapeSphere* sphereB, const Vec3f& posA, const Vec3f& posB, Vec3f& ptOnA, Vec3f& ptOnB) {
 		const Vec3f ab = posB - posA;
-		Vec3f norm = ab;
-		norm = glm::normalize(norm);
+		const Vec3f norm = Math::NormalizeOr(ab);
 
 		ptOnA = posA + norm * sphereA->m_Radius;
 		ptOnB = posB - norm * sphereB->m_Radius;
@@ -123,11 +138,7 @@ namespace GEngine
 		Vec3f newPosA = posA + velA * toi;
 		Vec3f newPosB = posB + velB * toi;
 		Vec3f ab = newPosB - newPosA;
-		float inv = 1.0f / glm::length(ab);
-		//if (0.0f * inv == 0.0f * inv)
-		//{
-			ab = glm::normalize(ab);
-		//}
+		ab = Math::NormalizeOr(ab, relativeVelocity);
 
 		ptOnA = newPosA + ab * shapeA->m_Radius;
 		ptOnB = newPosB - ab * shapeB->m_Radius;
@@ -148,6 +159,13 @@ namespace GEngine
 
 	void PhysicsSystem::Update(Timestep ts)
 	{
+		const float dtSeconds = static_cast<float>(ts);
+		GENGINE_CORE_ASSERT(Math::IsFinite(dtSeconds), "Physics timestep must be finite");
+		if (!Math::IsFinite(dtSeconds))
+		{
+			return;
+		}
+
 		GE_PHYSICS_PROFILE_SCOPE(physicsWorldTimeNs);
 		GE_PHYSICS_PROFILE_ADD(stepCount, 1);
 
@@ -163,6 +181,19 @@ namespace GEngine
 			auto& PhysicsBodies = m_PhysicsWorld->GetPhysicsBodies();
 			size_t size = PhysicsBodies.size();
 			auto gravity = m_PhysicsWorld->GetGravity();
+			GENGINE_CORE_ASSERT(Math::IsFinite(gravity), "Physics gravity must be finite");
+			if (!Math::IsFinite(gravity))
+			{
+				return;
+			}
+			for (const RigidBody3D* body : PhysicsBodies)
+			{
+				GENGINE_CORE_ASSERT(body != nullptr, "Physics world must not contain null bodies");
+				if (body)
+				{
+					body->AssertFiniteState();
+				}
+			}
 #ifdef GE_ENABLE_PHYSICS_PROFILING
 			std::uint64_t dynamicBodyCount = 0;
 			std::uint64_t activeBodyCount = 0;
@@ -190,9 +221,11 @@ namespace GEngine
 				for (size_t i = 0; i < size; i++)
 				{
 					RigidBody3D* body = PhysicsBodies[i];
-					float mass = 1.0f / body->m_InvMass;
-					Vec3f impulseGravity = gravity * mass * (float)ts;
-					body->ApplyImpulseLinear(impulseGravity);
+					if (body->Type != BodyType::Static && body->m_InvMass > 0.0f)
+					{
+						body->m_LinearVelocity += gravity * dtSeconds;
+						body->AssertFiniteState();
+					}
 				}
 			}
 
@@ -234,7 +267,7 @@ namespace GEngine
 					continue;
 				}
 
-				contact_t contact;
+				contact_t contact{};
 
 				GE_PHYSICS_PROFILE_ADD(narrowphaseCallCount, 1);
 				GE_PHYSICS_PROFILE_SCOPE_NAMED(narrowphaseTimer, narrowphaseTimeNs);
@@ -242,6 +275,11 @@ namespace GEngine
 				GE_PHYSICS_PROFILE_STOP(narrowphaseTimer);
 				if(didIntersect)
 				{
+					GENGINE_CORE_ASSERT(IsFiniteContact(contact), "Generated physics contact must be finite");
+					if (!IsFiniteContact(contact))
+					{
+						continue;
+					}
 					GE_PHYSICS_PROFILE_ADD(generatedContactCount, 1);
 					if (0.0f == contact.timeOfImpact)
 					{
@@ -349,6 +387,13 @@ namespace GEngine
 			}
 
 			contacts.clear();
+			for (const RigidBody3D* body : PhysicsBodies)
+			{
+				if (body)
+				{
+					body->AssertFiniteState();
+				}
+			}
 
 		}
 
@@ -391,8 +436,7 @@ namespace GEngine
 			contact.ptOnA_LocalSpace = bodyA->WorldSpaceToBodySpace(contact.ptOnA_WorldSpace);
 			contact.ptOnB_LocalSpace = bodyB->WorldSpaceToBodySpace(contact.ptOnB_WorldSpace);
 
-			contact.normal = bodyA->m_Position - bodyB->m_Position;
-			contact.normal = glm::normalize(contact.normal);
+			contact.normal = Math::NormalizeOr(bodyA->m_Position - bodyB->m_Position, Vec3f(-1.0f, 0.0f, 0.0f));
 
 			// Unwind time step
 			bodyA->Update(-contact.timeOfImpact);
@@ -423,7 +467,7 @@ namespace GEngine
 			Vec3f posB = bodyB->m_Position;
 
 			if (SphereSphereStatic(sphereA, sphereB, posA, posB, contact.ptOnA_WorldSpace, contact.ptOnB_WorldSpace)) {
-				contact.normal = glm::normalize(posA - posB);
+				contact.normal = Math::NormalizeOr(posA - posB, Vec3f(-1.0f, 0.0f, 0.0f));
 
 				contact.ptOnA_LocalSpace = bodyA->WorldSpaceToBodySpace(contact.ptOnA_WorldSpace);
 				contact.ptOnB_LocalSpace = bodyB->WorldSpaceToBodySpace(contact.ptOnB_WorldSpace);
@@ -445,7 +489,7 @@ namespace GEngine
 				//std::cout << "GJK_DoesIntersect" << std::endl;
 				// There was an intersection, so get the contact data
 				//std::cout << "normal: length" << glm::length(ptOnB - ptOnA) << std::endl;
-				Vec3f normal = glm::normalize(ptOnB - ptOnA);
+				Vec3f normal = Math::NormalizeOr(ptOnB - ptOnA, bodyB->m_Position - bodyA->m_Position);
 				
 
 				ptOnA -= normal * bias;
@@ -501,7 +545,7 @@ namespace GEngine
 		const Mat3 invWorldInertiaA = bodyA->GetInverseInertiaTensorWorldSpace();
 		const Mat3 invWorldInertiaB = bodyB->GetInverseInertiaTensorWorldSpace();
 
-		const Vec3f n = contact.normal;
+		const Vec3f n = Math::NormalizeOr(contact.normal, bodyA->m_Position - bodyB->m_Position);
 
 		const Vec3f ra = ptOnA - bodyA->GetCenterOfMassWorldSpace();
 		const Vec3f rb = ptOnB - bodyB->GetCenterOfMassWorldSpace();
@@ -516,11 +560,17 @@ namespace GEngine
 
 		// Calculate the collision impulse
 		const Vec3f vab = velA - velB;
-		const float ImpulseJ = (1.0f + elasticity) * glm::dot(vab, n) / (invMassA + invMassB + angularFactor);
-		const Vec3f vectorImpulseJ = n * ImpulseJ;
-
-		bodyA->ApplyImpulse(ptOnA, vectorImpulseJ * -1.0f);
-		bodyB->ApplyImpulse(ptOnB, vectorImpulseJ * 1.0f);
+		const float normalDenominator = invMassA + invMassB + angularFactor;
+		if (Math::IsFinite(normalDenominator) && normalDenominator > Math::NumericalEpsilon)
+		{
+			const float impulseJ = (1.0f + elasticity) * glm::dot(vab, n) / normalDenominator;
+			if (Math::IsFinite(impulseJ))
+			{
+				const Vec3f vectorImpulseJ = n * impulseJ;
+				bodyA->ApplyImpulse(ptOnA, vectorImpulseJ * -1.0f);
+				bodyB->ApplyImpulse(ptOnB, vectorImpulseJ);
+			}
+		}
 
 		//
 		// Calculate the impulse caused by friction
@@ -537,21 +587,31 @@ namespace GEngine
 		const Vec3f velTang = vab - velNorm;
 
 		// Get the tangential velocities relative to the other body
-		Vec3f relativeVelTang = velTang;
-		if(glm::length(relativeVelTang) >= 0.0000001f)
-			relativeVelTang = glm::normalize(relativeVelTang);
+		const float tangentialSpeedSquared = glm::length2(velTang);
+		Vec3f relativeVelTang(0.0f);
+		if (Math::IsFinite(tangentialSpeedSquared) && tangentialSpeedSquared > Math::NumericalEpsilonSquared)
+		{
+			relativeVelTang = Math::NormalizeOr(velTang);
+		}
 
 		const Vec3f inertiaA = glm::cross(invWorldInertiaA * glm::cross(ra, relativeVelTang), ra);
 		const Vec3f inertiaB = glm::cross(invWorldInertiaB * glm::cross(rb, relativeVelTang), rb);//(invWorldInertiaB * rb.Cross(relativeVelTang)).Cross(rb);
 		const float invInertia = glm::dot(inertiaA + inertiaB, relativeVelTang);
 
 		// Calculate the tangential impulse for friction
-		const float reducedMass = 1.0f / (bodyA->m_InvMass + bodyB->m_InvMass + invInertia);
-		const Vec3f impulseFriction = velTang * reducedMass * friction;
-
-		// Apply kinetic friction
-		bodyA->ApplyImpulse(ptOnA, impulseFriction * -1.0f);
-		bodyB->ApplyImpulse(ptOnB, impulseFriction * 1.0f);
+		const float frictionDenominator = bodyA->m_InvMass + bodyB->m_InvMass + invInertia;
+		if (tangentialSpeedSquared > Math::NumericalEpsilonSquared && Math::IsFinite(frictionDenominator) &&
+			frictionDenominator > Math::NumericalEpsilon)
+		{
+			const float reducedMass = 1.0f / frictionDenominator;
+			const Vec3f impulseFriction = velTang * reducedMass * friction;
+			if (Math::IsFinite(impulseFriction))
+			{
+				// Apply kinetic friction
+				bodyA->ApplyImpulse(ptOnA, impulseFriction * -1.0f);
+				bodyB->ApplyImpulse(ptOnB, impulseFriction);
+			}
+		}
 
 		//
 		// Let's also move our colliding objects to just outside of each other (projection method)
@@ -559,16 +619,18 @@ namespace GEngine
 		if (contact.timeOfImpact == 0.0f) {
 			const Vec3f ds = ptOnB - ptOnA;
 
-			const float tA = invMassA / (invMassA + invMassB);
-			const float tB = invMassB / (invMassA + invMassB);
+			const float inverseMassSum = invMassA + invMassB;
+			if (Math::IsFinite(inverseMassSum) && inverseMassSum > Math::NumericalEpsilon)
+			{
+				const float tA = invMassA / inverseMassSum;
+				const float tB = invMassB / inverseMassSum;
 
-			bodyA->m_Position += ds * tA;
-			bodyB->m_Position -= ds * tB;
+				bodyA->m_Position += ds * tA;
+				bodyB->m_Position -= ds * tB;
+			}
 		}
-
-
-
-
+		bodyA->AssertFiniteState();
+		bodyB->AssertFiniteState();
 	}
 
 	bool Collision::ConservativeAdvance(RigidBody3D* bodyA, RigidBody3D* bodyB, float dt, contact_t& contact)
@@ -599,7 +661,8 @@ namespace GEngine
 			}
 			
 			// Get the vector from the closest point on A to the closest point on B
-			Vec3f ab = glm::normalize(contact.ptOnB_WorldSpace - contact.ptOnA_WorldSpace);
+			Vec3f ab = Math::NormalizeOr(contact.ptOnB_WorldSpace - contact.ptOnA_WorldSpace,
+				bodyB->m_Position - bodyA->m_Position);
 			//std::cout << "ab: " << ab.x << ", " << ab.y << ", " << ab.z << std::endl;
 
 			// project the relative velocity onto the ray of shortest distance
@@ -610,11 +673,15 @@ namespace GEngine
 			float angularSpeedA = bodyA->m_Shape->FastestLinearSpeed(bodyA->m_AngularVelocity, ab);
 			float angularSpeedB = bodyB->m_Shape->FastestLinearSpeed(bodyB->m_AngularVelocity, ab * -1.0f);
 			orthoSpeed += angularSpeedA + angularSpeedB;
-			if (orthoSpeed <= 0.0f) {
+			if (!Math::IsFinite(orthoSpeed) || orthoSpeed <= Math::NumericalEpsilon) {
 				break;
 			}
 
 			float timeToGo = contact.separationDistance / orthoSpeed;
+			if (!Math::IsFinite(timeToGo) || timeToGo < 0.0f)
+			{
+				break;
+			}
 			if (timeToGo > dt) {
 				break;
 			}
@@ -657,7 +724,7 @@ namespace GEngine
 				contact.ptOnA_LocalSpace = bodyA->WorldSpaceToBodySpace(contact.ptOnA_WorldSpace);
 				contact.ptOnB_LocalSpace = bodyB->WorldSpaceToBodySpace(contact.ptOnB_WorldSpace);
 
-				contact.normal = glm::normalize(bodyA->m_Position - bodyB->m_Position);
+				contact.normal = Math::NormalizeOr(bodyA->m_Position - bodyB->m_Position, Vec3f(-1.0f, 0.0f, 0.0f));
 
 				// Unwind time step
 				bodyA->Update(-contact.timeOfImpact);

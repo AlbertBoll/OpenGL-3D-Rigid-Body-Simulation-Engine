@@ -3,6 +3,8 @@
 #include "glm/glm.hpp"
 #include "glm/gtc/quaternion.hpp"
 #include <glm/gtx/quaternion.hpp>
+#include <cmath>
+#include <limits>
 #include <vector>
 #include <iostream>
 
@@ -34,6 +36,75 @@ namespace GEngine
 		constexpr float PiOver2 = Pi / 2.0f;
 		constexpr float Infinity = std::numeric_limits<float>::infinity();
 		constexpr float NegInfinity = -std::numeric_limits<float>::infinity();
+		constexpr float NumericalEpsilon = 1.0e-6f;
+		constexpr float NumericalEpsilonSquared = NumericalEpsilon * NumericalEpsilon;
+
+		inline bool IsFinite(float value)
+		{
+			return std::isfinite(value);
+		}
+
+		inline bool IsFinite(const Vec2f& value)
+		{
+			return IsFinite(value.x) && IsFinite(value.y);
+		}
+
+		inline bool IsFinite(const Vec3f& value)
+		{
+			return IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
+		}
+
+		inline bool IsFinite(const Vec4f& value)
+		{
+			return IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z) && IsFinite(value.w);
+		}
+
+		inline bool IsFinite(const Quat& value)
+		{
+			return IsFinite(value.w) && IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
+		}
+
+		inline Vec3f NormalizeOr(const Vec3f& value, const Vec3f& fallback = Vec3f(1.0f, 0.0f, 0.0f))
+		{
+			const float lengthSquared = glm::dot(value, value);
+			if (IsFinite(lengthSquared) && lengthSquared > NumericalEpsilonSquared)
+			{
+				return value * glm::inversesqrt(lengthSquared);
+			}
+
+			const float fallbackLengthSquared = glm::dot(fallback, fallback);
+			if (IsFinite(fallbackLengthSquared) && fallbackLengthSquared > NumericalEpsilonSquared)
+			{
+				return fallback * glm::inversesqrt(fallbackLengthSquared);
+			}
+
+			return Vec3f(1.0f, 0.0f, 0.0f);
+		}
+
+		inline Vec3f VectorOr(const Vec3f& value, const Vec3f& fallback = Vec3f(1.0f, 0.0f, 0.0f))
+		{
+			const float lengthSquared = glm::dot(value, value);
+			return IsFinite(lengthSquared) && lengthSquared > NumericalEpsilonSquared ? value : fallback;
+		}
+
+		inline Quat QuaternionOrIdentity(const Quat& value)
+		{
+			const float lengthSquared = glm::dot(value, value);
+			return IsFinite(lengthSquared) && lengthSquared > NumericalEpsilonSquared
+				? value
+				: Quat(1.0f, 0.0f, 0.0f, 0.0f);
+		}
+
+		inline Quat NormalizeOrIdentity(const Quat& value)
+		{
+			const float lengthSquared = glm::dot(value, value);
+			if (IsFinite(lengthSquared) && lengthSquared > NumericalEpsilonSquared)
+			{
+				return value * glm::inversesqrt(lengthSquared);
+			}
+
+			return Quat(1.0f, 0.0f, 0.0f, 0.0f);
+		}
 
 		inline constexpr float ToRadians(float degrees)
 		{
@@ -96,32 +167,23 @@ namespace GEngine
 
 		inline float BarryCentric(Vec3f p1, Vec3f p2, Vec3f p3, Vec2f pos)
 		{
-			float det = (p2.z - p3.z) * (p1.x - p3.x) + (p3.x - p2.x) * (p1.z - p3.z);
-			float l1 = ((p2.z - p3.z) * (pos.x - p3.x) + (p3.x - p2.x) * (pos.y - p3.z)) / det;
-			float l2 = ((p3.z - p1.z) * (pos.x - p3.x) + (p1.x - p3.x) * (pos.y - p3.z)) / det;
-			float l3 = 1.0f - l1 - l2;
-			return l1 * p1.y + l2 * p2.y + l3 * p3.y;
+			const float det = (p2.z - p3.z) * (p1.x - p3.x) + (p3.x - p2.x) * (p1.z - p3.z);
+			if (!IsFinite(det) || std::fabs(det) <= NumericalEpsilon)
+			{
+				return IsFinite(p1.y) ? p1.y : 0.0f;
+			}
+
+			const float l1 = ((p2.z - p3.z) * (pos.x - p3.x) + (p3.x - p2.x) * (pos.y - p3.z)) / det;
+			const float l2 = ((p3.z - p1.z) * (pos.x - p3.x) + (p1.x - p3.x) * (pos.y - p3.z)) / det;
+			const float l3 = 1.0f - l1 - l2;
+			const float result = l1 * p1.y + l2 * p2.y + l3 * p3.y;
+			return IsFinite(result) ? result : (IsFinite(p1.y) ? p1.y : 0.0f);
 		}
 
 
-		inline bool IsValid(const Vec3f& vec) 
+		inline bool IsValid(const Vec3f& vec)
 		{
-			if (vec.x * 0.0f != vec.x * 0.0f) 
-			{
-				return false;
-			}
-
-			if (vec.y * 0.0f != vec.y * 0.0f) 
-			{
-				return false;
-			}
-
-			if (vec.z * 0.0f != vec.z * 0.0f) 
-			{
-				return false;
-			}
-
-			return true;
+			return IsFinite(vec);
 		}
 
 		inline void GetOrtho(const Vec3f& n, Vec3f& u, Vec3f& v) 
@@ -136,15 +198,15 @@ namespace GEngine
 			{
 				n_ = n;
 			}*/
-			Vec3f n_ = glm::normalize(n);
+			const Vec3f n_ = NormalizeOr(n);
 		
 			const Vec3f w = (n_.z * n_.z > 0.9f * 0.9f) ? Vec3f(1, 0, 0) : Vec3f(0, 0, 1);
 			//const Vec3f w = (n_.y * n_.y > 0.9f * 0.9f) ? Vec3f(0, 0, 1) : Vec3f(0, 1, 0);
-			u = glm::normalize(glm::cross(w, n_));
+			u = NormalizeOr(glm::cross(w, n_), Vec3f(0.0f, 1.0f, 0.0f));
 
-			v = glm::normalize(glm::cross(n_, u));
+			v = NormalizeOr(glm::cross(n_, u), Vec3f(0.0f, 0.0f, 1.0f));
 
-			u = glm::normalize(glm::cross(v, n_));
+			u = NormalizeOr(glm::cross(v, n_), u);
 		
 		}
 
@@ -312,9 +374,17 @@ namespace GEngine
 			// Normalize this vector
 			void Normalize()
 			{
-				float length = Length();
-				x /= length;
-				y /= length;
+				const float lengthSq = LengthSq();
+				if (!Math::IsFinite(lengthSq) || lengthSq <= Math::NumericalEpsilonSquared)
+				{
+					x = 0.0f;
+					y = 0.0f;
+					return;
+				}
+
+				const float inverseLength = 1.0f / Math::Sqrt(lengthSq);
+				x *= inverseLength;
+				y *= inverseLength;
 			}
 
 			// Normalize the provided vector
@@ -460,10 +530,19 @@ namespace GEngine
 			// Normalize this vector
 			void Normalize()
 			{
-				float length = Length();
-				x /= length;
-				y /= length;
-				z /= length;
+				const float lengthSq = LengthSq();
+				if (!Math::IsFinite(lengthSq) || lengthSq <= Math::NumericalEpsilonSquared)
+				{
+					x = 0.0f;
+					y = 0.0f;
+					z = 0.0f;
+					return;
+				}
+
+				const float inverseLength = 1.0f / Math::Sqrt(lengthSq);
+				x *= inverseLength;
+				y *= inverseLength;
+				z *= inverseLength;
 			}
 
 			// Normalize the provided vector
@@ -1031,11 +1110,21 @@ namespace GEngine
 
 			void Normalize()
 			{
-				float length = Length();
-				x /= length;
-				y /= length;
-				z /= length;
-				w /= length;
+				const float lengthSq = LengthSq();
+				if (!Math::IsFinite(lengthSq) || lengthSq <= Math::NumericalEpsilonSquared)
+				{
+					x = 0.0f;
+					y = 0.0f;
+					z = 0.0f;
+					w = 1.0f;
+					return;
+				}
+
+				const float inverseLength = 1.0f / Math::Sqrt(lengthSq);
+				x *= inverseLength;
+				y *= inverseLength;
+				z *= inverseLength;
+				w *= inverseLength;
 			}
 
 			// Normalize the provided quaternion
@@ -1398,9 +1487,17 @@ namespace GEngine
 
 			for (int iter = 0; iter < size; iter++) {
 				for (int i = 0; i < size; i++) {
-					float dx = (b[i] - A[i].Dot(x)) / A[i][i];
-					if (dx * 0.0f == dx * 0.0f) {
-						x[i] = x[i] + dx;
+					const float pivot = A[i][i];
+					const float residual = b[i] - A[i].Dot(x);
+					if (!IsFinite(pivot) || !IsFinite(residual) || std::fabs(pivot) <= NumericalEpsilon)
+					{
+						continue;
+					}
+
+					const float dx = residual / pivot;
+					if (IsFinite(dx) && IsFinite(x[i] + dx))
+					{
+						x[i] += dx;
 					}
 				}
 			}
@@ -1416,9 +1513,15 @@ namespace GEngine
 			for (int iter = 0; iter < 5; iter++) {
 				printf("Iteration %d: ", iter);
 				for (int i = 0; i < size; i++) {
-					float dx = (b[i] - A[i].Dot(x)) / A[i][i];
-					if (dx * 0.0f == dx * 0.0f) {
-						x[i] = x[i] + dx;
+					const float pivot = A[i][i];
+					const float residual = b[i] - A[i].Dot(x);
+					if (IsFinite(pivot) && IsFinite(residual) && std::fabs(pivot) > NumericalEpsilon)
+					{
+						const float dx = residual / pivot;
+						if (IsFinite(dx) && IsFinite(x[i] + dx))
+						{
+							x[i] += dx;
+						}
 					}
 					printf("%.2f ", x[i]);
 				}
@@ -1428,8 +1531,11 @@ namespace GEngine
 		}
 
 		inline bool are_same_point(const Vec3f& a, const Vec3f& b) {
-			double epsilon = 1e-6;
-			return std::fabs(a.x - b.x) < epsilon && std::fabs(a.y - b.y) < epsilon && std::fabs(a.z - b.z);
+			constexpr float epsilon = NumericalEpsilon;
+			return IsFinite(a) && IsFinite(b) &&
+				std::fabs(a.x - b.x) < epsilon &&
+				std::fabs(a.y - b.y) < epsilon &&
+				std::fabs(a.z - b.z) < epsilon;
 		}
 
 		inline std::vector<Vec3f> GenerateDiamond()

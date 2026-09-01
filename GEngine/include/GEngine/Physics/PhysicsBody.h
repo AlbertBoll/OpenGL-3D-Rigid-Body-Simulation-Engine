@@ -32,6 +32,12 @@ namespace GEngine
 		void ApplyImpulseAngular(const Vec3f& impulse);
 
 		void Update(const float dt_sec);
+		bool HasFiniteState() const;
+	#ifdef GENGINE_CONFIG_DEBUG
+		void AssertFiniteState() const;
+	#else
+		void AssertFiniteState() const {}
+	#endif
 	
 		Vec3f m_Position{ 0.f };
 		Quat m_Orientation{ 1.0f, 0.f, 0.f, 0.f };

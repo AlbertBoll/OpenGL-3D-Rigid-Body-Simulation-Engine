@@ -287,18 +287,18 @@ namespace
 		if (steadyState)
 		{
 			return commonState &&
-				profile.candidatePairCount >= static_cast<std::uint64_t>(bodyCount / 2) &&
-				profile.pairFilterCheckCount > 0 && profile.pairFilterRejectedCount > 0 &&
-				profile.narrowphaseCallCount > 0 && profile.gjkCallCount > 0 &&
-				profile.gjkIterationCount > 0 && profile.supportCallCount > 0 &&
+				profile.candidatePairCount == 0 &&
+				profile.broadphaseFullSortCount == 0 &&
 				profile.epaCallCount == 0 &&
 				profile.generatedContactCount == 0 && profile.manifoldCount == 0 &&
 				profile.manifoldContactCount == 0 && profile.solverConstraintCount == 0;
 		}
 
 		return commonState &&
-			profile.candidatePairCount >= static_cast<std::uint64_t>(bodyCount / 2) &&
-			(bodyCount < 6 || profile.pairFilterRejectedCount > 0) &&
+			profile.candidatePairCount > 0 &&
+			profile.broadphaseAxisOverlapCount >= profile.candidatePairCount &&
+			(bodyCount < 6 || profile.broadphaseStaticPairRejectedCount > 0) &&
+			profile.broadphaseFullSortCount == 1 &&
 			profile.narrowphaseCallCount > 0 &&
 			profile.gjkCallCount > 0 && profile.gjkIterationCount > 0 &&
 			profile.supportCallCount > 0 && profile.epaCallCount > 0 &&
@@ -313,6 +313,7 @@ namespace
 	{
 		std::cout
 			<< "body_count,dynamic_bodies,active_bodies,sleeping_bodies,candidate_pairs,"
+			<< "axis_overlaps,aabb_rejected,static_rejected,mask_rejected,endpoint_swaps,full_sorts,"
 			<< "pair_filter_rejected,gjk_calls,gjk_total_ms,gjk_avg_iterations,gjk_max_iterations,"
 			<< "support_calls,support_ms,epa_calls,epa_ms,contacts,manifolds,manifold_contacts,"
 			<< "solver_constraints,solver_iterations,gravity_ms,broadphase_ms,pair_filter_ms,"
@@ -337,6 +338,12 @@ namespace
 			<< Average(samples, &PhysicsProfileSnapshot::activeBodyCount) << ','
 			<< Average(samples, &PhysicsProfileSnapshot::sleepingBodyCount) << ','
 			<< Average(samples, &PhysicsProfileSnapshot::candidatePairCount) << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::broadphaseAxisOverlapCount) << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::broadphaseAabbRejectedCount) << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::broadphaseStaticPairRejectedCount) << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::broadphaseMaskRejectedCount) << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::broadphaseInsertionSortSwapCount) << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::broadphaseFullSortCount) << ','
 			<< AveragePerStep(samples, &PhysicsProfileSnapshot::pairFilterRejectedCount) << ','
 			<< gjkCalls << ','
 			<< AveragePerStep(samples, &PhysicsProfileSnapshot::gjkTimeNs) * nsToMs << ','

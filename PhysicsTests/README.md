@@ -33,3 +33,9 @@ The executable returns nonzero if any case fails and covers:
 - counted proof that unchanged queries reuse shape bounds/inertia and revisions refresh them once;
 - revision-safe public sphere-radius mutation;
 - a one-step gravity trajectory and ordinary sphere overlap/separation results.
+- broadphase equal-endpoint ordering and swept fast-body candidate retention;
+- three-axis AABB, static/static, and reciprocal layer/mask filtering;
+- persistent endpoint/scratch capacity reuse, incremental sorting, and safe
+  rebuild after body membership changes.
+- exact initial and incrementally updated candidate sets against a filtered
+  swept-AABB brute-force oracle.

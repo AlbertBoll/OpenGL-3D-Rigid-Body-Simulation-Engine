@@ -457,6 +457,8 @@ namespace GEngine
 				body->m_Position = sphere_fixure.Property.m_Position;
 				body->m_Orientation = sphere_fixure.Property.m_Orientation;
 				body->Type = rigid_body.Type;
+				body->m_CollisionLayer = rigid_body.CollisionLayer;
+				body->m_CollisionMask = rigid_body.CollisionMask;
 				body->m_Shape = new ShapeSphere(sphere_fixure.Radius);
 				Connection(transform, OnScaleChanged, *static_cast<ShapeSphere*>(body->m_Shape), &ShapeSphere::HandleScaleChanged);
 				
@@ -477,6 +479,8 @@ namespace GEngine
 				body->m_Position = box_fixure.Property.m_Position;
 				body->m_Orientation = box_fixure.Property.m_Orientation;
 				body->Type = rigid_body.Type;
+				body->m_CollisionLayer = rigid_body.CollisionLayer;
+				body->m_CollisionMask = rigid_body.CollisionMask;
 				auto pts = entity.GetComponent<MeshComponent>().m_Geometry->GetPoints(transform.Scale);
 				
 				//std::cout << entity.GetComponent<TagComponent>().Name << std::endl;
@@ -507,6 +511,8 @@ namespace GEngine
 				body->m_Orientation = convex_fixure.Property.m_Orientation;
 				body->m_LinearVelocity = convex_fixure.Property.m_LinearVelocity;
 				body->Type = rigid_body.Type;
+				body->m_CollisionLayer = rigid_body.CollisionLayer;
+				body->m_CollisionMask = rigid_body.CollisionMask;
 				auto pts = entity.GetComponent<MeshComponent>().m_Geometry->GetUniquePoints();
 				
 				//std::cout << entity.GetComponent<TagComponent>().Name << std::endl;

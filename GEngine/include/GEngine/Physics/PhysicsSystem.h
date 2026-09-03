@@ -4,6 +4,7 @@
 #include <Math/Math.h>
 #include "Manifold.h"
 #include "Contact.h"
+#include "Broadphase.h"
 
 
 
@@ -44,6 +45,9 @@ namespace GEngine
 	private:
 		PhysicsWorld* m_PhysicsWorld{};
 		ManifoldCollector m_Manifolds;
+		SweepAndPruneBroadphase m_Broadphase;
+		std::vector<collisionPair_t> m_CollisionPairs;
+		std::vector<contact_t> m_Contacts;
 
 	};
 

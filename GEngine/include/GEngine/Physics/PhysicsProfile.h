@@ -15,6 +15,12 @@ namespace GEngine
 
 		std::uint64_t candidatePairCount{};
 		std::uint64_t broadphaseTimeNs{};
+		std::uint64_t broadphaseAxisOverlapCount{};
+		std::uint64_t broadphaseAabbRejectedCount{};
+		std::uint64_t broadphaseStaticPairRejectedCount{};
+		std::uint64_t broadphaseMaskRejectedCount{};
+		std::uint64_t broadphaseInsertionSortSwapCount{};
+		std::uint64_t broadphaseFullSortCount{};
 		std::uint64_t pairFilterCheckCount{};
 		std::uint64_t pairFilterRejectedCount{};
 		std::uint64_t pairFilterTimeNs{};

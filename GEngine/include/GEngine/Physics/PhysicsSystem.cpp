@@ -232,36 +232,41 @@ namespace GEngine
 			//
 			// Broadphase
 			//
-			std::vector<collisionPair_t> collisionPairs;
 			{
 				GE_PHYSICS_PROFILE_SCOPE(broadphaseTimeNs);
 				//Timeit("	BroadPhase")
-				BroadPhase(PhysicsBodies, collisionPairs, (float)ts);
+				m_Broadphase.FindPairs(PhysicsBodies, m_CollisionPairs, dtSeconds);
 			}
-			GE_PHYSICS_PROFILE_SET(candidatePairCount, collisionPairs.size());
+			const BroadphaseStats& broadphaseStats = m_Broadphase.GetLastStats();
+			GE_PHYSICS_PROFILE_SET(candidatePairCount, m_CollisionPairs.size());
+			GE_PHYSICS_PROFILE_ADD(broadphaseAxisOverlapCount, broadphaseStats.axisOverlapCount);
+			GE_PHYSICS_PROFILE_ADD(broadphaseAabbRejectedCount, broadphaseStats.aabbRejectedCount);
+			GE_PHYSICS_PROFILE_ADD(broadphaseStaticPairRejectedCount, broadphaseStats.staticPairRejectedCount);
+			GE_PHYSICS_PROFILE_ADD(broadphaseMaskRejectedCount, broadphaseStats.maskRejectedCount);
+			GE_PHYSICS_PROFILE_ADD(broadphaseInsertionSortSwapCount, broadphaseStats.insertionSortSwapCount);
+			GE_PHYSICS_PROFILE_ADD(broadphaseFullSortCount, broadphaseStats.fullSortCount);
 
 			//
 			//	NarrowPhase (perform actual collision detection)
 			//
 			int numContacts = 0;
-			const size_t maxContacts = size * size;
-			static std::vector<contact_t> contacts;
-			
-			contacts.reserve(maxContacts);
-
-			//contact_t* contacts = (contact_t*)alloca(sizeof(contact_t) * maxContacts);
-			for (int i = 0; i < collisionPairs.size(); i++) {
-				const collisionPair_t& pair = collisionPairs[i];
+			m_Contacts.clear();
+			for (std::size_t i = 0; i < m_CollisionPairs.size(); ++i) {
+				const collisionPair_t& pair = m_CollisionPairs[i];
 				RigidBody3D* bodyA = PhysicsBodies[pair.a];
 				RigidBody3D* bodyB = PhysicsBodies[pair.b];
 
 				GE_PHYSICS_PROFILE_ADD(pairFilterCheckCount, 1);
 				GE_PHYSICS_PROFILE_SCOPE_NAMED(pairFilterTimer, pairFilterTimeNs);
-				const bool skipStaticPair = bodyA->Type == BodyType::Static && bodyB->Type == BodyType::Static;
+				const bool skipStaticPair =
+					bodyA->Type == BodyType::Static && bodyB->Type == BodyType::Static;
+				const bool skipMaskedPair =
+					(bodyA->m_CollisionMask & bodyB->m_CollisionLayer) == 0u ||
+					(bodyB->m_CollisionMask & bodyA->m_CollisionLayer) == 0u;
 				GE_PHYSICS_PROFILE_STOP(pairFilterTimer);
 
-				// Skip body pairs with infinite mass
-				if (skipStaticPair)
+				// Retain a defensive filter at the narrowphase boundary.
+				if (skipStaticPair || skipMaskedPair)
 				{
 					GE_PHYSICS_PROFILE_ADD(pairFilterRejectedCount, 1);
 					continue;
@@ -295,8 +300,7 @@ namespace GEngine
 					{
 						//std::cout << "Collision occurred" << std::endl;
 						GENGINE_INFO("Collision occurred");
-						contacts.push_back(contact);
-						//contacts[numContacts] = contact;
+						m_Contacts.push_back(contact);
 						numContacts++;
 						//
 					}
@@ -307,7 +311,7 @@ namespace GEngine
 			if (numContacts > 1) {
 				{
 					//Timeit("	qsort")
-					qsort(contacts.data(), numContacts, sizeof(contact_t), CompareContacts);
+					qsort(m_Contacts.data(), numContacts, sizeof(contact_t), CompareContacts);
 				}
 				//std::sort(contacts.begin(), contacts.end(), CompareContacts);
 			}
@@ -349,7 +353,7 @@ namespace GEngine
 			//
 			float accumulatedTime = 0.0f;
 			for (int i = 0; i < numContacts; i++) {
-				contact_t& contact = contacts[i];
+				contact_t& contact = m_Contacts[i];
 				const float dt = contact.timeOfImpact - accumulatedTime;
 
 				// Position update
@@ -386,7 +390,7 @@ namespace GEngine
 				}
 			}
 
-			contacts.clear();
+			m_Contacts.clear();
 			for (const RigidBody3D* body : PhysicsBodies)
 			{
 				if (body)
@@ -403,6 +407,9 @@ namespace GEngine
 	{
 		delete m_PhysicsWorld;
 		m_PhysicsWorld = nullptr;
+		m_Broadphase.Clear();
+		m_CollisionPairs.clear();
+		m_Contacts.clear();
 	}
 
 	void PhysicsSystem::SetPhysicsWorld(PhysicsWorld* physics_world)

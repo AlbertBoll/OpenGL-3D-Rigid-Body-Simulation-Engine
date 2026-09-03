@@ -5,7 +5,7 @@ It does not initialize SDL, OpenGL, ImGui, rendering, or runtime assets.
 
 The default workload creates isolated overlapping box pairs. Its repeating mix
 is two dynamic/static pairs, one static/static pair, and one dynamic/dynamic
-pair, keeping 50% of bodies dynamic while exercising both pair rejection and
+pair, keeping 50% of bodies dynamic while exercising broadphase filtering and
 surviving collision work. Every surviving pair starts overlapped for one
 1/120-second physics step, exercising broadphase, GJK support mapping, EPA
 contact generation, manifold creation, constraint solving, and integration.
@@ -18,6 +18,12 @@ untimed steps to populate body-derived caches, then times multiple steps using
 those same bodies. This isolates steady derived-data reuse from first-use cache
 population and collision-response motion. Reported times and additive workload
 counters are normalized per measured step.
+
+Phase 04 reporting includes sweep-axis overlaps, three-axis AABB
+rejections, static/static rejections, layer/mask rejections, incremental-sort
+swaps, and full-sort counts. The separated fixture verifies that the persistent
+sweep rejects non-candidates before narrowphase; dedicated regression coverage
+exercises the secondary swept three-axis AABB rejection.
 
 Generate and build the normal Release configuration:
 

@@ -53,6 +53,8 @@ namespace GEngine
 		float		m_InvMass = 1.f;
 		float		m_Elasticity = 1.f;
 		float		m_Friction = 0.f;
+		std::uint32_t m_CollisionLayer = 1u;
+		std::uint32_t m_CollisionMask = ~std::uint32_t{ 0 };
 		PhysicalShape* m_Shape{};
 		BodyType Type = BodyType::Static;
 

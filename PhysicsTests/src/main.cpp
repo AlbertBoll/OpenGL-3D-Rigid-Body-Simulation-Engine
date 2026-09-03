@@ -1,13 +1,16 @@
 #include <GEngine/Core/Log.h>
 #include <GEngine/Math/Math.h>
 #include <GEngine/Physics/Constraints/ConstraintPenetration.h>
+#include <GEngine/Physics/Broadphase.h>
 #include <GEngine/Physics/GJK.h>
 #include <GEngine/Physics/PhysicsSystem.h>
 #include <GEngine/Physics/PhysicsWorld.h>
 #include <GEngine/Physics/ShapeBox.h>
 #include <GEngine/Physics/ShapeSphere.h>
 
+#include <algorithm>
 #include <cmath>
+#include <array>
 #include <iostream>
 #include <limits>
 #include <string_view>
@@ -563,6 +566,188 @@ namespace
 		Expect(infiniteMassBody->HasFiniteState() && Near(infiniteMassBody->m_LinearVelocity.y, 0.0f) &&
 			Near(infiniteMassBody->m_Position.y, 0.0f), "zero inverse mass does not divide by zero under gravity");
 	}
+
+	bool ContainsPair(const std::vector<GEngine::collisionPair_t>& pairs, int a, int b)
+	{
+		return std::find(pairs.begin(), pairs.end(), GEngine::collisionPair_t{ a, b }) != pairs.end();
+	}
+
+	std::vector<GEngine::collisionPair_t> BruteForceBroadphasePairs(
+		const std::vector<GEngine::RigidBody3D*>& bodies, float dtSeconds)
+	{
+		std::vector<GEngine::Bounds> sweptBounds;
+		sweptBounds.reserve(bodies.size());
+		for (const GEngine::RigidBody3D* body : bodies)
+		{
+			GEngine::Bounds bounds = body->GetWorldBounds();
+			const GEngine::Vec3f initialMins = bounds.mins;
+			const GEngine::Vec3f initialMaxs = bounds.maxs;
+			const GEngine::Vec3f displacement = body->m_LinearVelocity * dtSeconds;
+			bounds.Expand(initialMins + displacement);
+			bounds.Expand(initialMaxs + displacement);
+			bounds.Expand(bounds.mins - GEngine::Vec3f(0.01f));
+			bounds.Expand(bounds.maxs + GEngine::Vec3f(0.01f));
+			sweptBounds.push_back(bounds);
+		}
+
+		std::vector<GEngine::collisionPair_t> expected;
+		for (std::size_t a = 0; a < bodies.size(); ++a)
+		{
+			for (std::size_t b = a + 1; b < bodies.size(); ++b)
+			{
+				const bool staticPair = bodies[a]->Type == GEngine::Component::BodyType::Static &&
+					bodies[b]->Type == GEngine::Component::BodyType::Static;
+				const bool masksOverlap =
+					(bodies[a]->m_CollisionMask & bodies[b]->m_CollisionLayer) != 0u &&
+					(bodies[b]->m_CollisionMask & bodies[a]->m_CollisionLayer) != 0u;
+				if (!staticPair && masksOverlap && sweptBounds[a].DoesIntersect(sweptBounds[b]))
+				{
+					expected.push_back({ static_cast<int>(a), static_cast<int>(b) });
+				}
+			}
+		}
+		return expected;
+	}
+
+	void ConfigureBroadphaseBody(GEngine::RigidBody3D& body, GEngine::ShapeBox& shape,
+		const GEngine::Vec3f& position, GEngine::Component::BodyType type = GEngine::Component::BodyType::Dynamic)
+	{
+		ConfigureBoxBody(body, shape, position, GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f));
+		body.Type = type;
+		body.m_InvMass = type == GEngine::Component::BodyType::Static ? 0.0f : 1.0f;
+	}
+
+	void TestBroadphaseCorrectnessAndFiltering()
+	{
+		GEngine::ShapeBox box(UnitBoxPoints());
+		GEngine::SweepAndPruneBroadphase broadphase;
+		std::vector<GEngine::collisionPair_t> pairs;
+
+		std::array<GEngine::RigidBody3D, 2> touchingBodies;
+		ConfigureBroadphaseBody(touchingBodies[0], box, GEngine::Vec3f(0.0f));
+		ConfigureBroadphaseBody(touchingBodies[1], box, GEngine::Vec3f(2.02f, 0.0f, 0.0f));
+		std::vector<GEngine::RigidBody3D*> bodies{ &touchingBodies[0], &touchingBodies[1] };
+		broadphase.FindPairs(bodies, pairs, 0.0f);
+		Expect(ContainsPair(pairs, 0, 1),
+			"equal sweep endpoints retain a touching broadphase candidate");
+
+		touchingBodies[0].Type = GEngine::Component::BodyType::Static;
+		touchingBodies[1].Type = GEngine::Component::BodyType::Static;
+		broadphase.FindPairs(bodies, pairs, 0.0f);
+		Expect(pairs.empty() && broadphase.GetLastStats().staticPairRejectedCount == 1,
+			"broadphase rejects static/static pairs before narrowphase");
+
+		touchingBodies[0].Type = GEngine::Component::BodyType::Dynamic;
+		touchingBodies[1].Type = GEngine::Component::BodyType::Dynamic;
+		touchingBodies[0].m_CollisionLayer = 1u;
+		touchingBodies[0].m_CollisionMask = 1u;
+		touchingBodies[1].m_CollisionLayer = 2u;
+		touchingBodies[1].m_CollisionMask = 1u;
+		broadphase.FindPairs(bodies, pairs, 0.0f);
+		Expect(pairs.empty() && broadphase.GetLastStats().maskRejectedCount == 1,
+			"broadphase requires reciprocal collision layer/mask acceptance");
+		touchingBodies[0].m_CollisionMask = 2u;
+		broadphase.FindPairs(bodies, pairs, 0.0f);
+		Expect(ContainsPair(pairs, 0, 1), "compatible reciprocal collision masks emit a candidate");
+
+		std::array<GEngine::RigidBody3D, 2> diagonalBodies;
+		ConfigureBroadphaseBody(diagonalBodies[0], box, GEngine::Vec3f(0.0f));
+		ConfigureBroadphaseBody(diagonalBodies[1], box, GEngine::Vec3f(0.0f, 4.0f, 0.0f));
+		bodies = { &diagonalBodies[0], &diagonalBodies[1] };
+		broadphase.FindPairs(bodies, pairs, 0.0f);
+		Expect(pairs.empty() && broadphase.GetLastStats().axisOverlapCount == 1 &&
+			broadphase.GetLastStats().aabbRejectedCount == 1,
+			"three-axis swept AABB rejection removes a sweep-axis false positive");
+
+		diagonalBodies[1].m_Position = GEngine::Vec3f(4.0f, 0.0f, 0.0f);
+		diagonalBodies[1].m_LinearVelocity = GEngine::Vec3f(-300.0f, 0.0f, 0.0f);
+		broadphase.FindPairs(bodies, pairs, 0.01f);
+		Expect(ContainsPair(pairs, 0, 1), "swept AABB retains a fast-moving collision candidate");
+	}
+
+	void TestBroadphasePersistenceAndTemporalCoherence()
+	{
+		GEngine::ShapeBox box(UnitBoxPoints());
+		std::array<GEngine::RigidBody3D, 3> bodyStorage;
+		for (std::size_t index = 0; index < bodyStorage.size(); ++index)
+		{
+			ConfigureBroadphaseBody(bodyStorage[index], box,
+				GEngine::Vec3f(static_cast<float>(index) * 5.0f, 0.0f, 0.0f));
+		}
+
+		GEngine::SweepAndPruneBroadphase broadphase;
+		std::vector<GEngine::collisionPair_t> pairs;
+		std::vector<GEngine::RigidBody3D*> bodies{ &bodyStorage[0], &bodyStorage[1] };
+		broadphase.FindPairs(bodies, pairs, 0.0f);
+		const std::size_t endpointCapacity = broadphase.GetEndpointCapacity();
+		const std::size_t activeCapacity = broadphase.GetPairScratchCapacity();
+		Expect(broadphase.GetLastStats().fullSortCount == 1 && endpointCapacity >= 4 && activeCapacity >= 2,
+			"first broadphase update allocates persistent endpoint and active-set storage");
+
+		broadphase.FindPairs(bodies, pairs, 0.0f);
+		Expect(broadphase.GetLastStats().fullSortCount == 0 &&
+			broadphase.GetLastStats().insertionSortSwapCount == 0 &&
+			broadphase.GetEndpointCapacity() == endpointCapacity &&
+			broadphase.GetPairScratchCapacity() == activeCapacity,
+			"unchanged bodies reuse capacity and already-sorted endpoint order");
+
+		bodyStorage[1].m_Position = GEngine::Vec3f(-5.0f, 0.0f, 0.0f);
+		broadphase.FindPairs(bodies, pairs, 0.0f);
+		Expect(broadphase.GetLastStats().fullSortCount == 0 &&
+			broadphase.GetLastStats().insertionSortSwapCount > 0,
+			"body motion incrementally repairs persistent endpoint order");
+
+		bodies.push_back(&bodyStorage[2]);
+		broadphase.FindPairs(bodies, pairs, 0.0f);
+		Expect(broadphase.GetLastStats().fullSortCount == 1 && broadphase.GetEndpointCapacity() >= 6,
+			"body membership changes safely rebuild persistent endpoints");
+	}
+
+	void TestBroadphaseAgainstBruteForce()
+	{
+		GEngine::ShapeBox box(UnitBoxPoints());
+		std::array<GEngine::RigidBody3D, 24> bodyStorage;
+		std::vector<GEngine::RigidBody3D*> bodies;
+		bodies.reserve(bodyStorage.size());
+		for (std::size_t index = 0; index < bodyStorage.size(); ++index)
+		{
+			ConfigureBroadphaseBody(bodyStorage[index], box, GEngine::Vec3f(
+				static_cast<float>(index % 6) * 1.7f,
+				static_cast<float>((index / 6) % 2) * 3.5f,
+				static_cast<float>(index % 3) * 0.4f),
+				index % 5 == 0 ? GEngine::Component::BodyType::Static : GEngine::Component::BodyType::Dynamic);
+			bodyStorage[index].m_LinearVelocity.x = static_cast<float>(static_cast<int>(index % 4) - 2) * 2.0f;
+			bodyStorage[index].m_CollisionLayer = 1u << (index % 3);
+			bodyStorage[index].m_CollisionMask = index % 4 == 0 ? 0x3u : ~std::uint32_t{ 0 };
+			bodies.push_back(&bodyStorage[index]);
+		}
+
+		constexpr float dt = 1.0f / 60.0f;
+		GEngine::SweepAndPruneBroadphase broadphase;
+		std::vector<GEngine::collisionPair_t> actual;
+		broadphase.FindPairs(bodies, actual, dt);
+		const std::vector<GEngine::collisionPair_t> expected = BruteForceBroadphasePairs(bodies, dt);
+		bool matches = actual.size() == expected.size();
+		for (const GEngine::collisionPair_t& pair : expected)
+		{
+			matches = matches && ContainsPair(actual, pair.a, pair.b);
+		}
+		Expect(matches, "sweep-and-prune candidates exactly match filtered swept-AABB brute force");
+
+		for (std::size_t index = 0; index < bodyStorage.size(); ++index)
+		{
+			bodyStorage[index].m_Position.x += (index % 2 == 0 ? 2.25f : -1.5f);
+		}
+		broadphase.FindPairs(bodies, actual, dt);
+		const std::vector<GEngine::collisionPair_t> movedExpected = BruteForceBroadphasePairs(bodies, dt);
+		matches = actual.size() == movedExpected.size();
+		for (const GEngine::collisionPair_t& pair : movedExpected)
+		{
+			matches = matches && ContainsPair(actual, pair.a, pair.b);
+		}
+		Expect(matches && broadphase.GetLastStats().fullSortCount == 0,
+			"incrementally sorted moving candidates match filtered swept-AABB brute force");
+	}
 }
 
 int main()
@@ -582,6 +767,9 @@ int main()
 	TestSphereRadiusInvalidationContract();
 	TestConstraintDenominators();
 	TestGravityAndInverseMass();
+	TestBroadphaseCorrectnessAndFiltering();
+	TestBroadphasePersistenceAndTemporalCoherence();
+	TestBroadphaseAgainstBruteForce();
 
 	if (failureCount != 0)
 	{

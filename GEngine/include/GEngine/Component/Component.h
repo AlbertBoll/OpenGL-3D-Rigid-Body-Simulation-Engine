@@ -6,6 +6,7 @@
 #include"Core/Utility.h"
 #include <Core/Log.h>
 #include <Events/Signal.h>
+#include <cstdint>
 //#include "Events/Property.h"
 #include "Physics/Bounds.h"
 
@@ -555,6 +556,8 @@ namespace GEngine
 			RigidBody3DComponent(const RigidBody3DComponent&) = default;
 
 			BodyType Type = BodyType::Static;
+			std::uint32_t CollisionLayer = 1u;
+			std::uint32_t CollisionMask = ~std::uint32_t{ 0 };
 			RigidBody3D* RuntimeBody{};
 			//RigidBodyBody3DProperty Property{};
 

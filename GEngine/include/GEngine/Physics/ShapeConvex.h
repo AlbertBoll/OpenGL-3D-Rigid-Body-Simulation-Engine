@@ -34,10 +34,11 @@ namespace GEngine
 		
 		Bounds GetBounds(const Vec3f& pos, const Quat& orient) const override;
 		Bounds GetBounds() const override { return m_Bounds; }
+		const std::vector<Vec3f>& GetPoints() const { return m_Points; }
 
 		float FastestLinearSpeed(const Vec3f& angularVelocity, const Vec3f& dir) const override;
 	
-
+	private:
 		std::vector<Vec3f> m_Points;
 		Bounds m_Bounds;
 		Mat3 m_InertiaTensor;

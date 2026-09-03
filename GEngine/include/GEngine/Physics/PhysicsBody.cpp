@@ -42,13 +42,137 @@ namespace GEngine
 		{
 			return Math::QuaternionOrIdentity(orientation);
 		}
+
+		bool IsSame(const Vec3f& lhs, const Vec3f& rhs)
+		{
+			return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
+		}
+
+		bool IsSame(const Quat& lhs, const Quat& rhs)
+		{
+			return lhs.w == rhs.w && lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
+		}
+	}
+
+	void RigidBody3D::UpdateRotationData() const
+	{
+		if (m_DerivedData.rotationValid &&
+			IsSame(m_DerivedData.rotationSourceOrientation, m_Orientation))
+		{
+			return;
+		}
+
+		const Quat orientation = SafeOrientation(m_Orientation);
+		m_DerivedData.bodyToWorld = glm::toMat3(orientation);
+		m_DerivedData.worldToBody = glm::transpose(m_DerivedData.bodyToWorld);
+		m_DerivedData.rotationSourceOrientation = m_Orientation;
+		++m_DerivedData.rotationRevision;
+		m_DerivedData.rotationValid = true;
+	}
+
+	void RigidBody3D::UpdateCenterOfMassData() const
+	{
+		UpdateRotationData();
+		const std::uint64_t shapeRevision = m_Shape ? m_Shape->GetRevision() : 0;
+		if (m_DerivedData.centerValid && IsSame(m_DerivedData.centerSourcePosition, m_Position) &&
+			m_DerivedData.centerSourceShape == m_Shape &&
+			m_DerivedData.centerSourceShapeRevision == shapeRevision &&
+			m_DerivedData.centerSourceRotationRevision == m_DerivedData.rotationRevision)
+		{
+			return;
+		}
+
+		m_DerivedData.centerOfMassWorld = m_Position;
+		if (m_Shape)
+		{
+			m_DerivedData.centerOfMassWorld +=
+				m_DerivedData.bodyToWorld * m_Shape->GetCenterOfMass();
+		}
+		m_DerivedData.centerSourcePosition = m_Position;
+		m_DerivedData.centerSourceShape = m_Shape;
+		m_DerivedData.centerSourceShapeRevision = shapeRevision;
+		m_DerivedData.centerSourceRotationRevision = m_DerivedData.rotationRevision;
+		m_DerivedData.centerValid = true;
+	}
+
+	void RigidBody3D::UpdateBodyInertiaData() const
+	{
+		const std::uint64_t shapeRevision = m_Shape ? m_Shape->GetRevision() : 0;
+		if (m_DerivedData.bodyInertiaValid &&
+			m_DerivedData.inertiaSourceInverseMass == m_InvMass &&
+			m_DerivedData.inertiaSourceShape == m_Shape &&
+			m_DerivedData.inertiaSourceShapeRevision == shapeRevision)
+		{
+			return;
+		}
+
+		m_DerivedData.inertiaBody = ZeroMat3();
+		m_DerivedData.inverseInertiaBody = ZeroMat3();
+
+		if (m_Shape)
+		{
+			m_DerivedData.inertiaBody = m_Shape->InertiaTensor();
+			if (Math::IsFinite(m_InvMass) && m_InvMass > 0.0f)
+			{
+				m_DerivedData.inverseInertiaBody =
+					InverseOrZero(m_DerivedData.inertiaBody) * m_InvMass;
+			}
+		}
+		m_DerivedData.inertiaSourceInverseMass = m_InvMass;
+		m_DerivedData.inertiaSourceShape = m_Shape;
+		m_DerivedData.inertiaSourceShapeRevision = shapeRevision;
+		++m_DerivedData.bodyInertiaRevision;
+		m_DerivedData.bodyInertiaValid = true;
+	}
+
+	void RigidBody3D::UpdateWorldInertiaData() const
+	{
+		UpdateRotationData();
+		UpdateBodyInertiaData();
+		if (m_DerivedData.worldInertiaValid &&
+			m_DerivedData.worldInertiaSourceBodyRevision == m_DerivedData.bodyInertiaRevision &&
+			m_DerivedData.worldInertiaSourceRotationRevision == m_DerivedData.rotationRevision)
+		{
+			return;
+		}
+
+		m_DerivedData.inertiaWorld = m_DerivedData.bodyToWorld *
+			m_DerivedData.inertiaBody * m_DerivedData.worldToBody;
+		m_DerivedData.inverseInertiaWorld = m_DerivedData.bodyToWorld *
+			m_DerivedData.inverseInertiaBody * m_DerivedData.worldToBody;
+		m_DerivedData.worldInertiaSourceBodyRevision = m_DerivedData.bodyInertiaRevision;
+		m_DerivedData.worldInertiaSourceRotationRevision = m_DerivedData.rotationRevision;
+		m_DerivedData.worldInertiaValid = true;
+	}
+
+	void RigidBody3D::UpdateBoundsData() const
+	{
+		UpdateRotationData();
+		const std::uint64_t shapeRevision = m_Shape ? m_Shape->GetRevision() : 0;
+		if (m_DerivedData.boundsValid && IsSame(m_DerivedData.boundsSourcePosition, m_Position) &&
+			m_DerivedData.boundsSourceShape == m_Shape &&
+			m_DerivedData.boundsSourceShapeRevision == shapeRevision &&
+			m_DerivedData.boundsSourceRotationRevision == m_DerivedData.rotationRevision)
+		{
+			return;
+		}
+
+		m_DerivedData.worldBounds.Clear();
+		if (m_Shape)
+		{
+			m_DerivedData.worldBounds = m_Shape->GetBounds(m_Position, SafeOrientation(m_Orientation));
+		}
+		m_DerivedData.boundsSourcePosition = m_Position;
+		m_DerivedData.boundsSourceShape = m_Shape;
+		m_DerivedData.boundsSourceShapeRevision = shapeRevision;
+		m_DerivedData.boundsSourceRotationRevision = m_DerivedData.rotationRevision;
+		m_DerivedData.boundsValid = true;
 	}
 
 	Vec3f RigidBody3D::GetCenterOfMassWorldSpace() const
 	{
-		const Vec3f centerOfMass = m_Shape->GetCenterOfMass();
-		const Vec3f pos = m_Position + glm::transpose(glm::toMat3(SafeOrientation(m_Orientation))) * centerOfMass;
-		return pos;
+		UpdateCenterOfMassData();
+		return m_DerivedData.centerOfMassWorld;
 	}
 
 	Vec3f RigidBody3D::GetCenterOfMassModelSpace() const
@@ -58,45 +182,44 @@ namespace GEngine
 
 	Vec3f RigidBody3D::WorldSpaceToBodySpace(const Vec3f& pt) const
 	{
-		Vec3f tmp = pt - GetCenterOfMassWorldSpace();
-		Quat inverseOrient = glm::inverse(SafeOrientation(m_Orientation));//m_orientation.Inverse();
-		Vec3f bodySpace = glm::transpose(glm::toMat3(inverseOrient)) * tmp;
-		//Vec3f bodySpace = glm::toMat3(inverseOrient) * tmp;
-		return bodySpace;
+		UpdateCenterOfMassData();
+		return m_DerivedData.worldToBody * (pt - m_DerivedData.centerOfMassWorld);
 	}
 
 	Vec3f RigidBody3D::BodySpaceToWorldSpace(const Vec3f& pt) const
 	{
-		Vec3f worldSpace = GetCenterOfMassWorldSpace() + glm::transpose(glm::toMat3(SafeOrientation(m_Orientation))) * pt;
-		//Vec3f worldSpace = GetCenterOfMassWorldSpace() + glm::toMat3(m_Orientation) * pt;
-		return worldSpace;
+		UpdateCenterOfMassData();
+		return m_DerivedData.centerOfMassWorld + m_DerivedData.bodyToWorld * pt;
 	}
 
 	Mat3 RigidBody3D::GetInverseInertiaTensorBodySpace() const
 	{
-		if (!m_Shape || !Math::IsFinite(m_InvMass) || m_InvMass <= 0.0f)
-		{
-			return ZeroMat3();
-		}
-
-		Mat3 inertiaTensor = m_Shape->InertiaTensor();
-		Mat3 invInertiaTensor = InverseOrZero(inertiaTensor) * m_InvMass;
-		return invInertiaTensor;
+		UpdateBodyInertiaData();
+		return m_DerivedData.inverseInertiaBody;
 	}
 
 	Mat3 RigidBody3D::GetInverseInertiaTensorWorldSpace() const
 	{
-		if (!m_Shape || !Math::IsFinite(m_InvMass) || m_InvMass <= 0.0f)
-		{
-			return ZeroMat3();
-		}
+		UpdateWorldInertiaData();
+		return m_DerivedData.inverseInertiaWorld;
+	}
 
-		Mat3 inertiaTensor = m_Shape->InertiaTensor();
-		Mat3 invInertiaTensor = InverseOrZero(inertiaTensor) * m_InvMass;
-		Mat3 orient = glm::toMat3(SafeOrientation(m_Orientation));
-		//invInertiaTensor = orient * invInertiaTensor * glm::transpose(orient);
-		invInertiaTensor = glm::transpose(orient) * invInertiaTensor * orient;
-		return invInertiaTensor;
+	const Mat3& RigidBody3D::GetBodyToWorldRotation() const
+	{
+		UpdateRotationData();
+		return m_DerivedData.bodyToWorld;
+	}
+
+	const Mat3& RigidBody3D::GetWorldToBodyRotation() const
+	{
+		UpdateRotationData();
+		return m_DerivedData.worldToBody;
+	}
+
+	const Bounds& RigidBody3D::GetWorldBounds() const
+	{
+		UpdateBoundsData();
+		return m_DerivedData.worldBounds;
 	}
 
 	void RigidBody3D::ApplyImpulse(const Vec3f& impulsePoint, const Vec3f& impulse)
@@ -183,8 +306,8 @@ namespace GEngine
 		// T_external = 0 because it was applied in the collision response function
 		// T = Ia = w x I * w
 		// a = I^-1 ( w x I * w )
-		Mat3 orientation = glm::toMat3(m_Orientation);
-		Mat3 inertiaTensor = glm::transpose(orientation) * m_Shape->InertiaTensor() * orientation;
+		UpdateWorldInertiaData();
+		const Mat3 inertiaTensor = m_DerivedData.inertiaWorld;
 		Vec3f alpha = InverseOrZero(inertiaTensor) * glm::cross(m_AngularVelocity, inertiaTensor * m_AngularVelocity);
 		m_AngularVelocity += alpha * dt_sec;
 
@@ -203,7 +326,7 @@ namespace GEngine
 
 
 		// Now get the new model position
-		m_Position = positionCM + glm::transpose(glm::toMat3(dq)) * cmToPos;//dq.RotatePoint(cmToPos);
+		m_Position = positionCM + glm::toMat3(dq) * cmToPos;
 		AssertFiniteState();
 	}
 

@@ -83,10 +83,10 @@ namespace GEngine
 		const Vec3f ab = posB - posA;
 		const Vec3f norm = Math::NormalizeOr(ab);
 
-		ptOnA = posA + norm * sphereA->m_Radius;
-		ptOnB = posB - norm * sphereB->m_Radius;
+		ptOnA = posA + norm * sphereA->GetRadius();
+		ptOnB = posB - norm * sphereB->GetRadius();
 
-		const float radiusAB = sphereA->m_Radius + sphereB->m_Radius;
+		const float radiusAB = sphereA->GetRadius() + sphereB->GetRadius();
 		const float lengthSquare = glm::length2(ab);
 		if (lengthSquare <= (radiusAB * radiusAB)) {
 			return true;
@@ -108,12 +108,12 @@ namespace GEngine
 		if (glm::length2(rayDir) < 0.001f * 0.001f) {
 			// Ray is too short, just check if already intersecting
 			Vec3f ab = posB - posA;
-			float radius = shapeA->m_Radius + shapeB->m_Radius + 0.001f;
+			float radius = shapeA->GetRadius() + shapeB->GetRadius() + 0.001f;
 			if (glm::length2(ab) > radius * radius) {
 				return false;
 			}
 		}
-		else if (!RaySphere(posA, rayDir, posB, shapeA->m_Radius + shapeB->m_Radius, t0, t1)) {
+		else if (!RaySphere(posA, rayDir, posB, shapeA->GetRadius() + shapeB->GetRadius(), t0, t1)) {
 			return false;
 		}
 
@@ -140,8 +140,8 @@ namespace GEngine
 		Vec3f ab = newPosB - newPosA;
 		ab = Math::NormalizeOr(ab, relativeVelocity);
 
-		ptOnA = newPosA + ab * shapeA->m_Radius;
-		ptOnB = newPosB - ab * shapeB->m_Radius;
+		ptOnA = newPosA + ab * shapeA->GetRadius();
+		ptOnB = newPosB - ab * shapeB->GetRadius();
 		return true;
 	}
 
@@ -444,7 +444,7 @@ namespace GEngine
 
 			// Calculate the separation distance
 			Vec3f ab = bodyB->m_Position - bodyA->m_Position;
-			float r = glm::length(ab) - (sphereA->m_Radius + sphereB->m_Radius);
+			float r = glm::length(ab) - (sphereA->GetRadius() + sphereB->GetRadius());
 			contact.separationDistance = r;
 			return true;
 		}
@@ -473,7 +473,7 @@ namespace GEngine
 				contact.ptOnB_LocalSpace = bodyB->WorldSpaceToBodySpace(contact.ptOnB_WorldSpace);
 
 				Vec3f ab = bodyB->m_Position - bodyA->m_Position;
-				float r = glm::length(ab) - (sphereA->m_Radius + sphereB->m_Radius);
+				float r = glm::length(ab) - (sphereA->GetRadius() + sphereB->GetRadius());
 				contact.separationDistance = r;
 				return true;
 			}
@@ -732,7 +732,7 @@ namespace GEngine
 
 				// Calculate the separation distance
 				Vec3f ab = bodyB->m_Position - bodyA->m_Position;
-				float r = glm::length(ab) - (sphereA->m_Radius + sphereB->m_Radius);
+				float r = glm::length(ab) - (sphereA->GetRadius() + sphereB->GetRadius());
 				contact.separationDistance = r;
 				return true;
 

@@ -26,4 +26,10 @@ The executable returns nonzero if any case fails and covers:
 - zero inverse mass under gravity;
 - zero and near-zero penetration-constraint timesteps;
 - finite body integration from a zero quaternion;
+- local/world transform round trips and golden positive 90-degree X/Y/Z rotations;
+- rotated asymmetric-box support, cached AABB, and inverse inertia;
+- derived-data invalidation after direct pose, inverse-mass, and shape changes;
+- warm-cache direct-orientation invalidation across rotation, AABB, inertia, and center of mass;
+- counted proof that unchanged queries reuse shape bounds/inertia and revisions refresh them once;
+- revision-safe public sphere-radius mutation;
 - a one-step gravity trajectory and ordinary sphere overlap/separation results.

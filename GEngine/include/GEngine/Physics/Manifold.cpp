@@ -83,8 +83,7 @@ namespace GEngine
 		m_Constraints[newSlot].m_anchorB = contact.ptOnB_LocalSpace;
 
 		// Get the normal in BodyA's space
-		const Quat orientation = Math::QuaternionOrIdentity(m_BodyA->m_Orientation);
-		Vec3f normal = glm::transpose(glm::toMat3(glm::inverse(orientation))) * (contact.normal * -1.0f);
+		Vec3f normal = m_BodyA->GetWorldToBodyRotation() * (contact.normal * -1.0f);
 	
 		//if(glm::length(normal) >= 0.000001f)
 		m_Constraints[newSlot].m_Normal = Math::NormalizeOr(normal, contact.normal * -1.0f);
@@ -112,8 +111,7 @@ namespace GEngine
 			const Vec3f a = bodyA->BodySpaceToWorldSpace(contact.ptOnA_LocalSpace);
 			const Vec3f b = bodyB->BodySpaceToWorldSpace(contact.ptOnB_LocalSpace);
 
-			const Quat orientation = Math::QuaternionOrIdentity(bodyA->m_Orientation);
-			Vec3f normal = glm::transpose(glm::toMat3(orientation)) * m_Constraints[i].m_Normal;
+			Vec3f normal = bodyA->GetBodyToWorldRotation() * m_Constraints[i].m_Normal;
 
 			// Calculate the tangential separation and penetration depth
 			const Vec3f ab = b - a;

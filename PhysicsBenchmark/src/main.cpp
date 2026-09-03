@@ -25,6 +25,8 @@ namespace
 		std::vector<int> bodyCounts{ 50, 100, 200, 500, 1000, 2000 };
 		int warmupCount{ 2 };
 		int sampleCount{ 5 };
+		int steadyStateWarmupSteps{};
+		int steadyStateMeasuredSteps{};
 		float dtSeconds{ 1.0f / 120.0f };
 	};
 
@@ -32,6 +34,7 @@ namespace
 	{
 		PhysicsProfileSnapshot profile;
 		double externalStepMs{};
+		int measuredSteps{ 1 };
 		bool finiteState{ true };
 	};
 
@@ -85,6 +88,14 @@ namespace
 			{
 				options.dtSeconds = std::stof(argument.substr(5));
 			}
+			else if (argument.starts_with("--steady-state-warmup-steps="))
+			{
+				options.steadyStateWarmupSteps = std::stoi(argument.substr(28));
+			}
+			else if (argument.starts_with("--steady-state-measured-steps="))
+			{
+				options.steadyStateMeasuredSteps = std::stoi(argument.substr(30));
+			}
 			else
 			{
 				throw std::invalid_argument("unknown argument: " + argument);
@@ -92,9 +103,13 @@ namespace
 		}
 
 		if (options.warmupCount < 0 || options.sampleCount < 1 ||
+			options.steadyStateWarmupSteps < 0 || options.steadyStateMeasuredSteps < 0 ||
+			(options.steadyStateWarmupSteps > 0 && options.steadyStateMeasuredSteps == 0) ||
 			!std::isfinite(options.dtSeconds) || options.dtSeconds <= 0.0f)
 		{
-			throw std::invalid_argument("warmup must be non-negative, samples positive, and dt finite and positive");
+			throw std::invalid_argument(
+				"warmups and steady-state step counts must be non-negative, samples positive, "
+				"steady-state warmup requires measured steps, and dt must be finite and positive");
 		}
 		return options;
 	}
@@ -120,7 +135,7 @@ namespace
 			std::isfinite(value.y) && std::isfinite(value.z);
 	}
 
-	Sample RunSample(GEngine::ShapeBox& shape, int bodyCount, float dtSeconds)
+	Sample RunSample(GEngine::ShapeBox& shape, int bodyCount, const Options& options)
 	{
 		GEngine::PhysicsSystem system;
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
@@ -142,19 +157,31 @@ namespace
 			body->m_Friction = 0.5f;
 			body->m_Position = firstBody
 				? GEngine::Vec3f(pairOrigin, 0.0f, 0.0f)
-				: GEngine::Vec3f(pairOrigin + 1.45f, 0.15f, 0.1f);
+				: GEngine::Vec3f(
+					pairOrigin + (options.steadyStateMeasuredSteps > 0 ? 4.0f : 1.45f), 0.15f, 0.1f);
 			body->m_Orientation = firstBody
 				? glm::angleAxis(0.12f, glm::normalize(GEngine::Vec3f(0.3f, 1.0f, 0.2f)))
 				: GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f);
 		}
 
+		for (int step = 0; step < options.steadyStateWarmupSteps; ++step)
+		{
+			system.Update(GEngine::Timestep(options.dtSeconds));
+		}
+
+		const int measuredSteps = std::max(options.steadyStateMeasuredSteps, 1);
 		GEngine::ResetPhysicsProfile();
 		const auto start = Clock::now();
-		system.Update(GEngine::Timestep(dtSeconds));
+		for (int step = 0; step < measuredSteps; ++step)
+		{
+			system.Update(GEngine::Timestep(options.dtSeconds));
+		}
 		const auto end = Clock::now();
 
 		Sample sample;
-		sample.externalStepMs = std::chrono::duration<double, std::milli>(end - start).count();
+		sample.externalStepMs = std::chrono::duration<double, std::milli>(end - start).count() /
+			static_cast<double>(measuredSteps);
+		sample.measuredSteps = measuredSteps;
 		sample.profile = GEngine::GetPhysicsProfileSnapshot();
 		for (const GEngine::RigidBody3D* body : world->GetPhysicsBodies())
 		{
@@ -171,6 +198,17 @@ namespace
 		for (const Sample& sample : samples)
 		{
 			total += static_cast<double>(sample.profile.*field);
+		}
+		return total / static_cast<double>(samples.size());
+	}
+
+	double AveragePerStep(const std::vector<Sample>& samples, std::uint64_t PhysicsProfileSnapshot::* field)
+	{
+		double total = 0.0;
+		for (const Sample& sample : samples)
+		{
+			total += static_cast<double>(sample.profile.*field) /
+				static_cast<double>(sample.measuredSteps);
 		}
 		return total / static_cast<double>(samples.size());
 	}
@@ -225,7 +263,7 @@ namespace
 		return result;
 	}
 
-	bool ValidateSample(const Sample& sample, int bodyCount)
+	bool ValidateSample(const Sample& sample, int bodyCount, bool steadyState)
 	{
 		if (!sample.finiteState || !std::isfinite(sample.externalStepMs) || sample.externalStepMs <= 0.0)
 		{
@@ -238,11 +276,27 @@ namespace
 
 		const auto& profile = sample.profile;
 		const std::uint64_t expectedDynamic = ExpectedDynamicBodyCount(bodyCount);
-		return profile.stepCount == 1 &&
+		const bool commonState = profile.stepCount == static_cast<std::uint64_t>(sample.measuredSteps) &&
 			profile.bodyCount == static_cast<std::uint64_t>(bodyCount) &&
 			profile.dynamicBodyCount == expectedDynamic &&
 			profile.activeBodyCount == expectedDynamic &&
 			profile.sleepingBodyCount == 0 &&
+			profile.integratedBodyCount >= static_cast<std::uint64_t>(bodyCount * sample.measuredSteps) &&
+			profile.broadphaseTimeNs > 0 && profile.integrationTimeNs > 0 &&
+			profile.physicsWorldTimeNs > 0;
+		if (steadyState)
+		{
+			return commonState &&
+				profile.candidatePairCount >= static_cast<std::uint64_t>(bodyCount / 2) &&
+				profile.pairFilterCheckCount > 0 && profile.pairFilterRejectedCount > 0 &&
+				profile.narrowphaseCallCount > 0 && profile.gjkCallCount > 0 &&
+				profile.gjkIterationCount > 0 && profile.supportCallCount > 0 &&
+				profile.epaCallCount == 0 &&
+				profile.generatedContactCount == 0 && profile.manifoldCount == 0 &&
+				profile.manifoldContactCount == 0 && profile.solverConstraintCount == 0;
+		}
+
+		return commonState &&
 			profile.candidatePairCount >= static_cast<std::uint64_t>(bodyCount / 2) &&
 			(bodyCount < 6 || profile.pairFilterRejectedCount > 0) &&
 			profile.narrowphaseCallCount > 0 &&
@@ -250,8 +304,7 @@ namespace
 			profile.supportCallCount > 0 && profile.epaCallCount > 0 &&
 			profile.generatedContactCount > 0 && profile.manifoldCount > 0 &&
 			profile.manifoldContactCount > 0 && profile.solverConstraintCount > 0 &&
-			profile.integratedBodyCount >= static_cast<std::uint64_t>(bodyCount) &&
-			profile.broadphaseTimeNs > 0 && profile.narrowphaseTimeNs > 0 &&
+			profile.narrowphaseTimeNs > 0 &&
 			profile.solverTimeNs > 0 && profile.integrationTimeNs > 0 &&
 			profile.physicsWorldTimeNs > 0;
 	}
@@ -270,8 +323,8 @@ namespace
 
 	void PrintResult(int bodyCount, const std::vector<Sample>& samples)
 	{
-		const double gjkCalls = Average(samples, &PhysicsProfileSnapshot::gjkCallCount);
-		const double gjkIterations = Average(samples, &PhysicsProfileSnapshot::gjkIterationCount);
+		const double gjkCalls = AveragePerStep(samples, &PhysicsProfileSnapshot::gjkCallCount);
+		const double gjkIterations = AveragePerStep(samples, &PhysicsProfileSnapshot::gjkIterationCount);
 		const double externalMeanMs = AverageExternalMs(samples);
 		const double externalMedianMs = MedianExternalMs(samples);
 		auto [minimumSample, maximumSample] = std::minmax_element(samples.begin(), samples.end(),
@@ -284,29 +337,29 @@ namespace
 			<< Average(samples, &PhysicsProfileSnapshot::activeBodyCount) << ','
 			<< Average(samples, &PhysicsProfileSnapshot::sleepingBodyCount) << ','
 			<< Average(samples, &PhysicsProfileSnapshot::candidatePairCount) << ','
-			<< Average(samples, &PhysicsProfileSnapshot::pairFilterRejectedCount) << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::pairFilterRejectedCount) << ','
 			<< gjkCalls << ','
-			<< Average(samples, &PhysicsProfileSnapshot::gjkTimeNs) * nsToMs << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::gjkTimeNs) * nsToMs << ','
 			<< (gjkCalls > 0.0 ? gjkIterations / gjkCalls : 0.0) << ','
 			<< Max(samples, &PhysicsProfileSnapshot::gjkMaxIterations) << ','
-			<< Average(samples, &PhysicsProfileSnapshot::supportCallCount) << ','
-			<< Average(samples, &PhysicsProfileSnapshot::supportTimeNs) * nsToMs << ','
-			<< Average(samples, &PhysicsProfileSnapshot::epaCallCount) << ','
-			<< Average(samples, &PhysicsProfileSnapshot::epaTimeNs) * nsToMs << ','
-			<< Average(samples, &PhysicsProfileSnapshot::generatedContactCount) << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::supportCallCount) << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::supportTimeNs) * nsToMs << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::epaCallCount) << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::epaTimeNs) * nsToMs << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::generatedContactCount) << ','
 			<< Average(samples, &PhysicsProfileSnapshot::manifoldCount) << ','
 			<< Average(samples, &PhysicsProfileSnapshot::manifoldContactCount) << ','
 			<< Average(samples, &PhysicsProfileSnapshot::solverConstraintCount) << ','
-			<< Average(samples, &PhysicsProfileSnapshot::solverIterationCount) << ','
-			<< Average(samples, &PhysicsProfileSnapshot::gravityTimeNs) * nsToMs << ','
-			<< Average(samples, &PhysicsProfileSnapshot::broadphaseTimeNs) * nsToMs << ','
-			<< Average(samples, &PhysicsProfileSnapshot::pairFilterTimeNs) * nsToMs << ','
-			<< Average(samples, &PhysicsProfileSnapshot::narrowphaseTimeNs) * nsToMs << ','
-			<< Average(samples, &PhysicsProfileSnapshot::manifoldTimeNs) * nsToMs << ','
-			<< Average(samples, &PhysicsProfileSnapshot::solverTimeNs) * nsToMs << ','
-			<< Average(samples, &PhysicsProfileSnapshot::contactResolutionTimeNs) * nsToMs << ','
-			<< Average(samples, &PhysicsProfileSnapshot::integrationTimeNs) * nsToMs << ','
-			<< Average(samples, &PhysicsProfileSnapshot::physicsWorldTimeNs) * nsToMs << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::solverIterationCount) << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::gravityTimeNs) * nsToMs << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::broadphaseTimeNs) * nsToMs << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::pairFilterTimeNs) * nsToMs << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::narrowphaseTimeNs) * nsToMs << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::manifoldTimeNs) * nsToMs << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::solverTimeNs) * nsToMs << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::contactResolutionTimeNs) * nsToMs << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::integrationTimeNs) * nsToMs << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::physicsWorldTimeNs) * nsToMs << ','
 			<< externalMeanMs << ',' << externalMedianMs << ','
 			<< minimumSample->externalStepMs << ',' << maximumSample->externalStepMs << ','
 			<< (1000.0 / externalMedianMs) << '\n';
@@ -320,9 +373,14 @@ int main(int argc, char** argv)
 		const Options options = ParseOptions(argc, argv);
 		GEngine::ShapeBox shape(UnitBoxPoints());
 
-		std::cout << "# benchmark=paired_overlapping_boxes\n";
+		std::cout << "# benchmark="
+			<< (options.steadyStateMeasuredSteps > 0
+				? "separated_boxes_steady_state"
+				: "paired_overlapping_boxes") << '\n';
 		std::cout << "# physics_profiling=" << (GEngine::IsPhysicsProfilingEnabled() ? "enabled" : "disabled") << '\n';
 		std::cout << "# warmup=" << options.warmupCount << "\n# samples=" << options.sampleCount
+			<< "\n# steady_state_warmup_steps=" << options.steadyStateWarmupSteps
+			<< "\n# measured_steps_per_sample=" << std::max(options.steadyStateMeasuredSteps, 1)
 			<< "\n# dt_seconds=" << std::setprecision(9) << options.dtSeconds << '\n';
 		PrintHeader();
 
@@ -330,9 +388,10 @@ int main(int argc, char** argv)
 		{
 			for (int warmup = 0; warmup < options.warmupCount; ++warmup)
 			{
-				const Sample sample = RunSample(shape, bodyCount, options.dtSeconds);
-				if (!ValidateSample(sample, bodyCount))
+				const Sample sample = RunSample(shape, bodyCount, options);
+				if (!ValidateSample(sample, bodyCount, options.steadyStateMeasuredSteps > 0))
 				{
+					PrintResult(bodyCount, std::vector<Sample>{ sample });
 					std::cerr << "benchmark validation failed during warmup for body_count=" << bodyCount << '\n';
 					return EXIT_FAILURE;
 				}
@@ -342,9 +401,10 @@ int main(int argc, char** argv)
 			samples.reserve(options.sampleCount);
 			for (int sampleIndex = 0; sampleIndex < options.sampleCount; ++sampleIndex)
 			{
-				samples.push_back(RunSample(shape, bodyCount, options.dtSeconds));
-				if (!ValidateSample(samples.back(), bodyCount))
+				samples.push_back(RunSample(shape, bodyCount, options));
+				if (!ValidateSample(samples.back(), bodyCount, options.steadyStateMeasuredSteps > 0))
 				{
+					PrintResult(bodyCount, std::vector<Sample>{ samples.back() });
 					std::cerr << "benchmark validation failed for body_count=" << bodyCount
 						<< ", sample=" << sampleIndex << '\n';
 					return EXIT_FAILURE;

@@ -516,6 +516,7 @@ namespace GEngine
 		m_CenterOfMass = CalculateCenterOfMass(hullPoints, hullTriangles);
 
 		m_InertiaTensor = CalculateInertiaTensor(hullPoints, hullTriangles, m_CenterOfMass);
+		MarkGeometryChanged();
 	}
 
 	Vec3f ShapeConvex::Support(const Vec3f& dir, const Vec3f& pos, const Quat& orient, const float bias) const

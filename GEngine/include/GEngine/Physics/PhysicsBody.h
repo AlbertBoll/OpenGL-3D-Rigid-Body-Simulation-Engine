@@ -5,6 +5,8 @@
 #include "../Core/Base.h"
 #include "Math/Math.h"
 #include"Component/Component.h"
+#include "Bounds.h"
+#include <cstdint>
 
 namespace GEngine
 {
@@ -26,6 +28,9 @@ namespace GEngine
 		Vec3f BodySpaceToWorldSpace(const Vec3f& pt) const;
 		Mat3 GetInverseInertiaTensorBodySpace() const;
 		Mat3 GetInverseInertiaTensorWorldSpace() const;
+		const Mat3& GetBodyToWorldRotation() const;
+		const Mat3& GetWorldToBodyRotation() const;
+		const Bounds& GetWorldBounds() const;
 
 		void ApplyImpulse(const Vec3f& impulsePoint, const Vec3f& impulse);
 		void ApplyImpulseLinear(const Vec3f& impulse);
@@ -50,8 +55,52 @@ namespace GEngine
 		float		m_Friction = 0.f;
 		PhysicalShape* m_Shape{};
 		BodyType Type = BodyType::Static;
-	
-		
+
+	private:
+		void UpdateRotationData() const;
+		void UpdateCenterOfMassData() const;
+		void UpdateBodyInertiaData() const;
+		void UpdateWorldInertiaData() const;
+		void UpdateBoundsData() const;
+
+		struct DerivedData
+		{
+			Quat rotationSourceOrientation{ 1.0f, 0.0f, 0.0f, 0.0f };
+			Mat3 bodyToWorld{ 1.0f };
+			Mat3 worldToBody{ 1.0f };
+			std::uint64_t rotationRevision{};
+			bool rotationValid{};
+
+			Vec3f centerSourcePosition{};
+			const PhysicalShape* centerSourceShape{};
+			std::uint64_t centerSourceShapeRevision{};
+			std::uint64_t centerSourceRotationRevision{};
+			Vec3f centerOfMassWorld{};
+			bool centerValid{};
+
+			float inertiaSourceInverseMass{};
+			const PhysicalShape* inertiaSourceShape{};
+			std::uint64_t inertiaSourceShapeRevision{};
+			Mat3 inertiaBody{ 0.0f };
+			Mat3 inverseInertiaBody{ 0.0f };
+			std::uint64_t bodyInertiaRevision{};
+			bool bodyInertiaValid{};
+
+			std::uint64_t worldInertiaSourceBodyRevision{};
+			std::uint64_t worldInertiaSourceRotationRevision{};
+			Mat3 inverseInertiaWorld{ 0.0f };
+			Mat3 inertiaWorld{ 0.0f };
+			bool worldInertiaValid{};
+
+			Vec3f boundsSourcePosition{};
+			const PhysicalShape* boundsSourceShape{};
+			std::uint64_t boundsSourceShapeRevision{};
+			std::uint64_t boundsSourceRotationRevision{};
+			Bounds worldBounds{};
+			bool boundsValid{};
+		};
+
+		mutable DerivedData m_DerivedData;
 
 	};
 }

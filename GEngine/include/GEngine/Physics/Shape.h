@@ -4,6 +4,7 @@
 #include <glm/ext/quaternion_float.hpp>
 #include "Bounds.h"
 #include <Component/Component.h>
+#include <cstdint>
 
 
 
@@ -34,12 +35,16 @@ namespace GEngine
 
 		void SetShapeType(ShapeType type) { m_ShapeType = type; }
 		ShapeType GetShapeType() const { return m_ShapeType; }
+		std::uint64_t GetRevision() const { return m_Revision; }
 
 
 	protected:
+		void MarkGeometryChanged() { ++m_Revision; }
+
 		Vec3f m_CenterOfMass;
 		std::vector<Vec3f> m_MeshPoints;
 		ShapeType m_ShapeType;
+		std::uint64_t m_Revision{};
 
 	};
 }

@@ -11,6 +11,7 @@ namespace GEngine
 	{
 		int num = pts.size();
 
+		m_bounds.Clear();
 		for (int i = 0; i < num; i++) {
 			m_bounds.Expand(pts[i]);
 		}
@@ -27,6 +28,7 @@ namespace GEngine
 		m_points.push_back(Vec3f(m_bounds.maxs.x, m_bounds.maxs.y, m_bounds.mins.z));
 
 		m_CenterOfMass = (m_bounds.maxs + m_bounds.mins) * 0.5f;
+		MarkGeometryChanged();
 		GENGINE_INFO("Center of mass: x: {}, y: {}, z: {}", m_CenterOfMass.x, m_CenterOfMass.y, m_CenterOfMass.z);
 
 	}
@@ -116,8 +118,7 @@ namespace GEngine
 
 		Bounds bounds;
 		for (int i = 0; i < 8; i++) {
-			corners[i] = glm::transpose(glm::toMat3(orient)) * corners[i] + pos;
-			//corners[i] = glm::toMat3(orient) * corners[i] + pos;
+			corners[i] = glm::toMat3(orient) * corners[i] + pos;
 			bounds.Expand(corners[i]);
 		}
 

@@ -23,6 +23,7 @@ namespace GEngine
 
 		float FastestLinearSpeed(const Vec3f& angularVelocity, const Vec3f& dir) const override;
 
+	private:
 		std::vector<Vec3f> m_points;
 		Bounds m_bounds;
 	};

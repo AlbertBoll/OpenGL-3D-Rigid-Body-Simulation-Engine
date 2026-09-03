@@ -25,7 +25,7 @@ namespace GEngine::Shape
 			std::vector< Vec3f > hullPts;
 			std::vector< tri_t > hullTris;
 
-			BuildConvexHull(convex.m_Points, hullPts, hullTris);
+			BuildConvexHull(convex.GetPoints(), hullPts, hullTris);
 
 			vertexNormalData.reserve(hullTris.size());
 			positionData.resize(hullPts.size());

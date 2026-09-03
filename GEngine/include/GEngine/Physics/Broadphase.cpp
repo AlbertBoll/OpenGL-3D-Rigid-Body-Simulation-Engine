@@ -53,7 +53,7 @@ namespace GEngine
 		for (int i = 0; i < num; i++) {
 			const RigidBody3D& body = *bodies[i];
 			
-			Bounds bounds = body.m_Shape->GetBounds(body.m_Position, body.m_Orientation);
+			Bounds bounds = body.GetWorldBounds();
 		
 			// Expand the bounds by the linear velocity
 			bounds.Expand(bounds.mins + body.m_LinearVelocity * dt_sec);
@@ -87,7 +87,7 @@ namespace GEngine
 			const RigidBody3D& body = *bodies[i];
 			Vec3f extend = body.m_LinearVelocity * dt_sec;
 
-			Bounds bounds = body.m_Shape->GetBounds(body.m_Position, body.m_Orientation);
+			Bounds bounds = body.GetWorldBounds();
 
 			// Expand the bounds by the linear velocity
 			bounds.Expand(bounds.mins + extend);

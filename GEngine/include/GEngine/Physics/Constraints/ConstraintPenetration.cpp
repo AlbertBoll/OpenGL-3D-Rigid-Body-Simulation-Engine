@@ -40,12 +40,11 @@ namespace GEngine
 		Math::GetOrtho(m_Normal, u, v);
 
 		// Convert tangent space from model space to world space
-		const Quat orientationA = Math::QuaternionOrIdentity(m_bodyA->m_Orientation);
-		Vec3f normal = glm::transpose(glm::toMat3(orientationA)) * Math::VectorOr(m_Normal);
-		//Vec3f normal = glm::toMat3(m_bodyA->m_Orientation) * m_Normal;
+		const Mat3& bodyToWorld = m_bodyA->GetBodyToWorldRotation();
+		Vec3f normal = bodyToWorld * Math::VectorOr(m_Normal);
 
-		u = glm::transpose(glm::toMat3(orientationA)) * u;
-		v = glm::transpose(glm::toMat3(orientationA)) * v;
+		u = bodyToWorld * u;
+		v = bodyToWorld * v;
 
 		m_Jacobian.Zero();
 

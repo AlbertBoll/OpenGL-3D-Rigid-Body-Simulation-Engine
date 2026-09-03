@@ -12,6 +12,13 @@ contact generation, manifold creation, constraint solving, and integration.
 Scene construction is outside the timed region, and each sample recreates the
 same initial state.
 
+The optional steady-state mode constructs each sample's bodies once, separates
+the boxes so zero-gravity/zero-velocity bodies remain pose-stable, executes
+untimed steps to populate body-derived caches, then times multiple steps using
+those same bodies. This isolates steady derived-data reuse from first-use cache
+population and collision-response motion. Reported times and additive workload
+counters are normalized per measured step.
+
 Generate and build the normal Release configuration:
 
 ```powershell
@@ -35,7 +42,14 @@ Supported arguments:
 --warmup=2
 --samples=5
 --dt=0.008333333
+--steady-state-warmup-steps=4
+--steady-state-measured-steps=8
 ```
+
+Both steady-state arguments default to zero, preserving the original one-step
+benchmark. Supplying a positive measured-step count enables steady-state mode;
+the warmup-step count selects how many same-body steps are excluded before the
+profile and wall clock are reset.
 
 Without `--physics-profiling`, all internal profiling macros compile to no-ops
 and the CSV reports external wall time only. Generate the normal project files

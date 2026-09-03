@@ -16,6 +16,9 @@
 #include <Shapes/Cylinder.h>
 
 
+#define box_stacking_scene 0
+#define sphere_lattice_scene 1
+
 static std::string base_shader_dir = "../GEngine/include/GEngine/Assets/Shaders/";
 static std::string image_base_dir = "../GEngine/include/GEngine/Assets/Images/";
 static std::string image_extension = ".png";
@@ -270,7 +273,7 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	aabbComponent.bVisible = true;
 
 	//RefPtr<DebugAABBBoundingBoxComponent> debugBoundingBoxComp = CreateRefPtr<DebugAABBBoundingBoxComponent>();
-
+	#if sphere_lattice_scene
 	static int i = 0;
 	//load dynamic sphere body
 	for (int z = 1; z < 5; z++)
@@ -303,7 +306,7 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 			}
 		}
 	}
-
+	#endif
 
 	//load dynamic box body
 	//auto box = ShapeManager::_GetShape<Shape::Box>("wood box", 2.f, 2.f, 2.f);
@@ -326,30 +329,32 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	//woodBoxEntity.AddOrReplaceComponent<TexturesComponent>(boxTextureComp);
 	//woodBoxEntity.AddOrReplaceComponent<MeshComponent>(box);
 	
-	//float offset = 2.f;
+	#if box_stacking_scene
+	float offset = 2.f;
 
-	//for (int y = 0; y < 4; y++)
-	//{
-	//	for (int x = 0; x < 4; x++)
-	//	{
-	//		//float x = i % 2 == 0 ? -0.7f : 0.7f;
-	//		_Entity woodBoxEntity = m_ActiveScene->CreateEntity("wood_box");
+	for (int y = 0; y < 4; y++)
+	{
+		for (int x = 0; x < 4; x++)
+		{
+			//float x = i % 2 == 0 ? -0.7f : 0.7f;
+			_Entity woodBoxEntity = m_ActiveScene->CreateEntity("wood_box");
 
-	//		woodBoxEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
-	//		woodBoxEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
-	//		woodBoxEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ x * (offset+0.01f), 1.5f + y * offset, 0.f }, Vec3f{0.f}, Vec3f{2.f});
-	//		//woodBoxEntity.GetComponent<Transform3DComponent>().SetRotation({ Math::Pi / 4.f, 0.f, 0.f });
-	//		boxFixtureComp.Property.m_Position = woodBoxEntity.GetComponent<Transform3DComponent>().Translation;
-	//		boxFixtureComp.Property.m_Orientation = woodBoxEntity.GetComponent<Transform3DComponent>().QuatRotation;
-	//		woodBoxEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
-	//		woodBoxEntity.AddOrReplaceComponent<BoxFixture3DComponent>(boxFixtureComp);
-	//		woodBoxEntity.AddOrReplaceComponent<TexturesComponent>(boxTextureComp);
-	//		woodBoxEntity.AddOrReplaceComponent<MeshComponent>(box);
-	//		m_ActiveScene->PushToRenderList(woodBoxEntity);
+			woodBoxEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
+			woodBoxEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
+			woodBoxEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ x * (offset+0.01f), 1.5f + y * offset, 0.f }, Vec3f{0.f}, Vec3f{2.f});
+			//woodBoxEntity.GetComponent<Transform3DComponent>().SetRotation({ Math::Pi / 4.f, 0.f, 0.f });
+			boxFixtureComp.Property.m_Position = woodBoxEntity.GetComponent<Transform3DComponent>().Translation;
+			boxFixtureComp.Property.m_Orientation = woodBoxEntity.GetComponent<Transform3DComponent>().QuatRotation;
+			woodBoxEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
+			woodBoxEntity.AddOrReplaceComponent<BoxFixture3DComponent>(boxFixtureComp);
+			woodBoxEntity.AddOrReplaceComponent<TexturesComponent>(boxTextureComp);
+			woodBoxEntity.AddOrReplaceComponent<MeshComponent>(box);
+			m_ActiveScene->PushToRenderList(woodBoxEntity);
 
-	//	}
-	//}
+		}
+	}
 
+	#endif
 	//m_ActiveScene->PushToRenderList(woodBoxEntity);
 	//m_ActiveScene->PushToRenderList(DiamondEntity);
 	//m_ActiveScene->PushToRenderList(woodSphereEntity);

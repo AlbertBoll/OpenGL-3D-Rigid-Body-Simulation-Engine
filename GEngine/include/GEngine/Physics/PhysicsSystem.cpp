@@ -253,8 +253,21 @@ namespace GEngine
 			m_Contacts.clear();
 			for (std::size_t i = 0; i < m_CollisionPairs.size(); ++i) {
 				const collisionPair_t& pair = m_CollisionPairs[i];
+				const bool validPair = pair.a >= 0 && pair.b >= 0 && pair.a != pair.b &&
+					static_cast<std::size_t>(pair.a) < PhysicsBodies.size() &&
+					static_cast<std::size_t>(pair.b) < PhysicsBodies.size();
+				GENGINE_CORE_ASSERT(validPair, "Broadphase returned invalid body indices");
+				if (!validPair)
+				{
+					continue;
+				}
 				RigidBody3D* bodyA = PhysicsBodies[pair.a];
 				RigidBody3D* bodyB = PhysicsBodies[pair.b];
+				if (!bodyA || !bodyB || !bodyA->m_Shape || !bodyB->m_Shape ||
+					!bodyA->m_Shape->IsValid() || !bodyB->m_Shape->IsValid())
+				{
+					continue;
+				}
 
 				GE_PHYSICS_PROFILE_ADD(pairFilterCheckCount, 1);
 				GE_PHYSICS_PROFILE_SCOPE_NAMED(pairFilterTimer, pairFilterTimeNs);
@@ -491,7 +504,8 @@ namespace GEngine
 			Vec3f ptOnA;
 			Vec3f ptOnB;
 			const float bias = 0.001f;
-			if (GJK_DoesIntersect(bodyA, bodyB, bias, ptOnA, ptOnB)) 
+			const GjkContactStatus gjkStatus = GJK_GetContact(bodyA, bodyB, bias, ptOnA, ptOnB);
+			if (gjkStatus == GjkContactStatus::Contact)
 			{
 				//std::cout << "GJK_DoesIntersect" << std::endl;
 				// There was an intersection, so get the contact data
@@ -514,6 +528,10 @@ namespace GEngine
 				float r = glm::length(ptOnA - ptOnB);
 				contact.separationDistance = -r;
 				return true;
+			}
+			if (gjkStatus == GjkContactStatus::Failed)
+			{
+				return false;
 			}
 
 			// There was no collision, but we still want the contact data, so get it

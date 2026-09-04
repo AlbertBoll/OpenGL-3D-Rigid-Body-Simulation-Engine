@@ -32,6 +32,7 @@ namespace GEngine
 		virtual Vec3f GetCenterOfMass() const { return m_CenterOfMass; }
 		virtual Vec3f Support(const Vec3f& dir, const Vec3f& pos, const Quat& orient, const float bias) const = 0;
 		virtual float FastestLinearSpeed(const Vec3f& angularVelocity, const Vec3f& dir) const { return 0.0f; }
+		virtual bool IsValid() const { return true; }
 
 		void SetShapeType(ShapeType type) { m_ShapeType = type; }
 		ShapeType GetShapeType() const { return m_ShapeType; }

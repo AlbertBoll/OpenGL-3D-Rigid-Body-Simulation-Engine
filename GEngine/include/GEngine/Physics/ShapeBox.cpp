@@ -2,32 +2,73 @@
 #include "ShapeBox.h"
 #include "Geometry/Geometry.h"
 
+#include <algorithm>
+#include <limits>
+
 
 namespace GEngine
 {
 
+	bool ShapeBox::IsValidPointSet(const std::vector<Vec3f>& pts)
+	{
+		if (pts.empty()) {
+			return false;
+		}
+
+		Bounds bounds;
+		for (const Vec3f& point : pts) {
+			if (!Math::IsFinite(point)) {
+				return false;
+			}
+			bounds.Expand(point);
+		}
+
+		return Math::IsFinite(bounds.mins) && Math::IsFinite(bounds.maxs) &&
+			bounds.WidthX() > Math::NumericalEpsilon &&
+			bounds.WidthY() > Math::NumericalEpsilon &&
+			bounds.WidthZ() > Math::NumericalEpsilon;
+	}
+
+	bool ShapeBox::IsValid() const
+	{
+		if (m_points.size() != 8 || !Math::IsFinite(m_bounds.mins) ||
+			!Math::IsFinite(m_bounds.maxs) || !Math::IsFinite(m_CenterOfMass) ||
+			m_bounds.WidthX() <= Math::NumericalEpsilon ||
+			m_bounds.WidthY() <= Math::NumericalEpsilon ||
+			m_bounds.WidthZ() <= Math::NumericalEpsilon) {
+			return false;
+		}
+
+		return std::all_of(m_points.begin(), m_points.end(),
+			[](const Vec3f& point) { return Math::IsFinite(point); });
+	}
 
 	void ShapeBox::Build(const std::vector<Vec3f>& pts)
 	{
-		int num = pts.size();
-
-		m_bounds.Clear();
-		for (int i = 0; i < num; i++) {
-			m_bounds.Expand(pts[i]);
+		if (!IsValidPointSet(pts)) {
+			return;
 		}
 
-		m_points.clear();
-		m_points.push_back(Vec3f(m_bounds.mins.x, m_bounds.mins.y, m_bounds.mins.z));
-		m_points.push_back(Vec3f(m_bounds.maxs.x, m_bounds.mins.y, m_bounds.mins.z));
-		m_points.push_back(Vec3f(m_bounds.mins.x, m_bounds.maxs.y, m_bounds.mins.z));
-		m_points.push_back(Vec3f(m_bounds.mins.x, m_bounds.mins.y, m_bounds.maxs.z));
+		Bounds bounds;
+		for (const Vec3f& point : pts) {
+			bounds.Expand(point);
+		}
 
-		m_points.push_back(Vec3f(m_bounds.maxs.x, m_bounds.maxs.y, m_bounds.maxs.z));
-		m_points.push_back(Vec3f(m_bounds.mins.x, m_bounds.maxs.y, m_bounds.maxs.z));
-		m_points.push_back(Vec3f(m_bounds.maxs.x, m_bounds.mins.y, m_bounds.maxs.z));
-		m_points.push_back(Vec3f(m_bounds.maxs.x, m_bounds.maxs.y, m_bounds.mins.z));
+		std::vector<Vec3f> points;
+		points.reserve(8);
+		points.push_back(Vec3f(bounds.mins.x, bounds.mins.y, bounds.mins.z));
+		points.push_back(Vec3f(bounds.maxs.x, bounds.mins.y, bounds.mins.z));
+		points.push_back(Vec3f(bounds.mins.x, bounds.maxs.y, bounds.mins.z));
+		points.push_back(Vec3f(bounds.mins.x, bounds.mins.y, bounds.maxs.z));
 
-		m_CenterOfMass = (m_bounds.maxs + m_bounds.mins) * 0.5f;
+		points.push_back(Vec3f(bounds.maxs.x, bounds.maxs.y, bounds.maxs.z));
+		points.push_back(Vec3f(bounds.mins.x, bounds.maxs.y, bounds.maxs.z));
+		points.push_back(Vec3f(bounds.maxs.x, bounds.mins.y, bounds.maxs.z));
+		points.push_back(Vec3f(bounds.maxs.x, bounds.maxs.y, bounds.mins.z));
+
+		m_bounds = bounds;
+		m_points.swap(points);
+		m_CenterOfMass = (bounds.maxs + bounds.mins) * 0.5f;
 		MarkGeometryChanged();
 		GENGINE_INFO("Center of mass: x: {}, y: {}, z: {}", m_CenterOfMass.x, m_CenterOfMass.y, m_CenterOfMass.z);
 
@@ -36,8 +77,12 @@ namespace GEngine
 
 	Vec3f ShapeBox::Support(const Vec3f& dir, const Vec3f& pos, const Quat& orient, const float bias) const
 	{
+		if (!IsValid()) {
+			GENGINE_CORE_ASSERT(false, "ShapeBox::Support called without valid box geometry");
+			return Vec3f(std::numeric_limits<float>::quiet_NaN());
+		}
+
 		// Find the point in furthest in direction
-		Vec3f dir_ = Math::NormalizeOr(dir);
 		//Vec3f maxPt = glm::transpose(glm::toMat3(orient)) * m_points[0] + pos;
 		Vec3f maxPt = glm::toMat3(orient) * m_points[0] + pos;
 		float maxDist = glm::dot(dir, maxPt);

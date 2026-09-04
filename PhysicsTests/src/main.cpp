@@ -74,6 +74,28 @@ namespace
 		};
 	}
 
+	std::vector<GEngine::Vec3f> BoxPoints(const GEngine::Vec3f& halfExtents)
+	{
+		return {
+			{ -halfExtents.x, -halfExtents.y, -halfExtents.z },
+			{  halfExtents.x, -halfExtents.y, -halfExtents.z },
+			{ -halfExtents.x,  halfExtents.y, -halfExtents.z },
+			{  halfExtents.x,  halfExtents.y, -halfExtents.z },
+			{ -halfExtents.x, -halfExtents.y,  halfExtents.z },
+			{  halfExtents.x, -halfExtents.y,  halfExtents.z },
+			{ -halfExtents.x,  halfExtents.y,  halfExtents.z },
+			{  halfExtents.x,  halfExtents.y,  halfExtents.z }
+		};
+	}
+
+	bool Finite(const GEngine::contact_t& contact)
+	{
+		return Finite(contact.ptOnA_WorldSpace) && Finite(contact.ptOnB_WorldSpace) &&
+			Finite(contact.ptOnA_LocalSpace) && Finite(contact.ptOnB_LocalSpace) &&
+			Finite(contact.normal) && std::isfinite(contact.separationDistance) &&
+			std::isfinite(contact.timeOfImpact);
+	}
+
 	class CountingShape final : public GEngine::PhysicalShape
 	{
 	public:
@@ -270,7 +292,7 @@ namespace
 
 	void TestDegenerateGjkDirection()
 	{
-		GEngine::ShapeBox pointShape({ GEngine::Vec3f(0.0f) });
+		GEngine::ShapeSphere pointShape(0.0f);
 		GEngine::RigidBody3D bodyA;
 		GEngine::RigidBody3D bodyB;
 		bodyA.m_Shape = &pointShape;
@@ -304,6 +326,110 @@ namespace
 		body.m_Orientation = orientation;
 		body.Type = GEngine::Component::BodyType::Dynamic;
 		body.m_InvMass = 1.0f;
+	}
+
+	void TestBoxConstructionInvariant()
+	{
+		bool rejectedEmptyGeometry = false;
+		try
+		{
+			GEngine::ShapeBox invalidBox(std::vector<GEngine::Vec3f>{});
+		}
+		catch (const std::invalid_argument&)
+		{
+			rejectedEmptyGeometry = true;
+		}
+		Expect(rejectedEmptyGeometry, "empty box geometry is rejected before support mapping");
+
+		GEngine::ShapeBox box(UnitBoxPoints());
+		const GEngine::Vec3f supportBefore = box.Support(GEngine::Vec3f(1.0f, 0.0f, 0.0f),
+			GEngine::Vec3f(0.0f), GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f), 0.0f);
+		box.Build({});
+		const GEngine::Vec3f supportAfter = box.Support(GEngine::Vec3f(1.0f, 0.0f, 0.0f),
+			GEngine::Vec3f(0.0f), GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f), 0.0f);
+		Expect(box.IsValid() && Near(supportAfter, supportBefore),
+			"failed box rebuild preserves the previous valid support geometry");
+	}
+
+	void ExpectBoxContact(GEngine::RigidBody3D& bodyA, GEngine::RigidBody3D& bodyB,
+		std::string_view description)
+	{
+		GEngine::contact_t contact{};
+		const bool intersects = GEngine::Collision::Intersect(&bodyA, &bodyB, contact);
+		Expect(intersects, description);
+		Expect(intersects && Finite(contact) && Near(glm::length(contact.normal), 1.0f, 1.0e-3f),
+			"box contact data is finite and normalized");
+	}
+
+	void TestBoxContactRegression()
+	{
+		GEngine::ShapeBox box(UnitBoxPoints());
+		GEngine::ShapeBox floor(BoxPoints(GEngine::Vec3f(5.0f, 0.5f, 5.0f)));
+		GEngine::RigidBody3D bodyA;
+		GEngine::RigidBody3D bodyB;
+
+		ConfigureBoxBody(bodyA, box, GEngine::Vec3f(0.0f, 1.0f, 0.0f),
+			GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f));
+		ConfigureBoxBody(bodyB, floor, GEngine::Vec3f(0.0f, -0.5f, 0.0f),
+			GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f));
+		bodyB.Type = GEngine::Component::BodyType::Static;
+		bodyB.m_InvMass = 0.0f;
+		ExpectBoxContact(bodyA, bodyB, "dynamic box initially touching a static floor intersects");
+
+		ConfigureBoxBody(bodyA, box, GEngine::Vec3f(0.0f),
+			GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f));
+		ConfigureBoxBody(bodyB, box, GEngine::Vec3f(2.0f, 0.0f, 0.0f),
+			GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f));
+		ExpectBoxContact(bodyA, bodyB, "boxes touching face-to-face intersect");
+
+		bodyB.m_Position = GEngine::Vec3f(1.99f, 0.0f, 0.0f);
+		ExpectBoxContact(bodyA, bodyB, "slightly penetrating boxes intersect");
+
+		bodyB.m_Position = GEngine::Vec3f(2.01f, 0.0f, 0.0f);
+		GEngine::contact_t separatedContact{};
+		Expect(!GEngine::Collision::Intersect(&bodyA, &bodyB, separatedContact),
+			"separated boxes remain separated");
+		Expect(Finite(separatedContact), "separated box closest points remain finite");
+
+		bodyB.m_Position = GEngine::Vec3f(2.2f, 0.0f, 0.0f);
+		bodyB.m_Orientation = glm::angleAxis(0.78539816339f, GEngine::Vec3f(0.0f, 0.0f, 1.0f));
+		ExpectBoxContact(bodyA, bodyB, "rotated boxes in contact intersect");
+	}
+
+	void TestSmallBoxStackRegression()
+	{
+		GEngine::ShapeBox box(UnitBoxPoints());
+		GEngine::ShapeBox floor(BoxPoints(GEngine::Vec3f(5.0f, 0.5f, 5.0f)));
+		GEngine::PhysicsSystem physics;
+		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
+		physics.SetPhysicsWorld(world);
+
+		GEngine::RigidBody3D* floorBody = world->CreateRigidBody3D();
+		ConfigureBoxBody(*floorBody, floor, GEngine::Vec3f(0.0f, -0.5f, 0.0f),
+			GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f));
+		floorBody->Type = GEngine::Component::BodyType::Static;
+		floorBody->m_InvMass = 0.0f;
+
+		std::array<GEngine::RigidBody3D*, 4> boxes{};
+		for (std::size_t index = 0; index < boxes.size(); ++index)
+		{
+			boxes[index] = world->CreateRigidBody3D();
+			ConfigureBoxBody(*boxes[index], box,
+				GEngine::Vec3f(0.0f, 1.0f + 2.0f * static_cast<float>(index), 0.0f),
+				GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f));
+		}
+
+		for (int step = 0; step < 240; ++step)
+		{
+			physics.Update(GEngine::Timestep(1.0f / 120.0f));
+		}
+
+		bool finiteStack = floorBody->HasFiniteState();
+		for (const GEngine::RigidBody3D* body : boxes)
+		{
+			finiteStack = finiteStack && body->HasFiniteState() && body->m_Position.y > -10.0f;
+		}
+		Expect(finiteStack, "small exact-contact box stack remains finite and above the fall-through bound");
 	}
 
 	void TestGoldenRotations()
@@ -760,6 +886,9 @@ int main()
 	TestSphereContacts();
 	TestDegenerateGjkDirection();
 	TestZeroQuaternionBodyUpdate();
+	TestBoxConstructionInvariant();
+	TestBoxContactRegression();
+	TestSmallBoxStackRegression();
 	TestGoldenRotations();
 	TestRotatedAsymmetricBox();
 	TestDerivedDataInvalidation();

@@ -136,7 +136,7 @@ namespace GEngine
 			_Entity entity = { rigidy_body, this };
 			//auto& transform = entity.GetComponent<Transform3DComponent>();
 			auto& rigidBody = entity.GetComponent<RigidBody3DComponent>();
-			if (rigidBody.Type != BodyType::Static)
+			if (rigidBody.Type != BodyType::Static && rigidBody.RuntimeBody)
 			{
 				auto& tag = entity.GetComponent<TagComponent>();
 				auto& transform = entity.GetComponent<Transform3DComponent>();
@@ -469,6 +469,24 @@ namespace GEngine
 			else if (entity.HasAllComponents<BoxFixture3DComponent>())
 			{
 				auto& box_fixure = entity.GetComponent<BoxFixture3DComponent>();
+				if (!entity.HasAllComponents<MeshComponent>())
+				{
+					GENGINE_CORE_ERROR("Cannot create box rigid body without a mesh component");
+					continue;
+				}
+				auto* geometry = entity.GetComponent<MeshComponent>().m_Geometry;
+				if (!geometry)
+				{
+					GENGINE_CORE_ERROR("Cannot create box rigid body without mesh geometry");
+					continue;
+				}
+				auto pts = geometry->GetPoints(transform.Scale);
+				if (!ShapeBox::IsValidPointSet(pts))
+				{
+					GENGINE_CORE_ERROR("Cannot create box rigid body from empty, non-finite, or degenerate geometry");
+					continue;
+				}
+				auto* shape = new ShapeBox(pts);
 				RigidBody3D* body = m_PhysicsWorld->CreateRigidBody3D();
 
 				body->m_LinearVelocity = box_fixure.Property.m_LinearVelocity;//rigid_body.Property.m_LinearVelocity;
@@ -481,14 +499,12 @@ namespace GEngine
 				body->Type = rigid_body.Type;
 				body->m_CollisionLayer = rigid_body.CollisionLayer;
 				body->m_CollisionMask = rigid_body.CollisionMask;
-				auto pts = entity.GetComponent<MeshComponent>().m_Geometry->GetPoints(transform.Scale);
-				
 				//std::cout << entity.GetComponent<TagComponent>().Name << std::endl;
 				/*for (auto& pt : pts)
 				{
 					std::cout << pt.x << " " << pt.y << " " << pt.z << std::endl;
 				}*/
-				body->m_Shape = new ShapeBox(pts);
+				body->m_Shape = shape;
 
 				Connection(transform, OnScaleChanged, *body->m_Shape, &PhysicalShape::HandleScaleChanged);
 				//transform.SetScale(2);

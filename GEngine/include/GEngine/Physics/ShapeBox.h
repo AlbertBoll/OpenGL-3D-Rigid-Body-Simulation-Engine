@@ -1,18 +1,25 @@
 #pragma once
 #include "Shape.h"
 
+#include <stdexcept>
+
 namespace GEngine
 {
 
 	class ShapeBox : public PhysicalShape
 	{
 	public:
-		ShapeBox() = default;
-		ShapeBox(const std::vector<Vec3f>& pts): PhysicalShape(pts) {
+		ShapeBox() = delete;
+		explicit ShapeBox(const std::vector<Vec3f>& pts): PhysicalShape(pts) {
 			Build(pts);
 			m_ShapeType = ShapeType::Box;
+			if (!IsValid()) {
+				throw std::invalid_argument("ShapeBox requires finite points with non-zero extents");
+			}
 		}
 		void Build(const std::vector<Vec3f>& pts);
+		static bool IsValidPointSet(const std::vector<Vec3f>& pts);
+		bool IsValid() const override;
 
 		Vec3f Support(const Vec3f& dir, const Vec3f& pos, const Quat& orient, const float bias) const override;
 		//void HandleScaleChanged(const Vec3f& new_scale) override;

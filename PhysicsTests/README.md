@@ -23,6 +23,8 @@ The executable returns nonzero if any case fails and covers:
 - zero and near-zero LCP pivots;
 - coincident static and swept sphere contacts;
 - degenerate GJK search directions;
+- box construction invariants plus exact face contact, slight penetration,
+  separation, rotated contact, and a small exact-contact box stack;
 - zero inverse mass under gravity;
 - zero and near-zero penetration-constraint timesteps;
 - finite body integration from a zero quaternion;

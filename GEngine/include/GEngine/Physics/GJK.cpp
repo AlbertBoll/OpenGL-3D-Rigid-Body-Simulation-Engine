@@ -6,6 +6,8 @@
 #include "Shape.h"
 #include "glm/glm.hpp"
 
+#include <array>
+
 namespace GEngine
 {
 	
@@ -358,7 +360,21 @@ namespace GEngine
 		}
 	};
 
-	float EPA_Expand(const RigidBody3D* bodyA, const RigidBody3D* bodyB, const float bias, const point_t simplexPoints[4], Vec3f& ptOnA, Vec3f& ptOnB);
+	bool EPA_Expand(const RigidBody3D* bodyA, const RigidBody3D* bodyB, float bias,
+		const point_t simplexPoints[4], Vec3f& ptOnA, Vec3f& ptOnB);
+
+	bool IsValidSupportPoint(const point_t& point)
+	{
+		return Math::IsFinite(point.xyz) && Math::IsFinite(point.ptA) && Math::IsFinite(point.ptB);
+	}
+
+	bool HasValidCollisionShapes(const RigidBody3D* bodyA, const RigidBody3D* bodyB)
+	{
+		return bodyA && bodyB && bodyA->m_Shape && bodyB->m_Shape &&
+			bodyA->m_Shape->IsValid() && bodyB->m_Shape->IsValid() &&
+			Math::IsFinite(bodyA->m_Position) && Math::IsFinite(bodyB->m_Position) &&
+			Math::IsFinite(bodyA->m_Orientation) && Math::IsFinite(bodyB->m_Orientation);
+	}
 
 	/*
 	================================
@@ -452,17 +468,115 @@ namespace GEngine
 	Checks whether the new point already exists in the simplex
 	================================
 	*/
-	bool HasPoint(const point_t simplexPoints[4], const point_t& newPt) {
+	bool HasPoint(const point_t simplexPoints[4], int numPts, const point_t& newPt) {
 		const float precision = 1e-6f;
 
-		for (int i = 0; i < 4; i++) {
+		if (numPts < 0 || numPts > 4 || !IsValidSupportPoint(newPt)) {
+			return false;
+		}
+
+		for (int i = 0; i < numPts; i++) {
 			Vec3f delta = simplexPoints[i].xyz - newPt.xyz;
-			if (glm::length2(delta) < precision * precision) 
+			const float distanceSquared = glm::length2(delta);
+			if (Math::IsFinite(distanceSquared) && distanceSquared < precision * precision)
 			{
 				return true;
 			}
 		}
 		return false;
+	}
+
+	bool IncreasesSimplexDimension(const point_t simplexPoints[4], int numPts, const point_t& candidate)
+	{
+		if (!IsValidSupportPoint(candidate) || numPts < 1 || numPts > 3) {
+			return false;
+		}
+
+		const Vec3f fromA = candidate.xyz - simplexPoints[0].xyz;
+		const float fromALengthSquared = glm::length2(fromA);
+		if (!Math::IsFinite(fromALengthSquared) || fromALengthSquared <= Math::NumericalEpsilonSquared) {
+			return false;
+		}
+		if (numPts == 1) {
+			return true;
+		}
+
+		const Vec3f ab = simplexPoints[1].xyz - simplexPoints[0].xyz;
+		const float abLengthSquared = glm::length2(ab);
+		const Vec3f normal = glm::cross(ab, fromA);
+		const float normalLengthSquared = glm::length2(normal);
+		if (!Math::IsFinite(abLengthSquared) || !Math::IsFinite(normalLengthSquared) ||
+			normalLengthSquared <= Math::NumericalEpsilonSquared * abLengthSquared * fromALengthSquared) {
+			return false;
+		}
+		if (numPts == 2) {
+			return true;
+		}
+
+		const Vec3f ac = simplexPoints[2].xyz - simplexPoints[0].xyz;
+		const Vec3f baseNormal = glm::cross(ab, ac);
+		const float baseNormalLengthSquared = glm::length2(baseNormal);
+		const float signedVolume = glm::dot(baseNormal, fromA);
+		return Math::IsFinite(baseNormalLengthSquared) && Math::IsFinite(signedVolume) &&
+			signedVolume * signedVolume >
+			Math::NumericalEpsilonSquared * baseNormalLengthSquared * fromALengthSquared;
+	}
+
+	bool ExpandSimplexToTetrahedron(const RigidBody3D* bodyA, const RigidBody3D* bodyB,
+		point_t simplexPoints[4], int& numPts)
+	{
+		while (numPts < 4) {
+			std::array<Vec3f, 8> directions{};
+			int directionCount = 0;
+			if (numPts == 1) {
+				directions[directionCount++] = -simplexPoints[0].xyz;
+			}
+			else if (numPts == 2) {
+				const Vec3f ab = simplexPoints[1].xyz - simplexPoints[0].xyz;
+				Vec3f u;
+				Vec3f v;
+				GetOrtho(ab, u, v);
+				directions[directionCount++] = u;
+				directions[directionCount++] = -u;
+				directions[directionCount++] = v;
+				directions[directionCount++] = -v;
+			}
+			else {
+				const Vec3f ab = simplexPoints[1].xyz - simplexPoints[0].xyz;
+				const Vec3f ac = simplexPoints[2].xyz - simplexPoints[0].xyz;
+				const Vec3f normal = glm::cross(ab, ac);
+				directions[directionCount++] = normal;
+				directions[directionCount++] = -normal;
+			}
+
+			directions[directionCount++] = Vec3f(1.0f, 0.0f, 0.0f);
+			directions[directionCount++] = Vec3f(0.0f, 1.0f, 0.0f);
+			directions[directionCount++] = Vec3f(0.0f, 0.0f, 1.0f);
+
+			bool addedPoint = false;
+			for (int directionIndex = 0; directionIndex < directionCount; ++directionIndex) {
+				const Vec3f& direction = directions[directionIndex];
+				const float directionLengthSquared = glm::length2(direction);
+				if (!Math::IsFinite(directionLengthSquared) ||
+					directionLengthSquared <= Math::NumericalEpsilonSquared) {
+					continue;
+				}
+
+				const point_t candidate = Support(bodyA, bodyB, direction, 0.0f);
+				if (!HasPoint(simplexPoints, numPts, candidate) &&
+					IncreasesSimplexDimension(simplexPoints, numPts, candidate)) {
+					simplexPoints[numPts++] = candidate;
+					addedPoint = true;
+					break;
+				}
+			}
+
+			if (!addedPoint) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/*
@@ -526,11 +640,17 @@ namespace GEngine
 	bool GJK_DoesIntersect(const RigidBody3D* bodyA, const RigidBody3D* bodyB)
 	{
 		GE_PHYSICS_PROFILE_GJK_CALL();
+		if (!HasValidCollisionShapes(bodyA, bodyB)) {
+			return false;
+		}
 		const Vec3f origin(0.0f);
 
 		int numPts = 1;
 		point_t simplexPoints[4];
 		simplexPoints[0] = Support(bodyA, bodyB, Vec3f(1, 1, 1), 0.0f);
+		if (!IsValidSupportPoint(simplexPoints[0])) {
+			return false;
+		}
 
 		float closestDist = 1e10f;
 		bool doesContainOrigin = false;
@@ -539,9 +659,12 @@ namespace GEngine
 			GE_PHYSICS_PROFILE_GJK_ITERATION();
 			// Get the new point to check on
 			point_t newPt = Support(bodyA, bodyB, newDir, 0.0f);
+			if (!IsValidSupportPoint(newPt)) {
+				return false;
+			}
 
 			// If the new point is the same as a previous point, then we can't expand any further
-			if (HasPoint(simplexPoints, newPt)) {
+			if (HasPoint(simplexPoints, numPts, newPt)) {
 				break;
 			}
 
@@ -580,15 +703,24 @@ namespace GEngine
 
 
 
-	bool GJK_DoesIntersect(const RigidBody3D* bodyA, const RigidBody3D* bodyB, const float bias, Vec3f& ptOnA, Vec3f& ptOnB)
+	GjkContactStatus GJK_GetContact(const RigidBody3D* bodyA, const RigidBody3D* bodyB,
+		float bias, Vec3f& ptOnA, Vec3f& ptOnB)
 	{
 		GE_PHYSICS_PROFILE_GJK_CALL();
+		ptOnA = Vec3f(0.0f);
+		ptOnB = Vec3f(0.0f);
+		if (!HasValidCollisionShapes(bodyA, bodyB) || !Math::IsFinite(bias) || bias < 0.0f) {
+			return GjkContactStatus::Failed;
+		}
 		
 		const Vec3f origin(0.0f);
 
 		int numPts = 1;
 		point_t simplexPoints[4];
 		simplexPoints[0] = Support(bodyA, bodyB, Vec3f(1, 1, 1), 0.0f);
+		if (!IsValidSupportPoint(simplexPoints[0])) {
+			return GjkContactStatus::Failed;
+		}
 
 		float closestDist = 1e10f;
 		bool doesContainOrigin = false;
@@ -597,9 +729,12 @@ namespace GEngine
 			GE_PHYSICS_PROFILE_GJK_ITERATION();
 			// Get the new point to check on
 			point_t newPt = Support(bodyA, bodyB, newDir, 0.0f);
+			if (!IsValidSupportPoint(newPt)) {
+				return GjkContactStatus::Failed;
+			}
 
 			// If the new point is the same as a previous point, then we can't expand any further
-			if (HasPoint(simplexPoints, newPt)) {
+			if (HasPoint(simplexPoints, numPts, newPt)) {
 				break;
 			}
 
@@ -633,37 +768,13 @@ namespace GEngine
 		} while (!doesContainOrigin);
 
 		if (!doesContainOrigin) {
-			return false;
+			return GjkContactStatus::Separated;
 		}
 
-		//
-		//	Check that we have a 3-simplex (EPA expects a tetrahedron)
-		//
-		if (1 == numPts) {
-			Vec3f searchDir = simplexPoints[0].xyz * -1.0f;
-			point_t newPt = Support(bodyA, bodyB, searchDir, 0.0f);
-			simplexPoints[numPts] = newPt;
-			numPts++;
-		}
-		if (2 == numPts) {
-			Vec3f ab = simplexPoints[1].xyz - simplexPoints[0].xyz;
-			Vec3f u, v;
-			GetOrtho(ab, u, v);
-
-			Vec3f newDir = u;
-			point_t newPt = Support(bodyA, bodyB, newDir, 0.0f);
-			simplexPoints[numPts] = newPt;
-			numPts++;
-		}
-		if (3 == numPts) {
-			Vec3f ab = simplexPoints[1].xyz - simplexPoints[0].xyz;
-			Vec3f ac = simplexPoints[2].xyz - simplexPoints[0].xyz;
-			Vec3f norm = glm::cross(ab, ac);
-
-			Vec3f newDir = norm;
-			point_t newPt = Support(bodyA, bodyB, newDir, 0.0f);
-			simplexPoints[numPts] = newPt;
-			numPts++;
+		// EPA requires four finite, affinely independent support points. Exact
+		// face contacts often reach the origin with only a line or triangle.
+		if (!ExpandSimplexToTetrahedron(bodyA, bodyB, simplexPoints, numPts)) {
+			return GjkContactStatus::Failed;
 		}
 
 		//
@@ -676,6 +787,9 @@ namespace GEngine
 			avg += simplexPoints[i].xyz;
 		}
 		avg *= 0.25f;
+		if (!Math::IsFinite(avg)) {
+			return GjkContactStatus::Failed;
+		}
 
 		// Now expand the simplex by the bias amount
 		for (int i = 0; i < numPts; i++) {
@@ -692,10 +806,20 @@ namespace GEngine
 		//
 		// Perform EPA expansion of the simplex to find the closest face on the CSO
 		//
-		EPA_Expand(bodyA, bodyB, bias, simplexPoints, ptOnA, ptOnB);
+		if (!EPA_Expand(bodyA, bodyB, bias, simplexPoints, ptOnA, ptOnB)) {
+			ptOnA = Vec3f(0.0f);
+			ptOnB = Vec3f(0.0f);
+			return GjkContactStatus::Failed;
+		}
 
-		return true;
+		return GjkContactStatus::Contact;
 
+	}
+
+	bool GJK_DoesIntersect(const RigidBody3D* bodyA, const RigidBody3D* bodyB,
+		const float bias, Vec3f& ptOnA, Vec3f& ptOnB)
+	{
+		return GJK_GetContact(bodyA, bodyB, bias, ptOnA, ptOnB) == GjkContactStatus::Contact;
 	}
 
 
@@ -704,6 +828,11 @@ namespace GEngine
 	void GJK_ClosestPoints(const RigidBody3D* bodyA, const RigidBody3D* bodyB, Vec3f& ptOnA, Vec3f& ptOnB)
 	{
 		GE_PHYSICS_PROFILE_GJK_CALL();
+		ptOnA = Vec3f(0.0f);
+		ptOnB = Vec3f(0.0f);
+		if (!HasValidCollisionShapes(bodyA, bodyB)) {
+			return;
+		}
 		
 		const Vec3f origin(0.0f);
 
@@ -713,6 +842,9 @@ namespace GEngine
 		int numPts = 1;
 		point_t simplexPoints[4];
 		simplexPoints[0] = Support(bodyA, bodyB, Vec3f(1, 1, 1), bias);
+		if (!IsValidSupportPoint(simplexPoints[0])) {
+			return;
+		}
 
 		Vec4f lambdas = Vec4f(1, 0, 0, 0);
 		Vec3f newDir = simplexPoints[0].xyz * -1.0f;
@@ -720,9 +852,12 @@ namespace GEngine
 			GE_PHYSICS_PROFILE_GJK_ITERATION();
 			// Get the new point to check on
 			point_t newPt = Support(bodyA, bodyB, newDir, bias);
+			if (!IsValidSupportPoint(newPt)) {
+				return;
+			}
 
 			// If the new point is the same as a previous point, then we can't expand any further
-			if (HasPoint(simplexPoints, newPt)) {
+			if (HasPoint(simplexPoints, numPts, newPt)) {
 				break;
 			}
 
@@ -743,12 +878,15 @@ namespace GEngine
 		} while (numPts < 4);
 
 
-		ptOnA = Vec3f{0.f};
-		ptOnB = Vec3f{0.f};
-
+		Vec3f candidatePtOnA(0.0f);
+		Vec3f candidatePtOnB(0.0f);
 		for (int i = 0; i < 4; i++) {
-			ptOnA += simplexPoints[i].ptA * lambdas[i];
-			ptOnB += simplexPoints[i].ptB * lambdas[i];
+			candidatePtOnA += simplexPoints[i].ptA * lambdas[i];
+			candidatePtOnB += simplexPoints[i].ptB * lambdas[i];
+		}
+		if (Math::IsFinite(candidatePtOnA) && Math::IsFinite(candidatePtOnB)) {
+			ptOnA = candidatePtOnA;
+			ptOnB = candidatePtOnB;
 		}
 
 	}
@@ -842,37 +980,125 @@ namespace GEngine
 	}
 
 
-	/*
-	================================
-	NormalDirection
-	================================
-	*/
+	namespace
+	{
+		constexpr int EpaMaxIterations = 64;
+		constexpr float EpaRelativeConvergenceTolerance = 1.0e-4f;
 
-	Vec3f NormalDirection(const tri_t& tri, const std::vector< point_t >& points) {
-		const Vec3f& a = points[tri.a].xyz;
-		const Vec3f& b = points[tri.b].xyz;
-		const Vec3f& c = points[tri.c].xyz;
+		bool IsValidPointIndex(int index, const std::vector<point_t>& points)
+		{
+			return index >= 0 && static_cast<std::size_t>(index) < points.size();
+		}
 
-		Vec3f ab = b - a;
-		Vec3f ac = c - a;
-		Vec3f normal = Math::NormalizeOr(glm::cross(ab, ac), a);
-		return normal;
-	}
+		bool TryTriangleNormal(const tri_t& tri, const std::vector<point_t>& points, Vec3f& normal)
+		{
+			if (!IsValidPointIndex(tri.a, points) || !IsValidPointIndex(tri.b, points) ||
+				!IsValidPointIndex(tri.c, points) || tri.a == tri.b || tri.b == tri.c || tri.c == tri.a) {
+				return false;
+			}
 
+			const Vec3f& a = points[tri.a].xyz;
+			const Vec3f& b = points[tri.b].xyz;
+			const Vec3f& c = points[tri.c].xyz;
+			if (!Math::IsFinite(a) || !Math::IsFinite(b) || !Math::IsFinite(c)) {
+				return false;
+			}
 
+			const Vec3f ab = b - a;
+			const Vec3f ac = c - a;
+			const float abLengthSquared = glm::length2(ab);
+			const float acLengthSquared = glm::length2(ac);
+			const Vec3f unnormalizedNormal = glm::cross(ab, ac);
+			const float normalLengthSquared = glm::length2(unnormalizedNormal);
+			const float areaToleranceSquared = Math::NumericalEpsilonSquared *
+				abLengthSquared * acLengthSquared;
+			if (!Math::IsFinite(abLengthSquared) || !Math::IsFinite(acLengthSquared) ||
+				!Math::IsFinite(normalLengthSquared) ||
+				abLengthSquared <= Math::NumericalEpsilonSquared ||
+				acLengthSquared <= Math::NumericalEpsilonSquared ||
+				normalLengthSquared <= areaToleranceSquared) {
+				return false;
+			}
 
-	/*
-	================================
-	SignedDistanceToTriangle
-	================================
-	*/
+			normal = unnormalizedNormal * glm::inversesqrt(normalLengthSquared);
+			return Math::IsFinite(normal);
+		}
 
-	float SignedDistanceToTriangle(const tri_t& tri, const Vec3f& pt, const std::vector< point_t >& points) {
-		const Vec3f normal = NormalDirection(tri, points);
-		const Vec3f& a = points[tri.a].xyz;
-		const Vec3f a2pt = pt - a;
-		const float dist = glm::dot(normal, a2pt);
-		return dist;
+		bool TrySignedDistanceToTriangle(const tri_t& tri, const Vec3f& point,
+			const std::vector<point_t>& points, float& distance, Vec3f* normalOut = nullptr)
+		{
+			Vec3f normal;
+			if (!Math::IsFinite(point) || !TryTriangleNormal(tri, points, normal)) {
+				return false;
+			}
+
+			distance = glm::dot(normal, point - points[tri.a].xyz);
+			if (!Math::IsFinite(distance)) {
+				return false;
+			}
+			if (normalOut) {
+				*normalOut = normal;
+			}
+			return true;
+		}
+
+		bool IsNonDegenerateTetrahedron(const std::vector<point_t>& points)
+		{
+			if (points.size() < 4) {
+				return false;
+			}
+			for (int index = 0; index < 4; ++index) {
+				if (!IsValidSupportPoint(points[index])) {
+					return false;
+				}
+			}
+
+			const Vec3f ab = points[1].xyz - points[0].xyz;
+			const Vec3f ac = points[2].xyz - points[0].xyz;
+			const Vec3f ad = points[3].xyz - points[0].xyz;
+			const Vec3f normal = glm::cross(ab, ac);
+			const float normalLengthSquared = glm::length2(normal);
+			const float adLengthSquared = glm::length2(ad);
+			const float signedVolume = glm::dot(normal, ad);
+			return Math::IsFinite(normalLengthSquared) && Math::IsFinite(adLengthSquared) &&
+				Math::IsFinite(signedVolume) && signedVolume * signedVolume >
+				Math::NumericalEpsilonSquared * normalLengthSquared * adLengthSquared;
+		}
+
+		int CountEdgeUses(const edge_t& edge, const std::vector<tri_t>& triangles)
+		{
+			int count = 0;
+			for (const tri_t& tri : triangles) {
+				const edge_t edges[3] = { { tri.a, tri.b }, { tri.b, tri.c }, { tri.c, tri.a } };
+				for (const edge_t& candidate : edges) {
+					if (edge == candidate) {
+						++count;
+					}
+				}
+			}
+			return count;
+		}
+
+		bool IsClosedValidPolytope(const std::vector<tri_t>& triangles,
+			const std::vector<point_t>& points)
+		{
+			if (triangles.size() < 4 || points.size() < 4) {
+				return false;
+			}
+			for (const tri_t& tri : triangles) {
+				Vec3f normal;
+				if (!TryTriangleNormal(tri, points, normal)) {
+					return false;
+				}
+				const edge_t edges[3] = { { tri.a, tri.b }, { tri.b, tri.c }, { tri.c, tri.a } };
+				for (const edge_t& edge : edges) {
+					if (CountEdgeUses(edge, triangles) != 2) {
+						return false;
+					}
+				}
+			}
+			return true;
+		}
 	}
 
 
@@ -884,16 +1110,19 @@ namespace GEngine
 	*/
 
 	int ClosestTriangle(const std::vector< tri_t >& triangles, const std::vector< point_t >& points) {
-		float minDistSqr = 1e10;
+		float minDistSqr = std::numeric_limits<float>::infinity();
 
 		int idx = -1;
-		for (int i = 0; i < triangles.size(); i++) {
+		for (std::size_t i = 0; i < triangles.size(); i++) {
 			const tri_t& tri = triangles[i];
 
-			float dist = SignedDistanceToTriangle(tri, Vec3f(0.0f), points);
-			float distSqr = dist * dist;
-			if (distSqr < minDistSqr) {
-				idx = i;
+			float dist = 0.0f;
+			if (!TrySignedDistanceToTriangle(tri, Vec3f(0.0f), points, dist)) {
+				continue;
+			}
+			const float distSqr = dist * dist;
+			if (Math::IsFinite(distSqr) && distSqr < minDistSqr) {
+				idx = static_cast<int>(i);
 				minDistSqr = distSqr;
 			}
 		}
@@ -907,23 +1136,14 @@ namespace GEngine
 	HasPoint
 	================================
 	*/
-	bool HasPoint(const Vec3f& w, const std::vector< tri_t > triangles, const std::vector< point_t >& points) {
+	bool HasPoint(const Vec3f& w, const std::vector<point_t>& points) {
 		const float epsilons = 0.001f * 0.001f;
-		Vec3f delta;
-
-		for (int i = 0; i < triangles.size(); i++) {
-			const tri_t& tri = triangles[i];
-
-			delta = w - points[tri.a].xyz;
-			if (glm::length2(delta) < epsilons) {
-				return true;
-			}
-			delta = w - points[tri.b].xyz;
-			if (glm::length2(delta) < epsilons) {
-				return true;
-			}
-			delta = w - points[tri.c].xyz;
-			if (glm::length2(delta) < epsilons) {
+		if (!Math::IsFinite(w)) {
+			return false;
+		}
+		for (const point_t& point : points) {
+			const float distanceSquared = glm::length2(w - point.xyz);
+			if (Math::IsFinite(distanceSquared) && distanceSquared < epsilons) {
 				return true;
 			}
 		}
@@ -937,20 +1157,25 @@ namespace GEngine
 	RemoveTrianglesFacingPoint
 	================================
 	*/
-	int RemoveTrianglesFacingPoint(const Vec3f& pt, std::vector< tri_t >& triangles, const std::vector< point_t >& points) {
-		int numRemoved = 0;
-		for (int i = 0; i < triangles.size(); i++) {
-			const tri_t& tri = triangles[i];
-
-			float dist = SignedDistanceToTriangle(tri, pt, points);
+	bool RemoveTrianglesFacingPoint(const Vec3f& pt, std::vector<tri_t>& triangles,
+		const std::vector<point_t>& points, int& numRemoved) {
+		numRemoved = 0;
+		std::vector<tri_t> retained;
+		retained.reserve(triangles.size());
+		for (const tri_t& tri : triangles) {
+			float dist = 0.0f;
+			if (!TrySignedDistanceToTriangle(tri, pt, points, dist)) {
+				return false;
+			}
 			if (dist > 0.0f) {
-				// This triangle faces the point.  Remove it.
-				triangles.erase(triangles.begin() + i);
-				i--;
-				numRemoved++;
+				++numRemoved;
+			}
+			else {
+				retained.push_back(tri);
 			}
 		}
-		return numRemoved;
+		triangles.swap(retained);
+		return true;
 	}
 
 
@@ -960,11 +1185,16 @@ namespace GEngine
 	FindDanglingEdges
 	================================
 	*/
-	void FindDanglingEdges(std::vector< edge_t >& danglingEdges, const std::vector< tri_t >& triangles) {
+	bool FindDanglingEdges(std::vector< edge_t >& danglingEdges,
+		const std::vector< tri_t >& triangles, const std::vector<point_t>& points) {
 		danglingEdges.clear();
 
-		for (int i = 0; i < triangles.size(); i++) {
+		for (std::size_t i = 0; i < triangles.size(); i++) {
 			const tri_t& tri = triangles[i];
+			Vec3f normal;
+			if (!TryTriangleNormal(tri, points, normal)) {
+				return false;
+			}
 
 			edge_t edges[3];
 			edges[0].a = tri.a;
@@ -981,7 +1211,7 @@ namespace GEngine
 			counts[1] = 0;
 			counts[2] = 0;
 
-			for (int j = 0; j < triangles.size(); j++) {
+			for (std::size_t j = 0; j < triangles.size(); j++) {
 				if (j == i) {
 					continue;
 				}
@@ -1018,23 +1248,34 @@ namespace GEngine
 				}
 			}
 		}
+		return true;
 	}
 
 
 
-	float EPA_Expand(const RigidBody3D* bodyA, const RigidBody3D* bodyB, const float bias, const point_t simplexPoints[4], Vec3f& ptOnA, Vec3f& ptOnB) {
+	bool EPA_Expand(const RigidBody3D* bodyA, const RigidBody3D* bodyB, float bias,
+		const point_t simplexPoints[4], Vec3f& ptOnA, Vec3f& ptOnB) {
 		GE_PHYSICS_PROFILE_SCOPE(epaTimeNs);
 		GE_PHYSICS_PROFILE_ADD(epaCallCount, 1);
+		if (!HasValidCollisionShapes(bodyA, bodyB) || !Math::IsFinite(bias) || bias < 0.0f) {
+			return false;
+		}
 		std::vector< point_t > points;
 		std::vector< tri_t > triangles;
 		std::vector< edge_t > danglingEdges;
 
 		Vec3f center(0.0f);
 		for (int i = 0; i < 4; i++) {
+			if (!IsValidSupportPoint(simplexPoints[i])) {
+				return false;
+			}
 			points.push_back(simplexPoints[i]);
 			center += simplexPoints[i].xyz;
 		}
 		center *= 0.25f;
+		if (!Math::IsFinite(center) || !IsNonDegenerateTetrahedron(points)) {
+			return false;
+		}
 
 		// Build the triangles
 		for (int i = 0; i < 4; i++) {
@@ -1046,7 +1287,10 @@ namespace GEngine
 			tri.c = k;
 
 			int unusedPt = (i + 3) % 4;
-			float dist = SignedDistanceToTriangle(tri, points[unusedPt].xyz, points);
+			float dist = 0.0f;
+			if (!TrySignedDistanceToTriangle(tri, points[unusedPt].xyz, points, dist)) {
+				return false;
+			}
 
 			// The unused point is always on the negative/inside of the triangle.. make sure the normal points away
 			if (dist > 0.0f) {
@@ -1055,87 +1299,162 @@ namespace GEngine
 
 			triangles.push_back(tri);
 		}
+		if (!IsClosedValidPolytope(triangles, points)) {
+			return false;
+		}
 
 		//
 		//	Expand the simplex to find the closest face of the CSO to the origin
 		//
-		while (1) {
+		bool converged = false;
+		for (int iteration = 0; iteration < EpaMaxIterations; ++iteration) {
+			if (!IsClosedValidPolytope(triangles, points)) {
+				return false;
+			}
 			const int idx = ClosestTriangle(triangles, points);
-			Vec3f normal = NormalDirection(triangles[idx], points);
+			if (idx < 0 || static_cast<std::size_t>(idx) >= triangles.size()) {
+				return false;
+			}
+
+			Vec3f normal;
+			float originDistance = 0.0f;
+			if (!TrySignedDistanceToTriangle(triangles[idx], Vec3f(0.0f), points,
+				originDistance, &normal)) {
+				return false;
+			}
 
 			const point_t newPt = Support(bodyA, bodyB, normal, bias);
+			if (!IsValidSupportPoint(newPt)) {
+				return false;
+			}
+
+			float expansionDistance = 0.0f;
+			if (!TrySignedDistanceToTriangle(triangles[idx], newPt.xyz, points,
+				expansionDistance)) {
+				return false;
+			}
+			const float convergenceTolerance = std::max(Math::NumericalEpsilon,
+				EpaRelativeConvergenceTolerance * std::max(std::fabs(originDistance), bias));
 
 			// if w already exists, then just stop
 			// because it means we can't expand any further
-			if (HasPoint(newPt.xyz, triangles, points)) {
+			if (HasPoint(newPt.xyz, points)) {
+				converged = true;
 				break;
 			}
 
-			float dist = SignedDistanceToTriangle(triangles[idx], newPt.xyz, points);
-			if (dist <= 0.0f) {
-				break;	// can't expand
+			if (expansionDistance <= convergenceTolerance) {
+				converged = true;
+				break;
 			}
 
-			const int newIdx = (int)points.size();
-			points.push_back(newPt);
+			// Build the expansion transactionally. The last known-valid polytope is
+			// untouched unless every replacement face is valid and closes the hull.
+			std::vector<point_t> candidatePoints = points;
+			std::vector<tri_t> candidateTriangles = triangles;
+			const int newIdx = static_cast<int>(candidatePoints.size());
+			candidatePoints.push_back(newPt);
 
 			// Remove Triangles that face this point
-			int numRemoved = RemoveTrianglesFacingPoint(newPt.xyz, triangles, points);
-			if (0 == numRemoved) {
-				break;
+			int numRemoved = 0;
+			if (!RemoveTrianglesFacingPoint(newPt.xyz, candidateTriangles,
+				candidatePoints, numRemoved) || numRemoved == 0 || candidateTriangles.empty()) {
+				return false;
 			}
 
 			// Find Dangling Edges
 			danglingEdges.clear();
-			FindDanglingEdges(danglingEdges, triangles);
-			if (0 == danglingEdges.size()) {
-				break;
+			if (!FindDanglingEdges(danglingEdges, candidateTriangles, candidatePoints) ||
+				danglingEdges.empty()) {
+				return false;
 			}
 
 			// In theory the edges should be a proper CCW order
 			// So we only need to add the new point as 'a' in order
 			// to create new triangles that face away from origin
-			for (int i = 0; i < danglingEdges.size(); i++) {
-				const edge_t& edge = danglingEdges[i];
-
+			for (const edge_t& edge : danglingEdges) {
 				tri_t triangle;
 				triangle.a = newIdx;
 				triangle.b = edge.b;
 				triangle.c = edge.a;
 
 				// Make sure it's oriented properly
-				float dist = SignedDistanceToTriangle(triangle, center, points);
+				float dist = 0.0f;
+				if (!TrySignedDistanceToTriangle(triangle, center, candidatePoints, dist)) {
+					return false;
+				}
 				if (dist > 0.0f) {
 					std::swap(triangle.b, triangle.c);
 				}
 
-				triangles.push_back(triangle);
+				Vec3f triangleNormal;
+				if (!TryTriangleNormal(triangle, candidatePoints, triangleNormal)) {
+					return false;
+				}
+				candidateTriangles.push_back(triangle);
 			}
+
+			if (!IsClosedValidPolytope(candidateTriangles, candidatePoints)) {
+				return false;
+			}
+			points.swap(candidatePoints);
+			triangles.swap(candidateTriangles);
+		}
+		if (!converged || !IsClosedValidPolytope(triangles, points)) {
+			return false;
 		}
 
 		// Get the projection of the origin on the closest triangle
 		const int idx = ClosestTriangle(triangles, points);
+		if (idx < 0 || static_cast<std::size_t>(idx) >= triangles.size()) {
+			return false;
+		}
 		const tri_t& tri = triangles[idx];
+		Vec3f finalNormal;
+		float finalOriginDistance = 0.0f;
+		if (!TrySignedDistanceToTriangle(tri, Vec3f(0.0f), points,
+			finalOriginDistance, &finalNormal)) {
+			return false;
+		}
 		Vec3f ptA_w = points[tri.a].xyz;
 		Vec3f ptB_w = points[tri.b].xyz;
 		Vec3f ptC_w = points[tri.c].xyz;
 		Vec3f lambdas = BarycentricCoordinates(ptA_w, ptB_w, ptC_w, Vec3f(0.0f));
+		const float lambdaSum = lambdas.x + lambdas.y + lambdas.z;
+		const Vec3f projectedPoint = ptA_w * lambdas.x + ptB_w * lambdas.y + ptC_w * lambdas.z;
+		const Vec3f expectedProjection = -finalOriginDistance * finalNormal;
+		const float projectionErrorSquared = glm::length2(projectedPoint - expectedProjection);
+		const float projectionScaleSquared = std::max(1.0f, glm::length2(expectedProjection));
+		if (!Math::IsFinite(lambdas) || !Math::IsFinite(lambdaSum) ||
+			std::fabs(lambdaSum - 1.0f) > 1.0e-3f ||
+			lambdas.x < -1.0e-3f || lambdas.y < -1.0e-3f || lambdas.z < -1.0e-3f ||
+			!Math::IsFinite(projectionErrorSquared) ||
+			projectionErrorSquared > EpaRelativeConvergenceTolerance *
+				EpaRelativeConvergenceTolerance * projectionScaleSquared) {
+			return false;
+		}
 
 		// Get the point on shape A
 		Vec3f ptA_a = points[tri.a].ptA;
 		Vec3f ptB_a = points[tri.b].ptA;
 		Vec3f ptC_a = points[tri.c].ptA;
-		ptOnA = ptA_a * lambdas[0] + ptB_a * lambdas[1] + ptC_a * lambdas[2];
+		const Vec3f candidatePtOnA = ptA_a * lambdas[0] + ptB_a * lambdas[1] + ptC_a * lambdas[2];
 
 		// Get the point on shape B
 		Vec3f ptA_b = points[tri.a].ptB;
 		Vec3f ptB_b = points[tri.b].ptB;
 		Vec3f ptC_b = points[tri.c].ptB;
-		ptOnB = ptA_b * lambdas[0] + ptB_b * lambdas[1] + ptC_b * lambdas[2];
+		const Vec3f candidatePtOnB = ptA_b * lambdas[0] + ptB_b * lambdas[1] + ptC_b * lambdas[2];
 
-		// Return the penetration distance
-		Vec3f delta = ptOnB - ptOnA;
-		return glm::length(delta);
+		const float penetrationDistance = glm::length(candidatePtOnB - candidatePtOnA);
+		if (!Math::IsFinite(candidatePtOnA) || !Math::IsFinite(candidatePtOnB) ||
+			!Math::IsFinite(penetrationDistance)) {
+			return false;
+		}
+
+		ptOnA = candidatePtOnA;
+		ptOnB = candidatePtOnB;
+		return true;
 	}
 
 

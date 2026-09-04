@@ -4,6 +4,7 @@
 #include <GEngine/Physics/Broadphase.h>
 #include <GEngine/Physics/GJK.h>
 #include <GEngine/Physics/Manifold.h>
+#include <GEngine/Physics/PhysicsProfile.h>
 #include <GEngine/Physics/PhysicsSystem.h>
 #include <GEngine/Physics/PhysicsWorld.h>
 #include <GEngine/Physics/ShapeBox.h>
@@ -20,6 +21,38 @@
 
 namespace
 {
+	// Keep focused lifetime-state inspection in the test translation unit without adding a production API.
+	template<typename Tag, typename Tag::Type Member>
+	struct PrivateMemberAccess
+	{
+		friend typename Tag::Type GetPrivateMember(Tag) { return Member; }
+	};
+
+	struct PhysicsSystemManifoldsTag
+	{
+		using Type = GEngine::ManifoldCollector GEngine::PhysicsSystem::*;
+		friend Type GetPrivateMember(PhysicsSystemManifoldsTag);
+	};
+
+	struct PhysicsSystemContactsTag
+	{
+		using Type = std::vector<GEngine::contact_t> GEngine::PhysicsSystem::*;
+		friend Type GetPrivateMember(PhysicsSystemContactsTag);
+	};
+
+	template struct PrivateMemberAccess<PhysicsSystemManifoldsTag, &GEngine::PhysicsSystem::m_Manifolds>;
+	template struct PrivateMemberAccess<PhysicsSystemContactsTag, &GEngine::PhysicsSystem::m_Contacts>;
+
+	GEngine::ManifoldCollector& GetManifolds(GEngine::PhysicsSystem& system)
+	{
+		return system.*GetPrivateMember(PhysicsSystemManifoldsTag{});
+	}
+
+	std::vector<GEngine::contact_t>& GetTransientContacts(GEngine::PhysicsSystem& system)
+	{
+		return system.*GetPrivateMember(PhysicsSystemContactsTag{});
+	}
+
 	int failureCount = 0;
 	int testCount = 0;
 	int diagnosticCount = 0;
@@ -345,32 +378,164 @@ namespace
 		body.m_InvMass = 1.0f;
 	}
 
-	void TestBodyRemovalLifetimeDiagnostic()
+	void TestBodyRemovalLifetimeRegression()
 	{
 		GEngine::ShapeSphere sphere(1.0f);
-		GEngine::PhysicsWorld world(GEngine::Vec3f(0.0f));
-		GEngine::RigidBody3D* bodyA = world.CreateRigidBody3D();
-		GEngine::RigidBody3D* bodyB = world.CreateRigidBody3D();
-		ConfigureSphereBody(*bodyA, sphere, GEngine::Vec3f(0.0f));
-		ConfigureSphereBody(*bodyB, sphere, GEngine::Vec3f(1.5f, 0.0f, 0.0f));
+		GEngine::PhysicsSystem system;
+		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
+		system.SetPhysicsWorld(world);
 
-		GEngine::contact_t contact{};
-		contact.m_BodyA = bodyA;
-		contact.m_BodyB = bodyB;
-		contact.ptOnA_LocalSpace = GEngine::Vec3f(1.0f, 0.0f, 0.0f);
-		contact.ptOnB_LocalSpace = GEngine::Vec3f(-1.0f, 0.0f, 0.0f);
-		contact.ptOnA_WorldSpace = bodyA->BodySpaceToWorldSpace(contact.ptOnA_LocalSpace);
-		contact.ptOnB_WorldSpace = bodyB->BodySpaceToWorldSpace(contact.ptOnB_LocalSpace);
-		contact.normal = GEngine::Vec3f(-1.0f, 0.0f, 0.0f);
-		contact.separationDistance = -0.5f;
-		contact.timeOfImpact = 0.0f;
+		GEngine::RigidBody3D* bodyA = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* bodyB = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* unrelatedA = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* unrelatedB = world->CreateRigidBody3D();
+		ConfigureSphereBody(*bodyA, sphere, GEngine::Vec3f(0.0f, 0.0f, 0.0f));
+		ConfigureSphereBody(*bodyB, sphere, GEngine::Vec3f(2.0f, 0.0f, 0.0f));
+		ConfigureSphereBody(*unrelatedA, sphere, GEngine::Vec3f(10.0f, 0.0f, 0.0f));
+		ConfigureSphereBody(*unrelatedB, sphere, GEngine::Vec3f(12.0f, 0.0f, 0.0f));
 
-		GEngine::ManifoldCollector manifolds;
-		manifolds.AddContact(contact);
-		world.RemoveRigidBody3D(bodyA);
+		constexpr float dt = 1.0f / 120.0f;
+		GEngine::ResetPhysicsProfile();
+		system.Update(GEngine::Timestep(dt));
+		const GEngine::PhysicsProfileSnapshot initialProfile = GEngine::GetPhysicsProfileSnapshot();
+		Expect(!GEngine::IsPhysicsProfilingEnabled() ||
+			(initialProfile.manifoldCount == 2 && initialProfile.manifoldContactCount == 2),
+			"body-removal fixture creates the target and unrelated active manifolds");
 
-		KnownIssueDiagnostic(manifolds.m_Manifolds.empty(),
+		world->RemoveRigidBody3D(bodyA);
+		Expect(world->GetPhysicsBodies().size() == 3,
+			"removing the first body erases it from the world");
+
+		GEngine::ResetPhysicsProfile();
+		system.Update(GEngine::Timestep(dt));
+		const GEngine::PhysicsProfileSnapshot afterFirstRemoval = GEngine::GetPhysicsProfileSnapshot();
+		const bool firstBodyInvalidated = !GEngine::IsPhysicsProfilingEnabled() ||
+			(afterFirstRemoval.manifoldCount == 1 && afterFirstRemoval.manifoldContactCount == 1);
+		KnownIssueDiagnostic(firstBodyInvalidated,
 			"body removal invalidates manifolds before deleting the body");
+		Expect(firstBodyInvalidated,
+			"removing the first body discards only its active manifold");
+		Expect(bodyB->HasFiniteState() && unrelatedA->HasFiniteState() && unrelatedB->HasFiniteState(),
+			"physics continues stepping safely after removing the first body");
+
+		GEngine::RigidBody3D* bodyWithoutManifold = world->CreateRigidBody3D();
+		ConfigureSphereBody(*bodyWithoutManifold, sphere, GEngine::Vec3f(100.0f, 0.0f, 0.0f));
+		world->RemoveRigidBody3D(bodyWithoutManifold);
+		GEngine::ResetPhysicsProfile();
+		system.Update(GEngine::Timestep(dt));
+		const GEngine::PhysicsProfileSnapshot afterNoManifoldRemoval = GEngine::GetPhysicsProfileSnapshot();
+		Expect(world->GetPhysicsBodies().size() == 3 &&
+			(!GEngine::IsPhysicsProfilingEnabled() || afterNoManifoldRemoval.manifoldCount == 1),
+			"removing a body without a manifold preserves unrelated manifolds");
+
+		GEngine::PhysicsSystem oppositeSystem;
+		auto* oppositeWorld = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
+		oppositeSystem.SetPhysicsWorld(oppositeWorld);
+		GEngine::RigidBody3D* oppositeA = oppositeWorld->CreateRigidBody3D();
+		GEngine::RigidBody3D* oppositeB = oppositeWorld->CreateRigidBody3D();
+		ConfigureSphereBody(*oppositeA, sphere, GEngine::Vec3f(0.0f, 0.0f, 0.0f));
+		ConfigureSphereBody(*oppositeB, sphere, GEngine::Vec3f(2.0f, 0.0f, 0.0f));
+		oppositeSystem.Update(GEngine::Timestep(dt));
+		oppositeWorld->RemoveRigidBody3D(oppositeB);
+		GEngine::ResetPhysicsProfile();
+		oppositeSystem.Update(GEngine::Timestep(dt));
+		const GEngine::PhysicsProfileSnapshot afterOppositeRemoval = GEngine::GetPhysicsProfileSnapshot();
+		Expect(oppositeWorld->GetPhysicsBodies().size() == 1 && oppositeA->HasFiniteState() &&
+			(!GEngine::IsPhysicsProfilingEnabled() || afterOppositeRemoval.manifoldCount == 0),
+			"removing the opposite body invalidates its manifold and permits another safe step");
+	}
+
+	void TestMultiManifoldBodyRemovalRegression()
+	{
+		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::PhysicsSystem system;
+		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
+		system.SetPhysicsWorld(world);
+
+		GEngine::RigidBody3D* sharedBody = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* leftBody = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* rightBody = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* unrelatedA = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* unrelatedB = world->CreateRigidBody3D();
+		ConfigureSphereBody(*sharedBody, sphere, GEngine::Vec3f(0.0f, 0.0f, 0.0f));
+		ConfigureSphereBody(*leftBody, sphere, GEngine::Vec3f(-2.0f, 0.0f, 0.0f));
+		ConfigureSphereBody(*rightBody, sphere, GEngine::Vec3f(2.0f, 0.0f, 0.0f));
+		ConfigureSphereBody(*unrelatedA, sphere, GEngine::Vec3f(10.0f, 0.0f, 0.0f));
+		ConfigureSphereBody(*unrelatedB, sphere, GEngine::Vec3f(12.0f, 0.0f, 0.0f));
+
+		constexpr float dt = 1.0f / 120.0f;
+		system.Update(GEngine::Timestep(dt));
+		GEngine::ManifoldCollector& manifolds = GetManifolds(system);
+		Expect(manifolds.m_Manifolds.size() == 3 && manifolds.GetContactCount() == 3,
+			"shared-body fixture creates two target manifolds and one unrelated manifold");
+
+		world->RemoveRigidBody3D(sharedBody);
+		const bool unrelatedManifoldPreserved = manifolds.m_Manifolds.size() == 1 &&
+			manifolds.GetContactCount() == 1 && manifolds.m_Manifolds[0].GetNumContacts() == 1;
+		GEngine::contact_t unrelatedContact{};
+		if (unrelatedManifoldPreserved)
+		{
+			unrelatedContact = manifolds.m_Manifolds[0].GetContact(0);
+		}
+		const bool unrelatedPairPreserved = unrelatedManifoldPreserved &&
+			((unrelatedContact.m_BodyA == unrelatedA && unrelatedContact.m_BodyB == unrelatedB) ||
+				(unrelatedContact.m_BodyA == unrelatedB && unrelatedContact.m_BodyB == unrelatedA));
+		Expect(unrelatedPairPreserved,
+			"removing a shared body invalidates all of its manifolds and preserves the unrelated contact");
+
+		system.Update(GEngine::Timestep(dt));
+		Expect(GetManifolds(system).m_Manifolds.size() == 1 &&
+			leftBody->HasFiniteState() && rightBody->HasFiniteState() &&
+			unrelatedA->HasFiniteState() && unrelatedB->HasFiniteState(),
+			"multi-manifold removal permits safe stepping with finite survivors");
+	}
+
+	void TestTransientContactBodyRemovalRegression()
+	{
+		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::PhysicsSystem system;
+		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
+		system.SetPhysicsWorld(world);
+
+		GEngine::RigidBody3D* removedBody = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* targetBody = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* unrelatedA = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* unrelatedB = world->CreateRigidBody3D();
+		ConfigureSphereBody(*removedBody, sphere, GEngine::Vec3f(0.0f, 0.0f, 0.0f));
+		ConfigureSphereBody(*targetBody, sphere, GEngine::Vec3f(5.0f, 0.0f, 0.0f));
+		ConfigureSphereBody(*unrelatedA, sphere, GEngine::Vec3f(20.0f, 0.0f, 0.0f));
+		ConfigureSphereBody(*unrelatedB, sphere, GEngine::Vec3f(25.0f, 0.0f, 0.0f));
+		removedBody->m_LinearVelocity = GEngine::Vec3f(4.0f, 0.0f, 0.0f);
+		unrelatedA->m_LinearVelocity = GEngine::Vec3f(4.0f, 0.0f, 0.0f);
+
+		GEngine::contact_t removedBodyContact{};
+		GEngine::contact_t unrelatedContact{};
+		const bool createdRemovedBodyContact =
+			GEngine::Collision::Intersect(removedBody, targetBody, 1.0f, removedBodyContact);
+		const bool createdUnrelatedContact =
+			GEngine::Collision::Intersect(unrelatedA, unrelatedB, 1.0f, unrelatedContact);
+		Expect(createdRemovedBodyContact && createdUnrelatedContact &&
+			removedBodyContact.timeOfImpact > 0.0f && unrelatedContact.timeOfImpact > 0.0f &&
+			Finite(removedBodyContact) && Finite(unrelatedContact),
+			"transient-removal fixture creates real finite positive-TOI contacts");
+
+		std::vector<GEngine::contact_t>& transientContacts = GetTransientContacts(system);
+		transientContacts.push_back(removedBodyContact);
+		transientContacts.push_back(unrelatedContact);
+		Expect(transientContacts.size() == 2,
+			"positive-TOI contacts are queued before body removal");
+
+		world->RemoveRigidBody3D(removedBody);
+		const bool unrelatedContactPreserved = transientContacts.size() == 1 &&
+			((transientContacts[0].m_BodyA == unrelatedA && transientContacts[0].m_BodyB == unrelatedB) ||
+				(transientContacts[0].m_BodyA == unrelatedB && transientContacts[0].m_BodyB == unrelatedA));
+		Expect(unrelatedContactPreserved,
+			"body removal invalidates its transient contact before deletion and preserves unrelated transient state");
+
+		system.Update(GEngine::Timestep(1.0f / 120.0f));
+		Expect(world->GetPhysicsBodies().size() == 3 && GetTransientContacts(system).empty() &&
+			targetBody->HasFiniteState() && unrelatedA->HasFiniteState() && unrelatedB->HasFiniteState(),
+			"transient-contact removal permits safe stepping with finite survivors");
 	}
 
 	void TestConvexValidityDiagnostic()
@@ -430,26 +595,16 @@ namespace
 
 	int RunUnsafeBodyRemovalProbe()
 	{
-		GEngine::ShapeSphere sphere(1.0f);
-		GEngine::PhysicsWorld world(GEngine::Vec3f(0.0f));
-		GEngine::RigidBody3D* bodyA = world.CreateRigidBody3D();
-		GEngine::RigidBody3D* bodyB = world.CreateRigidBody3D();
-		ConfigureSphereBody(*bodyA, sphere, GEngine::Vec3f(0.0f));
-		ConfigureSphereBody(*bodyB, sphere, GEngine::Vec3f(1.5f, 0.0f, 0.0f));
+		TestBodyRemovalLifetimeRegression();
+		TestMultiManifoldBodyRemovalRegression();
+		TestTransientContactBodyRemovalRegression();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " focused body-removal checks failed\n";
+			return 1;
+		}
 
-		GEngine::contact_t contact{};
-		contact.m_BodyA = bodyA;
-		contact.m_BodyB = bodyB;
-		contact.ptOnA_LocalSpace = GEngine::Vec3f(1.0f, 0.0f, 0.0f);
-		contact.ptOnB_LocalSpace = GEngine::Vec3f(-1.0f, 0.0f, 0.0f);
-		contact.normal = GEngine::Vec3f(-1.0f, 0.0f, 0.0f);
-
-		GEngine::ManifoldCollector manifolds;
-		manifolds.AddContact(contact);
-		world.RemoveRigidBody3D(bodyA);
-		std::cout << "UNSAFE_PROBE body_removal stepping stale manifold" << std::endl;
-		manifolds.RemoveExpired();
-		std::cout << "UNSAFE_PROBE body_removal completed_without_memory_detector" << std::endl;
+		std::cout << "Body-removal regression: " << testCount << " checks passed\n";
 		return 0;
 	}
 
@@ -1073,7 +1228,9 @@ int main(int argc, char** argv)
 	TestBarycentricAndPointEquality();
 	TestLcpPivots();
 	TestSphereContacts();
-	TestBodyRemovalLifetimeDiagnostic();
+	TestBodyRemovalLifetimeRegression();
+	TestMultiManifoldBodyRemovalRegression();
+	TestTransientContactBodyRemovalRegression();
 	TestConvexValidityDiagnostic();
 	TestContactPairOrderDiagnostic();
 	TestDegenerateGjkDirection();

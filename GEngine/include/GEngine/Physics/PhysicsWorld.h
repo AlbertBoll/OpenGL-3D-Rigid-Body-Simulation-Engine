@@ -1,6 +1,7 @@
 #pragma once
 #include <glm/ext/vector_float3.hpp>
 #include <Math/Math.h>
+#include <functional>
 #include <vector>
 #include "PhysicsBody.h"
 
@@ -28,8 +29,15 @@ namespace GEngine
 		auto GetGravity()const { return m_Gravity; }
 
 	private:
+		using BodyRemovalCallback = std::function<void(RigidBody3D*)>;
+
+		void SetBodyRemovalCallback(const BodyRemovalCallback& callback) { m_BodyRemovalCallback = callback; }
+
 		Vec3f m_Gravity{ 0.f, -12.f, 0.f };
 		std::vector<RigidBody3D*> m_RigidBodies;
+		BodyRemovalCallback m_BodyRemovalCallback;
+
+		friend class PhysicsSystem;
 	};
 
 }

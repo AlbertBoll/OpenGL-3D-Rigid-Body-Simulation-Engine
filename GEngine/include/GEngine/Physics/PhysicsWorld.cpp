@@ -37,6 +37,11 @@ namespace GEngine
 
 	void PhysicsWorld::RemoveRigidBody3D(RigidBody3D* body)
 	{
+		if (m_BodyRemovalCallback)
+		{
+			m_BodyRemovalCallback(body);
+		}
+
 		m_RigidBodies.erase(std::remove(m_RigidBodies.begin(), m_RigidBodies.end(), body), m_RigidBodies.end());
 		delete body;
 		body = nullptr;

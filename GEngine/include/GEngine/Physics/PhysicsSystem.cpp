@@ -20,6 +20,36 @@ namespace GEngine
 				Math::IsFinite(contact.normal) && Math::IsFinite(contact.separationDistance) &&
 				Math::IsFinite(contact.timeOfImpact);
 		}
+
+		void RemoveManifoldsForBody(ManifoldCollector& manifoldCollector, const RigidBody3D* body)
+		{
+			if (!body)
+			{
+				return;
+			}
+
+			auto& manifolds = manifoldCollector.m_Manifolds;
+			manifolds.erase(std::remove_if(manifolds.begin(), manifolds.end(),
+				[body](Manifold& manifold)
+				{
+					if (manifold.GetNumContacts() == 0)
+					{
+						return false;
+					}
+
+					const contact_t contact = manifold.GetContact(0);
+					return contact.m_BodyA == body || contact.m_BodyB == body;
+				}), manifolds.end());
+		}
+
+		void RemoveContactsForBody(std::vector<contact_t>& contacts, const RigidBody3D* body)
+		{
+			contacts.erase(std::remove_if(contacts.begin(), contacts.end(),
+				[body](const contact_t& contact)
+				{
+					return contact.m_BodyA == body || contact.m_BodyB == body;
+				}), contacts.end());
+		}
 	}
 
 	static int CompareContacts(const void* p1, const void* p2) {
@@ -428,6 +458,14 @@ namespace GEngine
 	void PhysicsSystem::SetPhysicsWorld(PhysicsWorld* physics_world)
 	{
 		m_PhysicsWorld = physics_world;
+		if (m_PhysicsWorld)
+		{
+			m_PhysicsWorld->SetBodyRemovalCallback([this](RigidBody3D* body)
+			{
+				RemoveManifoldsForBody(m_Manifolds, body);
+				RemoveContactsForBody(m_Contacts, body);
+			});
+		}
 	}
 
 

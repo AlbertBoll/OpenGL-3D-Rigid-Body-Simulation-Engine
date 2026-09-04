@@ -13,6 +13,27 @@ namespace GEngine
 
 
 	class PhysicalShape;
+	class PhysicsWorld;
+
+	class RigidBodyIdentity
+	{
+	public:
+		constexpr RigidBodyIdentity() = default;
+		constexpr bool IsValid() const { return m_Slot != 0 && m_Generation != 0; }
+		constexpr std::uint64_t GetSlot() const { return m_Slot; }
+		constexpr std::uint64_t GetGeneration() const { return m_Generation; }
+
+		friend constexpr bool operator==(const RigidBodyIdentity&, const RigidBodyIdentity&) = default;
+
+	private:
+		constexpr RigidBodyIdentity(std::uint64_t slot, std::uint64_t generation)
+			: m_Slot(slot), m_Generation(generation) {}
+
+		std::uint64_t m_Slot{};
+		std::uint64_t m_Generation{};
+
+		friend class PhysicsWorld;
+	};
 
 	
 	using namespace Component;
@@ -31,6 +52,7 @@ namespace GEngine
 		const Mat3& GetBodyToWorldRotation() const;
 		const Mat3& GetWorldToBodyRotation() const;
 		const Bounds& GetWorldBounds() const;
+		RigidBodyIdentity GetIdentity() const { return m_Identity; }
 
 		void ApplyImpulse(const Vec3f& impulsePoint, const Vec3f& impulse);
 		void ApplyImpulseLinear(const Vec3f& impulse);
@@ -59,6 +81,8 @@ namespace GEngine
 		BodyType Type = BodyType::Static;
 
 	private:
+		RigidBodyIdentity m_Identity;
+
 		void UpdateRotationData() const;
 		void UpdateCenterOfMassData() const;
 		void UpdateBodyInertiaData() const;
@@ -103,6 +127,8 @@ namespace GEngine
 		};
 
 		mutable DerivedData m_DerivedData;
+
+		friend class PhysicsWorld;
 
 	};
 }

@@ -633,6 +633,64 @@ namespace
 		return 0;
 	}
 
+	void TestStableBodyIdentityRegression()
+	{
+		GEngine::PhysicsWorld world;
+		GEngine::RigidBody3D stackBody;
+		Expect(!stackBody.GetIdentity().IsValid(),
+			"bodies outside world ownership do not impersonate world-managed identities");
+
+		GEngine::RigidBody3D* firstBody = world.CreateRigidBody3D();
+		GEngine::RigidBody3D* secondBody = world.CreateRigidBody3D();
+		const GEngine::RigidBodyIdentity firstIdentity = firstBody->GetIdentity();
+		const GEngine::RigidBodyIdentity secondIdentity = secondBody->GetIdentity();
+		Expect(firstIdentity.IsValid() && secondIdentity.IsValid() && firstIdentity != secondIdentity &&
+			world.IsBodyIdentityValid(firstIdentity) && world.IsBodyIdentityValid(secondIdentity),
+			"each live world body receives a valid unique identity");
+
+		const GEngine::RigidBodyIdentity stableSecondIdentity = secondBody->GetIdentity();
+		for (int index = 0; index < 32; ++index)
+		{
+			world.CreateRigidBody3D();
+		}
+		Expect(secondBody->GetIdentity() == stableSecondIdentity &&
+			world.IsBodyIdentityValid(stableSecondIdentity),
+			"body identity remains stable when owning storage grows");
+
+		world.RemoveRigidBody3D(firstBody);
+		Expect(!world.IsBodyIdentityValid(firstIdentity) &&
+			world.IsBodyIdentityValid(stableSecondIdentity),
+			"body removal invalidates only the removed identity");
+
+		GEngine::RigidBody3D* replacementBody = world.CreateRigidBody3D();
+		const GEngine::RigidBodyIdentity replacementIdentity = replacementBody->GetIdentity();
+		Expect(replacementIdentity.IsValid() && world.IsBodyIdentityValid(replacementIdentity) &&
+			replacementIdentity.GetSlot() == firstIdentity.GetSlot() &&
+			replacementIdentity.GetGeneration() != firstIdentity.GetGeneration() &&
+			replacementIdentity != firstIdentity && !world.IsBodyIdentityValid(firstIdentity),
+			"a reused identity slot receives a new generation and cannot impersonate the removed body");
+
+		GEngine::PhysicsWorld otherWorld;
+		GEngine::RigidBody3D* otherBody = otherWorld.CreateRigidBody3D();
+		Expect(otherBody->GetIdentity() != replacementIdentity &&
+			!otherWorld.IsBodyIdentityValid(replacementIdentity) &&
+			!world.IsBodyIdentityValid(otherBody->GetIdentity()),
+			"body generations remain unique and world-scoped across simultaneous worlds");
+	}
+
+	int RunBodyIdentityRegression()
+	{
+		TestStableBodyIdentityRegression();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " focused body-identity checks failed\n";
+			return 1;
+		}
+
+		std::cout << "Body-identity regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
 	bool HasResetTransientState(GEngine::PhysicsSystem& system)
 	{
 		const GEngine::BroadphaseStats& stats = GetBroadphase(system).GetLastStats();
@@ -1385,6 +1443,10 @@ int main(int argc, char** argv)
 		{
 			return RunUnsafeWorldRestartProbe();
 		}
+		if (argument == "--body-identity")
+		{
+			return RunBodyIdentityRegression();
+		}
 		if (argument == "--scene-runtime-lifecycle")
 		{
 			return RunSceneRuntimeLifecycleRegression();
@@ -1413,6 +1475,7 @@ int main(int argc, char** argv)
 	TestBodyRemovalLifetimeRegression();
 	TestMultiManifoldBodyRemovalRegression();
 	TestTransientContactBodyRemovalRegression();
+	TestStableBodyIdentityRegression();
 	TestPhysicsWorldResetAndRestartRegression();
 	TestSceneRuntimeLifecycleRegression();
 	TestConvexValidityDiagnostic();

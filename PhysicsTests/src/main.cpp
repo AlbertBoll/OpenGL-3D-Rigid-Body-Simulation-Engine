@@ -3,9 +3,11 @@
 #include <GEngine/Physics/Constraints/ConstraintPenetration.h>
 #include <GEngine/Physics/Broadphase.h>
 #include <GEngine/Physics/GJK.h>
+#include <GEngine/Physics/Manifold.h>
 #include <GEngine/Physics/PhysicsSystem.h>
 #include <GEngine/Physics/PhysicsWorld.h>
 #include <GEngine/Physics/ShapeBox.h>
+#include <GEngine/Physics/ShapeConvex.h>
 #include <GEngine/Physics/ShapeSphere.h>
 
 #include <algorithm>
@@ -20,6 +22,8 @@ namespace
 {
 	int failureCount = 0;
 	int testCount = 0;
+	int diagnosticCount = 0;
+	int observedKnownIssueCount = 0;
 
 	void Expect(bool condition, std::string_view message)
 	{
@@ -72,6 +76,19 @@ namespace
 			{ -1.0f, -1.0f,  1.0f }, { 1.0f, -1.0f,  1.0f },
 			{ -1.0f,  1.0f,  1.0f }, { 1.0f,  1.0f,  1.0f }
 		};
+	}
+
+	void KnownIssueDiagnostic(bool correctedCondition, std::string_view message)
+	{
+		++diagnosticCount;
+		if (correctedCondition)
+		{
+			std::cout << "XPASS: " << message << '\n';
+			return;
+		}
+
+		++observedKnownIssueCount;
+		std::cout << "XFAIL: " << message << '\n';
 	}
 
 	std::vector<GEngine::Vec3f> BoxPoints(const GEngine::Vec3f& halfExtents)
@@ -326,6 +343,151 @@ namespace
 		body.m_Orientation = orientation;
 		body.Type = GEngine::Component::BodyType::Dynamic;
 		body.m_InvMass = 1.0f;
+	}
+
+	void TestBodyRemovalLifetimeDiagnostic()
+	{
+		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::PhysicsWorld world(GEngine::Vec3f(0.0f));
+		GEngine::RigidBody3D* bodyA = world.CreateRigidBody3D();
+		GEngine::RigidBody3D* bodyB = world.CreateRigidBody3D();
+		ConfigureSphereBody(*bodyA, sphere, GEngine::Vec3f(0.0f));
+		ConfigureSphereBody(*bodyB, sphere, GEngine::Vec3f(1.5f, 0.0f, 0.0f));
+
+		GEngine::contact_t contact{};
+		contact.m_BodyA = bodyA;
+		contact.m_BodyB = bodyB;
+		contact.ptOnA_LocalSpace = GEngine::Vec3f(1.0f, 0.0f, 0.0f);
+		contact.ptOnB_LocalSpace = GEngine::Vec3f(-1.0f, 0.0f, 0.0f);
+		contact.ptOnA_WorldSpace = bodyA->BodySpaceToWorldSpace(contact.ptOnA_LocalSpace);
+		contact.ptOnB_WorldSpace = bodyB->BodySpaceToWorldSpace(contact.ptOnB_LocalSpace);
+		contact.normal = GEngine::Vec3f(-1.0f, 0.0f, 0.0f);
+		contact.separationDistance = -0.5f;
+		contact.timeOfImpact = 0.0f;
+
+		GEngine::ManifoldCollector manifolds;
+		manifolds.AddContact(contact);
+		world.RemoveRigidBody3D(bodyA);
+
+		KnownIssueDiagnostic(manifolds.m_Manifolds.empty(),
+			"body removal invalidates manifolds before deleting the body");
+	}
+
+	void TestConvexValidityDiagnostic()
+	{
+		GEngine::ShapeConvex emptyConvex(std::vector<GEngine::Vec3f>{});
+		const std::vector<GEngine::Vec3f> triangle{
+			GEngine::Vec3f(0.0f, 0.0f, 0.0f),
+			GEngine::Vec3f(1.0f, 0.0f, 0.0f),
+			GEngine::Vec3f(0.0f, 1.0f, 0.0f)
+		};
+		GEngine::ShapeConvex degenerateConvex(triangle);
+
+		const bool rejectsInvalidGeometry = !emptyConvex.IsValid() && !degenerateConvex.IsValid();
+		std::cout << "BASELINE convex_empty_points=" << emptyConvex.GetPoints().size()
+			<< " convex_empty_reports_valid=" << (emptyConvex.IsValid() ? 1 : 0)
+			<< " convex_degenerate_points=" << degenerateConvex.GetPoints().size()
+			<< " convex_degenerate_reports_valid=" << (degenerateConvex.IsValid() ? 1 : 0) << '\n';
+		KnownIssueDiagnostic(rejectsInvalidGeometry,
+			"empty and fewer-than-four-point convex shapes report invalid");
+	}
+
+	void TestContactPairOrderDiagnostic()
+	{
+		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::RigidBody3D bodyA;
+		GEngine::RigidBody3D bodyB;
+		ConfigureSphereBody(bodyA, sphere, GEngine::Vec3f(0.0f));
+		ConfigureSphereBody(bodyB, sphere, GEngine::Vec3f(2.0f, 0.0f, 0.0f));
+
+		GEngine::contact_t direct{};
+		direct.m_BodyA = &bodyA;
+		direct.m_BodyB = &bodyB;
+		direct.ptOnA_LocalSpace = GEngine::Vec3f(1.0f, 0.0f, 0.0f);
+		direct.ptOnB_LocalSpace = GEngine::Vec3f(-1.0f, 0.0f, 0.0f);
+		direct.ptOnA_WorldSpace = bodyA.BodySpaceToWorldSpace(direct.ptOnA_LocalSpace);
+		direct.ptOnB_WorldSpace = bodyB.BodySpaceToWorldSpace(direct.ptOnB_LocalSpace);
+		direct.normal = GEngine::Vec3f(-1.0f, 0.0f, 0.0f);
+
+		GEngine::contact_t reversed{};
+		reversed.m_BodyA = &bodyB;
+		reversed.m_BodyB = &bodyA;
+		reversed.ptOnA_LocalSpace = GEngine::Vec3f(-1.0f, 0.5f, 0.0f);
+		reversed.ptOnB_LocalSpace = GEngine::Vec3f(1.0f, 0.5f, 0.0f);
+		reversed.ptOnA_WorldSpace = bodyB.BodySpaceToWorldSpace(reversed.ptOnA_LocalSpace);
+		reversed.ptOnB_WorldSpace = bodyA.BodySpaceToWorldSpace(reversed.ptOnB_LocalSpace);
+		reversed.normal = GEngine::Vec3f(1.0f, 0.0f, 0.0f);
+
+		GEngine::ManifoldCollector manifolds;
+		manifolds.AddContact(direct);
+		manifolds.AddContact(reversed);
+		const GEngine::contact_t stored = manifolds.m_Manifolds[0].GetContact(1);
+		const float canonicalNormalDot = glm::dot(direct.normal, stored.normal);
+		std::cout << "BASELINE contact_pair_order_normal_dot=" << canonicalNormalDot << '\n';
+		KnownIssueDiagnostic(canonicalNormalDot > 0.999f,
+			"reordered contact preserves the canonical manifold normal direction");
+	}
+
+	int RunUnsafeBodyRemovalProbe()
+	{
+		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::PhysicsWorld world(GEngine::Vec3f(0.0f));
+		GEngine::RigidBody3D* bodyA = world.CreateRigidBody3D();
+		GEngine::RigidBody3D* bodyB = world.CreateRigidBody3D();
+		ConfigureSphereBody(*bodyA, sphere, GEngine::Vec3f(0.0f));
+		ConfigureSphereBody(*bodyB, sphere, GEngine::Vec3f(1.5f, 0.0f, 0.0f));
+
+		GEngine::contact_t contact{};
+		contact.m_BodyA = bodyA;
+		contact.m_BodyB = bodyB;
+		contact.ptOnA_LocalSpace = GEngine::Vec3f(1.0f, 0.0f, 0.0f);
+		contact.ptOnB_LocalSpace = GEngine::Vec3f(-1.0f, 0.0f, 0.0f);
+		contact.normal = GEngine::Vec3f(-1.0f, 0.0f, 0.0f);
+
+		GEngine::ManifoldCollector manifolds;
+		manifolds.AddContact(contact);
+		world.RemoveRigidBody3D(bodyA);
+		std::cout << "UNSAFE_PROBE body_removal stepping stale manifold" << std::endl;
+		manifolds.RemoveExpired();
+		std::cout << "UNSAFE_PROBE body_removal completed_without_memory_detector" << std::endl;
+		return 0;
+	}
+
+	int RunUnsafeWorldRestartProbe()
+	{
+		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::PhysicsSystem system;
+		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
+		system.SetPhysicsWorld(world);
+		GEngine::RigidBody3D* bodyA = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* bodyB = world->CreateRigidBody3D();
+		ConfigureSphereBody(*bodyA, sphere, GEngine::Vec3f(0.0f));
+		ConfigureSphereBody(*bodyB, sphere, GEngine::Vec3f(1.5f, 0.0f, 0.0f));
+		system.Update(GEngine::Timestep(1.0f / 120.0f));
+		system.OnExit();
+		system.SetPhysicsWorld(new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f)));
+		std::cout << "UNSAFE_PROBE world_restart stepping retained manifolds" << std::endl;
+		system.Update(GEngine::Timestep(1.0f / 120.0f));
+		std::cout << "UNSAFE_PROBE world_restart completed_without_memory_detector" << std::endl;
+		return 0;
+	}
+
+	int RunUnsafeConvexSupportProbe(bool degenerate)
+	{
+		const std::vector<GEngine::Vec3f> points = degenerate
+			? std::vector<GEngine::Vec3f>{
+				GEngine::Vec3f(0.0f, 0.0f, 0.0f),
+				GEngine::Vec3f(1.0f, 0.0f, 0.0f),
+				GEngine::Vec3f(0.0f, 1.0f, 0.0f) }
+			: std::vector<GEngine::Vec3f>{};
+		GEngine::ShapeConvex convex(points);
+		std::cout << "UNSAFE_PROBE " << (degenerate ? "degenerate" : "empty")
+			<< "_convex_support indexing empty hull" << std::endl;
+		const GEngine::Vec3f support = convex.Support(
+			GEngine::Vec3f(1.0f, 0.0f, 0.0f), GEngine::Vec3f(0.0f),
+			GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f), 0.0f);
+		std::cout << "UNSAFE_PROBE convex_support=" << support.x << ',' << support.y << ',' << support.z << std::endl;
+		return 0;
 	}
 
 	void TestBoxConstructionInvariant()
@@ -876,14 +1038,44 @@ namespace
 	}
 }
 
-int main()
+int main(int argc, char** argv)
 {
 	GEngine::Log::Initialize();
+	if (argc == 2)
+	{
+		const std::string_view argument(argv[1]);
+		if (argument == "--unsafe-body-removal")
+		{
+			return RunUnsafeBodyRemovalProbe();
+		}
+		if (argument == "--unsafe-world-restart")
+		{
+			return RunUnsafeWorldRestartProbe();
+		}
+		if (argument == "--unsafe-empty-convex")
+		{
+			return RunUnsafeConvexSupportProbe(false);
+		}
+		if (argument == "--unsafe-degenerate-convex")
+		{
+			return RunUnsafeConvexSupportProbe(true);
+		}
+		std::cerr << "Unknown PhysicsTests argument: " << argument << '\n';
+		return 2;
+	}
+	if (argc != 1)
+	{
+		std::cerr << "PhysicsTests accepts at most one diagnostic argument\n";
+		return 2;
+	}
 
 	TestNormalization();
 	TestBarycentricAndPointEquality();
 	TestLcpPivots();
 	TestSphereContacts();
+	TestBodyRemovalLifetimeDiagnostic();
+	TestConvexValidityDiagnostic();
+	TestContactPairOrderDiagnostic();
 	TestDegenerateGjkDirection();
 	TestZeroQuaternionBodyUpdate();
 	TestBoxConstructionInvariant();
@@ -906,6 +1098,8 @@ int main()
 		return 1;
 	}
 
+	std::cout << "PhysicsTests diagnostics: " << observedKnownIssueCount << " known issues observed in "
+		<< diagnosticCount << " non-gating diagnostics\n";
 	std::cout << "PhysicsTests: " << testCount << " checks passed\n";
 	return 0;
 }

@@ -1,7 +1,9 @@
+#include <GEngine/Core/Log.h>
 #include <GEngine/Physics/PhysicsProfile.h>
 #include <GEngine/Physics/PhysicsSystem.h>
 #include <GEngine/Physics/PhysicsWorld.h>
 #include <GEngine/Physics/ShapeBox.h>
+#include <GEngine/Physics/ShapeSphere.h>
 
 #include <algorithm>
 #include <chrono>
@@ -28,6 +30,7 @@ namespace
 		int steadyStateWarmupSteps{};
 		int steadyStateMeasuredSteps{};
 		float dtSeconds{ 1.0f / 120.0f };
+		bool physicsRegressionBaseline{};
 	};
 
 	struct Sample
@@ -96,6 +99,10 @@ namespace
 			{
 				options.steadyStateMeasuredSteps = std::stoi(argument.substr(30));
 			}
+			else if (argument == "--physics-regression-baseline")
+			{
+				options.physicsRegressionBaseline = true;
+			}
 			else
 			{
 				throw std::invalid_argument("unknown argument: " + argument);
@@ -124,6 +131,158 @@ namespace
 		};
 	}
 
+	std::vector<GEngine::Vec3f> BoxPoints(const GEngine::Vec3f& halfExtents)
+	{
+		return {
+			{ -halfExtents.x, -halfExtents.y, -halfExtents.z },
+			{  halfExtents.x, -halfExtents.y, -halfExtents.z },
+			{ -halfExtents.x,  halfExtents.y, -halfExtents.z },
+			{  halfExtents.x,  halfExtents.y, -halfExtents.z },
+			{ -halfExtents.x, -halfExtents.y,  halfExtents.z },
+			{  halfExtents.x, -halfExtents.y,  halfExtents.z },
+			{ -halfExtents.x,  halfExtents.y,  halfExtents.z },
+			{  halfExtents.x,  halfExtents.y,  halfExtents.z }
+		};
+	}
+
+	struct RegressionState
+	{
+		double mechanicalEnergy{};
+		double averageY{};
+		double maxLinearSpeed{};
+		double maxAngularSpeed{};
+		double angularMomentumMagnitude{};
+		std::uint64_t movingBodyCount{};
+		bool finite{ true };
+	};
+
+	struct RegressionResult
+	{
+		std::string scenario;
+		std::uint64_t dynamicBodyCount{};
+		double initialEnergy{};
+		double peakEnergy{};
+		double finalEnergy{};
+		double initialAngularMomentum{};
+		double finalAngularMomentum{};
+		double finalAverageY{};
+		double peakLinearSpeed{};
+		double finalLinearSpeed{};
+		double peakAngularSpeed{};
+		double finalAngularSpeed{};
+		std::uint64_t finalMovingBodyCount{};
+		double averageStepMs{};
+		double averageGeneratedContacts{};
+		std::uint64_t finalManifoldCount{};
+		std::uint64_t finalManifoldContactCount{};
+		bool finite{ true };
+	};
+
+	void ConfigureProbeBody(GEngine::RigidBody3D& body, GEngine::PhysicalShape& shape,
+		const GEngine::Vec3f& position, GEngine::Component::BodyType type, float inverseMass)
+	{
+		body.m_Shape = &shape;
+		body.m_Position = position;
+		body.m_Orientation = GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f);
+		body.m_InvMass = inverseMass;
+		body.m_Elasticity = 0.5f;
+		body.m_Friction = 0.5f;
+		body.Type = type;
+	}
+
+	RegressionState CaptureRegressionState(const std::vector<GEngine::RigidBody3D*>& bodies,
+		float gravityMagnitude)
+	{
+		RegressionState state;
+		GEngine::Vec3f totalAngularMomentum(0.0f);
+		for (const GEngine::RigidBody3D* body : bodies)
+		{
+			state.finite = state.finite && body && body->HasFiniteState() && body->m_Shape &&
+				std::isfinite(body->m_InvMass) && body->m_InvMass > 0.0f;
+			if (!state.finite)
+			{
+				continue;
+			}
+
+			const float mass = 1.0f / body->m_InvMass;
+			const GEngine::Mat3& rotation = body->GetBodyToWorldRotation();
+			const GEngine::Mat3 inertiaWorld =
+				rotation * (body->m_Shape->InertiaTensor() * mass) * glm::transpose(rotation);
+			const GEngine::Vec3f angularMomentum = inertiaWorld * body->m_AngularVelocity;
+			const double linearSpeed = static_cast<double>(glm::length(body->m_LinearVelocity));
+			const double angularSpeed = static_cast<double>(glm::length(body->m_AngularVelocity));
+			const double linearEnergy = 0.5 * static_cast<double>(mass) * linearSpeed * linearSpeed;
+			const double angularEnergy = 0.5 * static_cast<double>(
+				glm::dot(body->m_AngularVelocity, angularMomentum));
+			const double potentialEnergy = static_cast<double>(mass) *
+				static_cast<double>(gravityMagnitude) * static_cast<double>(body->GetCenterOfMassWorldSpace().y);
+
+			state.mechanicalEnergy += linearEnergy + angularEnergy + potentialEnergy;
+			state.averageY += static_cast<double>(body->GetCenterOfMassWorldSpace().y);
+			state.maxLinearSpeed = std::max(state.maxLinearSpeed, linearSpeed);
+			state.maxAngularSpeed = std::max(state.maxAngularSpeed, angularSpeed);
+			totalAngularMomentum += angularMomentum;
+			if (linearSpeed > 0.05 || angularSpeed > 0.05)
+			{
+				++state.movingBodyCount;
+			}
+		}
+
+		if (!bodies.empty())
+		{
+			state.averageY /= static_cast<double>(bodies.size());
+		}
+		state.angularMomentumMagnitude = static_cast<double>(glm::length(totalAngularMomentum));
+		state.finite = state.finite && std::isfinite(state.mechanicalEnergy) &&
+			std::isfinite(state.averageY) && std::isfinite(state.maxLinearSpeed) &&
+			std::isfinite(state.maxAngularSpeed) && std::isfinite(state.angularMomentumMagnitude);
+		return state;
+	}
+
+	RegressionResult RunWorldRegression(const std::string& scenario, GEngine::PhysicsSystem& system,
+		const std::vector<GEngine::RigidBody3D*>& dynamicBodies, float gravityMagnitude,
+		int stepCount, float dtSeconds)
+	{
+		RegressionResult result;
+		result.scenario = scenario;
+		result.dynamicBodyCount = dynamicBodies.size();
+		const RegressionState initial = CaptureRegressionState(dynamicBodies, gravityMagnitude);
+		result.initialEnergy = initial.mechanicalEnergy;
+		result.peakEnergy = initial.mechanicalEnergy;
+		result.initialAngularMomentum = initial.angularMomentumMagnitude;
+		result.finite = initial.finite;
+
+		GEngine::ResetPhysicsProfile();
+		const auto start = Clock::now();
+		for (int step = 0; step < stepCount; ++step)
+		{
+			system.Update(GEngine::Timestep(dtSeconds));
+			const RegressionState state = CaptureRegressionState(dynamicBodies, gravityMagnitude);
+			result.peakEnergy = std::max(result.peakEnergy, state.mechanicalEnergy);
+			result.peakLinearSpeed = std::max(result.peakLinearSpeed, state.maxLinearSpeed);
+			result.peakAngularSpeed = std::max(result.peakAngularSpeed, state.maxAngularSpeed);
+			result.finite = result.finite && state.finite;
+		}
+		const auto end = Clock::now();
+
+		const RegressionState finalState = CaptureRegressionState(dynamicBodies, gravityMagnitude);
+		const PhysicsProfileSnapshot profile = GEngine::GetPhysicsProfileSnapshot();
+		result.finalEnergy = finalState.mechanicalEnergy;
+		result.finalAngularMomentum = finalState.angularMomentumMagnitude;
+		result.finalAverageY = finalState.averageY;
+		result.finalLinearSpeed = finalState.maxLinearSpeed;
+		result.finalAngularSpeed = finalState.maxAngularSpeed;
+		result.finalMovingBodyCount = finalState.movingBodyCount;
+		result.averageStepMs = std::chrono::duration<double, std::milli>(end - start).count() /
+			static_cast<double>(stepCount);
+		result.averageGeneratedContacts = static_cast<double>(profile.generatedContactCount) /
+			static_cast<double>(stepCount);
+		result.finalManifoldCount = profile.manifoldCount;
+		result.finalManifoldContactCount = profile.manifoldContactCount;
+		result.finite = result.finite && finalState.finite && std::isfinite(result.averageStepMs);
+		return result;
+	}
+
 	bool IsFinite(const GEngine::Vec3f& value)
 	{
 		return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
@@ -133,6 +292,191 @@ namespace
 	{
 		return std::isfinite(value.w) && std::isfinite(value.x) &&
 			std::isfinite(value.y) && std::isfinite(value.z);
+	}
+
+	RegressionResult RunAsymmetricBodyRegression(int stepCount, float dtSeconds)
+	{
+		GEngine::ShapeBox shape(BoxPoints(GEngine::Vec3f(1.0f, 2.0f, 3.0f)));
+		GEngine::RigidBody3D body;
+		ConfigureProbeBody(body, shape, GEngine::Vec3f(0.0f),
+			GEngine::Component::BodyType::Dynamic, 1.0f);
+		body.m_AngularVelocity = GEngine::Vec3f(0.7f, 1.1f, 1.6f);
+		const std::vector<GEngine::RigidBody3D*> bodies{ &body };
+
+		RegressionResult result;
+		result.scenario = "asymmetric_free_body";
+		result.dynamicBodyCount = 1;
+		const RegressionState initial = CaptureRegressionState(bodies, 0.0f);
+		result.initialEnergy = initial.mechanicalEnergy;
+		result.peakEnergy = initial.mechanicalEnergy;
+		result.initialAngularMomentum = initial.angularMomentumMagnitude;
+		result.finite = initial.finite;
+
+		const auto start = Clock::now();
+		for (int step = 0; step < stepCount; ++step)
+		{
+			body.Update(dtSeconds);
+			const RegressionState state = CaptureRegressionState(bodies, 0.0f);
+			result.peakEnergy = std::max(result.peakEnergy, state.mechanicalEnergy);
+			result.peakLinearSpeed = std::max(result.peakLinearSpeed, state.maxLinearSpeed);
+			result.peakAngularSpeed = std::max(result.peakAngularSpeed, state.maxAngularSpeed);
+			result.finite = result.finite && state.finite;
+		}
+		const auto end = Clock::now();
+
+		const RegressionState finalState = CaptureRegressionState(bodies, 0.0f);
+		result.finalEnergy = finalState.mechanicalEnergy;
+		result.finalAngularMomentum = finalState.angularMomentumMagnitude;
+		result.finalAverageY = finalState.averageY;
+		result.finalLinearSpeed = finalState.maxLinearSpeed;
+		result.finalAngularSpeed = finalState.maxAngularSpeed;
+		result.finalMovingBodyCount = finalState.movingBodyCount;
+		result.averageStepMs = std::chrono::duration<double, std::milli>(end - start).count() /
+			static_cast<double>(stepCount);
+		result.finite = result.finite && finalState.finite && std::isfinite(result.averageStepMs);
+		return result;
+	}
+
+	RegressionResult RunBoxStackRegression(int stepCount, float dtSeconds)
+	{
+		GEngine::ShapeBox box(UnitBoxPoints());
+		GEngine::ShapeBox floor(BoxPoints(GEngine::Vec3f(50.0f, 0.5f, 50.0f)));
+		GEngine::PhysicsSystem system;
+		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
+		system.SetPhysicsWorld(world);
+
+		GEngine::RigidBody3D* floorBody = world->CreateRigidBody3D();
+		ConfigureProbeBody(*floorBody, floor, GEngine::Vec3f(0.0f),
+			GEngine::Component::BodyType::Static, 0.0f);
+
+		std::vector<GEngine::RigidBody3D*> boxes;
+		boxes.reserve(16);
+		for (int y = 0; y < 4; ++y)
+		{
+			for (int x = 0; x < 4; ++x)
+			{
+				GEngine::RigidBody3D* body = world->CreateRigidBody3D();
+				ConfigureProbeBody(*body, box,
+					GEngine::Vec3f(static_cast<float>(x) * 2.01f, 1.5f + static_cast<float>(y) * 2.0f, 0.0f),
+					GEngine::Component::BodyType::Dynamic, 1.0f);
+				boxes.push_back(body);
+			}
+		}
+
+		return RunWorldRegression("box_stack_4x4", system, boxes, 12.0f, stepCount, dtSeconds);
+	}
+
+	RegressionResult RunSingleSphereRegression(int stepCount, float dtSeconds)
+	{
+		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeBox floor(BoxPoints(GEngine::Vec3f(50.0f, 0.5f, 50.0f)));
+		GEngine::PhysicsSystem system;
+		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
+		system.SetPhysicsWorld(world);
+
+		GEngine::RigidBody3D* floorBody = world->CreateRigidBody3D();
+		ConfigureProbeBody(*floorBody, floor, GEngine::Vec3f(0.0f),
+			GEngine::Component::BodyType::Static, 0.0f);
+		GEngine::RigidBody3D* sphereBody = world->CreateRigidBody3D();
+		ConfigureProbeBody(*sphereBody, sphere, GEngine::Vec3f(0.0f, 10.0f, 0.0f),
+			GEngine::Component::BodyType::Dynamic, 1.0f);
+
+		return RunWorldRegression("single_sphere", system, { sphereBody }, 12.0f, stepCount, dtSeconds);
+	}
+
+	RegressionResult RunSphereLatticeRegression(int stepCount, float dtSeconds)
+	{
+		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeBox floor(BoxPoints(GEngine::Vec3f(50.0f, 0.5f, 50.0f)));
+		GEngine::PhysicsSystem system;
+		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
+		system.SetPhysicsWorld(world);
+
+		GEngine::RigidBody3D* floorBody = world->CreateRigidBody3D();
+		ConfigureProbeBody(*floorBody, floor, GEngine::Vec3f(0.0f),
+			GEngine::Component::BodyType::Static, 0.0f);
+
+		std::vector<GEngine::RigidBody3D*> spheres;
+		spheres.reserve(180);
+		for (int vertical = 0; vertical < 5; ++vertical)
+		{
+			for (int x = 0; x < 6; ++x)
+			{
+				for (int z = 0; z < 6; ++z)
+				{
+					GEngine::RigidBody3D* body = world->CreateRigidBody3D();
+					ConfigureProbeBody(*body, sphere, GEngine::Vec3f(
+						static_cast<float>(x - 1) * 2.0f,
+						10.0f + static_cast<float>(vertical) * 2.0f,
+						static_cast<float>(z - 1) * 2.0f),
+						GEngine::Component::BodyType::Dynamic, 1.0f);
+					spheres.push_back(body);
+				}
+			}
+		}
+
+		return RunWorldRegression("sphere_lattice_180", system, spheres, 12.0f, stepCount, dtSeconds);
+	}
+
+	void PrintRegressionResult(const RegressionResult& result)
+	{
+		const double peakPercent = result.initialEnergy != 0.0
+			? result.peakEnergy * 100.0 / result.initialEnergy
+			: 0.0;
+		const double energyChangePercent = result.initialEnergy != 0.0
+			? (result.finalEnergy - result.initialEnergy) * 100.0 / result.initialEnergy
+			: 0.0;
+		const double angularMomentumChangePercent = result.initialAngularMomentum != 0.0
+			? (result.finalAngularMomentum - result.initialAngularMomentum) * 100.0 /
+				result.initialAngularMomentum
+			: 0.0;
+
+		std::cout << std::fixed << std::setprecision(6)
+			<< result.scenario << ',' << result.dynamicBodyCount << ','
+			<< result.initialEnergy << ',' << result.peakEnergy << ',' << result.finalEnergy << ','
+			<< peakPercent << ',' << energyChangePercent << ','
+			<< result.initialAngularMomentum << ',' << result.finalAngularMomentum << ','
+			<< angularMomentumChangePercent << ',' << result.finalAverageY << ','
+			<< result.peakLinearSpeed << ',' << result.finalLinearSpeed << ','
+			<< result.peakAngularSpeed << ',' << result.finalAngularSpeed << ','
+			<< result.finalMovingBodyCount << ',' << result.averageGeneratedContacts << ','
+			<< result.finalManifoldCount << ',' << result.finalManifoldContactCount << ','
+			<< result.averageStepMs << ',' << (result.finite ? 1 : 0) << '\n';
+	}
+
+	int RunPhysicsRegressionBaseline()
+	{
+		constexpr int stepCount = 1200;
+		constexpr float dtSeconds = 1.0f / 120.0f;
+		GEngine::Log::Initialize();
+		GEngine::Log::GetLogger()->set_level(spdlog::level::off);
+
+		std::vector<RegressionResult> results;
+		results.reserve(4);
+		results.push_back(RunAsymmetricBodyRegression(stepCount, dtSeconds));
+		results.push_back(RunBoxStackRegression(stepCount, dtSeconds));
+		results.push_back(RunSingleSphereRegression(stepCount, dtSeconds));
+		results.push_back(RunSphereLatticeRegression(stepCount, dtSeconds));
+
+		std::cout << "# benchmark=physics_regression_baseline\n"
+			<< "# dt_seconds=" << std::setprecision(9) << dtSeconds << '\n'
+			<< "# steps=" << stepCount << '\n'
+			<< "# simulated_seconds=" << static_cast<double>(stepCount) * dtSeconds << '\n'
+			<< "# moving_threshold_linear=0.05\n"
+			<< "# moving_threshold_angular=0.05\n"
+			<< "scenario,dynamic_bodies,initial_energy,peak_energy,final_energy,peak_energy_percent,"
+			<< "final_energy_change_percent,initial_angular_momentum,final_angular_momentum,"
+			<< "angular_momentum_change_percent,final_average_y,peak_linear_speed,final_linear_speed,"
+			<< "peak_angular_speed,final_angular_speed,final_moving_bodies,average_generated_contacts,"
+			<< "final_manifolds,final_manifold_contacts,average_step_ms,finite\n";
+
+		bool allFinite = true;
+		for (const RegressionResult& result : results)
+		{
+			PrintRegressionResult(result);
+			allFinite = allFinite && result.finite;
+		}
+		return allFinite ? EXIT_SUCCESS : EXIT_FAILURE;
 	}
 
 	Sample RunSample(GEngine::ShapeBox& shape, int bodyCount, const Options& options)
@@ -378,6 +722,10 @@ int main(int argc, char** argv)
 	try
 	{
 		const Options options = ParseOptions(argc, argv);
+		if (options.physicsRegressionBaseline)
+		{
+			return RunPhysicsRegressionBaseline();
+		}
 		GEngine::ShapeBox shape(UnitBoxPoints());
 
 		std::cout << "# benchmark="

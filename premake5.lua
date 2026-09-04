@@ -870,7 +870,8 @@ project "PhysicsTests"
 	files
 	{
 		"%{prj.name}/src/**.cpp",
-		"%{prj.name}/README.md"
+		"%{prj.name}/README.md",
+		"GEngine/include/GEngine/Physics/ShapeConvex.cpp"
 	}
 
 	sysincludedirs
@@ -878,6 +879,8 @@ project "PhysicsTests"
 		"GEngine/include",
 		"GEngine/include/external",
 		"GEngine/include/GEngine",
+		"%{externals.sdl2}/include",
+		"%{externals.glad}/include",
 		"%{externals.spdlog}/include",
 		"%{externals.entt}/include"
 	}

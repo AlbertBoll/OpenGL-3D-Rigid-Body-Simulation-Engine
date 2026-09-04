@@ -10,6 +10,7 @@
 #include <GEngine/Physics/ShapeBox.h>
 #include <GEngine/Physics/ShapeConvex.h>
 #include <GEngine/Physics/ShapeSphere.h>
+#include <GEngine/Scene/_Entity.h>
 
 #include <algorithm>
 #include <cmath>
@@ -40,8 +41,22 @@ namespace
 		friend Type GetPrivateMember(PhysicsSystemContactsTag);
 	};
 
+	struct PhysicsSystemBroadphaseTag
+	{
+		using Type = GEngine::SweepAndPruneBroadphase GEngine::PhysicsSystem::*;
+		friend Type GetPrivateMember(PhysicsSystemBroadphaseTag);
+	};
+
+	struct PhysicsSystemCollisionPairsTag
+	{
+		using Type = std::vector<GEngine::collisionPair_t> GEngine::PhysicsSystem::*;
+		friend Type GetPrivateMember(PhysicsSystemCollisionPairsTag);
+	};
+
 	template struct PrivateMemberAccess<PhysicsSystemManifoldsTag, &GEngine::PhysicsSystem::m_Manifolds>;
 	template struct PrivateMemberAccess<PhysicsSystemContactsTag, &GEngine::PhysicsSystem::m_Contacts>;
+	template struct PrivateMemberAccess<PhysicsSystemBroadphaseTag, &GEngine::PhysicsSystem::m_Broadphase>;
+	template struct PrivateMemberAccess<PhysicsSystemCollisionPairsTag, &GEngine::PhysicsSystem::m_CollisionPairs>;
 
 	GEngine::ManifoldCollector& GetManifolds(GEngine::PhysicsSystem& system)
 	{
@@ -51,6 +66,16 @@ namespace
 	std::vector<GEngine::contact_t>& GetTransientContacts(GEngine::PhysicsSystem& system)
 	{
 		return system.*GetPrivateMember(PhysicsSystemContactsTag{});
+	}
+
+	GEngine::SweepAndPruneBroadphase& GetBroadphase(GEngine::PhysicsSystem& system)
+	{
+		return system.*GetPrivateMember(PhysicsSystemBroadphaseTag{});
+	}
+
+	std::vector<GEngine::collisionPair_t>& GetCollisionPairs(GEngine::PhysicsSystem& system)
+	{
+		return system.*GetPrivateMember(PhysicsSystemCollisionPairsTag{});
 	}
 
 	int failureCount = 0;
@@ -608,22 +633,175 @@ namespace
 		return 0;
 	}
 
-	int RunUnsafeWorldRestartProbe()
+	bool HasResetTransientState(GEngine::PhysicsSystem& system)
+	{
+		const GEngine::BroadphaseStats& stats = GetBroadphase(system).GetLastStats();
+		return GetManifolds(system).m_Manifolds.empty() && GetCollisionPairs(system).empty() &&
+			GetTransientContacts(system).empty() && stats.axisOverlapCount == 0 &&
+			stats.aabbRejectedCount == 0 && stats.staticPairRejectedCount == 0 &&
+			stats.maskRejectedCount == 0 && stats.insertionSortSwapCount == 0 &&
+			stats.fullSortCount == 0;
+	}
+
+	void PopulateCollidingWorld(GEngine::PhysicsSystem& system, GEngine::PhysicsWorld& world,
+		GEngine::ShapeSphere& sphere, float positionOffset)
+	{
+		GEngine::RigidBody3D* bodyA = world.CreateRigidBody3D();
+		GEngine::RigidBody3D* bodyB = world.CreateRigidBody3D();
+		ConfigureSphereBody(*bodyA, sphere, GEngine::Vec3f(positionOffset, 0.0f, 0.0f));
+		ConfigureSphereBody(*bodyB, sphere, GEngine::Vec3f(positionOffset + 2.0f, 0.0f, 0.0f));
+		system.Update(GEngine::Timestep(1.0f / 120.0f));
+
+		const bool hasManifold = GetManifolds(system).m_Manifolds.size() == 1 &&
+			GetManifolds(system).GetContactCount() == 1;
+		Expect(hasManifold && !GetCollisionPairs(system).empty() &&
+			GetBroadphase(system).GetLastStats().fullSortCount == 1 &&
+			bodyA->HasFiniteState() && bodyB->HasFiniteState(),
+			"restart fixture creates a finite active manifold and broad-phase pair");
+
+		if (hasManifold)
+		{
+			GEngine::contact_t transientContact = GetManifolds(system).m_Manifolds[0].GetContact(0);
+			transientContact.timeOfImpact = 0.5f;
+			GetTransientContacts(system).push_back(transientContact);
+		}
+		Expect(GetTransientContacts(system).size() == 1,
+			"restart fixture contains transient contact state before reset");
+	}
+
+	void TestPhysicsWorldResetAndRestartRegression()
 	{
 		GEngine::ShapeSphere sphere(1.0f);
 		GEngine::PhysicsSystem system;
-		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
-		system.SetPhysicsWorld(world);
-		GEngine::RigidBody3D* bodyA = world->CreateRigidBody3D();
-		GEngine::RigidBody3D* bodyB = world->CreateRigidBody3D();
-		ConfigureSphereBody(*bodyA, sphere, GEngine::Vec3f(0.0f));
-		ConfigureSphereBody(*bodyB, sphere, GEngine::Vec3f(1.5f, 0.0f, 0.0f));
-		system.Update(GEngine::Timestep(1.0f / 120.0f));
+
+		auto* firstWorld = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
+		system.SetPhysicsWorld(firstWorld);
+		PopulateCollidingWorld(system, *firstWorld, sphere, 0.0f);
 		system.OnExit();
-		system.SetPhysicsWorld(new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f)));
-		std::cout << "UNSAFE_PROBE world_restart stepping retained manifolds" << std::endl;
+		Expect(system.GetPhysicsWorld() == nullptr && HasResetTransientState(system),
+			"physics stop clears the world, manifolds, broad phase, pairs, and contacts");
+
+		system.OnExit();
 		system.Update(GEngine::Timestep(1.0f / 120.0f));
-		std::cout << "UNSAFE_PROBE world_restart completed_without_memory_detector" << std::endl;
+		Expect(system.GetPhysicsWorld() == nullptr && HasResetTransientState(system),
+			"repeated physics stop and a stopped update are safe no-ops");
+
+		auto* secondWorld = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
+		system.SetPhysicsWorld(secondWorld);
+		PopulateCollidingWorld(system, *secondWorld, sphere, 10.0f);
+		system.SetPhysicsWorld(secondWorld);
+		Expect(system.GetPhysicsWorld() == secondWorld && secondWorld->GetPhysicsBodies().size() == 2 &&
+			GetManifolds(system).m_Manifolds.size() == 1,
+			"setting the active world again preserves the live world and its state");
+
+		auto* replacementWorld = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
+		system.SetPhysicsWorld(replacementWorld);
+		Expect(system.GetPhysicsWorld() == replacementWorld && HasResetTransientState(system),
+			"world replacement releases prior ownership and clears all prior-world state");
+		PopulateCollidingWorld(system, *replacementWorld, sphere, 20.0f);
+		system.OnExit();
+		Expect(system.GetPhysicsWorld() == nullptr && HasResetTransientState(system),
+			"restarted physics can collide and stop cleanly again");
+	}
+
+	void TestSceneRuntimeLifecycleRegression()
+	{
+		{
+			GEngine::_Scene scene;
+			GEngine::_Entity bodyEntityA = scene.CreateEntity("runtime sphere A");
+			GEngine::_Entity bodyEntityB = scene.CreateEntity("runtime sphere B");
+			bodyEntityA.AddOrReplaceComponent<GEngine::Component::RigidBody3DComponent>().Type =
+				GEngine::Component::BodyType::Dynamic;
+			bodyEntityB.AddOrReplaceComponent<GEngine::Component::RigidBody3DComponent>().Type =
+				GEngine::Component::BodyType::Dynamic;
+
+			GEngine::Component::SphereFixture3DComponent fixtureA;
+			GEngine::Component::SphereFixture3DComponent fixtureB;
+			fixtureA.Property.m_Position = GEngine::Vec3f(0.0f, 0.0f, 0.0f);
+			fixtureB.Property.m_Position = GEngine::Vec3f(2.0f, 0.0f, 0.0f);
+			bodyEntityA.AddOrReplaceComponent<GEngine::Component::SphereFixture3DComponent>(fixtureA);
+			bodyEntityB.AddOrReplaceComponent<GEngine::Component::SphereFixture3DComponent>(fixtureB);
+
+			scene.OnRuntimeStart();
+			GEngine::RigidBody3D* firstBodyA =
+				bodyEntityA.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody;
+			GEngine::RigidBody3D* firstBodyB =
+				bodyEntityB.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody;
+			Expect(scene.IsRunning() && scene.GetPhysicsSystem()->GetPhysicsWorld() != nullptr &&
+				firstBodyA != nullptr && firstBodyB != nullptr && firstBodyA->m_Shape != nullptr &&
+				firstBodyB->m_Shape != nullptr,
+				"scene runtime start creates valid runtime body links");
+
+			scene.Update(GEngine::Timestep(1.0f / 120.0f));
+			Expect(firstBodyA && firstBodyB && firstBodyA->HasFiniteState() && firstBodyB->HasFiniteState(),
+				"scene runtime bodies remain finite after the first update");
+
+			scene.OnRuntimeStop();
+			Expect(!scene.IsRunning() && scene.GetPhysicsSystem()->GetPhysicsWorld() == nullptr &&
+				bodyEntityA.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == nullptr &&
+				bodyEntityB.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == nullptr,
+				"scene runtime stop clears all runtime body links and shuts down the physics world");
+
+			scene.OnRuntimeStop();
+			Expect(!scene.IsRunning() && scene.GetPhysicsSystem()->GetPhysicsWorld() == nullptr &&
+				bodyEntityA.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == nullptr &&
+				bodyEntityB.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == nullptr,
+				"repeated scene runtime stop is safe");
+
+			scene.Update(GEngine::Timestep(1.0f / 120.0f));
+			Expect(scene.GetPhysicsSystem()->GetPhysicsWorld() == nullptr &&
+				bodyEntityA.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == nullptr &&
+				bodyEntityB.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == nullptr,
+				"updating the stopped scene does not restore or dereference cleared runtime bodies");
+
+			scene.OnRuntimeStart();
+			GEngine::RigidBody3D* restartedBodyA =
+				bodyEntityA.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody;
+			GEngine::RigidBody3D* restartedBodyB =
+				bodyEntityB.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody;
+			Expect(scene.IsRunning() && scene.GetPhysicsSystem()->GetPhysicsWorld() != nullptr &&
+				restartedBodyA != nullptr && restartedBodyB != nullptr && restartedBodyA->m_Shape != nullptr &&
+				restartedBodyB->m_Shape != nullptr,
+				"scene runtime restart recreates valid runtime bodies");
+
+			scene.Update(GEngine::Timestep(1.0f / 120.0f));
+			Expect(restartedBodyA && restartedBodyB && restartedBodyA->HasFiniteState() &&
+				restartedBodyB->HasFiniteState(),
+				"restarted scene runtime bodies remain finite after another update");
+
+			scene.OnRuntimeStop();
+			Expect(!scene.IsRunning() && scene.GetPhysicsSystem()->GetPhysicsWorld() == nullptr &&
+				bodyEntityA.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == nullptr &&
+				bodyEntityB.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == nullptr,
+				"restarted scene stops cleanly before destruction");
+		}
+
+		Expect(true, "stopped scene destruction completes safely");
+	}
+
+	int RunUnsafeWorldRestartProbe()
+	{
+		TestPhysicsWorldResetAndRestartRegression();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " focused world-restart checks failed\n";
+			return 1;
+		}
+
+		std::cout << "World-restart regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
+	int RunSceneRuntimeLifecycleRegression()
+	{
+		TestSceneRuntimeLifecycleRegression();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " focused scene lifecycle checks failed\n";
+			return 1;
+		}
+
+		std::cout << "Scene runtime lifecycle regression: " << testCount << " checks passed\n";
 		return 0;
 	}
 
@@ -1207,6 +1385,10 @@ int main(int argc, char** argv)
 		{
 			return RunUnsafeWorldRestartProbe();
 		}
+		if (argument == "--scene-runtime-lifecycle")
+		{
+			return RunSceneRuntimeLifecycleRegression();
+		}
 		if (argument == "--unsafe-empty-convex")
 		{
 			return RunUnsafeConvexSupportProbe(false);
@@ -1231,6 +1413,8 @@ int main(int argc, char** argv)
 	TestBodyRemovalLifetimeRegression();
 	TestMultiManifoldBodyRemovalRegression();
 	TestTransientContactBodyRemovalRegression();
+	TestPhysicsWorldResetAndRestartRegression();
+	TestSceneRuntimeLifecycleRegression();
 	TestConvexValidityDiagnostic();
 	TestContactPairOrderDiagnostic();
 	TestDegenerateGjkDirection();

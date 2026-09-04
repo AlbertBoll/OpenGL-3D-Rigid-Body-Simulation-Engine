@@ -79,7 +79,7 @@ namespace GEngine
 
 	_Scene::~_Scene()
 	{
-		//delete m_PhysicsWorld;
+		OnPhysics3DStop();
 		delete m_PhysicsSystem;
 	}
 
@@ -159,7 +159,8 @@ namespace GEngine
 
 	void _Scene::OnRuntimeStop()
 	{
-
+		m_IsRunning = false;
+		OnPhysics3DStop();
 	}
 
 	void _Scene::OnSimulationStart()
@@ -435,6 +436,7 @@ namespace GEngine
 
 	void _Scene::OnPhysics3DStart()
 	{
+		OnPhysics3DStop();
 		auto m_PhysicsWorld = new PhysicsWorld{};
 		m_PhysicsSystem->SetPhysicsWorld(m_PhysicsWorld);
 		//auto view = m_Registry.view<RigidBody3DComponent>();
@@ -555,6 +557,11 @@ namespace GEngine
 
 	void _Scene::OnPhysics3DStop()
 	{
+		for (auto& e : m_Registry.view<RigidBody3DComponent>())
+		{
+			m_Registry.get<RigidBody3DComponent>(e).RuntimeBody = nullptr;
+		}
+
 		m_PhysicsSystem->OnExit();
 	}
 }

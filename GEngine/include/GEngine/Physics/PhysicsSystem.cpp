@@ -178,8 +178,7 @@ namespace GEngine
 
 	PhysicsSystem::~PhysicsSystem()
 	{
-		if (m_PhysicsWorld)delete m_PhysicsWorld;
-		m_PhysicsWorld = nullptr;
+		OnExit();
 	}
 
 	void PhysicsSystem::Initialize()
@@ -448,15 +447,24 @@ namespace GEngine
 
 	void PhysicsSystem::OnExit()
 	{
-		delete m_PhysicsWorld;
-		m_PhysicsWorld = nullptr;
+		m_Manifolds.Clear();
 		m_Broadphase.Clear();
 		m_CollisionPairs.clear();
 		m_Contacts.clear();
+
+		PhysicsWorld* physicsWorld = m_PhysicsWorld;
+		m_PhysicsWorld = nullptr;
+		delete physicsWorld;
 	}
 
 	void PhysicsSystem::SetPhysicsWorld(PhysicsWorld* physics_world)
 	{
+		if (m_PhysicsWorld == physics_world)
+		{
+			return;
+		}
+
+		OnExit();
 		m_PhysicsWorld = physics_world;
 		if (m_PhysicsWorld)
 		{

@@ -862,7 +862,7 @@ project "PhysicsTests"
 	language "C++"
 	cppdialect "C++20"
 	staticruntime "on"
-	links "GEngine"
+	links { "GEngine", "glad" }
 
 	targetdir(tdir)
 	objdir(odir)

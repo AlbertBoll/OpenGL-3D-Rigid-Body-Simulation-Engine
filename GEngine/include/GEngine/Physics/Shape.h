@@ -13,6 +13,7 @@ namespace GEngine
 	//using namespace Component;
 	enum class ShapeType
 	{
+		Invalid = -1,
 		Sphere = 0,
 		Box = 1,
 		Convex = 2
@@ -32,7 +33,7 @@ namespace GEngine
 		virtual Vec3f GetCenterOfMass() const { return m_CenterOfMass; }
 		virtual Vec3f Support(const Vec3f& dir, const Vec3f& pos, const Quat& orient, const float bias) const = 0;
 		virtual float FastestLinearSpeed(const Vec3f& angularVelocity, const Vec3f& dir) const { return 0.0f; }
-		virtual bool IsValid() const { return true; }
+		virtual bool IsValid() const { return m_ShapeType != ShapeType::Invalid; }
 
 		void SetShapeType(ShapeType type) { m_ShapeType = type; }
 		ShapeType GetShapeType() const { return m_ShapeType; }
@@ -42,9 +43,9 @@ namespace GEngine
 	protected:
 		void MarkGeometryChanged() { ++m_Revision; }
 
-		Vec3f m_CenterOfMass;
+		Vec3f m_CenterOfMass{ 0.0f };
 		std::vector<Vec3f> m_MeshPoints;
-		ShapeType m_ShapeType;
+		ShapeType m_ShapeType = ShapeType::Invalid;
 		std::uint64_t m_Revision{};
 
 	};

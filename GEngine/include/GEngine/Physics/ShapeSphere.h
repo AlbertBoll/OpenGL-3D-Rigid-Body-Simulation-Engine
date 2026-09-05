@@ -6,14 +6,12 @@ namespace GEngine
 	class ShapeSphere : public PhysicalShape
 	{
 	public:
-		ShapeSphere() = default;
+		ShapeSphere() : ShapeSphere(1.0f) {}
 		ShapeSphere(float radius);
 		float GetRadius() const { return m_Radius; }
-		void SetRadius(float radius)
-		{
-			m_Radius = radius;
-			MarkGeometryChanged();
-		}
+		// Rejected and unchanged radii preserve geometry and its revision.
+		void SetRadius(float radius);
+		bool IsValid() const override;
 		// Inherited via Shape
 		Mat3 InertiaTensor() const override;
 

@@ -2,13 +2,32 @@
 
 #include "ShapeSphere.h"
 
+#include <cmath>
+#include <stdexcept>
+
 
 namespace GEngine
 {
 	ShapeSphere::ShapeSphere(float radius) : m_Radius(radius)
 	{
-		m_CenterOfMass = { 0.f, 0.f, 0.f };
+		if (!IsValid()) {
+			throw std::invalid_argument("ShapeSphere requires a finite positive radius");
+		}
 		m_ShapeType = ShapeType::Sphere;
+	}
+
+	bool ShapeSphere::IsValid() const
+	{
+		return std::isfinite(m_Radius) && m_Radius > 0.0f;
+	}
+
+	void ShapeSphere::SetRadius(float radius)
+	{
+		if (!std::isfinite(radius) || radius <= 0.0f || radius == m_Radius) {
+			return;
+		}
+		m_Radius = radius;
+		MarkGeometryChanged();
 	}
 
 	Mat3 ShapeSphere::InertiaTensor() const

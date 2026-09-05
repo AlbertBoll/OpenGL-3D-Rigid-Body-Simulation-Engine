@@ -18,6 +18,7 @@
 #include <iostream>
 #include <limits>
 #include <string_view>
+#include <stdexcept>
 #include <type_traits>
 #include <vector>
 
@@ -171,6 +172,26 @@ namespace
 			Finite(contact.normal) && std::isfinite(contact.separationDistance) &&
 			std::isfinite(contact.timeOfImpact);
 	}
+
+	// A mathematical point support map for base initialization and degenerate GJK tests.
+	class PointShapeFixture final : public GEngine::PhysicalShape
+	{
+	public:
+		PointShapeFixture() = default;
+		using PhysicalShape::PhysicalShape;
+
+		GEngine::Mat3 InertiaTensor() const override { return GEngine::Mat3(0.0f); }
+		GEngine::Bounds GetBounds() const override { return GetBounds(GEngine::Vec3f(0.0f), GEngine::Quat()); }
+		GEngine::Bounds GetBounds(const GEngine::Vec3f& position, const GEngine::Quat&) const override
+		{
+			GEngine::Bounds bounds;
+			bounds.mins = bounds.maxs = position;
+			return bounds;
+		}
+		GEngine::Vec3f Support(const GEngine::Vec3f&, const GEngine::Vec3f& position,
+			const GEngine::Quat&, float) const override { return position; }
+		std::size_t GetSourcePointCount() const { return m_MeshPoints.size(); }
+	};
 
 	class CountingShape final : public GEngine::PhysicalShape
 	{
@@ -339,6 +360,107 @@ namespace
 		body.m_InvMass = 1.0f;
 	}
 
+	void TestSphereAndBaseValidityContract()
+	{
+		const PointShapeFixture defaultBase;
+		const PointShapeFixture meshBase(UnitBoxPoints());
+		Expect(defaultBase.GetShapeType() == GEngine::ShapeType::Invalid && !defaultBase.IsValid() &&
+			Near(defaultBase.GetCenterOfMass(), GEngine::Vec3f(0.0f), 0.0f) &&
+			defaultBase.GetRevision() == 0 && defaultBase.GetSourcePointCount() == 0,
+			"default base shape has deterministic unclassified type, zero center, and zero revision");
+		Expect(meshBase.GetShapeType() == GEngine::ShapeType::Invalid && !meshBase.IsValid() &&
+			Near(meshBase.GetCenterOfMass(), GEngine::Vec3f(0.0f), 0.0f) &&
+			meshBase.GetRevision() == 0 && meshBase.GetSourcePointCount() == 8,
+			"mesh base constructor initializes metadata while retaining its source points");
+
+		const GEngine::Quat identity(1.0f, 0.0f, 0.0f, 0.0f);
+		const GEngine::Vec3f direction(1.0f, 0.0f, 0.0f);
+		GEngine::ShapeSphere defaultSphere;
+		Expect(defaultSphere.IsValid() && defaultSphere.GetShapeType() == GEngine::ShapeType::Sphere &&
+			defaultSphere.GetRadius() == 1.0f && defaultSphere.GetRevision() == 0 &&
+			Near(defaultSphere.GetCenterOfMass(), GEngine::Vec3f(0.0f), 0.0f),
+			"default sphere is a valid unit sphere with initialized type, center, and revision");
+		Expect(Near(defaultSphere.InertiaTensor(), GEngine::Mat3(0.4f)) &&
+			Near(defaultSphere.GetBounds().mins, GEngine::Vec3f(-1.0f)) &&
+			Near(defaultSphere.GetBounds().maxs, GEngine::Vec3f(1.0f)) &&
+			Near(defaultSphere.Support(direction, GEngine::Vec3f(0.0f), identity, 0.0f), direction),
+			"default sphere has finite analytic inertia, bounds, and support");
+
+		GEngine::ShapeSphere sphere(2.5f);
+		Expect(sphere.IsValid() && sphere.GetShapeType() == GEngine::ShapeType::Sphere &&
+			sphere.GetRadius() == 2.5f && sphere.GetRevision() == 0 &&
+			Near(sphere.GetCenterOfMass(), GEngine::Vec3f(0.0f), 0.0f) &&
+			Near(sphere.InertiaTensor(), GEngine::Mat3(2.5f)),
+			"explicit valid sphere construction preserves its radius and analytic unit-mass inertia");
+
+		const float nan = std::numeric_limits<float>::quiet_NaN();
+		const float infinity = std::numeric_limits<float>::infinity();
+		const float invalidRadii[] = { 0.0f, -0.0f, -1.0f, nan, infinity, -infinity };
+		for (float radius : invalidRadii)
+		{
+			bool rejected = false;
+			try
+			{
+				GEngine::ShapeSphere invalidSphere(radius);
+			}
+			catch (const std::invalid_argument&)
+			{
+				rejected = true;
+			}
+			Expect(rejected, "sphere construction rejects each zero, negative, NaN, or infinite radius");
+		}
+
+		GEngine::RigidBody3D body;
+		ConfigureSphereBody(body, sphere, GEngine::Vec3f(4.0f, 2.0f, -3.0f));
+		const GEngine::Bounds localBounds = sphere.GetBounds();
+		const GEngine::Bounds worldBounds = body.GetWorldBounds();
+		const GEngine::Mat3 inertia = sphere.InertiaTensor();
+		const GEngine::Mat3 inverseInertia = body.GetInverseInertiaTensorWorldSpace();
+		const GEngine::Vec3f center = body.GetCenterOfMassWorldSpace();
+		const GEngine::Vec3f support = sphere.Support(direction, body.m_Position, identity, 0.0f);
+		const std::uint64_t revision = sphere.GetRevision();
+		for (float radius : invalidRadii)
+		{
+			sphere.SetRadius(radius);
+			Expect(sphere.IsValid() && sphere.GetRadius() == 2.5f && sphere.GetRevision() == revision &&
+				Near(sphere.GetBounds().mins, localBounds.mins, 0.0f) &&
+				Near(sphere.GetBounds().maxs, localBounds.maxs, 0.0f) &&
+				Near(sphere.InertiaTensor(), inertia, 0.0f) &&
+				Near(sphere.Support(direction, body.m_Position, identity, 0.0f), support, 0.0f) &&
+				Near(body.GetWorldBounds().mins, worldBounds.mins, 0.0f) &&
+				Near(body.GetWorldBounds().maxs, worldBounds.maxs, 0.0f) &&
+				Near(body.GetInverseInertiaTensorWorldSpace(), inverseInertia, 0.0f) &&
+				Near(body.GetCenterOfMassWorldSpace(), center, 0.0f),
+				"each rejected radius preserves valid geometry, revision, and warmed body caches exactly");
+		}
+		sphere.SetRadius(sphere.GetRadius());
+		Expect(sphere.GetRevision() == revision, "unchanged radius does not invalidate geometry caches");
+		sphere.SetRadius(0.5f);
+		Expect(sphere.IsValid() && sphere.GetRadius() == 0.5f && sphere.GetRevision() == revision + 1 &&
+			Near(body.GetWorldBounds().mins, body.m_Position - GEngine::Vec3f(0.5f)) &&
+			Near(body.GetWorldBounds().maxs, body.m_Position + GEngine::Vec3f(0.5f)) &&
+			Near(body.GetInverseInertiaTensorWorldSpace(), GEngine::Mat3(10.0f)) &&
+			Near(sphere.Support(direction, body.m_Position, identity, 0.0f),
+				body.m_Position + direction * 0.5f),
+			"valid radius after rejected updates commits once and refreshes analytic body caches");
+
+		const std::uint64_t changedRevision = sphere.GetRevision();
+		sphere.HandleScaleChanged(GEngine::Vec3f(-1.0f));
+		sphere.HandleScaleChanged(GEngine::Vec3f(nan));
+		sphere.HandleScaleChanged(GEngine::Vec3f(infinity));
+		Expect(sphere.IsValid() && sphere.GetRadius() == 0.5f && sphere.GetRevision() == changedRevision,
+			"existing scale callback cannot commit an invalid radius");
+
+		GEngine::RigidBody3D defaultBodyA;
+		GEngine::RigidBody3D defaultBodyB;
+		ConfigureSphereBody(defaultBodyA, defaultSphere, GEngine::Vec3f(0.0f));
+		ConfigureSphereBody(defaultBodyB, defaultSphere, GEngine::Vec3f(1.5f, 0.0f, 0.0f));
+		GEngine::contact_t contact{};
+		Expect(GEngine::Collision::Intersect(&defaultBodyA, &defaultBodyB, contact) && Finite(contact) &&
+			Near(contact.separationDistance, -0.5f),
+			"default spheres dispatch to finite analytic sphere contacts");
+	}
+
 	void TestSphereContacts()
 	{
 		GEngine::ShapeSphere sphere(1.0f);
@@ -368,7 +490,8 @@ namespace
 
 	void TestDegenerateGjkDirection()
 	{
-		GEngine::ShapeSphere pointShape(0.0f);
+		PointShapeFixture pointShape;
+		pointShape.SetShapeType(GEngine::ShapeType::Convex);
 		GEngine::RigidBody3D bodyA;
 		GEngine::RigidBody3D bodyB;
 		bodyA.m_Shape = &pointShape;
@@ -1323,6 +1446,20 @@ namespace
 			"public sphere radius mutation revises cached bounds, inertia, and support geometry");
 	}
 
+	int RunSphereValidityRegression()
+	{
+		TestSphereAndBaseValidityContract();
+		TestSphereRadiusInvalidationContract();
+		TestDegenerateGjkDirection();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " focused sphere-validity checks failed\n";
+			return 1;
+		}
+		std::cout << "Sphere-validity regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
 	void TestConstraintDenominators()
 	{
 		GEngine::ShapeSphere sphere(1.0f);
@@ -1591,6 +1728,10 @@ int main(int argc, char** argv)
 		{
 			return RunSceneRuntimeLifecycleRegression();
 		}
+		if (argument == "--sphere-validity")
+		{
+			return RunSphereValidityRegression();
+		}
 		if (argument == "--convex-validity")
 		{
 			return RunConvexValidityRegression();
@@ -1615,6 +1756,7 @@ int main(int argc, char** argv)
 	TestNormalization();
 	TestBarycentricAndPointEquality();
 	TestLcpPivots();
+	TestSphereAndBaseValidityContract();
 	TestSphereContacts();
 	TestBodyRemovalLifetimeRegression();
 	TestMultiManifoldBodyRemovalRegression();

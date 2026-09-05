@@ -6,6 +6,7 @@
 #include <GEngine/Physics/ShapeSphere.h>
 
 #include <algorithm>
+#include <bit>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -31,6 +32,7 @@ namespace
 		int steadyStateMeasuredSteps{};
 		float dtSeconds{ 1.0f / 120.0f };
 		bool physicsRegressionBaseline{};
+		int solverIterations{ GEngine::PhysicsSystem::DefaultSolverIterations };
 	};
 
 	struct Sample
@@ -39,6 +41,7 @@ namespace
 		double externalStepMs{};
 		int measuredSteps{ 1 };
 		bool finiteState{ true };
+		std::uint64_t finalStateFingerprint{ 14695981039346656037ull };
 	};
 
 	std::vector<int> ParseBodyCounts(const std::string& value)
@@ -98,6 +101,18 @@ namespace
 			else if (argument.starts_with("--steady-state-measured-steps="))
 			{
 				options.steadyStateMeasuredSteps = std::stoi(argument.substr(30));
+			}
+			else if (argument.starts_with("--solver-iterations="))
+			{
+				const std::string value = argument.substr(20);
+				std::size_t consumed{};
+				options.solverIterations = std::stoi(value, &consumed);
+				if (consumed != value.size() ||
+					options.solverIterations < GEngine::PhysicsSystem::MinSolverIterations ||
+					options.solverIterations > GEngine::PhysicsSystem::MaxSolverIterations)
+				{
+					throw std::invalid_argument("solver iterations must be an integer in [1, 32]");
+				}
 			}
 			else if (argument == "--physics-regression-baseline")
 			{
@@ -172,6 +187,10 @@ namespace
 		double finalAngularSpeed{};
 		std::uint64_t finalMovingBodyCount{};
 		double averageStepMs{};
+		double averageSolverMs{};
+		double averageSolverIterations{};
+		double peakFloorPlanePenetration{};
+		double finalFloorPlanePenetration{};
 		double averageGeneratedContacts{};
 		std::uint64_t finalManifoldCount{};
 		std::uint64_t finalManifoldContactCount{};
@@ -239,6 +258,19 @@ namespace
 		return state;
 	}
 
+	// Exact lowest shape extent relative to the audit floor's top plane at y=0.5.
+	// This measures floor-plane intrusion, not inter-body or manifold penetration.
+	// Observe only; no collision queries or simulation changes are made.
+	double FloorPlanePenetration(const std::vector<GEngine::RigidBody3D*>& bodies)
+	{
+		double penetration = 0.0;
+		for (const auto* body : bodies)
+		{
+			penetration = std::max(penetration, 0.5 - static_cast<double>(body->GetWorldBounds().mins.y));
+		}
+		return penetration;
+	}
+
 	RegressionResult RunWorldRegression(const std::string& scenario, GEngine::PhysicsSystem& system,
 		const std::vector<GEngine::RigidBody3D*>& dynamicBodies, float gravityMagnitude,
 		int stepCount, float dtSeconds)
@@ -262,6 +294,8 @@ namespace
 			result.peakLinearSpeed = std::max(result.peakLinearSpeed, state.maxLinearSpeed);
 			result.peakAngularSpeed = std::max(result.peakAngularSpeed, state.maxAngularSpeed);
 			result.finite = result.finite && state.finite;
+			result.peakFloorPlanePenetration = std::max(result.peakFloorPlanePenetration,
+				FloorPlanePenetration(dynamicBodies));
 		}
 		const auto end = Clock::now();
 
@@ -277,6 +311,9 @@ namespace
 			static_cast<double>(stepCount);
 		result.averageGeneratedContacts = static_cast<double>(profile.generatedContactCount) /
 			static_cast<double>(stepCount);
+		result.averageSolverMs = static_cast<double>(profile.solverTimeNs) / (1.0e6 * stepCount);
+		result.averageSolverIterations = static_cast<double>(profile.solverIterationCount) / stepCount;
+		result.finalFloorPlanePenetration = FloorPlanePenetration(dynamicBodies);
 		result.finalManifoldCount = profile.manifoldCount;
 		result.finalManifoldContactCount = profile.manifoldContactCount;
 		result.finite = result.finite && finalState.finite && std::isfinite(result.averageStepMs);
@@ -337,11 +374,12 @@ namespace
 		return result;
 	}
 
-	RegressionResult RunBoxStackRegression(int stepCount, float dtSeconds)
+	RegressionResult RunBoxStackRegression(int stepCount, float dtSeconds, int solverIterations)
 	{
 		GEngine::ShapeBox box(UnitBoxPoints());
 		GEngine::ShapeBox floor(BoxPoints(GEngine::Vec3f(50.0f, 0.5f, 50.0f)));
 		GEngine::PhysicsSystem system;
+		system.SetSolverIterations(solverIterations);
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
 		system.SetPhysicsWorld(world);
 
@@ -366,11 +404,12 @@ namespace
 		return RunWorldRegression("box_stack_4x4", system, boxes, 12.0f, stepCount, dtSeconds);
 	}
 
-	RegressionResult RunSingleSphereRegression(int stepCount, float dtSeconds)
+	RegressionResult RunSingleSphereRegression(int stepCount, float dtSeconds, int solverIterations)
 	{
 		GEngine::ShapeSphere sphere(1.0f);
 		GEngine::ShapeBox floor(BoxPoints(GEngine::Vec3f(50.0f, 0.5f, 50.0f)));
 		GEngine::PhysicsSystem system;
+		system.SetSolverIterations(solverIterations);
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
 		system.SetPhysicsWorld(world);
 
@@ -384,11 +423,12 @@ namespace
 		return RunWorldRegression("single_sphere", system, { sphereBody }, 12.0f, stepCount, dtSeconds);
 	}
 
-	RegressionResult RunSphereLatticeRegression(int stepCount, float dtSeconds)
+	RegressionResult RunSphereLatticeRegression(int stepCount, float dtSeconds, int solverIterations)
 	{
 		GEngine::ShapeSphere sphere(1.0f);
 		GEngine::ShapeBox floor(BoxPoints(GEngine::Vec3f(50.0f, 0.5f, 50.0f)));
 		GEngine::PhysicsSystem system;
+		system.SetSolverIterations(solverIterations);
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
 		system.SetPhysicsWorld(world);
 
@@ -441,10 +481,12 @@ namespace
 			<< result.peakAngularSpeed << ',' << result.finalAngularSpeed << ','
 			<< result.finalMovingBodyCount << ',' << result.averageGeneratedContacts << ','
 			<< result.finalManifoldCount << ',' << result.finalManifoldContactCount << ','
-			<< result.averageStepMs << ',' << (result.finite ? 1 : 0) << '\n';
+			<< result.averageStepMs << ',' << (result.finite ? 1 : 0) << ','
+			<< result.averageSolverMs << ',' << result.averageSolverIterations << ','
+			<< result.peakFloorPlanePenetration << ',' << result.finalFloorPlanePenetration << '\n';
 	}
 
-	int RunPhysicsRegressionBaseline()
+	int RunPhysicsRegressionBaseline(int solverIterations)
 	{
 		constexpr int stepCount = 1200;
 		constexpr float dtSeconds = 1.0f / 120.0f;
@@ -454,12 +496,13 @@ namespace
 		std::vector<RegressionResult> results;
 		results.reserve(4);
 		results.push_back(RunAsymmetricBodyRegression(stepCount, dtSeconds));
-		results.push_back(RunBoxStackRegression(stepCount, dtSeconds));
-		results.push_back(RunSingleSphereRegression(stepCount, dtSeconds));
-		results.push_back(RunSphereLatticeRegression(stepCount, dtSeconds));
+		results.push_back(RunBoxStackRegression(stepCount, dtSeconds, solverIterations));
+		results.push_back(RunSingleSphereRegression(stepCount, dtSeconds, solverIterations));
+		results.push_back(RunSphereLatticeRegression(stepCount, dtSeconds, solverIterations));
 
 		std::cout << "# benchmark=physics_regression_baseline\n"
 			<< "# dt_seconds=" << std::setprecision(9) << dtSeconds << '\n'
+			<< "# solver_iterations=" << solverIterations << '\n'
 			<< "# steps=" << stepCount << '\n'
 			<< "# simulated_seconds=" << static_cast<double>(stepCount) * dtSeconds << '\n'
 			<< "# moving_threshold_linear=0.05\n"
@@ -468,7 +511,7 @@ namespace
 			<< "final_energy_change_percent,initial_angular_momentum,final_angular_momentum,"
 			<< "angular_momentum_change_percent,final_average_y,peak_linear_speed,final_linear_speed,"
 			<< "peak_angular_speed,final_angular_speed,final_moving_bodies,average_generated_contacts,"
-			<< "final_manifolds,final_manifold_contacts,average_step_ms,finite\n";
+			<< "final_manifolds,final_manifold_contacts,average_step_ms,finite,average_solver_ms,average_solver_iterations,peak_floor_plane_penetration,final_floor_plane_penetration\n";
 
 		bool allFinite = true;
 		for (const RegressionResult& result : results)
@@ -482,6 +525,7 @@ namespace
 	Sample RunSample(GEngine::ShapeBox& shape, int bodyCount, const Options& options)
 	{
 		GEngine::PhysicsSystem system;
+		system.SetSolverIterations(options.solverIterations);
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
 		system.SetPhysicsWorld(world);
 
@@ -532,6 +576,14 @@ namespace
 			sample.finiteState = sample.finiteState && IsFinite(body->m_Position) &&
 				IsFinite(body->m_LinearVelocity) && IsFinite(body->m_AngularVelocity) &&
 				IsFinite(body->m_Orientation);
+			for (const float value : { body->m_Position.x, body->m_Position.y, body->m_Position.z,
+				body->m_Orientation.w, body->m_Orientation.x, body->m_Orientation.y, body->m_Orientation.z,
+				body->m_LinearVelocity.x, body->m_LinearVelocity.y, body->m_LinearVelocity.z,
+				body->m_AngularVelocity.x, body->m_AngularVelocity.y, body->m_AngularVelocity.z })
+			{
+				sample.finalStateFingerprint ^= std::bit_cast<std::uint32_t>(value);
+				sample.finalStateFingerprint *= 1099511628211ull;
+			}
 		}
 		return sample;
 	}
@@ -607,7 +659,7 @@ namespace
 		return result;
 	}
 
-	bool ValidateSample(const Sample& sample, int bodyCount, bool steadyState)
+	bool ValidateSample(const Sample& sample, int bodyCount, bool steadyState, int solverIterations)
 	{
 		if (!sample.finiteState || !std::isfinite(sample.externalStepMs) || sample.externalStepMs <= 0.0)
 		{
@@ -635,7 +687,8 @@ namespace
 				profile.broadphaseFullSortCount == 0 &&
 				profile.epaCallCount == 0 &&
 				profile.generatedContactCount == 0 && profile.manifoldCount == 0 &&
-				profile.manifoldContactCount == 0 && profile.solverConstraintCount == 0;
+				profile.manifoldContactCount == 0 && profile.solverConstraintCount == 0 &&
+				profile.solverIterationCount == 0;
 		}
 
 		return commonState &&
@@ -648,6 +701,7 @@ namespace
 			profile.supportCallCount > 0 && profile.epaCallCount > 0 &&
 			profile.generatedContactCount > 0 && profile.manifoldCount > 0 &&
 			profile.manifoldContactCount > 0 && profile.solverConstraintCount > 0 &&
+			profile.solverIterationCount == static_cast<std::uint64_t>(solverIterations) * static_cast<std::uint64_t>(sample.measuredSteps) &&
 			profile.narrowphaseTimeNs > 0 &&
 			profile.solverTimeNs > 0 && profile.integrationTimeNs > 0 &&
 			profile.physicsWorldTimeNs > 0;
@@ -663,7 +717,7 @@ namespace
 			<< "solver_constraints,solver_iterations,gravity_ms,broadphase_ms,pair_filter_ms,"
 			<< "narrowphase_ms,manifold_ms,solver_ms,contact_resolution_ms,integration_ms,"
 			<< "physics_world_ms,external_mean_ms,external_median_ms,external_min_ms,external_max_ms,"
-			<< "external_median_fps\n";
+			<< "external_median_fps,final_state_fingerprint\n";
 	}
 
 	void PrintResult(int bodyCount, const std::vector<Sample>& samples)
@@ -713,7 +767,7 @@ namespace
 			<< AveragePerStep(samples, &PhysicsProfileSnapshot::physicsWorldTimeNs) * nsToMs << ','
 			<< externalMeanMs << ',' << externalMedianMs << ','
 			<< minimumSample->externalStepMs << ',' << maximumSample->externalStepMs << ','
-			<< (1000.0 / externalMedianMs) << '\n';
+			<< (1000.0 / externalMedianMs) << ',' << samples.front().finalStateFingerprint << '\n';
 	}
 }
 
@@ -724,7 +778,7 @@ int main(int argc, char** argv)
 		const Options options = ParseOptions(argc, argv);
 		if (options.physicsRegressionBaseline)
 		{
-			return RunPhysicsRegressionBaseline();
+			return RunPhysicsRegressionBaseline(options.solverIterations);
 		}
 		GEngine::ShapeBox shape(UnitBoxPoints());
 
@@ -736,6 +790,7 @@ int main(int argc, char** argv)
 		std::cout << "# warmup=" << options.warmupCount << "\n# samples=" << options.sampleCount
 			<< "\n# steady_state_warmup_steps=" << options.steadyStateWarmupSteps
 			<< "\n# measured_steps_per_sample=" << std::max(options.steadyStateMeasuredSteps, 1)
+			<< "\n# solver_iterations=" << options.solverIterations
 			<< "\n# dt_seconds=" << std::setprecision(9) << options.dtSeconds << '\n';
 		PrintHeader();
 
@@ -744,7 +799,7 @@ int main(int argc, char** argv)
 			for (int warmup = 0; warmup < options.warmupCount; ++warmup)
 			{
 				const Sample sample = RunSample(shape, bodyCount, options);
-				if (!ValidateSample(sample, bodyCount, options.steadyStateMeasuredSteps > 0))
+				if (!ValidateSample(sample, bodyCount, options.steadyStateMeasuredSteps > 0, options.solverIterations))
 				{
 					PrintResult(bodyCount, std::vector<Sample>{ sample });
 					std::cerr << "benchmark validation failed during warmup for body_count=" << bodyCount << '\n';
@@ -757,13 +812,18 @@ int main(int argc, char** argv)
 			for (int sampleIndex = 0; sampleIndex < options.sampleCount; ++sampleIndex)
 			{
 				samples.push_back(RunSample(shape, bodyCount, options));
-				if (!ValidateSample(samples.back(), bodyCount, options.steadyStateMeasuredSteps > 0))
+				if (!ValidateSample(samples.back(), bodyCount, options.steadyStateMeasuredSteps > 0, options.solverIterations))
 				{
 					PrintResult(bodyCount, std::vector<Sample>{ samples.back() });
 					std::cerr << "benchmark validation failed for body_count=" << bodyCount
 						<< ", sample=" << sampleIndex << '\n';
 					return EXIT_FAILURE;
 				}
+			}
+			if (!std::all_of(samples.begin(), samples.end(), [&](const Sample& sample) {
+				return sample.finalStateFingerprint == samples.front().finalStateFingerprint; }))
+			{
+				throw std::runtime_error("repeated benchmark samples produced different physical state");
 			}
 			PrintResult(bodyCount, samples);
 		}

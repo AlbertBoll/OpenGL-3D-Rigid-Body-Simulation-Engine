@@ -372,7 +372,8 @@ namespace GEngine
 				////Solve the Constraints
 				m_Manifolds.PreSolve(ts);
 				//Timeit("	m_Manifolds Solve")
-				const int maxIters = 1;
+				// Warm start once above; repeat only the existing ordered constraint traversal.
+				const int maxIters = m_SolverIterations;
 #ifdef GE_ENABLE_PHYSICS_PROFILING
 				if (manifoldContactCount > 0)
 				{

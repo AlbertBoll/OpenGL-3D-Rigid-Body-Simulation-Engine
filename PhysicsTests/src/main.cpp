@@ -1466,6 +1466,146 @@ namespace
 		ExpectBoxContact(bodyA, bodyB, "rotated boxes in contact intersect");
 	}
 
+	struct SolverChainFixture
+	{
+		GEngine::ShapeSphere sphere{ 1.0f };
+		GEngine::PhysicsSystem system;
+		std::array<GEngine::RigidBody3D*, 3> bodies{};
+
+		SolverChainFixture()
+		{
+			auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
+			system.SetPhysicsWorld(world);
+			for (int i = 0; i < 3; ++i)
+			{
+				bodies[i] = world->CreateRigidBody3D();
+				bodies[i]->m_Shape = &sphere;
+				bodies[i]->m_Position = GEngine::Vec3f(0.0f, 2.0f * i, 0.0f);
+				bodies[i]->m_Orientation = GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f);
+				bodies[i]->SetBodyTypeAndInverseMass(i == 0
+					? GEngine::Component::BodyType::Static : GEngine::Component::BodyType::Dynamic,
+					i == 0 ? 0.0f : 1.0f);
+				bodies[i]->m_Friction = 0.5f;
+				// Isolate traversal of two exact, persisted witnesses from narrow-phase/TOI variation.
+				bodies[i]->m_CollisionMask = 0;
+			}
+			for (int i = 0; i < 2; ++i)
+			{
+				const GEngine::Vec3f point(0.0f, 1.0f + 2.0f * i, 0.0f);
+				GetManifolds(system).AddContact(MakeContact(*bodies[i], *bodies[i + 1],
+					point, point, GEngine::Vec3f(0.0f, -1.0f, 0.0f)));
+			}
+		}
+
+		void ResetMotion()
+		{
+			// Keep cached impulses but restore exact contact geometry and the same incoming velocity.
+			for (int i = 1; i < 3; ++i)
+			{
+				bodies[i]->m_Position = GEngine::Vec3f(0.0f, 2.0f * i, 0.0f);
+				bodies[i]->m_LinearVelocity = GEngine::Vec3f(0.0f, -1.0f, 0.0f);
+				bodies[i]->m_AngularVelocity = GEngine::Vec3f(0.0f);
+			}
+		}
+
+		void CheckStep(float expectedSpeed, int iterations)
+		{
+			constexpr float dt = 1.0f / 120.0f;
+			GEngine::ResetPhysicsProfile();
+			system.Update(GEngine::Timestep(dt));
+			for (int i = 1; i < 3; ++i)
+			{
+				Expect(bodies[i]->HasFiniteState() &&
+					Near(bodies[i]->m_LinearVelocity, GEngine::Vec3f(0.0f, expectedSpeed, 0.0f), 1.0e-6f),
+					"configured passes propagate support with the analytical chain residual");
+				Expect(Near(bodies[i]->m_Position.y, 2.0f * i + expectedSpeed * dt, 1.0e-6f) &&
+					Near(bodies[i]->m_AngularVelocity, GEngine::Vec3f(0.0f), 0.0f),
+					"solver passes integrate once without creating angular motion");
+			}
+			Expect(Near(bodies[0]->m_Position, GEngine::Vec3f(0.0f), 0.0f) &&
+				Near(bodies[0]->m_LinearVelocity, GEngine::Vec3f(0.0f), 0.0f) &&
+				GetManifolds(system).GetContactCount() == 2 && GetTransientContacts(system).empty(),
+				"repeated traversal preserves the static support and both persistent contacts");
+			if (GEngine::IsPhysicsProfilingEnabled())
+			{
+				const auto profile = GEngine::GetPhysicsProfileSnapshot();
+				Expect(profile.stepCount == 1 && profile.solverIterationCount == iterations &&
+					profile.solverConstraintCount == 2 && profile.integratedBodyCount == 3,
+					"profiling reports configured passes and one integration per update");
+			}
+		}
+	};
+
+	void TestSolverIterationConfiguration()
+	{
+		GEngine::PhysicsSystem system, independent;
+		Expect(system.GetSolverIterations() == 1, "default solver policy preserves one-pass behavior");
+		Expect(system.SetSolverIterations(8), "valid solver count is accepted");
+		for (const int invalid : { std::numeric_limits<int>::min(), -1, 0, 33, std::numeric_limits<int>::max() })
+		{
+			Expect(!system.SetSolverIterations(invalid) && system.GetSolverIterations() == 8,
+				"invalid iteration requests are rejected without changing the prior setting");
+		}
+		Expect(independent.GetSolverIterations() == 1, "solver settings are independent per system");
+		Expect(system.SetSolverIterations(32) && system.GetSolverIterations() == 32,
+			"upper solver bound is accepted");
+		Expect(system.SetSolverIterations(1) && system.GetSolverIterations() == 1,
+			"lower solver bound is accepted");
+		system.SetSolverIterations(4);
+		system.SetPhysicsWorld(new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f)));
+		system.SetPhysicsWorld(new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f)));
+		GEngine::ResetPhysicsProfile();
+		system.Update(GEngine::Timestep(1.0f / 120.0f));
+		Expect(system.GetSolverIterations() == 4 &&
+			GEngine::GetPhysicsProfileSnapshot().solverIterationCount == 0,
+			"world replacement retains policy and an empty world reports no contact solve passes");
+		system.OnExit();
+		Expect(system.GetSolverIterations() == 4, "world teardown retains the system's solver policy");
+	}
+
+	void TestSolverIterationTraversal()
+	{
+		for (const int iterations : { 1, 2, 4, 8, 16, 32 })
+		{
+			SolverChainFixture fixture, repeat;
+			fixture.system.SetSolverIterations(iterations);
+			repeat.system.SetSolverIterations(iterations);
+			// Equal masses start at -1. The floor removes the lower body's velocity; the upper
+			// contact shares the remaining momentum, halving both velocities on every pass.
+			const float residual = -std::ldexp(1.0f, -iterations);
+			fixture.ResetMotion();
+			fixture.CheckStep(residual, iterations);
+			repeat.ResetMotion();
+			repeat.CheckStep(residual, iterations);
+			Expect(Near(fixture.bodies[1]->m_Position, repeat.bodies[1]->m_Position, 0.0f) &&
+				Near(fixture.bodies[2]->m_LinearVelocity, repeat.bodies[2]->m_LinearVelocity, 0.0f),
+				"repeated identical solver workloads produce identical state");
+			fixture.ResetMotion();
+			// Warm starting supplies the previously accumulated support, so N more passes
+			// reduce the residual by another factor of 2^N. Reapplying it per pass is incorrect.
+			fixture.CheckStep(-std::ldexp(1.0f, -2 * iterations), iterations);
+		}
+		SolverChainFixture changing;
+		changing.ResetMotion();
+		changing.CheckStep(-0.5f, 1);
+		changing.system.SetSolverIterations(8);
+		changing.ResetMotion();
+		changing.CheckStep(-std::ldexp(1.0f, -9), 8);
+	}
+
+	int RunSolverIterationsRegression()
+	{
+		TestSolverIterationConfiguration();
+		TestSolverIterationTraversal();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " solver-iteration checks failed\n";
+			return 1;
+		}
+		std::cout << "Solver-iteration regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
 	void TestSmallBoxStackRegression()
 	{
 		GEngine::ShapeBox box(UnitBoxPoints());
@@ -3198,6 +3338,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--solver-iterations") return RunSolverIterationsRegression();
 		if (argument == "--restitution-threshold") return RunRestitutionThresholdRegression();
 		if (argument == "--ballistic-contact") return RunBallisticContactRegression();
 		if (argument == "--resting-friction") return RunRestingFrictionRegression();
@@ -3273,6 +3414,8 @@ int main(int argc, char** argv)
 	TestZeroQuaternionBodyUpdate();
 	TestBoxConstructionInvariant();
 	TestBoxContactRegression();
+	TestSolverIterationConfiguration();
+	TestSolverIterationTraversal();
 	TestSmallBoxStackRegression();
 	TestGoldenRotations();
 	TestRotatedAsymmetricBox();

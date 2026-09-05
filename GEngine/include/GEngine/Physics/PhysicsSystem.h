@@ -40,9 +40,25 @@ namespace GEngine
 		void OnExit() override;
 		void SetPhysicsWorld(PhysicsWorld* physics_world);
 		PhysicsWorld* GetPhysicsWorld() { return m_PhysicsWorld; }
+
+		static constexpr int MinSolverIterations = 1;
+		static constexpr int MaxSolverIterations = 32;
+		static constexpr int DefaultSolverIterations = 1;
+
+		// Per-system policy, retained across world replacement. Invalid requests leave it unchanged.
+		// Changes take effect on the next Update; configuration and stepping are single-threaded.
+		bool SetSolverIterations(int iterations) noexcept
+		{
+			if (iterations < MinSolverIterations || iterations > MaxSolverIterations) return false;
+			m_SolverIterations = iterations;
+			return true;
+		}
+		int GetSolverIterations() const noexcept { return m_SolverIterations; }
+
 		
 
 	private:
+		int m_SolverIterations{ DefaultSolverIterations };
 		PhysicsWorld* m_PhysicsWorld{};
 		ManifoldCollector m_Manifolds;
 		SweepAndPruneBroadphase m_Broadphase;

@@ -14,6 +14,7 @@ namespace GEngine
 			contact.ptOnB_LocalSpace = contact_old.ptOnA_LocalSpace;
 			contact.ptOnA_WorldSpace = contact_old.ptOnB_WorldSpace;
 			contact.ptOnB_WorldSpace = contact_old.ptOnA_WorldSpace;
+			contact.normal = -contact_old.normal;
 
 			contact.m_BodyA = m_BodyA;
 			contact.m_BodyB = m_BodyB;
@@ -82,7 +83,8 @@ namespace GEngine
 		m_Constraints[newSlot].m_anchorA = contact.ptOnA_LocalSpace;
 		m_Constraints[newSlot].m_anchorB = contact.ptOnB_LocalSpace;
 
-		// Get the normal in BodyA's space
+		// Convert the contact's B -> A normal to the solver's A -> B axis in BodyA's space.
+		// Its normal Jacobian is [-n, -(ra x n), +n, +(rb x n)], so positive lambda repels.
 		Vec3f normal = m_BodyA->GetWorldToBodyRotation() * (contact.normal * -1.0f);
 	
 		//if(glm::length(normal) >= 0.000001f)

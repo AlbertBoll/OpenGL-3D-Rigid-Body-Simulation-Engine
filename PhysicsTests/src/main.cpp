@@ -789,7 +789,7 @@ namespace
 			"non-finite convex support input fails safely");
 	}
 
-	void TestContactPairOrderDiagnostic()
+	void TestContactPairOrderRegression()
 	{
 		GEngine::ShapeSphere sphere(1.0f);
 		GEngine::RigidBody3D bodyA;
@@ -821,8 +821,266 @@ namespace
 		const GEngine::contact_t stored = manifolds.m_Manifolds[0].GetContact(1);
 		const float canonicalNormalDot = glm::dot(direct.normal, stored.normal);
 		std::cout << "BASELINE contact_pair_order_normal_dot=" << canonicalNormalDot << '\n';
-		KnownIssueDiagnostic(canonicalNormalDot > 0.999f,
+		Expect(canonicalNormalDot > 0.999f,
 			"reordered contact preserves the canonical manifold normal direction");
+	}
+
+
+	GEngine::contact_t ReversedContact(const GEngine::contact_t& contact)
+	{
+		GEngine::contact_t reversed = contact;
+		std::swap(reversed.m_BodyA, reversed.m_BodyB);
+		std::swap(reversed.ptOnA_WorldSpace, reversed.ptOnB_WorldSpace);
+		std::swap(reversed.ptOnA_LocalSpace, reversed.ptOnB_LocalSpace);
+		reversed.normal = -contact.normal;
+		return reversed;
+	}
+
+	GEngine::contact_t MakeContact(GEngine::RigidBody3D& bodyA, GEngine::RigidBody3D& bodyB,
+		const GEngine::Vec3f& pointA, const GEngine::Vec3f& pointB, const GEngine::Vec3f& normal)
+	{
+		GEngine::contact_t contact{};
+		contact.m_BodyA = &bodyA;
+		contact.m_BodyB = &bodyB;
+		contact.ptOnA_WorldSpace = pointA;
+		contact.ptOnB_WorldSpace = pointB;
+		contact.ptOnA_LocalSpace = bodyA.WorldSpaceToBodySpace(pointA);
+		contact.ptOnB_LocalSpace = bodyB.WorldSpaceToBodySpace(pointB);
+		contact.normal = normal;
+		contact.separationDistance = glm::dot(pointA - pointB, normal);
+		return contact;
+	}
+
+	void TestCollisionContactConvention()
+	{
+		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeBox box(UnitBoxPoints());
+		for (int pairType = 0; pairType < 3; ++pairType)
+		{
+			for (const bool rotated : { false, true })
+			{
+				for (const bool swept : { false, true })
+				{
+					const GEngine::Quat rotation = glm::angleAxis(rotated ? 0.37f : 0.0f,
+						glm::normalize(GEngine::Vec3f(1.0f, 2.0f, 3.0f)));
+					const GEngine::Vec3f axis = rotation * GEngine::Vec3f(1.0f, 0.0f, 0.0f);
+					GEngine::RigidBody3D bodyA, bodyB;
+					ConfigureSphereBody(bodyA, sphere, GEngine::Vec3f(0.0f));
+					ConfigureSphereBody(bodyB, sphere, axis * (swept ? 4.0f : 1.9f));
+					if (pairType == 1) bodyA.m_Shape = &box;
+					if (pairType != 0) bodyB.m_Shape = &box;
+					bodyA.m_Orientation = bodyB.m_Orientation = rotation;
+					if (swept)
+					{
+						bodyA.m_LinearVelocity = axis * 3.0f;
+						bodyB.m_LinearVelocity = -axis;
+					}
+
+					GEngine::contact_t direct{}, reverse{};
+					const bool hitA = swept
+						? GEngine::Collision::Intersect(&bodyA, &bodyB, 0.6f, direct)
+						: GEngine::Collision::Intersect(&bodyA, &bodyB, direct);
+					const bool hitB = swept
+						? GEngine::Collision::Intersect(&bodyB, &bodyA, 0.6f, reverse)
+						: GEngine::Collision::Intersect(&bodyB, &bodyA, reverse);
+					Expect(hitA && hitB && Finite(direct) && Finite(reverse),
+						"sphere, box, and mixed queries return finite contacts in both body orders");
+					if (!hitA || !hitB) continue;
+					Expect(direct.m_BodyA == &bodyA && direct.m_BodyB == &bodyB &&
+						reverse.m_BodyA == &bodyB && reverse.m_BodyB == &bodyA &&
+						Near(glm::length(direct.normal), 1.0f, 1.0e-4f) &&
+						Near(glm::length(reverse.normal), 1.0f, 1.0e-4f) &&
+						glm::dot(direct.normal, -axis) > 0.99f &&
+						glm::dot(reverse.normal, axis) > 0.99f &&
+						glm::dot(direct.normal, reverse.normal) < -0.99f,
+						"collision output normal is unit world-space B-to-A and reverses with A/B");
+					Expect(Near(direct.separationDistance, reverse.separationDistance, 2.0e-3f) &&
+						Near(direct.timeOfImpact, reverse.timeOfImpact, 2.0e-3f) &&
+						(swept ? Near(direct.timeOfImpact, 0.5f, 2.0e-3f)
+							: direct.separationDistance < 0.0f),
+						"pair permutation preserves signed separation and analytic impact time");
+					for (const auto& contact : { direct, reverse })
+					{
+						Expect(Near(contact.m_BodyA->BodySpaceToWorldSpace(contact.ptOnA_LocalSpace) +
+							contact.m_BodyA->GetLinearVelocity() * contact.timeOfImpact,
+							contact.ptOnA_WorldSpace, 2.0e-5f) &&
+							Near(contact.m_BodyB->BodySpaceToWorldSpace(contact.ptOnB_LocalSpace) +
+							contact.m_BodyB->GetLinearVelocity() * contact.timeOfImpact,
+							contact.ptOnB_WorldSpace, 2.0e-5f),
+							"world/local anchors belong to their labelled bodies at impact");
+					}
+					if (pairType == 0 && swept)
+					{
+						GEngine::contact_t sphereDirect{}, sphereReverse{};
+						Expect(GEngine::Collision::SphereSphereIntersect(&bodyA, &bodyB, 0.6f, sphereDirect) &&
+							GEngine::Collision::SphereSphereIntersect(&bodyB, &bodyA, 0.6f, sphereReverse) &&
+							Finite(sphereDirect) && Finite(sphereReverse) &&
+							Near(sphereDirect.normal, direct.normal) &&
+							Near(sphereReverse.normal, -sphereDirect.normal) &&
+							Near(sphereDirect.ptOnA_WorldSpace, sphereReverse.ptOnB_WorldSpace) &&
+							Near(sphereDirect.ptOnB_WorldSpace, sphereReverse.ptOnA_WorldSpace) &&
+							Near(sphereDirect.timeOfImpact, 0.5f),
+							"dedicated swept sphere entry point follows the same contact convention");
+					}
+				}
+			}
+		}
+	}
+
+	void TestContactImpulsePermutation()
+	{
+		GEngine::ShapeSphere sphere(1.0f);
+		const GEngine::Quat rotation = glm::angleAxis(0.6f,
+			glm::normalize(GEngine::Vec3f(1.0f, 2.0f, 3.0f)));
+		const GEngine::Vec3f axis = rotation * GEngine::Vec3f(1.0f, 0.0f, 0.0f);
+		const GEngine::Vec3f tangent = rotation * GEngine::Vec3f(0.0f, 1.0f, 0.0f);
+		for (const bool ballistic : { false, true })
+		{
+			for (const bool reversed : { false, true })
+			{
+				GEngine::RigidBody3D bodyA, bodyB;
+				ConfigureSphereBody(bodyA, sphere, GEngine::Vec3f(0.0f));
+				ConfigureSphereBody(bodyB, sphere, axis * 2.0f);
+				bodyA.m_Orientation = rotation;
+				bodyB.m_Orientation = glm::angleAxis(-0.4f, GEngine::Vec3f(0.0f, 1.0f, 0.0f));
+				bodyB.m_InvMass = 0.5f;
+				bodyA.m_Friction = bodyB.m_Friction = 0.0f;
+				bodyA.m_Elasticity = bodyB.m_Elasticity = 0.5f;
+				bodyA.m_LinearVelocity = axis * 2.0f;
+				bodyB.m_LinearVelocity = -axis;
+				const GEngine::Vec3f point = axis + tangent * 0.5f;
+				const auto direct = MakeContact(bodyA, bodyB, point, point, -axis);
+				auto contact = reversed ? ReversedContact(direct) : direct;
+				const GEngine::Vec3f ra = point - bodyA.GetCenterOfMassWorldSpace();
+				const GEngine::Vec3f rb = point - bodyB.GetCenterOfMassWorldSpace();
+				const GEngine::Mat3 inertiaA = bodyA.GetInverseInertiaTensorWorldSpace();
+				const GEngine::Mat3 inertiaB = bodyB.GetInverseInertiaTensorWorldSpace();
+				const float inverseEffectiveMass = 1.5f +
+					glm::dot(glm::cross(ra, axis), inertiaA * glm::cross(ra, axis)) +
+					glm::dot(glm::cross(rb, axis), inertiaB * glm::cross(rb, axis));
+				const GEngine::Vec3f impulseA = -axis * ((ballistic ? 1.25f : 1.0f) *
+					3.0f / inverseEffectiveMass);
+				if (ballistic)
+				{
+					contact.timeOfImpact = 0.1f;
+					GEngine::Collision::ResolveContact(contact);
+				}
+				else
+				{
+					GEngine::ManifoldCollector manifolds;
+					manifolds.AddContact(contact);
+					manifolds.PreSolve(1.0f / 120.0f);
+					manifolds.Solve();
+				}
+				Expect(bodyA.HasFiniteState() && bodyB.HasFiniteState() &&
+					Near(bodyA.m_LinearVelocity, axis * 2.0f + impulseA) &&
+					Near(bodyB.m_LinearVelocity, -axis - impulseA * 0.5f) &&
+					Near(bodyA.m_AngularVelocity, inertiaA * glm::cross(ra, impulseA)) &&
+					Near(bodyB.m_AngularVelocity, inertiaB * glm::cross(rb, -impulseA)),
+					"resting and ballistic A/B permutations match analytic off-center repulsive impulses");
+			}
+		}
+	}
+
+	void TestPersistentContactPermutation()
+	{
+		GEngine::ShapeSphere sphere(1.0f);
+		const GEngine::Quat rotation = glm::angleAxis(0.6f,
+			glm::normalize(GEngine::Vec3f(1.0f, 2.0f, 3.0f)));
+		const GEngine::Vec3f axis = rotation * GEngine::Vec3f(1.0f, 0.0f, 0.0f);
+		const GEngine::Vec3f tangent = rotation * GEngine::Vec3f(0.0f, 1.0f, 0.0f);
+		std::vector<GEngine::Vec3f> reference;
+		// Same physical contacts: canonical input, alternating order, then reversed initial order.
+		for (int ordering = 0; ordering < 3; ++ordering)
+		{
+			GEngine::RigidBody3D bodyA, bodyB;
+			ConfigureSphereBody(bodyA, sphere, GEngine::Vec3f(0.0f));
+			ConfigureSphereBody(bodyB, sphere, axis * 1.99f);
+			bodyA.m_Orientation = rotation;
+			bodyB.m_Orientation = glm::angleAxis(-0.4f, GEngine::Vec3f(0.0f, 1.0f, 0.0f));
+			bodyB.m_InvMass = 0.5f;
+			bodyA.m_Friction = bodyB.m_Friction = 0.0f;
+			GEngine::ManifoldCollector manifolds;
+			std::array<GEngine::contact_t, 2> contacts;
+			for (int pointIndex = 0; pointIndex < 2; ++pointIndex)
+			{
+				const float offset = pointIndex == 0 ? -0.5f : 0.5f;
+				contacts[pointIndex] = MakeContact(bodyA, bodyB, axis + tangent * offset,
+					axis * 0.99f + tangent * offset, -axis);
+				const bool reverseInput = ordering == 1 ? pointIndex == 1 :
+					ordering == 2 ? pointIndex == 0 : false;
+				manifolds.AddContact(reverseInput ? ReversedContact(contacts[pointIndex]) : contacts[pointIndex]);
+			}
+			Expect(manifolds.m_Manifolds.size() == 1 && manifolds.GetContactCount() == 2,
+				"alternating body orders add distinct contacts to one existing manifold");
+			if (manifolds.GetContactCount() != 2) continue;
+			for (int pointIndex = 0; pointIndex < 2; ++pointIndex)
+			{
+				const auto expected = ordering == 2 ? ReversedContact(contacts[pointIndex]) : contacts[pointIndex];
+				const auto stored = manifolds.m_Manifolds[0].GetContact(pointIndex);
+				Expect(Finite(stored) && stored.m_BodyA == expected.m_BodyA &&
+					stored.m_BodyB == expected.m_BodyB &&
+					Near(stored.normal, expected.normal) &&
+					Near(stored.ptOnA_WorldSpace, expected.ptOnA_WorldSpace) &&
+					Near(stored.ptOnB_WorldSpace, expected.ptOnB_WorldSpace) &&
+					Near(stored.ptOnA_LocalSpace, expected.ptOnA_LocalSpace) &&
+					Near(stored.ptOnB_LocalSpace, expected.ptOnB_LocalSpace) &&
+					Near(stored.separationDistance, expected.separationDistance, 0.0f) &&
+					Near(stored.timeOfImpact, expected.timeOfImpact, 0.0f),
+					"manifold reordering preserves both anchor spaces, scalar fields, and canonical normal");
+			}
+			manifolds.RemoveExpired();
+			Expect(manifolds.GetContactCount() == 2,
+				"reordered penetrating contacts survive expiry in rotated body frames");
+
+			std::vector<GEngine::Vec3f> response;
+			for (int step = 0; step < 3; ++step)
+			{
+				bodyA.m_LinearVelocity = axis * 2.0f;
+				bodyB.m_LinearVelocity = -axis;
+				bodyA.m_AngularVelocity = bodyB.m_AngularVelocity = GEngine::Vec3f(0.0f);
+				manifolds.PreSolve(1.0f / 120.0f);
+				// On later steps this captures the actual cached warm-start response.
+				response.insert(response.end(), { bodyA.m_LinearVelocity, bodyB.m_LinearVelocity,
+					bodyA.m_AngularVelocity, bodyB.m_AngularVelocity });
+				for (int iteration = 0; iteration < 4; ++iteration) manifolds.Solve();
+				manifolds.PostSolve();
+				response.insert(response.end(), { bodyA.m_LinearVelocity, bodyB.m_LinearVelocity,
+					bodyA.m_AngularVelocity, bodyB.m_AngularVelocity });
+				Expect(bodyA.HasFiniteState() && bodyB.HasFiniteState(),
+					"persistent reordered contact solving and warm starting remain finite");
+			}
+			Expect(glm::dot(response[4], axis) < 2.0f && glm::dot(response[5], axis) > -1.0f &&
+				glm::dot(response[8], axis) < 2.0f,
+				"persistent contacts produce repulsion and a nonzero cached warm-start impulse");
+			if (ordering == 0) reference = response;
+			else
+			{
+				bool equivalent = response.size() == reference.size();
+				for (std::size_t i = 0; i < response.size() && equivalent; ++i)
+					equivalent = Near(response[i], reference[i], 2.0e-5f);
+				Expect(equivalent, "alternating and reversed manifold orders preserve cold and warm impulse response");
+			}
+			bodyB.m_Position += axis * 0.1f;
+			manifolds.RemoveExpired();
+			Expect(manifolds.GetContactCount() == 0,
+				"separated contacts expire identically for either manifold body order");
+		}
+	}
+
+	int RunContactConventionRegression()
+	{
+		TestContactPairOrderRegression();
+		TestCollisionContactConvention();
+		TestContactImpulsePermutation();
+		TestPersistentContactPermutation();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " focused contact-convention checks failed\n";
+			return 1;
+		}
+		std::cout << "Contact-convention regression: " << testCount << " checks passed\n";
+		return 0;
 	}
 
 	int RunUnsafeBodyRemovalProbe()
@@ -2338,6 +2596,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--contact-convention") return RunContactConventionRegression();
 		if (argument == "--body-types") return RunBodyTypeRegression();
 		if (argument == "--angular-dynamics")
 		{
@@ -2401,7 +2660,10 @@ int main(int argc, char** argv)
 	TestPhysicsWorldResetAndRestartRegression();
 	TestSceneRuntimeLifecycleRegression();
 	TestConvexValidityContract();
-	TestContactPairOrderDiagnostic();
+	TestContactPairOrderRegression();
+	TestCollisionContactConvention();
+	TestContactImpulsePermutation();
+	TestPersistentContactPermutation();
 	TestDegenerateGjkDirection();
 	TestZeroQuaternionBodyUpdate();
 	TestBoxConstructionInvariant();

@@ -301,15 +301,18 @@ namespace GEngine
 		Vec3f positionCM = GetCenterOfMassWorldSpace();
 		Vec3f cmToPos = m_Position - positionCM;
 
-		// Total Torque is equal to external applied torques + internal torque (precession)
-		// T = T_external + omega x I * omega
-		// T_external = 0 because it was applied in the collision response function
-		// T = Ia = w x I * w
-		// a = I^-1 ( w x I * w )
+		// Torque-free Euler equation in world space: I * omega_dot = -omega x (I * omega).
 		UpdateWorldInertiaData();
-		const Mat3 inertiaTensor = m_DerivedData.inertiaWorld;
-		Vec3f alpha = InverseOrZero(inertiaTensor) * glm::cross(m_AngularVelocity, inertiaTensor * m_AngularVelocity);
-		m_AngularVelocity += alpha * dt_sec;
+		// Only dynamic bodies receive gyroscopic acceleration; mass validation is numerical protection.
+		if (Type == BodyType::Dynamic && Math::IsFinite(m_InvMass) && m_InvMass > 0.0f)
+		{
+			// inertiaWorld is unit-mass inertia; inverseInertiaWorld includes inverse mass.
+			// Cancel that mass factor so free precession is independent of body mass.
+			const Vec3f gyroscopicTerm = glm::cross(m_AngularVelocity,
+				m_DerivedData.inertiaWorld * m_AngularVelocity);
+			const Vec3f alpha = -(m_DerivedData.inverseInertiaWorld * gyroscopicTerm) / m_InvMass;
+			m_AngularVelocity += alpha * dt_sec;
+		}
 
 		// Update orientation
 		Vec3f dAngle = m_AngularVelocity * dt_sec;

@@ -1305,6 +1305,342 @@ namespace
 			"rotated inverse inertia uses body to world to body transpose order");
 	}
 
+	struct AngularDrift
+	{
+		float maxEnergyError{};
+		float maxMomentumError{};
+		bool finite{ true };
+		bool unitOrientation{ true };
+	};
+
+	AngularDrift MeasureAngularDrift(GEngine::ShapeBox& shape, int frequency,
+		float inverseMass, const GEngine::Quat& orientation)
+	{
+		GEngine::RigidBody3D body;
+		ConfigureBoxBody(body, shape, GEngine::Vec3f(0.0f), orientation);
+		body.m_InvMass = inverseMass;
+		body.m_AngularVelocity = orientation * GEngine::Vec3f(0.7f, 1.1f, 1.6f);
+
+		// Analytic centroidal inertia for half-extents (1, 2, 3), independent of body caches.
+		const GEngine::Vec3f principalInertia = GEngine::Vec3f(13.0f, 10.0f, 5.0f) /
+			(3.0f * inverseMass);
+		const auto momentum = [&]()
+		{
+			const GEngine::Quat rotation = GEngine::Math::NormalizeOrIdentity(body.m_Orientation);
+			return rotation * (principalInertia * (glm::conjugate(rotation) * body.m_AngularVelocity));
+		};
+		const GEngine::Vec3f initialMomentum = momentum();
+		const float initialEnergy = 0.5f * glm::dot(body.m_AngularVelocity, initialMomentum);
+		AngularDrift result;
+		for (int step = 0; step < 10 * frequency; ++step)
+		{
+			body.Update(1.0f / static_cast<float>(frequency));
+			const GEngine::Vec3f currentMomentum = momentum();
+			const float energy = 0.5f * glm::dot(body.m_AngularVelocity, currentMomentum);
+			const float energyError = std::fabs(energy / initialEnergy - 1.0f);
+			const float momentumError = glm::length(currentMomentum - initialMomentum) /
+				glm::length(initialMomentum);
+			result.finite = result.finite && body.HasFiniteState() && Finite(currentMomentum) &&
+				std::isfinite(energyError) && std::isfinite(momentumError);
+			result.unitOrientation = result.unitOrientation &&
+				Near(glm::length(body.m_Orientation), 1.0f, 2.0e-6f);
+			result.maxEnergyError = std::max(result.maxEnergyError, energyError);
+			result.maxMomentumError = std::max(result.maxMomentumError, momentumError);
+		}
+		std::cout << "ANGULAR_DRIFT hz=" << frequency << " inverse_mass=" << inverseMass
+			<< " max_energy_error_percent=" << 100.0f * result.maxEnergyError
+			<< " max_momentum_vector_error_percent=" << 100.0f * result.maxMomentumError << '\n';
+		return result;
+	}
+
+	void TestTorqueFreeAngularDynamics()
+	{
+		std::vector<GEngine::Vec3f> points = UnitBoxPoints();
+		for (GEngine::Vec3f& point : points)
+		{
+			point *= GEngine::Vec3f(1.0f, 2.0f, 3.0f);
+		}
+		GEngine::ShapeBox box(points);
+		const GEngine::Quat identity(1.0f, 0.0f, 0.0f, 0.0f);
+		const GEngine::Quat rotated = glm::angleAxis(0.73f,
+			glm::normalize(GEngine::Vec3f(1.0f, -2.0f, 3.0f)));
+		const GEngine::Vec3f initialOmega(0.7f, 1.1f, 1.6f);
+		// Euler's principal-axis equations: ((Iy-Iz)/Ix wy wz, ...).
+		const GEngine::Vec3f expectedAlpha(8.8f / 13.0f, -0.896f, 0.462f);
+		for (const GEngine::Quat& orientation : { identity, rotated })
+		{
+			for (float inverseMass : { 0.25f, 1.0f, 4.0f })
+			{
+				GEngine::RigidBody3D body;
+				ConfigureBoxBody(body, box, GEngine::Vec3f(0.0f), identity);
+				body.GetInverseInertiaTensorWorldSpace();
+				body.m_InvMass = inverseMass;
+				body.m_Orientation = orientation;
+				body.m_AngularVelocity = orientation * initialOmega;
+				body.Update(1.0f / 120.0f);
+				Expect(Near(body.m_AngularVelocity,
+					orientation * (initialOmega + expectedAlpha / 120.0f), 2.0e-6f),
+					"torque-free acceleration has the analytic sign, frame, and mass cancellation after cache edits");
+			}
+		}
+
+		GEngine::RigidBody3D zeroInverseMassBody;
+		ConfigureBoxBody(zeroInverseMassBody, box, GEngine::Vec3f(0.0f), rotated);
+		zeroInverseMassBody.GetInverseInertiaTensorWorldSpace();
+		zeroInverseMassBody.m_InvMass = 0.0f;
+		zeroInverseMassBody.m_AngularVelocity = initialOmega;
+		zeroInverseMassBody.Update(1.0f / 120.0f);
+		Expect(zeroInverseMassBody.HasFiniteState() && Near(zeroInverseMassBody.m_AngularVelocity, initialOmega),
+			"zero inverse inertia skips gyroscopic acceleration without dividing by zero");
+
+		// Bound the existing first-order method, and require smaller drift when dt is halved.
+		// These tolerances are proposed for Phase 13 human review, not exact conservation.
+		for (float inverseMass : { 0.25f, 1.0f, 4.0f })
+		{
+			const GEngine::Quat orientation = inverseMass == 1.0f ? identity : rotated;
+			const AngularDrift coarse = MeasureAngularDrift(box, 120, inverseMass, orientation);
+			const AngularDrift fine = MeasureAngularDrift(box, 240, inverseMass, orientation);
+			Expect(coarse.finite && fine.finite && coarse.unitOrientation && fine.unitOrientation,
+				"ten-second free-body runs retain finite state and normalized orientations");
+			Expect(coarse.maxEnergyError <= 0.05f && coarse.maxMomentumError <= 0.03f,
+				"120 Hz free-body peak energy and world momentum-vector errors stay within 5% and 3%");
+			Expect(fine.maxEnergyError <= 0.025f && fine.maxMomentumError <= 0.015f,
+				"240 Hz free-body peak energy and world momentum-vector errors stay within 2.5% and 1.5%");
+			Expect(fine.maxEnergyError <= 0.6f * coarse.maxEnergyError &&
+				fine.maxMomentumError <= 0.6f * coarse.maxMomentumError,
+				"halving the timestep reduces both ten-second invariant errors by at least 40%");
+		}
+
+		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::RigidBody3D sphericalBody;
+		ConfigureSphereBody(sphericalBody, sphere, GEngine::Vec3f(0.0f));
+		sphericalBody.m_InvMass = 0.25f;
+		sphericalBody.m_AngularVelocity = initialOmega;
+		GEngine::RigidBody3D principalBody;
+		ConfigureBoxBody(principalBody, box, GEngine::Vec3f(0.0f), identity);
+		principalBody.m_AngularVelocity = GEngine::Vec3f(0.0f, 0.0f, 1.6f);
+		GEngine::RigidBody3D stationaryBody;
+		ConfigureBoxBody(stationaryBody, box, GEngine::Vec3f(0.0f), rotated);
+		bool finite = true;
+		for (int step = 0; step < 1200; ++step)
+		{
+			sphericalBody.Update(1.0f / 120.0f);
+			principalBody.Update(1.0f / 120.0f);
+			stationaryBody.Update(1.0f / 120.0f);
+			finite = finite && sphericalBody.HasFiniteState() && principalBody.HasFiniteState() &&
+				stationaryBody.HasFiniteState();
+		}
+		Expect(finite && Near(sphericalBody.m_AngularVelocity, initialOmega, 1.0e-5f),
+			"isotropic sphere retains constant angular velocity over ten seconds");
+		const GEngine::Quat expectedRotation = glm::angleAxis(16.0f, GEngine::Vec3f(0.0f, 0.0f, 1.0f));
+		Expect(Near(principalBody.m_AngularVelocity, GEngine::Vec3f(0.0f, 0.0f, 1.6f)) &&
+			Near(std::fabs(glm::dot(principalBody.m_Orientation, expectedRotation)), 1.0f),
+			"principal-axis spin retains its speed and analytic orientation");
+		Expect(Near(stationaryBody.m_AngularVelocity, GEngine::Vec3f(0.0f)) &&
+			Near(std::fabs(glm::dot(stationaryBody.m_Orientation, rotated)), 1.0f),
+			"zero angular velocity preserves orientation without artificial motion");
+	}
+
+	float OrientationResidual(const GEngine::Quat& actual, const GEngine::Quat& expected)
+	{
+		const GEngine::Quat relative = GEngine::Math::NormalizeOrIdentity(
+			actual * glm::conjugate(expected));
+		return 2.0f * std::atan2(glm::length(GEngine::Vec3f(relative.x, relative.y, relative.z)),
+			std::fabs(relative.w));
+	}
+
+	void TestAngularBodyTypeGuard()
+	{
+		std::vector<GEngine::Vec3f> points = UnitBoxPoints();
+		for (GEngine::Vec3f& point : points)
+		{
+			point *= GEngine::Vec3f(1.0f, 2.0f, 3.0f);
+		}
+		GEngine::ShapeBox box(points);
+		for (const auto type : { GEngine::Component::BodyType::Static, GEngine::Component::BodyType::Kinematic })
+		{
+			for (float inverseMass : { 0.0f, 0.37f, 4.0f })
+			{
+				GEngine::RigidBody3D body;
+				ConfigureBoxBody(body, box, GEngine::Vec3f(0.0f),
+					glm::angleAxis(0.73f, glm::normalize(GEngine::Vec3f(1.0f, -2.0f, 3.0f))));
+				body.GetInverseInertiaTensorWorldSpace();
+				body.Type = type;
+				body.m_InvMass = inverseMass;
+				const GEngine::Vec3f initialOmega(0.7f, 1.1f, 1.6f);
+				body.m_AngularVelocity = initialOmega;
+				bool unchanged = true;
+				for (int step = 0; step < 1200; ++step)
+				{
+					body.Update(1.0f / 120.0f);
+					unchanged = unchanged && body.HasFiniteState() &&
+						Near(body.m_AngularVelocity, initialOmega, 0.0f);
+				}
+				Expect(unchanged, "Static and Kinematic bodies receive no gyroscopic acceleration regardless of positive mass");
+			}
+		}
+	}
+
+	void TestAngularCacheAgainstFreshInverse()
+	{
+		const GEngine::Quat rotation = glm::angleAxis(0.73f,
+			glm::normalize(GEngine::Vec3f(1.0f, -2.0f, 3.0f)));
+		for (float inverseMass : { 0.37f, 1.0f, 2.5f })
+		{
+			std::vector<GEngine::Vec3f> points = UnitBoxPoints();
+			for (GEngine::Vec3f& point : points)
+			{
+				point *= GEngine::Vec3f(1.0f, 2.0f, 3.0f);
+			}
+			GEngine::ShapeBox box(points);
+			std::vector<GEngine::Vec3f> replacementPoints = points;
+			for (GEngine::Vec3f& point : replacementPoints)
+			{
+				point *= GEngine::Vec3f(1.5f, 0.75f, 1.25f);
+			}
+			GEngine::ShapeBox replacement(replacementPoints);
+			GEngine::RigidBody3D body;
+			ConfigureBoxBody(body, box, GEngine::Vec3f(0.0f), rotation);
+			body.m_InvMass = inverseMass;
+			body.m_AngularVelocity = rotation * GEngine::Vec3f(0.7f, 1.1f, 1.6f);
+			float maxInverseError = 0.0f;
+			float maxOmegaError = 0.0f;
+			float maxOrientationError = 0.0f;
+			bool finite = true;
+			constexpr float dt = 1.0f / 120.0f;
+			for (int step = 0; step < 1200; ++step)
+			{
+				body.GetInverseInertiaTensorWorldSpace(); // Warm before each direct mutation.
+				if (step == 300)
+				{
+					std::vector<GEngine::Vec3f> rebuiltPoints = points;
+					for (GEngine::Vec3f& point : rebuiltPoints)
+					{
+						point *= GEngine::Vec3f(1.25f, 1.1f, 0.9f);
+					}
+					box.Build(rebuiltPoints); // New revision; differs from the later replacement shape.
+				}
+				if (step == 600)
+				{
+					body.m_Shape = &replacement; // Different shape pointer with its own revision.
+				}
+				if (step == 900)
+				{
+					body.m_InvMass *= 1.3f;
+					body.m_Orientation = rotation * body.m_Orientation;
+				}
+
+				// Independent fresh shape/pose calculation; no body cache supplies this reference.
+				const GEngine::Quat orientation = GEngine::Math::NormalizeOrIdentity(body.m_Orientation);
+				const GEngine::Mat3 bodyToWorld = glm::toMat3(orientation);
+				const GEngine::Mat3 inertia = bodyToWorld * body.m_Shape->InertiaTensor() *
+					glm::transpose(bodyToWorld);
+				const GEngine::Mat3 freshInverse = glm::inverse(inertia);
+				const GEngine::Mat3 cachedInverse = body.GetInverseInertiaTensorWorldSpace() / body.m_InvMass;
+				for (int column = 0; column < 3; ++column)
+				{
+					const float error = glm::length(cachedInverse[column] - freshInverse[column]) /
+						glm::length(freshInverse[column]);
+					finite = finite && std::isfinite(error);
+					maxInverseError = std::max(maxInverseError, error);
+				}
+				const GEngine::Vec3f expectedOmega = body.m_AngularVelocity -
+					(freshInverse * glm::cross(body.m_AngularVelocity, inertia * body.m_AngularVelocity)) * dt;
+				const GEngine::Vec3f dAngle = expectedOmega * dt;
+				const GEngine::Quat expectedOrientation = GEngine::Math::NormalizeOrIdentity(
+					glm::angleAxis(glm::length(dAngle), glm::normalize(dAngle)) * orientation);
+				body.Update(dt);
+				const float omegaError = glm::length(body.m_AngularVelocity - expectedOmega);
+				const float orientationError = OrientationResidual(body.m_Orientation, expectedOrientation);
+				finite = finite && body.HasFiniteState() && std::isfinite(omegaError) && std::isfinite(orientationError);
+				maxOmegaError = std::max(maxOmegaError, omegaError);
+				maxOrientationError = std::max(maxOrientationError, orientationError);
+			}
+			std::cout << "ANGULAR_CACHE inverse_mass=" << inverseMass
+				<< " max_relative_inverse_error=" << maxInverseError
+				<< " max_step_omega_error=" << maxOmegaError
+				<< " max_step_orientation_radians=" << maxOrientationError << '\n';
+			Expect(finite && maxInverseError <= 5.0e-6f,
+				"cached inverse matches a fresh inverse after rotation, mass, shape identity, and revision changes");
+			Expect(maxOmegaError <= 3.0e-6f && maxOrientationError <= 3.0e-6f,
+				"cached angular steps match correct-sign fresh-inverse steps through geometry and mass mutations");
+		}
+	}
+
+	void TestAngularRewindDiagnostic()
+	{
+		std::vector<GEngine::Vec3f> points = UnitBoxPoints();
+		for (GEngine::Vec3f& point : points)
+		{
+			point *= GEngine::Vec3f(1.0f, 2.0f, 3.0f);
+		}
+		GEngine::ShapeBox box(points);
+		GEngine::RigidBody3D initial;
+		ConfigureBoxBody(initial, box, GEngine::Vec3f(1.0f, 2.0f, 3.0f),
+			glm::angleAxis(0.73f, glm::normalize(GEngine::Vec3f(1.0f, -2.0f, 3.0f))));
+		initial.m_LinearVelocity = GEngine::Vec3f(0.25f, -0.5f, 0.75f);
+		initial.m_AngularVelocity = initial.m_Orientation * GEngine::Vec3f(0.7f, 1.1f, 1.6f);
+		initial.GetInverseInertiaTensorWorldSpace();
+		initial.GetWorldBounds();
+		std::cout << "CCD_REWIND_INITIAL position=1,2,3 linear_velocity=0.25,-0.5,0.75 orientation="
+			<< initial.m_Orientation.w << ',' << initial.m_Orientation.x << ','
+			<< initial.m_Orientation.y << ',' << initial.m_Orientation.z
+			<< " angular_velocity=" << initial.m_AngularVelocity.x << ','
+			<< initial.m_AngularVelocity.y << ',' << initial.m_AngularVelocity.z << '\n';
+		for (float toi : { 1.0f / 240.0f, 1.0f / 120.0f, 1.0f / 60.0f })
+		{
+			GEngine::RigidBody3D body = initial;
+			bool finite = true;
+			for (int query = 1; query <= 1000; ++query)
+			{
+				body.Update(toi);
+				body.Update(-toi);
+				finite = finite && body.HasFiniteState();
+				if (query == 1 || query == 1000)
+				{
+					std::cout << "CCD_REWIND toi=" << toi << " queries=" << query
+						<< " position_residual=" << glm::length(body.m_Position - initial.m_Position)
+						<< " orientation_residual_radians=" << OrientationResidual(body.m_Orientation, initial.m_Orientation)
+						<< " linear_velocity_residual=" << glm::length(body.m_LinearVelocity - initial.m_LinearVelocity)
+						<< " angular_velocity_residual=" << glm::length(body.m_AngularVelocity - initial.m_AngularVelocity)
+						<< '\n';
+				}
+			}
+			Expect(finite, "CCD rewind diagnostic retains finite state; residuals are non-gating measurements");
+
+			// Diagnosis only: compare a temporary snapshot restore, without changing collision queries.
+			body = initial;
+			body.Update(toi);
+			body = initial;
+			const float restoredOrientationError = OrientationResidual(body.m_Orientation, initial.m_Orientation);
+			std::cout << "CCD_SNAPSHOT toi=" << toi
+				<< " position_residual=" << glm::length(body.m_Position - initial.m_Position)
+				<< " orientation_residual_radians=" << restoredOrientationError
+				<< " linear_velocity_residual=" << glm::length(body.m_LinearVelocity - initial.m_LinearVelocity)
+				<< " angular_velocity_residual=" << glm::length(body.m_AngularVelocity - initial.m_AngularVelocity)
+				<< '\n';
+			Expect(Near(body.m_Position, initial.m_Position, 0.0f) && restoredOrientationError <= 1.0e-7f &&
+				Near(body.m_LinearVelocity, initial.m_LinearVelocity, 0.0f) &&
+				Near(body.m_AngularVelocity, initial.m_AngularVelocity, 0.0f),
+				"diagnostic snapshot restore retains the original physical state");
+		}
+	}
+
+	int RunAngularDynamicsRegression()
+	{
+		TestTorqueFreeAngularDynamics();
+		TestAngularBodyTypeGuard();
+		TestAngularCacheAgainstFreshInverse();
+		TestAngularRewindDiagnostic();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " focused angular-dynamics checks failed\n";
+			return 1;
+		}
+		std::cout << "Angular-dynamics regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
 	void TestDerivedDataInvalidation()
 	{
 		const std::vector<GEngine::Vec3f> offsetPoints = {
@@ -1708,6 +2044,10 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--angular-dynamics")
+		{
+			return RunAngularDynamicsRegression();
+		}
 		if (argument == "--unsafe-body-removal")
 		{
 			return RunUnsafeBodyRemovalProbe();
@@ -1774,6 +2114,10 @@ int main(int argc, char** argv)
 	TestSmallBoxStackRegression();
 	TestGoldenRotations();
 	TestRotatedAsymmetricBox();
+	TestTorqueFreeAngularDynamics();
+	TestAngularBodyTypeGuard();
+	TestAngularCacheAgainstFreshInverse();
+	TestAngularRewindDiagnostic();
 	TestDerivedDataInvalidation();
 	TestWarmCacheOrientationInvalidationAndReuse();
 	TestSphereRadiusInvalidationContract();

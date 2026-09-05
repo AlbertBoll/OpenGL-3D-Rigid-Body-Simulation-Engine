@@ -18,6 +18,7 @@
 #include <iostream>
 #include <limits>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 namespace
@@ -688,6 +689,45 @@ namespace
 		}
 
 		std::cout << "Body-identity regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
+	void TestReadOnlyPhysicsBodyStorageRegression()
+	{
+		GEngine::PhysicsWorld world;
+		using PhysicsBodyView = decltype(world.GetPhysicsBodies());
+		using PhysicsBodyReference = decltype(world.GetPhysicsBodies()[0]);
+		static_assert(std::is_same_v<PhysicsBodyView, const std::vector<GEngine::RigidBody3D*>&>,
+			"physics body storage must be exposed only through a const collection reference");
+		static_assert(std::is_same_v<PhysicsBodyReference, GEngine::RigidBody3D* const&> &&
+			!std::is_assignable_v<PhysicsBodyReference, GEngine::RigidBody3D*>,
+			"clients must not be able to replace pointers in the owning body collection");
+
+		GEngine::RigidBody3D* firstBody = world.CreateRigidBody3D();
+		GEngine::RigidBody3D* secondBody = world.CreateRigidBody3D();
+		const auto& bodies = world.GetPhysicsBodies();
+		Expect(bodies.size() == 2 && bodies[0] == firstBody && bodies[1] == secondBody,
+			"read-only body storage preserves deterministic creation order");
+
+		world.RemoveRigidBody3D(firstBody);
+		Expect(bodies.size() == 1 && bodies[0] == secondBody,
+			"validated removal remains visible through the read-only body collection");
+
+		GEngine::RigidBody3D* replacementBody = world.CreateRigidBody3D();
+		Expect(bodies.size() == 2 && bodies[0] == secondBody && bodies[1] == replacementBody,
+			"validated creation remains visible without exposing container mutation");
+	}
+
+	int RunPhysicsBodyStorageRegression()
+	{
+		TestReadOnlyPhysicsBodyStorageRegression();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " focused body-storage checks failed\n";
+			return 1;
+		}
+
+		std::cout << "Body-storage regression: " << testCount << " checks passed\n";
 		return 0;
 	}
 
@@ -1447,6 +1487,10 @@ int main(int argc, char** argv)
 		{
 			return RunBodyIdentityRegression();
 		}
+		if (argument == "--body-storage")
+		{
+			return RunPhysicsBodyStorageRegression();
+		}
 		if (argument == "--scene-runtime-lifecycle")
 		{
 			return RunSceneRuntimeLifecycleRegression();
@@ -1476,6 +1520,7 @@ int main(int argc, char** argv)
 	TestMultiManifoldBodyRemovalRegression();
 	TestTransientContactBodyRemovalRegression();
 	TestStableBodyIdentityRegression();
+	TestReadOnlyPhysicsBodyStorageRegression();
 	TestPhysicsWorldResetAndRestartRegression();
 	TestSceneRuntimeLifecycleRegression();
 	TestConvexValidityDiagnostic();

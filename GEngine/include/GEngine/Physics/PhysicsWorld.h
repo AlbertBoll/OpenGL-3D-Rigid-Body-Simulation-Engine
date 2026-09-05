@@ -22,7 +22,7 @@ namespace GEngine
 		bool IsBodyIdentityValid(RigidBodyIdentity identity) const;
 		void SetGravity(const Vec3f& gravity) { m_Gravity = gravity; }
 
-		auto& GetPhysicsBodies() 
+		const std::vector<RigidBody3D*>& GetPhysicsBodies() const
 		{
 			return m_RigidBodies;
 		}

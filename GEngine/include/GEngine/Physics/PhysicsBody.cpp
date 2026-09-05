@@ -54,6 +54,18 @@ namespace GEngine
 		}
 	}
 
+	bool RigidBody3D::SetBodyTypeAndInverseMass(BodyType type, float inverseMass)
+	{
+		if ((type != BodyType::Static && type != BodyType::Dynamic && type != BodyType::Kinematic) ||
+			!Math::IsFinite(inverseMass) || inverseMass < 0.0f ||
+			(type == BodyType::Dynamic && inverseMass == 0.0f))
+		{
+			return false;
+		}
+		Type = type;
+		m_InvMass = type == BodyType::Dynamic ? inverseMass : 0.0f;
+		return true;
+	}
 	void RigidBody3D::UpdateRotationData() const
 	{
 		if (m_DerivedData.rotationValid &&
@@ -97,9 +109,10 @@ namespace GEngine
 
 	void RigidBody3D::UpdateBodyInertiaData() const
 	{
+		const float inverseMass = GetInverseMass();
 		const std::uint64_t shapeRevision = m_Shape ? m_Shape->GetRevision() : 0;
 		if (m_DerivedData.bodyInertiaValid &&
-			m_DerivedData.inertiaSourceInverseMass == m_InvMass &&
+			m_DerivedData.inertiaSourceInverseMass == inverseMass &&
 			m_DerivedData.inertiaSourceShape == m_Shape &&
 			m_DerivedData.inertiaSourceShapeRevision == shapeRevision)
 		{
@@ -112,13 +125,13 @@ namespace GEngine
 		if (m_Shape)
 		{
 			m_DerivedData.inertiaBody = m_Shape->InertiaTensor();
-			if (Math::IsFinite(m_InvMass) && m_InvMass > 0.0f)
+			if (inverseMass > 0.0f)
 			{
 				m_DerivedData.inverseInertiaBody =
-					InverseOrZero(m_DerivedData.inertiaBody) * m_InvMass;
+					InverseOrZero(m_DerivedData.inertiaBody) * inverseMass;
 			}
 		}
-		m_DerivedData.inertiaSourceInverseMass = m_InvMass;
+		m_DerivedData.inertiaSourceInverseMass = inverseMass;
 		m_DerivedData.inertiaSourceShape = m_Shape;
 		m_DerivedData.inertiaSourceShapeRevision = shapeRevision;
 		++m_DerivedData.bodyInertiaRevision;
@@ -228,7 +241,7 @@ namespace GEngine
 			return;
 		}*/
 
-		if (Type == BodyType::Static) return;
+		if (Type != BodyType::Dynamic) return;
 
 		// impulsePoint is the world space location of the application of the impulse
 		// impulse is the world space direction and magnitude of the impulse
@@ -243,7 +256,7 @@ namespace GEngine
 	void RigidBody3D::ApplyImpulseLinear(const Vec3f& impulse)
 	{
 
-		if (Type == BodyType::Static)
+		if (Type != BodyType::Dynamic)
 		{
 			return;
 		}
@@ -263,7 +276,7 @@ namespace GEngine
 	void RigidBody3D::ApplyImpulseAngular(const Vec3f& impulse)
 	{
 
-		if (Type == BodyType::Static) return;
+		if (Type != BodyType::Dynamic) return;
 
 		// L = I w = r x p
 		// dL = I dw = r x J 
@@ -286,7 +299,7 @@ namespace GEngine
 	void RigidBody3D::Update(const float dt_sec)
 	{
 		GENGINE_CORE_ASSERT(Math::IsFinite(dt_sec), "Physics timestep must be finite");
-		if (!Math::IsFinite(dt_sec) || !m_Shape)
+		if (!Math::IsFinite(dt_sec) || !m_Shape || !CanIntegrate())
 		{
 			return;
 		}

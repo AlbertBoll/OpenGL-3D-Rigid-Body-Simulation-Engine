@@ -1855,6 +1855,300 @@ namespace
 			Near(infiniteMassBody->m_Position.y, 0.0f), "zero inverse mass does not divide by zero under gravity");
 	}
 
+	struct BodyTypeConstraintProbe : GEngine::Constraint
+	{
+		using Constraint::GetInverseMassMatrix;
+		using Constraint::GetVelocities;
+	};
+
+	void TestBodyTypeInvariants()
+	{
+		using GEngine::Component::BodyType;
+		GEngine::ShapeSphere sphere(1.0f);
+		std::vector<GEngine::Vec3f> points = UnitBoxPoints();
+		for (auto& point : points) point *= GEngine::Vec3f(1.0f, 2.0f, 3.0f);
+		GEngine::ShapeBox box(points);
+		const GEngine::Vec3f velocity(0.25f, -0.5f, 0.75f), omega(0.7f, 1.1f, 1.6f);
+		const GEngine::Quat orientation = glm::angleAxis(0.73f,
+			glm::normalize(GEngine::Vec3f(1.0f, -2.0f, 3.0f)));
+		for (const auto type : { BodyType::Static, BodyType::Kinematic })
+		{
+			for (const float inverseMass : { 0.0f, 0.5f, 3.0f })
+			{
+				GEngine::RigidBody3D body;
+				ConfigureBoxBody(body, box, GEngine::Vec3f(1.0f, 2.0f, 3.0f), orientation);
+				body.GetInverseInertiaTensorWorldSpace();
+				body.Type = type;
+				body.m_InvMass = inverseMass;
+				body.m_LinearVelocity = velocity;
+				body.m_AngularVelocity = omega;
+				Expect(Near(body.GetInverseInertiaTensorBodySpace(), GEngine::Mat3(0.0f), 0.0f) &&
+					Near(body.GetInverseInertiaTensorWorldSpace(), GEngine::Mat3(0.0f), 0.0f),
+					"non-dynamic type changes zero warmed inverse inertia regardless of configured mass");
+				body.ApplyImpulseLinear(GEngine::Vec3f(1.0f, 2.0f, 3.0f));
+				body.ApplyImpulseAngular(GEngine::Vec3f(-1.0f, 2.0f, 0.5f));
+				body.ApplyImpulse(body.GetCenterOfMassWorldSpace() + GEngine::Vec3f(1.0f, 0.0f, 0.0f),
+					GEngine::Vec3f(0.0f, 2.0f, 1.0f));
+				Expect(Near(body.m_LinearVelocity, velocity, 0.0f) && Near(body.m_AngularVelocity, omega, 0.0f),
+					"all impulse entry points preserve Static and Kinematic stored velocities");
+				for (int step = 0; step < 120; ++step) body.Update(1.0f / 120.0f);
+				const bool kinematic = type == BodyType::Kinematic;
+				const GEngine::Vec3f expectedPosition = GEngine::Vec3f(1.0f, 2.0f, 3.0f) +
+					(kinematic ? velocity : GEngine::Vec3f(0.0f));
+				const GEngine::Quat expectedOrientation = kinematic
+					? glm::angleAxis(glm::length(omega), glm::normalize(omega)) * orientation : orientation;
+				Expect(body.HasFiniteState() && Near(body.m_Position, expectedPosition, 2.0e-5f) &&
+					OrientationResidual(body.m_Orientation, expectedOrientation) < 2.0e-5f &&
+					Near(body.m_LinearVelocity, velocity, 0.0f) && Near(body.m_AngularVelocity, omega, 0.0f),
+					"Static poses stay fixed and Kinematic poses follow prescribed translation and asymmetric rotation");
+				body.Type = BodyType::Dynamic;
+				body.m_InvMass = 0.5f;
+				Expect(Near(body.GetInverseInertiaTensorBodySpace(), glm::inverse(box.InertiaTensor()) * 0.5f),
+					"returning to Dynamic restores inverse inertia after non-dynamic cache use");
+			}
+		}
+
+		GEngine::PhysicsSystem system;
+		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
+		system.SetPhysicsWorld(world);
+		int index = 0;
+		for (const auto type : { BodyType::Static, BodyType::Kinematic, BodyType::Dynamic })
+		{
+			auto* body = world->CreateRigidBody3D();
+			ConfigureSphereBody(*body, sphere, GEngine::Vec3f(10.0f * index++, 0.0f, 0.0f));
+			body->Type = type;
+			body->m_InvMass = 0.5f;
+			body->m_LinearVelocity = GEngine::Vec3f(1.0f, 0.0f, 0.0f);
+		}
+		system.Update(GEngine::Timestep(0.25f));
+		const auto& bodies = world->GetPhysicsBodies();
+		Expect(Near(bodies[0]->m_Position, GEngine::Vec3f(0.0f), 0.0f),
+			"world integration leaves a positive-mass moving Static body fixed");
+		Expect(Near(bodies[1]->m_Position, GEngine::Vec3f(10.25f, 0.0f, 0.0f)) &&
+			Near(bodies[1]->m_LinearVelocity, GEngine::Vec3f(1.0f, 0.0f, 0.0f), 0.0f),
+			"world gravity preserves the Kinematic prescribed trajectory");
+		Expect(Near(bodies[2]->m_Position, GEngine::Vec3f(20.25f, -0.75f, 0.0f)) &&
+			Near(bodies[2]->m_LinearVelocity, GEngine::Vec3f(1.0f, -3.0f, 0.0f)),
+			"Dynamic body retains the analytic semi-implicit gravity trajectory");
+	}
+
+	void TestBodyTypeContacts()
+	{
+		using GEngine::Component::BodyType;
+		GEngine::ShapeSphere sphere(1.0f);
+		for (const auto type : { BodyType::Static, BodyType::Kinematic })
+		{
+			for (const bool ballistic : { false, true })
+			{
+				GEngine::Vec3f referenceVelocity(0.0f), referenceOmega(0.0f);
+				for (const float inverseMass : { 0.0f, 4.0f })
+				{
+					GEngine::RigidBody3D bodyA, bodyB;
+					ConfigureSphereBody(bodyA, sphere, GEngine::Vec3f(0.0f));
+					ConfigureSphereBody(bodyB, sphere, GEngine::Vec3f(2.0f, 0.0f, 0.0f));
+					bodyB.GetInverseInertiaTensorWorldSpace();
+					bodyB.Type = type;
+					bodyB.m_InvMass = inverseMass;
+					bodyA.m_Elasticity = bodyB.m_Elasticity = 0.0f;
+					bodyA.m_Friction = bodyB.m_Friction = 0.5f;
+					bodyA.m_LinearVelocity = GEngine::Vec3f(2.0f, 1.0f, 0.0f);
+					const GEngine::Vec3f prescribed(type == BodyType::Kinematic ? 1.0f : -3.0f, 0.0f, 0.0f);
+					bodyB.m_LinearVelocity = prescribed;
+					BodyTypeConstraintProbe probe;
+					probe.m_bodyA = &bodyA;
+					probe.m_bodyB = &bodyB;
+					const auto mass = probe.GetInverseMassMatrix();
+					bool zeroBlock = true;
+					for (int row = 6; row < 12; ++row)
+						for (int column = 0; column < 12; ++column) zeroBlock = zeroBlock && mass[row][column] == 0.0f;
+					Expect(zeroBlock && Near(mass[0][0], 1.0f), "solver excludes all non-dynamic mass and inertia");
+					Expect(Near(probe.GetVelocities()[6], type == BodyType::Kinematic ? 1.0f : 0.0f, 0.0f),
+						"solver uses prescribed Kinematic motion and ignores Static velocity");
+					if (ballistic)
+					{
+						GEngine::contact_t contact{};
+						contact.m_BodyA = &bodyA;
+						contact.m_BodyB = &bodyB;
+						contact.ptOnA_LocalSpace = GEngine::Vec3f(1.0f, 0.0f, 0.0f);
+						contact.ptOnB_LocalSpace = GEngine::Vec3f(-1.0f, 0.0f, 0.0f);
+						contact.normal = GEngine::Vec3f(-1.0f, 0.0f, 0.0f);
+						contact.timeOfImpact = 0.1f;
+						GEngine::Collision::ResolveContact(contact);
+					}
+					else
+					{
+						GEngine::ConstraintPenetration constraint;
+						constraint.m_bodyA = &bodyA;
+						constraint.m_bodyB = &bodyB;
+						constraint.m_anchorA = GEngine::Vec3f(1.0f, 0.0f, 0.0f);
+						constraint.m_anchorB = GEngine::Vec3f(-1.0f, 0.0f, 0.0f);
+						constraint.m_Normal = GEngine::Vec3f(1.0f, 0.0f, 0.0f);
+						constraint.PreSolve(1.0f / 120.0f);
+						constraint.Solve();
+					}
+					Expect(bodyA.HasFiniteState() && bodyB.HasFiniteState() &&
+						Near(bodyA.m_LinearVelocity.x, type == BodyType::Kinematic ? 1.0f : 0.0f) &&
+						Near(bodyB.m_LinearVelocity, prescribed, 0.0f) &&
+						Near(bodyB.m_AngularVelocity, GEngine::Vec3f(0.0f), 0.0f),
+						"resting and ballistic contacts accelerate only the Dynamic participant");
+					if (inverseMass == 0.0f)
+					{
+						referenceVelocity = bodyA.m_LinearVelocity;
+						referenceOmega = bodyA.m_AngularVelocity;
+					}
+					else Expect(Near(bodyA.m_LinearVelocity, referenceVelocity) && Near(bodyA.m_AngularVelocity, referenceOmega),
+						"non-dynamic configured mass cannot change either solver's normal or friction response");
+				}
+			}
+		}
+	}
+
+	void TestBodyTypePrediction()
+	{
+		using GEngine::Component::BodyType;
+		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeBox box(UnitBoxPoints());
+		for (const bool generic : { false, true })
+		{
+			for (const auto type : { BodyType::Static, BodyType::Kinematic })
+			{
+				GEngine::RigidBody3D bodyA, bodyB;
+				ConfigureSphereBody(bodyA, sphere, GEngine::Vec3f(0.0f));
+				ConfigureSphereBody(bodyB, sphere, GEngine::Vec3f(4.0f, 0.0f, 0.0f));
+				if (generic) bodyB.m_Shape = &box;
+				bodyB.Type = type;
+				bodyB.m_LinearVelocity = GEngine::Vec3f(-10.0f, 0.0f, 0.0f);
+				GEngine::contact_t contact{};
+				const bool hit = GEngine::Collision::Intersect(&bodyA, &bodyB, 0.3f, contact);
+				Expect(hit == (type == BodyType::Kinematic) && (!hit || Near(contact.timeOfImpact, 0.2f, 0.002f)),
+					"sphere and generic CCD ignore Static velocity and preserve Kinematic time of impact");
+				if (!generic) Expect(GEngine::Collision::SphereSphereIntersect(&bodyA, &bodyB, 0.3f, contact) ==
+					(type == BodyType::Kinematic), "direct sphere CCD follows the body-type motion contract");
+			}
+		}
+	}
+
+	void TestBodyTypeConfigurationAndTransitions()
+	{
+		using GEngine::Component::BodyType;
+		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::RigidBody3D body;
+		body.m_Shape = &sphere;
+		Expect(body.Type == BodyType::Static && body.m_InvMass == 0.0f && body.GetInverseMass() == 0.0f,
+			"default body has consistent Static zero inverse mass");
+		Expect(body.SetBodyTypeAndInverseMass(BodyType::Dynamic, 0.5f), "validated configuration accepts positive Dynamic inverse mass");
+		body.ApplyImpulseLinear(GEngine::Vec3f(2.0f, 0.0f, 0.0f));
+		body.ApplyImpulseAngular(GEngine::Vec3f(0.0f, 0.0f, 0.8f));
+		Expect(Near(body.m_LinearVelocity, GEngine::Vec3f(1.0f, 0.0f, 0.0f)) &&
+			Near(body.m_AngularVelocity, GEngine::Vec3f(0.0f, 0.0f, 1.0f)),
+			"Dynamic linear and angular impulses retain analytic mass scaling");
+		const auto inverseBefore = body.GetInverseInertiaTensorWorldSpace();
+		for (const float invalid : { 0.0f, -1.0f, std::numeric_limits<float>::infinity(),
+			std::numeric_limits<float>::quiet_NaN() })
+		{
+			Expect(!body.SetBodyTypeAndInverseMass(BodyType::Dynamic, invalid) &&
+				body.Type == BodyType::Dynamic && body.m_InvMass == 0.5f &&
+				Near(body.GetInverseInertiaTensorWorldSpace(), inverseBefore, 0.0f),
+				"invalid Dynamic mass configuration is rejected without changing type, mass, or warm inertia");
+		}
+		Expect(!body.SetBodyTypeAndInverseMass(static_cast<BodyType>(-1), 1.0f) && body.Type == BodyType::Dynamic,
+			"invalid body type is rejected transactionally");
+		for (const auto type : { BodyType::Static, BodyType::Kinematic })
+		{
+			Expect(body.SetBodyTypeAndInverseMass(type, 7.0f) && body.m_InvMass == 0.0f &&
+				body.GetInverseMass() == 0.0f && Near(body.GetInverseInertiaTensorWorldSpace(), GEngine::Mat3(0.0f), 0.0f),
+				"validated Static and Kinematic configuration stores zero inverse mass");
+		}
+		for (const float invalid : { 0.0f, -1.0f, std::numeric_limits<float>::infinity(),
+			std::numeric_limits<float>::quiet_NaN() })
+		{
+			// Legacy public writes are numerically guarded even when callers bypass validation.
+			body.Type = BodyType::Dynamic;
+			body.m_InvMass = invalid;
+			const auto velocity = body.m_LinearVelocity;
+			const auto omega = body.m_AngularVelocity;
+			const auto orientation = body.m_Orientation;
+			const auto position = body.m_Position;
+			body.ApplyImpulseLinear(GEngine::Vec3f(1.0f));
+			body.ApplyImpulseAngular(GEngine::Vec3f(1.0f));
+			body.Update(0.1f);
+			Expect(body.GetInverseMass() == 0.0f &&
+				Near(body.GetInverseInertiaTensorWorldSpace(), GEngine::Mat3(0.0f), 0.0f) &&
+				Near(body.GetLinearVelocity(), GEngine::Vec3f(0.0f), 0.0f) &&
+				Near(body.GetAngularVelocity(), GEngine::Vec3f(0.0f), 0.0f) &&
+				Near(body.m_Position, position, 0.0f) && OrientationResidual(body.m_Orientation, orientation) == 0.0f &&
+				Near(body.m_LinearVelocity, velocity, 0.0f) && Near(body.m_AngularVelocity, omega, 0.0f),
+				"invalid legacy Dynamic mass cannot enter effective solver state, impulses, or integration");
+		}
+
+		GEngine::RigidBody3D other;
+		ConfigureSphereBody(body, sphere, GEngine::Vec3f(0.0f));
+		ConfigureSphereBody(other, sphere, GEngine::Vec3f(2.0f, 0.0f, 0.0f));
+		GEngine::ConstraintPenetration constraint;
+		constraint.m_bodyA = &body;
+		constraint.m_bodyB = &other;
+		constraint.m_anchorA = GEngine::Vec3f(1.0f, 0.0f, 0.0f);
+		constraint.m_anchorB = GEngine::Vec3f(-1.0f, 0.0f, 0.0f);
+		constraint.m_Normal = GEngine::Vec3f(1.0f, 0.0f, 0.0f);
+		body.m_LinearVelocity = GEngine::Vec3f(2.0f, 0.0f, 0.0f);
+		constraint.PreSolve(1.0f / 120.0f);
+		constraint.Solve();
+		Expect(constraint.m_CachedLambda[0] > 0.0f, "type-transition fixture creates a real cached normal impulse");
+		body.Type = BodyType::Static;
+		other.Type = BodyType::Kinematic;
+		const auto velocityA = body.m_LinearVelocity;
+		const auto velocityB = other.m_LinearVelocity;
+		constraint.PreSolve(1.0f / 120.0f);
+		constraint.Solve();
+		Expect(body.HasFiniteState() && other.HasFiniteState() &&
+			Near(body.m_LinearVelocity, velocityA, 0.0f) && Near(other.m_LinearVelocity, velocityB, 0.0f),
+			"warm starting after both bodies become non-dynamic cannot apply cached impulses");
+	}
+
+	void TestBodyTypeWorldContacts()
+	{
+		using GEngine::Component::BodyType;
+		GEngine::ShapeSphere sphere(1.0f);
+		for (const auto type : { BodyType::Static, BodyType::Kinematic })
+		{
+			GEngine::PhysicsSystem system;
+			auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
+			system.SetPhysicsWorld(world);
+			auto* dynamic = world->CreateRigidBody3D();
+			auto* driver = world->CreateRigidBody3D();
+			ConfigureSphereBody(*dynamic, sphere, GEngine::Vec3f(0.0f));
+			ConfigureSphereBody(*driver, sphere, GEngine::Vec3f(2.5f, 0.0f, 0.0f));
+			driver->Type = type;
+			driver->m_InvMass = 4.0f;
+			dynamic->m_Friction = driver->m_Friction = 0.0f;
+			dynamic->m_Elasticity = driver->m_Elasticity = 0.0f;
+			dynamic->m_LinearVelocity = GEngine::Vec3f(2.0f, 0.0f, 0.0f);
+			const bool kinematic = type == BodyType::Kinematic;
+			driver->m_LinearVelocity = GEngine::Vec3f(kinematic ? 1.0f : -3.0f, 0.0f, 0.0f);
+			system.Update(GEngine::Timestep(1.0f));
+			Expect(dynamic->HasFiniteState() && driver->HasFiniteState() &&
+				Near(dynamic->m_LinearVelocity.x, kinematic ? 1.0f : 0.0f) &&
+				Near(dynamic->m_Position.x, kinematic ? 1.5f : 0.5f) &&
+				Near(driver->m_Position.x, kinematic ? 3.5f : 2.5f) &&
+				Near(driver->m_LinearVelocity.x, kinematic ? 1.0f : -3.0f),
+				"full world CCD and response preserve analytic Static/Kinematic driver and Dynamic trajectories");
+		}
+	}
+	int RunBodyTypeRegression()
+	{
+		TestBodyTypeInvariants();
+		TestBodyTypeContacts();
+		TestBodyTypePrediction();
+		TestBodyTypeConfigurationAndTransitions();
+		TestBodyTypeWorldContacts();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " focused body-type checks failed\n";
+			return 1;
+		}
+		std::cout << "Body-type regression: " << testCount << " checks passed\n";
+		return 0;
+	}
 	bool ContainsPair(const std::vector<GEngine::collisionPair_t>& pairs, int a, int b)
 	{
 		return std::find(pairs.begin(), pairs.end(), GEngine::collisionPair_t{ a, b }) != pairs.end();
@@ -2044,6 +2338,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--body-types") return RunBodyTypeRegression();
 		if (argument == "--angular-dynamics")
 		{
 			return RunAngularDynamicsRegression();
@@ -2123,6 +2418,11 @@ int main(int argc, char** argv)
 	TestSphereRadiusInvalidationContract();
 	TestConstraintDenominators();
 	TestGravityAndInverseMass();
+	TestBodyTypeInvariants();
+	TestBodyTypeContacts();
+	TestBodyTypePrediction();
+	TestBodyTypeConfigurationAndTransitions();
+	TestBodyTypeWorldContacts();
 	TestBroadphaseCorrectnessAndFiltering();
 	TestBroadphasePersistenceAndTemporalCoherence();
 	TestBroadphaseAgainstBruteForce();

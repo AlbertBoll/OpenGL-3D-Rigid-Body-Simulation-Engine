@@ -250,7 +250,7 @@ namespace GEngine
 				for (size_t i = 0; i < size; i++)
 				{
 					RigidBody3D* body = PhysicsBodies[i];
-					if (body->Type != BodyType::Static && body->m_InvMass > 0.0f)
+					if (body->Type == BodyType::Dynamic && body->GetInverseMass() > 0.0f)
 					{
 						body->m_LinearVelocity += gravity * dtSeconds;
 						body->AssertFiniteState();
@@ -490,8 +490,8 @@ namespace GEngine
 		Vec3f posA = bodyA->m_Position;
 		Vec3f posB = bodyB->m_Position;
 
-		Vec3f velA = bodyA->m_LinearVelocity;
-		Vec3f velB = bodyB->m_LinearVelocity;
+		Vec3f velA = bodyA->GetLinearVelocity();
+		Vec3f velB = bodyB->GetLinearVelocity();
 
 		if (SphereSphereDynamic(sphereA, sphereB, posA, posB, velA, velB, dt, contact.ptOnA_WorldSpace, contact.ptOnB_WorldSpace, contact.timeOfImpact)) {
 			// Step bodies forward to get local space collision points
@@ -610,8 +610,8 @@ namespace GEngine
 		const float elasticityB = bodyB->m_Elasticity;
 		const float elasticity = elasticityA * elasticityB;
 
-		const float invMassA = bodyA->m_InvMass;
-		const float invMassB = bodyB->m_InvMass;
+		const float invMassA = bodyA->GetInverseMass();
+		const float invMassB = bodyB->GetInverseMass();
 
 		const Mat3 invWorldInertiaA = bodyA->GetInverseInertiaTensorWorldSpace();
 		const Mat3 invWorldInertiaB = bodyB->GetInverseInertiaTensorWorldSpace();
@@ -626,8 +626,8 @@ namespace GEngine
 		const float angularFactor = glm::dot(angularJA + angularJB, n);
 
 		// Get the world space velocity of the motion and rotation
-		const Vec3f velA = bodyA->m_LinearVelocity + glm::cross(bodyA->m_AngularVelocity, ra);
-		const Vec3f velB = bodyB->m_LinearVelocity + glm::cross(bodyB->m_AngularVelocity, rb);//bodyB->m_AngularVelocity.Cross(rb);
+		const Vec3f velA = bodyA->GetLinearVelocity() + glm::cross(bodyA->GetAngularVelocity(), ra);
+		const Vec3f velB = bodyB->GetLinearVelocity() + glm::cross(bodyB->GetAngularVelocity(), rb);//bodyB->GetAngularVelocity().Cross(rb);
 
 		// Calculate the collision impulse
 		const Vec3f vab = velA - velB;
@@ -670,7 +670,7 @@ namespace GEngine
 		const float invInertia = glm::dot(inertiaA + inertiaB, relativeVelTang);
 
 		// Calculate the tangential impulse for friction
-		const float frictionDenominator = bodyA->m_InvMass + bodyB->m_InvMass + invInertia;
+		const float frictionDenominator = bodyA->GetInverseMass() + bodyB->GetInverseMass() + invInertia;
 		if (tangentialSpeedSquared > Math::NumericalEpsilonSquared && Math::IsFinite(frictionDenominator) &&
 			frictionDenominator > Math::NumericalEpsilon)
 		{
@@ -737,12 +737,12 @@ namespace GEngine
 			//std::cout << "ab: " << ab.x << ", " << ab.y << ", " << ab.z << std::endl;
 
 			// project the relative velocity onto the ray of shortest distance
-			Vec3f relativeVelocity = bodyA->m_LinearVelocity - bodyB->m_LinearVelocity;
+			Vec3f relativeVelocity = bodyA->GetLinearVelocity() - bodyB->GetLinearVelocity();
 			float orthoSpeed = glm::dot(relativeVelocity, ab);
 
 			// Add to the orthoSpeed the maximum angular speeds of the relative shapes
-			float angularSpeedA = bodyA->m_Shape->FastestLinearSpeed(bodyA->m_AngularVelocity, ab);
-			float angularSpeedB = bodyB->m_Shape->FastestLinearSpeed(bodyB->m_AngularVelocity, ab * -1.0f);
+			float angularSpeedA = bodyA->m_Shape->FastestLinearSpeed(bodyA->GetAngularVelocity(), ab);
+			float angularSpeedB = bodyB->m_Shape->FastestLinearSpeed(bodyB->GetAngularVelocity(), ab * -1.0f);
 			orthoSpeed += angularSpeedA + angularSpeedB;
 			if (!Math::IsFinite(orthoSpeed) || orthoSpeed <= Math::NumericalEpsilon) {
 				break;
@@ -783,8 +783,8 @@ namespace GEngine
 			Vec3f posA = bodyA->m_Position;
 			Vec3f posB = bodyB->m_Position;
 
-			Vec3f velA = bodyA->m_LinearVelocity;
-			Vec3f velB = bodyB->m_LinearVelocity;
+			Vec3f velA = bodyA->GetLinearVelocity();
+			Vec3f velB = bodyB->GetLinearVelocity();
 
 			if (SphereSphereDynamic(sphereA, sphereB, posA, posB, velA, velB, dt, contact.ptOnA_WorldSpace, contact.ptOnB_WorldSpace, contact.timeOfImpact)) {
 				// Step bodies forward to get local space collision points

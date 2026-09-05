@@ -54,6 +54,16 @@ namespace GEngine
 		const Bounds& GetWorldBounds() const;
 		RigidBodyIdentity GetIdentity() const { return m_Identity; }
 
+		// Configure type and inverse mass atomically. Invalid input leaves the body unchanged.
+		bool SetBodyTypeAndInverseMass(BodyType type, float inverseMass);
+		// Public fields remain configuration storage for existing callers. Physics consumes
+		// effective values: only Dynamic bodies have mass response; Static bodies have no motion.
+		float GetInverseMass() const
+		{
+			return Type == BodyType::Dynamic && Math::IsFinite(m_InvMass) && m_InvMass > 0.0f ? m_InvMass : 0.0f;
+		}
+		Vec3f GetLinearVelocity() const { return CanIntegrate() ? m_LinearVelocity : Vec3f(0.0f); }
+		Vec3f GetAngularVelocity() const { return CanIntegrate() ? m_AngularVelocity : Vec3f(0.0f); }
 		void ApplyImpulse(const Vec3f& impulsePoint, const Vec3f& impulse);
 		void ApplyImpulseLinear(const Vec3f& impulse);
 		void ApplyImpulseAngular(const Vec3f& impulse);
@@ -72,7 +82,7 @@ namespace GEngine
 		Vec3f m_LinearVelocity{ 0.f };
 		Vec3f m_AngularVelocity{ 0.f };
 
-		float		m_InvMass = 1.f;
+		float		m_InvMass = 0.f;
 		float		m_Elasticity = 1.f;
 		float		m_Friction = 0.f;
 		std::uint32_t m_CollisionLayer = 1u;
@@ -82,6 +92,8 @@ namespace GEngine
 
 	private:
 		RigidBodyIdentity m_Identity;
+
+		bool CanIntegrate() const { return Type == BodyType::Kinematic || GetInverseMass() > 0.0f; }
 
 		void UpdateRotationData() const;
 		void UpdateCenterOfMassData() const;

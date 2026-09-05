@@ -36,9 +36,9 @@ namespace GEngine
 		Mat<12, 12> invMassMatrix{};
 		invMassMatrix.Zero();
 
-		invMassMatrix[0][0] = m_bodyA->m_InvMass;
-		invMassMatrix[1][1] = m_bodyA->m_InvMass;
-		invMassMatrix[2][2] = m_bodyA->m_InvMass;
+		invMassMatrix[0][0] = m_bodyA->GetInverseMass();
+		invMassMatrix[1][1] = m_bodyA->GetInverseMass();
+		invMassMatrix[2][2] = m_bodyA->GetInverseMass();
 
 		Mat3 invInertiaA = m_bodyA->GetInverseInertiaTensorWorldSpace();
 		for (int i = 0; i < 3; i++)
@@ -51,9 +51,9 @@ namespace GEngine
 			invMassMatrix[3 + i][3 + 2] = invInertiaA[2][i];
 		}
 
-		invMassMatrix[6][6] = m_bodyB->m_InvMass;
-		invMassMatrix[7][7] = m_bodyB->m_InvMass;
-		invMassMatrix[8][8] = m_bodyB->m_InvMass;
+		invMassMatrix[6][6] = m_bodyB->GetInverseMass();
+		invMassMatrix[7][7] = m_bodyB->GetInverseMass();
+		invMassMatrix[8][8] = m_bodyB->GetInverseMass();
 
 		Mat3 invInertiaB = m_bodyB->GetInverseInertiaTensorWorldSpace();
 		for (int i = 0; i < 3; i++) {
@@ -73,21 +73,21 @@ namespace GEngine
 	Vec<12> Constraint::GetVelocities() const
 	{
 		Vec<12> q_dt{};
-		q_dt[0] = m_bodyA->m_LinearVelocity.x;
-		q_dt[1] = m_bodyA->m_LinearVelocity.y;
-		q_dt[2] = m_bodyA->m_LinearVelocity.z;
+		q_dt[0] = m_bodyA->GetLinearVelocity().x;
+		q_dt[1] = m_bodyA->GetLinearVelocity().y;
+		q_dt[2] = m_bodyA->GetLinearVelocity().z;
 
-		q_dt[3] = m_bodyA->m_AngularVelocity.x;
-		q_dt[4] = m_bodyA->m_AngularVelocity.y;
-		q_dt[5] = m_bodyA->m_AngularVelocity.z;
+		q_dt[3] = m_bodyA->GetAngularVelocity().x;
+		q_dt[4] = m_bodyA->GetAngularVelocity().y;
+		q_dt[5] = m_bodyA->GetAngularVelocity().z;
 
-		q_dt[6] = m_bodyB->m_LinearVelocity.x;
-		q_dt[7] = m_bodyB->m_LinearVelocity.y;
-		q_dt[8] = m_bodyB->m_LinearVelocity.z;
+		q_dt[6] = m_bodyB->GetLinearVelocity().x;
+		q_dt[7] = m_bodyB->GetLinearVelocity().y;
+		q_dt[8] = m_bodyB->GetLinearVelocity().z;
 
-		q_dt[9] = m_bodyB->m_AngularVelocity.x;
-		q_dt[10] = m_bodyB->m_AngularVelocity.y;
-		q_dt[11] = m_bodyB->m_AngularVelocity.z;
+		q_dt[9] = m_bodyB->GetAngularVelocity().x;
+		q_dt[10] = m_bodyB->GetAngularVelocity().y;
+		q_dt[11] = m_bodyB->GetAngularVelocity().z;
 
 		return q_dt;
 

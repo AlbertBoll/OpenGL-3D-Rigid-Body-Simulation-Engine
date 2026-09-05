@@ -167,7 +167,7 @@ namespace GEngine
 		}
 		if (m_Friction > 0.0f) 
 		{
-			const float inverseMassSum = m_bodyA->m_InvMass + m_bodyB->m_InvMass;
+			const float inverseMassSum = m_bodyA->GetInverseMass() + m_bodyB->GetInverseMass();
 			const float umg = Math::IsFinite(inverseMassSum) && inverseMassSum > Math::NumericalEpsilon
 				? m_Friction * 10.0f / inverseMassSum
 				: 0.0f;

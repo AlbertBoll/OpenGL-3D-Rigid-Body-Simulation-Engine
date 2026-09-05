@@ -564,23 +564,106 @@ namespace
 			"transient-contact removal permits safe stepping with finite survivors");
 	}
 
-	void TestConvexValidityDiagnostic()
+	void TestConvexValidityContract()
 	{
+		const float nan = std::numeric_limits<float>::quiet_NaN();
+		const float infinity = std::numeric_limits<float>::infinity();
+		const GEngine::Quat identity(1.0f, 0.0f, 0.0f, 0.0f);
+		const auto support = [&identity](const GEngine::ShapeConvex& convex,
+			const GEngine::Vec3f& direction = GEngine::Vec3f(1.0f, 0.0f, 0.0f)) {
+			return convex.Support(direction, GEngine::Vec3f(0.0f), identity, 0.0f);
+		};
+
+		GEngine::ShapeConvex defaultConvex;
 		GEngine::ShapeConvex emptyConvex(std::vector<GEngine::Vec3f>{});
 		const std::vector<GEngine::Vec3f> triangle{
 			GEngine::Vec3f(0.0f, 0.0f, 0.0f),
 			GEngine::Vec3f(1.0f, 0.0f, 0.0f),
 			GEngine::Vec3f(0.0f, 1.0f, 0.0f)
 		};
-		GEngine::ShapeConvex degenerateConvex(triangle);
+		GEngine::ShapeConvex fewerThanFourConvex(triangle);
+		GEngine::ShapeConvex duplicateConvex({
+			triangle[0], triangle[1], triangle[2], triangle[2]
+		});
+		const std::vector<GEngine::Vec3f> collinearPoints{
+			GEngine::Vec3f(-2.0f, -4.0f, -6.0f), GEngine::Vec3f(-1.0f, -2.0f, -3.0f),
+			GEngine::Vec3f(0.0f, 0.0f, 0.0f), GEngine::Vec3f(1.0f, 2.0f, 3.0f),
+			GEngine::Vec3f(2.0f, 4.0f, 6.0f)
+		};
+		GEngine::ShapeConvex collinearConvex(collinearPoints);
+		const std::vector<GEngine::Vec3f> coplanarPoints{
+			GEngine::Vec3f(-1.0f, -1.0f, -2.0f), GEngine::Vec3f(1.0f, -1.0f, 0.0f),
+			GEngine::Vec3f(1.0f, 1.0f, 2.0f), GEngine::Vec3f(-1.0f, 1.0f, 0.0f),
+			GEngine::Vec3f(0.0f, 0.0f, 0.0f)
+		};
+		GEngine::ShapeConvex coplanarConvex(coplanarPoints);
+		std::vector<GEngine::Vec3f> nonFinitePoints = UnitBoxPoints();
+		nonFinitePoints[3].x = nan;
+		GEngine::ShapeConvex nonFiniteConvex(nonFinitePoints);
+		std::vector<GEngine::Vec3f> positiveInfinityPoints = UnitBoxPoints();
+		positiveInfinityPoints[1].y = infinity;
+		GEngine::ShapeConvex positiveInfinityConvex(positiveInfinityPoints);
+		std::vector<GEngine::Vec3f> negativeInfinityPoints = UnitBoxPoints();
+		negativeInfinityPoints[6].z = -infinity;
+		GEngine::ShapeConvex negativeInfinityConvex(negativeInfinityPoints);
 
-		const bool rejectsInvalidGeometry = !emptyConvex.IsValid() && !degenerateConvex.IsValid();
-		std::cout << "BASELINE convex_empty_points=" << emptyConvex.GetPoints().size()
-			<< " convex_empty_reports_valid=" << (emptyConvex.IsValid() ? 1 : 0)
-			<< " convex_degenerate_points=" << degenerateConvex.GetPoints().size()
-			<< " convex_degenerate_reports_valid=" << (degenerateConvex.IsValid() ? 1 : 0) << '\n';
-		KnownIssueDiagnostic(rejectsInvalidGeometry,
-			"empty and fewer-than-four-point convex shapes report invalid");
+		Expect(!defaultConvex.IsValid() && !emptyConvex.IsValid() &&
+			!fewerThanFourConvex.IsValid(),
+			"default, empty, and fewer-than-four-point convex shapes report invalid");
+		Expect(!duplicateConvex.IsValid() && !coplanarConvex.IsValid(),
+			"fewer-than-four usable points and zero-volume coplanar hulls report invalid");
+		Expect(!collinearConvex.IsValid() && collinearConvex.GetPoints().empty() &&
+			!Finite(support(collinearConvex)),
+			"four or more finite unique collinear points are rejected safely");
+		Expect(!nonFiniteConvex.IsValid(), "non-finite convex input reports invalid");
+		Expect(!positiveInfinityConvex.IsValid() && !negativeInfinityConvex.IsValid() &&
+			positiveInfinityConvex.GetPoints().empty() && negativeInfinityConvex.GetPoints().empty(),
+			"explicit positive and negative infinity convex inputs are rejected");
+		Expect(defaultConvex.GetPoints().empty() && emptyConvex.GetPoints().empty() &&
+			fewerThanFourConvex.GetPoints().empty() && duplicateConvex.GetPoints().empty() &&
+			coplanarConvex.GetPoints().empty() && nonFiniteConvex.GetPoints().empty() &&
+			positiveInfinityConvex.GetPoints().empty() && negativeInfinityConvex.GetPoints().empty(),
+			"invalid convex construction never commits partial hull points");
+		Expect(!Finite(support(defaultConvex)) && !Finite(support(emptyConvex)) &&
+			!Finite(support(fewerThanFourConvex)) && !Finite(support(coplanarConvex)) &&
+			!Finite(support(nonFiniteConvex)),
+			"invalid convex support requests return a non-finite sentinel without indexing storage");
+
+		GEngine::ShapeConvex validConvex(UnitBoxPoints());
+		const std::uint64_t originalRevision = validConvex.GetRevision();
+		const std::size_t originalPointCount = validConvex.GetPoints().size();
+		const GEngine::Vec3f originalCenter = validConvex.GetCenterOfMass();
+		const GEngine::Mat3 originalInertia = validConvex.InertiaTensor();
+		const GEngine::Vec3f originalSupport = support(validConvex);
+		Expect(validConvex.IsValid() && originalPointCount >= 4 && Finite(originalCenter) &&
+			Finite(originalSupport) && Near(originalSupport.x, 1.0f, 1.0e-4f) &&
+			Near(originalInertia, originalInertia),
+			"finite three-dimensional convex geometry builds valid finite derived data");
+
+		validConvex.Build(BoxPoints(GEngine::Vec3f(2.0f, 1.5f, 0.75f)));
+		const std::uint64_t successfulRebuildRevision = validConvex.GetRevision();
+		Expect(validConvex.IsValid() && successfulRebuildRevision == originalRevision + 1 &&
+			Near(support(validConvex).x, 2.0f, 1.0e-4f),
+			"one successful valid rebuild increments geometry revision exactly once");
+
+		const std::size_t rebuiltPointCount = validConvex.GetPoints().size();
+		const GEngine::Vec3f rebuiltCenter = validConvex.GetCenterOfMass();
+		const GEngine::Mat3 rebuiltInertia = validConvex.InertiaTensor();
+		const GEngine::Bounds rebuiltBounds = validConvex.GetBounds();
+		const GEngine::Vec3f rebuiltSupport = support(validConvex);
+		validConvex.Build(coplanarPoints);
+		validConvex.Build(nonFinitePoints);
+		Expect(validConvex.IsValid() && validConvex.GetRevision() == successfulRebuildRevision &&
+			validConvex.GetPoints().size() == rebuiltPointCount &&
+			Near(validConvex.GetCenterOfMass(), rebuiltCenter) &&
+			Near(validConvex.InertiaTensor(), rebuiltInertia) &&
+			Near(validConvex.GetBounds().mins, rebuiltBounds.mins) &&
+			Near(validConvex.GetBounds().maxs, rebuiltBounds.maxs) &&
+			Near(support(validConvex), rebuiltSupport),
+			"subsequent rejected rebuilds preserve valid state and leave revision unchanged");
+
+		Expect(!Finite(support(validConvex, GEngine::Vec3f(nan, 0.0f, 0.0f))),
+			"non-finite convex support input fails safely");
 	}
 
 	void TestContactPairOrderDiagnostic()
@@ -900,6 +983,19 @@ namespace
 		}
 
 		std::cout << "Scene runtime lifecycle regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
+	int RunConvexValidityRegression()
+	{
+		TestConvexValidityContract();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " focused convex-validity checks failed\n";
+			return 1;
+		}
+
+		std::cout << "Convex-validity regression: " << testCount << " checks passed\n";
 		return 0;
 	}
 
@@ -1495,6 +1591,10 @@ int main(int argc, char** argv)
 		{
 			return RunSceneRuntimeLifecycleRegression();
 		}
+		if (argument == "--convex-validity")
+		{
+			return RunConvexValidityRegression();
+		}
 		if (argument == "--unsafe-empty-convex")
 		{
 			return RunUnsafeConvexSupportProbe(false);
@@ -1523,7 +1623,7 @@ int main(int argc, char** argv)
 	TestReadOnlyPhysicsBodyStorageRegression();
 	TestPhysicsWorldResetAndRestartRegression();
 	TestSceneRuntimeLifecycleRegression();
-	TestConvexValidityDiagnostic();
+	TestConvexValidityContract();
 	TestContactPairOrderDiagnostic();
 	TestDegenerateGjkDirection();
 	TestZeroQuaternionBodyUpdate();

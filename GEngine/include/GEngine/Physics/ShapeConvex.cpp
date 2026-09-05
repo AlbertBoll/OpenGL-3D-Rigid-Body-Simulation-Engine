@@ -2,8 +2,40 @@
 #include "ShapeConvex.h"
 
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 namespace GEngine
 {
+	namespace
+	{
+		float HullLengthTolerance(const Bounds& bounds)
+		{
+			const float scale = std::max({ bounds.WidthX(), bounds.WidthY(), bounds.WidthZ() });
+			return std::max(Math::NumericalEpsilon, scale * Math::NumericalEpsilon);
+		}
+
+		bool HasFinitePointSet(const std::vector<Vec3f>& points, Bounds& bounds)
+		{
+			if (points.size() < 4) {
+				return false;
+			}
+
+			for (const Vec3f& point : points) {
+				if (!Math::IsFinite(point)) {
+					return false;
+				}
+				bounds.Expand(point);
+			}
+
+			const float tolerance = HullLengthTolerance(bounds);
+			return Math::IsFinite(bounds.mins) && Math::IsFinite(bounds.maxs) &&
+				Math::IsFinite(tolerance) &&
+				bounds.WidthX() > tolerance && bounds.WidthY() > tolerance &&
+				bounds.WidthZ() > tolerance;
+		}
+	}
 
 	/*
 	====================================================
@@ -26,40 +58,6 @@ namespace GEngine
 
 	/*
 	====================================================
-	DistanceFromLine
-	====================================================
-	*/
-	static float DistanceFromLine(const Vec3f& a, const Vec3f& b, const Vec3f& pt) {
-		Vec3f ab = Math::NormalizeOr(b - a);
-
-		Vec3f ray = pt - a;
-		Vec3f projection = ab * glm::dot(ray, ab);	// project the ray onto ab
-		Vec3f perpindicular = ray - projection;
-		return glm::length(perpindicular); 
-	}
-
-	/*
-	====================================================
-	FindPointFurthestFromLine
-	====================================================
-	*/
-	static Vec3f FindPointFurthestFromLine(const std::vector<Vec3f>& pts, const Vec3f& ptA, const Vec3f& ptB) {
-		int maxIdx = 0;
-		int num = pts.size();
-		float maxDist = DistanceFromLine(ptA, ptB, pts[0]);
-		for (int i = 1; i < num; i++) {
-			float dist = DistanceFromLine(ptA, ptB, pts[i]);
-			if (dist > maxDist) {
-				maxDist = dist;
-				maxIdx = i;
-			}
-		}
-		return pts[maxIdx];
-	}
-
-
-	/*
-	====================================================
 	DistanceFromTriangle
 	====================================================
 	*/
@@ -76,43 +74,64 @@ namespace GEngine
 
 	/*
 	====================================================
-	FindPointFurthestFromTriangle
-	====================================================
-	*/
-	static Vec3f FindPointFurthestFromTriangle(const std::vector<Vec3f>& pts, const Vec3f& ptA, const Vec3f& ptB, const Vec3f& ptC) {
-		int maxIdx = 0;
-		int num = pts.size();
-		float maxDist = DistanceFromTriangle(ptA, ptB, ptC, pts[0]);
-		for (int i = 1; i < num; i++) {
-			float dist = DistanceFromTriangle(ptA, ptB, ptC, pts[i]);
-			if (dist * dist > maxDist * maxDist) {
-				maxDist = dist;
-				maxIdx = i;
-			}
-		}
-		return pts[maxIdx];
-	}
-
-	/*
-	====================================================
 	BuildTetrahedron
 	====================================================
 	*/
-	static void BuildTetrahedron(const std::vector<Vec3f>& verts, std::vector<Vec3f>& hullPts, std::vector<tri_t>& hullTris) {
+	static bool BuildTetrahedron(const std::vector<Vec3f>& verts, const float tolerance,
+		std::vector<Vec3f>& hullPts, std::vector<tri_t>& hullTris) {
 		hullPts.clear();
 		hullTris.clear();
 
 		Vec3f points[4];
-		int num = verts.size();
-		int idx = FindPointFurthestInDir(verts, Vec3f(1, 0, 0));
-		points[0] = verts[idx];
-		idx = FindPointFurthestInDir(verts, points[0] * -1.0f);
-		points[1] = verts[idx];
-		points[2] = FindPointFurthestFromLine(verts, points[0], points[1]);
-		points[3] = FindPointFurthestFromTriangle(verts, points[0], points[1], points[2]);
+		float maxDistanceSquared = 0.0f;
+		for (std::size_t a = 0; a < verts.size(); ++a) {
+			for (std::size_t b = a + 1; b < verts.size(); ++b) {
+				const float distanceSquared = glm::length2(verts[b] - verts[a]);
+				if (distanceSquared > maxDistanceSquared) {
+					maxDistanceSquared = distanceSquared;
+					points[0] = verts[a];
+					points[1] = verts[b];
+				}
+			}
+		}
+		if (!Math::IsFinite(maxDistanceSquared) || maxDistanceSquared <= tolerance * tolerance) {
+			return false;
+		}
+
+		const Vec3f line = points[1] - points[0];
+		const float lineLengthSquared = glm::length2(line);
+		float maxLineDistanceSquared = 0.0f;
+		for (const Vec3f& vertex : verts) {
+			const float distanceSquared =
+				glm::length2(glm::cross(line, vertex - points[0])) / lineLengthSquared;
+			if (distanceSquared > maxLineDistanceSquared) {
+				maxLineDistanceSquared = distanceSquared;
+				points[2] = vertex;
+			}
+		}
+		if (!Math::IsFinite(maxLineDistanceSquared) || maxLineDistanceSquared <= tolerance * tolerance) {
+			return false;
+		}
+
+		const Vec3f planeNormal = Math::NormalizeOr(glm::cross(
+			points[1] - points[0], points[2] - points[0]));
+		float maxPlaneDistance = 0.0f;
+		for (const Vec3f& vertex : verts) {
+			const float distance = std::fabs(glm::dot(vertex - points[0], planeNormal));
+			if (distance > maxPlaneDistance) {
+				maxPlaneDistance = distance;
+				points[3] = vertex;
+			}
+		}
+		if (!Math::IsFinite(maxPlaneDistance) || maxPlaneDistance <= tolerance) {
+			return false;
+		}
 
 		// This is important for making sure the ordering is CCW for all faces.
 		float dist = DistanceFromTriangle(points[0], points[1], points[2], points[3]);
+		if (!Math::IsFinite(dist) || std::fabs(dist) <= tolerance) {
+			return false;
+		}
 		if (dist > 0.0f) {
 			std::swap(points[0], points[1]);
 		}
@@ -143,6 +162,7 @@ namespace GEngine
 		tri.b = 0;
 		tri.c = 3;
 		hullTris.push_back(tri);
+		return true;
 	}
 
 
@@ -398,21 +418,29 @@ namespace GEngine
 	CalculateCenterOfMass
 	====================================================
 	*/
-	static Vec3f CalculateCenterOfMass(const std::vector<Vec3f>& pts, const std::vector< tri_t >& tris) {
+	static bool CalculateCenterOfMass(const std::vector<Vec3f>& pts,
+		const std::vector< tri_t >& tris, Vec3f& centerOfMass) {
 		const int numSamples = 100;
 
 		Bounds bounds;
-		bounds.Expand(pts.data(), pts.size());
+		bounds.Expand(pts);
 
-		Vec3f cm(0.0f);
 		const float dx = bounds.WidthX() / (float)numSamples;
 		const float dy = bounds.WidthY() / (float)numSamples;
 		const float dz = bounds.WidthZ() / (float)numSamples;
+		if (!Math::IsFinite(dx) || !Math::IsFinite(dy) || !Math::IsFinite(dz) ||
+			dx <= 0.0f || dy <= 0.0f || dz <= 0.0f) {
+			return false;
+		}
 
+		Vec3f cm(0.0f);
 		int sampleCount = 0;
-		for (float x = bounds.mins.x; x < bounds.maxs.x; x += dx) {
-			for (float y = bounds.mins.y; y < bounds.maxs.y; y += dy) {
-				for (float z = bounds.mins.z; z < bounds.maxs.z; z += dz) {
+		for (int xIndex = 0; xIndex < numSamples; ++xIndex) {
+			const float x = bounds.mins.x + dx * static_cast<float>(xIndex);
+			for (int yIndex = 0; yIndex < numSamples; ++yIndex) {
+				const float y = bounds.mins.y + dy * static_cast<float>(yIndex);
+				for (int zIndex = 0; zIndex < numSamples; ++zIndex) {
+					const float z = bounds.mins.z + dz * static_cast<float>(zIndex);
 					Vec3f pt(x, y, z);
 
 					if (IsExternal(pts, tris, pt)) {
@@ -425,8 +453,17 @@ namespace GEngine
 			}
 		}
 
-		cm /= (float)sampleCount;
-		return cm;
+		if (sampleCount == 0) {
+			return false;
+		}
+
+		cm /= static_cast<float>(sampleCount);
+		if (!Math::IsFinite(cm)) {
+			return false;
+		}
+
+		centerOfMass = cm;
+		return true;
 	}
 
 
@@ -435,7 +472,8 @@ namespace GEngine
 	CalculateInertiaTensor
 	====================================================
 	*/
-	Mat3 CalculateInertiaTensor(const std::vector<Vec3f>& pts, const std::vector<tri_t>& tris, const Vec3f& cm) {
+	static bool CalculateInertiaTensor(const std::vector<Vec3f>& pts,
+		const std::vector<tri_t>& tris, const Vec3f& cm, Mat3& inertiaTensor) {
 		const int numSamples = 100;
 
 		Bounds bounds;
@@ -447,11 +485,18 @@ namespace GEngine
 		const float dx = bounds.WidthX() / (float)numSamples;
 		const float dy = bounds.WidthY() / (float)numSamples;
 		const float dz = bounds.WidthZ() / (float)numSamples;
+		if (!Math::IsFinite(dx) || !Math::IsFinite(dy) || !Math::IsFinite(dz) ||
+			dx <= 0.0f || dy <= 0.0f || dz <= 0.0f) {
+			return false;
+		}
 
 		int sampleCount = 0;
-		for (float x = bounds.mins.x; x < bounds.maxs.x; x += dx) {
-			for (float y = bounds.mins.y; y < bounds.maxs.y; y += dy) {
-				for (float z = bounds.mins.z; z < bounds.maxs.z; z += dz) {
+		for (int xIndex = 0; xIndex < numSamples; ++xIndex) {
+			const float x = bounds.mins.x + dx * static_cast<float>(xIndex);
+			for (int yIndex = 0; yIndex < numSamples; ++yIndex) {
+				const float y = bounds.mins.y + dy * static_cast<float>(yIndex);
+				for (int zIndex = 0; zIndex < numSamples; ++zIndex) {
+					const float z = bounds.mins.z + dz * static_cast<float>(zIndex);
 					Vec3f pt(x, y, z);
 
 					if (IsExternal(pts, tris, pt)) {
@@ -478,49 +523,108 @@ namespace GEngine
 			}
 		}
 
-		tensor *= 1.0f / (float)sampleCount;
-		return tensor;
-	}
-
-	static void BuildConvexHull(const std::vector<Vec3f>& verts, std::vector<Vec3f>& hullPts, std::vector<tri_t>& hullTris) {
-		if (verts.size() < 4) {
-			return;
+		if (sampleCount == 0) {
+			return false;
 		}
 
+		tensor *= 1.0f / static_cast<float>(sampleCount);
+		for (int column = 0; column < 3; ++column) {
+			if (!Math::IsFinite(tensor[column])) {
+				return false;
+			}
+		}
+
+		inertiaTensor = tensor;
+		return true;
+	}
+
+	static bool IsValidHull(const std::vector<Vec3f>& hullPoints,
+		const std::vector<tri_t>& hullTriangles, const float tolerance) {
+		if (hullPoints.size() < 4 || hullTriangles.size() < 4) {
+			return false;
+		}
+
+		double signedVolumeTimesSix = 0.0;
+		const Vec3f reference = hullPoints[0];
+		const float areaToleranceSquared =
+			tolerance * tolerance * tolerance * tolerance;
+		for (const tri_t& triangle : hullTriangles) {
+			if (triangle.a < 0 || triangle.b < 0 || triangle.c < 0 ||
+				triangle.a >= static_cast<int>(hullPoints.size()) ||
+				triangle.b >= static_cast<int>(hullPoints.size()) ||
+				triangle.c >= static_cast<int>(hullPoints.size()) ||
+				triangle.a == triangle.b || triangle.b == triangle.c || triangle.c == triangle.a) {
+				return false;
+			}
+
+			const Vec3f a = hullPoints[triangle.a] - reference;
+			const Vec3f b = hullPoints[triangle.b] - reference;
+			const Vec3f c = hullPoints[triangle.c] - reference;
+			const Vec3f faceCross = glm::cross(b - a, c - a);
+			if (!Math::IsFinite(a) || !Math::IsFinite(faceCross) ||
+				glm::length2(faceCross) <= areaToleranceSquared) {
+				return false;
+			}
+			signedVolumeTimesSix += static_cast<double>(glm::dot(a, glm::cross(b, c)));
+		}
+
+		const double volumeTolerance = static_cast<double>(tolerance) * tolerance * tolerance;
+		return std::isfinite(signedVolumeTimesSix) &&
+			std::fabs(signedVolumeTimesSix) > volumeTolerance;
+	}
+
+	static bool BuildConvexHull(const std::vector<Vec3f>& verts,
+		std::vector<Vec3f>& hullPts, std::vector<tri_t>& hullTris) {
+		Bounds inputBounds;
+		if (!HasFinitePointSet(verts, inputBounds)) {
+			return false;
+		}
+		const float tolerance = HullLengthTolerance(inputBounds);
+
 		// Build a tetrahedron
-		BuildTetrahedron(verts, hullPts, hullTris);
+		if (!BuildTetrahedron(verts, tolerance, hullPts, hullTris)) {
+			return false;
+		}
 
 		ExpandConvexHull(hullPts, hullTris, verts);
+		return IsValidHull(hullPts, hullTris, tolerance);
 	}
 
 
 	void ShapeConvex::Build(const std::vector<Vec3f>& pts)
 	{
-		m_Points.clear();
-		int num = pts.size();
-		m_Points.reserve(num);
-		for (int i = 0; i < num; i++) {
-			m_Points.push_back(pts[i]);
-		}
-
-		// Expand into a convex hull
 		std::vector< Vec3f > hullPoints;
 		std::vector< tri_t > hullTriangles;
-		BuildConvexHull(m_Points, hullPoints, hullTriangles);
-		m_Points = hullPoints;
+		if (!BuildConvexHull(pts, hullPoints, hullTriangles)) {
+			return;
+		}
 
-		// Expand the bounds
-		m_Bounds.Clear();
-		m_Bounds.Expand(m_Points);
+		Bounds bounds;
+		bounds.Expand(hullPoints);
 
-		m_CenterOfMass = CalculateCenterOfMass(hullPoints, hullTriangles);
+		Vec3f centerOfMass(0.0f);
+		Mat3 inertiaTensor(0.0f);
+		if (!CalculateCenterOfMass(hullPoints, hullTriangles, centerOfMass) ||
+			!CalculateInertiaTensor(hullPoints, hullTriangles, centerOfMass, inertiaTensor)) {
+			return;
+		}
 
-		m_InertiaTensor = CalculateInertiaTensor(hullPoints, hullTriangles, m_CenterOfMass);
+		m_MeshPoints = pts;
+		m_Points.swap(hullPoints);
+		m_Bounds = bounds;
+		m_CenterOfMass = centerOfMass;
+		m_InertiaTensor = inertiaTensor;
+		m_IsValid = true;
 		MarkGeometryChanged();
 	}
 
 	Vec3f ShapeConvex::Support(const Vec3f& dir, const Vec3f& pos, const Quat& orient, const float bias) const
 	{
+		if (!IsValid() || !Math::IsFinite(dir) || !Math::IsFinite(pos) ||
+			!Math::IsFinite(orient) || !Math::IsFinite(bias)) {
+			return Vec3f(std::numeric_limits<float>::quiet_NaN());
+		}
+
 		// Find the point in furthest in direction
 		//Vec3f maxPt = glm::transpose(glm::toMat3(orient)) * m_Points[0] + pos;
 		Vec3f maxPt = glm::toMat3(orient) * m_Points[0] + pos;
@@ -545,6 +649,10 @@ namespace GEngine
 
 	Bounds ShapeConvex::GetBounds(const Vec3f& pos, const Quat& orient) const
 	{
+		if (!IsValid() || !Math::IsFinite(pos) || !Math::IsFinite(orient)) {
+			return Bounds();
+		}
+
 		Vec3f corners[8];
 		corners[0] = Vec3f(m_Bounds.mins.x, m_Bounds.mins.y, m_Bounds.mins.z);
 		corners[1] = Vec3f(m_Bounds.mins.x, m_Bounds.mins.y, m_Bounds.maxs.z);
@@ -568,6 +676,10 @@ namespace GEngine
 
 	float ShapeConvex::FastestLinearSpeed(const Vec3f& angularVelocity, const Vec3f& dir) const
 	{
+		if (!IsValid() || !Math::IsFinite(angularVelocity) || !Math::IsFinite(dir)) {
+			return 0.0f;
+		}
+
 		float maxSpeed = 0.0f;
 		for (int i = 0; i < m_Points.size(); i++) {
 			Vec3f r = m_Points[i] - m_CenterOfMass;

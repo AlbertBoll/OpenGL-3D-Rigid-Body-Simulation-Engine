@@ -609,7 +609,11 @@ namespace GEngine
 
 		const float elasticityA = bodyA->m_Elasticity;
 		const float elasticityB = bodyB->m_Elasticity;
+		// Material restitution combines by multiplication (ordinary coefficients are in [0, 1]).
 		const float elasticity = elasticityA * elasticityB;
+		// World units/second at the contact, including spin. At or below this speed,
+		// use an inelastic normal impulse to avoid repeated small ballistic bounces.
+		constexpr float restitutionVelocityThreshold = 1.0f;
 
 		const float invMassA = bodyA->GetInverseMass();
 		const float invMassB = bodyB->GetInverseMass();
@@ -638,7 +642,8 @@ namespace GEngine
 		if (Math::IsFinite(normalSpeed) && normalSpeed < 0.0f &&
 			Math::IsFinite(normalDenominator) && normalDenominator > Math::NumericalEpsilon)
 		{
-			const float impulseJ = (1.0f + elasticity) * normalSpeed / normalDenominator;
+			const float restitution = -normalSpeed > restitutionVelocityThreshold ? elasticity : 0.0f;
+			const float impulseJ = (1.0f + restitution) * normalSpeed / normalDenominator;
 			if (Math::IsFinite(impulseJ) && impulseJ < 0.0f)
 			{
 				const Vec3f vectorImpulseJ = n * impulseJ;

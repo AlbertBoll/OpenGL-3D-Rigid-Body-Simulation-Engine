@@ -2175,7 +2175,8 @@ namespace
 			const auto initialVelocity = direction * tangentSpeed - normal * closingSpeed;
 			fixture.body.m_LinearVelocity = initialVelocity;
 			const float inverseMassSum = 0.5f + (dynamicSupport ? 0.25f : 0.0f);
-			const float normalImpulse = 1.25f * closingSpeed / inverseMassSum;
+			// Phase 18: low-speed impacts are inelastic; the material product remains 0.25 above 1 unit/s.
+			const float normalImpulse = (closingSpeed > 1.0f ? 1.25f : 1.0f) * closingSpeed / inverseMassSum;
 			const float tangentImpulse = std::min(tangentSpeed / inverseMassSum, friction * normalImpulse);
 			const auto expectedImpulse = normal * normalImpulse - direction * tangentImpulse;
 			const double initialEnergy = BallisticSphereKineticEnergy(fixture.body);
@@ -2279,6 +2280,170 @@ namespace
 				BallisticSphereKineticEnergy(fixture.body) < 32.0,
 				"generated positive-TOI grazing contact saturates its Coulomb bound and dissipates energy");
 		}
+	}
+
+
+	void TestRestitutionThresholdResponse()
+	{
+		using BodyType = GEngine::Component::BodyType;
+		// Expected restitution is explicit at the boundary, independent of the production constant.
+		struct SpeedCase { float closing, restitutionScale; };
+		const SpeedCase speeds[] = {
+			{ 0.0f, 0.0f }, { 0.5f, 0.0f }, { 0.9999f, 0.0f },
+			{ 1.0f, 0.0f }, { 1.0001f, 1.0f }, { 4.0f, 1.0f }
+		};
+		for (const auto supportType : { BodyType::Static, BodyType::Dynamic, BodyType::Kinematic })
+		for (const bool reversed : { false, true })
+		for (const auto speed : speeds)
+		for (const auto materials : { GEngine::Vec3f(0.5f, 0.8f, 0.0f),
+			GEngine::Vec3f(0.8f, 0.5f, 0.0f), GEngine::Vec3f(0.0f, 1.0f, 0.0f),
+			GEngine::Vec3f(1.0f, 1.0f, 0.0f) })
+		{
+			BallisticFixture fixture;
+			fixture.body.m_InvMass = 0.5f;
+			fixture.support.SetBodyTypeAndInverseMass(supportType, 0.25f);
+			fixture.body.m_Friction = fixture.support.m_Friction = 0.0f;
+			fixture.body.m_Elasticity = materials.x;
+			fixture.support.m_Elasticity = materials.y;
+			// A shared velocity must not turn slow relative motion into a high-speed impact.
+			const GEngine::Vec3f supportVelocity = supportType == BodyType::Static
+				? GEngine::Vec3f(0.0f) : GEngine::Vec3f(7.0f, -8.0f, 2.0f);
+			fixture.support.m_LinearVelocity = supportVelocity;
+			const auto initialVelocity = supportVelocity + GEngine::Vec3f(6.0f, -speed.closing, 8.0f);
+			fixture.body.m_LinearVelocity = initialVelocity;
+			const float inverseMassB = supportType == BodyType::Dynamic ? 0.25f : 0.0f;
+			const float restitution = materials.x * materials.y * speed.restitutionScale;
+			const GEngine::Vec3f impulse(0.0f, (1.0f + restitution) * speed.closing / (0.5f + inverseMassB), 0.0f);
+			fixture.Resolve(reversed);
+			Expect(fixture.body.HasFiniteState() && fixture.support.HasFiniteState() &&
+				Near(fixture.body.m_LinearVelocity, initialVelocity + 0.5f * impulse, 2.0e-5f) &&
+				Near(fixture.support.m_LinearVelocity, supportVelocity - inverseMassB * impulse, 2.0e-5f) &&
+				Near(fixture.body.m_LinearVelocity.y - fixture.support.m_LinearVelocity.y,
+					restitution * speed.closing, 2.0e-5f),
+				"restitution boundary uses relative normal speed and the symmetric material product");
+		}
+
+		// Spin can either create a fast impact or reduce a fast COM approach to a slow contact.
+		for (const bool reversed : { false, true })
+		for (const bool spinningSupport : { false, true })
+		for (const bool fastContact : { false, true })
+		{
+			BallisticFixture fixture;
+			fixture.body.m_Friction = fixture.support.m_Friction = 0.0f;
+			fixture.body.m_Elasticity = fixture.support.m_Elasticity = 1.0f;
+			fixture.contact.ptOnA_LocalSpace = GEngine::Vec3f(0.5f, -1.0f, 0.0f);
+			fixture.contact.ptOnB_LocalSpace = GEngine::Vec3f(0.5f, 1.0f, 0.0f);
+			fixture.body.m_LinearVelocity.y = fastContact ? -0.25f : -2.0f;
+			const float spin = fastContact ? -4.0f : 3.5f;
+			if (spinningSupport)
+			{
+				fixture.support.SetBodyTypeAndInverseMass(BodyType::Kinematic, 0.0f);
+				fixture.support.m_AngularVelocity.z = -spin;
+			}
+			else fixture.body.m_AngularVelocity.z = spin;
+			fixture.Resolve(reversed);
+			const auto velocityA = fixture.body.m_LinearVelocity +
+				glm::cross(fixture.body.m_AngularVelocity, fixture.contact.ptOnA_LocalSpace);
+			const auto velocityB = fixture.support.GetLinearVelocity() +
+				glm::cross(fixture.support.GetAngularVelocity(), fixture.contact.ptOnB_LocalSpace);
+			Expect(fixture.body.HasFiniteState() && fixture.support.HasFiniteState() &&
+				Near(velocityA.y - velocityB.y, fastContact ? 2.25f : 0.0f, 2.0e-5f),
+				"restitution threshold includes angular contact velocity on either participant");
+		}
+	}
+
+	void TestRestitutionSphereDrops()
+	{
+		for (const int rate : { 120, 240 })
+		for (const bool reversed : { false, true })
+		for (const bool highDrop : { false, true })
+		{
+			GEngine::ShapeSphere sphere(1.0f);
+			// Match the established audit single-sphere floor geometry.
+			GEngine::ShapeBox floor(BoxPoints(GEngine::Vec3f(50.0f, 0.5f, 50.0f)));
+			GEngine::PhysicsSystem system;
+			auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
+			system.SetPhysicsWorld(world);
+			auto* first = world->CreateRigidBody3D();
+			auto* second = world->CreateRigidBody3D();
+			auto* body = reversed ? first : second;
+			auto* support = reversed ? second : first;
+			ConfigureSphereBody(*body, sphere, GEngine::Vec3f(0.0f, highDrop ? 1.5f : 1.02f, 0.0f));
+			ConfigureBoxBody(*support, floor, GEngine::Vec3f(0.0f, -0.5f, 0.0f),
+				GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f));
+			support->SetBodyTypeAndInverseMass(GEngine::Component::BodyType::Static, 0.0f);
+			body->m_Elasticity = highDrop ? 0.5f : 1.0f;
+			support->m_Elasticity = highDrop ? 0.8f : 1.0f;
+			body->m_Friction = support->m_Friction = 0.5f;
+			const float dt = 1.0f / static_cast<float>(rate);
+			const double initialEnergy = 12.0 * body->m_Position.y;
+			double peakEnergy = initialEnergy;
+			float peakSpeed = 0.0f, peakOmega = 0.0f, peakUpward = 0.0f, maxPenetration = 0.0f;
+			float finalWindowSpeed = 0.0f, finalWindowOmega = 0.0f, finalWindowGap = 0.0f;
+			float firstClosing = 0.0f, firstRebound = 0.0f;
+			bool finite = true, impacted = false;
+			// Four seconds; every sample in the final second must satisfy the settling criterion.
+			for (int step = 0; step < 4 * rate; ++step)
+			{
+				const float incoming = body->m_LinearVelocity.y - 12.0f * dt;
+				system.Update(GEngine::Timestep(dt));
+				finite = finite && body->HasFiniteState() && support->HasFiniteState();
+				const float speed = glm::length(body->m_LinearVelocity);
+				const float omega = glm::length(body->m_AngularVelocity);
+				const double energy = BallisticSphereKineticEnergy(*body) + 12.0 * body->m_Position.y;
+				finite = finite && std::isfinite(energy);
+				peakEnergy = std::max(peakEnergy, energy);
+				peakSpeed = std::max(peakSpeed, speed);
+				peakOmega = std::max(peakOmega, omega);
+				peakUpward = std::max(peakUpward, body->m_LinearVelocity.y);
+				maxPenetration = std::max(maxPenetration, 1.0f - body->m_Position.y);
+				if (!impacted && incoming < -0.1f && body->m_LinearVelocity.y >= -0.01f)
+				{
+					impacted = true;
+					firstClosing = -incoming;
+					firstRebound = body->m_LinearVelocity.y;
+				}
+				if (step >= 3 * rate)
+				{
+					finalWindowSpeed = std::max(finalWindowSpeed, speed);
+					finalWindowOmega = std::max(finalWindowOmega, omega);
+					finalWindowGap = std::max(finalWindowGap, std::abs(body->m_Position.y - 1.0f));
+				}
+			}
+			Expect(finite && impacted && maxPenetration <= 0.02f && peakEnergy <= initialEnergy + 0.005,
+				"sphere drop remains finite with bounded penetration and no mechanical-energy growth");
+			Expect(finalWindowSpeed <= 0.05f && finalWindowOmega <= 0.05f && finalWindowGap <= 0.005f &&
+				GetManifolds(system).GetContactCount() > 0,
+				"sphere drop settles in persistent support for the full final second");
+			if (highDrop)
+				Expect(firstClosing > 1.0f && firstRebound > 1.0f &&
+					Near(firstRebound / firstClosing, 0.4f, 0.02f),
+					"high-speed sphere drop retains the intended material-product rebound");
+			else
+				Expect(firstClosing < 1.0f && peakUpward <= 0.05f,
+					"low-height fully elastic sphere does not receive a ballistic rebound");
+			std::cout << "RESTITUTION_DROP rate=" << rate << " reversed=" << reversed << " high=" << highDrop
+				<< " first_closing=" << firstClosing << " first_rebound=" << firstRebound
+				<< " peak_energy=" << peakEnergy << " initial_energy=" << initialEnergy
+				<< " peak_speed=" << peakSpeed << " peak_omega=" << peakOmega
+				<< " max_penetration=" << maxPenetration << " final_window_speed=" << finalWindowSpeed
+				<< " final_window_omega=" << finalWindowOmega << " final_window_gap=" << finalWindowGap
+				<< " manifolds=" << GetManifolds(system).m_Manifolds.size()
+				<< " points=" << GetManifolds(system).GetContactCount() << " finite=" << finite << '\n';
+		}
+	}
+
+	int RunRestitutionThresholdRegression()
+	{
+		TestRestitutionThresholdResponse();
+		TestRestitutionSphereDrops();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " focused restitution-threshold checks failed\n";
+			return 1;
+		}
+		std::cout << "Restitution-threshold regression: " << testCount << " checks passed\n";
+		return 0;
 	}
 
 	int RunBallisticContactRegression()
@@ -3033,6 +3198,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--restitution-threshold") return RunRestitutionThresholdRegression();
 		if (argument == "--ballistic-contact") return RunBallisticContactRegression();
 		if (argument == "--resting-friction") return RunRestingFrictionRegression();
 		if (argument == "--contact-convention") return RunContactConventionRegression();
@@ -3118,6 +3284,8 @@ int main(int argc, char** argv)
 	TestWarmCacheOrientationInvalidationAndReuse();
 	TestSphereRadiusInvalidationContract();
 	TestConstraintDenominators();
+	TestRestitutionThresholdResponse();
+	TestRestitutionSphereDrops();
 	TestBallisticSeparatingGuard();
 	TestBallisticCoulombImpulses();
 	TestBallisticMaterialRange();

@@ -8,6 +8,7 @@
 #include "GJK.h"
 #include "PhysicsProfile.h"
 #include <Core/Timer.h>
+#include <cmath>
 
 namespace GEngine
 {
@@ -629,58 +630,55 @@ namespace GEngine
 		const Vec3f velA = bodyA->GetLinearVelocity() + glm::cross(bodyA->GetAngularVelocity(), ra);
 		const Vec3f velB = bodyB->GetLinearVelocity() + glm::cross(bodyB->GetAngularVelocity(), rb);//bodyB->GetAngularVelocity().Cross(rb);
 
-		// Calculate the collision impulse
+		// A B -> A normal has negative relative normal speed only while closing.
 		const Vec3f vab = velA - velB;
+		const float normalSpeed = glm::dot(vab, n);
 		const float normalDenominator = invMassA + invMassB + angularFactor;
-		if (Math::IsFinite(normalDenominator) && normalDenominator > Math::NumericalEpsilon)
+		float normalImpulse = 0.0f;
+		if (Math::IsFinite(normalSpeed) && normalSpeed < 0.0f &&
+			Math::IsFinite(normalDenominator) && normalDenominator > Math::NumericalEpsilon)
 		{
-			const float impulseJ = (1.0f + elasticity) * glm::dot(vab, n) / normalDenominator;
-			if (Math::IsFinite(impulseJ))
+			const float impulseJ = (1.0f + elasticity) * normalSpeed / normalDenominator;
+			if (Math::IsFinite(impulseJ) && impulseJ < 0.0f)
 			{
 				const Vec3f vectorImpulseJ = n * impulseJ;
 				bodyA->ApplyImpulse(ptOnA, vectorImpulseJ * -1.0f);
 				bodyB->ApplyImpulse(ptOnB, vectorImpulseJ);
+				normalImpulse = -impulseJ;
 			}
 		}
 
-		//
-		// Calculate the impulse caused by friction
-		//
-
 		const float frictionA = bodyA->m_Friction;
 		const float frictionB = bodyB->m_Friction;
-		const float friction = frictionA * frictionB;
-
-		// Find the normal direction of the velocity with respect to the normal of the collision
-		const Vec3f velNorm = n * glm::dot(n, vab);
-
-		// Find the tangent direction of the velocity with respect to the normal of the collision
-		const Vec3f velTang = vab - velNorm;
-
-		// Get the tangential velocities relative to the other body
-		const float tangentialSpeedSquared = glm::length2(velTang);
-		Vec3f relativeVelTang(0.0f);
-		if (Math::IsFinite(tangentialSpeedSquared) && tangentialSpeedSquared > Math::NumericalEpsilonSquared)
+		// Preserve material multiplication across the full range of finite positive float coefficients.
+		const double friction = frictionA > 0.0f && frictionB > 0.0f &&
+			Math::IsFinite(frictionA) && Math::IsFinite(frictionB)
+			? static_cast<double>(frictionA) * static_cast<double>(frictionB) : 0.0;
+		if (normalImpulse > 0.0f && friction > 0.0)
 		{
-			relativeVelTang = Math::NormalizeOr(velTang);
-		}
-
-		const Vec3f inertiaA = glm::cross(invWorldInertiaA * glm::cross(ra, relativeVelTang), ra);
-		const Vec3f inertiaB = glm::cross(invWorldInertiaB * glm::cross(rb, relativeVelTang), rb);//(invWorldInertiaB * rb.Cross(relativeVelTang)).Cross(rb);
-		const float invInertia = glm::dot(inertiaA + inertiaB, relativeVelTang);
-
-		// Calculate the tangential impulse for friction
-		const float frictionDenominator = bodyA->GetInverseMass() + bodyB->GetInverseMass() + invInertia;
-		if (tangentialSpeedSquared > Math::NumericalEpsilonSquared && Math::IsFinite(frictionDenominator) &&
-			frictionDenominator > Math::NumericalEpsilon)
-		{
-			const float reducedMass = 1.0f / frictionDenominator;
-			const Vec3f impulseFriction = velTang * reducedMass * friction;
-			if (Math::IsFinite(impulseFriction))
+			// Off-center normal impulses can change slip: friction must oppose the updated contact velocity.
+			const Vec3f relativeVelocity = bodyA->GetLinearVelocity() + glm::cross(bodyA->GetAngularVelocity(), ra) -
+				bodyB->GetLinearVelocity() - glm::cross(bodyB->GetAngularVelocity(), rb);
+			const Vec3f velTang = relativeVelocity - n * glm::dot(n, relativeVelocity);
+			const float tangentialSpeedSquared = glm::length2(velTang);
+			if (Math::IsFinite(tangentialSpeedSquared) && tangentialSpeedSquared > Math::NumericalEpsilonSquared)
 			{
-				// Apply kinetic friction
-				bodyA->ApplyImpulse(ptOnA, impulseFriction * -1.0f);
-				bodyB->ApplyImpulse(ptOnB, impulseFriction);
+				const Vec3f tangent = Math::NormalizeOr(velTang);
+				const Vec3f inertiaA = glm::cross(invWorldInertiaA * glm::cross(ra, tangent), ra);
+				const Vec3f inertiaB = glm::cross(invWorldInertiaB * glm::cross(rb, tangent), rb);
+				const float frictionDenominator = invMassA + invMassB + glm::dot(inertiaA + inertiaB, tangent);
+				if (Math::IsFinite(frictionDenominator) && frictionDenominator > Math::NumericalEpsilon)
+				{
+					// Stop slip when possible; otherwise saturate at the applied normal impulse's Coulomb limit.
+					const double candidateImpulse = std::sqrt(static_cast<double>(tangentialSpeedSquared)) / frictionDenominator;
+					const double frictionLimit = friction * static_cast<double>(normalImpulse);
+					const Vec3f impulseFriction = tangent * static_cast<float>(std::min(candidateImpulse, frictionLimit));
+					if (Math::IsFinite(impulseFriction))
+					{
+						bodyA->ApplyImpulse(ptOnA, -impulseFriction);
+						bodyB->ApplyImpulse(ptOnB, impulseFriction);
+					}
+				}
 			}
 		}
 

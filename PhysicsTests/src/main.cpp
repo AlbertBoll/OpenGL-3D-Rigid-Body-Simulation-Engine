@@ -2091,6 +2091,212 @@ namespace
 	}
 
 
+	// Coincident centers and anchors isolate ballistic impulse equations from lever-arm coupling.
+	struct BallisticFixture
+	{
+		GEngine::ShapeSphere sphere{ 1.0f };
+		GEngine::RigidBody3D body, support;
+		GEngine::contact_t contact{};
+
+		BallisticFixture()
+		{
+			ConfigureSphereBody(body, sphere, GEngine::Vec3f(0.0f));
+			ConfigureSphereBody(support, sphere, GEngine::Vec3f(0.0f));
+			support.SetBodyTypeAndInverseMass(GEngine::Component::BodyType::Static, 0.0f);
+			body.m_Friction = support.m_Friction = 0.5f;
+			body.m_Elasticity = support.m_Elasticity = 0.5f;
+			contact = MakeContact(body, support, GEngine::Vec3f(0.0f), GEngine::Vec3f(0.0f),
+				GEngine::Vec3f(0.0f, 1.0f, 0.0f));
+			contact.timeOfImpact = 0.1f;
+		}
+
+		void Resolve(bool reversed = false)
+		{
+			auto orderedContact = reversed ? ReversedContact(contact) : contact;
+			GEngine::Collision::ResolveContact(orderedContact);
+		}
+	};
+
+	double BallisticSphereKineticEnergy(const GEngine::RigidBody3D& body)
+	{
+		const double inverseMass = body.GetInverseMass();
+		return inverseMass > 0.0 ? (glm::length2(body.m_LinearVelocity) +
+			0.4 * glm::length2(body.m_AngularVelocity)) / (2.0 * inverseMass) : 0.0;
+	}
+
+	void TestBallisticSeparatingGuard()
+	{
+		for (const bool reversed : { false, true })
+		{
+			// Last case has closing COM motion but separating contact motion from spin.
+			for (const auto normalAndSpin : { GEngine::Vec3f(0.05f, 0.0f, 0.0f),
+				GEngine::Vec3f(0.0f), GEngine::Vec3f(-1.0f, 4.0f, 0.0f) })
+			{
+				BallisticFixture fixture;
+				fixture.contact.ptOnA_LocalSpace = GEngine::Vec3f(0.5f, -1.0f, 0.0f);
+				fixture.body.m_LinearVelocity = GEngine::Vec3f(3.0f, normalAndSpin.x, 4.0f);
+				fixture.body.m_AngularVelocity = GEngine::Vec3f(0.0f, 0.0f, normalAndSpin.y);
+				const auto velocity = fixture.body.m_LinearVelocity;
+				const auto omega = fixture.body.m_AngularVelocity;
+				fixture.Resolve(reversed);
+				Expect(Near(fixture.body.m_LinearVelocity, velocity, 0.0f) &&
+					Near(fixture.body.m_AngularVelocity, omega, 0.0f) &&
+					Near(fixture.body.m_Position, GEngine::Vec3f(0.0f), 0.0f) &&
+					fixture.body.HasFiniteState() && fixture.support.HasFiniteState(),
+					"separating or exactly tangential ballistic contact applies no normal or friction impulse");
+			}
+			BallisticFixture stale;
+			stale.body.m_Elasticity = stale.support.m_Elasticity = 1.0f;
+			stale.body.m_LinearVelocity = GEngine::Vec3f(0.0f, -2.0f, 0.0f);
+			stale.Resolve(reversed);
+			Expect(Near(stale.body.m_LinearVelocity, GEngine::Vec3f(0.0f, 2.0f, 0.0f)),
+				"closing ballistic contact retains the existing restitution product");
+			stale.contact.timeOfImpact = 0.2f;
+			stale.Resolve(reversed);
+			Expect(Near(stale.body.m_LinearVelocity, GEngine::Vec3f(0.0f, 2.0f, 0.0f)),
+				"earlier impact making a stored contact separate prevents a later attractive impulse");
+		}
+	}
+
+	void TestBallisticCoulombImpulses()
+	{
+		const GEngine::Vec3f direction(0.6f, 0.0f, 0.8f), normal(0.0f, 1.0f, 0.0f);
+		for (const bool dynamicSupport : { false, true })
+		for (const bool reversed : { false, true })
+		for (const float closingSpeed : { 0.001f, 0.5f, 4.0f })
+		for (const float friction : { 0.0f, 0.25f, 2.0f })
+		for (const float tangentSpeed : { 0.01f, 10.0f })
+		{
+			BallisticFixture fixture;
+			fixture.body.m_InvMass = 0.5f;
+			if (dynamicSupport) fixture.support.SetBodyTypeAndInverseMass(GEngine::Component::BodyType::Dynamic, 0.25f);
+			fixture.body.m_Friction = friction;
+			fixture.support.m_Friction = 1.0f;
+			const auto initialVelocity = direction * tangentSpeed - normal * closingSpeed;
+			fixture.body.m_LinearVelocity = initialVelocity;
+			const float inverseMassSum = 0.5f + (dynamicSupport ? 0.25f : 0.0f);
+			const float normalImpulse = 1.25f * closingSpeed / inverseMassSum;
+			const float tangentImpulse = std::min(tangentSpeed / inverseMassSum, friction * normalImpulse);
+			const auto expectedImpulse = normal * normalImpulse - direction * tangentImpulse;
+			const double initialEnergy = BallisticSphereKineticEnergy(fixture.body);
+			fixture.Resolve(reversed);
+			const auto measuredImpulse = (fixture.body.m_LinearVelocity - initialVelocity) / 0.5f;
+			const auto measuredTangent = measuredImpulse - normal * glm::dot(measuredImpulse, normal);
+			Expect(fixture.body.HasFiniteState() && fixture.support.HasFiniteState() &&
+				Near(fixture.body.m_LinearVelocity, initialVelocity + expectedImpulse * 0.5f, 2.0e-5f) &&
+				Near(fixture.support.m_LinearVelocity, -expectedImpulse * (dynamicSupport ? 0.25f : 0.0f), 2.0e-5f) &&
+				Near(fixture.body.m_AngularVelocity, GEngine::Vec3f(0.0f), 0.0f),
+				"grazing/sliding/sticking ballistic response matches analytic mass, restitution, and Coulomb impulses");
+			Expect(glm::dot(measuredImpulse, normal) >= 0.0f &&
+				glm::length(measuredTangent) <= friction * normalImpulse + 5.0e-6f &&
+				BallisticSphereKineticEnergy(fixture.body) + BallisticSphereKineticEnergy(fixture.support) <= initialEnergy + 2.0e-5,
+				"ballistic tangential impulse obeys the normal-supported disk and does not add kinetic energy");
+		}
+	}
+
+	void TestBallisticMaterialRange()
+	{
+		for (const float coefficient : { 1.0e30f, std::numeric_limits<float>::max() })
+		for (const float closingSpeed : { 2.0f, 1.0e-30f })
+		{
+			BallisticFixture fixture;
+			fixture.body.m_Friction = fixture.support.m_Friction = coefficient;
+			fixture.body.m_Elasticity = fixture.support.m_Elasticity = 0.0f;
+			fixture.body.m_LinearVelocity = GEngine::Vec3f(6.0f, -closingSpeed, 8.0f);
+			fixture.Resolve();
+			Expect(fixture.body.HasFiniteState() && Near(fixture.body.m_LinearVelocity, GEngine::Vec3f(0.0f)),
+				"large finite ballistic coefficient products keep supported friction without a cap or overflow");
+		}
+		for (const auto coefficients : { GEngine::Vec3f(0.0f, 1.0f, 0.0f), GEngine::Vec3f(1.0f, 0.0f, 0.0f),
+			GEngine::Vec3f(-1.0f, 1.0f, 0.0f), GEngine::Vec3f(1.0f, -1.0f, 0.0f), GEngine::Vec3f(-1.0f, -1.0f, 0.0f) })
+		{
+			BallisticFixture fixture;
+			fixture.body.m_Friction = coefficients.x;
+			fixture.support.m_Friction = coefficients.y;
+			fixture.body.m_LinearVelocity = GEngine::Vec3f(6.0f, -2.0f, 8.0f);
+			fixture.Resolve();
+			Expect(fixture.body.HasFiniteState() && Near(fixture.body.m_LinearVelocity, GEngine::Vec3f(6.0f, 0.5f, 8.0f)),
+				"a zero or negative material coefficient disables ballistic friction on either body");
+		}
+		BallisticFixture immovable;
+		immovable.body.SetBodyTypeAndInverseMass(GEngine::Component::BodyType::Kinematic, 1.0f);
+		immovable.body.m_LinearVelocity = GEngine::Vec3f(6.0f, -2.0f, 8.0f);
+		immovable.Resolve();
+		Expect(immovable.body.HasFiniteState() && immovable.support.HasFiniteState() &&
+			Near(immovable.body.m_LinearVelocity, GEngine::Vec3f(6.0f, -2.0f, 8.0f), 0.0f),
+			"zero effective mass preserves prescribed motion and finite ballistic output");
+	}
+
+	void TestBallisticOffCenterFriction()
+	{
+		for (const bool reversed : { false, true })
+		for (const float initialTangent : { -1.0f, 0.0f, 3.0f })
+		for (const float friction : { 0.1f, 1.0f })
+		{
+			BallisticFixture fixture;
+			fixture.body.m_Elasticity = fixture.support.m_Elasticity = 0.0f;
+			fixture.body.m_Friction = friction;
+			fixture.support.m_Friction = 1.0f;
+			fixture.contact.ptOnA_LocalSpace = GEngine::Vec3f(0.5f, -1.0f, 0.0f);
+			fixture.body.m_LinearVelocity = GEngine::Vec3f(initialTangent, -2.0f, 0.0f);
+			// Unit sphere: inverse inertia 5/2. Normal impulse creates positive tangential slip.
+			const float normalImpulse = 16.0f / 13.0f;
+			const float postNormalSlip = initialTangent + 20.0f / 13.0f;
+			const float tangentImpulse = std::min(postNormalSlip / 3.5f, friction * normalImpulse);
+			const auto expectedVelocity = GEngine::Vec3f(initialTangent - tangentImpulse, -2.0f + normalImpulse, 0.0f);
+			const auto expectedOmega = GEngine::Vec3f(0.0f, 0.0f, 2.5f * (0.5f * normalImpulse - tangentImpulse));
+			const double normalOnlyEnergy = 0.5 * (initialTangent * initialTangent + 100.0 / 169.0) + 0.2 * 400.0 / 169.0;
+			fixture.Resolve(reversed);
+			Expect(fixture.body.HasFiniteState() && Near(fixture.body.m_LinearVelocity, expectedVelocity, 2.0e-5f) &&
+				Near(fixture.body.m_AngularVelocity, expectedOmega, 2.0e-5f) &&
+				BallisticSphereKineticEnergy(fixture.body) <= normalOnlyEnergy + 2.0e-5,
+				"off-center ballistic friction opposes post-normal slip with the rotational effective mass");
+		}
+	}
+
+	void TestBallisticSweptGrazingContact()
+	{
+		for (const bool reversed : { false, true })
+		{
+			BallisticFixture fixture;
+			fixture.body.m_Position = GEngine::Vec3f(-3.0f, 0.0f, 0.0f);
+			fixture.support.m_Position = GEngine::Vec3f(0.0f, 1.5f, 0.0f);
+			fixture.body.m_Elasticity = fixture.support.m_Elasticity = 0.0f;
+			fixture.body.m_LinearVelocity = GEngine::Vec3f(8.0f, 0.0f, 0.0f);
+			const bool hit = GEngine::Collision::Intersect(&fixture.body, &fixture.support, 0.5f, fixture.contact);
+			Expect(hit && fixture.contact.timeOfImpact > 0.0f && fixture.contact.timeOfImpact < 0.5f,
+				"analytic swept sphere grazing fixture produces a positive TOI");
+			if (!hit) continue;
+			fixture.body.Update(fixture.contact.timeOfImpact);
+			const auto before = fixture.body.m_LinearVelocity;
+			const auto normal = fixture.contact.normal;
+			const float normalImpulse = -glm::dot(before, normal);
+			fixture.Resolve(reversed);
+			const auto impulse = fixture.body.m_LinearVelocity - before;
+			const auto tangent = impulse - normal * glm::dot(impulse, normal);
+			Expect(fixture.body.HasFiniteState() && Near(glm::dot(impulse, normal), normalImpulse, 2.0e-5f) &&
+				Near(glm::length(tangent), 0.25f * normalImpulse, 2.0e-5f) &&
+				BallisticSphereKineticEnergy(fixture.body) < 32.0,
+				"generated positive-TOI grazing contact saturates its Coulomb bound and dissipates energy");
+		}
+	}
+
+	int RunBallisticContactRegression()
+	{
+		TestBallisticSeparatingGuard();
+		TestBallisticCoulombImpulses();
+		TestBallisticMaterialRange();
+		TestBallisticOffCenterFriction();
+		TestBallisticSweptGrazingContact();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " focused ballistic-contact checks failed\n";
+			return 1;
+		}
+		std::cout << "Ballistic-contact regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
 	// Zero-lever-arm fixture isolates the impulse disk from angular/normal coupling.
 	struct FrictionFixture
 	{
@@ -2827,6 +3033,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--ballistic-contact") return RunBallisticContactRegression();
 		if (argument == "--resting-friction") return RunRestingFrictionRegression();
 		if (argument == "--contact-convention") return RunContactConventionRegression();
 		if (argument == "--body-types") return RunBodyTypeRegression();
@@ -2911,6 +3118,11 @@ int main(int argc, char** argv)
 	TestWarmCacheOrientationInvalidationAndReuse();
 	TestSphereRadiusInvalidationContract();
 	TestConstraintDenominators();
+	TestBallisticSeparatingGuard();
+	TestBallisticCoulombImpulses();
+	TestBallisticMaterialRange();
+	TestBallisticOffCenterFriction();
+	TestBallisticSweptGrazingContact();
 	TestRestingCoulombProjection();
 	TestFrictionWarmStartAndRetraction();
 	TestLargeFiniteFrictionCoefficients();

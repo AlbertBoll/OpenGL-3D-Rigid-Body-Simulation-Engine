@@ -2090,6 +2090,237 @@ namespace
 			"zero normal and zero effective-mass contact resolution remains finite");
 	}
 
+
+	// Zero-lever-arm fixture isolates the impulse disk from angular/normal coupling.
+	struct FrictionFixture
+	{
+		GEngine::ShapeSphere sphere{ 1.0f };
+		GEngine::RigidBody3D body, support;
+		GEngine::ConstraintPenetration constraint;
+
+		FrictionFixture(float friction = 0.25f, float inverseMass = 1.0f)
+		{
+			ConfigureSphereBody(body, sphere, GEngine::Vec3f(0.0f));
+			ConfigureSphereBody(support, sphere, GEngine::Vec3f(0.0f));
+			body.m_InvMass = inverseMass;
+			support.SetBodyTypeAndInverseMass(GEngine::Component::BodyType::Static, 0.0f);
+			body.m_Friction = friction;
+			support.m_Friction = 1.0f;
+			constraint.m_bodyA = &body;
+			constraint.m_bodyB = &support;
+			constraint.m_anchorA = constraint.m_anchorB = GEngine::Vec3f(0.0f);
+			constraint.m_Normal = GEngine::Vec3f(0.0f, -1.0f, 0.0f);
+		}
+	};
+
+	double TangentImpulseLength(const GEngine::ConstraintPenetration& constraint)
+	{
+		return std::hypot(static_cast<double>(constraint.m_CachedLambda[1]),
+			static_cast<double>(constraint.m_CachedLambda[2]));
+	}
+
+	void TestRestingCoulombProjection()
+	{
+		for (const float inverseMass : { 0.5f, 2.0f })
+		{
+			for (const float friction : { 0.0f, 0.25f, 2.0f })
+			{
+				for (const float closingSpeed : { 0.0f, 0.02f, 40.0f })
+				{
+					for (const auto tangentVelocity : { GEngine::Vec3f(100.0f, 0.0f, 0.0f),
+						GEngine::Vec3f(60.0f, 0.0f, 80.0f), GEngine::Vec3f(0.0006f, 0.0f, 0.0008f) })
+					{
+						FrictionFixture fixture(friction, inverseMass);
+						fixture.body.m_Orientation = glm::angleAxis(0.63f, GEngine::Vec3f(0.0f, 1.0f, 0.0f));
+						fixture.body.m_LinearVelocity = tangentVelocity + GEngine::Vec3f(0.0f, -closingSpeed, 0.0f);
+						auto& constraint = fixture.constraint;
+						constraint.PreSolve(1.0f / 120.0f);
+						constraint.Solve();
+						const float speed = glm::length(tangentVelocity);
+						const auto expectedVelocity = tangentVelocity * std::max(0.0f, 1.0f - friction * closingSpeed / speed);
+						const float expectedNormal = closingSpeed / inverseMass;
+						const float expectedTangent = std::min(speed, friction * closingSpeed) / inverseMass;
+						Expect(fixture.body.HasFiniteState() && fixture.support.HasFiniteState() &&
+							Near(constraint.m_CachedLambda[0], expectedNormal, 2.0e-5f) &&
+							Near(static_cast<float>(TangentImpulseLength(constraint)), expectedTangent, 2.0e-5f) &&
+							TangentImpulseLength(constraint) <= friction * constraint.m_CachedLambda[0] + 2.0e-5,
+							"resting friction uses the accumulated normal impulse and one 2D Coulomb disk");
+						Expect(Near(fixture.body.m_LinearVelocity, expectedVelocity, 2.0e-5f) &&
+							Near(fixture.body.m_AngularVelocity, GEngine::Vec3f(0.0f)) &&
+							Near(fixture.support.m_LinearVelocity, GEngine::Vec3f(0.0f)),
+							"unsupported, sliding, and sticking impulses match analytic translational response");
+						const auto firstVelocity = fixture.body.m_LinearVelocity;
+						for (int iteration = 0; iteration < 3; ++iteration) constraint.Solve();
+						Expect(Near(fixture.body.m_LinearVelocity, firstVelocity, 3.0e-5f) &&
+							Near(static_cast<float>(TangentImpulseLength(constraint)), expectedTangent, 3.0e-5f),
+							"zero incremental normal impulse retains friction supported by accumulated lambda");
+					}
+				}
+			}
+		}
+	}
+
+	void TestFrictionWarmStartAndRetraction()
+	{
+		for (const float newFriction : { 0.125f, 0.0f, -1.0f, 1.0e30f, std::numeric_limits<float>::max() })
+		{
+			FrictionFixture fixture(0.5f);
+			fixture.body.m_LinearVelocity = GEngine::Vec3f(6.0f, -2.0f, 8.0f);
+			auto& constraint = fixture.constraint;
+			constraint.PreSolve(1.0f / 120.0f);
+			constraint.Solve();
+			Expect(Near(constraint.m_CachedLambda[0], 2.0f) &&
+				Near(static_cast<float>(TangentImpulseLength(constraint)), 1.0f),
+				"warm-start fixture acquires a real saturated supporting friction impulse");
+			fixture.body.m_Friction = newFriction;
+			fixture.support.m_Friction = newFriction > 1.0f ? 1.0e30f : 1.0f;
+			fixture.body.m_LinearVelocity = GEngine::Vec3f(0.0f);
+			constraint.PreSolve(1.0f / 120.0f);
+			const float tangentLimit = newFriction > 1.0f ? 1.0f : newFriction == 0.125f ? 0.25f : 0.0f;
+			Expect((constraint.m_Friction > 0.0f) == (newFriction > 0.0f) &&
+				Near(static_cast<float>(TangentImpulseLength(constraint)), tangentLimit) &&
+				Near(fixture.body.m_LinearVelocity, GEngine::Vec3f(-0.6f * tangentLimit, 2.0f, -0.8f * tangentLimit)),
+				"warm starting projects cached tangents onto the current finite material limit");
+			// No new closing velocity: this solve must retract both normal support and friction.
+			constraint.Solve();
+			Expect(Near(constraint.m_CachedLambda[0], 0.0f) && TangentImpulseLength(constraint) < 1.0e-6 &&
+				Near(fixture.body.m_LinearVelocity, GEngine::Vec3f(0.0f)) && fixture.body.HasFiniteState(),
+				"lost normal support retracts previously applied friction using the impulse delta");
+		}
+
+		FrictionFixture reducedSupport(0.5f);
+		reducedSupport.body.m_LinearVelocity = GEngine::Vec3f(60.0f, -40.0f, 80.0f);
+		auto& constraint = reducedSupport.constraint;
+		constraint.PreSolve(1.0f / 120.0f);
+		constraint.Solve();
+		const auto oldVelocity = reducedSupport.body.m_LinearVelocity;
+		reducedSupport.body.m_LinearVelocity.y = 10.0f;
+		constraint.Solve();
+		Expect(Near(constraint.m_CachedLambda[0], 30.0f) &&
+			Near(static_cast<float>(TangentImpulseLength(constraint)), 15.0f) &&
+			Near(reducedSupport.body.m_LinearVelocity, oldVelocity + GEngine::Vec3f(3.0f, 0.0f, 4.0f)),
+			"partial support reduction shrinks the accumulated disk and applies only the retraction");
+
+		FrictionFixture largeCache;
+		largeCache.constraint.m_CachedLambda[0] = 1.0f;
+		largeCache.constraint.m_CachedLambda[1] = 1.0e30f;
+		largeCache.constraint.m_CachedLambda[2] = 1.0e30f;
+		largeCache.constraint.PreSolve(1.0f / 120.0f);
+		Expect(largeCache.body.HasFiniteState() &&
+			Near(static_cast<float>(TangentImpulseLength(largeCache.constraint)), 0.25f),
+			"large finite cached tangents project without squared-length overflow");
+
+		FrictionFixture negativeNormal;
+		negativeNormal.constraint.m_CachedLambda[0] = -1.0f;
+		negativeNormal.constraint.m_CachedLambda[1] = 0.5f;
+		negativeNormal.constraint.PreSolve(1.0f / 120.0f);
+		Expect(Near(negativeNormal.constraint.m_CachedLambda[0], 0.0f) &&
+			TangentImpulseLength(negativeNormal.constraint) == 0.0 &&
+			Near(negativeNormal.body.m_LinearVelocity, GEngine::Vec3f(0.0f)),
+			"unsupported cached friction and negative cached normal do not warm start");
+	}
+
+	void TestLargeFiniteFrictionCoefficients()
+	{
+		for (const float coefficient : { 1.0e30f, std::numeric_limits<float>::max() })
+		{
+			FrictionFixture fixture(coefficient);
+			fixture.support.m_Friction = coefficient;
+			fixture.body.m_LinearVelocity = GEngine::Vec3f(6.0f, -2.0f, 8.0f);
+			fixture.constraint.PreSolve(1.0f / 120.0f);
+			fixture.constraint.Solve();
+			Expect(fixture.body.HasFiniteState() && fixture.support.HasFiniteState() &&
+				Near(fixture.body.m_LinearVelocity, GEngine::Vec3f(0.0f)) &&
+				Near(fixture.constraint.m_CachedLambda[0], 2.0f) &&
+				Near(static_cast<float>(TangentImpulseLength(fixture.constraint)), 10.0f),
+				"large finite material products retain enough friction to stop supported sliding");
+
+			FrictionFixture tinySupport(coefficient);
+			tinySupport.support.m_Friction = coefficient;
+			tinySupport.constraint.m_CachedLambda[0] = 1.0e-30f;
+			tinySupport.constraint.m_CachedLambda[1] = 1.0e20f;
+			tinySupport.constraint.m_CachedLambda[2] = -1.0e20f;
+			tinySupport.constraint.PreSolve(1.0f / 120.0f);
+			// A float-range cap on mu would incorrectly shrink these supported tangents.
+			Expect(tinySupport.body.HasFiniteState() &&
+				tinySupport.constraint.m_CachedLambda[0] == 1.0e-30f &&
+				tinySupport.constraint.m_CachedLambda[1] == 1.0e20f &&
+				tinySupport.constraint.m_CachedLambda[2] == -1.0e20f,
+				"double coefficient product and Coulomb limit retain large tangents without a cap");
+		}
+	}
+
+	void TestFrictionSlidingAndRolling()
+	{
+		const GEngine::Vec3f direction(0.6f, 0.0f, 0.8f);
+		const GEngine::Vec3f lever(0.0f, -1.0f, 0.0f);
+		for (const int rate : { 120, 240 })
+		{
+			for (const bool driven : { false, true })
+			{
+				FrictionFixture fixture(0.25f, 0.5f);
+				fixture.body.m_Position = GEngine::Vec3f(0.0f, 1.0f, 0.0f);
+				fixture.constraint.m_anchorA = lever;
+				fixture.body.m_LinearVelocity = driven ? GEngine::Vec3f(0.0f) : direction * 10.0f;
+				const float dt = 1.0f / rate;
+				double peakKineticEnergy = driven ? 0.0 : 100.0;
+				double maxConeExcess = 0.0;
+				float maxPenetration = 0.0f, firstStepSpeed = 0.0f, maxSupportedSlip = 0.0f;
+				bool allFinite = true;
+				for (int step = 0; step < rate * 2; ++step)
+				{
+					fixture.body.m_LinearVelocity += GEngine::Vec3f(0.0f, -10.0f * dt, 0.0f);
+					if (driven) fixture.body.m_LinearVelocity += direction * (2.0f * dt);
+					// Analytic sphere/plane contact: isotropic inertia permits a fixed orientation.
+					fixture.constraint.m_anchorB = fixture.body.m_Position + lever;
+					fixture.constraint.PreSolve(dt);
+					fixture.constraint.Solve();
+					fixture.body.m_Position += fixture.body.m_LinearVelocity * dt;
+					const auto slip = fixture.body.m_LinearVelocity + glm::cross(fixture.body.m_AngularVelocity, lever);
+					maxSupportedSlip = std::max(maxSupportedSlip, glm::length(slip));
+					if (step == 0) firstStepSpeed = glm::dot(fixture.body.m_LinearVelocity, direction);
+					maxPenetration = std::max(maxPenetration, std::max(0.0f, 1.0f - fixture.body.m_Position.y));
+					maxConeExcess = std::max(maxConeExcess, TangentImpulseLength(fixture.constraint) -
+						0.25 * fixture.constraint.m_CachedLambda[0]);
+					const double kinetic = glm::length2(fixture.body.m_LinearVelocity) +
+						0.4 * glm::length2(fixture.body.m_AngularVelocity); // mass 2, unit radius
+					peakKineticEnergy = std::max(peakKineticEnergy, kinetic);
+					allFinite = allFinite && fixture.body.HasFiniteState() && std::isfinite(kinetic);
+				}
+				const float expectedSpeed = driven ? 20.0f / 7.0f : 50.0f / 7.0f;
+				const auto finalSlip = fixture.body.m_LinearVelocity + glm::cross(fixture.body.m_AngularVelocity, lever);
+				Expect(allFinite && maxConeExcess < 1.0e-6 && maxPenetration < 1.0e-5f &&
+					Near(fixture.body.m_LinearVelocity, direction * expectedSpeed, 2.0e-4f) &&
+					Near(fixture.body.m_AngularVelocity, glm::cross(GEngine::Vec3f(0.0f, 1.0f, 0.0f), direction) * expectedSpeed, 2.0e-4f) &&
+					glm::length(finalSlip) < 2.0e-5f,
+					"fixed-step supported sphere reaches analytic rolling with finite state and bounded friction");
+				Expect(driven ? maxSupportedSlip < 2.0e-5f :
+					Near(firstStepSpeed, 10.0f - 2.5f * dt, 2.0e-5f) && peakKineticEnergy <= 100.0001,
+					"static friction preserves no-slip rolling and sliding friction dissipates at the Coulomb rate");
+				std::cout << "FRICTION_PLANE rate=" << rate << " driven=" << driven
+					<< " peak_kinetic=" << peakKineticEnergy << " final_speed=" << glm::length(fixture.body.m_LinearVelocity)
+					<< " final_omega=" << glm::length(fixture.body.m_AngularVelocity)
+					<< " final_slip=" << glm::length(finalSlip) << " max_penetration=" << maxPenetration
+					<< " max_cone_excess=" << maxConeExcess << " finite=" << allFinite << '\n';
+			}
+		}
+	}
+
+	int RunRestingFrictionRegression()
+	{
+		TestRestingCoulombProjection();
+		TestFrictionWarmStartAndRetraction();
+		TestLargeFiniteFrictionCoefficients();
+		TestFrictionSlidingAndRolling();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " focused resting-friction checks failed\n";
+			return 1;
+		}
+		std::cout << "Resting-friction regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
 	void TestGravityAndInverseMass()
 	{
 		GEngine::ShapeSphere sphere(1.0f);
@@ -2596,6 +2827,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--resting-friction") return RunRestingFrictionRegression();
 		if (argument == "--contact-convention") return RunContactConventionRegression();
 		if (argument == "--body-types") return RunBodyTypeRegression();
 		if (argument == "--angular-dynamics")
@@ -2679,6 +2911,10 @@ int main(int argc, char** argv)
 	TestWarmCacheOrientationInvalidationAndReuse();
 	TestSphereRadiusInvalidationContract();
 	TestConstraintDenominators();
+	TestRestingCoulombProjection();
+	TestFrictionWarmStartAndRetraction();
+	TestLargeFiniteFrictionCoefficients();
+	TestFrictionSlidingAndRolling();
 	TestGravityAndInverseMass();
 	TestBodyTypeInvariants();
 	TestBodyTypeContacts();

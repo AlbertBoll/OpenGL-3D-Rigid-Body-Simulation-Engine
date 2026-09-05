@@ -1,6 +1,7 @@
 #include "gepch.h"
 #include "ConstraintPenetration.h"
 #include "../PhysicsBody.h"
+#include <cmath>
 
 namespace GEngine
 {
@@ -10,6 +11,40 @@ namespace GEngine
 		{
 			return Math::IsFinite(value[0]) && Math::IsFinite(value[1]) && Math::IsFinite(value[2]);
 		}
+
+		double CombinedFriction(const float frictionA, const float frictionB)
+		{
+			return frictionA > 0.0f && frictionB > 0.0f &&
+				Math::IsFinite(frictionA) && Math::IsFinite(frictionB)
+				? static_cast<double>(frictionA) * static_cast<double>(frictionB) : 0.0;
+		}
+
+		void ProjectCoulombImpulse(Vec<3>& impulse, const double friction)
+		{
+			if (!IsFinite(impulse))
+			{
+				impulse.Zero();
+				return;
+			}
+
+			impulse[0] = std::max(0.0f, impulse[0]);
+			// Fix the accumulated normal impulse, then project both tangents onto its Coulomb disk.
+			// Double intermediates cover the full range of finite float coefficients and impulses.
+			const double limit = friction * static_cast<double>(impulse[0]);
+			const double tangentLength = std::hypot(static_cast<double>(impulse[1]),
+				static_cast<double>(impulse[2]));
+			if (!(limit > 0.0))
+			{
+				impulse[1] = impulse[2] = 0.0f;
+			}
+			else if (tangentLength > limit)
+			{
+				const double scale = limit / tangentLength;
+				impulse[1] = static_cast<float>(impulse[1] * scale);
+				impulse[2] = static_cast<float>(impulse[2] * scale);
+			}
+		}
+
 	}
 
 	void ConstraintPenetration::PreSolve(const float dt_sec)
@@ -31,9 +66,11 @@ namespace GEngine
 		const Vec3f a = worldAnchorA;
 		const Vec3f b = worldAnchorB;
 
-		const float frictionA = m_bodyA->m_Friction;
-		const float frictionB = m_bodyB->m_Friction;
-		m_Friction = frictionA * frictionB;
+		const double friction = CombinedFriction(m_bodyA->m_Friction, m_bodyB->m_Friction);
+		// The existing float slot tracks enabled tangent rows; the coefficient stays in double.
+		m_Friction = friction > 0.0 ? 1.0f : 0.0f;
+		// Cached tangents must obey the current material limit before they are warm started.
+		ProjectCoulombImpulse(m_CachedLambda, friction);
 
 		Vec3f u;
 		Vec3f v;
@@ -160,35 +197,9 @@ namespace GEngine
 		//// Accumulate the impulses and clamp to within the constraint limits
 		Vec<3> oldLambda = m_CachedLambda;
 		m_CachedLambda += lambdaN;
-		const float lambdaLimit = 0.0f;
-		if (m_CachedLambda[0] < lambdaLimit) 
-		{
-			m_CachedLambda[0] = lambdaLimit;
-		}
-		if (m_Friction > 0.0f) 
-		{
-			const float inverseMassSum = m_bodyA->GetInverseMass() + m_bodyB->GetInverseMass();
-			const float umg = Math::IsFinite(inverseMassSum) && inverseMassSum > Math::NumericalEpsilon
-				? m_Friction * 10.0f / inverseMassSum
-				: 0.0f;
-			const float normalForce = fabsf(lambdaN[0] * m_Friction);
-			const float maxForce = Math::IsFinite(normalForce) ? std::max(umg, normalForce) : umg;
-			/*m_CachedLambda[1] = glm::clamp(m_CachedLambda[1], -maxForce, maxForce);
-			m_CachedLambda[2] = glm::clamp(m_CachedLambda[2], -maxForce, maxForce);*/
-			if (m_CachedLambda[1] > maxForce) {
-				m_CachedLambda[1] = maxForce;
-			}
-			if (m_CachedLambda[1] < -maxForce) {
-				m_CachedLambda[1] = -maxForce;
-			}
-
-			if (m_CachedLambda[2] > maxForce) {
-				m_CachedLambda[2] = maxForce;
-			}
-			if (m_CachedLambda[2] < -maxForce) {
-				m_CachedLambda[2] = -maxForce;
-			}
-		}
+		const double friction = m_Friction > 0.0f
+			? CombinedFriction(m_bodyA->m_Friction, m_bodyB->m_Friction) : 0.0;
+		ProjectCoulombImpulse(m_CachedLambda, friction);
 		lambdaN = m_CachedLambda - oldLambda;
 
 		// Apply the impulses

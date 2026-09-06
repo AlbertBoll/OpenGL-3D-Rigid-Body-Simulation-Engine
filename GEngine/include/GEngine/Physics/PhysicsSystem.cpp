@@ -386,10 +386,6 @@ namespace GEngine
 				}
 			}
 
-			{
-				//Timeit("	m_Manifolds PostSolve")
-				//m_Manifolds.PostSolve();
-			}
 
 
 			//
@@ -432,6 +428,12 @@ namespace GEngine
 						GE_PHYSICS_PROFILE_ADD(integratedBodyCount, size);
 					}
 				}
+			}
+
+			// Correct current resting penetration once, after all physical/TOI integration.
+			{
+				GE_PHYSICS_PROFILE_SCOPE(solverTimeNs);
+				m_Manifolds.PostSolve();
 			}
 
 			m_Contacts.clear();

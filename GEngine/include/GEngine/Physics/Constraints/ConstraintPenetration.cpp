@@ -63,8 +63,6 @@ namespace GEngine
 
 		const Vec3f ra = worldAnchorA - m_bodyA->GetCenterOfMassWorldSpace();
 		const Vec3f rb = worldAnchorB - m_bodyB->GetCenterOfMassWorldSpace();
-		const Vec3f a = worldAnchorA;
-		const Vec3f b = worldAnchorB;
 
 		const double friction = CombinedFriction(m_bodyA->m_Friction, m_bodyB->m_Friction);
 		// The existing float slot tracks enabled tangent rows; the coefficient stays in double.
@@ -158,21 +156,8 @@ namespace GEngine
 		const Vec<12> impulses = m_Jacobian.Transpose() * m_CachedLambda;
 		ApplyImpulses(impulses);
 
-		//
-		//	Calculate the baumgarte stabilization
-		//
-		float C = glm::dot(b - a, normal);
-		//C = std::min(0.0f, C + 0.02f);	// Add slop
-		C = std::min(0.0f, C + 0.02f);	//
-		float Beta = 0.25f;
-		if (Math::IsFinite(C) && Math::IsFinite(dt_sec) && std::fabs(dt_sec) > Math::NumericalEpsilon)
-		{
-			m_Baumgarte = Beta * C / dt_sec;
-		}
-		else
-		{
-			m_Baumgarte = 0.0f;
-		}
+		// A paused or reverse step must not depenetrate bodies. No 1/dt velocity bias.
+		m_PositionCorrectionEnabled = Math::IsFinite(dt_sec) && dt_sec > Math::NumericalEpsilon;
 
 	}
 
@@ -185,7 +170,6 @@ namespace GEngine
 		const Mat<12, 12> invMassMatrix = GetInverseMassMatrix();
 		const Mat<3, 3> J_W_Jt = m_Jacobian * invMassMatrix * JacobianTranspose;
 		Vec<3> rhs = m_Jacobian * q_dt * -1.0f;
-		rhs[0] -= m_Baumgarte;
 
 		// Solve for the Lagrange multipliers
 		Vec<3> lambdaN = LCP_GaussSeidel(J_W_Jt, rhs);
@@ -209,4 +193,49 @@ namespace GEngine
 		m_bodyB->AssertFiniteState();
 	}
 	
+	void ConstraintPenetration::PostSolve()
+	{
+		if (!m_PositionCorrectionEnabled || !m_bodyA || !m_bodyB || m_bodyA == m_bodyB)
+		{
+			return;
+		}
+		m_PositionCorrectionEnabled = false;
+
+		// Retain the existing slop/fraction; cap separation change per contact per step.
+		constexpr float slop = 0.02f;
+		constexpr float fraction = 0.25f;
+		constexpr float maxCorrection = 0.2f;
+		const double inverseA = m_bodyA->GetInverseMass();
+		const double inverseB = m_bodyB->GetInverseMass();
+		const double inverseSum = inverseA + inverseB;
+		if (!(inverseSum > 0.0)) return;
+
+		// Recompute anchors after integration and earlier position corrections.
+		const Vec3f a = m_bodyA->BodySpaceToWorldSpace(m_anchorA);
+		const Vec3f b = m_bodyB->BodySpaceToWorldSpace(m_anchorB);
+		Vec3f normal = m_bodyA->GetBodyToWorldRotation() * m_Normal;
+		const float normalLength2 = glm::length2(normal);
+		if (!Math::IsFinite(a) || !Math::IsFinite(b) || !Math::IsFinite(normalLength2) ||
+			normalLength2 <= Math::NumericalEpsilon * Math::NumericalEpsilon) return;
+		normal /= std::sqrt(normalLength2);
+		const Vec3f separation = b - a;
+		const float depth = -glm::dot(separation, normal);
+		const Vec3f tangent = separation + normal * depth;
+		// Match the manifold's existing drift tolerance; do not project stale witnesses.
+		if (!Math::IsFinite(depth) || !Math::IsFinite(tangent) ||
+			glm::length2(tangent) >= slop * slop || depth <= slop) return;
+
+		const float correction = std::min(maxCorrection, fraction * (depth - slop));
+		const Vec3f positionA = m_bodyA->m_Position - normal *
+			(correction * static_cast<float>(inverseA / inverseSum));
+		const Vec3f positionB = m_bodyB->m_Position + normal *
+			(correction * static_cast<float>(inverseB / inverseSum));
+		if (!Math::IsFinite(positionA) || !Math::IsFinite(positionB)) return;
+
+		// Translation alone preserves orientation-dependent kinetic energy as well as velocities.
+		// For two dynamic bodies the inverse-mass weights preserve their common center of mass.
+		if (inverseA > 0.0) m_bodyA->m_Position = positionA;
+		if (inverseB > 0.0) m_bodyB->m_Position = positionB;
+	}
+
 }

@@ -1606,6 +1606,250 @@ namespace
 		return 0;
 	}
 
+
+	void TestPositionStabilization()
+	{
+		using namespace GEngine;
+		using Component::BodyType;
+		ShapeBox box(BoxPoints(Vec3f(1.0f, 2.0f, 3.0f)));
+		const Quat rotation = glm::angleAxis(0.63f, glm::normalize(Vec3f(1.0f, 2.0f, 3.0f)));
+		const Vec3f axis = rotation * Vec3f(0.0f, 1.0f, 0.0f);
+		for (const bool reversed : { false, true })
+		for (const float inverseA : { 0.25f, 1.0f, 4.0f })
+		for (const auto typeB : { BodyType::Static, BodyType::Kinematic, BodyType::Dynamic })
+		{
+			RigidBody3D bodyA, bodyB;
+			ConfigureBoxBody(bodyA, box, Vec3f(0.0f), rotation);
+			ConfigureBoxBody(bodyB, box, -0.12f * axis, rotation);
+			bodyA.m_InvMass = inverseA;
+			bodyB.Type = typeB;
+			bodyB.m_InvMass = 2.0f; // Deliberately contradictory for non-dynamic types.
+			bodyA.m_Friction = bodyB.m_Friction = 0.0f;
+			ConstraintPenetration constraint;
+			constraint.m_bodyA = reversed ? &bodyB : &bodyA;
+			constraint.m_bodyB = reversed ? &bodyA : &bodyB;
+			constraint.m_anchorA = constraint.m_anchorB = Vec3f(0.0f);
+			constraint.m_Normal = Vec3f(0.0f, reversed ? -1.0f : 1.0f, 0.0f);
+			constraint.PreSolve(1.0f / 120.0f);
+			constraint.Solve();
+			Expect(Near(bodyA.m_LinearVelocity, Vec3f(0.0f), 0.0f) &&
+				Near(bodyB.m_LinearVelocity, Vec3f(0.0f), 0.0f) &&
+				Near(constraint.m_CachedLambda[0], 0.0f, 0.0f),
+				"penetration alone creates no physical impulse or warm-start support");
+			// Non-principal spin checks that correction preserves anisotropic kinetic energy.
+			bodyA.m_LinearVelocity = Vec3f(1.0f, 2.0f, 3.0f);
+			bodyA.m_AngularVelocity = Vec3f(0.7f, 1.1f, 1.6f);
+			const auto inertia = bodyA.GetInverseInertiaTensorWorldSpace();
+			const auto bounds = bodyA.GetWorldBounds();
+			constraint.PostSolve();
+			const float inverseB = typeB == BodyType::Dynamic ? 2.0f : 0.0f;
+			const auto deltaA = -axis * (0.025f * inverseA / (inverseA + inverseB));
+			const auto deltaB = axis * (0.025f * inverseB / (inverseA + inverseB));
+			Expect(Near(bodyA.m_Position, deltaA, 2.0e-6f) &&
+				Near(bodyB.m_Position, -0.12f * axis + deltaB, 2.0e-6f),
+				"position correction repels in either order with effective inverse-mass weights");
+			Expect(Near(bodyA.m_LinearVelocity, Vec3f(1.0f, 2.0f, 3.0f), 0.0f) &&
+				Near(bodyA.m_AngularVelocity, Vec3f(0.7f, 1.1f, 1.6f), 0.0f) &&
+				bodyA.m_Orientation == rotation &&
+				Near(bodyA.GetInverseInertiaTensorWorldSpace(), inertia, 0.0f),
+				"position pass preserves velocities and anisotropic inertia exactly");
+			Expect(bodyA.HasFiniteState() && bodyB.HasFiniteState() &&
+				Near(bodyA.GetCenterOfMassWorldSpace(), bodyA.m_Position) &&
+				Near(bodyA.GetWorldBounds().mins, bounds.mins + deltaA, 2.0e-6f),
+				"position edits refresh warmed COM and bounds caches with finite output");
+		}
+
+		for (const float depth : { -0.1f, 0.0f, 0.01f, 0.02f, 0.12f, 10.0f })
+		for (const float dt : { -0.01f, 0.0f, 1.0e-8f, 1.0f / 240.0f, 1.0f / 60.0f })
+		{
+			RigidBody3D body, support;
+			ConfigureBoxBody(body, box, Vec3f(0.0f, -depth, 0.0f), Quat(1, 0, 0, 0));
+			ConfigureBoxBody(support, box, Vec3f(0.0f), Quat(1, 0, 0, 0));
+			support.Type = BodyType::Static;
+			ConstraintPenetration constraint;
+			constraint.m_bodyA = &support;
+			constraint.m_bodyB = &body;
+			constraint.m_anchorA = constraint.m_anchorB = Vec3f(0.0f);
+			constraint.m_Normal = Vec3f(0.0f, 1.0f, 0.0f);
+			constraint.PreSolve(dt);
+			constraint.PostSolve();
+			const float correction = dt > Math::NumericalEpsilon ?
+				std::min(0.2f, 0.25f * std::max(0.0f, depth - 0.02f)) : 0.0f;
+			Expect(Near(body.m_Position.y, -depth + correction, 2.0e-6f) &&
+				Near(body.m_LinearVelocity, Vec3f(0.0f), 0.0f),
+				"position pass honors separation, slop, cap, and non-positive/tiny timestep guards");
+		}
+	}
+
+	void TestPositionStabilizationWorld()
+	{
+		using namespace GEngine;
+		ShapeSphere sphere(1.0f);
+		for (const int iterations : { 1, 8, 32 })
+		{
+			PhysicsSystem system;
+			system.SetSolverIterations(iterations);
+			auto* world = new PhysicsWorld(Vec3f(0.0f));
+			system.SetPhysicsWorld(world);
+			auto* support = world->CreateRigidBody3D();
+			auto* body = world->CreateRigidBody3D();
+			ConfigureSphereBody(*support, sphere, Vec3f(0.0f));
+			ConfigureSphereBody(*body, sphere, Vec3f(0.0f, 1.88f, 0.0f));
+			support->Type = Component::BodyType::Static;
+			support->m_Friction = body->m_Friction = 0.0f;
+			support->m_CollisionMask = body->m_CollisionMask = 0;
+			GetManifolds(system).AddContact(MakeContact(*support, *body,
+				Vec3f(0.0f, 1.0f, 0.0f), Vec3f(0.0f, 0.88f, 0.0f), Vec3f(0.0f, -1.0f, 0.0f)));
+			body->m_LinearVelocity = Vec3f(0.0f, 0.6f, 0.0f);
+			system.Update(Timestep(1.0f / 60.0f));
+			Expect(Near(body->m_Position.y, 1.9125f, 2.0e-6f) &&
+				Near(body->m_LinearVelocity.y, 0.6f, 0.0f),
+				"world corrects current depth once after integration independent of velocity pass count");
+			body->m_Position.y = 1.88f;
+			body->m_LinearVelocity = Vec3f(0.0f);
+			for (int step = 0; step < 120; ++step) system.Update(Timestep(1.0f / 120.0f));
+			Expect(Near(body->m_Position.y, 1.98f, 2.0e-6f) &&
+				Near(body->m_LinearVelocity, Vec3f(0.0f), 0.0f) &&
+				Near(body->m_AngularVelocity, Vec3f(0.0f), 0.0f),
+				"repeated world correction converges to slop without bounce or cached correction impulses");
+		}
+	}
+
+
+	void TestPenetratedStackPositionStabilization()
+	{
+		using namespace GEngine;
+		ShapeBox box(UnitBoxPoints());
+		ShapeBox floor(BoxPoints(Vec3f(50.0f, 0.5f, 50.0f)));
+		std::array<Vec3f, 16> reference{};
+		for (int repeat = 0; repeat < 2; ++repeat)
+		{
+			PhysicsSystem system;
+			auto* world = new PhysicsWorld(Vec3f(0.0f));
+			system.SetPhysicsWorld(world);
+			auto* support = world->CreateRigidBody3D();
+			ConfigureBoxBody(*support, floor, Vec3f(0.0f), Quat(1, 0, 0, 0));
+			support->Type = Component::BodyType::Static;
+			support->m_CollisionMask = 0;
+			std::array<RigidBody3D*, 16> bodies{};
+			for (int column = 0; column < 4; ++column)
+			for (int level = 0; level < 4; ++level)
+			{
+				const int index = 4 * column + level;
+				auto* body = bodies[index] = world->CreateRigidBody3D();
+				ConfigureBoxBody(*body, box, Vec3f(column * 2.01f, 1.38f + level * 1.88f, 0.0f), Quat(1, 0, 0, 0));
+				body->m_CollisionMask = 0;
+				auto* below = level == 0 ? support : bodies[index - 1];
+				const Vec3f anchorA(body->m_Position.x, level == 0 ? 0.5f : below->m_Position.y + 1.0f, 0.0f);
+				const Vec3f anchorB = body->m_Position - Vec3f(0.0f, 1.0f, 0.0f);
+				GetManifolds(system).AddContact(MakeContact(*below, *body, anchorA, anchorB, Vec3f(0.0f, -1.0f, 0.0f)));
+			}
+			double peakKinetic = 0.0;
+			bool finite = true;
+			for (int step = 0; step < 1200; ++step)
+			{
+				system.Update(Timestep(1.0f / 120.0f));
+				double kinetic = 0.0;
+				for (const auto* body : bodies)
+				{
+					finite = finite && body->HasFiniteState();
+					kinetic += 0.5 * glm::length2(body->m_LinearVelocity) + glm::length2(body->m_AngularVelocity) / 3.0;
+				}
+				peakKinetic = std::max(peakKinetic, kinetic);
+			}
+			float maxDepth = 0.0f;
+			float averageY = 0.0f;
+			for (int index = 0; index < 16; ++index)
+			{
+				const int level = index % 4;
+				const float supportTop = level == 0 ? 0.5f : bodies[index - 1]->m_Position.y + 1.0f;
+				maxDepth = std::max(maxDepth, supportTop - (bodies[index]->m_Position.y - 1.0f));
+				averageY += bodies[index]->m_Position.y / 16.0f;
+				if (repeat == 0) reference[index] = bodies[index]->m_Position;
+				else Expect(Near(bodies[index]->m_Position, reference[index], 0.0f),
+					"penetrated stack repeats exactly in fixed creation and contact order");
+			}
+			Expect(finite && peakKinetic == 0.0, "penetrated 4x4 stack has no kinetic-energy injection in zero gravity");
+			Expect(maxDepth <= 0.02001f && averageY >= 4.44998f,
+				"penetrated stack reduces every 0.12 overlap to 0.02 slop without collapse");
+			std::cout << "POSITION_STACK repeat=" << repeat << " peak_kinetic=" << peakKinetic
+				<< " final_max_depth=" << maxDepth << " final_average_y=" << averageY << '\n';
+		}
+	}
+
+
+	void TestPositionCorrectionGuardsAndFriction()
+	{
+		using namespace GEngine;
+		ShapeSphere sphere(1.0f);
+		for (int scenario = 0; scenario < 7; ++scenario)
+		{
+			RigidBody3D a, b;
+			ConfigureSphereBody(a, sphere, Vec3f(0.0f));
+			ConfigureSphereBody(b, sphere, Vec3f(0.0f, -0.12f, 0.0f));
+			a.Type = Component::BodyType::Static;
+			ConstraintPenetration constraint;
+			constraint.m_bodyA = &a;
+			constraint.m_bodyB = &b;
+			constraint.m_anchorA = constraint.m_anchorB = Vec3f(0.5f, 0.0f, 0.0f);
+			constraint.m_Normal = Vec3f(0.0f, 1.0f, 0.0f);
+			if (scenario != 0) constraint.PreSolve(1.0f / 120.0f);
+			if (scenario == 1) constraint.m_Normal = Vec3f(0.0f);
+			if (scenario == 2) constraint.m_Normal.x = std::numeric_limits<float>::quiet_NaN();
+			if (scenario == 3) constraint.m_anchorA.x = std::numeric_limits<float>::infinity();
+			if (scenario == 4) b.m_Position.x = 0.021f; // Witness drifts outside the manifold tolerance.
+			if (scenario == 5) b.Type = Component::BodyType::Kinematic; // No responsive participant.
+			if (scenario == 6) constraint.m_bodyB = &a;
+			const auto position = b.m_Position;
+			constraint.PostSolve();
+			Expect(a.HasFiniteState() && b.HasFiniteState() && Near(b.m_Position, position, 0.0f),
+				"unprepared, invalid, drifted, immovable, and self-pair corrections fail safely");
+		}
+		for (const float closingSpeed : { 0.0f, 1.0f })
+		{
+			RigidBody3D a, b;
+			ConfigureSphereBody(a, sphere, Vec3f(0.0f));
+			ConfigureSphereBody(b, sphere, Vec3f(0.0f, -0.12f, 0.0f));
+			a.Type = Component::BodyType::Static;
+			a.m_Friction = b.m_Friction = 0.5f;
+			b.m_LinearVelocity = Vec3f(3.0f, -closingSpeed, 4.0f);
+			ConstraintPenetration constraint;
+			constraint.m_bodyA = &a;
+			constraint.m_bodyB = &b;
+			constraint.m_anchorA = constraint.m_anchorB = Vec3f(0.0f);
+			constraint.m_Normal = Vec3f(0.0f, 1.0f, 0.0f);
+			constraint.PreSolve(1.0f / 120.0f);
+			constraint.Solve();
+			const Vec3f expectedVelocity = Vec3f(3.0f, 0.0f, 4.0f) * (1.0f - 0.05f * closingSpeed);
+			Expect(Near(b.m_LinearVelocity, expectedVelocity, 2.0e-6f) &&
+				Near(constraint.m_CachedLambda[0], closingSpeed, 2.0e-6f),
+				"penetration supplies no friction support while real normal impulses retain Coulomb friction");
+			const auto velocity = b.m_LinearVelocity;
+			const auto lambda = constraint.m_CachedLambda;
+			constraint.PostSolve();
+			constraint.PostSolve();
+			Expect(Near(b.m_Position.y, -0.095f, 2.0e-6f) && Near(b.m_LinearVelocity, velocity, 0.0f) &&
+				constraint.m_CachedLambda[0] == lambda[0] && constraint.m_CachedLambda[1] == lambda[1] &&
+				constraint.m_CachedLambda[2] == lambda[2],
+				"position pass is consumed once and leaves physical warm-start impulses untouched");
+		}
+	}
+
+	int RunPositionStabilizationRegression()
+	{
+		TestPositionStabilization();
+		TestPositionStabilizationWorld();
+		TestPositionCorrectionGuardsAndFriction();
+		TestPenetratedStackPositionStabilization();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " position-stabilization checks failed\n";
+			return 1;
+		}
+		std::cout << "Position-stabilization regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
 	void TestSmallBoxStackRegression()
 	{
 		GEngine::ShapeBox box(UnitBoxPoints());
@@ -2213,9 +2457,11 @@ namespace
 		constraint.m_anchorA = GEngine::Vec3f(0.0f);
 		constraint.m_anchorB = GEngine::Vec3f(0.0f);
 		constraint.PreSolve(0.0f);
-		Expect(Near(constraint.m_Baumgarte, 0.0f), "zero dt produces zero penetration correction");
+		constraint.PostSolve();
+		Expect(Near(bodyA.m_Position, GEngine::Vec3f(0.0f), 0.0f), "zero dt produces zero penetration correction");
 		constraint.PreSolve(1.0e-8f);
-		Expect(Near(constraint.m_Baumgarte, 0.0f), "near-zero dt produces zero penetration correction");
+		constraint.PostSolve();
+		Expect(Near(bodyA.m_Position, GEngine::Vec3f(0.0f), 0.0f), "near-zero dt produces zero penetration correction");
 		constraint.Solve();
 		Expect(bodyA.HasFiniteState() && bodyB.HasFiniteState() && Near(constraint.m_CachedLambda[0], 0.0f),
 			"zero inverse-mass constraint solve remains finite");
@@ -3338,6 +3584,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--position-stabilization") return RunPositionStabilizationRegression();
 		if (argument == "--solver-iterations") return RunSolverIterationsRegression();
 		if (argument == "--restitution-threshold") return RunRestitutionThresholdRegression();
 		if (argument == "--ballistic-contact") return RunBallisticContactRegression();
@@ -3417,6 +3664,10 @@ int main(int argc, char** argv)
 	TestSolverIterationConfiguration();
 	TestSolverIterationTraversal();
 	TestSmallBoxStackRegression();
+	TestPositionStabilization();
+	TestPositionStabilizationWorld();
+	TestPositionCorrectionGuardsAndFriction();
+	TestPenetratedStackPositionStabilization();
 	TestGoldenRotations();
 	TestRotatedAsymmetricBox();
 	TestTorqueFreeAngularDynamics();

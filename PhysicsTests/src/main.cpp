@@ -57,6 +57,18 @@ namespace
 		friend Type GetPrivateMember(PhysicsSystemCollisionPairsTag);
 	};
 
+	struct ManifoldConstraintsTag
+	{
+		using Type = GEngine::ConstraintPenetration (GEngine::Manifold::*)[4];
+		friend Type GetPrivateMember(ManifoldConstraintsTag);
+	};
+	template struct PrivateMemberAccess<ManifoldConstraintsTag, &GEngine::Manifold::m_Constraints>;
+
+	GEngine::ConstraintPenetration& CachedConstraint(GEngine::Manifold& manifold, int slot)
+	{
+		return (manifold.*GetPrivateMember(ManifoldConstraintsTag{}))[slot];
+	}
+
 	template struct PrivateMemberAccess<PhysicsSystemManifoldsTag, &GEngine::PhysicsSystem::m_Manifolds>;
 	template struct PrivateMemberAccess<PhysicsSystemContactsTag, &GEngine::PhysicsSystem::m_Contacts>;
 	template struct PrivateMemberAccess<PhysicsSystemBroadphaseTag, &GEngine::PhysicsSystem::m_Broadphase>;
@@ -834,6 +846,7 @@ namespace
 		std::swap(reversed.m_BodyA, reversed.m_BodyB);
 		std::swap(reversed.ptOnA_WorldSpace, reversed.ptOnB_WorldSpace);
 		std::swap(reversed.ptOnA_LocalSpace, reversed.ptOnB_LocalSpace);
+		std::swap(reversed.featureA, reversed.featureB);
 		reversed.normal = -contact.normal;
 		return reversed;
 	}
@@ -2040,6 +2053,392 @@ namespace
 		TestBoxFaceManifoldWorld();
 		TestBoxFaceRestingStability();
 		std::cout << "Box face manifolds: " << testCount - failureCount << '/' << testCount << " checks passed\n";
+		return failureCount == 0 ? 0 : 1;
+	}
+
+
+	void TestManifoldPersistence()
+	{
+		using namespace GEngine;
+		// Observe warm-start impulses without exposing the manifold's private solver state.
+		for (bool reverse : { false, true }) {
+			ShapeSphere sphere(1);
+			RigidBody3D a, b;
+			ConfigureSphereBody(a, sphere, Vec3f(0));
+			ConfigureSphereBody(b, sphere, Vec3f(0, 2, 0));
+			a.SetBodyTypeAndInverseMass(BodyType::Static, 0);
+			a.m_Friction = b.m_Friction = 0;
+			const auto seed = MakeContact(a, b, Vec3f(0, 1, 0), Vec3f(0, 1, 0), Vec3f(0, -1, 0));
+			ManifoldCollector pair;
+			pair.AddContact(seed);
+			b.m_LinearVelocity = Vec3f(0, -1, 0);
+			pair.PreSolve(1.0f / 120.0f); pair.Solve();
+			b.m_LinearVelocity = b.m_AngularVelocity = Vec3f(0);
+			auto refreshed = MakeContact(a, b, Vec3f(0.005f, 1, 0), Vec3f(0.005f, 1, 0), seed.normal);
+			pair.AddContact(reverse ? ReversedContact(refreshed) : refreshed);
+			Expect(pair.GetContactCount() == 1 && Near(pair.m_Manifolds[0].GetContact(0).ptOnA_LocalSpace,
+				refreshed.ptOnA_LocalSpace, 0), "matching anchor pairs refresh stored geometry in either order");
+			pair.PreSolve(1.0f / 120.0f);
+			Expect(Near(b.m_LinearVelocity, Vec3f(0, 1, 0)) &&
+				Near(b.m_AngularVelocity, Vec3f(0, 0, 0.0125f)),
+				"coherent refresh retains support impulse and uses the refreshed lever arm");
+
+			ManifoldCollector distinct;
+			distinct.AddContact(seed);
+			auto other = MakeContact(a, b, seed.ptOnA_WorldSpace, Vec3f(0.03f, 1, 0), seed.normal);
+			distinct.AddContact(other);
+			Expect(distinct.GetContactCount() == 2, "sharing only A's anchor does not merge a distinct anchor pair");
+			distinct.Clear(); distinct.AddContact(seed);
+			other = MakeContact(a, b, Vec3f(0.03f, 1, 0), seed.ptOnB_WorldSpace, seed.normal);
+			distinct.AddContact(other);
+			Expect(distinct.GetContactCount() == 2, "sharing only B's anchor does not merge a distinct anchor pair");
+
+			b.m_LinearVelocity = b.m_AngularVelocity = Vec3f(0);
+			refreshed.normal = Vec3f(-1, 0, 0);
+			pair.AddContact(reverse ? ReversedContact(refreshed) : refreshed);
+			pair.PreSolve(1.0f / 120.0f);
+			Expect(pair.GetContactCount() == 1 && Near(b.m_LinearVelocity, Vec3f(0), 0) &&
+				Near(b.m_AngularVelocity, Vec3f(0), 0), "incoherent new normal discards old constraints and warm-start impulse");
+		}
+
+		for (int mutation = 0; mutation < 4; ++mutation) {
+			ShapeSphere sphere(1), replacement(1);
+			PhysicsWorld world(Vec3f(0));
+			auto* a = world.CreateRigidBody3D();
+			auto* b = world.CreateRigidBody3D();
+			ConfigureSphereBody(*a, sphere, Vec3f(0));
+			ConfigureSphereBody(*b, sphere, Vec3f(0, 2, 0));
+			a->SetBodyTypeAndInverseMass(BodyType::Static, 0);
+			ManifoldCollector pair;
+			pair.AddContact(MakeContact(*a, *b, Vec3f(0, 1, 0), Vec3f(0, 1, 0), Vec3f(0, -1, 0)));
+			b->m_LinearVelocity = Vec3f(0, -1, 0);
+			pair.PreSolve(1.0f / 120.0f); pair.Solve();
+			b->m_LinearVelocity = b->m_AngularVelocity = Vec3f(0);
+			if (mutation == 0) sphere.SetRadius(1.1f);
+			if (mutation == 1) b->m_Shape = &replacement;
+			if (mutation == 2) {
+				*b = RigidBody3D(*a); // Same address, different identity; no freed pointer.
+				ConfigureSphereBody(*b, sphere, Vec3f(0, 2, 0));
+			}
+			if (mutation == 3) b->m_Orientation = glm::angleAxis(glm::radians(10.0f), Vec3f(0, 0, 1));
+			pair.RemoveExpired();
+			Expect(pair.GetContactCount() == 0, "shape revision/replacement or body identity expires cached contacts");
+			pair.PreSolve(1.0f / 120.0f);
+			Expect(Near(b->m_LinearVelocity, Vec3f(0), 0) && Near(b->m_AngularVelocity, Vec3f(0), 0),
+				"expired contact cannot apply a stale warm-start impulse");
+		}
+	}
+
+
+	void TestPersistenceBasisAndGuards()
+	{
+		using namespace GEngine;
+		ShapeSphere sphere(1);
+		RigidBody3D a, b;
+		ConfigureSphereBody(a, sphere, Vec3f(0));
+		ConfigureSphereBody(b, sphere, Vec3f(0));
+		a.SetBodyTypeAndInverseMass(BodyType::Static, 0);
+		a.m_Friction = b.m_Friction = 1;
+		const Vec3f axis(std::sqrt(1 - 0.899f * 0.899f), 0, 0.899f);
+		const Vec3f newAxis(std::sqrt(1 - 0.901f * 0.901f), 0, 0.901f);
+		ManifoldCollector pair;
+		auto contact = MakeContact(a, b, Vec3f(0), Vec3f(0), -axis);
+		pair.AddContact(contact);
+		auto& constraint = CachedConstraint(pair.m_Manifolds[0], 0);
+		constraint.m_CachedLambda[0] = 2;
+		constraint.m_CachedLambda[1] = 0.3f;
+		constraint.m_CachedLambda[2] = -0.4f;
+		Vec3f u, v;
+		Math::GetOrtho(axis, u, v);
+		const Vec3f expectedImpulse = axis * 2.0f + u * 0.3f - v * 0.4f;
+		contact.normal = -newAxis;
+		pair.AddContact(contact);
+		pair.PreSolve(1.0f / 120.0f);
+		Expect(Near(b.m_LinearVelocity, expectedImpulse, 2.0e-6f) && Near(b.m_AngularVelocity, Vec3f(0), 0),
+			"small normal refresh preserves the world impulse across GetOrtho's tangent-basis branch");
+		Expect(Near(pair.m_Manifolds[0].GetContact(0).normal, -newAxis, 1.0e-6f),
+			"normal refresh stores the new contact direction");
+
+		for (float degrees : { 4.0f, 6.0f }) {
+			b.m_Orientation = Quat(1, 0, 0, 0);
+			pair.Clear();
+			contact.normal = Vec3f(0, -1, 0);
+			pair.AddContact(contact);
+			CachedConstraint(pair.m_Manifolds[0], 0).m_CachedLambda[0] = 1;
+			contact.normal = glm::angleAxis(glm::radians(degrees), Vec3f(0, 0, 1)) * contact.normal;
+			pair.AddContact(contact);
+			const float lambda = CachedConstraint(pair.m_Manifolds[0], 0).m_CachedLambda[0];
+			Expect(degrees < 5 ? Near(lambda, std::cos(glm::radians(degrees)), 1.0e-6f) : lambda == 0,
+				"normal reuse is retained at four degrees and cold at six degrees");
+		}
+
+		for (bool commonRotation : { false, true }) {
+			a.m_Orientation = b.m_Orientation = Quat(1, 0, 0, 0);
+			pair.Clear(); contact.normal = Vec3f(0, -1, 0); pair.AddContact(contact);
+			CachedConstraint(pair.m_Manifolds[0], 0).m_CachedLambda[0] = 1;
+			b.m_Orientation = glm::angleAxis(glm::radians(10.0f), Vec3f(0, 0, 1));
+			if (commonRotation) a.m_Orientation = b.m_Orientation;
+			pair.RemoveExpired(); // COM anchors cannot hide this normal-only check with tangential drift.
+			Expect(pair.GetContactCount() == (commonRotation ? 1 : 0),
+				"common rigid rotation preserves contact while relative normal rotation expires it");
+		}
+
+		a.m_Orientation = b.m_Orientation = Quat(1, 0, 0, 0);
+		for (int boundary = 0; boundary < 3; ++boundary) {
+			b.m_Shape = &sphere; pair.Clear();
+			contact = MakeContact(a, b, Vec3f(0), Vec3f(0), Vec3f(0, -1, 0));
+			pair.AddContact(contact);
+			CachedConstraint(pair.m_Manifolds[0], 0).m_CachedLambda[0] = 1;
+			b.m_LinearVelocity = b.m_AngularVelocity = Vec3f(0);
+			sphere.SetRadius(sphere.GetRadius() + 0.1f);
+			if (boundary == 0) pair.RemoveExpired();
+			if (boundary == 1) pair.PreSolve(1.0f / 120.0f);
+			if (boundary == 2) { pair.AddContact(contact); pair.PreSolve(1.0f / 120.0f); }
+			Expect(Near(b.m_LinearVelocity, Vec3f(0), 0),
+				"geometry revision invalidates before expiry, direct PreSolve, and new-contact refresh");
+		}
+		pair.Clear(); pair.AddContact(contact);
+		b.m_Shape = nullptr;
+		pair.RemoveExpired();
+		Expect(pair.GetContactCount() == 0, "null replacement shape expires without a shape dereference");
+		b.m_Shape = &sphere;
+		pair.AddContact(contact);
+		auto invalid = contact;
+		invalid.normal.x = std::numeric_limits<float>::quiet_NaN();
+		pair.AddContact(invalid);
+		Expect(pair.GetContactCount() == 1 && Finite(pair.m_Manifolds[0].GetContact(0)),
+			"nonfinite incoming contact is rejected without damaging valid cached geometry");
+	}
+
+
+	void TestPersistenceLifetimeAndQueryMetadata()
+	{
+		using namespace GEngine;
+		ShapeSphere sphere(1);
+		PhysicsSystem system;
+		auto* world = new PhysicsWorld(Vec3f(0));
+		system.SetPhysicsWorld(world);
+		auto* a = world->CreateRigidBody3D();
+		auto* b = world->CreateRigidBody3D();
+		ConfigureSphereBody(*a, sphere, Vec3f(0));
+		ConfigureSphereBody(*b, sphere, Vec3f(0, 1.99f, 0));
+		auto seed = MakeContact(*a, *b, Vec3f(0, 1, 0), Vec3f(0, 0.99f, 0), Vec3f(0, -1, 0));
+		for (int query = 0; query < 4; ++query) {
+			auto result = seed;
+			result.featureA = result.featureB = 123;
+			bool hit = false;
+			if (query == 0) hit = Collision::Intersect(a, b, result);
+			if (query == 1) hit = Collision::Intersect(a, b, 1.0f / 120.0f, result);
+			if (query == 2) hit = Collision::SphereSphereIntersect(a, b, 1.0f / 120.0f, result);
+			if (query == 3) hit = Collision::ConservativeAdvance(a, b, 1.0f / 120.0f, result);
+			Expect(hit && result.featureA == 0 && result.featureB == 0,
+				"reused single-witness output clears previously stored box feature metadata");
+		}
+		auto& pair = GetManifolds(system);
+		pair.AddContact(seed);
+		sphere.SetRadius(1.1f);
+		pair.PreSolve(1.0f / 120.0f);
+		Expect(pair.m_Manifolds.empty(), "PreSolve invalidation erases the empty pair before a body can be deleted");
+		world->RemoveRigidBody3D(b);
+		system.Update(Timestep(1.0f / 120.0f));
+		Expect(pair.m_Manifolds.empty() && world->GetPhysicsBodies().size() == 1,
+			"body removal after cache invalidation leaves no stale pair on the next world step");
+	}
+
+	void TestFeaturePatchPersistence()
+	{
+		using namespace GEngine;
+		for (float scale : { 0.001f, 1.0f, 1000.0f }) {
+			for (float yaw : { 0.0f, glm::quarter_pi<float>() }) {
+				ShapeBox box(BoxPoints(Vec3f(scale)));
+				PhysicsWorld world(Vec3f(0));
+				auto* a = world.CreateRigidBody3D();
+				auto* b = world.CreateRigidBody3D();
+				ConfigureBoxBody(*a, box, Vec3f(0), Quat(1, 0, 0, 0));
+				ConfigureBoxBody(*b, box, Vec3f(0, 1.99f * scale, 0), glm::angleAxis(yaw, Vec3f(0, 1, 0)));
+				const auto seed = MakeContact(*a, *b, Vec3f(0, scale, 0), Vec3f(0, 0.99f * scale, 0), Vec3f(0, -1, 0));
+				std::array<contact_t, 4> patch{}, reversed{};
+				const int count = BuildBoxFaceContacts(seed, patch);
+				Expect(count == 4 && BuildBoxFaceContacts(ReversedContact(seed), reversed) == 4,
+					"feature persistence fixture emits four contacts at small, unit, and large scales");
+				if (count != 4) continue;
+				for (int i = 0; i < 4; ++i) {
+					Expect(patch[i].featureA != 0 && patch[i].featureB != 0 &&
+						patch[i].featureA == reversed[i].featureB && patch[i].featureB == reversed[i].featureA,
+						"box feature keys are nonzero and retain physical ownership on A/B reversal");
+					for (int j = 0; j < i; ++j)
+						Expect(patch[i].featureA != patch[j].featureA || patch[i].featureB != patch[j].featureB,
+							"clipped face contacts have distinct feature pairs including reduced octagons");
+				}
+
+				const Quat common = glm::angleAxis(0.6f, glm::normalize(Vec3f(1, 2, 3)));
+				const Vec3f translation = Vec3f(3, -2, 5) * scale;
+				a->m_Position = translation;
+				b->m_Position = common * Vec3f(0, 1.99f * scale, 0) + translation;
+				a->m_Orientation = common;
+				b->m_Orientation = common * glm::angleAxis(yaw, Vec3f(0, 1, 0));
+				auto movedSeed = MakeContact(*a, *b, common * seed.ptOnA_WorldSpace + translation,
+					common * seed.ptOnB_WorldSpace + translation, common * seed.normal);
+				std::array<contact_t, 4> moved{};
+				const int movedCount = BuildBoxFaceContacts(movedSeed, moved);
+				bool stableKeys = movedCount == 4;
+				for (int i = 0; i < movedCount; ++i)
+					stableKeys = stableKeys && moved[i].featureA == patch[i].featureA && moved[i].featureB == patch[i].featureB;
+				Expect(stableKeys, "box feature keys survive a common rigid transform at each supported test scale");
+				a->m_Position = Vec3f(0);
+				b->m_Position = Vec3f(0, 1.99f * scale, 0);
+				a->m_Orientation = Quat(1, 0, 0, 0);
+				b->m_Orientation = glm::angleAxis(yaw, Vec3f(0, 1, 0));
+				ManifoldCollector pair;
+				pair.AddContacts(patch.data(), 4);
+				Expect(pair.GetContactCount() == 4, "distinct small-box features survive the absolute anchor-match tolerance");
+				for (int i = 0; i < 4; ++i)
+					CachedConstraint(pair.m_Manifolds[0], i).m_CachedLambda[0] = float(i + 1);
+				for (int i = 0; i < 4; ++i) reversed[i] = ReversedContact(patch[3 - i]);
+				pair.AddContacts(reversed.data(), 4);
+				for (int i = 0; i < 4; ++i)
+					Expect(CachedConstraint(pair.m_Manifolds[0], i).m_CachedLambda[0] == float(i + 1) &&
+						pair.m_Manifolds[0].GetContact(i).featureA == patch[i].featureA &&
+						pair.m_Manifolds[0].GetContact(i).featureB == patch[i].featureB,
+						"reordered patch retains each labelled feature impulse in its previous solve slot");
+
+				// Complete refresh retires missing points and starts changed faces/anchors cold.
+				auto changed = patch;
+				changed[0].featureA += 16u;
+				changed[1].ptOnA_LocalSpace.x += 0.03f;
+				changed[1].ptOnA_WorldSpace = a->BodySpaceToWorldSpace(changed[1].ptOnA_LocalSpace);
+				pair.AddContacts(changed.data(), 3);
+				Expect(pair.GetContactCount() == 3 && CachedConstraint(pair.m_Manifolds[0], 0).m_CachedLambda[0] == 3 &&
+					CachedConstraint(pair.m_Manifolds[0], 1).m_CachedLambda[0] == 0 &&
+					CachedConstraint(pair.m_Manifolds[0], 2).m_CachedLambda[0] == 0,
+					"changed face or excessive anchor drift resets only that impulse, and absent points retire");
+
+				changed[1].normal.x = std::numeric_limits<float>::quiet_NaN();
+				pair.AddContacts(changed.data(), 3);
+				Expect(pair.GetContactCount() == 3 && CachedConstraint(pair.m_Manifolds[0], 0).m_CachedLambda[0] == 3,
+					"invalid batch is rejected transactionally");
+				pair.AddContacts(patch.data(), 4);
+				for (int i = 0; i < 4; ++i) CachedConstraint(pair.m_Manifolds[0], i).m_CachedLambda[0] = 1;
+				box.Build(BoxPoints(Vec3f(scale * 1.01f)));
+				pair.AddContacts(patch.data(), 4);
+				bool cold = true;
+				for (int i = 0; i < 4; ++i) cold = cold && CachedConstraint(pair.m_Manifolds[0], i).m_CachedLambda[0] == 0;
+				Expect(cold, "shape rebuild resets every patch impulse even when feature IDs and input anchors repeat");
+			}
+		}
+	}
+
+
+	void TestBoxPatchContinuity()
+	{
+		using namespace GEngine;
+		for (bool reversed : { false, true }) {
+			ShapeBox box(UnitBoxPoints());
+			PhysicsWorld world(Vec3f(0));
+			auto* a = world.CreateRigidBody3D();
+			auto* b = world.CreateRigidBody3D();
+			ConfigureBoxBody(*a, box, Vec3f(0), Quat(1, 0, 0, 0));
+			ConfigureBoxBody(*b, box, Vec3f(0, 1.99f, 0), Quat(1, 0, 0, 0));
+			const auto seed = MakeContact(*a, *b, Vec3f(0, 1, 0), Vec3f(0, 0.99f, 0), Vec3f(0, -1, 0));
+			std::array<contact_t, 4> patch{};
+			Expect(BuildBoxFaceContacts(seed, patch) == 4, "continuity fixture starts with a complete aligned face");
+			ManifoldCollector pair;
+			pair.AddContacts(patch.data(), 4);
+			for (int i = 0; i < 4; ++i) CachedConstraint(pair.m_Manifolds[0], i).m_CachedLambda[0] = float(i+1);
+			bool changedBoundary = false;
+			for (float offset : { 0.0001f, 0.001f, 0.005f }) {
+				std::array<contact_t, 4> old{};
+				for (int i = 0; i < 4; ++i) old[i] = pair.m_Manifolds[0].GetContact(i);
+				b->m_Position = Vec3f(offset, 1.99f, offset * 0.5f);
+				b->m_Orientation = glm::angleAxis(offset * 0.1f, Vec3f(0, 1, 0));
+				std::array<contact_t, 4> next{};
+				const int count = BuildBoxFaceContacts(seed, next);
+				Expect(count == 4, "tiny sliding/rotation retains a four-point face patch");
+				if (count != 4) continue;
+				if (reversed) {
+					std::reverse(next.begin(), next.end());
+					for (auto& c : next) c = ReversedContact(c);
+				}
+				pair.AddContacts(next.data(), count);
+				Expect(pair.GetContactCount() == 4, "boundary transitions do not duplicate or discard patch points");
+				for (int i = 0; i < 4; ++i) {
+					const auto current = pair.m_Manifolds[0].GetContact(i);
+					changedBoundary = changedBoundary || current.featureA != old[i].featureA || current.featureB != old[i].featureB;
+					Expect(CachedConstraint(pair.m_Manifolds[0], i).m_CachedLambda[0] == float(i+1) &&
+						glm::length(current.ptOnA_LocalSpace-old[i].ptOnA_LocalSpace) < 0.02f &&
+						glm::length(current.ptOnB_LocalSpace-old[i].ptOnB_LocalSpace) < 0.02f,
+						"nearby same-face boundary changes retain each support impulse in its previous solve slot");
+					bool refreshed = false;
+					for (auto c : next) {
+						if (reversed) c = ReversedContact(c);
+						refreshed = refreshed || (Near(current.ptOnA_LocalSpace,c.ptOnA_LocalSpace,0) &&
+							Near(current.ptOnB_LocalSpace,c.ptOnB_LocalSpace,0) &&
+							current.featureA == c.featureA && current.featureB == c.featureB);
+					}
+					Expect(refreshed, "continuity matching refreshes actual generated anchors and feature metadata");
+				}
+			}
+			Expect(changedBoundary, "continuity regression crosses actual clipping boundary-key classifications");
+		}
+	}
+
+	void TestPatchOrderSolverEquivalence()
+	{
+		using namespace GEngine;
+		for (int passes : { 1, 8 }) {
+			std::vector<Vec3f> reference;
+			for (bool permuted : { false, true }) {
+				ShapeBox box(UnitBoxPoints());
+				PhysicsWorld world(Vec3f(0));
+				auto* a = world.CreateRigidBody3D();
+				auto* b = world.CreateRigidBody3D();
+				ConfigureBoxBody(*a, box, Vec3f(0), Quat(1,0,0,0));
+				ConfigureBoxBody(*b, box, Vec3f(0,1.99f,0), Quat(1,0,0,0));
+				a->SetBodyTypeAndInverseMass(BodyType::Static,0);
+				a->m_Friction = b->m_Friction = 0.5f;
+				std::array<contact_t,4> patch{};
+				BuildBoxFaceContacts(MakeContact(*a,*b,Vec3f(0,1,0),Vec3f(0,0.99f,0),Vec3f(0,-1,0)),patch);
+				ManifoldCollector pair;
+				pair.AddContacts(patch.data(),4);
+				bool equivalent = true;
+				for (int step = 0; step < 32; ++step) {
+					auto input = patch;
+					if (permuted) std::rotate(input.begin(),input.begin()+(step%3+1),input.end());
+					pair.AddContacts(input.data(),4);
+					b->m_LinearVelocity = Vec3f(0,-0.1f,0);
+					b->m_AngularVelocity = Vec3f(0);
+					pair.PreSolve(1.0f/120.0f);
+					for (int i = 0; i < passes; ++i) pair.Solve();
+					if (!permuted) {
+						reference.push_back(b->m_LinearVelocity);
+						reference.push_back(b->m_AngularVelocity);
+					}
+					else equivalent = equivalent && Near(b->m_LinearVelocity,reference[2*step],0) &&
+						Near(b->m_AngularVelocity,reference[2*step+1],0);
+					equivalent = equivalent && b->HasFiniteState();
+				}
+				Expect(equivalent, "cyclic input order preserves exact warm/cold sequential-solver response at one/eight passes");
+			}
+		}
+	}
+
+	int RunPersistenceContinuityRegression()
+	{
+		TestBoxPatchContinuity();
+		TestPatchOrderSolverEquivalence();
+		std::cout << "Persistence continuity: " << testCount-failureCount << '/' << testCount << " checks passed\n";
+		return failureCount == 0 ? 0 : 1;
+	}
+
+	int RunManifoldPersistenceRegression()
+	{
+		TestManifoldPersistence();
+		TestBoxPatchContinuity();
+		TestPatchOrderSolverEquivalence();
+		TestPersistenceBasisAndGuards();
+		TestFeaturePatchPersistence();
+		TestPersistenceLifetimeAndQueryMetadata();
+		std::cout << "Manifold persistence: " << testCount - failureCount << '/' << testCount << " checks passed\n";
 		return failureCount == 0 ? 0 : 1;
 	}
 
@@ -4161,6 +4560,8 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--persistence-continuity") return RunPersistenceContinuityRegression();
+		if (argument == "--manifold-persistence") return RunManifoldPersistenceRegression();
 		if (argument == "--box-manifolds") return RunBoxManifoldRegression();
 		if (argument == "--box-features") return RunBoxFeatureRegression();
 		if (argument == "--position-stabilization") return RunPositionStabilizationRegression();
@@ -4248,6 +4649,12 @@ int main(int argc, char** argv)
 	TestBoxFaceClippingBoundaries();
 	TestBoxFaceManifoldWorld();
 	TestBoxFaceRestingStability();
+	TestManifoldPersistence();
+	TestBoxPatchContinuity();
+	TestPatchOrderSolverEquivalence();
+	TestPersistenceBasisAndGuards();
+	TestFeaturePatchPersistence();
+	TestPersistenceLifetimeAndQueryMetadata();
 	TestSolverIterationConfiguration();
 	TestSolverIterationTraversal();
 	TestSmallBoxStackRegression();

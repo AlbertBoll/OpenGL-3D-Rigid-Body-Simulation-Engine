@@ -339,8 +339,7 @@ namespace GEngine
 							std::array<contact_t, 4> faceContacts{};
 							const int faceContactCount = BuildBoxFaceContacts(contact, faceContacts);
 							if (faceContactCount > 0) {
-								for (int point = 0; point < faceContactCount; ++point)
-									m_Manifolds.AddContact(faceContacts[point]);
+								m_Manifolds.AddContacts(faceContacts.data(), faceContactCount);
 								GE_PHYSICS_PROFILE_ADD(generatedContactCount, faceContactCount - 1);
 							}
 							else {
@@ -494,6 +493,7 @@ namespace GEngine
 
 	bool Collision::SphereSphereIntersect(RigidBody3D* bodyA, RigidBody3D* bodyB, const float dt, contact_t& contact)
 	{
+		contact.featureA = contact.featureB = 0; // This query emits an unfeatured witness.
 		contact.m_BodyA = bodyA;
 		contact.m_BodyB = bodyB;
 
@@ -534,6 +534,7 @@ namespace GEngine
 
 	bool Collision::Intersect(RigidBody3D* bodyA, RigidBody3D* bodyB, contact_t& contact)
 	{
+		contact.featureA = contact.featureB = 0; // This query emits an unfeatured witness.
 		contact.m_BodyA = bodyA;
 		contact.m_BodyB = bodyB;
 		contact.timeOfImpact = 0.0f;
@@ -722,6 +723,7 @@ namespace GEngine
 
 	bool Collision::ConservativeAdvance(RigidBody3D* bodyA, RigidBody3D* bodyB, float dt, contact_t& contact)
 	{
+		contact.featureA = contact.featureB = 0; // This query emits an unfeatured witness.
 		contact.m_BodyA = bodyA;
 		contact.m_BodyB = bodyB;
 
@@ -788,6 +790,7 @@ namespace GEngine
 
 	bool Collision::Intersect(RigidBody3D* bodyA, RigidBody3D* bodyB, const float dt, contact_t& contact)
 	{
+		contact.featureA = contact.featureB = 0; // This query emits an unfeatured witness.
 		contact.m_BodyA = bodyA;
 		contact.m_BodyB = bodyB;
 		//if (dynamic_cast<ShapeSphere*>(bodyA->m_Shape) && dynamic_cast<ShapeSphere*>(bodyB->m_Shape)) {

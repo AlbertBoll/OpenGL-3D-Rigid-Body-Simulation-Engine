@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Contact.h"
+#include "PhysicsBody.h"
 #include "Constraints/ConstraintPenetration.h"
 
 
@@ -25,7 +26,20 @@ namespace GEngine
 
 	private:
 		static constexpr int MAX_CONTACTS = 4;
-		contact_t m_Contacts[MAX_CONTACTS];
+		struct BodyStamp
+		{
+			RigidBodyIdentity identity;
+			const PhysicalShape* shape{};
+			std::uint64_t shapeRevision{};
+		};
+		BodyStamp m_StampA, m_StampB;
+		Vec3f m_NormalB[MAX_CONTACTS]{}; // Solver A -> B axis in B's local frame.
+		bool CacheCompatible() const;
+		void CaptureCompatibility();
+		void RemoveContact(int slot);
+		void WriteContact(int slot, const contact_t& contact, const ConstraintPenetration* previous);
+		void RefreshContacts(const contact_t* contacts, int count);
+		contact_t m_Contacts[MAX_CONTACTS]{};
 
 		int m_NumContacts;
 
@@ -47,6 +61,8 @@ ManifoldCollector
 		ManifoldCollector() {}
 
 		void AddContact(const contact_t& contact);
+		// A complete geometric patch (2-4 points): match old points once, retire absent points.
+		void AddContacts(const contact_t* contacts, int count);
 
 		void PreSolve(const float dt_sec);
 		void Solve();

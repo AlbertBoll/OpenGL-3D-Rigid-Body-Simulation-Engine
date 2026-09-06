@@ -63,6 +63,17 @@ namespace GEngine
 
 	namespace BoxContactDetail
 	{
+		inline std::uint32_t FeatureKey(const BoxFaceFeature& face, const glm::dvec3& point, double tolerance)
+		{
+			std::uint32_t key = (std::uint32_t(face.id) + 1u) << 4;
+			for (int edge = 0; edge < 4; ++edge) {
+				const glm::dvec3 a(face.vertices[edge]), b(face.vertices[(edge + 1) % 4]);
+				const glm::dvec3 inward = glm::normalize(glm::cross(glm::dvec3(face.normal), b - a));
+				if (std::abs(glm::dot(inward, point - a)) <= tolerance) key |= 1u << edge;
+			}
+			return key;
+		}
+
 		// A quad clipped by four side planes and one depth plane has at most nine vertices.
 		using Polygon = std::array<glm::dvec3, 12>;
 
@@ -171,6 +182,11 @@ namespace GEngine
 			const Vec3f referencePoint(origin + point - normal * glm::dot(normal, point));
 			contact_t& contact = contacts[i];
 			contact = seed;
+			const auto referenceKey = BoxContactDetail::FeatureKey(features.reference,
+				origin + point - normal * glm::dot(normal, point), tolerance);
+			const auto incidentKey = BoxContactDetail::FeatureKey(features.incident, origin + point, tolerance);
+			contact.featureA = referenceIsA ? referenceKey : incidentKey;
+			contact.featureB = referenceIsA ? incidentKey : referenceKey;
 			contact.normal = Vec3f(referenceIsA ? -normal : normal);
 			contact.ptOnA_WorldSpace = referenceIsA ? referencePoint : incidentPoint;
 			contact.ptOnB_WorldSpace = referenceIsA ? incidentPoint : referencePoint;

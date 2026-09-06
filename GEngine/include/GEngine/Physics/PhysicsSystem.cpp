@@ -508,19 +508,17 @@ namespace GEngine
 		Vec3f velB = bodyB->GetLinearVelocity();
 
 		if (SphereSphereDynamic(sphereA, sphereB, posA, posB, velA, velB, dt, contact.ptOnA_WorldSpace, contact.ptOnB_WorldSpace, contact.timeOfImpact)) {
-			// Step bodies forward to get local space collision points
-			bodyA->Update(contact.timeOfImpact);
-			bodyB->Update(contact.timeOfImpact);
+			// Predict on local value copies: integration and lazy caches must never touch live bodies.
+			RigidBody3D predictedA = *bodyA;
+			RigidBody3D predictedB = *bodyB;
+			predictedA.Update(contact.timeOfImpact);
+			predictedB.Update(contact.timeOfImpact);
 
 			// Convert world space contacts to local space
-			contact.ptOnA_LocalSpace = bodyA->WorldSpaceToBodySpace(contact.ptOnA_WorldSpace);
-			contact.ptOnB_LocalSpace = bodyB->WorldSpaceToBodySpace(contact.ptOnB_WorldSpace);
+			contact.ptOnA_LocalSpace = predictedA.WorldSpaceToBodySpace(contact.ptOnA_WorldSpace);
+			contact.ptOnB_LocalSpace = predictedB.WorldSpaceToBodySpace(contact.ptOnB_WorldSpace);
 
-			contact.normal = Math::NormalizeOr(bodyA->m_Position - bodyB->m_Position, Vec3f(-1.0f, 0.0f, 0.0f));
-
-			// Unwind time step
-			bodyA->Update(-contact.timeOfImpact);
-			bodyB->Update(-contact.timeOfImpact);
+			contact.normal = Math::NormalizeOr(predictedA.m_Position - predictedB.m_Position, Vec3f(-1.0f, 0.0f, 0.0f));
 
 			// Calculate the separation distance
 			Vec3f ab = bodyB->m_Position - bodyA->m_Position;
@@ -532,7 +530,8 @@ namespace GEngine
 		return false;
 	}
 
-	bool Collision::Intersect(RigidBody3D* bodyA, RigidBody3D* bodyB, contact_t& contact)
+	// Internal narrow-phase evaluation accepts only query-local bodies.
+	static bool IntersectAtQueryState(RigidBody3D* bodyA, RigidBody3D* bodyB, contact_t& contact)
 	{
 		contact.featureA = contact.featureB = 0; // This query emits an unfeatured witness.
 		contact.m_BodyA = bodyA;
@@ -612,6 +611,17 @@ namespace GEngine
 
 	}
 
+
+	bool Collision::Intersect(RigidBody3D* bodyA, RigidBody3D* bodyB, contact_t& contact)
+	{
+		// Even a zero-time query can populate lazy caches; keep those writes local too.
+		RigidBody3D predictedA = *bodyA;
+		RigidBody3D predictedB = *bodyB;
+		const bool hit = IntersectAtQueryState(&predictedA, &predictedB, contact);
+		contact.m_BodyA = bodyA;
+		contact.m_BodyB = bodyB;
+		return hit;
+	}
 
 	void Collision::ResolveContact(contact_t& contact)
 	{
@@ -727,6 +737,10 @@ namespace GEngine
 		contact.m_BodyA = bodyA;
 		contact.m_BodyB = bodyB;
 
+		// Value copies own independent derived caches and are never registered in a world.
+		// Advance them with the existing integrator; shapes are read-only during prediction.
+		RigidBody3D predictedA = *bodyA;
+		RigidBody3D predictedB = *bodyB;
 		float toi = 0.0f;
 
 		int numIters = 0;
@@ -735,12 +749,13 @@ namespace GEngine
 		while (dt > 0.0f) {
 			
 			// Check for intersection
-			bool didIntersect = Intersect(bodyA, bodyB, contact);
+			bool didIntersect = IntersectAtQueryState(&predictedA, &predictedB, contact);
+			// Never let query-local pointers escape, on either success or failure.
+			contact.m_BodyA = bodyA;
+			contact.m_BodyB = bodyB;
 			if (didIntersect) {
 				//std::cout << "Intersection" << std::endl;
 				contact.timeOfImpact = toi;
-				bodyA->Update(-toi);
-				bodyB->Update(-toi);
 				return true;
 			}
 			//std::cout << "No intersection" << std::endl;
@@ -751,16 +766,16 @@ namespace GEngine
 			
 			// Get the vector from the closest point on A to the closest point on B
 			Vec3f ab = Math::NormalizeOr(contact.ptOnB_WorldSpace - contact.ptOnA_WorldSpace,
-				bodyB->m_Position - bodyA->m_Position);
+				predictedB.m_Position - predictedA.m_Position);
 			//std::cout << "ab: " << ab.x << ", " << ab.y << ", " << ab.z << std::endl;
 
 			// project the relative velocity onto the ray of shortest distance
-			Vec3f relativeVelocity = bodyA->GetLinearVelocity() - bodyB->GetLinearVelocity();
+			Vec3f relativeVelocity = predictedA.GetLinearVelocity() - predictedB.GetLinearVelocity();
 			float orthoSpeed = glm::dot(relativeVelocity, ab);
 
 			// Add to the orthoSpeed the maximum angular speeds of the relative shapes
-			float angularSpeedA = bodyA->m_Shape->FastestLinearSpeed(bodyA->GetAngularVelocity(), ab);
-			float angularSpeedB = bodyB->m_Shape->FastestLinearSpeed(bodyB->GetAngularVelocity(), ab * -1.0f);
+			float angularSpeedA = predictedA.m_Shape->FastestLinearSpeed(predictedA.GetAngularVelocity(), ab);
+			float angularSpeedB = predictedB.m_Shape->FastestLinearSpeed(predictedB.GetAngularVelocity(), ab * -1.0f);
 			orthoSpeed += angularSpeedA + angularSpeedB;
 			if (!Math::IsFinite(orthoSpeed) || orthoSpeed <= Math::NumericalEpsilon) {
 				break;
@@ -777,67 +792,21 @@ namespace GEngine
 
 			dt -= timeToGo;
 			toi += timeToGo;
-			bodyA->Update(timeToGo);
-			bodyB->Update(timeToGo);
+			predictedA.Update(timeToGo);
+			predictedB.Update(timeToGo);
 		}
 
-		// unwind the clock
-		bodyA->Update(-toi);
-		bodyB->Update(-toi);
 		return false;
 	}
 
 
 	bool Collision::Intersect(RigidBody3D* bodyA, RigidBody3D* bodyB, const float dt, contact_t& contact)
 	{
-		contact.featureA = contact.featureB = 0; // This query emits an unfeatured witness.
-		contact.m_BodyA = bodyA;
-		contact.m_BodyB = bodyB;
-		//if (dynamic_cast<ShapeSphere*>(bodyA->m_Shape) && dynamic_cast<ShapeSphere*>(bodyB->m_Shape)) {
 		if (bodyA->m_Shape->GetShapeType() == ShapeType::Sphere && bodyB->m_Shape->GetShapeType() == ShapeType::Sphere)
 		{
-			const ShapeSphere* sphereA = (const ShapeSphere*)bodyA->m_Shape;
-			const ShapeSphere* sphereB = (const ShapeSphere*)bodyB->m_Shape;
-
-			Vec3f posA = bodyA->m_Position;
-			Vec3f posB = bodyB->m_Position;
-
-			Vec3f velA = bodyA->GetLinearVelocity();
-			Vec3f velB = bodyB->GetLinearVelocity();
-
-			if (SphereSphereDynamic(sphereA, sphereB, posA, posB, velA, velB, dt, contact.ptOnA_WorldSpace, contact.ptOnB_WorldSpace, contact.timeOfImpact)) {
-				// Step bodies forward to get local space collision points
-				bodyA->Update(contact.timeOfImpact);
-				bodyB->Update(contact.timeOfImpact);
-
-				// Convert world space contacts to local space
-				contact.ptOnA_LocalSpace = bodyA->WorldSpaceToBodySpace(contact.ptOnA_WorldSpace);
-				contact.ptOnB_LocalSpace = bodyB->WorldSpaceToBodySpace(contact.ptOnB_WorldSpace);
-
-				contact.normal = Math::NormalizeOr(bodyA->m_Position - bodyB->m_Position, Vec3f(-1.0f, 0.0f, 0.0f));
-
-				// Unwind time step
-				bodyA->Update(-contact.timeOfImpact);
-				bodyB->Update(-contact.timeOfImpact);
-
-				// Calculate the separation distance
-				Vec3f ab = bodyB->m_Position - bodyA->m_Position;
-				float r = glm::length(ab) - (sphereA->GetRadius() + sphereB->GetRadius());
-				contact.separationDistance = r;
-				return true;
-
-			}
-			
+			return SphereSphereIntersect(bodyA, bodyB, dt, contact);
 		}
-		else
-		{
-			//Use GJK to perform conservative advancement
-			//std::cout << "GJK conservative advance" << std::endl;
-			bool result = ConservativeAdvance(bodyA, bodyB, dt, contact);
-			return result;
-			
-		}
-		return false;
+		return ConservativeAdvance(bodyA, bodyB, dt, contact);
 	}
 
 }

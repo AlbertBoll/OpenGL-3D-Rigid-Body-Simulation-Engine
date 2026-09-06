@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstring>
 #include <array>
 #include <iostream>
 #include <limits>
@@ -4250,6 +4251,256 @@ namespace
 		}
 	}
 
+	// Compare the same live object's bytes, including private cache flags and revisions.
+	// No copied object's padding is compared, and no bytes are written back to the body.
+	struct PredictionBodySnapshot
+	{
+		explicit PredictionBodySnapshot(const GEngine::RigidBody3D& body) : source(body)
+		{
+			std::memcpy(bytes.data(), &source, bytes.size());
+		}
+		bool Unchanged() const { return std::memcmp(bytes.data(), &source, bytes.size()) == 0; }
+		const GEngine::RigidBody3D& source;
+		std::array<unsigned char, sizeof(GEngine::RigidBody3D)> bytes;
+	};
+
+	class ObservedPredictionBox final : public GEngine::ShapeBox
+	{
+	public:
+		using ShapeBox::ShapeBox;
+		const PredictionBodySnapshot* liveA{};
+		const PredictionBodySnapshot* liveB{};
+		mutable bool liveUnchanged = true;
+		mutable bool sawAdvancedPose = false;
+		GEngine::Vec3f Support(const GEngine::Vec3f& direction, const GEngine::Vec3f& position,
+			const GEngine::Quat& orientation, float bias) const override
+		{
+			if (liveA && liveB)
+			{
+				liveUnchanged = liveUnchanged && liveA->Unchanged() && liveB->Unchanged();
+				sawAdvancedPose = sawAdvancedPose || !Near(position, liveA->source.m_Position, 0.0f);
+			}
+			return ShapeBox::Support(direction, position, orientation, bias);
+		}
+	};
+
+	bool SamePredictionContact(const GEngine::contact_t& a, const GEngine::contact_t& b)
+	{
+		return a.m_BodyA == b.m_BodyA && a.m_BodyB == b.m_BodyB &&
+			a.featureA == b.featureA && a.featureB == b.featureB &&
+			Near(a.ptOnA_WorldSpace, b.ptOnA_WorldSpace, 0.0f) &&
+			Near(a.ptOnB_WorldSpace, b.ptOnB_WorldSpace, 0.0f) &&
+			Near(a.ptOnA_LocalSpace, b.ptOnA_LocalSpace, 0.0f) &&
+			Near(a.ptOnB_LocalSpace, b.ptOnB_LocalSpace, 0.0f) &&
+			Near(a.normal, b.normal, 0.0f) && Near(a.separationDistance, b.separationDistance, 0.0f) &&
+			Near(a.timeOfImpact, b.timeOfImpact, 0.0f);
+	}
+
+	void TestCollisionPredictionPurity()
+	{
+		using namespace GEngine;
+		auto points = BoxPoints(Vec3f(0.5f, 0.8f, 1.2f));
+		for (auto& point : points) point += Vec3f(0.2f, 0.1f, -0.15f);
+		ObservedPredictionBox box(points);
+		ShapeConvex convex(points);
+		ShapeBox wall(BoxPoints(Vec3f(1.0f, 10.0f, 10.0f)));
+		ShapeSphere sphere(1.0f);
+		for (int shape = 0; shape < 3; ++shape)
+		for (int cache = 0; cache < 3; ++cache)
+		for (int scenario = 0; scenario < 4; ++scenario)
+		for (int entry = 0; entry < 3; ++entry)
+		{
+			RigidBody3D a, b;
+			a.m_Shape = shape == 0 ? static_cast<PhysicalShape*>(&sphere) :
+				shape == 1 ? static_cast<PhysicalShape*>(&box) : static_cast<PhysicalShape*>(&convex);
+			b.m_Shape = shape == 0 ? static_cast<PhysicalShape*>(&sphere) : static_cast<PhysicalShape*>(&wall);
+			a.SetBodyTypeAndInverseMass(Component::BodyType::Dynamic, 0.5f);
+			b.m_Position = Vec3f(scenario == 0 ? 1.0f : 4.0f, 0, 0);
+			a.m_LinearVelocity = Vec3f(scenario == 2 ? -10.0f : 10.0f, 0, 0);
+			a.m_AngularVelocity = scenario == 2 ? Vec3f(0) : Vec3f(0.7f, 1.1f, 1.6f);
+			a.m_Orientation = glm::angleAxis(0.2f, Math::NormalizeOr(Vec3f(1, 2, 3)));
+			if (cache != 0)
+			{
+				for (RigidBody3D* body : { &a, &b })
+				{
+					body->GetCenterOfMassWorldSpace();
+					body->GetInverseInertiaTensorWorldSpace();
+					body->GetWorldBounds();
+				}
+				if (cache == 2)
+				{
+					a.m_Position.y += 0.01f;
+					a.m_Orientation = glm::angleAxis(0.3f, Math::NormalizeOr(Vec3f(1, 2, 3)));
+					a.m_InvMass = 0.75f;
+				}
+			}
+			const PredictionBodySnapshot beforeA(a), beforeB(b);
+			box.liveA = &beforeA;
+			box.liveB = &beforeB;
+			box.liveUnchanged = true;
+			box.sawAdvancedPose = false;
+			const float dt = scenario == 3 ? 0.19f : 0.5f;
+			auto query = [&](contact_t& contact)
+			{
+				if (entry == 0) return Collision::Intersect(&a, &b, dt, contact);
+				if (entry == 1) return shape == 0 ? Collision::SphereSphereIntersect(&a, &b, dt, contact) :
+					Collision::ConservativeAdvance(&a, &b, dt, contact);
+				return Collision::Intersect(&a, &b, contact);
+			};
+			contact_t first{};
+			first.featureA = first.featureB = 123;
+			const bool hit = query(first);
+			// Rotating generic approaches can exhaust the existing CA/GJK convergence policy.
+			// Exercise their output and purity without imposing a new collision acceptance rule.
+			const bool rotatingApproach = shape != 0 && scenario == 1 && entry != 2;
+			if (!rotatingApproach) Expect(hit == (scenario == 0 || (scenario == 1 && entry != 2)),
+				"prediction fixtures distinguish overlap, analytic future hit, separating miss, and short-horizon miss");
+			if (rotatingApproach && cache == 0 && entry == 0)
+				std::cout << "ROTATING_PREDICTION shape=" << shape << " hit=" << hit
+					<< " separation=" << first.separationDistance << '\n';
+			bool repeatable = true;
+			bool preserved = beforeA.Unchanged() && beforeB.Unchanged();
+			for (int repeat = 0; repeat < 32; ++repeat)
+			{
+				contact_t again{};
+				again.featureA = again.featureB = 123;
+				const bool againHit = query(again);
+				repeatable = repeatable && againHit == hit && SamePredictionContact(first, again);
+				preserved = preserved && beforeA.Unchanged() && beforeB.Unchanged();
+			}
+			Expect(preserved && box.liveUnchanged,
+				"queries preserve live pose, velocities, identity and cold/warm/stale caches bitwise, even during support");
+			Expect(repeatable && Finite(first) && first.m_BodyA == &a && first.m_BodyB == &b &&
+				first.featureA == 0 && first.featureB == 0,
+				"repeated hit/miss output is exact, finite, unfeatured and references original bodies");
+			if (shape == 1 && entry != 2 && scenario == 3)
+				Expect(box.sawAdvancedPose, "short-horizon generic miss exercises an advanced local pose before returning");
+			box.liveA = box.liveB = nullptr;
+		}
+	}
+
+	void TestPredictionAnchorsAndOrder()
+	{
+		using namespace GEngine;
+		ShapeSphere sphere(1.0f);
+		for (const auto type : { Component::BodyType::Static, Component::BodyType::Kinematic,
+			Component::BodyType::Dynamic })
+		{
+			RigidBody3D a, b;
+			a.m_Shape = b.m_Shape = &sphere;
+			a.SetBodyTypeAndInverseMass(Component::BodyType::Dynamic, 1);
+			b.SetBodyTypeAndInverseMass(type, 1);
+			b.m_Position = Vec3f(5, 0, 0);
+			a.m_LinearVelocity = Vec3f(8, 0, 0);
+			b.m_LinearVelocity = Vec3f(-2, 0, 0);
+			a.m_AngularVelocity = Vec3f(0.7f, 1.1f, 1.6f);
+			b.m_AngularVelocity = Vec3f(-1, 2, -0.5f);
+			contact_t ab{}, ba{};
+			const bool hit = Collision::Intersect(&a, &b, 0.6f, ab);
+			const bool reversedHit = Collision::Intersect(&b, &a, 0.6f, ba);
+			const float toi = type == Component::BodyType::Static ? 3.0f / 8.0f : 0.3f;
+			Expect(hit && reversedHit && Near(ab.timeOfImpact, toi, 2.0e-6f) &&
+				Near(ba.timeOfImpact, toi, 2.0e-6f) && Near(ab.separationDistance, 3.0f, 2.0e-6f) &&
+				Near(ab.normal, Vec3f(-1, 0, 0)) && Near(ba.normal, -ab.normal) &&
+				Near(ab.ptOnA_WorldSpace, ba.ptOnB_WorldSpace) && Near(ab.ptOnB_WorldSpace, ba.ptOnA_WorldSpace),
+				"spinning swept spheres preserve analytic TOI, initial separation, body-type motion and A/B convention");
+			// Independent transform formula for spherical inertia and constant angular velocity.
+			for (int bodyIndex = 0; bodyIndex < 2; ++bodyIndex)
+			{
+				const auto& body = bodyIndex == 0 ? a : b;
+				const Vec3f omega = body.GetAngularVelocity();
+				const float angle = glm::length(omega) * toi;
+				const Quat orientation = angle == 0 ? body.m_Orientation :
+					glm::angleAxis(angle, glm::normalize(omega)) * body.m_Orientation;
+				const Vec3f local = bodyIndex == 0 ? ab.ptOnA_LocalSpace : ab.ptOnB_LocalSpace;
+				const Vec3f world = bodyIndex == 0 ? ab.ptOnA_WorldSpace : ab.ptOnB_WorldSpace;
+				Expect(Near(body.m_Position + body.GetLinearVelocity() * toi + glm::toMat3(orientation) * local,
+					world, 2.0e-5f), "predicted sphere local anchors reconstruct impact witnesses independently");
+			}
+		}
+		// Successful generic sweeps with an independent constant-pose/linear-motion reference.
+		ShapeBox unitBox(UnitBoxPoints());
+		ShapeConvex unitConvex(UnitBoxPoints());
+		for (PhysicalShape* shape : { static_cast<PhysicalShape*>(&unitBox), static_cast<PhysicalShape*>(&unitConvex) })
+		for (bool reversed : { false, true })
+		{
+			RigidBody3D a, b;
+			a.m_Shape = shape;
+			b.m_Shape = &unitBox;
+			a.SetBodyTypeAndInverseMass(Component::BodyType::Dynamic, 1);
+			b.SetBodyTypeAndInverseMass(Component::BodyType::Kinematic, 0);
+			const Quat orientation = glm::angleAxis(0.37f, Math::NormalizeOr(Vec3f(1, 2, 3)));
+			const Vec3f axis = orientation * Vec3f(1, 0, 0);
+			a.m_Orientation = b.m_Orientation = orientation;
+			b.m_Position = axis * 4.0f;
+			a.m_LinearVelocity = axis * 3.0f;
+			b.m_LinearVelocity = -axis;
+			const PredictionBodySnapshot beforeA(a), beforeB(b);
+			contact_t contact{};
+			Expect(Collision::ConservativeAdvance(reversed ? &b : &a, reversed ? &a : &b, 0.6f, contact) &&
+				Finite(contact) && Near(contact.timeOfImpact, 0.5f, 2.0e-3f) &&
+				Near(contact.normal, reversed ? axis : -axis, 2.0e-3f) && beforeA.Unchanged() && beforeB.Unchanged(),
+				"generic box/convex sweeps preserve analytic impact time, normal and live state in both input orders");
+			for (int index = 0; index < 2; ++index)
+			{
+				const RigidBody3D* body = index == 0 ? contact.m_BodyA : contact.m_BodyB;
+				const Vec3f local = index == 0 ? contact.ptOnA_LocalSpace : contact.ptOnB_LocalSpace;
+				const Vec3f witness = index == 0 ? contact.ptOnA_WorldSpace : contact.ptOnB_WorldSpace;
+				Expect((body == &a || body == &b) && Near(body->m_Position +
+					body->GetLinearVelocity() * contact.timeOfImpact + glm::toMat3(orientation) *
+					(local + body->m_Shape->GetCenterOfMass()), witness, 2.0e-5f),
+					"generic predicted anchors reconstruct impact witnesses using the original labelled body");
+			}
+		}
+
+		ShapeBox box(BoxPoints(Vec3f(1, 2, 3)));
+		PhysicsWorld world;
+		auto* a = world.CreateRigidBody3D();
+		auto* b = world.CreateRigidBody3D();
+		auto* c = world.CreateRigidBody3D();
+		for (auto* body : { a, b, c })
+		{
+			body->m_Shape = &box;
+			body->SetBodyTypeAndInverseMass(Component::BodyType::Dynamic, 1);
+			body->m_AngularVelocity = Vec3f(0.7f, 1.1f, 1.6f);
+		}
+		b->m_Position = Vec3f(4, 0, 0);
+		c->m_Position = Vec3f(-4, 0, 0);
+		a->m_LinearVelocity = Vec3f(10, 0, 0);
+		const PredictionBodySnapshot beforeA(*a), beforeB(*b), beforeC(*c);
+		contact_t ab{}, ac{}, afterAB{}, afterAC{};
+		const bool hitAB = Collision::Intersect(a, b, 0.4f, ab);
+		const bool hitAC = Collision::Intersect(a, c, 0.4f, ac);
+		bool identical = true;
+		for (int repeat = 0; repeat < 1000; ++repeat)
+		{
+			const bool repeatAC = Collision::Intersect(a, c, 0.4f, afterAC);
+			const bool repeatAB = Collision::Intersect(a, b, 0.4f, afterAB);
+			identical = identical && repeatAB == hitAB && repeatAC == hitAC &&
+				SamePredictionContact(ab, afterAB) && SamePredictionContact(ac, afterAC);
+		}
+		Expect(!hitAC && identical && a->GetIdentity().IsValid() &&
+			beforeA.Unchanged() && beforeB.Unchanged() && beforeC.Unchanged(),
+			"1000 reordered queries sharing a spinning asymmetric world body preserve exact results and live state");
+		contact_t zero{};
+		Expect(!Collision::ConservativeAdvance(a, b, 0.0f, zero) && beforeA.Unchanged() && beforeB.Unchanged() &&
+			zero.m_BodyA == a && zero.m_BodyB == b,
+			"zero-horizon conservative query preserves state and returns original body references");
+	}
+
+	int RunPurePredictionRegression()
+	{
+		TestCollisionPredictionPurity();
+		TestPredictionAnchorsAndOrder();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " pure-prediction checks failed\n";
+			return 1;
+		}
+		std::cout << "Pure-prediction regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
 	void TestBodyTypeConfigurationAndTransitions()
 	{
 		using GEngine::Component::BodyType;
@@ -4560,6 +4811,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--pure-prediction") return RunPurePredictionRegression();
 		if (argument == "--persistence-continuity") return RunPersistenceContinuityRegression();
 		if (argument == "--manifold-persistence") return RunManifoldPersistenceRegression();
 		if (argument == "--box-manifolds") return RunBoxManifoldRegression();
@@ -4687,6 +4939,8 @@ int main(int argc, char** argv)
 	TestBodyTypeInvariants();
 	TestBodyTypeContacts();
 	TestBodyTypePrediction();
+	TestCollisionPredictionPurity();
+	TestPredictionAnchorsAndOrder();
 	TestBodyTypeConfigurationAndTransitions();
 	TestBodyTypeWorldContacts();
 	TestBroadphaseCorrectnessAndFiltering();

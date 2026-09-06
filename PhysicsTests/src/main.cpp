@@ -1755,6 +1755,294 @@ namespace
 		ExpectBoxContact(bodyA, bodyB, "rotated boxes in contact intersect");
 	}
 
+	void TestBoxFaceContactGeometry()
+	{
+		using namespace GEngine;
+		// Independently construct the corners of an axis-aligned rectangle intersection,
+		// then apply a common rigid transform. Include off-origin geometry and all six faces.
+		for (float scale : { 0.001f, 1.0f, 1000.0f }) {
+			for (bool rotated : { false, true }) {
+				for (int axis = 0; axis < 3; ++axis) {
+					for (float sign : { -1.0f, 1.0f }) {
+						const Quat rotation = rotated ? glm::angleAxis(0.63f, glm::normalize(Vec3f(1, 2, 3))) : Quat(1, 0, 0, 0);
+						const Vec3f modelOffset = scale * Vec3f(0.3f, -0.2f, 0.4f);
+						auto corners = BoxPoints(Vec3f(scale));
+						for (Vec3f& corner : corners) corner += modelOffset;
+						ShapeBox box(corners);
+						PhysicsWorld world(Vec3f(0));
+						auto* a = world.CreateRigidBody3D();
+						auto* b = world.CreateRigidBody3D();
+						const int u = (axis + 1) % 3, v = (axis + 2) % 3;
+						Vec3f outward(0), shift(0);
+						outward[axis] = sign;
+						shift[axis] = sign * 1.9f;
+						shift[u] = 0.75f;
+						shift[v] = -0.5f;
+						const Vec3f center = scale * Vec3f(3, -4, 2);
+						const Vec3f normal = rotation * outward;
+						ConfigureBoxBody(*a, box, center - rotation * modelOffset, rotation);
+						ConfigureBoxBody(*b, box, a->m_Position + rotation * (scale * shift), rotation);
+						const contact_t seed = MakeContact(*a, *b, center + scale * normal,
+							center + rotation * (scale * shift) - scale * normal, -normal);
+						std::array<contact_t, 4> contacts{}, reversed{}, repeated{};
+						const int count = BuildBoxFaceContacts(seed, contacts);
+						Expect(count == 4, "partial face overlap clips to four rectangle corners at every axis, sign and scale");
+						Expect(BuildBoxFaceContacts(ReversedContact(seed), reversed) == count &&
+							BuildBoxFaceContacts(seed, repeated) == count, "reversal and repeated clipping preserve contact count");
+						const float tolerance = scale * 2.0e-5f;
+						for (int i = 0; i < count; ++i) {
+							const contact_t& contact = contacts[i];
+							Expect(Finite(contact) && contact.m_BodyA == a && contact.m_BodyB == b &&
+								contact.timeOfImpact == 0 && Near(contact.normal, -normal),
+								"clipped contacts preserve finite state, body ownership and B-to-A unit normal");
+							Expect(Near(contact.ptOnB_WorldSpace, contact.ptOnA_WorldSpace - 0.1f * scale * normal, tolerance) &&
+								Near(contact.separationDistance, -0.1f * scale, tolerance) &&
+								Near(contact.separationDistance, glm::dot(contact.ptOnA_WorldSpace - contact.ptOnB_WorldSpace, contact.normal), tolerance),
+								"paired surface anchors have zero tangential offset and signed geometric penetration");
+							Expect(Near(a->BodySpaceToWorldSpace(contact.ptOnA_LocalSpace), contact.ptOnA_WorldSpace, tolerance) &&
+								Near(b->BodySpaceToWorldSpace(contact.ptOnB_LocalSpace), contact.ptOnB_WorldSpace, tolerance),
+								"off-origin box anchors round-trip through COM-relative body space");
+							Expect(Near(reversed[i].ptOnB_WorldSpace, contact.ptOnA_WorldSpace, 0) &&
+								Near(reversed[i].ptOnA_WorldSpace, contact.ptOnB_WorldSpace, 0) &&
+								Near(reversed[i].normal, -contact.normal, 0) &&
+								Near(reversed[i].separationDistance, contact.separationDistance, 0) &&
+								Near(repeated[i].ptOnA_WorldSpace, contact.ptOnA_WorldSpace, 0),
+								"pair reversal and repeated queries preserve ordered physical contact geometry exactly");
+						}
+						for (float cu : { -0.25f, 1.0f }) {
+							for (float cv : { -1.0f, 0.5f }) {
+								Vec3f local(0);
+								local[axis] = sign;
+								local[u] = cu;
+								local[v] = cv;
+								const Vec3f expected = center + rotation * (scale * local);
+								int matches = 0;
+								for (int i = 0; i < count; ++i) matches += Near(contacts[i].ptOnA_WorldSpace, expected, tolerance);
+								Expect(matches == 1, "each independently computed rectangle corner occurs exactly once");
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	void TestBoxFaceClippingBoundaries()
+	{
+		using namespace GEngine;
+		ShapeBox box(UnitBoxPoints());
+		PhysicsWorld world(Vec3f(0));
+		auto* a = world.CreateRigidBody3D();
+		auto* b = world.CreateRigidBody3D();
+		ConfigureBoxBody(*a, box, Vec3f(0), Quat(1, 0, 0, 0));
+		ConfigureBoxBody(*b, box, Vec3f(0, 1.9f, 0), glm::angleAxis(glm::quarter_pi<float>(), Vec3f(0, 1, 0)));
+		auto seed = [&]() { return MakeContact(*a, *b, Vec3f(0, 1, 0), Vec3f(0, 0.9f, 0), Vec3f(0, -1, 0)); };
+		std::array<contact_t, 4> contacts{};
+		int count = BuildBoxFaceContacts(seed(), contacts);
+		Expect(count == 4, "eight-vertex square/diamond intersection reduces to four contacts");
+		const float k = std::sqrt(2.0f) - 1.0f;
+		float twiceArea = 0;
+		for (int i = 0; i < count; ++i) {
+			const Vec3f p = contacts[i].ptOnA_WorldSpace, q = contacts[(i + 1) % count].ptOnA_WorldSpace;
+			twiceArea += p.x * q.z - p.z * q.x;
+			Expect(Near(p.y, 1) && ((Near(std::abs(p.x), 1) && Near(std::abs(p.z), k)) ||
+				(Near(std::abs(p.x), k) && Near(std::abs(p.z), 1))),
+				"reduced octagon contacts belong to the analytic square/diamond boundary");
+		}
+		Expect(Near(std::abs(twiceArea) * 0.5f, 2.0f * (1.0f + k * k)),
+			"four-point reduction retains the maximum analytic inscribed quadrilateral area");
+
+		// Tilt the diamond while keeping its entire clipped octagon below the plane.
+		// The incident plane is y = centerY - sec(tilt) + tan(tilt) * x;
+		// x = -1 is its deepest clipped boundary, independently of vertex ordering.
+		const float tilt = 0.1f;
+		b->m_Orientation = glm::angleAxis(tilt, Vec3f(0, 0, 1)) * b->m_Orientation;
+		b->m_Position.y = 1.7f;
+		count = BuildBoxFaceContacts(seed(), contacts);
+		float deepestSeparation = 0;
+		for (int i = 0; i < count; ++i) deepestSeparation = std::min(deepestSeparation, contacts[i].separationDistance);
+		Expect(count == 4 && Near(deepestSeparation, 1.7f - 1.0f / std::cos(tilt) - std::tan(tilt) - 1.0f),
+			"octagon reduction retains an analytically deepest penetrating point of a tilted face");
+		std::array<contact_t, 4> reversedReduction{};
+		Expect(BuildBoxFaceContacts(ReversedContact(seed()), reversedReduction) == count,
+			"reversing a reduced tilted polygon preserves its contact count");
+		for (int i = 0; i < count; ++i)
+			Expect(Near(contacts[i].ptOnA_WorldSpace, reversedReduction[i].ptOnB_WorldSpace, 0) &&
+				Near(contacts[i].separationDistance, reversedReduction[i].separationDistance, 0),
+				"reduced tilted contact order and depths are exactly invariant to pair reversal");
+
+		// Tilt about Z: the lower incident face crosses the reference plane.
+		// Its penetrating half is a rectangle with two true corners and two plane intersections.
+		const float angle = 0.2f;
+		b->m_Orientation = glm::angleAxis(angle, Vec3f(0, 0, 1));
+		b->m_Position = Vec3f(0, 1 + std::cos(angle), 0);
+		ShapeBox wide(BoxPoints(Vec3f(3, 1, 3)));
+		a->m_Shape = &wide;
+		count = BuildBoxFaceContacts(seed(), contacts);
+		Expect(count == 4, "tilted face clips at the reference depth plane to four contacts");
+		int deepCount = 0, touchingCount = 0;
+		for (int i = 0; i < count; ++i) {
+			const auto& c = contacts[i];
+			const Vec3f model = glm::inverse(b->m_Orientation) * (c.ptOnB_WorldSpace - b->m_Position);
+			Expect(Near(c.ptOnA_WorldSpace.y, 1) && Near(model.y, -1) && Near(std::abs(model.z), 1) &&
+				model.x >= -1.00001f && model.x <= 0.00001f && c.separationDistance <= 1.0e-5f,
+				"tilted anchors lie on both actual surfaces and retain only the penetrating/touching face portion");
+			deepCount += Near(c.separationDistance, -std::sin(angle));
+			touchingCount += Near(c.separationDistance, 0);
+		}
+		Expect(deepCount == 2 && touchingCount == 2, "tilted clipping preserves two deepest corners and two zero-depth intersections");
+
+		a->m_Shape = &box;
+		b->m_Orientation = Quat(1, 0, 0, 0);
+		b->m_Position = Vec3f(2, 1.9f, 0);
+		count = BuildBoxFaceContacts(seed(), contacts);
+		Expect(count == 2 && !Near(contacts[0].ptOnA_WorldSpace, contacts[1].ptOnA_WorldSpace),
+			"line overlap retains two distinct surface contacts without duplicate endpoints");
+		b->m_Position = Vec3f(0, 2 + 5.0e-6f, 0);
+		count = BuildBoxFaceContacts(seed(), contacts);
+		Expect(count == 4 && contacts[0].separationDistance > 0 && Near(contacts[0].separationDistance, 5.0e-6f, 1.0e-6f),
+			"a gap accepted within the clipping tolerance retains its positive geometric separation");
+
+		const auto sentinel = contacts;
+		auto expectFallback = [&](const contact_t& input) {
+			Expect(BuildBoxFaceContacts(input, contacts) == 0, "unsupported or invalid box face clipping requests seed fallback");
+			bool unchanged = true;
+			for (int i = 0; i < 4; ++i) unchanged = unchanged &&
+				contacts[i].m_BodyA == sentinel[i].m_BodyA && contacts[i].m_BodyB == sentinel[i].m_BodyB &&
+				Near(contacts[i].ptOnA_WorldSpace, sentinel[i].ptOnA_WorldSpace, 0) &&
+				Near(contacts[i].ptOnB_WorldSpace, sentinel[i].ptOnB_WorldSpace, 0) &&
+				Near(contacts[i].ptOnA_LocalSpace, sentinel[i].ptOnA_LocalSpace, 0) &&
+				Near(contacts[i].ptOnB_LocalSpace, sentinel[i].ptOnB_LocalSpace, 0) &&
+				Near(contacts[i].normal, sentinel[i].normal, 0) &&
+				contacts[i].separationDistance == sentinel[i].separationDistance && contacts[i].timeOfImpact == sentinel[i].timeOfImpact;
+			Expect(unchanged, "failed clipping leaves every output contact field unchanged");
+		};
+		for (const Vec3f position : { Vec3f(2, 1.9f, 2), Vec3f(3, 1.9f, 0), Vec3f(0, 2.01f, 0) }) {
+			b->m_Position = position;
+			expectFallback(seed());
+		}
+		b->m_Position = Vec3f(0, 1.9f, 0);
+		contact_t invalid = seed();
+		invalid.timeOfImpact = 0.1f;
+		expectFallback(invalid);
+		invalid = seed(); invalid.m_BodyA = nullptr;
+		expectFallback(invalid);
+		for (const Vec3f normal : { Vec3f(0), Vec3f(1, -1, 0), Vec3f(std::numeric_limits<float>::infinity()) }) {
+			invalid = seed(); invalid.normal = normal;
+			expectFallback(invalid);
+		}
+		invalid = seed(); invalid.ptOnA_LocalSpace.x = std::numeric_limits<float>::quiet_NaN();
+		expectFallback(invalid);
+		invalid = seed(); invalid.separationDistance = std::numeric_limits<float>::infinity();
+		expectFallback(invalid);
+		invalid = seed();
+		b->m_Orientation = Quat(0, 0, 0, 0);
+		expectFallback(invalid);
+		b->m_Orientation = Quat(1, 0, 0, 0);
+		ShapeSphere sphere(1);
+		b->m_Shape = &sphere;
+		expectFallback(invalid);
+	}
+
+	void TestBoxFaceManifoldWorld()
+	{
+		using namespace GEngine;
+		for (bool reversed : { false, true }) {
+			for (float angle : { 0.0f, glm::quarter_pi<float>() }) {
+				for (float floorWidth : { 1.0f, 5.0f }) {
+					ShapeBox box(UnitBoxPoints());
+					ShapeBox floor(BoxPoints(Vec3f(floorWidth, 0.5f, floorWidth)));
+					PhysicsSystem system;
+					auto* world = new PhysicsWorld(Vec3f(0.0f));
+					system.SetPhysicsWorld(world);
+					RigidBody3D* first = world->CreateRigidBody3D();
+					RigidBody3D* second = world->CreateRigidBody3D();
+					RigidBody3D* floorBody = reversed ? second : first;
+					RigidBody3D* boxBody = reversed ? first : second;
+					ConfigureBoxBody(*floorBody, floor, Vec3f(0), Quat(1, 0, 0, 0));
+					floorBody->SetBodyTypeAndInverseMass(BodyType::Static, 0.0f);
+					ConfigureBoxBody(*boxBody, box, Vec3f(0, 1.49f, 0), glm::angleAxis(angle, Vec3f(0, 1, 0)));
+					for (int step = 0; step < 10; ++step) {
+						ResetPhysicsProfile();
+						system.Update(Timestep(1.0f / 120.0f));
+						Expect(GetManifolds(system).m_Manifolds.size() == 1 && GetManifolds(system).GetContactCount() == 4,
+							"aligned/rotated box faces start and remain a four-point world manifold in either creation order");
+						Expect(GetPhysicsProfileSnapshot().generatedContactCount == 4 &&
+							GetPhysicsProfileSnapshot().solverConstraintCount == 4,
+							"contact telemetry counts all four generated face contacts and solver constraints");
+					}
+					Expect(Near(boxBody->m_Position, Vec3f(0, 1.49f, 0)) &&
+						Near(boxBody->m_LinearVelocity, Vec3f(0)) && Near(boxBody->m_AngularVelocity, Vec3f(0)),
+						"face generation preserves an unforced resting pose and motion within the approved position slop");
+				}
+			}
+		}
+	}
+
+	void TestBoxFaceRestingStability()
+	{
+		using namespace GEngine;
+		for (int iterations : { 1, 8 }) {
+			for (bool reversed : { false, true }) {
+				for (float angle : { 0.0f, glm::quarter_pi<float>() }) {
+					ShapeBox box(UnitBoxPoints());
+					ShapeBox floor(BoxPoints(Vec3f(5, 0.5f, 5)));
+					PhysicsSystem system;
+					system.SetSolverIterations(iterations);
+					auto* world = new PhysicsWorld(Vec3f(0, -12, 0));
+					system.SetPhysicsWorld(world);
+					auto* first = world->CreateRigidBody3D();
+					auto* second = world->CreateRigidBody3D();
+					auto* support = reversed ? second : first;
+					auto* body = reversed ? first : second;
+					ConfigureBoxBody(*support, floor, Vec3f(0), Quat(1, 0, 0, 0));
+					support->SetBodyTypeAndInverseMass(BodyType::Static, 0);
+					ConfigureBoxBody(*body, box, Vec3f(0, 1.5f, 0), glm::angleAxis(angle, Vec3f(0, 1, 0)));
+					support->m_Elasticity = body->m_Elasticity = 0;
+					support->m_Friction = body->m_Friction = 0.5f;
+					double peakEnergy = 18;
+					float peakSpeed = 0, peakOmega = 0, peakDepth = 0, finalWindowSpeed = 0, finalWindowOmega = 0;
+					bool finite = true, stableManifold = true;
+					for (int step = 0; step < 1200; ++step) {
+						system.Update(Timestep(1.0f / 120.0f));
+						finite = finite && body->HasFiniteState();
+						const float speed = glm::length(body->m_LinearVelocity), omega = glm::length(body->m_AngularVelocity);
+						peakSpeed = std::max(peakSpeed, speed);
+						peakOmega = std::max(peakOmega, omega);
+						peakEnergy = std::max(peakEnergy, 12.0 * body->m_Position.y + 0.5 * speed * speed + omega * omega / 3.0);
+						peakDepth = std::max(peakDepth, 0.5f - body->GetWorldBounds().mins.y);
+						if (step >= 1080) {
+							finalWindowSpeed = std::max(finalWindowSpeed, speed);
+							finalWindowOmega = std::max(finalWindowOmega, omega);
+							const int points = GetManifolds(system).GetContactCount();
+							stableManifold = stableManifold && GetManifolds(system).m_Manifolds.size() == 1 && points >= 2 && points <= 4;
+						}
+					}
+					Expect(finite && peakEnergy <= 18.0 * 1.001, "ten-second resting face stays finite without energy growth above 0.1 percent tolerance");
+					Expect(peakDepth <= 0.0201f && body->m_Position.y >= 1.4799f,
+						"resting box remains supported within the approved position slop plus numerical tolerance");
+					Expect(stableManifold && finalWindowSpeed <= 0.05f && finalWindowOmega <= 0.05f,
+						"aligned and rotated resting faces retain two to four contacts and stay below moving thresholds in the final second");
+					std::cout << "BOX_FACE_REST iterations=" << iterations << " reversed=" << reversed << " angle=" << angle
+						<< " peak_energy=" << peakEnergy << " peak_speed=" << peakSpeed << " peak_omega=" << peakOmega
+						<< " peak_depth=" << peakDepth << " final_y=" << body->m_Position.y
+						<< " final_window_speed=" << finalWindowSpeed << " final_window_omega=" << finalWindowOmega
+						<< " final_contacts=" << GetManifolds(system).GetContactCount() << " finite=" << finite << '\n';
+				}
+			}
+		}
+	}
+
+	int RunBoxManifoldRegression()
+	{
+		TestBoxFaceContactGeometry();
+		TestBoxFaceClippingBoundaries();
+		TestBoxFaceManifoldWorld();
+		TestBoxFaceRestingStability();
+		std::cout << "Box face manifolds: " << testCount - failureCount << '/' << testCount << " checks passed\n";
+		return failureCount == 0 ? 0 : 1;
+	}
+
 	struct SolverChainFixture
 	{
 		GEngine::ShapeSphere sphere{ 1.0f };
@@ -3873,6 +4161,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--box-manifolds") return RunBoxManifoldRegression();
 		if (argument == "--box-features") return RunBoxFeatureRegression();
 		if (argument == "--position-stabilization") return RunPositionStabilizationRegression();
 		if (argument == "--solver-iterations") return RunSolverIterationsRegression();
@@ -3955,6 +4244,10 @@ int main(int argc, char** argv)
 	TestBoxContactFeaturePairs();
 	TestBoxFeatureFailureSafety();
 	TestBoxContactRegression();
+	TestBoxFaceContactGeometry();
+	TestBoxFaceClippingBoundaries();
+	TestBoxFaceManifoldWorld();
+	TestBoxFaceRestingStability();
 	TestSolverIterationConfiguration();
 	TestSolverIterationTraversal();
 	TestSmallBoxStackRegression();

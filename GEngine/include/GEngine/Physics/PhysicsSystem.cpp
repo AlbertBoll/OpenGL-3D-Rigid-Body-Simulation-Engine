@@ -3,6 +3,7 @@
 #include "PhysicsSystem.h"
 //#include"PhysicsBody.h"
 #include "ShapeSphere.h"
+#include "BoxContact.h"
 #include "PhysicsWorld.h"
 #include "Broadphase.h"
 #include "GJK.h"
@@ -335,7 +336,16 @@ namespace GEngine
 						
 						{
 							GE_PHYSICS_PROFILE_SCOPE(manifoldTimeNs);
-							m_Manifolds.AddContact(contact);
+							std::array<contact_t, 4> faceContacts{};
+							const int faceContactCount = BuildBoxFaceContacts(contact, faceContacts);
+							if (faceContactCount > 0) {
+								for (int point = 0; point < faceContactCount; ++point)
+									m_Manifolds.AddContact(faceContacts[point]);
+								GE_PHYSICS_PROFILE_ADD(generatedContactCount, faceContactCount - 1);
+							}
+							else {
+								m_Manifolds.AddContact(contact);
+							}
 						}
 						
 					}

@@ -10,6 +10,7 @@
 #include "PhysicsProfile.h"
 #include <Core/Timer.h>
 #include <cmath>
+#include <limits>
 
 namespace GEngine
 {
@@ -54,36 +55,19 @@ namespace GEngine
 		}
 	}
 
-	static int CompareContacts(const void* p1, const void* p2) {
-		contact_t a = *(contact_t*)p1;
-		contact_t b = *(contact_t*)p2;
+	// Ballistic revalidation can produce a zero-relative-time hit. Keep its impulse
+	// path separate from the public resolver's legacy zero-TOI position projection.
+	static void ResolveContactAtCurrentState(contact_t& contact, bool projectPosition);
 
-		if (a.timeOfImpact < b.timeOfImpact) {
-			return -1;
+	static bool QueryCurrentToiContact(RigidBody3D* bodyA, RigidBody3D* bodyB, contact_t& contact)
+	{
+		if (bodyA->m_Shape->GetShapeType() == ShapeType::Sphere && bodyB->m_Shape->GetShapeType() == ShapeType::Sphere)
+		{
+			// Reuse the existing short-ray contact tolerance at the actual impact pose.
+			return Collision::SphereSphereIntersect(bodyA, bodyB, 0.0f, contact);
 		}
-
-		if (a.timeOfImpact == b.timeOfImpact) {
-			return 0;
-		}
-
-		return 1;
+		return Collision::Intersect(bodyA, bodyB, contact);
 	}
-
-	
-	//static int CompareContacts(const contact_t& p1, const contact_t& p2)
-	//{
-	//	if (p1.timeOfImpact <= p2.timeOfImpact) {
-	//		return 0;
-	//	}
-
-	//	/*if (p1.timeOfImpact == p2.timeOfImpact) {
-	//		return 0;
-	//	}*/
-
-	//	return 1;
-	//}
-
-
 
 	static bool RaySphere(const Vec3f& rayStart, const Vec3f& rayDir, const Vec3f& sphereCenter, const float sphereRadius, float& t1, float& t2) {
 		const Vec3f m = sphereCenter - rayStart;
@@ -280,7 +264,6 @@ namespace GEngine
 			//
 			//	NarrowPhase (perform actual collision detection)
 			//
-			int numContacts = 0;
 			m_Contacts.clear();
 			for (std::size_t i = 0; i < m_CollisionPairs.size(); ++i) {
 				const collisionPair_t& pair = m_CollisionPairs[i];
@@ -353,19 +336,9 @@ namespace GEngine
 						//std::cout << "Collision occurred" << std::endl;
 						GENGINE_INFO("Collision occurred");
 						m_Contacts.push_back(contact);
-						numContacts++;
 						//
 					}
 				}
-			}
-
-			// Sort the times of impact from first to last
-			if (numContacts > 1) {
-				{
-					//Timeit("	qsort")
-					qsort(m_Contacts.data(), numContacts, sizeof(contact_t), CompareContacts);
-				}
-				//std::sort(contacts.begin(), contacts.end(), CompareContacts);
 			}
 
 #ifdef GE_ENABLE_PHYSICS_PROFILING
@@ -397,30 +370,85 @@ namespace GEngine
 
 
 
-			//
-			// Apply ballistic impulses
-			//
+			// Revalidate the initially detected positive-TOI pairs after the resting solve.
+			// A missed prediction stays pending: another impulse on either body may revive it.
 			float accumulatedTime = 0.0f;
-			for (int i = 0; i < numContacts; i++) {
-				contact_t& contact = m_Contacts[i];
-				const float dt = contact.timeOfImpact - accumulatedTime;
+			const auto refreshPrediction = [&](contact_t& pending)
+			{
+				contact_t current{};
+				const float remaining = dtSeconds - accumulatedTime;
+				GE_PHYSICS_PROFILE_ADD(narrowphaseCallCount, 1);
+				GE_PHYSICS_PROFILE_SCOPE(narrowphaseTimeNs);
+				const bool hit = remaining > 0.0f
+					? Intersect(pending.m_BodyA, pending.m_BodyB, remaining, current)
+					: QueryCurrentToiContact(pending.m_BodyA, pending.m_BodyB, current);
+				if (hit && IsFiniteContact(current) && current.timeOfImpact >= 0.0f && current.timeOfImpact <= remaining)
+				{
+					pending = current;
+					pending.timeOfImpact = std::min(dtSeconds, accumulatedTime + current.timeOfImpact);
+				}
+				else
+				{
+					pending.timeOfImpact = std::numeric_limits<float>::max();
+				}
+			};
+			for (contact_t& pending : m_Contacts)
+			{
+				refreshPrediction(pending);
+			}
 
-				// Position update
+			while (!m_Contacts.empty())
+			{
+				// Keep initial pair order for ties. Each iteration consumes one initial event,
+				// so simultaneous/overlapping contacts cannot create an unbounded zero-time loop.
+				const auto next = std::min_element(m_Contacts.begin(), m_Contacts.end(),
+					[](const contact_t& a, const contact_t& b) { return a.timeOfImpact < b.timeOfImpact; });
+				if (next->timeOfImpact > dtSeconds)
+				{
+					break;
+				}
+				const contact_t event = *next;
+				m_Contacts.erase(next);
+				const float dt = std::max(0.0f, event.timeOfImpact - accumulatedTime);
+				if (dt > 0.0f)
 				{
 					GE_PHYSICS_PROFILE_SCOPE(integrationTimeNs);
-					//Timeit("	all entities update positions and rotation")
-					for (int j = 0; j < size; j++) {
-						PhysicsBodies[j]->Update(dt);
+					for (RigidBody3D* body : PhysicsBodies)
+					{
+						body->Update(dt);
 					}
 					GE_PHYSICS_PROFILE_ADD(integratedBodyCount, size);
 				}
+				accumulatedTime = event.timeOfImpact;
 
+				// Predictions supply scheduling only. Rebuild geometry at the actual pose;
+				// failed/non-finite queries cannot supply an impulse. The resolver rejects
+				// non-closing contact velocity using these current anchors and normal.
+				contact_t current{};
+				bool hit = false;
 				{
-					GE_PHYSICS_PROFILE_SCOPE(contactResolutionTimeNs);
-					//Timeit("	Resolve contact")
-					ResolveContact(contact);
+					GE_PHYSICS_PROFILE_ADD(narrowphaseCallCount, 1);
+					GE_PHYSICS_PROFILE_SCOPE(narrowphaseTimeNs);
+					hit = QueryCurrentToiContact(event.m_BodyA, event.m_BodyB, current);
 				}
-				accumulatedTime += dt;
+				if (hit && IsFiniteContact(current))
+				{
+					current.timeOfImpact = accumulatedTime;
+					GE_PHYSICS_PROFILE_SCOPE(contactResolutionTimeNs);
+					ResolveContactAtCurrentState(current, false);
+				}
+
+				// Only these bodies can have received ballistic impulses. Refresh every
+				// remaining event involving either, including previously missed predictions,
+				// before choosing the next time. Unrelated events keep their absolute time.
+				for (contact_t& pending : m_Contacts)
+				{
+					if (pending.m_BodyA == event.m_BodyA || pending.m_BodyA == event.m_BodyB ||
+						pending.m_BodyB == event.m_BodyA || pending.m_BodyB == event.m_BodyB)
+					{
+						refreshPrediction(pending);
+					}
+				}
 			}
 
 			// Update the positions for the rest of this frame's time
@@ -623,7 +651,7 @@ namespace GEngine
 		return hit;
 	}
 
-	void Collision::ResolveContact(contact_t& contact)
+	static void ResolveContactAtCurrentState(contact_t& contact, bool projectPosition)
 	{
 		RigidBody3D* bodyA = contact.m_BodyA;
 		RigidBody3D* bodyB = contact.m_BodyB;
@@ -714,7 +742,7 @@ namespace GEngine
 		//
 		// Let's also move our colliding objects to just outside of each other (projection method)
 		//
-		if (contact.timeOfImpact == 0.0f) {
+		if (projectPosition) {
 			const Vec3f ds = ptOnB - ptOnA;
 
 			const float inverseMassSum = invMassA + invMassB;
@@ -729,6 +757,11 @@ namespace GEngine
 		}
 		bodyA->AssertFiniteState();
 		bodyB->AssertFiniteState();
+	}
+
+	void Collision::ResolveContact(contact_t& contact)
+	{
+		ResolveContactAtCurrentState(contact, contact.timeOfImpact == 0.0f);
 	}
 
 	bool Collision::ConservativeAdvance(RigidBody3D* bodyA, RigidBody3D* bodyB, float dt, contact_t& contact)

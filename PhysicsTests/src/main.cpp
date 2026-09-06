@@ -4488,6 +4488,243 @@ namespace
 			"zero-horizon conservative query preserves state and returns original body references");
 	}
 
+
+	struct ToiWorldFixture
+	{
+		GEngine::ShapeSphere sphere{ 1.0f };
+		GEngine::PhysicsSystem system;
+		std::array<GEngine::RigidBody3D*, 3> bodies{};
+		explicit ToiWorldFixture(bool reversed)
+		{
+			auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
+			system.SetPhysicsWorld(world);
+			for (int i = 0; i < 3; ++i)
+			{
+				const int index = reversed ? 2 - i : i;
+				auto* body = world->CreateRigidBody3D();
+				bodies[index] = body;
+				ConfigureSphereBody(*body, sphere, GEngine::Vec3f(4.0f * index, 0.0f, 0.0f));
+				body->m_Friction = 0.0f;
+				body->m_Elasticity = 1.0f;
+				body->m_CollisionLayer = 1u << index;
+			}
+		}
+		void CheckFiniteAndEmpty()
+		{
+			Expect(bodies[0]->HasFiniteState() && bodies[1]->HasFiniteState() && bodies[2]->HasFiniteState() &&
+				GetTransientContacts(system).empty(), "TOI update leaves finite bodies and no retained transient events");
+		}
+	};
+
+	void TestToiRescheduling()
+	{
+		using namespace GEngine;
+		using BodyType = Component::BodyType;
+		for (const bool reversed : { false, true })
+		{
+			// Equal masses exchange velocities: AB at .25 moves BC from 1.0 to .4.
+			ToiWorldFixture fixture(reversed);
+			auto& a = *fixture.bodies[0]; auto& b = *fixture.bodies[1]; auto& c = *fixture.bodies[2];
+			a.m_LinearVelocity.x = 10.0f; b.m_LinearVelocity.x = 2.0f;
+			a.m_CollisionMask = 2u; b.m_CollisionMask = 5u; c.m_CollisionMask = 2u;
+			fixture.system.Update(1.1f);
+			Expect(Near(a.m_Position, Vec3f(4.2f, 0, 0), 2.0e-5f) && Near(b.m_Position, Vec3f(6, 0, 0), 2.0e-5f) &&
+				Near(c.m_Position, Vec3f(15, 0, 0), 2.0e-5f), "earlier shared-body impulse advances a pending TOI before its obsolete time");
+			Expect(Near(a.m_LinearVelocity, Vec3f(2, 0, 0), 2.0e-5f) && Near(b.m_LinearVelocity, Vec3f(0), 2.0e-5f) &&
+				Near(c.m_LinearVelocity, Vec3f(10, 0, 0), 2.0e-5f), "rescheduled equal-mass impacts preserve analytic momentum and energy");
+			fixture.CheckFiniteAndEmpty();
+		}
+		for (const bool reversed : { false, true })
+		for (const float duration : { 1.0f, 2.2f })
+		{
+			// AB slows A from 10 to 2; A reaches static C at 2.0 instead of .6.
+			ToiWorldFixture fixture(reversed);
+			auto& a = *fixture.bodies[0]; auto& b = *fixture.bodies[1]; auto& c = *fixture.bodies[2];
+			a.m_LinearVelocity.x = 10.0f; b.m_LinearVelocity.x = 2.0f;
+			c.SetBodyTypeAndInverseMass(BodyType::Static, 0.0f);
+			a.m_CollisionMask = 6u; b.m_CollisionMask = 1u; c.m_CollisionMask = 1u;
+			fixture.system.Update(duration);
+			const float expectedX = duration < 2.0f ? 4.0f : 5.6f;
+			const float expectedVelocity = duration < 2.0f ? 2.0f : -2.0f;
+			Expect(Near(a.m_Position, Vec3f(expectedX, 0, 0), 3.0e-5f) &&
+				Near(a.m_LinearVelocity, Vec3f(expectedVelocity, 0, 0), 2.0e-5f),
+				"slowed but still closing event is deferred or discarded when beyond the remaining horizon");
+			Expect(Near(b.m_Position.x, 4.5f + 10.0f * (duration - 0.25f), 3.0e-5f) &&
+				Near(c.m_Position, Vec3f(8, 0, 0), 0.0f), "rescheduling integrates the whole world for exactly the requested time");
+			fixture.CheckFiniteAndEmpty();
+		}
+	}
+
+	void TestToiCurrentGeometry()
+	{
+		using namespace GEngine;
+		using BodyType = Component::BodyType;
+		for (const bool reversed : { false, true })
+		for (const bool secondHit : { false, true })
+		{
+			ToiWorldFixture fixture(reversed);
+			auto& a = *fixture.bodies[0]; auto& b = *fixture.bodies[1]; auto& c = *fixture.bodies[2];
+			a.m_LinearVelocity = Vec3f(8, 0, 0);
+			b.m_Position = Vec3f(3, 1.2f, 0);
+			c.m_Position = secondHit ? Vec3f(5, -2, 0) : Vec3f(7, 0, 0);
+			b.SetBodyTypeAndInverseMass(BodyType::Static, 0.0f);
+			c.SetBodyTypeAndInverseMass(BodyType::Static, 0.0f);
+			a.m_Elasticity = 0.0f;
+			// Analytic first inelastic impact at .175: v' = v - dot(v,n)n, n=(-.8,-.6,0).
+			Vec3f expectedPosition(1.4f, 0, 0), expectedVelocity(2.88f, -3.84f, 0);
+			float remaining = 0.825f;
+			if (secondHit)
+			{
+				// Independent ray/sphere root and frictionless impulse on the changed trajectory.
+				const Vec3f delta = c.m_Position - expectedPosition;
+				const float speedSquared = glm::dot(expectedVelocity, expectedVelocity);
+				const float projection = glm::dot(delta, expectedVelocity);
+				const float discriminant = projection * projection - speedSquared * (glm::dot(delta, delta) - 4.0f);
+				Expect(discriminant > 0.0f, "deflected second-impact fixture has a real analytic root");
+				const float time = (projection - std::sqrt(discriminant)) / speedSquared;
+				expectedPosition += expectedVelocity * time;
+				const Vec3f normal = (expectedPosition - c.m_Position) * 0.5f;
+				expectedVelocity -= glm::dot(expectedVelocity, normal) * normal;
+				remaining -= time;
+			}
+			expectedPosition += expectedVelocity * remaining;
+			fixture.system.Update(1.0f);
+			Expect(Near(a.m_Position, expectedPosition, 1.0e-4f) && Near(a.m_LinearVelocity, expectedVelocity, 1.0e-4f),
+				secondHit ? "deflected trajectory refreshes the second impact time, normal, and surface anchors" :
+				"deflection discards a geometrically stale event even while closing along its old normal");
+			Expect(Near(a.m_AngularVelocity, Vec3f(0), 2.0e-5f), "fresh frictionless sphere anchors produce no artificial torque");
+			fixture.CheckFiniteAndEmpty();
+		}
+	}
+
+	void TestToiAfterRestingSolveAndSimultaneous()
+	{
+		using namespace GEngine;
+		using BodyType = Component::BodyType;
+		for (const bool reversed : { false, true })
+		{
+			ToiWorldFixture fixture(reversed);
+			auto& a = *fixture.bodies[0]; auto& b = *fixture.bodies[1]; auto& c = *fixture.bodies[2];
+			b.m_Position.x = 2.0f;
+			a.m_LinearVelocity.x = 8.0f;
+			a.m_Elasticity = b.m_Elasticity = 0.0f;
+			c.SetBodyTypeAndInverseMass(BodyType::Static, 0.0f);
+			a.m_CollisionMask = 6u; b.m_CollisionMask = 1u; c.m_CollisionMask = 1u;
+			fixture.system.Update(1.0f);
+			Expect(Near(a.m_LinearVelocity, Vec3f(4, 0, 0), 2.0e-5f) && Near(a.m_Position, Vec3f(4, 0, 0), 2.0e-5f) &&
+				Near(b.m_Position, Vec3f(6, 0, 0), 2.0e-5f), "resting solver velocity changes invalidate initial positive-TOI predictions");
+			fixture.CheckFiniteAndEmpty();
+		}
+		std::array<Vec3f, 3> reference{};
+		for (int repetition = 0; repetition < 8; ++repetition)
+		{
+			ToiWorldFixture fixture(false);
+			auto& a = *fixture.bodies[0]; auto& b = *fixture.bodies[1]; auto& c = *fixture.bodies[2];
+			a.m_LinearVelocity.x = 8.0f; b.m_LinearVelocity.x = 4.0f;
+			a.m_CollisionMask = 2u; b.m_CollisionMask = 5u; c.m_CollisionMask = 2u;
+			fixture.system.Update(0.5f); // Both initial events are at the end of the step.
+			Expect(Near(a.m_Position.x, 4.0f) && Near(b.m_Position.x, 6.0f) && Near(c.m_Position.x, 8.0f) &&
+				Near(a.m_LinearVelocity.x + b.m_LinearVelocity.x + c.m_LinearVelocity.x, 12.0f) &&
+				Near(glm::length2(a.m_LinearVelocity) + glm::length2(b.m_LinearVelocity) + glm::length2(c.m_LinearVelocity), 80.0f),
+				"simultaneous end-of-step events revalidate with zero time remaining and conserve elastic invariants");
+			for (int i = 0; i < 3; ++i)
+			{
+				if (repetition == 0) reference[i] = fixture.bodies[i]->m_LinearVelocity;
+				Expect(Near(reference[i], fixture.bodies[i]->m_LinearVelocity, 0.0f), "fixed simultaneous event order is repeatable");
+			}
+			fixture.CheckFiniteAndEmpty();
+		}
+	}
+
+
+	void TestToiMissCanBeRevived()
+	{
+		using namespace GEngine;
+		using BodyType = Component::BodyType;
+		for (const bool reversed : { false, true })
+		{
+			ToiWorldFixture fixture(reversed);
+			auto& a = *fixture.bodies[0]; auto& b = *fixture.bodies[1]; auto& c = *fixture.bodies[2];
+			auto* driver = fixture.system.GetPhysicsWorld()->CreateRigidBody3D();
+			ConfigureSphereBody(*driver, fixture.sphere, Vec3f(14, 0, 0));
+			driver->SetBodyTypeAndInverseMass(BodyType::Kinematic, 0.0f);
+			driver->m_LinearVelocity.x = -10.0f;
+			driver->m_Elasticity = 1.0f; driver->m_Friction = 0.0f;
+			driver->m_CollisionLayer = 8u; driver->m_CollisionMask = 4u;
+			a.m_CollisionMask = 6u; b.m_CollisionMask = 1u; c.m_CollisionMask = 9u;
+			a.m_LinearVelocity.x = 10.0f; b.m_LinearVelocity.x = 2.0f;
+			// AB at .25 temporarily removes AC from the horizon; CD at .4 makes C
+			// approach at -20, reviving AC at 6/11. Equal masses then exchange velocities.
+			fixture.system.Update(0.7f);
+			Expect(Near(a.m_Position, Vec3f(0), 3.0e-5f) && Near(a.m_LinearVelocity, Vec3f(-20, 0, 0), 3.0e-5f) &&
+				Near(c.m_Position, Vec3f(5.4f, 0, 0), 3.0e-5f) && Near(c.m_LinearVelocity, Vec3f(2, 0, 0), 3.0e-5f),
+				"another shared-body impulse can revive a pending pair that temporarily missed the horizon");
+			Expect(driver->HasFiniteState() && Near(driver->m_Position, Vec3f(7, 0, 0), 2.0e-5f) &&
+				Near(driver->m_LinearVelocity, Vec3f(-10, 0, 0), 0.0f), "TOI rescheduling preserves prescribed Kinematic motion");
+			fixture.CheckFiniteAndEmpty();
+		}
+	}
+
+	class ToiObservedBox final : public GEngine::ShapeBox
+	{
+	public:
+		using ShapeBox::ShapeBox;
+		const GEngine::RigidBody3D* movingBody{};
+		bool failAtImpact = false;
+		mutable bool queriedAtImpact = false;
+		GEngine::Vec3f Support(const GEngine::Vec3f& direction, const GEngine::Vec3f& position,
+			const GEngine::Quat& orientation, float bias) const override
+		{
+			if (movingBody && movingBody->m_Position.x > 1.9f && movingBody->m_Position.x < 2.1f)
+			{
+				queriedAtImpact = true;
+				if (failAtImpact) return GEngine::Vec3f(std::numeric_limits<float>::quiet_NaN());
+			}
+			return ShapeBox::Support(direction, position, orientation, bias);
+		}
+	};
+
+	void TestToiGenericRevalidationFailureSafety()
+	{
+		using namespace GEngine;
+		using BodyType = Component::BodyType;
+		for (const bool reversed : { false, true })
+		for (const bool failAtImpact : { false, true })
+		{
+			ToiObservedBox box(UnitBoxPoints());
+			ToiWorldFixture fixture(reversed);
+			auto& a = *fixture.bodies[0]; auto& b = *fixture.bodies[1]; auto& c = *fixture.bodies[2];
+			box.movingBody = &a; box.failAtImpact = failAtImpact;
+			a.m_LinearVelocity.x = 8.0f; a.m_Elasticity = 0.0f;
+			b.m_Shape = &box;
+			b.SetBodyTypeAndInverseMass(BodyType::Static, 0.0f);
+			c.m_CollisionMask = 0u;
+			fixture.system.Update(0.5f);
+			Expect(box.queriedAtImpact, "generic TOI contact geometry is queried again at the actual integrated pose");
+			Expect(Near(a.m_Position, Vec3f(failAtImpact ? 4.0f : 2.0f, 0, 0), 3.0e-3f) &&
+				Near(a.m_LinearVelocity, Vec3f(failAtImpact ? 8.0f : 0.0f, 0, 0), 3.0e-3f),
+				failAtImpact ? "failed current GJK query discards a previously valid prediction without applying its stale impulse" :
+				"successful current generic query preserves the analytic inelastic sphere-box impact");
+			fixture.CheckFiniteAndEmpty();
+		}
+	}
+
+	int RunToiRevalidationRegression()
+	{
+		TestToiMissCanBeRevived();
+		TestToiGenericRevalidationFailureSafety();
+		TestToiRescheduling();
+		TestToiCurrentGeometry();
+		TestToiAfterRestingSolveAndSimultaneous();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " TOI-revalidation checks failed\n";
+			return 1;
+		}
+		std::cout << "TOI-revalidation regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
 	int RunPurePredictionRegression()
 	{
 		TestCollisionPredictionPurity();
@@ -4811,6 +5048,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--toi-revalidation") return RunToiRevalidationRegression();
 		if (argument == "--pure-prediction") return RunPurePredictionRegression();
 		if (argument == "--persistence-continuity") return RunPersistenceContinuityRegression();
 		if (argument == "--manifold-persistence") return RunManifoldPersistenceRegression();
@@ -4939,6 +5177,11 @@ int main(int argc, char** argv)
 	TestBodyTypeInvariants();
 	TestBodyTypeContacts();
 	TestBodyTypePrediction();
+	TestToiMissCanBeRevived();
+	TestToiGenericRevalidationFailureSafety();
+	TestToiRescheduling();
+	TestToiCurrentGeometry();
+	TestToiAfterRestingSolveAndSimultaneous();
 	TestCollisionPredictionPurity();
 	TestPredictionAnchorsAndOrder();
 	TestBodyTypeConfigurationAndTransitions();

@@ -8,12 +8,14 @@
 #include <GEngine/Physics/PhysicsSystem.h>
 #include <GEngine/Physics/PhysicsWorld.h>
 #include <GEngine/Physics/ShapeBox.h>
+#include <GEngine/Physics/BoxContact.h>
 #include <GEngine/Physics/ShapeConvex.h>
 #include <GEngine/Physics/ShapeSphere.h>
 #include <GEngine/Scene/_Entity.h>
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <array>
 #include <iostream>
 #include <limits>
@@ -1419,6 +1421,293 @@ namespace
 			GEngine::Vec3f(0.0f), GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f), 0.0f);
 		Expect(box.IsValid() && Near(supportAfter, supportBefore),
 			"failed box rebuild preserves the previous valid support geometry");
+	}
+
+	bool SameBoxFace(const GEngine::BoxFaceFeature& a, const GEngine::BoxFaceFeature& b)
+	{
+		if (a.id != b.id || a.shapeRevision != b.shapeRevision || !Near(a.normal, b.normal, 0.0f) ||
+			a.alignment != b.alignment) return false;
+		for (int corner = 0; corner < 4; ++corner)
+			if (!Near(a.vertices[corner], b.vertices[corner], 0.0f)) return false;
+		return true;
+	}
+
+	bool SameBoxFeatures(const GEngine::BoxContactFeatures& a, const GEngine::BoxContactFeatures& b)
+	{
+		return a.referenceBody == b.referenceBody && a.incidentBody == b.incidentBody &&
+			SameBoxFace(a.reference, b.reference) && SameBoxFace(a.incident, b.incident);
+	}
+
+	void TestBoxFaceGeometry()
+	{
+		using namespace GEngine;
+		const std::array<Quat, 3> rotations = { Quat(1, 0, 0, 0),
+			glm::angleAxis(glm::half_pi<float>(), Vec3f(0, 1, 0)),
+			glm::angleAxis(0.73f, glm::normalize(Vec3f(1, -2, 3))) };
+		for (float scale : { 0.001f, 1.0f, 1000.0f }) {
+			const Vec3f halfExtents = Vec3f(1, 2, 3) * scale;
+			const Vec3f localOffset = Vec3f(4, -5, 6) * scale;
+			auto points = BoxPoints(halfExtents);
+			for (Vec3f& point : points) point += localOffset;
+			ShapeBox box(points);
+			const Vec3f position = Vec3f(7, 8, -9) * scale;
+			for (const Quat& orientation : rotations) {
+				const Mat3 rotation = glm::toMat3(orientation);
+				for (int axis = 0; axis < 3; ++axis) {
+					for (int sign : { -1, 1 }) {
+						Vec3f localNormal(0.0f);
+						localNormal[axis] = float(sign);
+						const Vec3f worldNormal = rotation * localNormal;
+						BoxFaceFeature face;
+						const auto revision = box.GetRevision();
+						Expect(box.GetContactFace(worldNormal, position, orientation, face),
+							"all six faces extract at small/unit/large scale with translated asymmetric geometry");
+						Expect(face.id == static_cast<BoxFaceId>(axis * 2 + (sign > 0 ? 1 : 0)) &&
+							face.shapeRevision == revision && box.GetRevision() == revision,
+							"face IDs encode local axis/sign and extraction preserves geometry revision");
+						Expect(Near(face.normal, worldNormal) && Near(glm::length(face.normal), 1.0f) &&
+							Near(face.alignment, 1.0f), "face normals are outward, unit and rotation covariant");
+
+						// Independent oracle: filter the supplied source corners by the requested local plane.
+						std::ptrdiff_t matched = 0;
+						for (const Vec3f& point : points) {
+							if (!Near(point[axis], localOffset[axis] + sign * halfExtents[axis], scale * 1.0e-5f)) continue;
+							const Vec3f expected = rotation * point + position;
+							matched += std::count_if(face.vertices.begin(), face.vertices.end(),
+								[&](const Vec3f& actual) { return Near(actual, expected, scale * 1.0e-5f); });
+						}
+						Expect(matched == 4, "face contains exactly the four source corners on its model-space plane");
+						bool outward = true;
+						for (int corner = 0; corner < 4; ++corner) {
+							const Vec3f edge0 = face.vertices[(corner + 1) % 4] - face.vertices[corner];
+							const Vec3f edge1 = face.vertices[(corner + 2) % 4] - face.vertices[(corner + 1) % 4];
+							outward &= Finite(face.vertices[corner]) && glm::dot(glm::cross(edge0, edge1), worldNormal) > 0;
+						}
+						Expect(outward, "every cyclic face corner has finite vertices and outward CCW winding");
+					}
+				}
+			}
+		}
+	}
+
+	void TestBoxFaceSelectionAndRebuild()
+	{
+		using namespace GEngine;
+		ShapeBox box(UnitBoxPoints());
+		const Quat identity(1, 0, 0, 0);
+		struct Selection { Vec3f direction; BoxFaceId expected; };
+		const Selection cases[] = {
+			{ Vec3f(1, 1, 0), BoxFaceId::PositiveX }, { Vec3f(1, 0, 1), BoxFaceId::PositiveX },
+			{ Vec3f(0, 1, 1), BoxFaceId::PositiveY }, { Vec3f(-1, -1, -1), BoxFaceId::NegativeX },
+			{ Vec3f(1, 1.000001f, 0), BoxFaceId::PositiveX },
+			{ Vec3f(1, 1.001f, 0), BoxFaceId::PositiveY },
+			{ Vec3f(0, -1, -1.000001f), BoxFaceId::NegativeY },
+			{ Vec3f(0, -1, -1.001f), BoxFaceId::NegativeZ }
+		};
+		for (const Selection& selection : cases) {
+			for (float magnitude : { 1.0e-30f, 1.0f, 1.0e30f }) {
+				BoxFaceFeature face;
+				Expect(box.GetContactFace(selection.direction * magnitude, Vec3f(0), identity, face) &&
+					face.id == selection.expected, "edge/corner ties use local axis priority independent of direction magnitude");
+			}
+		}
+		for (float magnitude : { std::numeric_limits<float>::denorm_min(),
+			std::numeric_limits<float>::min(), std::numeric_limits<float>::max() }) {
+			BoxFaceFeature extreme;
+			Expect(box.GetContactFace(Vec3f(magnitude, 0, 0), Vec3f(0), identity, extreme) &&
+				extreme.id == BoxFaceId::PositiveX && Finite(extreme.normal) && Near(extreme.alignment, 1.0f),
+				"smallest subnormal through largest finite axis directions normalize without NaN or overflow");
+		}
+		const Quat rotation = glm::angleAxis(0.81f, glm::normalize(Vec3f(2, 3, -1)));
+		const Vec3f direction = glm::toMat3(rotation) * Vec3f(1, 1, 1);
+		BoxFaceFeature face, negatedQuaternion;
+		Expect(box.GetContactFace(direction, Vec3f(2, -3, 4), rotation, face) &&
+			face.id == BoxFaceId::PositiveX, "a rotated exact corner tie retains the local X face");
+		Expect(box.GetContactFace(direction, Vec3f(2, -3, 4), -rotation, negatedQuaternion) &&
+			SameBoxFace(face, negatedQuaternion), "quaternion sign does not change selected face or vertex order");
+		BoxFaceFeature slightQuaternionDrift;
+		Expect(box.GetContactFace(direction, Vec3f(2, -3, 4), rotation * 1.000001f, slightQuaternionDrift) &&
+			slightQuaternionDrift.id == face.id && Near(slightQuaternionDrift.normal, face.normal),
+			"small accepted quaternion drift is normalized for geometric extraction");
+
+		auto shuffled = UnitBoxPoints();
+		std::reverse(shuffled.begin(), shuffled.end());
+		shuffled.push_back(shuffled.front());
+		ShapeBox reordered(shuffled);
+		BoxFaceFeature reorderedFace;
+		Expect(reordered.GetContactFace(direction, Vec3f(2, -3, 4), rotation, reorderedFace) &&
+			SameBoxFace(face, reorderedFace), "input corner ordering and duplicate points do not alter face identity or winding");
+		const auto initialRevision = box.GetRevision();
+		auto rebuilt = BoxPoints(Vec3f(2, 3, 4));
+		for (Vec3f& point : rebuilt) point += Vec3f(5, 6, 7);
+		box.Build(rebuilt);
+		BoxFaceFeature rebuiltFace;
+		Expect(box.GetContactFace(Vec3f(1, 0, 0), Vec3f(0), identity, rebuiltFace) &&
+			rebuiltFace.id == BoxFaceId::PositiveX && rebuiltFace.shapeRevision > initialRevision,
+			"valid offset/asymmetric rebuild preserves local face ID and changes its geometry revision");
+		bool newPlane = true;
+		for (const Vec3f& vertex : rebuiltFace.vertices) newPlane &= Near(vertex.x, 7.0f);
+		Expect(newPlane, "rebuild returns the new model-origin face plane rather than stale COM-relative geometry");
+		box.Build({});
+		BoxFaceFeature afterRejectedBuild;
+		Expect(box.GetContactFace(Vec3f(1, 0, 0), Vec3f(0), identity, afterRejectedBuild) &&
+			SameBoxFace(rebuiltFace, afterRejectedBuild), "rejected rebuild preserves face geometry and revision");
+	}
+
+	void TestBoxContactFeaturePairs()
+	{
+		using namespace GEngine;
+		ShapeBox box(UnitBoxPoints());
+		PhysicsWorld world;
+		RigidBody3D* a = world.CreateRigidBody3D();
+		RigidBody3D* b = world.CreateRigidBody3D();
+		a->m_Shape = b->m_Shape = &box;
+		a->m_Position = Vec3f(0, 2, 0);
+		b->m_Position = Vec3f(0);
+		const Quat identity(1, 0, 0, 0);
+		BoxContactFeatures features;
+		Expect(ExtractBoxContactFeatures(*a, *b, Vec3f(0, 1, 0), features) &&
+			features.referenceBody == a->GetIdentity() && features.incidentBody == b->GetIdentity() &&
+			features.reference.id == BoxFaceId::NegativeY && features.incident.id == BoxFaceId::PositiveY,
+			"aligned B-to-A contact selects the facing faces with the earlier identity as reference");
+		const auto reference = features;
+		for (float perturbation : { -1.0e-6f, 0.0f, 1.0e-6f }) {
+			BoxContactFeatures forward, reverse;
+			const Vec3f normal(perturbation, 1, -perturbation);
+			Expect(ExtractBoxContactFeatures(*a, *b, normal, forward) &&
+				ExtractBoxContactFeatures(*b, *a, -normal, reverse) && SameBoxFeatures(forward, reverse) &&
+				forward.referenceBody == reference.referenceBody && forward.reference.id == reference.reference.id,
+				"small normal changes and reversed pair traversal retain the same physical reference and incident faces");
+		}
+		for (float angle : { 0.001f, 0.2f }) {
+			a->m_Orientation = glm::angleAxis(angle, Vec3f(0, 0, 1));
+			BoxContactFeatures reverse;
+			Expect(ExtractBoxContactFeatures(*a, *b, Vec3f(0, 1, 0), features) &&
+				features.referenceBody == (angle < 0.01f ? a->GetIdentity() : b->GetIdentity()),
+				"near alignment ties prefer stable identity; a clearly better face becomes reference");
+			Expect(ExtractBoxContactFeatures(*b, *a, Vec3f(0, -1, 0), reverse) &&
+				SameBoxFeatures(features, reverse), "reversed pairs also preserve an incident A / reference B result");
+		}
+
+		a->m_Orientation = identity;
+		b->m_Orientation = glm::angleAxis(glm::radians(20.0f), Vec3f(0, 0, 1));
+		const Vec3f obliqueNormal(0.5f, std::sqrt(0.75f), 0.0f);
+		BoxFaceFeature originalCandidate;
+		Expect(box.GetContactFace(obliqueNormal, b->m_Position, b->m_Orientation, originalCandidate) &&
+			originalCandidate.id == BoxFaceId::PositiveX, "oblique fixture starts with B's local X candidate");
+		Expect(ExtractBoxContactFeatures(*a, *b, obliqueNormal, features) &&
+			features.referenceBody == a->GetIdentity() && features.reference.id == BoxFaceId::NegativeY &&
+			features.incident.id == BoxFaceId::PositiveY &&
+			glm::dot(features.reference.normal, features.incident.normal) < -0.9f,
+			"incident extraction uses the actual reference normal and changes B's face from X to Y");
+		BoxContactFeatures reverseOblique;
+		Expect(ExtractBoxContactFeatures(*b, *a, -obliqueNormal, reverseOblique) &&
+			SameBoxFeatures(features, reverseOblique), "oblique incident reselection is invariant under pair reversal");
+
+		const auto beforeRotation = features;
+		const Quat commonRotation = glm::angleAxis(0.62f, glm::normalize(Vec3f(3, -2, 1)));
+		const Mat3 rotation = glm::toMat3(commonRotation);
+		const Vec3f translation(7, -4, 2);
+		a->m_Orientation = commonRotation * a->m_Orientation;
+		b->m_Orientation = commonRotation * b->m_Orientation;
+		a->m_Position = rotation * a->m_Position + translation;
+		b->m_Position = rotation * b->m_Position + translation;
+		const Vec3f positionA = a->m_Position, positionB = b->m_Position;
+		const Quat orientationA = a->m_Orientation, orientationB = b->m_Orientation;
+		a->m_LinearVelocity = Vec3f(1, 2, 3);
+		b->m_AngularVelocity = Vec3f(-1, 2, -3);
+		const auto revision = box.GetRevision();
+		Expect(ExtractBoxContactFeatures(*a, *b, rotation * obliqueNormal, features) &&
+			features.referenceBody == beforeRotation.referenceBody && features.reference.id == beforeRotation.reference.id &&
+			features.incident.id == beforeRotation.incident.id &&
+			Near(features.reference.normal, rotation * beforeRotation.reference.normal),
+			"common rigid transformation preserves reference/incident ownership and local features");
+		bool transformedVertices = true;
+		for (int i = 0; i < 4; ++i) {
+			transformedVertices &= Near(features.reference.vertices[i], rotation * beforeRotation.reference.vertices[i] + translation) &&
+				Near(features.incident.vertices[i], rotation * beforeRotation.incident.vertices[i] + translation);
+		}
+		Expect(transformedVertices, "reference and incident vertex ordering transforms covariantly");
+		Expect(Near(a->m_Position, positionA, 0) && Near(b->m_Position, positionB, 0) &&
+			a->m_Orientation == orientationA && b->m_Orientation == orientationB &&
+			Near(a->m_LinearVelocity, Vec3f(1, 2, 3), 0) && Near(b->m_AngularVelocity, Vec3f(-1, 2, -3), 0) &&
+			box.GetRevision() == revision, "feature queries preserve live pose, velocities and shape revision");
+	}
+
+	void TestBoxFeatureFailureSafety()
+	{
+		using namespace GEngine;
+		ShapeBox box(UnitBoxPoints());
+		const Quat identity(1, 0, 0, 0);
+		BoxFaceFeature sentinel;
+		Expect(box.GetContactFace(Vec3f(0, 0, -1), Vec3f(0), identity, sentinel), "failure tests begin with valid output");
+		const float nan = std::numeric_limits<float>::quiet_NaN();
+		const float inf = std::numeric_limits<float>::infinity();
+		for (const Vec3f& direction : { Vec3f(0), Vec3f(nan, 0, 0), Vec3f(1, inf, 0) }) {
+			BoxFaceFeature output = sentinel;
+			Expect(!box.GetContactFace(direction, Vec3f(0), identity, output) && SameBoxFace(output, sentinel),
+				"zero or nonfinite directions fail without overwriting an existing face");
+		}
+		for (const Quat& orientation : { Quat(0, 0, 0, 0), Quat(2, 0, 0, 0),
+			Quat(nan, 0, 0, 0), Quat(1, inf, 0, 0) }) {
+			BoxFaceFeature output = sentinel;
+			Expect(!box.GetContactFace(Vec3f(1, 0, 0), Vec3f(0), orientation, output) && SameBoxFace(output, sentinel),
+				"nonunit and nonfinite orientations fail without writing output");
+		}
+		for (const Vec3f& position : { Vec3f(nan, 0, 0), Vec3f(0, inf, 0), Vec3f(1.0e30f) }) {
+			BoxFaceFeature output = sentinel;
+			Expect(!box.GetContactFace(Vec3f(1, 0, 0), position, identity, output) && SameBoxFace(output, sentinel),
+				"nonfinite positions and world-coordinate face collapse fail transactionally");
+		}
+		const float largest = std::numeric_limits<float>::max();
+		ShapeBox largeBox(BoxPoints(Vec3f(largest * 0.25f)));
+		BoxFaceFeature largeFace;
+		Expect(largeBox.GetContactFace(Vec3f(1, 0, 0), Vec3f(0), identity, largeFace) &&
+			largeFace.id == BoxFaceId::PositiveX, "large finite face areas do not overflow extraction validation");
+		BoxFaceFeature overflowOutput = sentinel;
+		Expect(!largeBox.GetContactFace(Vec3f(1, 0, 0), Vec3f(largest), identity, overflowOutput) &&
+			SameBoxFace(overflowOutput, sentinel), "overflowing world vertices fail without writing output");
+		PhysicsWorld world;
+		RigidBody3D* a = world.CreateRigidBody3D();
+		RigidBody3D* b = world.CreateRigidBody3D();
+		a->m_Shape = b->m_Shape = &box;
+		BoxContactFeatures pair;
+		Expect(ExtractBoxContactFeatures(*a, *b, Vec3f(0, 1, 0), pair), "pair failure tests begin with valid features");
+		const auto pairSentinel = pair;
+		RigidBody3D standalone;
+		standalone.m_Shape = &box;
+		Expect(!ExtractBoxContactFeatures(standalone, *b, Vec3f(0, 1, 0), pair) && SameBoxFeatures(pair, pairSentinel),
+			"a body without stable world identity cannot enter reference selection");
+		Expect(!ExtractBoxContactFeatures(*a, *a, Vec3f(0, 1, 0), pair) && SameBoxFeatures(pair, pairSentinel),
+			"self pairs fail without changing output");
+		for (const Vec3f& normal : { Vec3f(0), Vec3f(nan), Vec3f(inf) }) {
+			Expect(!ExtractBoxContactFeatures(*a, *b, normal, pair) && SameBoxFeatures(pair, pairSentinel),
+				"invalid pair contact normals fail transactionally");
+		}
+		b->m_Position = Vec3f(nan);
+		Expect(!ExtractBoxContactFeatures(*a, *b, Vec3f(0, 1, 0), pair) && SameBoxFeatures(pair, pairSentinel),
+			"failure on the second box does not expose a partially written pair");
+		b->m_Position = Vec3f(0);
+		b->m_Shape = nullptr;
+		Expect(!ExtractBoxContactFeatures(*a, *b, Vec3f(0, 1, 0), pair) && SameBoxFeatures(pair, pairSentinel),
+			"null shape fails safely");
+		ShapeSphere sphere(1.0f);
+		b->m_Shape = &sphere;
+		Expect(!ExtractBoxContactFeatures(*a, *b, Vec3f(0, 1, 0), pair) && SameBoxFeatures(pair, pairSentinel),
+			"non-box shape fails safely");
+		sphere.SetShapeType(ShapeType::Box);
+		Expect(!ExtractBoxContactFeatures(*a, *b, Vec3f(0, 1, 0), pair) && SameBoxFeatures(pair, pairSentinel),
+			"a mislabeled non-box cannot trigger an unsafe downcast");
+	}
+
+	int RunBoxFeatureRegression()
+	{
+		TestBoxFaceGeometry();
+		TestBoxFaceSelectionAndRebuild();
+		TestBoxContactFeaturePairs();
+		TestBoxFeatureFailureSafety();
+		std::cout << "Box contact features: " << testCount - failureCount << '/' << testCount << " checks passed\n";
+		return failureCount == 0 ? 0 : 1;
 	}
 
 	void ExpectBoxContact(GEngine::RigidBody3D& bodyA, GEngine::RigidBody3D& bodyB,
@@ -3584,6 +3873,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--box-features") return RunBoxFeatureRegression();
 		if (argument == "--position-stabilization") return RunPositionStabilizationRegression();
 		if (argument == "--solver-iterations") return RunSolverIterationsRegression();
 		if (argument == "--restitution-threshold") return RunRestitutionThresholdRegression();
@@ -3660,6 +3950,10 @@ int main(int argc, char** argv)
 	TestDegenerateGjkDirection();
 	TestZeroQuaternionBodyUpdate();
 	TestBoxConstructionInvariant();
+	TestBoxFaceGeometry();
+	TestBoxFaceSelectionAndRebuild();
+	TestBoxContactFeaturePairs();
+	TestBoxFeatureFailureSafety();
 	TestBoxContactRegression();
 	TestSolverIterationConfiguration();
 	TestSolverIterationTraversal();

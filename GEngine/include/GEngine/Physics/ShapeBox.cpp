@@ -3,6 +3,7 @@
 #include "Geometry/Geometry.h"
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 
 
@@ -74,6 +75,71 @@ namespace GEngine
 
 	}
 
+
+	bool ShapeBox::GetContactFace(const Vec3f& direction, const Vec3f& position,
+		const Quat& orientation, BoxFaceFeature& output) const
+	{
+		if (!IsValid() || !Math::IsFinite(direction) || !Math::IsFinite(position) ||
+			!Math::IsFinite(orientation)) {
+			return false;
+		}
+
+		// Rescale before normalization so finite tiny/large directions neither underflow nor overflow.
+		const float magnitude = std::max({ std::abs(direction.x), std::abs(direction.y), std::abs(direction.z) });
+		if (magnitude == 0.0f) {
+			return false;
+		}
+		const Vec3f scaledDirection = direction / magnitude;
+		const Vec3f unitDirection = scaledDirection / glm::length(scaledDirection);
+		const double orientationLength2 = double(orientation.w) * orientation.w +
+			double(orientation.x) * orientation.x + double(orientation.y) * orientation.y +
+			double(orientation.z) * orientation.z;
+		if (std::abs(orientationLength2 - 1.0) > 1.0e-4) {
+			return false;
+		}
+		const Mat3 rotation = glm::toMat3(orientation * float(1.0 / std::sqrt(orientationLength2)));
+		const Vec3f localDirection = glm::transpose(rotation) * unitDirection;
+		const float bestAlignment = std::max({ std::abs(localDirection.x),
+			std::abs(localDirection.y), std::abs(localDirection.z) });
+		int axis = 0;
+		while (axis < 2 && std::abs(localDirection[axis]) < bestAlignment - BoxFaceAlignmentTolerance) {
+			++axis;
+		}
+		const bool positive = localDirection[axis] > 0.0f;
+		const int u = (axis + 1) % 3;
+		const int v = (axis + 2) % 3;
+
+		BoxFaceFeature face;
+		face.id = static_cast<BoxFaceId>(2 * axis + (positive ? 1 : 0));
+		face.shapeRevision = GetRevision();
+		face.normal = rotation[axis] * (positive ? 1.0f : -1.0f);
+		face.alignment = glm::dot(face.normal, unitDirection);
+		// Cycling the tangent axes makes u cross v point along the positive face axis.
+		for (int corner = 0; corner < 4; ++corner) {
+			Vec3f point = m_bounds.mins;
+			point[axis] = positive ? m_bounds.maxs[axis] : m_bounds.mins[axis];
+			point[u] = (corner == 1 || corner == 2) ? m_bounds.maxs[u] : m_bounds.mins[u];
+			point[v] = (corner >= 2) ? m_bounds.maxs[v] : m_bounds.mins[v];
+			face.vertices[corner] = rotation * point + position;
+			if (!Math::IsFinite(face.vertices[corner])) {
+				return false;
+			}
+		}
+		if (!positive) {
+			std::swap(face.vertices[1], face.vertices[3]);
+		}
+		// Reject faces collapsed by world-coordinate rounding. Double products also handle
+		// the area of finite very small/large faces without float underflow/overflow.
+		for (int corner = 0; corner < 4; ++corner) {
+			const glm::dvec3 edge0 = glm::dvec3(face.vertices[(corner + 1) % 4]) - glm::dvec3(face.vertices[corner]);
+			const glm::dvec3 edge1 = glm::dvec3(face.vertices[(corner + 2) % 4]) - glm::dvec3(face.vertices[(corner + 1) % 4]);
+			if (glm::dot(glm::cross(edge0, edge1), glm::dvec3(face.normal)) <= 0.0) {
+				return false;
+			}
+		}
+		output = face;
+		return true;
+	}
 
 	Vec3f ShapeBox::Support(const Vec3f& dir, const Vec3f& pos, const Quat& orient, const float bias) const
 	{

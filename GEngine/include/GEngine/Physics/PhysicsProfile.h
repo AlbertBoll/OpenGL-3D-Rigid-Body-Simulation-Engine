@@ -35,6 +35,10 @@ namespace GEngine
 		std::uint64_t supportTimeNs{};
 		std::uint64_t epaCallCount{};
 		std::uint64_t epaTimeNs{};
+		// Counts attempted EPA expansions only; GJK separation/seeding is excluded.
+		std::uint64_t epaIterationCount{};
+		std::uint64_t epaMaxIterations{};
+		std::uint64_t epaFailureCount{};
 
 		std::uint64_t generatedContactCount{};
 		std::uint64_t manifoldCount{};

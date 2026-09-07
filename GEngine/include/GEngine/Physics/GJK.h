@@ -28,10 +28,39 @@ namespace GEngine
 		ContactExpansionFailed
 	};
 
+	// NotRun distinguishes GJK separation/seeding failure from an attempted EPA query.
+	// Converged and DuplicateSupport are successful only after output validation.
+	// DuplicateSupport retains the existing approximate 0.001-world-unit criterion;
+	// it does not assert that the relative expansion-gap convergence test passed.
+	enum class EpaTermination
+	{
+		NotRun,
+		Converged,
+		DuplicateSupport,
+		InvalidInput,
+		InvalidSimplex,
+		InvalidFace,
+		InvalidTopology,
+		InvalidSupport,
+		InvalidHorizon,
+		InvalidProjection,
+		InvalidWitness,
+		IterationLimit
+	};
+
+	struct EpaDiagnostics
+	{
+		EpaTermination termination{ EpaTermination::NotRun };
+		unsigned iterations{};
+	};
+
+	inline constexpr unsigned EpaMaxIterations = 64;
+
 	struct GjkDiagnostics
 	{
 		GjkTermination termination{ GjkTermination::InvalidInput };
 		unsigned iterations{};
+		EpaDiagnostics epa{};
 	};
 
 	inline constexpr unsigned GjkMaxIterations = 64;
@@ -40,7 +69,7 @@ namespace GEngine
 	// to distinguish a failed distance query from valid coincident witnesses.
 	// DuplicateSupport/NoProgress retain the existing approximate separation semantics.
 	// Progress uses a relative squared-distance tolerance; contact/duplicate geometric
-	// thresholds and EPA remain unchanged. Validated shape scales: 0.1 through 100 units.
+	// thresholds remain unchanged. Validated shape scales: 0.1 through 100 units.
 
 	using namespace Math;
 
@@ -52,10 +81,14 @@ namespace GEngine
 	bool GJK_DoesIntersect(const RigidBody3D* bodyA, const RigidBody3D* bodyB,
 		GjkDiagnostics* diagnostics = nullptr, unsigned maxIterations = GjkMaxIterations);
 	bool GJK_DoesIntersect(const RigidBody3D* bodyA, const RigidBody3D* bodyB, const float bias, Vec3f& ptOnA, Vec3f& ptOnB,
-		GjkDiagnostics* diagnostics = nullptr, unsigned maxIterations = GjkMaxIterations);
+		GjkDiagnostics* diagnostics = nullptr, unsigned maxIterations = GjkMaxIterations,
+		unsigned maxEpaIterations = EpaMaxIterations);
+	// EPA budgets may only reduce its 64-step cap. Failure clears both witnesses.
+	// EPA iterations count expansion attempts; initial tetrahedron setup is excluded.
 	GjkContactStatus GJK_GetContact(const RigidBody3D* bodyA, const RigidBody3D* bodyB,
 		float bias, Vec3f& ptOnA, Vec3f& ptOnB,
-		GjkDiagnostics* diagnostics = nullptr, unsigned maxIterations = GjkMaxIterations);
+		GjkDiagnostics* diagnostics = nullptr, unsigned maxIterations = GjkMaxIterations,
+		unsigned maxEpaIterations = EpaMaxIterations);
 	void GJK_ClosestPoints(const RigidBody3D* bodyA, const RigidBody3D* bodyB, Vec3f& ptOnA, Vec3f& ptOnB,
 		GjkDiagnostics* diagnostics = nullptr, unsigned maxIterations = GjkMaxIterations);
 	void TestSignedVolumeProjection();

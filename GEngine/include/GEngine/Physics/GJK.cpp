@@ -362,7 +362,8 @@ namespace GEngine
 	};
 
 	bool EPA_Expand(const RigidBody3D* bodyA, const RigidBody3D* bodyB, float bias,
-		const point_t simplexPoints[4], Vec3f& ptOnA, Vec3f& ptOnB);
+		const point_t simplexPoints[4], Vec3f& ptOnA, Vec3f& ptOnB,
+		EpaDiagnostics* diagnostics, unsigned maxIterations);
 
 	bool IsValidSupportPoint(const point_t& point)
 	{
@@ -656,7 +657,7 @@ namespace GEngine
 		void Finish(GjkTermination termination)
 		{
 			reason = termination;
-			if (output) { *output = { reason, iterations }; }
+			if (output) { output->termination = reason; output->iterations = iterations; }
 		}
 
 		bool Next()
@@ -781,7 +782,7 @@ namespace GEngine
 
 	GjkContactStatus GJK_GetContact(const RigidBody3D* bodyA, const RigidBody3D* bodyB,
 		float bias, Vec3f& ptOnA, Vec3f& ptOnB,
-		GjkDiagnostics* diagnostics, unsigned maxIterations)
+		GjkDiagnostics* diagnostics, unsigned maxIterations, unsigned maxEpaIterations)
 	{
 		GE_PHYSICS_PROFILE_GJK_CALL();
 		GjkSearchControl search(diagnostics, maxIterations);
@@ -899,7 +900,8 @@ namespace GEngine
 		//
 		// Perform EPA expansion of the simplex to find the closest face on the CSO
 		//
-		if (!EPA_Expand(bodyA, bodyB, bias, simplexPoints, ptOnA, ptOnB)) {
+		if (!EPA_Expand(bodyA, bodyB, bias, simplexPoints, ptOnA, ptOnB,
+			diagnostics ? &diagnostics->epa : nullptr, maxEpaIterations)) {
 			search.Finish(GjkTermination::ContactExpansionFailed);
 			ptOnA = Vec3f(0.0f);
 			ptOnB = Vec3f(0.0f);
@@ -912,9 +914,9 @@ namespace GEngine
 
 	bool GJK_DoesIntersect(const RigidBody3D* bodyA, const RigidBody3D* bodyB,
 		const float bias, Vec3f& ptOnA, Vec3f& ptOnB,
-		GjkDiagnostics* diagnostics, unsigned maxIterations)
+		GjkDiagnostics* diagnostics, unsigned maxIterations, unsigned maxEpaIterations)
 	{
-		return GJK_GetContact(bodyA, bodyB, bias, ptOnA, ptOnB, diagnostics, maxIterations) == GjkContactStatus::Contact;
+		return GJK_GetContact(bodyA, bodyB, bias, ptOnA, ptOnB, diagnostics, maxIterations, maxEpaIterations) == GjkContactStatus::Contact;
 	}
 
 
@@ -1090,7 +1092,29 @@ namespace GEngine
 
 	namespace
 	{
-		constexpr int EpaMaxIterations = 64;
+		struct EpaQueryControl
+		{
+			EpaDiagnostics* output;
+			EpaDiagnostics result{ EpaTermination::InvalidInput, 0 };
+
+			explicit EpaQueryControl(EpaDiagnostics* diagnostics) : output(diagnostics) {}
+			~EpaQueryControl()
+			{
+				if (output) { *output = result; }
+				GE_PHYSICS_PROFILE_ADD(epaIterationCount, result.iterations);
+				GE_PHYSICS_PROFILE_MAX(epaMaxIterations, result.iterations);
+				if (result.termination != EpaTermination::Converged &&
+					result.termination != EpaTermination::DuplicateSupport) {
+					GE_PHYSICS_PROFILE_ADD(epaFailureCount, 1);
+				}
+			}
+
+			bool Finish(EpaTermination reason)
+			{
+				result.termination = reason;
+				return reason == EpaTermination::Converged || reason == EpaTermination::DuplicateSupport;
+			}
+		};
 		constexpr float EpaRelativeConvergenceTolerance = 1.0e-4f;
 
 		bool IsValidPointIndex(int index, const std::vector<point_t>& points)
@@ -1362,11 +1386,14 @@ namespace GEngine
 
 
 	bool EPA_Expand(const RigidBody3D* bodyA, const RigidBody3D* bodyB, float bias,
-		const point_t simplexPoints[4], Vec3f& ptOnA, Vec3f& ptOnB) {
+		const point_t simplexPoints[4], Vec3f& ptOnA, Vec3f& ptOnB,
+		EpaDiagnostics* diagnostics, unsigned maxIterations) {
 		GE_PHYSICS_PROFILE_SCOPE(epaTimeNs);
 		GE_PHYSICS_PROFILE_ADD(epaCallCount, 1);
+		EpaQueryControl query(diagnostics);
+		ptOnA = ptOnB = Vec3f(0.0f);
 		if (!HasValidCollisionShapes(bodyA, bodyB) || !Math::IsFinite(bias) || bias < 0.0f) {
-			return false;
+			return query.Finish(EpaTermination::InvalidInput);
 		}
 		std::vector< point_t > points;
 		std::vector< tri_t > triangles;
@@ -1375,14 +1402,14 @@ namespace GEngine
 		Vec3f center(0.0f);
 		for (int i = 0; i < 4; i++) {
 			if (!IsValidSupportPoint(simplexPoints[i])) {
-				return false;
+				return query.Finish(EpaTermination::InvalidSimplex);
 			}
 			points.push_back(simplexPoints[i]);
 			center += simplexPoints[i].xyz;
 		}
 		center *= 0.25f;
 		if (!Math::IsFinite(center) || !IsNonDegenerateTetrahedron(points)) {
-			return false;
+			return query.Finish(EpaTermination::InvalidSimplex);
 		}
 
 		// Build the triangles
@@ -1397,7 +1424,7 @@ namespace GEngine
 			int unusedPt = (i + 3) % 4;
 			float dist = 0.0f;
 			if (!TrySignedDistanceToTriangle(tri, points[unusedPt].xyz, points, dist)) {
-				return false;
+				return query.Finish(EpaTermination::InvalidFace);
 			}
 
 			// The unused point is always on the negative/inside of the triangle.. make sure the normal points away
@@ -1408,38 +1435,41 @@ namespace GEngine
 			triangles.push_back(tri);
 		}
 		if (!IsClosedValidPolytope(triangles, points)) {
-			return false;
+			return query.Finish(EpaTermination::InvalidTopology);
 		}
 
 		//
 		//	Expand the simplex to find the closest face of the CSO to the origin
 		//
 		bool converged = false;
-		for (int iteration = 0; iteration < EpaMaxIterations; ++iteration) {
+		EpaTermination convergenceReason = EpaTermination::Converged;
+		const unsigned limit = std::min(maxIterations, EpaMaxIterations);
+		for (unsigned iteration = 0; iteration < limit; ++iteration) {
+			++query.result.iterations;
 			if (!IsClosedValidPolytope(triangles, points)) {
-				return false;
+				return query.Finish(EpaTermination::InvalidTopology);
 			}
 			const int idx = ClosestTriangle(triangles, points);
 			if (idx < 0 || static_cast<std::size_t>(idx) >= triangles.size()) {
-				return false;
+				return query.Finish(EpaTermination::InvalidFace);
 			}
 
 			Vec3f normal;
 			float originDistance = 0.0f;
 			if (!TrySignedDistanceToTriangle(triangles[idx], Vec3f(0.0f), points,
 				originDistance, &normal)) {
-				return false;
+				return query.Finish(EpaTermination::InvalidFace);
 			}
 
 			const point_t newPt = Support(bodyA, bodyB, normal, bias);
 			if (!IsValidSupportPoint(newPt)) {
-				return false;
+				return query.Finish(EpaTermination::InvalidSupport);
 			}
 
 			float expansionDistance = 0.0f;
 			if (!TrySignedDistanceToTriangle(triangles[idx], newPt.xyz, points,
 				expansionDistance)) {
-				return false;
+				return query.Finish(EpaTermination::InvalidFace);
 			}
 			const float convergenceTolerance = std::max(Math::NumericalEpsilon,
 				EpaRelativeConvergenceTolerance * std::max(std::fabs(originDistance), bias));
@@ -1447,6 +1477,7 @@ namespace GEngine
 			// if w already exists, then just stop
 			// because it means we can't expand any further
 			if (HasPoint(newPt.xyz, points)) {
+				convergenceReason = EpaTermination::DuplicateSupport;
 				converged = true;
 				break;
 			}
@@ -1467,14 +1498,14 @@ namespace GEngine
 			int numRemoved = 0;
 			if (!RemoveTrianglesFacingPoint(newPt.xyz, candidateTriangles,
 				candidatePoints, numRemoved) || numRemoved == 0 || candidateTriangles.empty()) {
-				return false;
+				return query.Finish(EpaTermination::InvalidHorizon);
 			}
 
 			// Find Dangling Edges
 			danglingEdges.clear();
 			if (!FindDanglingEdges(danglingEdges, candidateTriangles, candidatePoints) ||
 				danglingEdges.empty()) {
-				return false;
+				return query.Finish(EpaTermination::InvalidHorizon);
 			}
 
 			// In theory the edges should be a proper CCW order
@@ -1489,7 +1520,7 @@ namespace GEngine
 				// Make sure it's oriented properly
 				float dist = 0.0f;
 				if (!TrySignedDistanceToTriangle(triangle, center, candidatePoints, dist)) {
-					return false;
+					return query.Finish(EpaTermination::InvalidFace);
 				}
 				if (dist > 0.0f) {
 					std::swap(triangle.b, triangle.c);
@@ -1497,32 +1528,32 @@ namespace GEngine
 
 				Vec3f triangleNormal;
 				if (!TryTriangleNormal(triangle, candidatePoints, triangleNormal)) {
-					return false;
+					return query.Finish(EpaTermination::InvalidFace);
 				}
 				candidateTriangles.push_back(triangle);
 			}
 
 			if (!IsClosedValidPolytope(candidateTriangles, candidatePoints)) {
-				return false;
+				return query.Finish(EpaTermination::InvalidTopology);
 			}
 			points.swap(candidatePoints);
 			triangles.swap(candidateTriangles);
 		}
 		if (!converged || !IsClosedValidPolytope(triangles, points)) {
-			return false;
+			return query.Finish(converged ? EpaTermination::InvalidTopology : EpaTermination::IterationLimit);
 		}
 
 		// Get the projection of the origin on the closest triangle
 		const int idx = ClosestTriangle(triangles, points);
 		if (idx < 0 || static_cast<std::size_t>(idx) >= triangles.size()) {
-			return false;
+			return query.Finish(EpaTermination::InvalidFace);
 		}
 		const tri_t& tri = triangles[idx];
 		Vec3f finalNormal;
 		float finalOriginDistance = 0.0f;
 		if (!TrySignedDistanceToTriangle(tri, Vec3f(0.0f), points,
 			finalOriginDistance, &finalNormal)) {
-			return false;
+			return query.Finish(EpaTermination::InvalidFace);
 		}
 		Vec3f ptA_w = points[tri.a].xyz;
 		Vec3f ptB_w = points[tri.b].xyz;
@@ -1539,7 +1570,7 @@ namespace GEngine
 			!Math::IsFinite(projectionErrorSquared) ||
 			projectionErrorSquared > EpaRelativeConvergenceTolerance *
 				EpaRelativeConvergenceTolerance * projectionScaleSquared) {
-			return false;
+			return query.Finish(EpaTermination::InvalidProjection);
 		}
 
 		// Get the point on shape A
@@ -1557,12 +1588,12 @@ namespace GEngine
 		const float penetrationDistance = glm::length(candidatePtOnB - candidatePtOnA);
 		if (!Math::IsFinite(candidatePtOnA) || !Math::IsFinite(candidatePtOnB) ||
 			!Math::IsFinite(penetrationDistance)) {
-			return false;
+			return query.Finish(EpaTermination::InvalidWitness);
 		}
 
 		ptOnA = candidatePtOnA;
 		ptOnB = candidatePtOnB;
-		return true;
+		return query.Finish(convergenceReason);
 	}
 
 

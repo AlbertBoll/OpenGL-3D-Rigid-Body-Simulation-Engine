@@ -5239,6 +5239,32 @@ namespace
 	}
 
 
+	void TestEpaContactGeometry()
+	{
+		using namespace GEngine;
+		for (float scale : { 0.1f, 1.0f, 10.0f, 100.0f }) {
+			ShapeBox box(BoxPoints(Vec3f(scale)));
+			for (float offset : { 0.4f, 1.2f, 1.999f, 2.0f, 2.1f }) {
+				RigidBody3D a, b;
+				ConfigureBoxBody(a, box, Vec3f(0), Quat(1, 0, 0, 0));
+				ConfigureBoxBody(b, box, scale * Vec3f(offset, 0.3f, 0.2f), Quat(1, 0, 0, 0));
+				for (bool reverse : { false, true }) {
+					Vec3f pa(99), pb(99);
+					const auto status = GJK_GetContact(reverse ? &b : &a, reverse ? &a : &b, 0, pa, pb);
+					Expect(Finite(pa) && Finite(pb), "EPA scaled box outputs are finite");
+					if (offset > 2) {
+						Expect(status == GjkContactStatus::Separated && pa == Vec3f(0) && pb == Vec3f(0),
+							"EPA is bypassed for an independent positive box face gap");
+					} else {
+						Expect(status == GjkContactStatus::Contact &&
+							Near(glm::length(pb - pa), (2 - offset) * scale, 5e-4f * scale),
+							"EPA box penetration matches independent face depth across scales and pair orders");
+					}
+				}
+			}
+		}
+	}
+
 	void TestGjkScaleRegression()
 	{
 		using namespace GEngine;
@@ -5386,6 +5412,83 @@ namespace
 	}
 
 
+	void TestEpaTerminationContract()
+	{
+		using namespace GEngine;
+		ShapeBox box(UnitBoxPoints());
+		RigidBody3D a, b;
+		ConfigureBoxBody(a, box, Vec3f(0), Quat(1, 0, 0, 0));
+		ConfigureBoxBody(b, box, Vec3f(1.2f, 0.3f, 0.2f), Quat(1, 0, 0, 0));
+		Vec3f pa, pb, referenceA, referenceB;
+		GjkDiagnostics diagnostics, reference;
+		Expect(GJK_GetContact(&a, &b, 0.001f, referenceA, referenceB, &reference) == GjkContactStatus::Contact &&
+			reference.epa.iterations > 1 && reference.epa.iterations <= EpaMaxIterations &&
+			(reference.epa.termination == EpaTermination::Converged || reference.epa.termination == EpaTermination::DuplicateSupport),
+			"successful EPA exposes a bounded count and validated success reason");
+		ResetPhysicsProfile();
+		for (unsigned budget : { 0u, 1u }) {
+			pa = pb = Vec3f(99);
+			Expect(GJK_GetContact(&a, &b, 0.001f, pa, pb, &diagnostics, GjkMaxIterations, budget) == GjkContactStatus::Failed &&
+				diagnostics.termination == GjkTermination::ContactExpansionFailed &&
+				diagnostics.epa.termination == EpaTermination::IterationLimit && diagnostics.epa.iterations == budget &&
+				pa == Vec3f(0) && pb == Vec3f(0),
+				"EPA exhaustion is a failure, not separation or partial contact, and clears witnesses");
+			pa = pb = Vec3f(99);
+			Expect(!GJK_DoesIntersect(&a, &b, 0.001f, pa, pb, &diagnostics, GjkMaxIterations, budget) &&
+				diagnostics.epa.termination == EpaTermination::IterationLimit && diagnostics.epa.iterations == budget &&
+				pa == Vec3f(0) && pb == Vec3f(0), "contact wrapper forwards EPA diagnostics and budget");
+		}
+		auto profile = GetPhysicsProfileSnapshot();
+		Expect(!IsPhysicsProfilingEnabled() || (profile.epaCallCount == 4 && profile.epaFailureCount == 4 &&
+			profile.epaIterationCount == 2 && profile.epaMaxIterations == 1),
+			"EPA profiler counts failed calls, total iterations and maximum independently of GJK work");
+		Expect(GJK_GetContact(&a, &b, 0.001f, pa, pb, &diagnostics, GjkMaxIterations,
+			std::numeric_limits<unsigned>::max()) == GjkContactStatus::Contact && pa == referenceA && pb == referenceB &&
+			diagnostics.epa.iterations == reference.epa.iterations && diagnostics.epa.termination == reference.epa.termination,
+			"oversized EPA budget is clamped and preserves the default contact");
+		const auto beforeUnobserved = GetPhysicsProfileSnapshot();
+		Expect(GJK_GetContact(&a, &b, 0.001f, pa, pb, nullptr, GjkMaxIterations, 0) == GjkContactStatus::Failed &&
+			pa == Vec3f(0) && pb == Vec3f(0), "EPA fails safely when per-query diagnostics are omitted");
+		profile = GetPhysicsProfileSnapshot();
+		Expect(!IsPhysicsProfilingEnabled() || (profile.epaCallCount == beforeUnobserved.epaCallCount + 1 &&
+			profile.epaFailureCount == beforeUnobserved.epaFailureCount + 1),
+			"EPA failures remain visible in profiling when callers omit diagnostics");
+		b.m_Position = Vec3f(3, 0, 0);
+		Expect(GJK_GetContact(&a, &b, 0.001f, pa, pb, &diagnostics) == GjkContactStatus::Separated &&
+			diagnostics.epa.termination == EpaTermination::NotRun && diagnostics.epa.iterations == 0,
+			"true separation resets stale EPA diagnostics to NotRun");
+		Expect(GJK_GetContact(nullptr, &b, 0.001f, pa, pb, &diagnostics) == GjkContactStatus::Failed &&
+			diagnostics.epa.termination == EpaTermination::NotRun && diagnostics.epa.iterations == 0,
+			"invalid GJK input does not masquerade as an attempted EPA query");
+		b.m_Position = Vec3f(1.2f, 0.3f, 0.2f);
+		Expect(GJK_GetContact(&a, &b, 1e30f, pa, pb, &diagnostics) == GjkContactStatus::Failed &&
+			diagnostics.epa.termination == EpaTermination::InvalidSimplex && diagnostics.epa.iterations == 0 &&
+			pa == Vec3f(0) && pb == Vec3f(0), "overflowed EPA seed geometry is diagnosed and rejected before expansion");
+
+		GjkSupportFixture sphere(1);
+		a.m_Shape = &sphere;
+		// Measure the support calls needed to reach EPA, then fail its first support.
+		Expect(GJK_GetContact(&a, &b, 0.001f, pa, pb, &diagnostics, GjkMaxIterations, 0) == GjkContactStatus::Failed &&
+			diagnostics.epa.termination == EpaTermination::IterationLimit, "support fixture reaches the EPA stage");
+		sphere.failAt = sphere.calls + 1;
+		sphere.calls = 0;
+		Expect(GJK_GetContact(&a, &b, 0.001f, pa, pb, &diagnostics) == GjkContactStatus::Failed &&
+			diagnostics.epa.termination == EpaTermination::InvalidSupport && diagnostics.epa.iterations == 1 &&
+			pa == Vec3f(0) && pb == Vec3f(0), "non-finite EPA support never escapes as a contact");
+		sphere.failAt = 0;
+		a.m_Shape = b.m_Shape = &sphere;
+		b.m_Position = a.m_Position;
+		for (unsigned budget : { EpaMaxIterations, std::numeric_limits<unsigned>::max() }) {
+			Expect(GJK_GetContact(&a, &b, 0, pa, pb, &diagnostics, GjkMaxIterations, budget) == GjkContactStatus::Failed &&
+				diagnostics.epa.termination == EpaTermination::IterationLimit && diagnostics.epa.iterations == EpaMaxIterations &&
+				pa == Vec3f(0) && pb == Vec3f(0), "coincident smooth spheres exhaust exactly the hard cap even with an oversized request");
+		}
+		ResetPhysicsProfile();
+		profile = GetPhysicsProfileSnapshot();
+		Expect(profile.epaCallCount == 0 && profile.epaFailureCount == 0 && profile.epaIterationCount == 0 &&
+			profile.epaMaxIterations == 0, "profile reset clears every EPA counter");
+	}
+
 	void TestGjkSeededQueries()
 	{
 		using namespace GEngine;
@@ -5395,8 +5498,19 @@ namespace
 			return static_cast<float>(seed >> 8) / 16777216.0f;
 		};
 		std::array<unsigned, 9> reasons{};
+		std::array<unsigned, 12> epaReasons{};
+		std::uint64_t epaCalls = 0, epaIterations = 0, epaFailures = 0;
+		unsigned epaMaximum = 0;
+		ResetPhysicsProfile();
 		unsigned maximumIterations = 0;
 		unsigned safeContactFailures = 0;
+		std::uint64_t contactFingerprint = 14695981039346656037ull;
+		const auto hashContactWord = [&contactFingerprint](std::uint32_t word) {
+			for (unsigned byte = 0; byte < 4; ++byte) {
+				contactFingerprint ^= (word >> (8 * byte)) & 255u;
+				contactFingerprint *= 1099511628211ull;
+			}
+		};
 		for (float scale : { 0.1f, 1.0f, 10.0f, 100.0f }) {
 			ShapeBox box(BoxPoints(Vec3f(scale)));
 			ShapeConvex convex(BoxPoints(Vec3f(scale, 0.7f * scale, 0.5f * scale)));
@@ -5415,10 +5529,32 @@ namespace
 				Vec3f pa, pb, repeatA, repeatB;
 				GjkDiagnostics contact, repeat, boolean, distance;
 				const auto status = GJK_GetContact(&a, &b, 0.001f, pa, pb, &contact);
+				hashContactWord(static_cast<std::uint32_t>(status));
+				for (float value : { pa.x, pa.y, pa.z, pb.x, pb.y, pb.z }) {
+					std::uint32_t bits;
+					std::memcpy(&bits, &value, sizeof(bits));
+					hashContactWord(bits);
+				}
 				const auto again = GJK_GetContact(&a, &b, 0.001f, repeatA, repeatB, &repeat);
 				Expect(status == again && pa == repeatA && pb == repeatB &&
 					contact.termination == repeat.termination && contact.iterations == repeat.iterations,
 					"seeded GJK contact witnesses and termination repeat exactly");
+				Expect(contact.epa.termination == repeat.epa.termination && contact.epa.iterations == repeat.epa.iterations &&
+					contact.epa.iterations <= EpaMaxIterations, "seeded EPA diagnostics repeat exactly within the cap");
+				const bool epaRan = contact.epa.termination != EpaTermination::NotRun;
+				const bool epaSuccess = contact.epa.termination == EpaTermination::Converged ||
+					contact.epa.termination == EpaTermination::DuplicateSupport;
+				Expect((status == GjkContactStatus::Contact) == epaSuccess &&
+					(status != GjkContactStatus::Separated || !epaRan) &&
+					(!epaRan || epaSuccess || status == GjkContactStatus::Failed),
+					"seeded EPA success, failure and bypass agree with the contact result");
+				const auto epaReason = static_cast<std::size_t>(contact.epa.termination);
+				Expect(epaReason < epaReasons.size(), "seeded EPA termination has a declared reason");
+				if (epaReason < epaReasons.size()) { ++epaReasons[epaReason]; }
+				epaCalls += epaRan ? 2 : 0;
+				epaIterations += 2 * contact.epa.iterations;
+				epaFailures += epaRan && !epaSuccess ? 2 : 0;
+				epaMaximum = std::max(epaMaximum, contact.epa.iterations);
 				Expect(Finite(pa) && Finite(pb) &&
 					(status != GjkContactStatus::Failed || (pa == Vec3f(0) && pb == Vec3f(0) &&
 						contact.termination == GjkTermination::ContactExpansionFailed)),
@@ -5443,14 +5579,66 @@ namespace
 				Expect(beforeA.Unchanged() && beforeB.Unchanged(), "seeded GJK queries leave live body state byte-for-byte unchanged");
 			}
 		}
+		const auto profile = GetPhysicsProfileSnapshot();
+		Expect(!IsPhysicsProfilingEnabled() || (profile.epaCallCount == epaCalls &&
+			profile.epaFailureCount == epaFailures && profile.epaIterationCount == epaIterations &&
+			profile.epaMaxIterations == epaMaximum), "aggregate EPA telemetry equals the sum of all individual attempted queries");
+		std::cout << "EPA_FUZZ queries=" << epaCalls << " iterations=" << epaIterations
+			<< " max_iterations=" << epaMaximum << " failures=" << epaFailures << " reasons=";
+		for (unsigned count : epaReasons) { std::cout << count << ','; }
+		std::cout << '\n';
 		std::cout << "GJK_FUZZ pairs=1200 max_iterations=" << maximumIterations
-			<< " safe_contact_failures=" << safeContactFailures << " reasons=";
+			<< " safe_contact_failures=" << safeContactFailures << " contact_fingerprint=" << contactFingerprint << " reasons=";
 		for (unsigned count : reasons) { std::cout << count << ','; }
 		std::cout << '\n';
 	}
 
+	void TestEpaThinGeometry()
+	{
+		using namespace GEngine;
+		for (float scale : { 0.1f, 1.0f, 10.0f, 100.0f }) {
+			for (float thickness : { 1e-4f, 1e-3f, 1e-2f }) {
+				ShapeBox box(BoxPoints(scale * Vec3f(1, 1, thickness)));
+				Expect(box.IsValid(), "thin EPA regression starts from valid shape geometry");
+				RigidBody3D a, b;
+				const Quat rotation = glm::angleAxis(0.37f, Math::NormalizeOr(Vec3f(1, 2, 3)));
+				ConfigureBoxBody(a, box, scale * Vec3f(3, -2, 1), rotation);
+				ConfigureBoxBody(b, box, a.m_Position + rotation * (scale * Vec3f(0.2f, 0.3f, thickness)), rotation);
+				const PredictionBodySnapshot beforeA(a), beforeB(b);
+				for (bool reverse : { false, true }) {
+					Vec3f pa(99), pb(99), repeatA, repeatB;
+					GjkDiagnostics result, repeat;
+					const auto status = GJK_GetContact(reverse ? &b : &a, reverse ? &a : &b, 0, pa, pb, &result);
+					const auto again = GJK_GetContact(reverse ? &b : &a, reverse ? &a : &b, 0, repeatA, repeatB, &repeat);
+					Expect(Finite(pa) && Finite(pb) && status == again && pa == repeatA && pb == repeatB &&
+						result.termination == repeat.termination && result.epa.termination == repeat.epa.termination &&
+						result.epa.iterations == repeat.epa.iterations && result.epa.iterations <= EpaMaxIterations,
+						"thin transformed EPA queries remain finite, repeatable and bounded in both body orders");
+					const bool success = result.epa.termination == EpaTermination::Converged ||
+						result.epa.termination == EpaTermination::DuplicateSupport;
+					Expect((status == GjkContactStatus::Contact) == success &&
+						(status == GjkContactStatus::Contact || (pa == Vec3f(0) && pb == Vec3f(0))),
+						"thin geometry can publish a contact only after EPA output validation");
+				}
+				Expect(beforeA.Unchanged() && beforeB.Unchanged(), "thin EPA queries preserve live body state");
+			}
+		}
+	}
+
+	int RunEpaRobustnessRegression()
+	{
+		TestEpaContactGeometry();
+		TestEpaTerminationContract();
+		TestEpaThinGeometry();
+		TestGjkSeededQueries();
+		if (failureCount) { std::cerr << failureCount << " of " << testCount << " EPA robustness checks failed\n"; return 1; }
+		std::cout << "EPA robustness regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
 	int RunGjkRobustnessRegression()
 	{
+		TestEpaContactGeometry();
 		TestGjkScaleRegression();
 		TestGjkTerminationContract();
 		TestGjkSeededQueries();
@@ -5479,6 +5667,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--epa-robustness") return RunEpaRobustnessRegression();
 		if (argument == "--gjk-robustness") return RunGjkRobustnessRegression();
 		if (argument == "--angular-sweep") return RunAngularSweepRegression();
 		if (argument == "--toi-revalidation") return RunToiRevalidationRegression();
@@ -5560,8 +5749,11 @@ int main(int argc, char** argv)
 	TestCollisionContactConvention();
 	TestContactImpulsePermutation();
 	TestPersistentContactPermutation();
+	TestEpaTerminationContract();
+	TestEpaThinGeometry();
 	TestGjkSeededQueries();
 	TestGjkTerminationContract();
+	TestEpaContactGeometry();
 	TestGjkScaleRegression();
 	TestDegenerateGjkDirection();
 	TestZeroQuaternionBodyUpdate();

@@ -7,6 +7,7 @@
 #include "glm/glm.hpp"
 
 #include <array>
+#include <limits>
 
 namespace GEngine
 {
@@ -637,9 +638,71 @@ namespace GEngine
 
 
 
-	bool GJK_DoesIntersect(const RigidBody3D* bodyA, const RigidBody3D* bodyB)
+
+	// Each public search owns its diagnostics; no shared state or profiling dependency.
+	struct GjkSearchControl
+	{
+		GjkDiagnostics* output;
+		unsigned limit;
+		unsigned iterations{};
+		GjkTermination reason{ GjkTermination::InvalidInput };
+
+		GjkSearchControl(GjkDiagnostics* diagnostics, unsigned requestedLimit)
+			: output(diagnostics), limit(std::min(requestedLimit, GjkMaxIterations))
+		{
+			if (output) { *output = GjkDiagnostics{}; }
+		}
+
+		void Finish(GjkTermination termination)
+		{
+			reason = termination;
+			if (output) { *output = { reason, iterations }; }
+		}
+
+		bool Next()
+		{
+			if (iterations == limit) {
+				Finish(GjkTermination::IterationLimit);
+				return false;
+			}
+			++iterations;
+			return true;
+		}
+	};
+
+	static double GjkDistanceSquared(const Vec3f& direction)
+	{
+		const float distance = glm::length2(direction);
+		// Preserve established float projections, using double only when the square
+		// overflows despite a finite direction.
+		return Math::IsFinite(distance) ? distance :
+			glm::dot(glm::dvec3(direction), glm::dvec3(direction));
+	}
+
+	static bool GjkMadeProgress(double previous, double current)
+	{
+		// Both terms have units of length squared. Scaling a scene scales both sides
+		// equally. A quarter epsilon is below one ULP of a normal float distance:
+		// do not discard representable progress, which can change witness selection.
+		// The cap handles paths that keep making tiny progress. Infinity denotes the
+		// first projection, not a fixed world-distance cutoff.
+		constexpr double relativeTolerance = 0.25 * std::numeric_limits<float>::epsilon();
+		return current < previous && (!std::isfinite(previous) ||
+			previous - current > relativeTolerance * previous);
+	}
+
+	static bool IsValidGjkProjection(const Vec3f& direction, const Vec4f& lambdas)
+	{
+		return Math::IsFinite(direction) && Math::IsFinite(lambdas) &&
+			lambdas.x >= 0 && lambdas.y >= 0 && lambdas.z >= 0 && lambdas.w >= 0 &&
+			lambdas.x + lambdas.y + lambdas.z + lambdas.w > Math::NumericalEpsilon;
+	}
+
+	bool GJK_DoesIntersect(const RigidBody3D* bodyA, const RigidBody3D* bodyB,
+		GjkDiagnostics* diagnostics, unsigned maxIterations)
 	{
 		GE_PHYSICS_PROFILE_GJK_CALL();
+		GjkSearchControl search(diagnostics, maxIterations);
 		if (!HasValidCollisionShapes(bodyA, bodyB)) {
 			return false;
 		}
@@ -649,22 +712,26 @@ namespace GEngine
 		point_t simplexPoints[4];
 		simplexPoints[0] = Support(bodyA, bodyB, Vec3f(1, 1, 1), 0.0f);
 		if (!IsValidSupportPoint(simplexPoints[0])) {
+			search.Finish(GjkTermination::InvalidSupport);
 			return false;
 		}
 
-		float closestDist = 1e10f;
+		double closestDist = std::numeric_limits<double>::infinity();
 		bool doesContainOrigin = false;
 		Vec3f newDir = simplexPoints[0].xyz * -1.0f;
 		do {
+			if (!search.Next()) { return false; }
 			GE_PHYSICS_PROFILE_GJK_ITERATION();
 			// Get the new point to check on
 			point_t newPt = Support(bodyA, bodyB, newDir, 0.0f);
 			if (!IsValidSupportPoint(newPt)) {
+				search.Finish(GjkTermination::InvalidSupport);
 				return false;
 			}
 
 			// If the new point is the same as a previous point, then we can't expand any further
 			if (HasPoint(simplexPoints, numPts, newPt)) {
+				search.Finish(GjkTermination::DuplicateSupport);
 				break;
 			}
 
@@ -673,20 +740,28 @@ namespace GEngine
 
 			// If this new point hasn't moved passed the origin, then the
 			// origin cannot be in the set. And therefore there is no collision.
-			float dotdot = glm::dot(newDir, newPt.xyz - origin);
+			const float supportProjection = glm::dot(newDir, newPt.xyz - origin);
+			const double dotdot = Math::IsFinite(supportProjection) ? supportProjection :
+				glm::dot(glm::dvec3(newDir), glm::dvec3(newPt.xyz - origin));
 			if (dotdot < 0.0f) {
+				search.Finish(GjkTermination::SeparatingAxis);
 				break;
 			}
 
 			Vec4f lambdas;
 			doesContainOrigin = SimplexSignedVolumes(simplexPoints, numPts, newDir, lambdas);
+			if (!IsValidGjkProjection(newDir, lambdas)) {
+				search.Finish(GjkTermination::InvalidSimplex);
+				return false;
+			}
 			if (doesContainOrigin) {
 				break;
 			}
 
 			// Check that the new projection of the origin onto the simplex is closer than the previous
-			float dist = glm::length2(newDir);
-			if (dist >= closestDist) {
+			const double dist = GjkDistanceSquared(newDir);
+			if (!GjkMadeProgress(closestDist, dist)) {
+				search.Finish(GjkTermination::NoProgress);
 				break;
 			}
 			closestDist = dist;
@@ -696,6 +771,7 @@ namespace GEngine
 			numPts = NumValids(lambdas);
 			doesContainOrigin = (4 == numPts);
 		} while (!doesContainOrigin);
+		if (doesContainOrigin) { search.Finish(GjkTermination::OriginReached); }
 
 		return doesContainOrigin;
 
@@ -704,9 +780,11 @@ namespace GEngine
 
 
 	GjkContactStatus GJK_GetContact(const RigidBody3D* bodyA, const RigidBody3D* bodyB,
-		float bias, Vec3f& ptOnA, Vec3f& ptOnB)
+		float bias, Vec3f& ptOnA, Vec3f& ptOnB,
+		GjkDiagnostics* diagnostics, unsigned maxIterations)
 	{
 		GE_PHYSICS_PROFILE_GJK_CALL();
+		GjkSearchControl search(diagnostics, maxIterations);
 		ptOnA = Vec3f(0.0f);
 		ptOnB = Vec3f(0.0f);
 		if (!HasValidCollisionShapes(bodyA, bodyB) || !Math::IsFinite(bias) || bias < 0.0f) {
@@ -719,22 +797,26 @@ namespace GEngine
 		point_t simplexPoints[4];
 		simplexPoints[0] = Support(bodyA, bodyB, Vec3f(1, 1, 1), 0.0f);
 		if (!IsValidSupportPoint(simplexPoints[0])) {
+			search.Finish(GjkTermination::InvalidSupport);
 			return GjkContactStatus::Failed;
 		}
 
-		float closestDist = 1e10f;
+		double closestDist = std::numeric_limits<double>::infinity();
 		bool doesContainOrigin = false;
 		Vec3f newDir = simplexPoints[0].xyz * -1.0f;
 		do {
+			if (!search.Next()) { return GjkContactStatus::Failed; }
 			GE_PHYSICS_PROFILE_GJK_ITERATION();
 			// Get the new point to check on
 			point_t newPt = Support(bodyA, bodyB, newDir, 0.0f);
 			if (!IsValidSupportPoint(newPt)) {
+				search.Finish(GjkTermination::InvalidSupport);
 				return GjkContactStatus::Failed;
 			}
 
 			// If the new point is the same as a previous point, then we can't expand any further
 			if (HasPoint(simplexPoints, numPts, newPt)) {
+				search.Finish(GjkTermination::DuplicateSupport);
 				break;
 			}
 
@@ -743,20 +825,28 @@ namespace GEngine
 
 			// If this new point hasn't moved passed the origin, then the
 			// origin cannot be in the set. And therefore there is no collision.
-			float dotdot = glm::dot(newDir, newPt.xyz - origin);
+			const float supportProjection = glm::dot(newDir, newPt.xyz - origin);
+			const double dotdot = Math::IsFinite(supportProjection) ? supportProjection :
+				glm::dot(glm::dvec3(newDir), glm::dvec3(newPt.xyz - origin));
 			if (dotdot < 0.0f) {
+				search.Finish(GjkTermination::SeparatingAxis);
 				break;
 			}
 
 			Vec4f lambdas;
 			doesContainOrigin = SimplexSignedVolumes(simplexPoints, numPts, newDir, lambdas);
+			if (!IsValidGjkProjection(newDir, lambdas)) {
+				search.Finish(GjkTermination::InvalidSimplex);
+				return GjkContactStatus::Failed;
+			}
 			if (doesContainOrigin) {
 				break;
 			}
 
 			// Check that the new projection of the origin onto the simplex is closer than the previous
-			float dist = glm::length2(newDir); 
-			if (dist >= closestDist) {
+			const double dist = GjkDistanceSquared(newDir);
+			if (!GjkMadeProgress(closestDist, dist)) {
+				search.Finish(GjkTermination::NoProgress);
 				break;
 			}
 			closestDist = dist;
@@ -766,6 +856,7 @@ namespace GEngine
 			numPts = NumValids(lambdas);
 			doesContainOrigin = (4 == numPts);
 		} while (!doesContainOrigin);
+		if (doesContainOrigin) { search.Finish(GjkTermination::OriginReached); }
 
 		if (!doesContainOrigin) {
 			return GjkContactStatus::Separated;
@@ -774,6 +865,7 @@ namespace GEngine
 		// EPA requires four finite, affinely independent support points. Exact
 		// face contacts often reach the origin with only a line or triangle.
 		if (!ExpandSimplexToTetrahedron(bodyA, bodyB, simplexPoints, numPts)) {
+			search.Finish(GjkTermination::ContactExpansionFailed);
 			return GjkContactStatus::Failed;
 		}
 
@@ -788,6 +880,7 @@ namespace GEngine
 		}
 		avg *= 0.25f;
 		if (!Math::IsFinite(avg)) {
+			search.Finish(GjkTermination::InvalidSimplex);
 			return GjkContactStatus::Failed;
 		}
 
@@ -807,6 +900,7 @@ namespace GEngine
 		// Perform EPA expansion of the simplex to find the closest face on the CSO
 		//
 		if (!EPA_Expand(bodyA, bodyB, bias, simplexPoints, ptOnA, ptOnB)) {
+			search.Finish(GjkTermination::ContactExpansionFailed);
 			ptOnA = Vec3f(0.0f);
 			ptOnB = Vec3f(0.0f);
 			return GjkContactStatus::Failed;
@@ -817,17 +911,20 @@ namespace GEngine
 	}
 
 	bool GJK_DoesIntersect(const RigidBody3D* bodyA, const RigidBody3D* bodyB,
-		const float bias, Vec3f& ptOnA, Vec3f& ptOnB)
+		const float bias, Vec3f& ptOnA, Vec3f& ptOnB,
+		GjkDiagnostics* diagnostics, unsigned maxIterations)
 	{
-		return GJK_GetContact(bodyA, bodyB, bias, ptOnA, ptOnB) == GjkContactStatus::Contact;
+		return GJK_GetContact(bodyA, bodyB, bias, ptOnA, ptOnB, diagnostics, maxIterations) == GjkContactStatus::Contact;
 	}
 
 
 
 
-	void GJK_ClosestPoints(const RigidBody3D* bodyA, const RigidBody3D* bodyB, Vec3f& ptOnA, Vec3f& ptOnB)
+	void GJK_ClosestPoints(const RigidBody3D* bodyA, const RigidBody3D* bodyB, Vec3f& ptOnA, Vec3f& ptOnB,
+		GjkDiagnostics* diagnostics, unsigned maxIterations)
 	{
 		GE_PHYSICS_PROFILE_GJK_CALL();
+		GjkSearchControl search(diagnostics, maxIterations);
 		ptOnA = Vec3f(0.0f);
 		ptOnB = Vec3f(0.0f);
 		if (!HasValidCollisionShapes(bodyA, bodyB)) {
@@ -836,28 +933,32 @@ namespace GEngine
 		
 		const Vec3f origin(0.0f);
 
-		float closestDist = 1e10f;
+		double closestDist = std::numeric_limits<double>::infinity();
 		const float bias = 0.0f;
 
 		int numPts = 1;
 		point_t simplexPoints[4];
 		simplexPoints[0] = Support(bodyA, bodyB, Vec3f(1, 1, 1), bias);
 		if (!IsValidSupportPoint(simplexPoints[0])) {
+			search.Finish(GjkTermination::InvalidSupport);
 			return;
 		}
 
 		Vec4f lambdas = Vec4f(1, 0, 0, 0);
 		Vec3f newDir = simplexPoints[0].xyz * -1.0f;
 		do {
+			if (!search.Next()) { return; }
 			GE_PHYSICS_PROFILE_GJK_ITERATION();
 			// Get the new point to check on
 			point_t newPt = Support(bodyA, bodyB, newDir, bias);
 			if (!IsValidSupportPoint(newPt)) {
+				search.Finish(GjkTermination::InvalidSupport);
 				return;
 			}
 
 			// If the new point is the same as a previous point, then we can't expand any further
 			if (HasPoint(simplexPoints, numPts, newPt)) {
+				search.Finish(GjkTermination::DuplicateSupport);
 				break;
 			}
 
@@ -866,16 +967,22 @@ namespace GEngine
 			numPts++;
 
 			SimplexSignedVolumes(simplexPoints, numPts, newDir, lambdas);
+			if (!IsValidGjkProjection(newDir, lambdas)) {
+				search.Finish(GjkTermination::InvalidSimplex);
+				return;
+			}
 			SortValids(simplexPoints, lambdas);
 			numPts = NumValids(lambdas);
 
 			// Check that the new projection of the origin onto the simplex is closer than the previous
-			float dist = glm::length2(newDir); 
-			if (dist >= closestDist) {
+			const double dist = GjkDistanceSquared(newDir);
+			if (!GjkMadeProgress(closestDist, dist)) {
+				search.Finish(GjkTermination::NoProgress);
 				break;
 			}
 			closestDist = dist;
 		} while (numPts < 4);
+		if (numPts == 4) { search.Finish(GjkTermination::OriginReached); }
 
 
 		Vec3f candidatePtOnA(0.0f);
@@ -888,6 +995,7 @@ namespace GEngine
 			ptOnA = candidatePtOnA;
 			ptOnB = candidatePtOnB;
 		}
+		else { search.Finish(GjkTermination::InvalidSimplex); }
 
 	}
 

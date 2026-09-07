@@ -5238,6 +5238,227 @@ namespace
 		}
 	}
 
+
+	void TestGjkScaleRegression()
+	{
+		using namespace GEngine;
+		for (float scale : { 0.1f, 0.5f, 1.0f, 10.0f, 100.0f }) {
+			ShapeSphere sphere(scale);
+			for (const Vec3f offset : { Vec3f(3, 0, 0), Vec3f(4, 3, 2), Vec3f(1, 7, -3) }) {
+				RigidBody3D a, b;
+				ConfigureSphereBody(a, sphere, scale * Vec3f(3, -2, 1));
+				ConfigureSphereBody(b, sphere, a.m_Position + scale * offset);
+				Vec3f pa, pb;
+				Expect(!GJK_DoesIntersect(&a, &b), "scaled analytic spheres are separated in GJK");
+				Expect(GJK_GetContact(&a, &b, 0, pa, pb) == GjkContactStatus::Separated,
+					"scaled analytic spheres report separation without EPA");
+				GJK_ClosestPoints(&a, &b, pa, pb);
+				const float expected = scale * (glm::length(offset) - 2.0f);
+				Expect(Finite(pa) && Finite(pb) && Near(glm::length(pb - pa), expected, 5e-4f * scale),
+					"scaled GJK distance agrees with analytic sphere distance");
+			}
+		}
+		// Fixed seed and known local separating/penetrating axis, followed by a common rigid transform.
+		// The oracle does not reuse production simplex or EPA calculations.
+		std::uint32_t seed = 0x27a91u;
+		const auto random = [&seed]() {
+			seed = 1664525u * seed + 1013904223u;
+			return static_cast<float>(seed >> 8) / 16777216.0f;
+		};
+		for (float scale : { 0.1f, 1.0f, 10.0f, 100.0f }) {
+			ShapeBox box(BoxPoints(Vec3f(scale)));
+			for (int sample = 0; sample < 64; ++sample) {
+				const bool overlap = (sample % 2) == 0;
+				const Vec3f axis(random(), random(), random());
+				const Quat rotation = glm::angleAxis(6.0f * random(), Math::NormalizeOr(axis));
+				const Vec3f translation = scale * Vec3f(8 * random(), -4 * random(), 6 * random());
+				const Vec3f offset(overlap ? 1.2f : 3.2f, 0.4f * random(), 0.4f * random());
+				RigidBody3D a, b;
+				ConfigureBoxBody(a, box, translation, rotation);
+				ConfigureBoxBody(b, box, translation + rotation * (scale * offset), rotation);
+				Expect(GJK_DoesIntersect(&a, &b) == overlap && GJK_DoesIntersect(&b, &a) == overlap,
+					"seeded scaled boxes agree with independent local-axis overlap oracle in both orders");
+				Vec3f pa, pb;
+				if (!overlap) {
+					GJK_ClosestPoints(&a, &b, pa, pb);
+					Expect(Finite(pa) && Finite(pb) && Near(glm::length(pb - pa), 1.2f * scale, 5e-4f * scale),
+						"seeded scaled box distance agrees with analytic face gap");
+				}
+			}
+		}
+	}
+
+
+	class GjkSupportFixture final : public GEngine::ShapeSphere
+	{
+	public:
+		mutable unsigned calls{};
+		unsigned failAt{};
+		using ShapeSphere::ShapeSphere;
+
+		GEngine::Vec3f Support(const GEngine::Vec3f& direction, const GEngine::Vec3f& position,
+			const GEngine::Quat& orientation, float bias) const override
+		{
+			if (++calls == failAt) { return GEngine::Vec3f(std::numeric_limits<float>::quiet_NaN()); }
+			return ShapeSphere::Support(direction, position, orientation, bias);
+		}
+	};
+
+	void TestGjkTerminationContract()
+	{
+		using namespace GEngine;
+		ShapeBox box(UnitBoxPoints());
+		RigidBody3D a, b;
+		const Quat identity(1, 0, 0, 0);
+		ConfigureBoxBody(a, box, Vec3f(0), identity);
+		ConfigureBoxBody(b, box, Vec3f(1.2f, 0.3f, 0.2f), identity);
+		Vec3f pa, pb;
+		GjkDiagnostics diagnostics;
+		for (unsigned budget : { 0u, 1u }) {
+			Expect(!GJK_DoesIntersect(&a, &b, &diagnostics, budget) &&
+				diagnostics.termination == GjkTermination::IterationLimit && diagnostics.iterations == budget,
+				"boolean GJK obeys an exhausted budget without reporting an intersection");
+			pa = pb = Vec3f(99);
+			Expect(GJK_GetContact(&a, &b, 0.001f, pa, pb, &diagnostics, budget) == GjkContactStatus::Failed &&
+				diagnostics.termination == GjkTermination::IterationLimit && diagnostics.iterations == budget &&
+				pa == Vec3f(0) && pb == Vec3f(0),
+				"contact GJK exposes cap exhaustion and clears witness outputs");
+			pa = pb = Vec3f(99);
+			GJK_ClosestPoints(&a, &b, pa, pb, &diagnostics, budget);
+			Expect(diagnostics.termination == GjkTermination::IterationLimit && diagnostics.iterations == budget &&
+				pa == Vec3f(0) && pb == Vec3f(0),
+				"distance GJK exposes cap exhaustion and does not publish partial witnesses");
+			Expect(!GJK_DoesIntersect(&a, &b, 0.001f, pa, pb, &diagnostics, budget) &&
+				diagnostics.termination == GjkTermination::IterationLimit && diagnostics.iterations == budget,
+				"legacy contact wrapper forwards budget and diagnostics");
+		}
+		GjkDiagnostics full, oversized;
+		Vec3f fullA, fullB, largeA, largeB;
+		Expect(GJK_GetContact(&a, &b, 0.001f, fullA, fullB, &full) == GjkContactStatus::Contact &&
+			full.termination == GjkTermination::OriginReached && full.iterations > 1 && full.iterations <= GjkMaxIterations,
+			"valid contact succeeds with the default bounded budget");
+		Expect(GJK_GetContact(&a, &b, 0.001f, largeA, largeB, &oversized, std::numeric_limits<unsigned>::max()) ==
+			GjkContactStatus::Contact && oversized.iterations == full.iterations && fullA == largeA && fullB == largeB,
+			"oversized budget preserves bounded default contact output");
+		Expect(!GJK_DoesIntersect(nullptr, &b, &diagnostics) &&
+			diagnostics.termination == GjkTermination::InvalidInput && diagnostics.iterations == 0,
+			"invalid body input resets prior query diagnostics");
+		for (float bias : { -1.0f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN() }) {
+			pa = pb = Vec3f(99);
+			Expect(GJK_GetContact(&a, &b, bias, pa, pb, &diagnostics) == GjkContactStatus::Failed &&
+				diagnostics.termination == GjkTermination::InvalidInput && diagnostics.iterations == 0 &&
+				pa == Vec3f(0) && pb == Vec3f(0),
+				"invalid GJK bias is observable and resets witnesses");
+		}
+		GjkSupportFixture sphere(1);
+		a.m_Shape = &sphere;
+		for (unsigned failureCall : { 1u, 2u }) {
+			sphere.failAt = failureCall;
+			for (int api = 0; api < 3; ++api) {
+				sphere.calls = 0;
+				pa = pb = Vec3f(99);
+				bool failed = true;
+				if (api == 0) { failed = !GJK_DoesIntersect(&a, &b, &diagnostics); }
+				if (api == 1) { failed = GJK_GetContact(&a, &b, 0.001f, pa, pb, &diagnostics) == GjkContactStatus::Failed; }
+				if (api == 2) { GJK_ClosestPoints(&a, &b, pa, pb, &diagnostics); }
+				Expect(failed && diagnostics.termination == GjkTermination::InvalidSupport &&
+					diagnostics.iterations == failureCall - 1 && (api == 0 || (pa == Vec3f(0) && pb == Vec3f(0))),
+					"non-finite initial or iterative support fails safely with an exact termination count");
+			}
+		}
+		sphere.failAt = 0;
+		PointShapeFixture point;
+		point.SetShapeType(ShapeType::Convex);
+		a.m_Shape = b.m_Shape = &point;
+		b.m_Position = a.m_Position;
+		Expect(!GJK_DoesIntersect(&a, &b, &diagnostics) &&
+			diagnostics.termination == GjkTermination::DuplicateSupport && diagnostics.iterations == 1,
+			"degenerate coincident point support terminates as an observable duplicate");
+		GJK_ClosestPoints(&a, &b, pa, pb, &diagnostics);
+		Expect(pa == Vec3f(0) && pb == Vec3f(0) && diagnostics.termination == GjkTermination::DuplicateSupport,
+			"valid degenerate distance witnesses remain finite");
+
+		ConfigureBoxBody(a, box, Vec3f(0), identity);
+		ConfigureBoxBody(b, box, Vec3f(3, 0, 0), identity);
+		Expect(!GJK_DoesIntersect(&a, &b, &diagnostics) &&
+			diagnostics.termination == GjkTermination::SeparatingAxis,
+			"true separating-axis termination is distinguishable from a failed search");
+	}
+
+
+	void TestGjkSeededQueries()
+	{
+		using namespace GEngine;
+		std::uint32_t seed = 0x270027u;
+		const auto random = [&seed]() {
+			seed = 1664525u * seed + 1013904223u;
+			return static_cast<float>(seed >> 8) / 16777216.0f;
+		};
+		std::array<unsigned, 9> reasons{};
+		unsigned maximumIterations = 0;
+		unsigned safeContactFailures = 0;
+		for (float scale : { 0.1f, 1.0f, 10.0f, 100.0f }) {
+			ShapeBox box(BoxPoints(Vec3f(scale)));
+			ShapeConvex convex(BoxPoints(Vec3f(scale, 0.7f * scale, 0.5f * scale)));
+			ShapeSphere sphere(scale);
+			PhysicalShape* shapes[] = { &box, &convex, &sphere };
+			for (int sample = 0; sample < 300; ++sample) {
+				RigidBody3D a, b;
+				a.m_Shape = shapes[sample % 3];
+				b.m_Shape = shapes[(sample / 3) % 3];
+				a.m_Position = scale * Vec3f(random(), random(), random());
+				b.m_Position = a.m_Position + scale * Vec3f(4 * random() - 2, 4 * random() - 2, 4 * random() - 2);
+				const Vec3f axisA(random(), random(), random()), axisB(random(), random(), random());
+				a.m_Orientation = glm::angleAxis(3 * random(), Math::NormalizeOr(axisA));
+				b.m_Orientation = glm::angleAxis(3 * random(), Math::NormalizeOr(axisB));
+				const PredictionBodySnapshot beforeA(a), beforeB(b);
+				Vec3f pa, pb, repeatA, repeatB;
+				GjkDiagnostics contact, repeat, boolean, distance;
+				const auto status = GJK_GetContact(&a, &b, 0.001f, pa, pb, &contact);
+				const auto again = GJK_GetContact(&a, &b, 0.001f, repeatA, repeatB, &repeat);
+				Expect(status == again && pa == repeatA && pb == repeatB &&
+					contact.termination == repeat.termination && contact.iterations == repeat.iterations,
+					"seeded GJK contact witnesses and termination repeat exactly");
+				Expect(Finite(pa) && Finite(pb) &&
+					(status != GjkContactStatus::Failed || (pa == Vec3f(0) && pb == Vec3f(0) &&
+						contact.termination == GjkTermination::ContactExpansionFailed)),
+					"seeded valid-shape contacts publish finite witnesses or observable safe expansion failure");
+				if (status == GjkContactStatus::Failed) { ++safeContactFailures; }
+				const bool overlap = GJK_DoesIntersect(&a, &b, &boolean);
+				Expect((status == GjkContactStatus::Separated) == !overlap,
+					"seeded boolean and contact queries agree on the GJK overlap classification");
+				GJK_ClosestPoints(&a, &b, pa, pb, &distance);
+				GJK_ClosestPoints(&a, &b, repeatA, repeatB, &repeat);
+				Expect(Finite(pa) && Finite(pb) && pa == repeatA && pb == repeatB &&
+					distance.termination == repeat.termination && distance.iterations == repeat.iterations,
+					"seeded GJK distance witnesses and termination repeat exactly");
+				for (const auto& result : { contact, boolean, distance }) {
+					const auto reason = static_cast<std::size_t>(result.termination);
+					Expect(result.iterations > 0 && result.iterations <= GjkMaxIterations &&
+						result.termination != GjkTermination::IterationLimit && reason >= 3 && reason < reasons.size(),
+						"seeded supported geometry terminates within the hard cap with an explicit valid reason");
+					if (reason < reasons.size()) { ++reasons[reason]; }
+					maximumIterations = std::max(maximumIterations, result.iterations);
+				}
+				Expect(beforeA.Unchanged() && beforeB.Unchanged(), "seeded GJK queries leave live body state byte-for-byte unchanged");
+			}
+		}
+		std::cout << "GJK_FUZZ pairs=1200 max_iterations=" << maximumIterations
+			<< " safe_contact_failures=" << safeContactFailures << " reasons=";
+		for (unsigned count : reasons) { std::cout << count << ','; }
+		std::cout << '\n';
+	}
+
+	int RunGjkRobustnessRegression()
+	{
+		TestGjkScaleRegression();
+		TestGjkTerminationContract();
+		TestGjkSeededQueries();
+		if (failureCount) { std::cerr << failureCount << " of " << testCount << " GJK robustness checks failed\n"; return 1; }
+		std::cout << "GJK robustness regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
 	int RunAngularSweepRegression()
 	{
 		TestAngularSweepContainment();
@@ -5258,6 +5479,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--gjk-robustness") return RunGjkRobustnessRegression();
 		if (argument == "--angular-sweep") return RunAngularSweepRegression();
 		if (argument == "--toi-revalidation") return RunToiRevalidationRegression();
 		if (argument == "--pure-prediction") return RunPurePredictionRegression();
@@ -5338,6 +5560,9 @@ int main(int argc, char** argv)
 	TestCollisionContactConvention();
 	TestContactImpulsePermutation();
 	TestPersistentContactPermutation();
+	TestGjkSeededQueries();
+	TestGjkTerminationContract();
+	TestGjkScaleRegression();
 	TestDegenerateGjkDirection();
 	TestZeroQuaternionBodyUpdate();
 	TestBoxConstructionInvariant();

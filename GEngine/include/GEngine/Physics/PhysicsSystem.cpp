@@ -807,8 +807,12 @@ namespace GEngine
 			float orthoSpeed = glm::dot(relativeVelocity, ab);
 
 			// Add to the orthoSpeed the maximum angular speeds of the relative shapes
-			float angularSpeedA = predictedA.m_Shape->FastestLinearSpeed(predictedA.GetAngularVelocity(), ab);
-			float angularSpeedB = predictedB.m_Shape->FastestLinearSpeed(predictedB.GetAngularVelocity(), ab * -1.0f);
+			// Shapes evaluate omega x (localPoint - localCOM). Both inputs must use
+			// the current predicted body's local frame; each body has its own rotation.
+			const Mat3& worldToA = predictedA.GetWorldToBodyRotation();
+			const Mat3& worldToB = predictedB.GetWorldToBodyRotation();
+			float angularSpeedA = predictedA.m_Shape->FastestLinearSpeed(worldToA * predictedA.GetAngularVelocity(), worldToA * ab);
+			float angularSpeedB = predictedB.m_Shape->FastestLinearSpeed(worldToB * predictedB.GetAngularVelocity(), worldToB * -ab);
 			orthoSpeed += angularSpeedA + angularSpeedB;
 			if (!Math::IsFinite(orthoSpeed) || orthoSpeed <= Math::NumericalEpsilon) {
 				break;

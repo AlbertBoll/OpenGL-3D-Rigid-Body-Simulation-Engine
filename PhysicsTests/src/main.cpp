@@ -5040,6 +5040,216 @@ namespace
 		Expect(matches && broadphase.GetLastStats().fullSortCount == 0,
 			"incrementally sorted moving candidates match filtered swept-AABB brute force");
 	}
+
+	struct AngularSweptBoundsTag
+	{
+		using Type = std::vector<GEngine::Bounds> GEngine::SweepAndPruneBroadphase::*;
+		friend Type GetPrivateMember(AngularSweptBoundsTag);
+	};
+	template struct PrivateMemberAccess<AngularSweptBoundsTag, &GEngine::SweepAndPruneBroadphase::m_SweptBounds>;
+
+	bool EnclosesBounds(const GEngine::Bounds& outer, const GEngine::Bounds& inner)
+	{
+		for (int axis = 0; axis < 3; ++axis)
+			if (outer.mins[axis] > inner.mins[axis] || outer.maxs[axis] < inner.maxs[axis]) return false;
+		return true;
+	}
+
+	void TestAngularSweepContainment()
+	{
+		using namespace GEngine;
+		using BodyType = Component::BodyType;
+		for (const float scale : { 0.25f, 1.0f, 8.0f })
+		{
+			auto points = BoxPoints(Vec3f(4.0f, 0.5f, 0.25f) * scale);
+			for (Vec3f& point : points) point += Vec3f(2, -3, 0.4f) * scale;
+			ShapeBox box(points); ShapeConvex convex(points);
+			for (PhysicalShape* shape : { static_cast<PhysicalShape*>(&box), static_cast<PhysicalShape*>(&convex) })
+			for (const BodyType type : { BodyType::Dynamic, BodyType::Kinematic })
+			for (const float angle : { 0.0f, 0.8f })
+			for (const Vec3f localOmega : { Vec3f(0, 0, 30), Vec3f(6, 10, -7) })
+			{
+				RigidBody3D body;
+				body.m_Shape = shape;
+				body.SetBodyTypeAndInverseMass(type, 1.0f);
+				body.m_Position = Vec3f(10, -5, 2) * scale;
+				body.m_Orientation = glm::angleAxis(angle, glm::normalize(Vec3f(1, 2, 3)));
+				body.m_AngularVelocity = body.m_Orientation * localOmega;
+				body.m_LinearVelocity = Vec3f(1, -2, 0.5f) * scale;
+				const Vec3f position = body.m_Position, velocity = body.m_LinearVelocity, omega = body.m_AngularVelocity;
+				const Quat orientation = body.m_Orientation;
+				SweepAndPruneBroadphase broadphase;
+				std::vector<RigidBody3D*> bodies{ &body };
+				std::vector<collisionPair_t> pairs;
+				const float duration = glm::two_pi<float>() / 30.0f;
+				broadphase.FindPairs(bodies, pairs, duration);
+				const Bounds swept = (broadphase.*GetPrivateMember(AngularSweptBoundsTag{}))[0];
+				bool contains = Math::IsFinite(swept.mins) && Math::IsFinite(swept.maxs);
+				RigidBody3D incremental = body;
+				for (int sample = 0; sample <= 64; ++sample)
+				{
+					RigidBody3D predicted = body;
+					predicted.Update(duration * sample / 64.0f);
+					if (sample > 0) incremental.Update(duration / 64.0f);
+					contains = contains && predicted.HasFiniteState() && incremental.HasFiniteState() &&
+						EnclosesBounds(swept, predicted.GetWorldBounds()) && EnclosesBounds(swept, incremental.GetWorldBounds());
+				}
+				Expect(contains, "angular swept bounds contain intermediate direct and partitioned rotating/translating offset-shape poses");
+				Expect(Near(body.m_Position, position, 0) && Near(body.m_LinearVelocity, velocity, 0) &&
+					Near(body.m_AngularVelocity, omega, 0) && OrientationResidual(body.m_Orientation, orientation) == 0,
+					"broad-phase rotation enclosure preserves live physical state");
+				broadphase.FindPairs(bodies, pairs, duration);
+				const Bounds repeated = (broadphase.*GetPrivateMember(AngularSweptBoundsTag{}))[0];
+				Expect(Near(swept.mins, repeated.mins, 0) && Near(swept.maxs, repeated.maxs, 0) &&
+					broadphase.GetLastStats().fullSortCount == 0, "rotation bounds repeat exactly without rebuilding SAP membership");
+			}
+		}
+	}
+
+	void TestAngularSweepCandidatesAndGuards()
+	{
+		using namespace GEngine;
+		using BodyType = Component::BodyType;
+		ShapeBox rod(BoxPoints(Vec3f(4, 0.15f, 0.15f)));
+		ShapeSphere sphere(0.25f);
+		RigidBody3D a, b;
+		ConfigureBoxBody(a, rod, Vec3f(0), Quat(1, 0, 0, 0));
+		ConfigureSphereBody(b, sphere, Vec3f(0, 3.5f, 0));
+		b.SetBodyTypeAndInverseMass(BodyType::Static, 0.0f);
+		a.m_AngularVelocity = Vec3f(0, 0, 30);
+		SweepAndPruneBroadphase broadphase;
+		std::vector<RigidBody3D*> bodies{ &a, &b };
+		std::vector<collisionPair_t> pairs;
+		const float duration = glm::two_pi<float>() / 30.0f;
+		RigidBody3D end = a; end.Update(duration);
+		Expect(!a.GetWorldBounds().DoesIntersect(b.GetWorldBounds()) && !end.GetWorldBounds().DoesIntersect(b.GetWorldBounds()),
+			"full-turn rod fixture misses the obstacle at both endpoints");
+		broadphase.FindPairs(bodies, pairs, duration);
+		Expect(pairs.size() == 1 && ContainsPair(pairs, 0, 1), "full-turn angular sweep retains the intermediate long-box collision");
+		broadphase.FindPairs(bodies, pairs, 0.0f);
+		Expect(pairs.empty(), "zero duration does not expand a stored angular velocity");
+		a.SetBodyTypeAndInverseMass(BodyType::Static, 0.0f);
+		b.SetBodyTypeAndInverseMass(BodyType::Dynamic, 1.0f);
+		broadphase.FindPairs(bodies, pairs, duration);
+		Expect(pairs.empty(), "Static stored spin does not enlarge a fixed collider");
+		a.Type = BodyType::Dynamic; a.m_InvMass = 0.0f;
+		broadphase.FindPairs(bodies, pairs, duration);
+		Expect(pairs.empty(), "non-integrating zero-mass Dynamic stored spin does not enlarge bounds");
+		a.SetBodyTypeAndInverseMass(BodyType::Kinematic, 0.0f);
+		broadphase.FindPairs(bodies, pairs, duration);
+		Expect(pairs.size() == 1, "Kinematic angular motion expands swept bounds");
+		a.m_CollisionMask = 0u;
+		broadphase.FindPairs(bodies, pairs, duration);
+		Expect(pairs.empty() && broadphase.GetLastStats().maskRejectedCount == 1,
+			"expanded angular candidates still obey reciprocal collision masks");
+		a.m_CollisionMask = ~0u;
+		a.m_Shape = &sphere;
+		broadphase.FindPairs(bodies, pairs, duration);
+		Expect(pairs.empty(), "sphere rotation does not enlarge rotation-invariant geometry");
+		a.m_Shape = &rod; a.m_AngularVelocity = Vec3f(0);
+		broadphase.FindPairs(bodies, pairs, duration);
+		Expect(pairs.empty(), "nonrotating box retains the existing linear bounds");
+	}
+
+	template<typename Base>
+	class AngularSpeedProbe : public Base
+	{
+	public:
+		using Base::Base;
+		mutable bool called = false;
+		mutable GEngine::Vec3f firstOmega{}, firstDirection{};
+		mutable float firstSpeed = 0;
+		float FastestLinearSpeed(const GEngine::Vec3f& omega, const GEngine::Vec3f& direction) const override
+		{
+			const float speed = Base::FastestLinearSpeed(omega, direction);
+			if (!called) { called = true; firstOmega = omega; firstDirection = direction; firstSpeed = speed; }
+			return speed;
+		}
+	};
+
+	template<typename Base>
+	void CheckAngularSpeedFrames()
+	{
+		using namespace GEngine;
+		auto points = BoxPoints(Vec3f(4, 0.5f, 0.25f));
+		for (Vec3f& point : points) point += Vec3f(2, -1, 0.4f);
+		for (const float angle : { 0.3f, 0.9f, 1.5f })
+		{
+			AngularSpeedProbe<Base> shapeA(points), shapeB(points);
+			RigidBody3D a, b;
+			a.m_Shape = &shapeA; b.m_Shape = &shapeB;
+			a.SetBodyTypeAndInverseMass(Component::BodyType::Dynamic, 1.0f);
+			b.SetBodyTypeAndInverseMass(Component::BodyType::Kinematic, 0.0f);
+			a.m_Orientation = glm::angleAxis(angle, glm::normalize(Vec3f(1, 2, 3)));
+			b.m_Orientation = glm::angleAxis(-angle, glm::normalize(Vec3f(3, -2, 1)));
+			b.m_Position = Vec3f(0, 30, 0);
+			a.m_AngularVelocity = Vec3f(2, -3, 4); b.m_AngularVelocity = Vec3f(-4, 1, 3);
+			contact_t contact{};
+			Expect(!Collision::ConservativeAdvance(&a, &b, 1.0e-4f, contact), "short angular frame fixture stays separated");
+			const Vec3f worldDirection = glm::normalize(contact.ptOnB_WorldSpace - contact.ptOnA_WorldSpace);
+			for (int side = 0; side < 2; ++side)
+			{
+				auto& shape = side == 0 ? shapeA : shapeB;
+				const auto& body = side == 0 ? a : b;
+				const Vec3f direction = side == 0 ? worldDirection : -worldDirection;
+				float expected = 0;
+				for (const Vec3f& point : points)
+				{
+					const Vec3f lever = body.m_Orientation * (point - shape.GetCenterOfMass());
+					expected = std::max(expected, glm::dot(glm::cross(body.GetAngularVelocity(), lever), direction));
+				}
+				Expect(shape.called && Near(shape.firstSpeed, expected, 3.0e-5f),
+					"CA angular speed agrees with independently transformed world-space vertex velocities for either participant");
+				Expect(Near(shape.firstOmega, glm::conjugate(body.m_Orientation) * body.GetAngularVelocity(), 3.0e-6f) &&
+					Near(shape.firstDirection, glm::conjugate(body.m_Orientation) * direction, 3.0e-6f),
+					"CA supplies angular velocity and search direction in the shape's local frame");
+			}
+		}
+	}
+
+	void TestRotatingLongBoxCollision()
+	{
+		using namespace GEngine;
+		using BodyType = Component::BodyType;
+		for (const bool reversed : { false, true })
+		for (const float angle : { 0.0f, 0.35f })
+		{
+			ShapeBox rod(BoxPoints(Vec3f(4, 0.15f, 0.15f)));
+			ShapeSphere sphere(0.25f);
+			PhysicsSystem system;
+			auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
+			auto* first = world->CreateRigidBody3D(); auto* second = world->CreateRigidBody3D();
+			auto* a = reversed ? second : first; auto* b = reversed ? first : second;
+			const Quat orientation = glm::angleAxis(angle, Vec3f(0, 0, 1));
+			ConfigureBoxBody(*a, rod, Vec3f(0), orientation);
+			ConfigureSphereBody(*b, sphere, orientation * Vec3f(0, 3.5f, 0));
+			b->SetBodyTypeAndInverseMass(BodyType::Static, 0.0f);
+			a->m_AngularVelocity = Vec3f(0, 0, 30);
+			a->m_Elasticity = b->m_Elasticity = 0; a->m_Friction = b->m_Friction = 0;
+			contact_t contact{};
+			const bool hit = Collision::Intersect(a, b, 0.06f, contact);
+			std::cout << "ANGULAR_CCD angle=" << angle << " reversed=" << reversed << " hit=" << hit << " toi=" << contact.timeOfImpact << '\n';
+			Expect(hit && contact.timeOfImpact > 0 && contact.timeOfImpact < 0.06f && Finite(contact),
+				"rotating long-box fixture has a finite positive narrow-phase impact");
+			system.Update(0.06f);
+			Expect(GetCollisionPairs(system).size() == 1 && a->HasFiniteState() && b->HasFiniteState() &&
+				a->m_AngularVelocity.z < 29.99f && glm::length2(a->m_LinearVelocity) > 0.0f,
+				"long rotating box reaches collision response instead of tunneling due to broad-phase rejection");
+		}
+	}
+
+	int RunAngularSweepRegression()
+	{
+		TestAngularSweepContainment();
+		TestAngularSweepCandidatesAndGuards();
+		CheckAngularSpeedFrames<GEngine::ShapeBox>();
+		CheckAngularSpeedFrames<GEngine::ShapeConvex>();
+		TestRotatingLongBoxCollision();
+		if (failureCount) { std::cerr << failureCount << " of " << testCount << " angular-sweep checks failed\n"; return 1; }
+		std::cout << "Angular-sweep regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
 }
 
 int main(int argc, char** argv)
@@ -5048,6 +5258,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--angular-sweep") return RunAngularSweepRegression();
 		if (argument == "--toi-revalidation") return RunToiRevalidationRegression();
 		if (argument == "--pure-prediction") return RunPurePredictionRegression();
 		if (argument == "--persistence-continuity") return RunPersistenceContinuityRegression();
@@ -5186,6 +5397,11 @@ int main(int argc, char** argv)
 	TestPredictionAnchorsAndOrder();
 	TestBodyTypeConfigurationAndTransitions();
 	TestBodyTypeWorldContacts();
+	TestAngularSweepContainment();
+	TestAngularSweepCandidatesAndGuards();
+	CheckAngularSpeedFrames<GEngine::ShapeBox>();
+	CheckAngularSpeedFrames<GEngine::ShapeConvex>();
+	TestRotatingLongBoxCollision();
 	TestBroadphaseCorrectnessAndFiltering();
 	TestBroadphasePersistenceAndTemporalCoherence();
 	TestBroadphaseAgainstBruteForce();

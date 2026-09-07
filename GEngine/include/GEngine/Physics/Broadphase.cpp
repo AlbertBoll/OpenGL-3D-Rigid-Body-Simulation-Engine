@@ -2,14 +2,58 @@
 #include "Broadphase.h"
 
 #include "PhysicsBody.h"
+#include "Shape.h"
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 
 namespace GEngine
 {
 	namespace
 	{
 		constexpr float BroadphaseMargin = 0.01f;
+		// Round an enclosure outward without introducing infinite SAP endpoints.
+		float OutwardBound(double value, bool upper)
+		{
+			const float limit = std::numeric_limits<float>::max();
+			value = std::clamp(value, -static_cast<double>(limit), static_cast<double>(limit));
+			float result = static_cast<float>(value);
+			if ((upper && result < value) || (!upper && result > value))
+			{
+				result = std::nextafter(result, upper ? limit : -limit);
+			}
+			return result;
+		}
+
+		void ExpandForRotation(Bounds& bounds, const RigidBody3D& body, const Vec3f& displacement, float dtSeconds)
+		{
+			const Vec3f omega = body.GetAngularVelocity();
+			if (dtSeconds == 0.0f || omega == Vec3f(0.0f) || !body.m_Shape ||
+				!body.m_Shape->IsValid() || body.m_Shape->GetShapeType() == ShapeType::Sphere)
+			{
+				return;
+			}
+
+			// Every local AABB point is within this radius of the shape COM. Rotation
+			// preserves that distance, including intermediate poses and complete turns.
+			// Use the full envelope: gyroscopic integration can change angular speed and
+			// axis, so an initial |omega| * dt bound alone is not conservative here.
+			const Bounds local = body.m_Shape->GetBounds();
+			const glm::dvec3 localCenter(body.m_Shape->GetCenterOfMass());
+			const glm::dvec3 extent = glm::max(glm::abs(glm::dvec3(local.mins) - localCenter),
+				glm::abs(glm::dvec3(local.maxs) - localCenter));
+			const double radius = glm::length(extent);
+			const Vec3f center = body.GetCenterOfMassWorldSpace();
+			for (int axis = 0; axis < 3; ++axis)
+			{
+				const double start = center[axis];
+				const double end = start + displacement[axis];
+				bounds.mins[axis] = std::min(bounds.mins[axis], OutwardBound(std::min(start, end) - radius, false));
+				bounds.maxs[axis] = std::max(bounds.maxs[axis], OutwardBound(std::max(start, end) + radius, true));
+			}
+		}
+
 		bool CollisionMasksOverlap(const RigidBody3D& lhs, const RigidBody3D& rhs)
 		{
 			return (lhs.m_CollisionMask & rhs.m_CollisionLayer) != 0u &&
@@ -79,6 +123,7 @@ namespace GEngine
 			const Vec3f displacement = body.m_LinearVelocity * dtSeconds;
 			bounds.Expand(initialMins + displacement);
 			bounds.Expand(initialMaxs + displacement);
+			ExpandForRotation(bounds, body, displacement, dtSeconds);
 			bounds.Expand(bounds.mins - margin);
 			bounds.Expand(bounds.maxs + margin);
 			m_SweptBounds[bodyIndex] = bounds;

@@ -486,6 +486,35 @@ namespace GEngine
 
 	}
 
+	bool PhysicsSystem::SetBodyPose(RigidBody3D* body, const Vec3f& position, const Quat& orientation)
+	{
+		if (!m_PhysicsWorld || !body || !Math::IsFinite(position) || !Math::IsFinite(orientation))
+			return false;
+
+		// Check ownership before dereferencing the caller's pointer.
+		const auto& bodies = m_PhysicsWorld->GetPhysicsBodies();
+		if (std::find(bodies.begin(), bodies.end(), body) == bodies.end()) return false;
+		const float lengthSquared = glm::dot(orientation, orientation);
+		if (!Math::IsFinite(lengthSquared) || lengthSquared <= Math::NumericalEpsilonSquared) return false;
+		// Re-normalization can change a unit quaternion's last bit. Exact resubmission
+		// (including the equivalent sign) must preserve contacts at float unit tolerance.
+		if (body->m_Position == position &&
+			std::abs(lengthSquared - 1.0f) <= 4.0f * std::numeric_limits<float>::epsilon() &&
+			(body->m_Orientation == orientation || body->m_Orientation == -orientation)) return true;
+		const Quat normalized = orientation / std::sqrt(lengthSquared);
+		if (body->m_Position == position &&
+			(body->m_Orientation == normalized || body->m_Orientation == -normalized)) return true;
+
+		RemoveManifoldsForBody(m_Manifolds, body);
+		RemoveContactsForBody(m_Contacts, body);
+		m_CollisionPairs.clear();
+		m_Broadphase.Clear();
+		body->m_Position = position;
+		body->m_Orientation = normalized;
+		// Derived body data already observes source pose changes lazily.
+		return true;
+	}
+
 	void PhysicsSystem::OnExit()
 	{
 		m_Manifolds.Clear();

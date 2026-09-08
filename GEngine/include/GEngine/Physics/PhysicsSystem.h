@@ -41,6 +41,11 @@ namespace GEngine
 		void SetPhysicsWorld(PhysicsWorld* physics_world);
 		PhysicsWorld* GetPhysicsWorld() { return m_PhysicsWorld; }
 
+		// Between updates only: teleport an owned body, preserving both velocities.
+		// Reject invalid poses transactionally; accepted quaternions are normalized.
+		// Changed poses retire this body's contacts and refresh broad-phase state.
+		bool SetBodyPose(RigidBody3D* body, const Vec3f& position, const Quat& orientation);
+
 		static constexpr int MinSolverIterations = 1;
 		static constexpr int MaxSolverIterations = 32;
 		static constexpr int DefaultSolverIterations = 1;

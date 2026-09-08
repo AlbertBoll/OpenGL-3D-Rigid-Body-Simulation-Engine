@@ -20,6 +20,7 @@
 #include <array>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <string_view>
 #include <stdexcept>
 #include <type_traits>
@@ -1450,6 +1451,243 @@ namespace
 			"restarted physics can collide and stop cleanly again");
 	}
 
+	void TestRuntimePoseApi()
+	{
+		using namespace GEngine;
+		ShapeSphere sphere(1.0f);
+		ShapeBox box(BoxPoints(Vec3f(1.0f, 2.0f, 3.0f)));
+		PhysicsSystem system;
+		auto* world = new PhysicsWorld(Vec3f(0.0f));
+		system.SetPhysicsWorld(world);
+		for (float x : { 0.0f, 2.0f, 20.0f, 22.0f })
+			ConfigureSphereBody(*world->CreateRigidBody3D(), sphere, Vec3f(x, 0.0f, 0.0f));
+		system.Update(Timestep(1.0f / 120.0f));
+		auto* body = world->GetPhysicsBodies()[0];
+		auto& manifolds = GetManifolds(system).m_Manifolds;
+		Expect(manifolds.size() == 2, "pose API fixture has two independent warm-start pairs");
+		if (manifolds.size() != 2) return;
+		for (auto& manifold : manifolds)
+		{
+			CachedConstraint(manifold, 0).m_CachedLambda[0] = 3.0f;
+			auto contact = manifold.GetContact(0);
+			contact.timeOfImpact = 0.5f;
+			GetTransientContacts(system).push_back(contact);
+		}
+		const Vec3f original = body->m_Position;
+		const Quat rotation = body->m_Orientation;
+		const auto pairsBefore = GetCollisionPairs(system);
+		auto unchanged = [&]()
+		{
+			return body->m_Position == original && body->m_Orientation == rotation &&
+				manifolds.size() == 2 && GetTransientContacts(system).size() == 2 &&
+				GetCollisionPairs(system) == pairsBefore && CachedConstraint(manifolds[0], 0).m_CachedLambda[0] == 3.0f;
+		};
+		Expect(system.SetBodyPose(body, original, rotation) && unchanged(),
+			"identical pose preserves manifolds, impulses, TOIs and broad-phase pairs");
+		Expect(system.SetBodyPose(body, original, -rotation) && unchanged(),
+			"quaternion sign equivalence does not discard warm-start state");
+		const float nan = std::numeric_limits<float>::quiet_NaN();
+		const float inf = std::numeric_limits<float>::infinity();
+		for (const Vec3f position : { Vec3f(nan, 0.0f, 0.0f), Vec3f(0.0f, inf, 0.0f) })
+			Expect(!system.SetBodyPose(body, position, rotation) && unchanged(),
+				"non-finite API translations reject without mutating pose or caches");
+		for (const Quat invalid : { Quat(0.0f, 0.0f, 0.0f, 0.0f), Quat(nan, 0.0f, 0.0f, 0.0f),
+			Quat(inf, 0.0f, 0.0f, 0.0f), Quat(1e-10f, 0.0f, 0.0f, 0.0f), Quat(1e30f, 0.0f, 0.0f, 0.0f) })
+			Expect(!system.SetBodyPose(body, original + Vec3f(5.0f), invalid) && unchanged(),
+				"degenerate or unnormalizable API quaternion rejects the complete transaction");
+		RigidBody3D foreign;
+		Expect(!system.SetBodyPose(&foreign, Vec3f(1.0f), rotation) && unchanged() && foreign.m_Position == Vec3f(0.0f),
+			"pose API rejects foreign bodies without changing either world");
+		Expect(!system.SetBodyPose(nullptr, original, rotation) && unchanged(), "pose API rejects null bodies");
+		PhysicsSystem stopped;
+		Expect(!stopped.SetBodyPose(body, original, rotation) && unchanged(), "pose API rejects calls without an active world");
+
+		body->m_LinearVelocity = Vec3f(0.1f, 0.2f, 0.3f);
+		body->m_AngularVelocity = Vec3f(0.3f, 0.2f, 0.1f);
+		Expect(system.SetBodyPose(body, Vec3f(24.0f, 0.0f, 0.0f), rotation * 2.0f) &&
+			body->m_Position == Vec3f(24.0f, 0.0f, 0.0f) && Near(glm::length(body->m_Orientation), 1.0f) &&
+			body->m_LinearVelocity == Vec3f(0.1f, 0.2f, 0.3f) && body->m_AngularVelocity == Vec3f(0.3f, 0.2f, 0.1f),
+			"accepted API teleport normalizes orientation and preserves both velocities");
+		Expect(manifolds.size() == 1 && GetTransientContacts(system).size() == 1 &&
+			manifolds[0].GetContact(0).m_BodyA != body && manifolds[0].GetContact(0).m_BodyB != body &&
+			CachedConstraint(manifolds[0], 0).m_CachedLambda[0] == 3.0f,
+			"teleport retires affected warm-start and TOI state while preserving unrelated impulses");
+		Expect(GetCollisionPairs(system).empty() && GetBroadphase(system).GetLastStats().fullSortCount == 0,
+			"teleport clears cached candidate and swept-bound state");
+		std::vector<collisionPair_t> pairs;
+		GetBroadphase(system).FindPairs(world->GetPhysicsBodies(), pairs, 0.0f);
+		Expect(std::find(pairs.begin(), pairs.end(), collisionPair_t{0, 3}) != pairs.end() &&
+			std::find(pairs.begin(), pairs.end(), collisionPair_t{0, 1}) == pairs.end(),
+			"next broad-phase query finds the new neighbor and excludes the old neighbor");
+		contact_t contact{};
+		Expect(Collision::Intersect(body, world->GetPhysicsBodies()[3], contact) && Finite(contact),
+			"narrow phase sees a finite contact at the teleported position");
+
+		body->m_Shape = &box;
+		body->GetWorldBounds();
+		body->GetCenterOfMassWorldSpace();
+		const Mat3 inverseBody = body->GetInverseInertiaTensorBodySpace();
+		body->GetInverseInertiaTensorWorldSpace();
+		const Quat quarterTurn = glm::angleAxis(Math::Pi * 0.5f, Vec3f(0.0f, 0.0f, 1.0f));
+		const Vec3f moved(7.0f, 8.0f, 9.0f);
+		Expect(system.SetBodyPose(body, moved, quarterTurn), "box accepts a translation and quarter-turn pose edit");
+		const Mat3 matrix = glm::toMat3(quarterTurn);
+		Expect(Near(body->GetWorldBounds().mins, moved - Vec3f(2.0f, 1.0f, 3.0f)) &&
+			Near(body->GetWorldBounds().maxs, moved + Vec3f(2.0f, 1.0f, 3.0f)) &&
+			Near(body->GetCenterOfMassWorldSpace(), moved) &&
+			Near(body->GetInverseInertiaTensorWorldSpace(), matrix * inverseBody * glm::transpose(matrix)),
+			"box teleport refreshes warmed rotated bounds, COM and world inverse inertia");
+		for (float angle : { 0.3f, 1.7f, 2.4f })
+		{
+			system.SetBodyPose(body, moved, glm::angleAxis(angle, glm::normalize(Vec3f(1.0f, 2.0f, 3.0f))));
+			const auto retainedCount = GetTransientContacts(system).size();
+			GetTransientContacts(system).push_back(contact);
+			const Quat accepted = body->m_Orientation;
+			Expect(system.SetBodyPose(body, moved, accepted) && body->m_Orientation == accepted &&
+				GetTransientContacts(system).size() == retainedCount + 1,
+				"resubmitting a nontrivial accepted quaternion preserves exact pose and contact state");
+			Expect(system.SetBodyPose(body, moved, -accepted) && body->m_Orientation == accepted &&
+				GetTransientContacts(system).size() == retainedCount + 1,
+				"resubmitting the negative accepted quaternion preserves exact pose and contact state");
+			GetTransientContacts(system).pop_back();
+		}
+	}
+
+	void TestRuntimeTransformSynchronization()
+	{
+		using namespace GEngine;
+		using namespace GEngine::Component;
+		// Scene shape ownership is unchanged; release this fixture's shapes after the scene.
+		std::vector<std::unique_ptr<PhysicalShape>> shapes;
+		_Scene scene;
+		const BodyType types[] = { BodyType::Static, BodyType::Kinematic, BodyType::Dynamic };
+		std::vector<_Entity> entities;
+		for (int i = 0; i < 3; ++i)
+		{
+			auto entity = scene.CreateEntity("pose authority");
+			entity.AddOrReplaceComponent<RigidBody3DComponent>().Type = types[i];
+			auto& fixture = entity.AddOrReplaceComponent<SphereFixture3DComponent>();
+			fixture.Radius = 0.5f;
+			fixture.Property.m_Position = Vec3f(-100.0f - i * 10.0f, 0.0f, 0.0f);
+			fixture.Property.m_LinearVelocity = Vec3f(float(i + 1), 0.0f, 0.0f);
+			fixture.Property.m_AngularVelocity = Vec3f(0.0f, 0.0f, 0.2f);
+			auto& transform = entity.GetComponent<Transform3DComponent>();
+			transform.SetTranslation(Vec3f(i * 20.0f, 10.0f, 0.0f));
+			transform.SetRotation(Vec3f(0.0f, 0.0f, 0.3f));
+			entities.push_back(entity);
+		}
+		auto captureShapes = [&]()
+		{
+			for (auto entity : entities)
+				shapes.emplace_back(entity.GetComponent<RigidBody3DComponent>().RuntimeBody->m_Shape);
+		};
+		scene.OnRuntimeStart();
+		captureShapes();
+		scene.GetPhysicsSystem()->GetPhysicsWorld()->SetGravity(Vec3f(0.0f));
+		for (int i = 0; i < 3; ++i)
+		{
+			auto& transform = entities[i].GetComponent<Transform3DComponent>();
+			auto* body = entities[i].GetComponent<RigidBody3DComponent>().RuntimeBody;
+			Expect(body->m_Position == transform.Translation &&
+				glm::length(body->m_Orientation - transform.QuatRotation) < 1e-6f,
+				"startup pose comes from the entity transform for every body type");
+			body->GetWorldBounds();
+			body->GetCenterOfMassWorldSpace();
+			body->GetInverseInertiaTensorWorldSpace();
+			transform.SetTranslation(Vec3f(i * 20.0f, 30.0f, 4.0f));
+			transform.SetRotation(Vec3f(0.0f, 0.0f, 1.0f));
+		}
+		scene.Update(Timestep(0.0f));
+		for (int i = 0; i < 3; ++i)
+		{
+			auto& transform = entities[i].GetComponent<Transform3DComponent>();
+			auto* body = entities[i].GetComponent<RigidBody3DComponent>().RuntimeBody;
+			Expect(body->m_Position == Vec3f(i * 20.0f, 30.0f, 4.0f) &&
+				glm::length(body->m_Orientation - Quat(Vec3f(0.0f, 0.0f, 1.0f))) < 1e-6f,
+				"runtime translation and Euler rotation edits reach static, kinematic and dynamic bodies");
+			Expect(body->m_LinearVelocity == Vec3f(float(i + 1), 0.0f, 0.0f) &&
+				body->m_AngularVelocity == Vec3f(0.0f, 0.0f, 0.2f),
+				"transform teleports preserve configured linear and angular velocity");
+			Expect(glm::length(body->GetWorldBounds().mins - (body->m_Position - Vec3f(0.5f))) < 1e-5f &&
+				glm::length(body->GetCenterOfMassWorldSpace() - body->m_Position) < 1e-5f,
+				"pose edits refresh previously warmed bounds and center of mass");
+			const Vec3f before = body->m_Position;
+			transform.Translation.x = std::numeric_limits<float>::quiet_NaN();
+			scene.Update(Timestep(0.0f));
+			Expect(body->m_Position == before && transform.Translation == before && body->HasFiniteState(),
+				"invalid transform position is rejected and the accepted pose is republished");
+			transform.SetTranslation(before + Vec3f(0.0f, 2.0f, 0.0f));
+			transform.SetRotation(Quat(0.0f, 0.0f, 0.0f, 0.0f));
+			scene.Update(Timestep(0.0f));
+			Expect(body->m_Position == before && transform.Translation == before &&
+				glm::length(transform.QuatRotation) > 0.99f,
+				"invalid orientation rejects the entire pose edit transactionally");
+			transform.Translation = before + Vec3f(0.0f, 3.0f, 0.0f);
+			transform.QuatRotation = Quat(Vec3f(0.0f, 0.0f, 0.5f)) * 2.0f;
+			scene.Update(Timestep(0.0f));
+			Expect(body->m_Position == before + Vec3f(0.0f, 3.0f, 0.0f) &&
+				std::abs(glm::length(body->m_Orientation) - 1.0f) < 1e-6f,
+				"direct translation/quaternion edits are consumed and valid quaternions normalized");
+		}
+		for (int i = 0; i < 3; ++i)
+		{
+			auto* body = entities[i].GetComponent<RigidBody3DComponent>().RuntimeBody;
+			const Vec3f before = body->m_Position;
+			scene.Update(Timestep(0.02f));
+			const Vec3f expected = before + (types[i] == BodyType::Static ? Vec3f(0.0f) :
+				Vec3f(float(i + 1) * 0.02f, 0.0f, 0.0f));
+			Expect(glm::length(body->m_Position - expected) < 1e-5f &&
+				entities[i].GetComponent<Transform3DComponent>().Translation == body->m_Position,
+				"static pose stays fixed; kinematic and dynamic integration publishes without feedback");
+			body->m_Position += Vec3f(0.0f, 0.0f, 1.0f);
+			scene.Update(Timestep(0.0f));
+			Expect(glm::length(body->m_Position - (expected +
+				(types[i] == BodyType::Static ? Vec3f(0.0f) : Vec3f(0.0f, 0.0f, 1.0f)))) < 1e-5f,
+				"static entity pose remains authoritative; moving bodies accept physics-side pose changes");
+		}
+		scene.OnRuntimeStop();
+		entities[2].GetComponent<Transform3DComponent>().SetTranslation(Vec3f(90.0f, 40.0f, 0.0f));
+		scene.Update(Timestep(0.0f));
+		scene.OnRuntimeStart();
+		captureShapes();
+		Expect(entities[2].GetComponent<RigidBody3DComponent>().RuntimeBody->m_Position == Vec3f(90.0f, 40.0f, 0.0f),
+			"restart imports the current transform without replaying stale fixture poses");
+		scene.OnRuntimeStop();
+		auto invalid = scene.CreateEntity("invalid startup pose");
+		invalid.AddOrReplaceComponent<RigidBody3DComponent>();
+		invalid.AddOrReplaceComponent<SphereFixture3DComponent>();
+		invalid.GetComponent<Transform3DComponent>().SetRotation(Quat(0.0f, 0.0f, 0.0f, 0.0f));
+		scene.OnRuntimeStart();
+		captureShapes();
+		Expect(invalid.GetComponent<RigidBody3DComponent>().RuntimeBody == nullptr &&
+			scene.GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies().size() == 3,
+			"invalid startup pose creates no runtime body or pose bridge");
+		scene.Update(Timestep(0.0f));
+		auto* world = scene.GetPhysicsSystem()->GetPhysicsWorld();
+		auto* removed = entities[2].GetComponent<RigidBody3DComponent>().RuntimeBody;
+		world->RemoveRigidBody3D(removed);
+		auto* replacement = world->CreateRigidBody3D();
+		ConfigureSphereBody(*replacement, *static_cast<ShapeSphere*>(shapes.back().get()), Vec3f(200.0f));
+		entities[2].GetComponent<Transform3DComponent>().SetTranslation(Vec3f(500.0f));
+		scene.Update(Timestep(0.0f));
+		Expect(replacement->m_Position == Vec3f(200.0f),
+			"stale bridge generation cannot edit or publish a replacement body");
+		scene.GetPhysicsSystem()->SetPhysicsWorld(new PhysicsWorld(Vec3f(0.0f)));
+		scene.Update(Timestep(0.0f));
+		Expect(scene.GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies().empty(),
+			"world replacement leaves old scene pose bridges inert until restart");
+		scene.OnRuntimeStop();
+	}
+
+	int RunRuntimeTransformRegression()
+	{
+		TestRuntimePoseApi();
+		TestRuntimeTransformSynchronization();
+		if (failureCount) { std::cerr << failureCount << " of " << testCount << " runtime-transform checks failed\n"; return 1; }
+		std::cout << "Runtime-transform regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
 	void TestSceneRuntimeLifecycleRegression()
 	{
 		{
@@ -1467,6 +1705,8 @@ namespace
 			fixtureB.Property.m_Position = GEngine::Vec3f(2.0f, 0.0f, 0.0f);
 			bodyEntityA.AddOrReplaceComponent<GEngine::Component::SphereFixture3DComponent>(fixtureA);
 			bodyEntityB.AddOrReplaceComponent<GEngine::Component::SphereFixture3DComponent>(fixtureB);
+			bodyEntityA.GetComponent<GEngine::Component::Transform3DComponent>().SetTranslation(fixtureA.Property.m_Position);
+			bodyEntityB.GetComponent<GEngine::Component::Transform3DComponent>().SetTranslation(fixtureB.Property.m_Position);
 
 			scene.OnRuntimeStart();
 			GEngine::RigidBody3D* firstBodyA =
@@ -5835,6 +6075,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--runtime-transform") return RunRuntimeTransformRegression();
 		if (argument == "--absolute-scaling") return RunAbsoluteScalingRegression();
 		if (argument == "--epa-robustness") return RunEpaRobustnessRegression();
 		if (argument == "--gjk-robustness") return RunGjkRobustnessRegression();
@@ -5916,6 +6157,8 @@ int main(int argc, char** argv)
 	TestStableBodyIdentityRegression();
 	TestReadOnlyPhysicsBodyStorageRegression();
 	TestPhysicsWorldResetAndRestartRegression();
+	TestRuntimePoseApi();
+	TestRuntimeTransformSynchronization();
 	TestSceneRuntimeLifecycleRegression();
 	TestConvexValidityContract();
 	TestContactPairOrderRegression();

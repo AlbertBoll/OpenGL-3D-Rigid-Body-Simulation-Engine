@@ -16,6 +16,27 @@ namespace GEngine
 {
 	using namespace Camera;
 
+	namespace
+	{
+		// Runtime-only bridge state: not copied with authoring components or serialized.
+		struct RuntimePhysicsPose
+		{
+			RigidBodyIdentity identity;
+			RigidBody3D* body{};
+			Vec3f translation{};
+			Quat rotation{ 1.0f, 0.0f, 0.0f, 0.0f };
+		};
+
+		void PublishPhysicsPose(Component::Transform3DComponent& transform, RuntimePhysicsPose& pose,
+			const RigidBody3D& body)
+		{
+			transform.SetTranslation(body.m_Position);
+			transform.SetRotation(body.m_Orientation);
+			pose.translation = transform.Translation;
+			pose.rotation = transform.QuatRotation;
+		}
+	}
+
 	//static std::vector<std::vector<_Entity>> GroupEntities(10);
 
 	template<typename... Component>
@@ -120,6 +141,28 @@ namespace GEngine
 
 	void _Scene::Update(Timestep ts)
 	{
+		for (auto e : m_Registry.view<RigidBody3DComponent, Transform3DComponent, RuntimePhysicsPose>())
+		{
+			auto& rigidBody = m_Registry.get<RigidBody3DComponent>(e);
+			auto& pose = m_Registry.get<RuntimePhysicsPose>(e);
+			auto* world = m_PhysicsSystem->GetPhysicsWorld();
+			if (!world || !rigidBody.RuntimeBody || rigidBody.RuntimeBody != pose.body ||
+				!world->IsBodyIdentityValid(pose.identity)) continue;
+			auto& transform = m_Registry.get<Transform3DComponent>(e);
+			auto* body = rigidBody.RuntimeBody;
+			// Static transforms are authoritative. Kinematic bodies retain prescribed-velocity
+			// motion; dynamic bodies retain simulated motion. Both consume authored pose edits
+			// as teleports, then publish their next physics pose without replaying that output.
+			const bool authoredEdit = transform.Translation != pose.translation || transform.QuatRotation != pose.rotation;
+			const bool staticPoseChanged = body->Type == BodyType::Static &&
+				(transform.Translation != body->m_Position || transform.QuatRotation != body->m_Orientation);
+			if (authoredEdit || staticPoseChanged)
+			{
+				m_PhysicsSystem->SetBodyPose(body, transform.Translation, transform.QuatRotation);
+				// Rejected edits restore the last accepted body pose, including Euler display data.
+				PublishPhysicsPose(transform, pose, *body);
+			}
+		}
 		//for (int i = 0; i < 2; i++)
 		//{
 		//	m_PhysicsSystem->Update(ts * 0.5f);
@@ -130,23 +173,15 @@ namespace GEngine
 		}
 		
 
-		for (auto& rigidy_body: GetAllEntitiesWith<RigidBody3DComponent, Transform3DComponent>())
+		for (auto e : m_Registry.view<RigidBody3DComponent, Transform3DComponent, RuntimePhysicsPose>())
 		{
-			
-			_Entity entity = { rigidy_body, this };
-			//auto& transform = entity.GetComponent<Transform3DComponent>();
-			auto& rigidBody = entity.GetComponent<RigidBody3DComponent>();
-			if (rigidBody.Type != BodyType::Static && rigidBody.RuntimeBody)
-			{
-				auto& tag = entity.GetComponent<TagComponent>();
-				auto& transform = entity.GetComponent<Transform3DComponent>();
-				transform.SetTranslation(rigidBody.RuntimeBody->m_Position);
-				transform.SetRotation(rigidBody.RuntimeBody->m_Orientation);
-				//std::cout <<tag.Name<< " Position: " << transform.Translation.x << " " << transform.Translation.y << " " << transform.Translation.z << std::endl;
-				//std::cout << tag.Name << " Orientation: " << transform.QuatRotation.x << " " << transform.QuatRotation.y << " " << transform.QuatRotation.z <<" "<<transform.QuatRotation.w << std::endl;
-			}
-			
-
+			auto& rigidBody = m_Registry.get<RigidBody3DComponent>(e);
+			auto& pose = m_Registry.get<RuntimePhysicsPose>(e);
+			auto* world = m_PhysicsSystem->GetPhysicsWorld();
+			if (!world || !rigidBody.RuntimeBody || rigidBody.RuntimeBody != pose.body ||
+				!world->IsBodyIdentityValid(pose.identity)) continue;
+			auto& transform = m_Registry.get<Transform3DComponent>(e);
+			PublishPhysicsPose(transform, pose, *rigidBody.RuntimeBody);
 		}
 	}
 
@@ -456,13 +491,11 @@ namespace GEngine
 				body->m_InvMass = sphere_fixure.Property.m_InvMass;
 				body->m_Elasticity = sphere_fixure.Property.m_Elasticity;
 				body->m_Friction = sphere_fixure.Property.m_Friction;
-				body->m_Position = sphere_fixure.Property.m_Position;
-				body->m_Orientation = sphere_fixure.Property.m_Orientation;
 				body->Type = rigid_body.Type;
 				body->m_CollisionLayer = rigid_body.CollisionLayer;
 				body->m_CollisionMask = rigid_body.CollisionMask;
 				body->m_Shape = new ShapeSphere(sphere_fixure.Radius);
-				Connection(transform, OnScaleChanged, *static_cast<ShapeSphere*>(body->m_Shape), &ShapeSphere::HandleScaleChanged);
+
 				
 				
 				rigid_body.RuntimeBody = body;
@@ -496,8 +529,6 @@ namespace GEngine
 				body->m_InvMass = box_fixure.Property.m_InvMass;
 				body->m_Elasticity = box_fixure.Property.m_Elasticity;
 				body->m_Friction = box_fixure.Property.m_Friction;
-				body->m_Position = box_fixure.Property.m_Position;
-				body->m_Orientation = box_fixure.Property.m_Orientation;
 				body->Type = rigid_body.Type;
 				body->m_CollisionLayer = rigid_body.CollisionLayer;
 				body->m_CollisionMask = rigid_body.CollisionMask;
@@ -508,7 +539,7 @@ namespace GEngine
 				}*/
 				body->m_Shape = shape;
 
-				Connection(transform, OnScaleChanged, *body->m_Shape, &PhysicalShape::HandleScaleChanged);
+
 				//transform.SetScale(2);
 				/*auto bound = body->m_Shape->GetBounds();
 				std::cout << "Box Bounds: " << bound.mins.x << " " << bound.mins.y << " " << bound.mins.z << std::endl;
@@ -525,8 +556,6 @@ namespace GEngine
 				body->m_InvMass = convex_fixure.Property.m_InvMass;
 				body->m_Elasticity = convex_fixure.Property.m_Elasticity;
 				body->m_Friction = convex_fixure.Property.m_Friction;
-				body->m_Position = convex_fixure.Property.m_Position;
-				body->m_Orientation = convex_fixure.Property.m_Orientation;
 				body->m_LinearVelocity = convex_fixure.Property.m_LinearVelocity;
 				body->Type = rigid_body.Type;
 				body->m_CollisionLayer = rigid_body.CollisionLayer;
@@ -539,7 +568,7 @@ namespace GEngine
 					std::cout << pt.x << " " << pt.y << " " << pt.z << std::endl;
 				}*/
 				body->m_Shape = new ShapeConvex(pts);
-				Connection(transform, OnScaleChanged, *body->m_Shape, &PhysicalShape::HandleScaleChanged);
+
 				
 				/*auto bound = body->m_Shape->GetBounds();
 				std::cout << "Box Bounds: " << bound.mins.x << " " << bound.mins.y << " " << bound.mins.z << std::endl;
@@ -548,15 +577,28 @@ namespace GEngine
 			}
 
 
-		
+			if (auto* body = rigid_body.RuntimeBody)
+			{
+				if (!m_PhysicsSystem->SetBodyPose(body, transform.Translation, transform.QuatRotation))
+				{
+					GENGINE_CORE_ERROR("Cannot create rigid body from an invalid entity pose");
+					delete body->m_Shape;
+					m_PhysicsWorld->RemoveRigidBody3D(body);
+					rigid_body.RuntimeBody = nullptr;
+					continue;
+				}
+				auto& pose = m_Registry.emplace_or_replace<RuntimePhysicsPose>(e);
+				pose.identity = body->GetIdentity();
+				pose.body = body;
+				PublishPhysicsPose(transform, pose, *body);
+				Connection(transform, OnScaleChanged, *body->m_Shape, &PhysicalShape::HandleScaleChanged);
+			}
 		}
-
-
-
 	}
 
 	void _Scene::OnPhysics3DStop()
 	{
+		m_Registry.clear<RuntimePhysicsPose>();
 		for (auto& e : m_Registry.view<RigidBody3DComponent>())
 		{
 			m_Registry.get<RigidBody3DComponent>(e).RuntimeBody = nullptr;

@@ -1,3 +1,4 @@
+#include "Phase32ExactBoxWorld.h"
 #include <GEngine/Core/Log.h>
 #include <GEngine/Math/Math.h>
 #include <GEngine/Physics/Constraints/ConstraintPenetration.h>
@@ -22,6 +23,7 @@
 #include <limits>
 #include <memory>
 #include <string_view>
+#include <sstream>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -4448,6 +4450,245 @@ namespace
 		}
 	}
 
+
+
+	void TestManifoldNormalConvergence()
+	{
+		using namespace GEngine;
+		ShapeBox box(UnitBoxPoints());
+		for (const bool dynamicSupport : { false, true })
+		for (const bool permuted : { false, true })
+		for (const int rate : { 60, 120 })
+		{
+			PhysicsWorld world(Vec3f(0));
+			auto* a = world.CreateRigidBody3D(); auto* b = world.CreateRigidBody3D();
+			const Quat rotation = glm::angleAxis(0.37f, glm::normalize(Vec3f(1, 2, 3)));
+			const Vec3f up = rotation * Vec3f(0, 1, 0);
+			ConfigureBoxBody(*a, box, Vec3f(0), rotation);
+			ConfigureBoxBody(*b, box, 1.99f * up, rotation);
+			a->SetBodyTypeAndInverseMass(dynamicSupport ? BodyType::Dynamic : BodyType::Static, dynamicSupport ? 0.5f : 0);
+			b->SetBodyTypeAndInverseMass(BodyType::Dynamic, 2);
+			a->m_Friction = b->m_Friction = 0;
+			std::array<contact_t, 4> patch{};
+			Expect(BuildBoxFaceContacts(MakeContact(*a, *b, up, 0.99f * up, -up), patch) == 4,
+				"normal-block fixture contains four coplanar, redundant contact rows");
+			if (permuted) {
+				std::reverse(patch.begin(), patch.end());
+				for (auto& contact : patch) contact = ReversedContact(contact);
+			}
+			ManifoldCollector pair; pair.AddContacts(patch.data(), 4);
+			for (const float closing : { 12.0f / rate, 12.0f / rate, -12.0f / rate }) {
+				// Second step reuses real cached support; third must retract it.
+				a->m_LinearVelocity = dynamicSupport ? Vec3f(0) : Vec3f(10, -7, 3);
+				a->m_AngularVelocity = dynamicSupport ? Vec3f(0) : Vec3f(2, 1, -1);
+				b->m_LinearVelocity = -closing * up; b->m_AngularVelocity = Vec3f(0);
+				pair.PreSolve(1.0f / rate); pair.Solve();
+				const float expectedImpulse = std::max(0.0f, closing) / (a->GetInverseMass() + b->GetInverseMass());
+				double totalImpulse = 0; bool complementary = true;
+				for (int i = 0; i < 4; ++i) {
+					auto& c = CachedConstraint(pair.m_Manifolds[0], i);
+					const Vec3f n = c.m_bodyA->GetBodyToWorldRotation() * c.m_Normal;
+					const auto velocity = [&](RigidBody3D* body, Vec3f anchor) {
+						return body->GetLinearVelocity() + glm::cross(body->GetAngularVelocity(),
+							body->BodySpaceToWorldSpace(anchor) - body->GetCenterOfMassWorldSpace());
+					};
+					const float vn = glm::dot(n, velocity(c.m_bodyB, c.m_anchorB) - velocity(c.m_bodyA, c.m_anchorA));
+					totalImpulse += c.m_CachedLambda[0];
+					complementary = complementary && c.m_CachedLambda[0] >= 0 && vn >= -3.0e-6f &&
+						std::abs(vn * c.m_CachedLambda[0]) < 2.0e-6f;
+				}
+				Expect(complementary && std::abs(totalImpulse - expectedImpulse) < 3.0e-6,
+					"one manifold block pass balances all normal rows, including warm retraction and separation");
+				Expect(glm::length(b->m_AngularVelocity) < 3.0e-6f && glm::length(a->GetAngularVelocity()) < 3.0e-6f &&
+					Near(b->m_LinearVelocity, up * (-closing + 2.0f * expectedImpulse), 3.0e-6f),
+					"coplanar support preserves torque balance and analytic shared linear momentum");
+				Expect(a->HasFiniteState() && b->HasFiniteState() && (dynamicSupport ||
+					Near(a->m_LinearVelocity, Vec3f(10, -7, 3), 0)),
+					"block solve preserves finite state and ignores stored static velocities");
+			}
+		}
+	}
+
+	void TestContactFrictionConvergence()
+	{
+		using namespace GEngine;
+		ShapeBox box(UnitBoxPoints());
+		for (const int rate : { 60, 120 })
+		for (const float inverseMass : { 0.5f, 1.0f, 2.0f })
+		for (const bool swapped : { false, true })
+		for (const bool oblique : { false, true })
+		{
+			RigidBody3D body, support;
+			const Quat rotation = oblique ? glm::angleAxis(0.63f, glm::normalize(Vec3f(1, 2, 3))) : Quat(1, 0, 0, 0);
+			ConfigureBoxBody(body, box, Vec3f(0), rotation);
+			ConfigureBoxBody(support, box, Vec3f(0), rotation);
+			body.SetBodyTypeAndInverseMass(Component::BodyType::Dynamic, inverseMass);
+			support.SetBodyTypeAndInverseMass(Component::BodyType::Static, 0);
+			body.m_Friction = 0.25f; support.m_Friction = 1;
+			const Vec3f lever = oblique ? Vec3f(1, -1, 1) : Vec3f(1, -1, 0);
+			body.m_LinearVelocity = rotation * Vec3f(5, -12.0f / rate, oblique ? 2.0f : 0.0f);
+			body.m_AngularVelocity = support.m_AngularVelocity = support.m_LinearVelocity = Vec3f(0);
+			ConstraintPenetration constraint;
+			constraint.m_bodyA = swapped ? &support : &body;
+			constraint.m_bodyB = swapped ? &body : &support;
+			constraint.m_anchorA = constraint.m_anchorB = lever;
+			constraint.m_Normal = Vec3f(0, swapped ? 1.0f : -1.0f, 0);
+			const auto energy = [&]() {
+				return 0.5 / inverseMass * glm::dot(body.m_LinearVelocity, body.m_LinearVelocity) +
+					0.5 * glm::dot(body.m_AngularVelocity,
+						glm::inverse(body.GetInverseInertiaTensorWorldSpace()) * body.m_AngularVelocity);
+			};
+			const double initialEnergy = energy();
+			constraint.PreSolve(1.0f / rate);
+			for (int pass = 0; pass < 64; ++pass) constraint.Solve();
+			const Vec3f contactVelocity = body.GetWorldToBodyRotation() *
+				(body.m_LinearVelocity + glm::cross(body.m_AngularVelocity, rotation * lever));
+			const float normalImpulse = constraint.m_CachedLambda[0];
+			Expect(body.HasFiniteState() && std::abs(contactVelocity.y) < 2.0e-5f && normalImpulse > 0,
+				"off-center sliding support converges to normal complementarity at 60/120 Hz");
+			Expect(energy() <= initialEnergy + 2.0e-5,
+				"converged off-center resting contact does not add kinetic energy");
+			const double tangentLength = TangentImpulseLength(constraint);
+			Expect(std::abs(tangentLength - 0.25 * normalImpulse) < 2.0e-6,
+				"off-center sliding contact remains on its accumulated Coulomb disk");
+			Vec3f u, v; Math::GetOrtho(constraint.m_Normal, u, v);
+			const Vec3f tangentImpulseOnBody = (swapped ? 1.0f : -1.0f) *
+				(u * constraint.m_CachedLambda[1] + v * constraint.m_CachedLambda[2]);
+			const Vec3f slip(contactVelocity.x, 0, contactVelocity.z);
+			Expect(glm::length(glm::cross(tangentImpulseOnBody, slip)) < 2.0e-5f &&
+				glm::dot(tangentImpulseOnBody, slip) <= 0,
+				"anisotropic tangent effective mass converges to maximum-dissipation friction");
+			if (!oblique) {
+				const float expected = (12.0f / rate) / (inverseMass * (2.5f - 1.5f * 0.25f));
+				Expect(Near(normalImpulse, expected, 2.0e-5f),
+					"off-center sliding impulse matches the independent analytic coupled solution");
+			}
+		}
+	}
+
+
+	void TestExactBoxWorldTimestepStability()
+	{
+		using namespace GEngine;
+		for (const int rate : { 60, 120 }) {
+			std::vector<std::unique_ptr<PhysicalShape>> shapes;
+			PhysicsSystem system;
+			auto* world = new PhysicsWorld(Vec3f(0, -12, 0));
+			system.SetPhysicsWorld(world);
+			std::istringstream input(Phase32ExactBoxWorld);
+			std::size_t count = 0; input >> count;
+			Expect(count == 21, "exact exported stack has sixteen boxes and five static boundaries");
+			for (std::size_t i = 0; i < count; ++i) {
+				auto* body = world->CreateRigidBody3D();
+				int shapeType = 0, type = 0; float radius = 0; std::size_t pointsCount = 0;
+				input >> shapeType >> type >> body->m_InvMass >> body->m_Elasticity >> body->m_Friction >>
+					body->m_CollisionLayer >> body->m_CollisionMask >>
+					body->m_Position.x >> body->m_Position.y >> body->m_Position.z >>
+					body->m_Orientation.w >> body->m_Orientation.x >> body->m_Orientation.y >> body->m_Orientation.z >>
+					body->m_LinearVelocity.x >> body->m_LinearVelocity.y >> body->m_LinearVelocity.z >>
+					body->m_AngularVelocity.x >> body->m_AngularVelocity.y >> body->m_AngularVelocity.z >>
+					radius >> pointsCount;
+				std::vector<Vec3f> points(pointsCount);
+				for (auto& point : points) input >> point.x >> point.y >> point.z;
+				Expect(input.good() && shapeType == int(ShapeType::Box) && pointsCount == 36,
+					"exact export retains mesh points, creation order, poses, velocities and materials");
+				body->Type = BodyType(type);
+				shapes.push_back(std::make_unique<ShapeBox>(points));
+				body->m_Shape = shapes.back().get();
+			}
+			struct Window {
+				int start, end, samples = 0;
+				float peakV = 0, peakW = 0, depth = 0, excursion = 0, movement = 0;
+				double minAverageY = std::numeric_limits<double>::max(), finalAverageY = 0;
+				int minManifolds = 1000, maxManifolds = 0, minContacts = 1000, maxContacts = 0;
+				std::array<Vec3f, 21> minimum{}, maximum{}, previous{};
+			};
+			std::array<Window, 2> windows{ Window{5 * rate, 18 * rate}, Window{15 * rate, 20 * rate} };
+			bool finite = true; double peakEnergy = 864.0;
+			const auto& bodies = world->GetPhysicsBodies();
+			for (int tick = 1; tick <= 20 * rate; ++tick) {
+				system.Update(Timestep(1.0f / rate));
+				double energy = 0, averageY = 0; int dynamicCount = 0;
+				for (auto* body : bodies) {
+					finite = finite && body->HasFiniteState();
+					if (body->GetInverseMass() <= 0) continue;
+					const double mass = 1 / body->GetInverseMass();
+					energy += 0.5 * mass * glm::dot(body->m_LinearVelocity, body->m_LinearVelocity) +
+						0.5 * glm::dot(body->m_AngularVelocity,
+							glm::inverse(body->GetInverseInertiaTensorWorldSpace()) * body->m_AngularVelocity) +
+						12 * mass * body->GetCenterOfMassWorldSpace().y;
+					averageY += body->m_Position.y; ++dynamicCount;
+				}
+				finite = finite && dynamicCount == 16 && std::isfinite(energy);
+				averageY /= 16; peakEnergy = std::max(peakEnergy, energy);
+				auto& manifolds = GetManifolds(system);
+				float depth = 0;
+				for (auto& manifold : manifolds.m_Manifolds)
+					for (int i = 0; i < manifold.GetNumContacts(); ++i) {
+						const auto c = manifold.GetContact(i);
+						depth = std::max(depth, -glm::dot(
+							c.m_BodyA->BodySpaceToWorldSpace(c.ptOnA_LocalSpace) -
+							c.m_BodyB->BodySpaceToWorldSpace(c.ptOnB_LocalSpace), c.normal));
+					}
+				for (auto& window : windows) {
+					if (tick < window.start || tick > window.end) continue;
+					for (std::size_t i = 0; i < bodies.size(); ++i) {
+						const auto* body = bodies[i]; if (body->GetInverseMass() <= 0) continue;
+						const auto position = body->m_Position;
+						if (!window.samples) window.minimum[i] = window.maximum[i] = position;
+						else window.movement = std::max(window.movement, glm::length(position - window.previous[i]));
+						window.minimum[i] = glm::min(window.minimum[i], position);
+						window.maximum[i] = glm::max(window.maximum[i], position);
+						window.previous[i] = position;
+						window.excursion = std::max(window.excursion, glm::length(window.maximum[i] - window.minimum[i]));
+						window.peakV = std::max(window.peakV, glm::length(body->m_LinearVelocity));
+						window.peakW = std::max(window.peakW, glm::length(body->m_AngularVelocity));
+					}
+					window.depth = std::max(window.depth, depth);
+					window.minAverageY = std::min(window.minAverageY, averageY);
+					window.finalAverageY = averageY;
+					const int manifoldCount = int(manifolds.m_Manifolds.size()), contacts = manifolds.GetContactCount();
+					window.minManifolds = std::min(window.minManifolds, manifoldCount);
+					window.maxManifolds = std::max(window.maxManifolds, manifoldCount);
+					window.minContacts = std::min(window.minContacts, contacts);
+					window.maxContacts = std::max(window.maxContacts, contacts);
+					++window.samples;
+				}
+			}
+			Expect(finite && peakEnergy <= 864.0 * 1.005,
+				"exact 60/120 Hz stack stays finite without excess mechanical energy");
+			for (const auto& window : windows) {
+				Expect(window.samples == window.end - window.start + 1 && window.peakV <= 0.05f &&
+					window.peakW <= 0.02f && window.depth <= 0.035f && window.excursion <= 0.05f &&
+					window.minAverageY >= 4.45,
+					"exact exported stack meets unchanged resting-motion, penetration, excursion and height gates");
+				std::cout << "EXACT_STACK rate=" << rate << " passes=" << system.GetSolverIterations()
+					<< " window=" << window.start / rate << "-" << window.end / rate
+					<< " peak_v=" << window.peakV << " peak_w=" << window.peakW << " depth=" << window.depth
+					<< " excursion=" << window.excursion << " movement=" << window.movement
+					<< " min_average_y=" << window.minAverageY << " final_average_y=" << window.finalAverageY
+					<< " manifolds=" << window.minManifolds << "-" << window.maxManifolds
+					<< " contacts=" << window.minContacts << "-" << window.maxContacts
+					<< " peak_energy=" << peakEnergy << " finite=" << finite << '\n';
+			}
+		}
+	}
+
+	int RunTimestepStabilityRegression()
+	{
+		TestExactBoxWorldTimestepStability();
+		std::cout << "Timestep stability: " << testCount << " checks, " << failureCount << " failures\n";
+		return failureCount ? 1 : 0;
+	}
+
+	int RunContactConvergenceRegression()
+	{
+		TestManifoldNormalConvergence();
+		TestContactFrictionConvergence();
+		std::cout << "Contact convergence: " << testCount << " checks, " << failureCount << " failures\n";
+		return failureCount ? 1 : 0;
+	}
+
 	int RunRestingFrictionRegression()
 	{
 		TestRestingCoulombProjection();
@@ -6090,6 +6331,8 @@ int main(int argc, char** argv)
 		if (argument == "--solver-iterations") return RunSolverIterationsRegression();
 		if (argument == "--restitution-threshold") return RunRestitutionThresholdRegression();
 		if (argument == "--ballistic-contact") return RunBallisticContactRegression();
+		if (argument == "--timestep-stability") return RunTimestepStabilityRegression();
+		if (argument == "--contact-convergence") return RunContactConvergenceRegression();
 		if (argument == "--resting-friction") return RunRestingFrictionRegression();
 		if (argument == "--contact-convention") return RunContactConventionRegression();
 		if (argument == "--body-types") return RunBodyTypeRegression();
@@ -6213,6 +6456,9 @@ int main(int argc, char** argv)
 	TestBallisticMaterialRange();
 	TestBallisticOffCenterFriction();
 	TestBallisticSweptGrazingContact();
+	TestExactBoxWorldTimestepStability();
+	TestManifoldNormalConvergence();
+	TestContactFrictionConvergence();
 	TestRestingCoulombProjection();
 	TestFrictionWarmStartAndRetraction();
 	TestLargeFiniteFrictionCoefficients();

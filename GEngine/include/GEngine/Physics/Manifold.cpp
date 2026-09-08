@@ -3,6 +3,8 @@
 #include "PhysicsBody.h"
 #include "Shape.h"
 #include <Core/Timer.h>
+#include <cmath>
+#include <limits>
 
 namespace GEngine
 {
@@ -270,13 +272,153 @@ namespace GEngine
 		}
 	}
 
+	namespace
+	{
+		bool SolveNormalBlock(ConstraintPenetration *contacts, int count)
+		{
+			if (count < 2 || count > 4)
+				return false;
+			// Solve K * lambda - rhs >= 0, lambda >= 0, with complementary active rows.
+			// At most four contacts means only sixteen active sets; no heap allocation.
+			double K[4][4]{}, rhs[4]{}, old[4]{}, best[4]{}, bestScore = std::numeric_limits<double>::max();
+			glm::dvec3 n[4], ra[4], rb[4], ja[4], jb[4];
+			auto *A = contacts[0].m_bodyA;
+			auto *B = contacts[0].m_bodyB;
+			const glm::dmat3 IA(A->GetInverseInertiaTensorWorldSpace()), IB(B->GetInverseInertiaTensorWorldSpace());
+			const double inverseMass = A->GetInverseMass() + B->GetInverseMass();
+			double scale = 0, velocityScale = 1;
+			for (int i = 0; i < count; ++i)
+			{
+				n[i] = A->GetBodyToWorldRotation() * contacts[i].m_Normal;
+				ra[i] = glm::dvec3(A->BodySpaceToWorldSpace(contacts[i].m_anchorA)) -
+						glm::dvec3(A->GetCenterOfMassWorldSpace());
+				rb[i] = glm::dvec3(B->BodySpaceToWorldSpace(contacts[i].m_anchorB)) -
+						glm::dvec3(B->GetCenterOfMassWorldSpace());
+				ja[i] = glm::cross(ra[i], n[i]);
+				jb[i] = glm::cross(rb[i], n[i]);
+				old[i] = contacts[i].m_CachedLambda[0];
+				const auto relative = glm::dvec3(B->GetLinearVelocity()) - glm::dvec3(A->GetLinearVelocity()) +
+									  glm::cross(glm::dvec3(B->GetAngularVelocity()), rb[i]) -
+									  glm::cross(glm::dvec3(A->GetAngularVelocity()), ra[i]);
+				rhs[i] = -glm::dot(n[i], relative);
+			}
+			for (int i = 0; i < count; ++i)
+				for (int j = 0; j < count; ++j)
+				{
+					K[i][j] =
+						inverseMass * glm::dot(n[i], n[j]) + glm::dot(ja[i], IA * ja[j]) + glm::dot(jb[i], IB * jb[j]);
+					if (!std::isfinite(K[i][j]))
+						return false;
+					rhs[i] += K[i][j] * old[j];
+					scale = std::max(scale, std::abs(K[i][j]));
+				}
+			if (!(scale > 0))
+				return false;
+			for (int i = 0; i < count; ++i)
+			{
+				if (!std::isfinite(rhs[i]))
+					return false;
+				velocityScale = std::max(velocityScale, std::abs(rhs[i]));
+			}
+			// These tolerances validate a numerical solve; they add no velocity bias.
+			const double tolerance = 1e-6 * velocityScale;
+			for (int mask = 0; mask < (1 << count); ++mask)
+			{
+				int indices[4]{}, size = 0;
+				for (int i = 0; i < count; ++i)
+					if (mask & (1 << i))
+						indices[size++] = i;
+				double matrix[4][5]{}, x[4]{};
+				int pivotColumns[4]{}, rank = 0;
+				for (int i = 0; i < size; ++i)
+				{
+					x[i] = old[indices[i]];
+					matrix[i][size] = rhs[indices[i]];
+					for (int j = 0; j < size; ++j)
+						matrix[i][j] = K[indices[i]][indices[j]];
+				}
+				// Four coplanar normals can have rank three. Keep warm values on free
+				// columns and solve the independent rows, rather than invert a singular patch.
+				for (int col = 0; col < size; ++col)
+				{
+					int pivot = rank;
+					for (int row = rank + 1; row < size; ++row)
+						if (std::abs(matrix[row][col]) > std::abs(matrix[pivot][col]))
+							pivot = row;
+					if (std::abs(matrix[pivot][col]) <= scale * 1e-9)
+						continue;
+					for (int j = 0; j <= size; ++j)
+						std::swap(matrix[pivot][j], matrix[rank][j]);
+					for (int row = rank + 1; row < size; ++row)
+					{
+						const double factor = matrix[row][col] / matrix[rank][col];
+						for (int j = col; j <= size; ++j)
+							matrix[row][j] -= factor * matrix[rank][j];
+					}
+					pivotColumns[rank++] = col;
+				}
+				bool valid = true;
+				for (int row = rank; row < size; ++row)
+					if (std::abs(matrix[row][size]) > tolerance)
+						valid = false;
+				if (!valid)
+					continue;
+				for (int row = rank - 1; row >= 0; --row)
+				{
+					int col = pivotColumns[row];
+					double b = matrix[row][size];
+					for (int j = col + 1; j < size; ++j)
+						b -= matrix[row][j] * x[j];
+					x[col] = b / matrix[row][col];
+				}
+				double lambda[4]{}, score = 0;
+				for (int i = 0; i < size; ++i)
+				{
+					if (!std::isfinite(x[i]) || x[i] < 0 || x[i] > std::numeric_limits<float>::max())
+						valid = false;
+					lambda[indices[i]] = x[i];
+				}
+				if (!valid)
+					continue;
+				for (int i = 0; i < count; ++i)
+				{
+					double v = -rhs[i];
+					for (int j = 0; j < count; ++j)
+						v += K[i][j] * lambda[j];
+					if (v < -tolerance || (lambda[i] > 0 && std::abs(v) > tolerance))
+						valid = false;
+					score += (lambda[i] - old[i]) * (lambda[i] - old[i]);
+				}
+				// Prefer the feasible candidate nearest the previous normal support.
+				if (valid && score < bestScore)
+				{
+					bestScore = score;
+					for (int i = 0; i < count; ++i)
+						best[i] = lambda[i];
+				}
+			}
+			if (bestScore == std::numeric_limits<double>::max())
+				return false;
+			for (int i = 0; i < count; ++i)
+			{
+				float next = static_cast<float>(best[i]), delta = next - contacts[i].m_CachedLambda[0];
+				contacts[i].m_CachedLambda[0] = next;
+				const Vec3f impulse = Vec3f(n[i]) * delta;
+				A->ApplyImpulse(A->BodySpaceToWorldSpace(contacts[i].m_anchorA), -impulse);
+				B->ApplyImpulse(B->BodySpaceToWorldSpace(contacts[i].m_anchorB), impulse);
+			}
+			return true;
+		}
+	} // namespace
+
 	void Manifold::Solve()
 	{
-		for (int i = 0; i < m_NumContacts; i++)
-		{	
-			m_Constraints[i].Solve();
+		// Balance force and torque over the whole support patch before friction.
+		const bool blockSolved = SolveNormalBlock(m_Constraints, m_NumContacts);
+		for (int i = 0; i < m_NumContacts; ++i) {
+			if (blockSolved) m_Constraints[i].SolveFriction();
+			else m_Constraints[i].Solve(); // Single witness or failed/unsupported block.
 		}
-
 	}
 	void Manifold::PostSolve()
 	{

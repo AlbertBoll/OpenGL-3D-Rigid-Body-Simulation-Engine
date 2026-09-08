@@ -45,6 +45,53 @@ namespace GEngine
 			}
 		}
 
+		// Minimize 1/2 x^T Kt x - b^T x on the circular Coulomb disk.
+		// Clamping Kt^-1 b radially is only correct for isotropic tangent mass.
+		void SolveTangentDisk(Vec<3>& lambda, const Mat<3, 3>& mass, const Vec<3>& residual, double friction)
+		{
+			const double a = mass[1][1], b = mass[1][2], c = mass[2][2];
+			const double limit = friction * lambda[0];
+			if (!(limit > 0.0)) { lambda[1] = lambda[2] = 0.0f; return; }
+			if (!(a > Math::NumericalEpsilon && c > Math::NumericalEpsilon)) return;
+			const double r1 = a * lambda[1] + b * lambda[2] + residual[1];
+			const double r2 = b * lambda[1] + c * lambda[2] + residual[2];
+			const auto solve = [&](double alpha, double& x, double& y) {
+				double aa = a + alpha, cc = c + alpha, bb = b;
+				double determinant = aa * cc - bb * bb;
+				double scale = 1.0;
+				if (!std::isfinite(determinant)) {
+					// Extremely small finite friction can require a very large multiplier.
+					scale = std::max(aa, cc);
+					aa /= scale; cc /= scale; bb /= scale;
+					determinant = aa * cc - bb * bb;
+				}
+				if (!(determinant > 0.0) || !std::isfinite(determinant)) return false;
+				x = (cc * r1 - bb * r2) / determinant / scale;
+				y = (aa * r2 - bb * r1) / determinant / scale;
+				return std::isfinite(x) && std::isfinite(y);
+			};
+			double x = 0.0, y = 0.0;
+			if (!solve(0.0, x, y)) return;
+			if (std::hypot(x, y) > limit) {
+				// Kt is positive definite. (Kt + alpha I)^-1 b decreases in norm,
+				// and |b| / limit bounds alpha from above. 32 bisections resolve
+				// the bracket beyond float precision without an unbounded solve.
+				double low = 0.0, high = std::hypot(r1, r2) / limit;
+				for (int iteration = 0; iteration < 32; ++iteration) {
+					const double mid = (low + high) * 0.5;
+					if (!solve(mid, x, y)) return;
+					if (std::hypot(x, y) > limit) low = mid;
+					else high = mid;
+				}
+				if (!solve(high, x, y)) return;
+			}
+			if (std::abs(x) <= std::numeric_limits<float>::max() &&
+				std::abs(y) <= std::numeric_limits<float>::max()) {
+				lambda[1] = static_cast<float>(x);
+				lambda[2] = static_cast<float>(y);
+			}
+		}
+
 	}
 
 	void ConstraintPenetration::PreSolve(const float dt_sec)
@@ -161,7 +208,11 @@ namespace GEngine
 
 	}
 
-	void ConstraintPenetration::Solve()
+	void ConstraintPenetration::Solve() { Solve(true); }
+
+	void ConstraintPenetration::SolveFriction() { Solve(false); }
+
+	void ConstraintPenetration::Solve(bool solveNormal)
 	{
 		const Mat<12, 3> JacobianTranspose = m_Jacobian.Transpose();
 
@@ -171,20 +222,28 @@ namespace GEngine
 		const Mat<3, 3> J_W_Jt = m_Jacobian * invMassMatrix * JacobianTranspose;
 		Vec<3> rhs = m_Jacobian * q_dt * -1.0f;
 
-		// Solve for the Lagrange multipliers
-		Vec<3> lambdaN = LCP_GaussSeidel(J_W_Jt, rhs);
-		if (!IsFinite(lambdaN))
-		{
-			lambdaN.Zero();
-		}
-
-		//// Accumulate the impulses and clamp to within the constraint limits
-		Vec<3> oldLambda = m_CachedLambda;
-		m_CachedLambda += lambdaN;
+		const Vec<3> oldLambda = m_CachedLambda;
 		const double friction = m_Friction > 0.0f
 			? CombinedFriction(m_bodyA->m_Friction, m_bodyB->m_Friction) : 0.0;
-		ProjectCoulombImpulse(m_CachedLambda, friction);
-		lambdaN = m_CachedLambda - oldLambda;
+		if (!IsFinite(rhs)) return;
+		for (int row = 0; row < 3; ++row)
+			for (int column = 0; column < 3; ++column)
+				if (!Math::IsFinite(J_W_Jt[row][column])) return;
+
+		// Retain three local iterations, but solve the constrained accumulated
+		// impulse. Every correction must see the preceding normal/friction clamp.
+		for (int iteration = 0; iteration < (solveNormal ? 3 : 1); ++iteration) {
+			Vec<3> residual = rhs - J_W_Jt * (m_CachedLambda - oldLambda);
+			const float normalMass = J_W_Jt[0][0];
+			if (solveNormal && normalMass > Math::NumericalEpsilon && Math::IsFinite(residual[0])) {
+				const float next = m_CachedLambda[0] + residual[0] / normalMass;
+				if (Math::IsFinite(next)) m_CachedLambda[0] = std::max(0.0f, next);
+			}
+			residual = rhs - J_W_Jt * (m_CachedLambda - oldLambda);
+			if (IsFinite(residual)) SolveTangentDisk(m_CachedLambda, J_W_Jt, residual, friction);
+			ProjectCoulombImpulse(m_CachedLambda, friction);
+		}
+		const Vec<3> lambdaN = m_CachedLambda - oldLambda;
 
 		// Apply the impulses
 		const Vec<12> impulses = JacobianTranspose * lambdaN;

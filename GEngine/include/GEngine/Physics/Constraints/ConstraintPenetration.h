@@ -15,6 +15,8 @@ namespace GEngine
 
 		void PreSolve(const float dt_sec) override;
 		void Solve() override;
+		// Called after the manifold has solved its coupled normal rows.
+		void SolveFriction();
 		// One bounded translation pass, after physical integration. Never changes velocities.
 		void PostSolve() override;
 		
@@ -25,6 +27,7 @@ namespace GEngine
 		Vec<3> m_CachedLambda{};
 
 	private:
+		void Solve(bool solveNormal);
 		bool m_PositionCorrectionEnabled{ false };
 
 	};

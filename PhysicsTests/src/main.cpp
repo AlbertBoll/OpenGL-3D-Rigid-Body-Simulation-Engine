@@ -476,6 +476,174 @@ namespace
 			"default spheres dispatch to finite analytic sphere contacts");
 	}
 
+
+	void TestAbsoluteSphereScaling()
+	{
+		using namespace GEngine;
+		ShapeSphere sphere(2.0f);
+		PhysicalShape& shape = sphere; // Match virtual dispatch through the scale callback.
+		RigidBody3D body;
+		ConfigureSphereBody(body, sphere, Vec3f(4, 2, -3));
+		body.GetWorldBounds();
+		body.GetInverseInertiaTensorWorldSpace();
+		for (float scale : { 1.0f, 2.0f, 3.0f, 3.0f, 0.5f, 1.0f }) {
+			const float oldRadius = sphere.GetRadius();
+			const auto revision = sphere.GetRevision();
+			shape.HandleScaleChanged(Vec3f(scale));
+			const float radius = 2.0f * scale;
+			Expect(sphere.GetRadius() == radius, "sphere absolute scale uses the base radius, including repeats and reset");
+			Expect(sphere.GetRevision() == revision + (oldRadius != radius ? 1 : 0),
+				"sphere scale changes geometry revision exactly once only when radius changes");
+			Expect(Near(shape.GetBounds().mins, Vec3f(-radius), 0) &&
+				Near(shape.GetBounds().maxs, Vec3f(radius), 0) &&
+				Near(shape.Support(Vec3f(1, 0, 0), body.m_Position, body.m_Orientation, 0),
+					body.m_Position + Vec3f(radius, 0, 0), 0), "scaled sphere has analytic finite bounds and support");
+			Expect(Near(body.GetWorldBounds().mins, body.m_Position - Vec3f(radius)) &&
+				Near(body.GetWorldBounds().maxs, body.m_Position + Vec3f(radius)) &&
+				Near(body.GetInverseInertiaTensorWorldSpace(), Mat3(2.5f / (radius * radius))),
+				"sphere absolute scaling refreshes warmed bounds and inverse inertia");
+		}
+		shape.HandleScaleChanged(Vec3f(3, 4, 5));
+		Expect(sphere.GetRadius() == 6, "sphere retains its existing X-axis policy for nonuniform scale");
+		sphere.SetRadius(sphere.GetRadius());
+		shape.HandleScaleChanged(Vec3f(2));
+		Expect(sphere.GetRadius() == 4, "unchanged SetRadius is a no-op and preserves the unscaled source");
+		sphere.SetRadius(1.5f);
+		shape.HandleScaleChanged(Vec3f(3));
+		Expect(sphere.GetRadius() == 4.5f, "changed SetRadius establishes the new base radius for absolute scaling");
+		const auto revision = sphere.GetRevision();
+		const auto bounds = body.GetWorldBounds();
+		const auto inertia = body.GetInverseInertiaTensorWorldSpace();
+		for (float invalid : { 0.0f, -1.0f, std::numeric_limits<float>::quiet_NaN(),
+			std::numeric_limits<float>::infinity(), std::numeric_limits<float>::max() }) {
+			shape.HandleScaleChanged(Vec3f(invalid));
+			Expect(sphere.GetRadius() == 4.5f && sphere.GetRevision() == revision &&
+				Near(body.GetWorldBounds().mins, bounds.mins, 0) &&
+				Near(body.GetWorldBounds().maxs, bounds.maxs, 0) &&
+				Near(body.GetInverseInertiaTensorWorldSpace(), inertia, 0),
+				"invalid or overflowed sphere scale preserves geometry, revision and caches");
+		}
+		sphere.SetRadius(-1);
+		shape.HandleScaleChanged(Vec3f(2));
+		Expect(sphere.GetRadius() == 3, "rejected radius and scale updates preserve the sphere base");
+	}
+
+	template<class Shape>
+	void TestAbsolutePointScaling()
+	{
+		using namespace GEngine;
+		const Vec3f halfExtents(1, 2, 3);
+		auto input = BoxPoints(halfExtents);
+		Shape shape(input);
+		input[0] = Vec3f(999); // The source is owned by the shape, not by the caller.
+		PhysicalShape& physical = shape;
+		RigidBody3D body;
+		body.m_Shape = &shape;
+		body.m_Position = Vec3f(4, 2, -3);
+		body.m_Orientation = glm::angleAxis(0.37f, Math::NormalizeOr(Vec3f(1, 2, 3)));
+		body.SetBodyTypeAndInverseMass(BodyType::Dynamic, 0.5f);
+		const Mat3 rotation = glm::toMat3(body.m_Orientation);
+		body.GetWorldBounds();
+		body.GetCenterOfMassWorldSpace();
+		body.GetInverseInertiaTensorWorldSpace();
+		const Vec3f scales[] = { Vec3f(1), Vec3f(2), Vec3f(3), Vec3f(3),
+			Vec3f(0.5f), Vec3f(2, 0.5f, 1.5f), Vec3f(-2, 0.5f, 1.5f), Vec3f(1) };
+		for (const auto& scale : scales) {
+			const auto revision = shape.GetRevision();
+			physical.HandleScaleChanged(scale);
+			const Vec3f extent = halfExtents * glm::abs(scale);
+			Expect(shape.IsValid() && shape.GetRevision() == revision + 1,
+				"successful point-shape scale rebuild publishes one geometry revision");
+			Expect(Near(shape.GetBounds().mins, -extent, 0) && Near(shape.GetBounds().maxs, extent, 0),
+				"box and convex absolute scales do not compound, including repeat, signed and nonuniform scales");
+			Shape reference(BoxPoints(extent));
+			Expect(Near(shape.GetCenterOfMass(), reference.GetCenterOfMass(), 2e-4f),
+				"scaled point-shape centroid agrees with fresh geometry under existing mass-property sampling");
+			const Vec3f worldExtent = glm::abs(rotation[0]) * extent.x +
+				glm::abs(rotation[1]) * extent.y + glm::abs(rotation[2]) * extent.z;
+			Expect(Near(body.GetWorldBounds().mins, body.m_Position - worldExtent, 2e-4f) &&
+				Near(body.GetWorldBounds().maxs, body.m_Position + worldExtent, 2e-4f) &&
+				Near(body.GetCenterOfMassWorldSpace(), body.m_Position + rotation * reference.GetCenterOfMass(), 2e-4f),
+				"point-shape scale refreshes warmed rotated world bounds and COM");
+			Expect(Near(shape.InertiaTensor(), reference.InertiaTensor(), 2e-4f) &&
+				Near(body.GetInverseInertiaTensorWorldSpace(),
+					rotation * (glm::inverse(reference.InertiaTensor()) * 0.5f) * glm::transpose(rotation), 2e-4f),
+				"scaled point-shape inertia matches fresh geometry and refreshes the body cache");
+			const Vec3f direction = Math::NormalizeOr(Vec3f(1, 2, 3));
+			Expect(Near(shape.Support(direction, body.m_Position, body.m_Orientation, 0),
+				reference.Support(direction, body.m_Position, body.m_Orientation, 0), 2e-4f),
+				"scaled point-shape support agrees with independently constructed geometry");
+		}
+		const auto revision = shape.GetRevision();
+		const auto bounds = body.GetWorldBounds();
+		const auto inertia = body.GetInverseInertiaTensorWorldSpace();
+		const Vec3f invalidScales[] = { Vec3f(0), Vec3f(1, 0, 1),
+			Vec3f(std::numeric_limits<float>::quiet_NaN(), 1, 1),
+			Vec3f(1, std::numeric_limits<float>::infinity(), 1), Vec3f(std::numeric_limits<float>::max()) };
+		for (const auto& invalid : invalidScales) {
+			physical.HandleScaleChanged(invalid);
+			Expect(shape.IsValid() && shape.GetRevision() == revision &&
+				Near(body.GetWorldBounds().mins, bounds.mins, 0) &&
+				Near(body.GetWorldBounds().maxs, bounds.maxs, 0) &&
+				Near(body.GetInverseInertiaTensorWorldSpace(), inertia, 0),
+				"rejected point-shape scale is transactional and retains warmed caches");
+		}
+		physical.HandleScaleChanged(Vec3f(2));
+		Expect(Near(shape.GetBounds().maxs, halfExtents * 2.0f, 0),
+			"point-shape source survives rejected rebuilds");
+		auto replacement = BoxPoints(Vec3f(2, 1, 0.5f));
+		for (auto& point : replacement) { point += Vec3f(1, -2, 0.5f); }
+		physical.Build(replacement);
+		physical.Build({}); // Failed explicit replacement must not overwrite the valid base.
+		physical.HandleScaleChanged(Vec3f(3));
+		Expect(Near(shape.GetBounds().mins, Vec3f(-3, -9, 0), 0) &&
+			Near(shape.GetBounds().maxs, Vec3f(9, -3, 3), 0),
+			"explicit Build replaces the base source; subsequent absolute scale includes the model offset");
+		physical.HandleScaleChanged(Vec3f(1));
+		Expect(Near(shape.GetBounds().mins, Vec3f(-1, -3, 0), 0) &&
+			Near(shape.GetBounds().maxs, Vec3f(3, -1, 1), 0), "scale one restores the replacement base geometry");
+	}
+
+	void TestScaleSourceExceptionSafety()
+	{
+		using namespace GEngine;
+		class ThrowingRebuildShape : public ShapeBox
+		{
+		public:
+			using ShapeBox::ShapeBox;
+			bool failBuild = true;
+			void Build(const std::vector<Vec3f>& points) override
+			{
+				if (failBuild) {
+					m_MeshPoints = points;
+					throw std::runtime_error("injected rebuild failure");
+				}
+				ShapeBox::Build(points);
+			}
+		};
+		ThrowingRebuildShape shape(UnitBoxPoints());
+		const auto revision = shape.GetRevision();
+		bool threw = false;
+		try { shape.HandleScaleChanged(Vec3f(2)); }
+		catch (const std::runtime_error&) { threw = true; }
+		Expect(threw && shape.GetRevision() == revision && Near(shape.GetBounds().maxs, Vec3f(1), 0),
+			"scale callback propagates a rebuild exception without publishing geometry");
+		shape.failBuild = false;
+		shape.HandleScaleChanged(Vec3f(3));
+		Expect(Near(shape.GetBounds().maxs, Vec3f(3), 0), "scale callback restores the base source after a rebuild exception");
+	}
+
+	int RunAbsoluteScalingRegression()
+	{
+		TestScaleSourceExceptionSafety();
+		TestAbsoluteSphereScaling();
+		TestAbsolutePointScaling<GEngine::ShapeBox>();
+		TestAbsolutePointScaling<GEngine::ShapeConvex>();
+		if (failureCount) { std::cerr << failureCount << " of " << testCount << " absolute-scaling checks failed\n"; return 1; }
+		std::cout << "Absolute-scaling regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
 	void TestSphereContacts()
 	{
 		GEngine::ShapeSphere sphere(1.0f);
@@ -5667,6 +5835,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--absolute-scaling") return RunAbsoluteScalingRegression();
 		if (argument == "--epa-robustness") return RunEpaRobustnessRegression();
 		if (argument == "--gjk-robustness") return RunGjkRobustnessRegression();
 		if (argument == "--angular-sweep") return RunAngularSweepRegression();
@@ -5732,6 +5901,10 @@ int main(int argc, char** argv)
 		return 2;
 	}
 
+	TestScaleSourceExceptionSafety();
+	TestAbsoluteSphereScaling();
+	TestAbsolutePointScaling<GEngine::ShapeBox>();
+	TestAbsolutePointScaling<GEngine::ShapeConvex>();
 	TestNormalization();
 	TestBarycentricAndPointEquality();
 	TestLcpPivots();

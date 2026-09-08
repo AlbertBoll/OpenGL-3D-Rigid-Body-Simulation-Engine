@@ -27,7 +27,9 @@ namespace GEngine
 		virtual Mat3 InertiaTensor() const = 0;
 		virtual Bounds GetBounds(const Vec3f& pos, const glm::quat& orient) const = 0;
 		virtual Bounds GetBounds() const = 0;
+		// A successful explicit Build replaces the unscaled source geometry.
 		virtual void Build(const std::vector<Vec3f>& pts) {};
+		// Rebuild at an absolute component-wise scale without replacing that source.
 		virtual void HandleScaleChanged(const Vec3f& new_scale);
 		//virtual void HandleScaleChanged(float new_scale) {};
 		virtual Vec3f GetCenterOfMass() const { return m_CenterOfMass; }
@@ -45,7 +47,7 @@ namespace GEngine
 		void MarkGeometryChanged() { ++m_Revision; }
 
 		Vec3f m_CenterOfMass{ 0.0f };
-		std::vector<Vec3f> m_MeshPoints;
+		std::vector<Vec3f> m_MeshPoints; // Owned base points, preserved across scale callbacks.
 		ShapeType m_ShapeType = ShapeType::Invalid;
 		std::uint64_t m_Revision{};
 

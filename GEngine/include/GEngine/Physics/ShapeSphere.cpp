@@ -8,7 +8,7 @@
 
 namespace GEngine
 {
-	ShapeSphere::ShapeSphere(float radius) : m_Radius(radius)
+	ShapeSphere::ShapeSphere(float radius) : m_Radius(radius), m_BaseRadius(radius)
 	{
 		if (!IsValid()) {
 			throw std::invalid_argument("ShapeSphere requires a finite positive radius");
@@ -23,6 +23,17 @@ namespace GEngine
 
 	void ShapeSphere::SetRadius(float radius)
 	{
+		if (!std::isfinite(radius) || radius <= 0.0f || radius == m_Radius) {
+			return;
+		}
+		m_Radius = radius;
+		m_BaseRadius = radius;
+		MarkGeometryChanged();
+	}
+
+	void ShapeSphere::HandleScaleChanged(const Vec3f& new_scale)
+	{
+		const float radius = m_BaseRadius * new_scale.x;
 		if (!std::isfinite(radius) || radius <= 0.0f || radius == m_Radius) {
 			return;
 		}

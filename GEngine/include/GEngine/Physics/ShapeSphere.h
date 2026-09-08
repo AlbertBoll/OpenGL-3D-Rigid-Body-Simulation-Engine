@@ -9,17 +9,15 @@ namespace GEngine
 		ShapeSphere() : ShapeSphere(1.0f) {}
 		ShapeSphere(float radius);
 		float GetRadius() const { return m_Radius; }
-		// Rejected and unchanged radii preserve geometry and its revision.
+		// A changed radius installs new unscaled geometry; rejected/unchanged values are no-ops.
 		void SetRadius(float radius);
 		bool IsValid() const override;
 		// Inherited via Shape
 		Mat3 InertiaTensor() const override;
 
 		Bounds GetBounds(const Vec3f& pos, const Quat& orient) const override;
-		void HandleScaleChanged(const Vec3f& new_scale) override
-		{
-			SetRadius(m_Radius * new_scale.x);
-		}
+		// Absolute scale of the base radius. Retains the existing X-axis sphere policy.
+		void HandleScaleChanged(const Vec3f& new_scale) override;
 		
 		Bounds GetBounds() const override;
 
@@ -27,6 +25,7 @@ namespace GEngine
 
 	private:
 		float m_Radius = 1.0f;
+		float m_BaseRadius = 1.0f;
 	};
 
 }

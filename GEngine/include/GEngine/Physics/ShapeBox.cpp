@@ -67,8 +67,10 @@ namespace GEngine
 		points.push_back(Vec3f(bounds.maxs.x, bounds.mins.y, bounds.maxs.z));
 		points.push_back(Vec3f(bounds.maxs.x, bounds.maxs.y, bounds.mins.z));
 
+		std::vector<Vec3f> sourcePoints(pts);
 		m_bounds = bounds;
 		m_points.swap(points);
+		m_MeshPoints.swap(sourcePoints);
 		m_CenterOfMass = (bounds.maxs + bounds.mins) * 0.5f;
 		MarkGeometryChanged();
 		GENGINE_INFO("Center of mass: x: {}, y: {}, z: {}", m_CenterOfMass.x, m_CenterOfMass.y, m_CenterOfMass.z);

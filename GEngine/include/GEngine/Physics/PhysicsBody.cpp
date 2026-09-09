@@ -54,6 +54,79 @@ namespace GEngine
 		}
 	}
 
+	bool RigidBody3D::SetSleepSettings(const SleepSettings& settings)
+	{
+		if (!Math::IsFinite(settings.linearSpeedThreshold) || settings.linearSpeedThreshold < 0.0f ||
+			!Math::IsFinite(settings.angularSpeedThreshold) || settings.angularSpeedThreshold < 0.0f ||
+			!std::isfinite(settings.inactivitySeconds) || settings.inactivitySeconds <= 0.0)
+		{
+			return false;
+		}
+		if (settings != m_SleepSettings)
+		{
+			m_SleepSettings = settings;
+			WakeUp();
+		}
+		return true;
+	}
+
+	bool RigidBody3D::IsSleepEligible() const
+	{
+		if (GetInverseMass() <= 0.0f || !HasFiniteState())
+		{
+			return false;
+		}
+		// Widen before squaring: finite float speeds/thresholds can overflow float squares.
+		const auto withinThreshold = [](const Vec3f& velocity, float threshold)
+		{
+			const double x = velocity.x, y = velocity.y, z = velocity.z;
+			return x * x + y * y + z * z <= double(threshold) * threshold;
+		};
+		return withinThreshold(m_LinearVelocity, m_SleepSettings.linearSpeedThreshold) &&
+			withinThreshold(m_AngularVelocity, m_SleepSettings.angularSpeedThreshold);
+	}
+
+	void RigidBody3D::UpdateSleepTimer(double dtSeconds)
+	{
+		if (!std::isfinite(dtSeconds) || dtSeconds <= 0.0)
+		{
+			return;
+		}
+		if (!IsSleepEligible())
+		{
+			WakeUp();
+			return;
+		}
+		const double remaining = m_SleepSettings.inactivitySeconds - m_InactiveSeconds;
+		m_InactiveSeconds = dtSeconds >= remaining ? m_SleepSettings.inactivitySeconds : m_InactiveSeconds + dtSeconds;
+	}
+
+	bool RigidBody3D::CanSleep() const
+	{
+		return IsSleepEligible() && m_InactiveSeconds >= m_SleepSettings.inactivitySeconds;
+	}
+
+	bool RigidBody3D::TrySleep()
+	{
+		if (!IsSleepEligible())
+		{
+			WakeUp();
+			return false;
+		}
+		if (m_InactiveSeconds < m_SleepSettings.inactivitySeconds)
+		{
+			return false;
+		}
+		m_IsSleeping = true;
+		return true;
+	}
+
+	void RigidBody3D::WakeUp()
+	{
+		m_IsSleeping = false;
+		m_InactiveSeconds = 0.0;
+	}
+
 	bool RigidBody3D::SetBodyTypeAndInverseMass(BodyType type, float inverseMass)
 	{
 		if ((type != BodyType::Static && type != BodyType::Dynamic && type != BodyType::Kinematic) ||

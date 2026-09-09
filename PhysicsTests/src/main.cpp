@@ -5569,6 +5569,250 @@ namespace
 		return 0;
 	}
 
+	void TestSleepSettingsAndTimer()
+	{
+		using Body = GEngine::RigidBody3D;
+		using GEngine::Component::BodyType;
+		Body body;
+		Expect(!body.IsSleeping() && body.GetInactiveSeconds() == 0.0 && !body.CanSleep(),
+			"new body starts awake without accumulated inactivity");
+		Expect(body.GetSleepSettings() == Body::SleepSettings{}, "new body has the documented default sleep settings");
+		body.SetBodyTypeAndInverseMass(BodyType::Dynamic, 1.0f);
+		for (int step = 0; step < 3; ++step) body.UpdateSleepTimer(0.125);
+		Expect(body.GetInactiveSeconds() == 0.375 && !body.TrySleep(), "sleep requires the complete dwell, not one quiet sample");
+		body.UpdateSleepTimer(0.125);
+		Expect(body.CanSleep() && !body.IsSleeping(), "reaching the dwell only qualifies the body; sleeping requires an explicit decision");
+		Expect(body.TrySleep() && body.TrySleep() && body.IsSleeping(), "explicit sleep transition is idempotent");
+		for (const double dt : { 0.0, -0.125, std::numeric_limits<double>::infinity(),
+			-std::numeric_limits<double>::infinity(), std::numeric_limits<double>::quiet_NaN() })
+		{
+			body.UpdateSleepTimer(dt);
+			Expect(body.IsSleeping() && body.GetInactiveSeconds() == 0.5, "invalid or paused elapsed time does not change sleep bookkeeping");
+		}
+		const auto settings = body.GetSleepSettings();
+		for (int field = 0; field < 3; ++field)
+		{
+			for (const double value : { -1.0, std::numeric_limits<double>::infinity(), std::numeric_limits<double>::quiet_NaN() })
+			{
+				auto invalid = settings;
+				if (field == 0) invalid.linearSpeedThreshold = float(value);
+				if (field == 1) invalid.angularSpeedThreshold = float(value);
+				if (field == 2) invalid.inactivitySeconds = value;
+				Expect(!body.SetSleepSettings(invalid) && body.GetSleepSettings() == settings &&
+					body.IsSleeping() && body.GetInactiveSeconds() == 0.5, "invalid sleep settings leave policy, flag and timer unchanged");
+			}
+		}
+		auto changed = settings;
+		changed.inactivitySeconds = 0.0;
+		Expect(!body.SetSleepSettings(changed) && body.IsSleeping(), "zero dwell is rejected without waking a body");
+		Expect(body.SetSleepSettings(settings) && body.IsSleeping() && body.GetInactiveSeconds() == 0.5,
+			"reapplying the same sleep policy preserves accumulated inactivity");
+		for (int field = 0; field < 3; ++field)
+		{
+			changed = body.GetSleepSettings();
+			if (field == 0) changed.linearSpeedThreshold *= 2.0f;
+			if (field == 1) changed.angularSpeedThreshold *= 2.0f;
+			if (field == 2) changed.inactivitySeconds *= 2.0;
+			Expect(body.SetSleepSettings(changed) && !body.IsSleeping() && body.GetInactiveSeconds() == 0.0,
+				"changing any valid threshold or dwell invalidates previous qualification");
+			body.UpdateSleepTimer(changed.inactivitySeconds);
+			Expect(body.TrySleep(), "new policy can qualify after a fresh complete dwell");
+		}
+		body.WakeUp();
+		body.WakeUp();
+		Expect(!body.IsSleeping() && !body.CanSleep() && body.GetInactiveSeconds() == 0.0, "explicit wake is idempotent and resets the full dwell");
+		changed.inactivitySeconds = std::numeric_limits<double>::max();
+		Expect(body.SetSleepSettings(changed), "maximum finite dwell is accepted");
+		body.UpdateSleepTimer(changed.inactivitySeconds * 0.75);
+		body.UpdateSleepTimer(changed.inactivitySeconds * 0.75);
+		body.UpdateSleepTimer(changed.inactivitySeconds);
+		Expect(body.GetInactiveSeconds() == changed.inactivitySeconds && body.TrySleep(), "timer saturates without overflow even at the maximum finite dwell");
+
+		for (const int hz : { 60, 120 })
+		{
+			body.SetSleepSettings(settings);
+			body.WakeUp();
+			const double dt = 1.0 / hz;
+			int ticks = 0;
+			while (!body.CanSleep() && ticks <= hz)
+			{
+				body.UpdateSleepTimer(dt);
+				++ticks;
+			}
+			Expect(ticks >= hz / 2 && ticks <= hz / 2 + 1 && body.GetInactiveSeconds() == 0.5 && !body.IsSleeping(),
+				"60/120 Hz inactivity uses supplied simulation seconds, with at most one conservative boundary sample");
+			body.UpdateSleepTimer(std::numeric_limits<double>::max());
+			Expect(body.GetInactiveSeconds() == 0.5, "large finite elapsed time cannot exceed the configured dwell");
+		}
+	}
+
+	void TestSleepMotionAndEligibility()
+	{
+		using Body = GEngine::RigidBody3D;
+		using GEngine::Component::BodyType;
+		Body body;
+		body.SetBodyTypeAndInverseMass(BodyType::Dynamic, 1.0f);
+		body.SetSleepSettings({ 0.25f, 0.125f, 0.5 });
+		for (int angular = 0; angular < 2; ++angular)
+		{
+			for (int axis = 0; axis < 3; ++axis)
+			{
+				for (const float sign : { -1.0f, 1.0f })
+				{
+					body.m_LinearVelocity = body.m_AngularVelocity = GEngine::Vec3f(0.0f);
+					auto& velocity = angular ? body.m_AngularVelocity : body.m_LinearVelocity;
+					const float limit = angular ? 0.125f : 0.25f;
+					velocity[axis] = sign * limit;
+					body.UpdateSleepTimer(0.5);
+					Expect(body.TrySleep(), "signed linear/angular threshold equality qualifies on every axis");
+					velocity[axis] = sign * std::nextafter(limit, std::numeric_limits<float>::infinity());
+					Expect(!body.CanSleep(), "readiness rechecks current motion even after legacy public writes");
+					body.UpdateSleepTimer(0.125);
+					Expect(!body.IsSleeping() && body.GetInactiveSeconds() == 0.0, "exceeding either speed threshold wakes and resets inactivity");
+				}
+			}
+			body.m_LinearVelocity = body.m_AngularVelocity = GEngine::Vec3f(0.0f);
+			(angular ? body.m_AngularVelocity : body.m_LinearVelocity) = GEngine::Vec3f(angular ? 0.1f : 0.2f);
+			body.UpdateSleepTimer(0.5);
+			Expect(!body.CanSleep() && body.GetInactiveSeconds() == 0.0, "sleep uses vector speed rather than independent component thresholds");
+		}
+		body.m_LinearVelocity = body.m_AngularVelocity = GEngine::Vec3f(0.0f);
+		body.UpdateSleepTimer(0.5);
+		body.m_LinearVelocity.x = 1.0f;
+		Expect(!body.TrySleep() && body.GetInactiveSeconds() == 0.0, "explicit sleep rejects stale qualification without needing another timer sample");
+		body.m_LinearVelocity.x = 0.0f;
+		body.UpdateSleepTimer(0.125);
+		Expect(!body.CanSleep(), "motion interruption requires a fresh full dwell");
+
+		const float large = std::numeric_limits<float>::max();
+		body.SetSleepSettings({ large, large, 0.5 });
+		body.m_LinearVelocity = GEngine::Vec3f(large, 0.0f, 0.0f);
+		body.m_AngularVelocity = body.m_LinearVelocity;
+		body.UpdateSleepTimer(0.5);
+		Expect(body.TrySleep(), "large finite equal vector magnitudes do not overflow the threshold test");
+		body.m_LinearVelocity.y = large;
+		Expect(!body.TrySleep(), "large finite diagonal motion cannot pass through infinity comparison");
+		body.m_LinearVelocity = GEngine::Vec3f(0.0f);
+		body.m_AngularVelocity.y = large;
+		body.UpdateSleepTimer(0.5);
+		Expect(!body.CanSleep(), "angular magnitude has the same overflow guard");
+		body.m_AngularVelocity = GEngine::Vec3f(0.0f);
+		Expect(body.SetSleepSettings({ 0.0f, 0.0f, 0.5 }), "zero speed thresholds allow an exact-rest policy");
+		body.UpdateSleepTimer(0.5);
+		Expect(body.TrySleep(), "exact rest qualifies under zero speed thresholds");
+		body.m_LinearVelocity.x = std::numeric_limits<float>::min();
+		Expect(!body.TrySleep(), "tiny nonzero motion is not rounded to rest by float-square underflow");
+		body.m_LinearVelocity.x = 0.0f;
+		for (const auto type : { BodyType::Static, BodyType::Kinematic, static_cast<BodyType>(-1) })
+		{
+			body.Type = type;
+			body.UpdateSleepTimer(1.0);
+			Expect(!body.TrySleep() && body.GetInactiveSeconds() == 0.0, "static, kinematic and invalid body types cannot qualify for dynamic sleeping");
+		}
+		body.Type = BodyType::Dynamic;
+		for (const float invalid : { 0.0f, -1.0f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN() })
+		{
+			body.m_InvMass = invalid;
+			body.UpdateSleepTimer(1.0);
+			Expect(!body.TrySleep() && body.GetInactiveSeconds() == 0.0, "invalid or zero effective inverse mass cannot accumulate inactivity");
+		}
+		body.m_InvMass = 1.0f;
+		for (float* field : { &body.m_Position.x, &body.m_Orientation.w, &body.m_LinearVelocity.y,
+			&body.m_AngularVelocity.z, &body.m_Friction, &body.m_Elasticity })
+		{
+			for (const float invalid : { std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN() })
+			{
+				const float original = *field;
+				body.UpdateSleepTimer(0.5);
+				Expect(body.TrySleep(), "finite body qualifies before invalid-state guard test");
+				*field = invalid;
+				body.UpdateSleepTimer(0.125);
+				Expect(!body.IsSleeping() && !body.CanSleep() && body.GetInactiveSeconds() == 0.0,
+					"non-finite physical state cannot remain sleep-qualified");
+				*field = original;
+			}
+		}
+	}
+
+	void TestSleepPhysicalStateAndLifetime()
+	{
+		using GEngine::Component::BodyType;
+		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::RigidBody3D body;
+		ConfigureSphereBody(body, sphere, GEngine::Vec3f(1.0f, 2.0f, 3.0f));
+		body.m_LinearVelocity = GEngine::Vec3f(0.02f, 0.0f, 0.0f);
+		body.m_AngularVelocity = GEngine::Vec3f(0.0f, 0.01f, 0.0f);
+		const auto physicalState = [](const GEngine::RigidBody3D& b)
+		{
+			return std::array<float, 16>{ b.m_Position.x, b.m_Position.y, b.m_Position.z,
+				b.m_Orientation.w, b.m_Orientation.x, b.m_Orientation.y, b.m_Orientation.z,
+				b.m_LinearVelocity.x, b.m_LinearVelocity.y, b.m_LinearVelocity.z,
+				b.m_AngularVelocity.x, b.m_AngularVelocity.y, b.m_AngularVelocity.z,
+				b.m_InvMass, b.m_Friction, b.m_Elasticity };
+		};
+		const auto before = physicalState(body);
+		const auto inertia = body.GetInverseInertiaTensorWorldSpace();
+		const auto bounds = body.GetWorldBounds();
+		body.UpdateSleepTimer(0.5);
+		Expect(body.TrySleep() && physicalState(body) == before, "explicit sleep does not zero small velocities or alter physical state");
+		body.WakeUp();
+		Expect(physicalState(body) == before && body.m_Shape == &sphere && body.Type == BodyType::Dynamic &&
+			Near(body.GetInverseInertiaTensorWorldSpace(), inertia, 0.0f) &&
+			Near(body.GetWorldBounds().mins, bounds.mins, 0.0f) && Near(body.GetWorldBounds().maxs, bounds.maxs, 0.0f),
+			"wake preserves pose, motion, mass, materials, shape and derived data");
+
+		GEngine::PhysicsSystem control, candidate;
+		auto* controlWorld = new GEngine::PhysicsWorld();
+		auto* candidateWorld = new GEngine::PhysicsWorld();
+		control.SetPhysicsWorld(controlWorld);
+		candidate.SetPhysicsWorld(candidateWorld);
+		for (auto* world : { controlWorld, candidateWorld })
+		{
+			auto* floor = world->CreateRigidBody3D();
+			ConfigureSphereBody(*floor, sphere, GEngine::Vec3f(0.0f));
+			floor->SetBodyTypeAndInverseMass(BodyType::Static, 0.0f);
+			auto* dynamic = world->CreateRigidBody3D();
+			ConfigureSphereBody(*dynamic, sphere, GEngine::Vec3f(0.0f, 2.0f, 0.0f));
+		}
+		auto* passive = candidateWorld->GetPhysicsBodies()[1];
+		passive->UpdateSleepTimer(0.5);
+		Expect(passive->TrySleep(), "world fixture explicitly sets the passive flag");
+		bool same = true, contactsObserved = false;
+		for (int step = 0; step < 120; ++step)
+		{
+			control.Update(GEngine::Timestep(1.0f / 60.0f));
+			candidate.Update(GEngine::Timestep(1.0f / 60.0f));
+			same &= physicalState(*controlWorld->GetPhysicsBodies()[1]) == physicalState(*passive) &&
+				GetManifolds(control).GetContactCount() == GetManifolds(candidate).GetContactCount();
+			contactsObserved |= GetManifolds(candidate).GetContactCount() > 0;
+		}
+		Expect(same && contactsObserved, "passive sleep metadata leaves gravity, contact response and full world trajectories exactly unchanged");
+		Expect(!controlWorld->GetPhysicsBodies()[1]->IsSleeping() && controlWorld->GetPhysicsBodies()[1]->GetInactiveSeconds() == 0.0,
+			"PhysicsSystem does not automatically sample inactivity or sleep a quiet body in Phase 34");
+		const auto oldIdentity = passive->GetIdentity();
+		candidateWorld->RemoveRigidBody3D(passive);
+		auto* replacement = candidateWorld->CreateRigidBody3D();
+		Expect(!candidateWorld->IsBodyIdentityValid(oldIdentity) && replacement->GetIdentity() != oldIdentity &&
+			!replacement->IsSleeping() && replacement->GetInactiveSeconds() == 0.0 &&
+			replacement->GetSleepSettings() == GEngine::RigidBody3D::SleepSettings{},
+			"replacement bodies have fresh sleep state despite identity-slot reuse");
+		std::cout << "Phase 34 RigidBody3D size: " << sizeof(GEngine::RigidBody3D) << " bytes\n";
+	}
+
+	int RunSleepPrimitivesRegression()
+	{
+		TestSleepSettingsAndTimer();
+		TestSleepMotionAndEligibility();
+		TestSleepPhysicalStateAndLifetime();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " sleep-primitives checks failed\n";
+			return 1;
+		}
+		std::cout << "Sleep-primitives regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
 	void TestBodyTypeConfigurationAndTransitions()
 	{
 		using GEngine::Component::BodyType;
@@ -6518,6 +6762,7 @@ int main(int argc, char** argv)
 		if (argument == "--contact-convergence") return RunContactConvergenceRegression();
 		if (argument == "--resting-friction") return RunRestingFrictionRegression();
 		if (argument == "--contact-convention") return RunContactConventionRegression();
+		if (argument == "--sleep-primitives") return RunSleepPrimitivesRegression();
 		if (argument == "--body-types") return RunBodyTypeRegression();
 		if (argument == "--angular-dynamics")
 		{
@@ -6650,6 +6895,9 @@ int main(int argc, char** argv)
 	TestLargeFiniteFrictionCoefficients();
 	TestFrictionSlidingAndRolling();
 	TestGravityAndInverseMass();
+	TestSleepSettingsAndTimer();
+	TestSleepMotionAndEligibility();
+	TestSleepPhysicalStateAndLifetime();
 	TestBodyTypeInvariants();
 	TestBodyTypeContacts();
 	TestBodyTypePrediction();

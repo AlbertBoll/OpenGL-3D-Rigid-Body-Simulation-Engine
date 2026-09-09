@@ -68,6 +68,30 @@ namespace GEngine
 		void ApplyImpulseLinear(const Vec3f& impulse);
 		void ApplyImpulseAngular(const Vec3f& impulse);
 
+		struct SleepSettings
+		{
+			float linearSpeedThreshold{ 0.05f }; // world units / second
+			float angularSpeedThreshold{ 0.02f }; // radians / second
+			double inactivitySeconds{ 0.5 };
+			friend bool operator==(const SleepSettings&, const SleepSettings&) = default;
+		};
+
+		// Bookkeeping only: no integration/solver work is skipped and no velocity is zeroed.
+		// Island decisions and automatic mutation/contact wake-up belong to sleep integration.
+		const SleepSettings& GetSleepSettings() const { return m_SleepSettings; }
+		// Finite nonnegative speed thresholds and a finite positive dwell are required.
+		// Invalid input is transactional; a changed valid policy wakes and resets the timer.
+		bool SetSleepSettings(const SleepSettings& settings);
+		// Caller samples once per completed positive simulation step, after solving contacts.
+		// Invalid/nonpositive dt is a no-op. Motion above either threshold resets inactivity.
+		// Time saturates at the dwell; inexact accumulation can qualify one sample later.
+		void UpdateSleepTimer(double dtSeconds);
+		double GetInactiveSeconds() const { return m_InactiveSeconds; }
+		bool CanSleep() const;
+		bool TrySleep(); // Explicit decision; rechecks current eligibility, preserves physical state.
+		bool IsSleeping() const { return m_IsSleeping; }
+		void WakeUp(); // Clears only sleep bookkeeping; repeated wake-up is harmless.
+
 		void Update(const float dt_sec);
 		bool HasFiniteState() const;
 	#ifdef GENGINE_CONFIG_DEBUG
@@ -94,6 +118,8 @@ namespace GEngine
 		RigidBodyIdentity m_Identity;
 
 		bool CanIntegrate() const { return Type == BodyType::Kinematic || GetInverseMass() > 0.0f; }
+
+		bool IsSleepEligible() const;
 
 		void UpdateRotationData() const;
 		void UpdateCenterOfMassData() const;
@@ -139,6 +165,11 @@ namespace GEngine
 		};
 
 		mutable DerivedData m_DerivedData;
+
+		// Append cold state so existing physical/cache members retain their offsets.
+		SleepSettings m_SleepSettings;
+		double m_InactiveSeconds{};
+		bool m_IsSleeping{};
 
 		friend class PhysicsWorld;
 

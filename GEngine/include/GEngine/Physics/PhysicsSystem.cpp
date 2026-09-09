@@ -11,9 +11,214 @@
 #include <Core/Timer.h>
 #include <cmath>
 #include <limits>
+#include <utility>
 
 namespace GEngine
 {
+	namespace ContactIslandDetail
+	{
+		template<class T> void Reserve(std::vector<T>& values, std::size_t size)
+		{
+			if (size <= values.capacity()) return;
+			GE_PHYSICS_PROFILE_ADD(contactIslandCapacityGrowthCount, 1);
+			values.reserve(size);
+		}
+
+		template<class T> void Resize(std::vector<T>& values, std::size_t size)
+		{
+			if (size == values.size()) return;
+			if (size > values.capacity()) GE_PHYSICS_PROFILE_ADD(contactIslandCapacityGrowthCount, 1);
+			values.resize(size);
+		}
+
+		// Overwrite existing elements instead of invalidating/rebuilding every nested
+		// vector. Contents are never used to decide this tick's graph membership.
+		template<class T> void Write(std::vector<T>& values, std::size_t index, const T& value)
+		{
+			if (index < values.size()) values[index] = value;
+			else
+			{
+				if (values.size() == values.capacity()) GE_PHYSICS_PROFILE_ADD(contactIslandCapacityGrowthCount, 1);
+				values.push_back(value);
+			}
+		}
+	}
+
+	void BuildContactIslands(const std::vector<RigidBody3D*>& bodies,
+		const std::vector<Manifold>& manifolds, std::vector<ContactIsland>& islands,
+		ContactIslandScratch& scratch)
+	{
+		using namespace ContactIslandDetail;
+		using Node = ContactIslandScratch::Node;
+		GE_PHYSICS_PROFILE_SCOPE(contactIslandBuildTimeNs);
+		GE_PHYSICS_PROFILE_SCOPE_NAMED(nodeTimer, contactIslandNodesTimeNs);
+		const auto identityLess = [](RigidBodyIdentity a, RigidBodyIdentity b)
+		{
+			return a.GetSlot() < b.GetSlot() ||
+				(a.GetSlot() == b.GetSlot() && a.GetGeneration() < b.GetGeneration());
+		};
+		auto& nodes = scratch.nodes;
+		auto& edges = scratch.edges;
+		auto& counts = scratch.counts;
+		nodes.clear();
+		edges.clear();
+		counts.clear();
+		Reserve(nodes, bodies.size());
+		bool ordered = true;
+		for (const RigidBody3D* body : bodies)
+		{
+			if (!body || !body->GetIdentity().IsValid()) continue;
+			const auto identity = body->GetIdentity();
+			if (!nodes.empty() && identityLess(identity, nodes.back().identity)) ordered = false;
+			nodes.push_back({identity, body->GetInverseMass() > 0.0f});
+		}
+		if (!ordered)
+		{
+			GE_PHYSICS_PROFILE_ADD(contactIslandNodeSortCount, 1);
+			std::sort(nodes.data(), nodes.data() + nodes.size(), [&](const Node& a, const Node& b)
+				{ return identityLess(a.identity, b.identity); });
+		}
+		bool denseSlots = !nodes.empty();
+		for (std::size_t i = 0; i < nodes.size(); ++i)
+		{
+			nodes[i].parent = i;
+			if (i && nodes[i].identity.GetSlot() != nodes[i-1].identity.GetSlot() + 1) denseSlots = false;
+		}
+		GE_PHYSICS_PROFILE_STOP(nodeTimer);
+		GE_PHYSICS_PROFILE_SCOPE_NAMED(edgeTimer, contactIslandEdgesTimeNs);
+		const auto findNode = [&](RigidBodyIdentity identity)
+		{
+			if (nodes.empty()) return nodes.size();
+			if (denseSlots)
+			{
+				// Dense-slot indexing is proven from this tick's sorted live identities.
+				// Check the full identity even here: a reused slot is not the same body.
+				const auto offset = identity.GetSlot() - nodes.front().identity.GetSlot();
+				return offset < nodes.size() && nodes[static_cast<std::size_t>(offset)].identity == identity
+					? static_cast<std::size_t>(offset) : nodes.size();
+			}
+			const auto* it = std::lower_bound(nodes.data(), nodes.data() + nodes.size(), identity,
+				[&](const Node& node, RigidBodyIdentity key) { return identityLess(node.identity, key); });
+			return it != nodes.data() + nodes.size() && it->identity == identity
+				? static_cast<std::size_t>(it - nodes.data()) : nodes.size();
+		};
+		const auto edgeLess = [](const auto& a, const auto& b)
+		{
+			return a[0] < b[0] || (a[0] == b[0] && a[1] < b[1]);
+		};
+		const auto edgeEqual = [](const auto& a, const auto& b)
+		{
+			return a[0] == b[0] && a[1] == b[1];
+		};
+		Reserve(edges, manifolds.size());
+		ordered = true;
+		for (const Manifold& manifold : manifolds)
+		{
+			if (manifold.GetNumContacts() == 0) continue;
+			// Read cached identity values only; never follow manifold body pointers.
+			const std::size_t a = findNode(manifold.GetBodyAIdentity());
+			const std::size_t b = findNode(manifold.GetBodyBIdentity());
+			if (a == nodes.size() || b == nodes.size() || a == b ||
+				(!nodes[a].dynamic && !nodes[b].dynamic)) continue;
+			const std::array<std::size_t, 2> edge{std::min(a, b), std::max(a, b)};
+			if (!edges.empty() && edgeLess(edge, edges.back())) ordered = false;
+			edges.push_back(edge);
+		}
+		if (edges.size() > 1)
+		{
+			if (!ordered)
+			{
+				GE_PHYSICS_PROFILE_ADD(contactIslandEdgeSortCount, 1);
+				std::sort(edges.data(), edges.data() + edges.size(), edgeLess);
+			}
+			Resize(edges, static_cast<std::size_t>(std::unique(edges.data(), edges.data() + edges.size(), edgeEqual) - edges.data()));
+		}
+		GE_PHYSICS_PROFILE_STOP(edgeTimer);
+		GE_PHYSICS_PROFILE_SCOPE(contactIslandOutputTimeNs);
+		if (edges.empty())
+		{
+			// Separated worlds need no DSU traversal or per-island output cursors.
+			// Still overwrite every identity and retire all previous contacts/boundaries.
+			std::size_t size = 0;
+			for (const Node& node : nodes) if (node.dynamic) ++size;
+			Resize(islands, size);
+			std::size_t index = 0;
+			for (const Node& node : nodes)
+			{
+				if (!node.dynamic) continue;
+				auto& island = islands[index++];
+				Resize(island.dynamicBodies, 1);
+				island.dynamicBodies[0] = node.identity;
+				Resize(island.boundaryBodies, 0);
+				Resize(island.contactPairs, 0);
+			}
+			return;
+		}
+		const auto root = [&](std::size_t i)
+		{
+			while (nodes[i].parent != i)
+			{
+				nodes[i].parent = nodes[nodes[i].parent].parent;
+				i = nodes[i].parent;
+			}
+			return i;
+		};
+		for (const auto& edge : edges)
+		{
+			if (!nodes[edge[0]].dynamic || !nodes[edge[1]].dynamic) continue;
+			const std::size_t a = root(edge[0]), b = root(edge[1]);
+			nodes[std::max(a, b)].parent = std::min(a, b);
+		}
+		std::size_t islandCount = 0;
+		for (std::size_t i = 0; i < nodes.size(); ++i)
+		{
+			if (!nodes[i].dynamic) continue;
+			const std::size_t representative = root(i);
+			if (representative == i) nodes[i].island = islandCount++;
+			nodes[i].island = nodes[representative].island;
+		}
+		// Size once: growing the outer vector one root at a time repeatedly moves
+		// nested vectors (and their checked-iterator bookkeeping in the current CRT).
+		Resize(islands, islandCount);
+		Resize(counts, islandCount);
+		for (const Node& node : nodes)
+		{
+			if (!node.dynamic) continue;
+			Write(islands[node.island].dynamicBodies, counts[node.island].dynamics++, node.identity);
+		}
+		for (const auto& edge : edges)
+		{
+			const Node& a = nodes[edge[0]], &b = nodes[edge[1]];
+			const auto index = a.dynamic ? a.island : b.island;
+			auto& island = islands[index];
+			auto& count = counts[index];
+			Write(island.contactPairs, count.pairs++, ContactIslandPair{a.identity, b.identity});
+			if (!a.dynamic) Write(island.boundaryBodies, count.boundaries++, a.identity);
+			if (!b.dynamic) Write(island.boundaryBodies, count.boundaries++, b.identity);
+		}
+		for (std::size_t i = 0; i < islands.size(); ++i)
+		{
+			auto& island = islands[i];
+			Resize(island.dynamicBodies, counts[i].dynamics);
+			Resize(island.contactPairs, counts[i].pairs);
+			auto& boundaries = island.boundaryBodies;
+			Resize(boundaries, counts[i].boundaries);
+			if (boundaries.size() > 1)
+			{
+				std::sort(boundaries.data(), boundaries.data() + boundaries.size(), identityLess);
+				Resize(boundaries, static_cast<std::size_t>(std::unique(boundaries.data(), boundaries.data() + boundaries.size()) - boundaries.data()));
+			}
+		}
+	}
+
+	std::vector<ContactIsland> BuildContactIslands(
+		const std::vector<RigidBody3D*>& bodies, const std::vector<Manifold>& manifolds,
+		std::vector<ContactIsland> islands)
+	{
+		ContactIslandScratch scratch;
+		BuildContactIslands(bodies, manifolds, islands, scratch);
+		return islands;
+	}
 	namespace
 	{
 		bool IsFiniteContact(const contact_t& contact)
@@ -174,6 +379,9 @@ namespace GEngine
 
 	void PhysicsSystem::Update(Timestep ts)
 	{
+		// Invalidate the public snapshot while retaining its allocation capacity locally.
+		std::vector<ContactIsland> previousIslands;
+		previousIslands.swap(m_ContactIslands);
 		const float dtSeconds = static_cast<float>(ts);
 		GENGINE_CORE_ASSERT(Math::IsFinite(dtSeconds), "Physics timestep must be finite");
 		if (!Math::IsFinite(dtSeconds))
@@ -353,6 +561,15 @@ namespace GEngine
 				//Timeit("	m_Manifolds PreSolve")
 				////Solve the Constraints
 				m_Manifolds.PreSolve(ts);
+			}
+
+			// PreSolve may retire invalid manifolds. Describe exactly the retained graph
+			// without changing contact order, solving, sleep bookkeeping, or CCD.
+			BuildContactIslands(PhysicsBodies, m_Manifolds.m_Manifolds, previousIslands, m_ContactIslandScratch);
+			m_ContactIslands.swap(previousIslands);
+
+			{
+				GE_PHYSICS_PROFILE_SCOPE(solverTimeNs);
 				//Timeit("	m_Manifolds Solve")
 				// Warm start once above; repeat only the existing ordered constraint traversal.
 				const int maxIters = m_SolverIterations;
@@ -505,6 +722,7 @@ namespace GEngine
 		if (body->m_Position == position &&
 			(body->m_Orientation == normalized || body->m_Orientation == -normalized)) return true;
 
+		m_ContactIslands.clear();
 		RemoveManifoldsForBody(m_Manifolds, body);
 		RemoveContactsForBody(m_Contacts, body);
 		m_CollisionPairs.clear();
@@ -517,6 +735,7 @@ namespace GEngine
 
 	void PhysicsSystem::OnExit()
 	{
+		m_ContactIslands.clear();
 		m_Manifolds.Clear();
 		m_Broadphase.Clear();
 		m_CollisionPairs.clear();
@@ -540,6 +759,7 @@ namespace GEngine
 		{
 			m_PhysicsWorld->SetBodyRemovalCallback([this](RigidBody3D* body)
 			{
+				m_ContactIslands.clear();
 				RemoveManifoldsForBody(m_Manifolds, body);
 				RemoveContactsForBody(m_Contacts, body);
 			});

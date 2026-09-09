@@ -53,6 +53,15 @@ namespace GEngine
 		std::uint64_t integratedBodyCount{};
 		std::uint64_t integrationTimeNs{};
 		std::uint64_t physicsWorldTimeNs{};
+
+		// Graph-only inclusive timing; growth counts vector reallocations, not all heap calls.
+		std::uint64_t contactIslandBuildTimeNs{};
+		std::uint64_t contactIslandNodesTimeNs{};
+		std::uint64_t contactIslandEdgesTimeNs{};
+		std::uint64_t contactIslandOutputTimeNs{};
+		std::uint64_t contactIslandCapacityGrowthCount{};
+		std::uint64_t contactIslandNodeSortCount{};
+		std::uint64_t contactIslandEdgeSortCount{};
 	};
 
 	void ResetPhysicsProfile();

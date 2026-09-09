@@ -23,6 +23,9 @@ namespace GEngine
 
 		contact_t GetContact(const int idx);
 		int GetNumContacts() const { return m_NumContacts; }
+		// Cached values permit graph construction without following contact body pointers.
+		RigidBodyIdentity GetBodyAIdentity() const { return m_StampA.identity; }
+		RigidBodyIdentity GetBodyBIdentity() const { return m_StampB.identity; }
 
 	private:
 		static constexpr int MAX_CONTACTS = 4;

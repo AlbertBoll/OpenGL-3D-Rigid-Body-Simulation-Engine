@@ -5813,6 +5813,319 @@ namespace
 		return 0;
 	}
 
+	void AddIslandEdge(GEngine::ManifoldCollector& manifolds, GEngine::RigidBody3D* a, GEngine::RigidBody3D* b)
+	{
+		// Synthetic retained contacts isolate graph connectivity from collision geometry.
+		GEngine::contact_t contact{};
+		contact.m_BodyA = a;
+		contact.m_BodyB = b;
+		contact.normal = GEngine::Vec3f(1, 0, 0);
+		manifolds.AddContact(contact);
+	}
+
+	void TestContactIslandConnectivity()
+	{
+		using namespace GEngine;
+		ShapeSphere sphere(1);
+		PhysicsWorld world(Vec3f(0));
+		std::vector<RigidBody3D*> bodies;
+		for (int i = 0; i < 8; ++i)
+		{
+			auto* body = world.CreateRigidBody3D();
+			ConfigureSphereBody(*body, sphere, Vec3f(0));
+			if (i >= 6) body->SetBodyTypeAndInverseMass(i == 6 ? BodyType::Static : BodyType::Kinematic, 0);
+			bodies.push_back(body);
+		}
+		bodies[1]->UpdateSleepTimer(1);
+		Expect(bodies[1]->TrySleep(), "island fixture includes a passively sleeping dynamic body");
+		ManifoldCollector manifolds;
+		const std::array<std::array<int, 2>, 9> edges{{{0,1},{1,2},{2,0},{3,4},{0,6},{3,6},{2,7},{4,7},{6,7}}};
+		for (auto edge : edges) AddIslandEdge(manifolds, bodies[edge[0]], bodies[edge[1]]);
+		const auto id = [&](int i) { return bodies[i]->GetIdentity(); };
+		const std::vector<ContactIsland> expected{
+			{{id(0),id(1),id(2)}, {id(6),id(7)}, {{id(0),id(1)},{id(0),id(2)},{id(0),id(6)},{id(1),id(2)},{id(2),id(7)}}},
+			{{id(3),id(4)}, {id(6),id(7)}, {{id(3),id(4)},{id(3),id(6)},{id(4),id(7)}}},
+			{{id(5)}, {}, {}}
+		};
+		std::vector<PredictionBodySnapshot> snapshots;
+		for (const auto* body : bodies) snapshots.emplace_back(*body);
+		Expect(BuildContactIslands(bodies, manifolds.m_Manifolds) == expected,
+			"islands match chains/cycles and isolated dynamics; shared static/kinematic boundaries do not bridge groups");
+		for (int variant = 0; variant < 8; ++variant)
+		{
+			ManifoldCollector reordered;
+			for (std::size_t i = 0; i < edges.size(); ++i)
+			{
+				const auto edge = edges[(i + variant) % edges.size()];
+				AddIslandEdge(reordered, bodies[edge[1]], bodies[edge[0]]);
+			}
+			reordered.m_Manifolds.push_back(reordered.m_Manifolds.front());
+			reordered.m_Manifolds.emplace_back();
+			auto input = bodies;
+			std::rotate(input.begin(), input.begin() + variant, input.end());
+			std::reverse(input.begin(), input.end());
+			Expect(BuildContactIslands(input, reordered.m_Manifolds) == expected,
+				"body/manifold permutations, A/B reversal, duplicate edges and empty manifolds preserve exact ordered islands");
+		}
+		Expect(std::all_of(snapshots.begin(), snapshots.end(), [](const auto& snapshot) { return snapshot.Unchanged(); }),
+			"graph construction preserves every live body byte, including sleep state and derived caches");
+		Expect(BuildContactIslands({}, manifolds.m_Manifolds).empty(), "empty body input yields no islands");
+		Expect(BuildContactIslands({bodies[6], bodies[7]}, manifolds.m_Manifolds).empty(),
+			"boundary-only contacts yield no dynamic islands");
+		bodies[1]->m_InvMass = 0;
+		bodies[2]->m_InvMass = std::numeric_limits<float>::quiet_NaN();
+		const auto zeroMass = BuildContactIslands(bodies, manifolds.m_Manifolds);
+		Expect(zeroMass.size() == 3 && zeroMass[0].dynamicBodies == std::vector<RigidBodyIdentity>{id(0)} &&
+			zeroMass[0].boundaryBodies == std::vector<RigidBodyIdentity>{id(1),id(2),id(6)},
+			"zero/invalid effective mass uses the existing solver boundary semantics without propagating connectivity");
+	}
+
+	void TestContactIslandGraphOracle()
+	{
+		using namespace GEngine;
+		ShapeSphere sphere(1);
+		PhysicsWorld world(Vec3f(0));
+		constexpr int count = 32, dynamicCount = 24;
+		std::vector<RigidBody3D*> bodies;
+		for (int i = 0; i < count; ++i)
+		{
+			auto* body = world.CreateRigidBody3D();
+			ConfigureSphereBody(*body, sphere, Vec3f(0));
+			if (i >= dynamicCount) body->SetBodyTypeAndInverseMass(i % 2 ? BodyType::Static : BodyType::Kinematic, 0);
+			bodies.push_back(body);
+		}
+		std::vector<ContactIsland> reusable;
+		ContactIslandScratch scratch;
+		std::vector<ContactIsland> scratchOutput;
+		std::uint32_t seed = 0x35C0FFEEu;
+		const auto random = [&]() { seed = seed * 1664525u + 1013904223u; return seed; };
+		for (int sample = 0; sample < 32; ++sample)
+		{
+			bool adjacent[count][count]{};
+			ManifoldCollector manifolds;
+			for (int a = 0; a < count; ++a) for (int b = a + 1; b < count; ++b)
+			{
+				if ((random() >> 24) >= static_cast<unsigned>(sample + 1)) continue;
+				adjacent[a][b] = adjacent[b][a] = true;
+				AddIslandEdge(manifolds, bodies[b], bodies[a]);
+			}
+			// Independent breadth-first graph oracle; boundaries cannot enter the queue.
+			bool visited[count]{};
+			std::vector<ContactIsland> expected;
+			for (int start = 0; start < dynamicCount; ++start)
+			{
+				if (visited[start]) continue;
+				std::vector<int> queue{start};
+				visited[start] = true;
+				for (std::size_t head = 0; head < queue.size(); ++head)
+					for (int b = 0; b < dynamicCount; ++b)
+						if (adjacent[queue[head]][b] && !visited[b]) { visited[b] = true; queue.push_back(b); }
+				bool member[count]{};
+				for (int a : queue) member[a] = true;
+				ContactIsland island;
+				for (int a = 0; a < dynamicCount; ++a)
+					if (member[a]) island.dynamicBodies.push_back(bodies[a]->GetIdentity());
+				for (int b = dynamicCount; b < count; ++b)
+					if (std::any_of(queue.begin(), queue.end(), [&](int a) { return adjacent[a][b]; }))
+						island.boundaryBodies.push_back(bodies[b]->GetIdentity());
+				for (int a = 0; a < count; ++a) for (int b = a + 1; b < count; ++b)
+					if (adjacent[a][b] && (member[a] || member[b]))
+						island.contactPairs.push_back({bodies[a]->GetIdentity(), bodies[b]->GetIdentity()});
+				expected.push_back(island);
+			}
+			Expect(BuildContactIslands(bodies, manifolds.m_Manifolds) == expected,
+				"seeded sparse/dense contact graphs match independent breadth-first connectivity and complete boundary/edge coverage");
+			reusable = BuildContactIslands(bodies, manifolds.m_Manifolds, std::move(reusable));
+			Expect(reusable == expected, "reused island storage fully replaces prior membership, boundaries and edges");
+			BuildContactIslands(bodies, manifolds.m_Manifolds, scratchOutput, scratch);
+			Expect(scratchOutput == expected, "reused graph scratch matches independent connectivity oracle after topology changes");
+			auto permuted = bodies;
+			for (std::size_t i = permuted.size(); i > 1; --i) std::swap(permuted[i-1], permuted[random() % i]);
+			std::reverse(manifolds.m_Manifolds.begin(), manifolds.m_Manifolds.end());
+			Expect(BuildContactIslands(permuted, manifolds.m_Manifolds) == expected,
+				"seeded graph membership and ordering are exact after input permutations");
+		}
+		Expect(BuildContactIslands({}, {}, std::move(reusable)).empty(), "reused output retires every island for an empty world");
+	}
+
+	void TestContactIslandStorageRebuild()
+	{
+		using namespace GEngine;
+		ShapeSphere sphere(1);
+		PhysicsWorld world(Vec3f(0));
+		for (int i = 0; i < 2048; ++i)
+		{
+			auto* body = world.CreateRigidBody3D();
+			ConfigureSphereBody(*body, sphere, Vec3f(0));
+			if (i % 2) body->SetBodyTypeAndInverseMass(BodyType::Static, 0);
+		}
+		auto bodies = world.GetPhysicsBodies();
+		ContactIslandScratch scratch;
+		std::vector<ContactIsland> islands;
+		BuildContactIslands(bodies, {}, islands, scratch);
+		const auto singleton = islands;
+		const auto* outputStorage = islands.data();
+		const auto* nodeStorage = scratch.nodes.data();
+		std::vector<const RigidBodyIdentity*> memberStorage;
+		for (const auto& island : islands) memberStorage.push_back(island.dynamicBodies.data());
+		std::reverse(bodies.begin(), bodies.end());
+		BuildContactIslands(bodies, {}, islands, scratch);
+		bool sameStorage = islands.data() == outputStorage && scratch.nodes.data() == nodeStorage;
+		for (std::size_t i = 0; i < islands.size(); ++i)
+			sameStorage = sameStorage && islands[i].dynamicBodies.data() == memberStorage[i];
+		Expect(islands == singleton && islands.size() == 1024 && sameStorage,
+			"large separated graphs rebuild exact ordered singleton output without replacing retained storage");
+		ManifoldCollector contacts;
+		const auto& live = world.GetPhysicsBodies();
+		AddIslandEdge(contacts, live[0], live[2]);
+		AddIslandEdge(contacts, live[0], live[1]);
+		AddIslandEdge(contacts, live[2], live[1]); // Repeated boundary, distinct pair.
+		contacts.m_Manifolds.push_back(contacts.m_Manifolds.front());
+		BuildContactIslands(bodies, contacts.m_Manifolds, islands, scratch);
+		Expect(islands.size() == 1023 && islands[0].dynamicBodies.size() == 2 &&
+			islands[0].boundaryBodies == std::vector<RigidBodyIdentity>{live[1]->GetIdentity()} &&
+			islands[0].contactPairs.size() == 3, "singleton storage transitions to a sparse graph with unique boundaries and pairs");
+		BuildContactIslands(bodies, {}, islands, scratch);
+		Expect(islands == singleton, "the no-edge path retires every former membership, boundary and contact pair");
+		BuildContactIslands({}, contacts.m_Manifolds, islands, scratch);
+		Expect(islands.empty(), "retained scratch cannot supply live endpoints to an empty input");
+		BuildContactIslands(bodies, {}, islands, scratch);
+		Expect(islands == singleton, "scratch rebuilds complete singleton membership after an empty world");
+
+		// Non-contiguous live slots force binary lookup. Same-slot foreign bodies
+		// also prevent dense indexing and must remain distinct by generation.
+		PhysicsWorld foreign(Vec3f(0));
+		auto* foreignA = foreign.CreateRigidBody3D();
+		auto* foreignB = foreign.CreateRigidBody3D();
+		ConfigureSphereBody(*foreignA, sphere, Vec3f(0));
+		ConfigureSphereBody(*foreignB, sphere, Vec3f(0));
+		ManifoldCollector sparse;
+		AddIslandEdge(sparse, live[0], live[4]);
+		AddIslandEdge(sparse, foreignA, foreignB);
+		AddIslandEdge(sparse, live[0], live[2]); // Missing from the supplied live set.
+		BuildContactIslands({live[4], foreignB, live[0], foreignA}, sparse.m_Manifolds, islands, scratch);
+		const std::vector<ContactIsland> expected{
+			{{live[0]->GetIdentity(), live[4]->GetIdentity()}, {}, {{live[0]->GetIdentity(), live[4]->GetIdentity()}}},
+			{{foreignA->GetIdentity(), foreignB->GetIdentity()}, {}, {{foreignA->GetIdentity(), foreignB->GetIdentity()}}}
+		};
+		Expect(islands == expected, "sparse slots, absent endpoints and equal slots with different generations retain exact identity semantics");
+	}
+
+	void TestContactIslandIdentityLifetime()
+	{
+		using namespace GEngine;
+		ShapeSphere sphere(1);
+		PhysicsWorld world(Vec3f(0));
+		auto* a = world.CreateRigidBody3D();
+		auto* b = world.CreateRigidBody3D();
+		ConfigureSphereBody(*a, sphere, Vec3f(0));
+		ConfigureSphereBody(*b, sphere, Vec3f(0));
+		ManifoldCollector stale;
+		AddIslandEdge(stale, a, b);
+		const auto oldIdentity = a->GetIdentity();
+		world.RemoveRigidBody3D(a);
+		auto* replacement = world.CreateRigidBody3D();
+		ConfigureSphereBody(*replacement, sphere, Vec3f(0));
+		Expect(replacement->GetIdentity().GetSlot() == oldIdentity.GetSlot() && replacement->GetIdentity() != oldIdentity,
+			"island lifetime fixture reuses an identity slot with a new generation");
+		const auto graph = BuildContactIslands(world.GetPhysicsBodies(), stale.m_Manifolds);
+		Expect(graph.size() == 2 && graph[0].dynamicBodies == std::vector<RigidBodyIdentity>{replacement->GetIdentity()} &&
+			graph[1].dynamicBodies == std::vector<RigidBodyIdentity>{b->GetIdentity()} && graph[0].contactPairs.empty() && graph[1].contactPairs.empty(),
+			"stale manifold stamps cannot bind a reused slot; graph reads no deleted body pointer");
+		PhysicsWorld foreign(Vec3f(0));
+		for (int i = 0; i < 2; ++i) ConfigureSphereBody(*foreign.CreateRigidBody3D(), sphere, Vec3f(0));
+		const auto foreignGraph = BuildContactIslands(foreign.GetPhysicsBodies(), stale.m_Manifolds);
+		Expect(foreignGraph.size() == 2 && foreignGraph[0].contactPairs.empty() && foreignGraph[1].contactPairs.empty(),
+			"foreign-world generations cannot impersonate stamped contact endpoints");
+		ManifoldCollector fresh;
+		AddIslandEdge(fresh, replacement, b);
+		Expect(BuildContactIslands(world.GetPhysicsBodies(), fresh.m_Manifolds).size() == 1,
+			"fresh contacts reconnect replacement bodies using their current full identities");
+	}
+
+	void TestContactIslandSystemLifecycle()
+	{
+		using namespace GEngine;
+		ShapeSphere sphere(1);
+		PhysicsSystem system;
+		Expect(system.GetContactIslands().empty(), "new system has no island snapshot");
+		auto* world = new PhysicsWorld(Vec3f(0));
+		system.SetPhysicsWorld(world);
+		for (float x : {0.0f, 2.0f, 4.0f, 20.0f})
+			ConfigureSphereBody(*world->CreateRigidBody3D(), sphere, Vec3f(x,0,0));
+		system.Update(Timestep(1.0f/120));
+		const auto initial = system.GetContactIslands();
+		Expect(initial.size() == 2 && initial[0].dynamicBodies.size() == 3 && initial[0].contactPairs.size() == 2 &&
+			initial[1].dynamicBodies.size() == 1, "normal stepping constructs the current resting graph plus isolated dynamics");
+		Expect(initial == BuildContactIslands(world->GetPhysicsBodies(), GetManifolds(system).m_Manifolds),
+			"stored islands describe the manifolds retained for the solve");
+		auto* middle = world->GetPhysicsBodies()[1];
+		Expect(system.SetBodyPose(middle, middle->m_Position, middle->m_Orientation) && system.GetContactIslands() == initial,
+			"no-op pose edits preserve the snapshot");
+		Expect(!system.SetBodyPose(nullptr, Vec3f(0), Quat(1,0,0,0)) && system.GetContactIslands() == initial,
+			"rejected pose edits preserve the snapshot");
+		Expect(system.SetBodyPose(middle, Vec3f(10,0,0), middle->m_Orientation) && system.GetContactIslands().empty(),
+			"accepted pose changes invalidate the old graph immediately");
+		system.Update(Timestep(1.0f/120));
+		Expect(system.GetContactIslands().size() == 4 && GetManifolds(system).m_Manifolds.empty(),
+			"removing a contact bridge splits connectivity on the next update");
+		middle->m_Position = Vec3f(2,0,0);
+		system.Update(Timestep(1.0f/120));
+		Expect(system.GetContactIslands().size() == 2, "direct pose mutation is reflected by the next complete graph rebuild");
+		middle->m_Position = Vec3f(2,10,0); // Tangential drift expires both retained anchors.
+		system.Update(Timestep(1.0f/120));
+		Expect(system.GetContactIslands().size() == 4, "expired contacts do not remain as island edges");
+		world->RemoveRigidBody3D(middle);
+		Expect(system.GetContactIslands().empty(), "body removal invalidates all cached island membership before deletion");
+		system.Update(Timestep(1.0f/120));
+		Expect(system.GetContactIslands().size() == 3, "post-removal rebuild contains only remaining live identities");
+		auto* added = world->CreateRigidBody3D();
+		ConfigureSphereBody(*added, sphere, Vec3f(40,0,0));
+		system.Update(Timestep(1.0f/120));
+		Expect(system.GetContactIslands().size() == 4, "newly created dynamics are included on the next update");
+		added->SetBodyTypeAndInverseMass(BodyType::Kinematic, 0);
+		system.Update(Timestep(1.0f/120));
+		Expect(system.GetContactIslands().size() == 3, "body-type changes are reflected on the next update");
+		system.SetPhysicsWorld(world);
+		Expect(system.GetContactIslands().size() == 3, "same-world assignment preserves the current snapshot");
+		system.SetPhysicsWorld(new PhysicsWorld(Vec3f(0)));
+		Expect(system.GetContactIslands().empty(), "world replacement clears prior island identities");
+		system.Update(Timestep(1.0f/120));
+		Expect(system.GetContactIslands().empty(), "empty worlds produce no islands");
+		system.OnExit(); system.OnExit();
+		system.Update(Timestep(1.0f/120));
+		Expect(system.GetContactIslands().empty(), "repeated shutdown and worldless updates preserve an empty snapshot");
+
+		// Predicted future collisions do not supply resting graph edges.
+		auto* movingWorld = new PhysicsWorld(Vec3f(0));
+		system.SetPhysicsWorld(movingWorld);
+		auto* a = movingWorld->CreateRigidBody3D();
+		auto* b = movingWorld->CreateRigidBody3D();
+		ConfigureSphereBody(*a, sphere, Vec3f(0));
+		ConfigureSphereBody(*b, sphere, Vec3f(3,0,0));
+		a->m_LinearVelocity = Vec3f(10,0,0);
+		system.Update(Timestep(0.2f));
+		Expect(system.GetContactIslands().size() == 2 && system.GetContactIslands()[0].contactPairs.empty() &&
+			system.GetContactIslands()[1].contactPairs.empty() && a->HasFiniteState() && b->HasFiniteState(),
+			"positive-TOI response stays outside the resting island graph and remains finite");
+	}
+
+	int RunContactIslandsRegression()
+	{
+		TestContactIslandConnectivity();
+		TestContactIslandGraphOracle();
+		TestContactIslandStorageRebuild();
+		TestContactIslandIdentityLifetime();
+		TestContactIslandSystemLifecycle();
+		if (failureCount != 0)
+		{
+			std::cerr << failureCount << " of " << testCount << " contact-islands checks failed\n";
+			return 1;
+		}
+		std::cout << "Contact-islands regression: " << testCount << " checks passed\n";
+		return 0;
+	}
+
 	void TestBodyTypeConfigurationAndTransitions()
 	{
 		using GEngine::Component::BodyType;
@@ -6762,6 +7075,7 @@ int main(int argc, char** argv)
 		if (argument == "--contact-convergence") return RunContactConvergenceRegression();
 		if (argument == "--resting-friction") return RunRestingFrictionRegression();
 		if (argument == "--contact-convention") return RunContactConventionRegression();
+		if (argument == "--contact-islands") return RunContactIslandsRegression();
 		if (argument == "--sleep-primitives") return RunSleepPrimitivesRegression();
 		if (argument == "--body-types") return RunBodyTypeRegression();
 		if (argument == "--angular-dynamics")
@@ -6895,6 +7209,11 @@ int main(int argc, char** argv)
 	TestLargeFiniteFrictionCoefficients();
 	TestFrictionSlidingAndRolling();
 	TestGravityAndInverseMass();
+	TestContactIslandConnectivity();
+	TestContactIslandGraphOracle();
+	TestContactIslandStorageRebuild();
+	TestContactIslandIdentityLifetime();
+	TestContactIslandSystemLifecycle();
 	TestSleepSettingsAndTimer();
 	TestSleepMotionAndEligibility();
 	TestSleepPhysicalStateAndLifetime();

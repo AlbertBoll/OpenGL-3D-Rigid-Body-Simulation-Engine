@@ -5,6 +5,7 @@
 #include "Manifold.h"
 #include "Contact.h"
 #include "Broadphase.h"
+#include "ContactIsland.h"
 
 
 
@@ -60,6 +61,12 @@ namespace GEngine
 		}
 		int GetSolverIterations() const noexcept { return m_SolverIterations; }
 
+		// Snapshot of the last resting solve after PreSolve validation, before integration.
+		// Rebuilt each Update; cleared by body removal, changed SetBodyPose, and world reset.
+		// Creation/direct body mutation is reflected at the next Update. This is not a
+		// final-pose/CCD graph or a sleep decision; no solver traversal consumes it yet.
+		const std::vector<ContactIsland>& GetContactIslands() const { return m_ContactIslands; }
+
 		
 
 	private:
@@ -69,6 +76,8 @@ namespace GEngine
 		SweepAndPruneBroadphase m_Broadphase;
 		std::vector<collisionPair_t> m_CollisionPairs;
 		std::vector<contact_t> m_Contacts;
+		std::vector<ContactIsland> m_ContactIslands;
+		ContactIslandScratch m_ContactIslandScratch;
 
 	};
 

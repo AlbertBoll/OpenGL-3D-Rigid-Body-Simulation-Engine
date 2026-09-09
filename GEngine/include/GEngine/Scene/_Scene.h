@@ -1,6 +1,7 @@
 #pragma once
 #include"entt/entt.hpp"
 #include <Core/Timestep.h>
+#include <cstdint>
 #include "Core/UUID.h"
 #include <Camera/EditorCamera.h>
 
@@ -28,6 +29,19 @@ namespace GEngine
 		void DestroyEntity(_Entity entity, bool excludeChildren = false, bool first = true);
 		void DestroyEntity(UUID entityID, bool excludeChildren = false, bool first = true);
 
+		// Scene owns the application physics clock; PhysicsSystem remains one tick.
+		static constexpr double PhysicsStepSeconds = 1.0 / 60.0;
+		static constexpr std::uint32_t MaxPhysicsStepsPerUpdate = 2;
+		static constexpr double MaxPendingPhysicsSeconds = 0.25;
+		struct PhysicsTiming
+		{
+			double pendingSeconds{};
+			double discardedSeconds{}; // Latest update's backlog overflow.
+			double totalDiscardedSeconds{};
+			std::uint64_t totalSteps{};
+			std::uint32_t stepsLastUpdate{};
+		};
+		const PhysicsTiming& GetPhysicsTiming() const { return m_PhysicsTiming; }
 		void Update(Timestep ts);
 
 		entt::registry& Reg() { return m_Registry; }
@@ -111,6 +125,8 @@ namespace GEngine
 		int m_StepFrames = 0;
 		//PhysicsWorld* m_PhysicsWorld{};
 		PhysicsSystem* m_PhysicsSystem{};
+		PhysicsTiming m_PhysicsTiming{};
+		PhysicsWorld* m_TimingWorld{};
 		std::unordered_map<UUID, entt::entity> m_EntityMap;
 		std::vector<std::vector<_Entity>> m_GroupEntities;
 		std::vector<std::vector<_Entity>> m_LightEntities;

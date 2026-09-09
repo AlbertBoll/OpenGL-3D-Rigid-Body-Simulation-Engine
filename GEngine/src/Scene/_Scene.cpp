@@ -11,6 +11,8 @@
 #include "Assets/Shaders/shader.h"
 #include "Geometry/Geometry.h"
 #include <Core/Timer.h>
+#include <cmath>
+#include <limits>
 
 namespace GEngine
 {
@@ -141,6 +143,14 @@ namespace GEngine
 
 	void _Scene::Update(Timestep ts)
 	{
+		auto* timingWorld = m_PhysicsSystem->GetPhysicsWorld();
+		if (!timingWorld || timingWorld != m_TimingWorld)
+		{
+			m_PhysicsTiming = {};
+			m_TimingWorld = timingWorld;
+		}
+		m_PhysicsTiming.stepsLastUpdate = 0;
+		m_PhysicsTiming.discardedSeconds = 0.0;
 		for (auto e : m_Registry.view<RigidBody3DComponent, Transform3DComponent, RuntimePhysicsPose>())
 		{
 			auto& rigidBody = m_Registry.get<RigidBody3DComponent>(e);
@@ -163,13 +173,26 @@ namespace GEngine
 				PublishPhysicsPose(transform, pose, *body);
 			}
 		}
-		//for (int i = 0; i < 2; i++)
-		//{
-		//	m_PhysicsSystem->Update(ts * 0.5f);
-		//}
+		const double elapsed = ts.GetSecondsPrecise();
+		if (timingWorld && !m_IsPaused && std::isfinite(elapsed) && elapsed > 0.0)
 		{
-			//Timeit(m_PhysicsSystem_Update\n)
-			m_PhysicsSystem->Update(ts);
+			// Retain a bounded backlog. Report every positive second beyond its cap.
+			const double accepted = std::min(elapsed, MaxPendingPhysicsSeconds - m_PhysicsTiming.pendingSeconds);
+			m_PhysicsTiming.pendingSeconds += accepted;
+			m_PhysicsTiming.discardedSeconds = elapsed - accepted;
+			const double maxTotal = std::numeric_limits<double>::max();
+			m_PhysicsTiming.totalDiscardedSeconds += std::min(m_PhysicsTiming.discardedSeconds,
+				maxTotal - m_PhysicsTiming.totalDiscardedSeconds);
+			// Only absorb roundoff at a tick boundary (less than 5e-16 seconds).
+			constexpr double roundoff = 8.0 * std::numeric_limits<double>::epsilon() * MaxPendingPhysicsSeconds;
+			while (m_PhysicsTiming.stepsLastUpdate < MaxPhysicsStepsPerUpdate &&
+				m_PhysicsTiming.pendingSeconds + roundoff >= PhysicsStepSeconds)
+			{
+				m_PhysicsSystem->Update(Timestep(PhysicsStepSeconds));
+				m_PhysicsTiming.pendingSeconds = std::max(0.0, m_PhysicsTiming.pendingSeconds - PhysicsStepSeconds);
+				++m_PhysicsTiming.stepsLastUpdate;
+				++m_PhysicsTiming.totalSteps;
+			}
 		}
 		
 
@@ -598,6 +621,8 @@ namespace GEngine
 
 	void _Scene::OnPhysics3DStop()
 	{
+		m_PhysicsTiming = {};
+		m_TimingWorld = nullptr;
 		m_Registry.clear<RuntimePhysicsPose>();
 		for (auto& e : m_Registry.view<RigidBody3DComponent>())
 		{

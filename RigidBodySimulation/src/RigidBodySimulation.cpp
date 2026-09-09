@@ -667,15 +667,9 @@ void RigidBodySimulationApp::Update(Timestep ts)
 
 
 
-	//m_ActiveScene->Update(ts);
-	//update physics
-	if (!m_IsPause)
-	{
-		for (int i = 0; i < 2; i++)
-		{
-			m_ActiveScene->Update(ts * 1 / 2.f);
-		}
-	}
+	// Scene accumulates elapsed time and owns the bounded fixed physics ticks.
+	m_ActiveScene->SetPaused(m_IsPause);
+	m_ActiveScene->Update(ts);
 
 
 

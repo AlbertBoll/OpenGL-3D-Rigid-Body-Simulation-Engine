@@ -1635,9 +1635,9 @@ namespace
 		{
 			auto* body = entities[i].GetComponent<RigidBody3DComponent>().RuntimeBody;
 			const Vec3f before = body->m_Position;
-			scene.Update(Timestep(0.02f));
+			scene.Update(Timestep(_Scene::PhysicsStepSeconds));
 			const Vec3f expected = before + (types[i] == BodyType::Static ? Vec3f(0.0f) :
-				Vec3f(float(i + 1) * 0.02f, 0.0f, 0.0f));
+				Vec3f(float(i + 1) * static_cast<float>(_Scene::PhysicsStepSeconds), 0.0f, 0.0f));
 			Expect(glm::length(body->m_Position - expected) < 1e-5f &&
 				entities[i].GetComponent<Transform3DComponent>().Translation == body->m_Position,
 				"static pose stays fixed; kinematic and dynamic integration publishes without feedback");
@@ -1679,6 +1679,188 @@ namespace
 		Expect(scene.GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies().empty(),
 			"world replacement leaves old scene pose bridges inert until restart");
 		scene.OnRuntimeStop();
+	}
+
+	void LoadSchedulingBoxWorld(GEngine::PhysicsSystem& system,
+		std::vector<std::unique_ptr<GEngine::PhysicalShape>>& shapes)
+	{
+		using namespace GEngine;
+		auto* world = new PhysicsWorld(Vec3f(0, -12, 0));
+		system.SetPhysicsWorld(world);
+		std::istringstream input(Phase32ExactBoxWorld);
+		std::size_t count = 0; input >> count;
+		bool valid = count == 21;
+		for (std::size_t i = 0; i < count; ++i) {
+			auto* body = world->CreateRigidBody3D();
+			int shapeType = 0, type = 0; float radius = 0; std::size_t pointsCount = 0;
+			input >> shapeType >> type >> body->m_InvMass >> body->m_Elasticity >> body->m_Friction >>
+				body->m_CollisionLayer >> body->m_CollisionMask >>
+				body->m_Position.x >> body->m_Position.y >> body->m_Position.z >>
+				body->m_Orientation.w >> body->m_Orientation.x >> body->m_Orientation.y >> body->m_Orientation.z >>
+				body->m_LinearVelocity.x >> body->m_LinearVelocity.y >> body->m_LinearVelocity.z >>
+				body->m_AngularVelocity.x >> body->m_AngularVelocity.y >> body->m_AngularVelocity.z >> radius >> pointsCount;
+			std::vector<Vec3f> points(pointsCount);
+			for (auto& point : points) input >> point.x >> point.y >> point.z;
+			valid = valid && input.good() && shapeType == int(ShapeType::Box) && pointsCount == 36;
+			body->Type = BodyType(type);
+			shapes.push_back(std::make_unique<ShapeBox>(points)); body->m_Shape = shapes.back().get();
+		}
+		Expect(valid, "scheduling comparison loads the exact approved application export in creation order");
+	}
+
+	void TestSceneScheduleEquivalence()
+	{
+		using namespace GEngine;
+		const double dt = _Scene::PhysicsStepSeconds;
+		std::vector<std::vector<double>> patterns{ std::vector<double>(60, dt),
+			std::vector<double>(240, dt / 4), std::vector<double>(30, 2 * dt), {}, {}, { 12 * dt } };
+		for (int i = 0; i < 30; ++i) { patterns[3].push_back(dt / 4); patterns[3].push_back(7 * dt / 4); }
+		for (int i = 0; i < 15; ++i) {
+			patterns[4].push_back(3 * dt); patterns[4].push_back(dt / 2); patterns[4].push_back(dt / 2);
+		}
+		patterns[5].insert(patterns[5].end(), 192, dt / 4);
+		for (std::size_t pattern = 0; pattern < patterns.size(); ++pattern) {
+			std::vector<std::unique_ptr<PhysicalShape>> shapes;
+			_Scene scene; PhysicsSystem reference;
+			LoadSchedulingBoxWorld(*scene.GetPhysicsSystem(), shapes);
+			LoadSchedulingBoxWorld(reference, shapes);
+			bool exact = true, finite = true, bounded = true, conserved = true;
+			double supplied = 0, discarded = 0; std::uint64_t ticks = 0; int zeroUpdates = 0;
+			for (int second = 0; second < 20; ++second)
+			for (double elapsed : patterns[pattern]) {
+				scene.Update(Timestep(elapsed)); supplied += elapsed;
+				const auto& timing = scene.GetPhysicsTiming(); discarded += timing.discardedSeconds;
+				bounded = bounded && timing.stepsLastUpdate <= _Scene::MaxPhysicsStepsPerUpdate;
+				zeroUpdates += timing.stepsLastUpdate == 0;
+				for (std::uint32_t step = 0; step < timing.stepsLastUpdate; ++step) {
+					reference.Update(Timestep(dt)); ++ticks;
+				}
+				conserved = conserved && std::abs(supplied - (ticks * dt + timing.pendingSeconds + discarded)) < 1e-10;
+				const auto& actual = scene.GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies();
+				const auto& expected = reference.GetPhysicsWorld()->GetPhysicsBodies();
+				for (std::size_t i = 0; i < actual.size(); ++i) {
+					finite = finite && actual[i]->HasFiniteState();
+					exact = exact && actual[i]->m_Position == expected[i]->m_Position &&
+						actual[i]->m_Orientation == expected[i]->m_Orientation &&
+						actual[i]->m_LinearVelocity == expected[i]->m_LinearVelocity &&
+						actual[i]->m_AngularVelocity == expected[i]->m_AngularVelocity;
+				}
+				exact = exact && GetManifolds(*scene.GetPhysicsSystem()).GetContactCount() == GetManifolds(reference).GetContactCount();
+			}
+			const auto timing = scene.GetPhysicsTiming();
+			Expect(exact && finite, "every rendered-schedule sample exactly matches direct fixed stepping of the approved box world");
+			Expect(ticks == 1200 && timing.totalSteps == ticks && discarded == 0 && timing.pendingSeconds < 1e-10,
+				"all six one-second frame patterns execute exactly 1200 ticks in 20 seconds without losing time");
+			Expect(bounded && conserved, "steady, fast, slow, jitter and stall schedules obey the work cap and time balance");
+			if (pattern == 1) Expect(zeroUpdates == 3600, "240 Hz rendering performs no physics on three out of four updates");
+			std::cout << "SCENE_SCHEDULE pattern=" << pattern << " ticks=" << ticks << " supplied=" << supplied
+				<< " pending=" << timing.pendingSeconds << " discarded=" << discarded << " exact=" << exact << '\n';
+		}
+	}
+
+	void TestSceneClockPolicy()
+	{
+		using namespace GEngine;
+		const double dt = _Scene::PhysicsStepSeconds;
+		const double precise = 1.0 + 1e-10;
+		const Timestep time(precise);
+		Expect(time.GetSecondsPrecise() == precise && time.GetSeconds() == static_cast<float>(precise) &&
+			static_cast<float>(time) == time.GetSeconds(), "Timestep preserves double elapsed time and legacy float consumers");
+		Expect(time.GetMilliseconds() == static_cast<float>(1000 * precise), "Timestep millisecond conversion retains its public units");
+		_Scene scene, independent;
+		scene.Update(Timestep(10));
+		Expect(scene.GetPhysicsTiming().totalSteps == 0 && scene.GetPhysicsTiming().pendingSeconds == 0,
+			"a scene without a runtime world does not accumulate elapsed time");
+		scene.OnRuntimeStart(); independent.OnRuntimeStart();
+		scene.Update(Timestep(dt / 2));
+		Expect(scene.GetPhysicsTiming().stepsLastUpdate == 0 && scene.GetPhysicsTiming().pendingSeconds == dt / 2,
+			"a fractional tick remains pending without advancing physics");
+		scene.Update(Timestep(dt / 2));
+		Expect(scene.GetPhysicsTiming().totalSteps == 1 && scene.GetPhysicsTiming().stepsLastUpdate == 1 &&
+			scene.GetPhysicsTiming().pendingSeconds < 1e-15, "two half-tick frames produce exactly one fixed tick");
+		Expect(independent.GetPhysicsTiming().totalSteps == 0 && independent.GetPhysicsTiming().pendingSeconds == 0,
+			"scenes own independent clocks");
+		scene.Update(Timestep(dt - 1e-10));
+		Expect(scene.GetPhysicsTiming().stepsLastUpdate == 0, "clock roundoff tolerance cannot consume a materially incomplete tick");
+		scene.Update(Timestep(1e-10));
+		Expect(scene.GetPhysicsTiming().stepsLastUpdate == 1, "completing a near-boundary tick advances exactly once");
+		scene.Update(Timestep(1));
+		const auto overflow = scene.GetPhysicsTiming();
+		Expect(overflow.stepsLastUpdate == 2 && std::abs(overflow.pendingSeconds - (.25 - 2 * dt)) < 1e-14 &&
+			std::abs(overflow.discardedSeconds - .75) < 1e-14, "one-second stall performs two ticks, retains backlog and reports overflow");
+		Expect(std::abs(overflow.totalSteps * dt + overflow.pendingSeconds + overflow.totalDiscardedSeconds - (1 + 2 * dt)) < 1e-13,
+			"executed, pending and discarded seconds account for all valid unpaused input");
+		for (const double invalid : { 0.0, -1.0, std::numeric_limits<double>::quiet_NaN(),
+			std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity() }) {
+			scene.Update(Timestep(invalid)); const auto& timing = scene.GetPhysicsTiming();
+			Expect(timing.stepsLastUpdate == 0 && timing.discardedSeconds == 0 && timing.totalSteps == overflow.totalSteps &&
+				timing.pendingSeconds == overflow.pendingSeconds && timing.totalDiscardedSeconds == overflow.totalDiscardedSeconds,
+				"zero or invalid elapsed time neither accumulates nor drains backlog");
+		}
+		scene.SetPaused(true); scene.Update(Timestep(10));
+		Expect(scene.GetPhysicsTiming().totalSteps == overflow.totalSteps && scene.GetPhysicsTiming().pendingSeconds == overflow.pendingSeconds,
+			"paused elapsed time is excluded and prior backlog is retained");
+		scene.SetPaused(false); scene.Update(Timestep(dt / 2));
+		Expect(scene.GetPhysicsTiming().stepsLastUpdate == 2 && scene.GetPhysicsTiming().discardedSeconds == 0,
+			"resume drains existing backlog with the same two-tick budget");
+		scene.OnRuntimeStop();
+		Expect(scene.GetPhysicsTiming().totalSteps == 0 && scene.GetPhysicsTiming().pendingSeconds == 0 &&
+			scene.GetPhysicsTiming().totalDiscardedSeconds == 0, "runtime stop resets all clock state");
+		scene.OnRuntimeStart(); scene.Update(Timestep(dt / 2));
+		Expect(scene.GetPhysicsTiming().totalSteps == 0 && scene.GetPhysicsTiming().pendingSeconds == dt / 2,
+			"restart has no stale catch-up debt");
+		scene.GetPhysicsSystem()->SetPhysicsWorld(new PhysicsWorld()); scene.Update(Timestep(dt / 2));
+		Expect(scene.GetPhysicsTiming().totalSteps == 0 && scene.GetPhysicsTiming().pendingSeconds == dt / 2,
+			"a different runtime world starts a fresh clock");
+		scene.GetPhysicsSystem()->OnExit(); scene.Update(Timestep(dt));
+		Expect(scene.GetPhysicsTiming().pendingSeconds == 0 && scene.GetPhysicsTiming().totalSteps == 0,
+			"an absent world clears pending time even after external shutdown");
+		scene.OnRuntimeStart();
+		for (int i = 0; i < 2; ++i) scene.Update(Timestep(std::numeric_limits<double>::max()));
+		const auto huge = scene.GetPhysicsTiming();
+		Expect(huge.stepsLastUpdate == 2 && std::isfinite(huge.pendingSeconds) && std::isfinite(huge.discardedSeconds) &&
+			huge.totalDiscardedSeconds == std::numeric_limits<double>::max(),
+			"huge finite stalls retain bounded work and saturate the lifetime discard diagnostic without infinity");
+
+		// Deterministic model of expensive ticks feeding their cost into the next frame.
+		scene.OnRuntimeStart(); double elapsed = .016, supplied = 0;
+		bool bounded = true, conserved = true;
+		for (int frame = 0; frame < 600; ++frame) {
+			scene.Update(Timestep(elapsed)); supplied += elapsed;
+			const auto& timing = scene.GetPhysicsTiming();
+			bounded = bounded && timing.stepsLastUpdate <= 2 && timing.pendingSeconds <= .25;
+			conserved = conserved && std::abs(supplied - (timing.totalSteps * dt + timing.pendingSeconds + timing.totalDiscardedSeconds)) < 1e-10;
+			elapsed = std::max(.016, timing.stepsLastUpdate * .020 + .002);
+		}
+		Expect(bounded && conserved && scene.GetPhysicsTiming().totalDiscardedSeconds > 0,
+			"expensive-tick feedback stays at two ticks and reports overload instead of hiding lost time");
+	}
+
+	void TestPausedScenePoseSynchronization()
+	{
+		using namespace GEngine; using namespace GEngine::Component;
+		std::vector<std::unique_ptr<PhysicalShape>> shapes;
+		_Scene scene; auto entity = scene.CreateEntity("paused pose edit");
+		entity.AddOrReplaceComponent<RigidBody3DComponent>().Type = BodyType::Dynamic;
+		entity.AddOrReplaceComponent<SphereFixture3DComponent>(); scene.OnRuntimeStart();
+		auto* body = entity.GetComponent<RigidBody3DComponent>().RuntimeBody;
+		shapes.emplace_back(body->m_Shape); body->m_LinearVelocity = Vec3f(2, 0, 0);
+		scene.Update(Timestep(_Scene::PhysicsStepSeconds / 2)); scene.SetPaused(true);
+		auto& transform = entity.GetComponent<Transform3DComponent>(); transform.SetTranslation(Vec3f(4, 5, 6));
+		scene.Update(Timestep(1));
+		Expect(body->m_Position == Vec3f(4, 5, 6) && transform.Translation == body->m_Position &&
+			body->m_LinearVelocity == Vec3f(2, 0, 0) && scene.GetPhysicsTiming().totalSteps == 0,
+			"paused frames synchronize authored poses without simulating or changing velocity");
+		scene.SetPaused(false); scene.Update(Timestep(_Scene::PhysicsStepSeconds / 2));
+		Expect(scene.GetPhysicsTiming().totalSteps == 1 && transform.Translation == body->m_Position &&
+			body->m_Position.x > 4, "resume consumes the retained fraction and publishes one final physics pose");
+	}
+
+	int RunFixedSchedulingRegression()
+	{
+		TestSceneClockPolicy(); TestPausedScenePoseSynchronization(); TestSceneScheduleEquivalence();
+		std::cout << "Fixed scheduling: " << testCount << " checks, " << failureCount << " failures\n";
+		return failureCount ? 1 : 0;
 	}
 
 	int RunRuntimeTransformRegression()
@@ -6331,6 +6513,7 @@ int main(int argc, char** argv)
 		if (argument == "--solver-iterations") return RunSolverIterationsRegression();
 		if (argument == "--restitution-threshold") return RunRestitutionThresholdRegression();
 		if (argument == "--ballistic-contact") return RunBallisticContactRegression();
+		if (argument == "--fixed-scheduling") return RunFixedSchedulingRegression();
 		if (argument == "--timestep-stability") return RunTimestepStabilityRegression();
 		if (argument == "--contact-convergence") return RunContactConvergenceRegression();
 		if (argument == "--resting-friction") return RunRestingFrictionRegression();
@@ -6456,6 +6639,9 @@ int main(int argc, char** argv)
 	TestBallisticMaterialRange();
 	TestBallisticOffCenterFriction();
 	TestBallisticSweptGrazingContact();
+	TestSceneClockPolicy();
+	TestPausedScenePoseSynchronization();
+	TestSceneScheduleEquivalence();
 	TestExactBoxWorldTimestepStability();
 	TestManifoldNormalConvergence();
 	TestContactFrictionConvergence();

@@ -277,6 +277,7 @@ namespace GEngine
         auto windows = GetWindowManager();
 
         uint64_t now = SDL_GetPerformanceCounter();
+        const double frequency = static_cast<double>(SDL_GetPerformanceFrequency());
         //input->SetRelativeMouseMode(true);
         //GENGINE_CORE_INFO("{}", m_Running);
         while (m_Running)
@@ -285,23 +286,21 @@ namespace GEngine
             if (!m_Minimized)
             {
 
-                //const uint64_t now = SDL_GetPerformanceCounter();
-                //const float time = static_cast<float>(SDL_GetPerformanceCounter());
-                //const Timestep ts = (time - m_LastFrameTime)*1000 / static_cast<float>(SDL_GetPerformanceFrequency());
                 m_LastFrameTime = now;
                 now = SDL_GetPerformanceCounter();
-                Timestep dt_us = 1000000.f * (now - m_LastFrameTime) / static_cast<double>(SDL_GetPerformanceFrequency());
-                Timestep dt_ms = 1000.f * dt_us;
-                //std::cout << "time passes " << ts << std::endl;
-
-                if (dt_us < 16000.0f)
+                // Preserve the existing pre-pacing input units; input policy is separate.
+                const float inputMicroseconds = static_cast<float>(1000000.f * (now - m_LastFrameTime) / frequency);
+                const Timestep inputTime(1000.f * inputMicroseconds);
+                double elapsedSeconds = static_cast<double>(now - m_LastFrameTime) / frequency;
+                if (elapsedSeconds < 0.016)
                 {
-                    uint64_t x = 16000 - (uint64_t)dt_us;
-                    std::this_thread::sleep_for(std::chrono::microseconds(x));
-                    dt_us = 16000.f;
+                    const auto remainingMicros = static_cast<uint64_t>((0.016 - elapsedSeconds) * 1000000.0);
+                    std::this_thread::sleep_for(std::chrono::microseconds(remainingMicros));
                     now = SDL_GetPerformanceCounter();
+                    elapsedSeconds = static_cast<double>(now - m_LastFrameTime) / frequency;
                 }
-
+                // Include actual pacing overshoot and stalls. Scene owns overload accounting.
+                const Timestep dt_sec(elapsedSeconds);
                 m_LastFrameTime = now;
                 //std::cout << "--------------------------------------" << "\n";
                 {
@@ -312,15 +311,9 @@ namespace GEngine
                 //process input
                 {
                     //Timeit(ProcessInput)
-                    ProcessInput(dt_ms);
+                    ProcessInput(inputTime);
                 }
 
-                if (dt_us > 33000.f)
-                {
-                    dt_us = 33000.f;
-                }
-
-                Timestep dt_sec = dt_us * 0.001f * 0.001f;
 
                 //update                              
                 Update(dt_sec);

@@ -5,20 +5,23 @@ namespace GEngine
 	class Timestep
 	{
 	public:
-		Timestep(float time = 0.0f): m_Time{time}{}
+		Timestep(double time = 0.0): m_Time{time}, m_FloatTime{static_cast<float>(time)}{}
 
-		float GetSeconds()const { return m_Time; }
+		float GetSeconds()const { return m_FloatTime; }
 
-		float GetMilliseconds()const { return m_Time * 1000.f; }
+		double GetSecondsPrecise()const { return m_Time; }
+
+		float GetMilliseconds()const { return static_cast<float>(m_Time * 1000.0); }
 
 		operator float() const
 		{
-			return m_Time;
+			return m_FloatTime;
 		}
 
 
 	private:
-		float m_Time;
+		double m_Time;
+		float m_FloatTime;
 
 	};
 }

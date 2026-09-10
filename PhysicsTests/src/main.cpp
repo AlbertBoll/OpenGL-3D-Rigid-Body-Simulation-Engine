@@ -4445,6 +4445,207 @@ namespace
 			static_cast<double>(constraint.m_CachedLambda[2]));
 	}
 
+
+	void TestSpinResistanceRows()
+	{
+		using namespace GEngine;
+		for (float radius : {0.25f, 1.0f, 3.0f})
+		for (float inverseMass : {0.5f, 2.0f})
+		for (float length : {0.0f, 0.01f, 0.2f, 100.0f})
+		for (float closing : {0.0f, 0.2f, 2.0f})
+		{
+			FrictionFixture f(0.0f, inverseMass);
+			f.sphere.SetRadius(radius);
+			f.body.SetSpinResistanceLength(length);
+			f.support.SetSpinResistanceLength(0.2f);
+			f.body.m_LinearVelocity = Vec3f(0, -closing, 0);
+			f.body.m_AngularVelocity = Vec3f(1, 4, 2);
+			const float inertia = 0.4f * radius * radius / inverseMass;
+			const float bound = std::min(length, 0.2f) * closing / inverseMass;
+			const float impulse = std::min(bound, inertia * 4.0f);
+			ResetPhysicsProfile();
+			f.constraint.PreSolve(1.0f/60);
+			f.constraint.Solve();
+			Expect(Near(f.body.m_AngularVelocity, Vec3f(1, 4 - impulse/inertia, 2), 3e-5f),
+				"torsion matches the load/length/inertia law and leaves tangent-plane spin unchanged");
+			Expect(std::abs(f.constraint.GetSpinImpulse()) <= bound + 2e-6 &&
+				Near(float(std::abs(f.constraint.GetSpinImpulse())), impulse, 3e-5f),
+				"torsional impulse has the documented bound across sizes, masses and zero loads");
+			const auto first = f.body.m_AngularVelocity;
+			for (int i=0;i<7;++i) f.constraint.Solve();
+			Expect(Near(f.body.m_AngularVelocity, first, 3e-5f),
+				"extra global passes do not multiply the accumulated resistance budget");
+			if (IsPhysicsProfilingEnabled())
+				Expect((GetPhysicsProfileSnapshot().spinResistanceImpulseCount > 0) == (impulse > 0),
+					"spin telemetry distinguishes actual resistance from unloaded/disabled work");
+		}
+		// Existing normal cache may warm start, but torsion must not act on yesterday's load.
+		FrictionFixture f(0.0f);
+		f.body.SetSpinResistanceLength(0.1f); f.support.SetSpinResistanceLength(0.1f);
+		f.body.m_LinearVelocity = Vec3f(0,-1,0); f.body.m_AngularVelocity=Vec3f(0,4,0);
+		f.constraint.PreSolve(1.0f/60); f.constraint.Solve();
+		const auto spun = f.body.m_AngularVelocity;
+		f.body.m_LinearVelocity = Vec3f(0,1,0);
+		f.constraint.PreSolve(1.0f/120);
+		Expect(f.constraint.GetSpinImpulse()==0 && f.body.m_AngularVelocity==spun,
+			"new timestep starts torsion cold without an obsolete-load warm start");
+		f.constraint.Solve();
+		Expect(f.constraint.m_CachedLambda[0]==0 && f.constraint.GetSpinImpulse()==0 &&
+			f.body.m_AngularVelocity==spun, "separating contact with cached normal load applies no torsion");
+		for (float dt : {0.0f,-0.01f}) {
+			f.body.m_LinearVelocity=Vec3f(0,-1,0);
+			f.constraint.PreSolve(dt); f.constraint.Solve();
+			Expect(f.constraint.GetSpinImpulse()==0, "paused/reverse constraint preparation disables torsion");
+		}
+	}
+
+	void TestSpinResistanceTwoBodies()
+	{
+		using namespace GEngine;
+		for (bool reversed : {false,true})
+		for (BodyType type : {BodyType::Dynamic,BodyType::Static,BodyType::Kinematic})
+		for (Vec3f normal : {Vec3f(0,1,0), glm::normalize(Vec3f(1,2,3))})
+		{
+			FrictionFixture f(0.0f);
+			f.support.SetBodyTypeAndInverseMass(type,0.5f);
+			f.body.SetSpinResistanceLength(0.05f); f.support.SetSpinResistanceLength(0.1f);
+			f.body.m_LinearVelocity=-normal*2.0f;
+			f.body.m_AngularVelocity=normal*4.0f;
+			f.support.m_AngularVelocity=normal; // Static stored motion must be ignored.
+			f.constraint.m_Normal=-normal;
+			if(reversed) {
+				std::swap(f.constraint.m_bodyA,f.constraint.m_bodyB);
+				f.constraint.m_Normal=normal;
+			}
+			const float inverseB=f.support.GetInverseMass();
+			const float impulse=0.05f*2.0f/(1.0f+inverseB);
+			const auto momentumBefore=f.body.m_AngularVelocity*0.4f+f.support.m_AngularVelocity*0.8f;
+			f.constraint.PreSolve(1.0f/60); f.constraint.Solve();
+			Expect(Near(f.body.m_AngularVelocity,normal*(4.0f-2.5f*impulse),2e-5f) &&
+				Near(f.support.m_AngularVelocity,normal*(1.0f+2.5f*inverseB*impulse),2e-5f),
+				"pair reversal and arbitrary normals preserve equal/opposite angular response and boundary semantics");
+			if(type==BodyType::Dynamic)
+				Expect(Near(f.body.m_AngularVelocity*0.4f+f.support.m_AngularVelocity*0.8f,momentumBefore,2e-5f),
+					"two dynamic spheres conserve total angular momentum while relative spin decays");
+		}
+		// A rotated anisotropic inertia changes omega in multiple axes for a normal-axis torque.
+		FrictionFixture f(0.0f);
+		ShapeBox box(BoxPoints(Vec3f(1,2,3)));
+		f.body.m_Shape=&box;
+		f.body.m_Orientation=glm::angleAxis(0.7f,glm::normalize(Vec3f(1,1,1)));
+		f.body.SetSpinResistanceLength(100); f.support.SetSpinResistanceLength(100);
+		f.body.m_LinearVelocity=Vec3f(0,-1,0); f.body.m_AngularVelocity=Vec3f(1,4,2);
+		f.constraint.m_Normal=f.body.GetWorldToBodyRotation()*Vec3f(0,-1,0);
+		const auto inverse=f.body.GetInverseInertiaTensorWorldSpace();
+		const auto before=f.body.m_AngularVelocity;
+		const double initial=0.5*glm::dot(before,glm::inverse(inverse)*before);
+		f.constraint.PreSolve(1.0f/60); f.constraint.Solve();
+		const auto after=f.body.m_AngularVelocity;
+		Expect(std::abs(after.y)<2e-5 && 0.5*glm::dot(after,glm::inverse(inverse)*after)<=initial+1e-5,
+			"world inverse inertia cancels relative normal spin without anisotropic kinetic-energy injection");
+	}
+
+	void TestSpinMaterialAndWake()
+	{
+		using namespace GEngine;
+		ShapeSphere sphere(1);
+		PhysicsSystem system; auto* world=new PhysicsWorld(); system.SetPhysicsWorld(world);
+		auto* support=world->CreateRigidBody3D(); auto* body=world->CreateRigidBody3D();
+		ConfigureSphereBody(*support,sphere,Vec3f(0)); support->SetBodyTypeAndInverseMass(BodyType::Static,0);
+		ConfigureSphereBody(*body,sphere,Vec3f(0,2,0));
+		Expect(body->GetSpinResistanceLength()==0, "spin resistance defaults to the approved reference behavior");
+		for(float value : {-1.0f,std::numeric_limits<float>::infinity(),std::numeric_limits<float>::quiet_NaN()})
+			Expect(!body->SetSpinResistanceLength(value) && body->GetSpinResistanceLength()==0,
+				"invalid resistance lengths are rejected transactionally");
+		Expect(body->SetSpinResistanceLength(std::numeric_limits<float>::max()) &&
+			body->SetSpinResistanceLength(0), "finite nonnegative resistance range is accepted");
+		for(int i=0;i<120;++i) system.Update(Timestep(1.0f/60));
+		Expect(body->IsSleeping(), "material-wake fixture reaches settled sleep");
+		support->SetSpinResistanceLength(0); system.Update(Timestep(1.0f/60));
+		Expect(body->IsSleeping(), "unchanged resistance setting preserves sleep");
+		support->SetSpinResistanceLength(0.05f); system.Update(Timestep(1.0f/60));
+		Expect(!body->IsSleeping(), "static material edit wakes its supported dependent via existing wake connectivity");
+		for(int i=0;i<120;++i) system.Update(Timestep(1.0f/60));
+		body->SetSpinResistanceLength(0.05f);
+		Expect(!body->IsSleeping() && body->GetInactiveSeconds()==0,
+			"dynamic material edit immediately wakes and clears dwell");
+		// The largest valid length must still yield a finite stop impulse.
+		FrictionFixture f(0);
+		f.body.SetSpinResistanceLength(std::numeric_limits<float>::max());
+		f.support.SetSpinResistanceLength(std::numeric_limits<float>::max());
+		f.body.m_LinearVelocity=Vec3f(0,-1,0);f.body.m_AngularVelocity=Vec3f(0,4,0);
+		f.constraint.PreSolve(1.0f/60);f.constraint.Solve();
+		Expect(f.body.HasFiniteState() && std::abs(f.body.m_AngularVelocity.y)<1e-5,
+			"extreme finite material length remains bounded by the finite cancellation impulse");
+	}
+
+	void TestSupportedSpinAndAirborne()
+	{
+		using namespace GEngine;
+		double stopped[2]{};
+		int rateIndex=0;
+		for(int rate : {60,120}) {
+			for(bool enabled : {false,true}) {
+				ShapeSphere sphere(1); ShapeBox floor(BoxPoints(Vec3f(20,0.5f,20)));
+				PhysicsSystem system; auto* world=new PhysicsWorld(); system.SetPhysicsWorld(world);
+				system.SetSleepingEnabled(false); // Measure physical decay before sleep truncation.
+				auto* support=world->CreateRigidBody3D(); auto* body=world->CreateRigidBody3D();
+				ConfigureBoxBody(*support,floor,Vec3f(0),Quat(1,0,0,0));
+				support->SetBodyTypeAndInverseMass(BodyType::Static,0);
+				ConfigureSphereBody(*body,sphere,Vec3f(0,1.5f,0));
+				support->m_Friction=body->m_Friction=0;
+				support->m_Elasticity=body->m_Elasticity=0;
+				support->SetSpinResistanceLength(enabled?0.05f:0);body->SetSpinResistanceLength(0.05f);
+				body->m_AngularVelocity=Vec3f(0,4,0);
+				double maxEnergy=21.2, stop=0;bool finite=true;std::uint64_t applied=0;
+				float atOne=0;
+				for(int tick=1;tick<=4*rate;++tick) {
+					ResetPhysicsProfile(); system.Update(Timestep(1.0f/rate));
+					const auto v=body->m_LinearVelocity,w=body->m_AngularVelocity;
+					const double energy=0.5*glm::dot(v,v)+0.2*glm::dot(w,w)+12*body->m_Position.y;
+					finite &= body->HasFiniteState() && std::isfinite(energy);
+					maxEnergy=std::max(maxEnergy,energy);
+					applied+=GetPhysicsProfileSnapshot().spinResistanceImpulseCount;
+					if(tick==rate) atOne=w.y;
+					if(!stop && std::abs(w.y)<=0.02f) stop=double(tick)/rate;
+				}
+				Expect(finite && maxEnergy<=21.2+0.01, "supported pure spin stays finite without mechanical-energy growth");
+				Expect(enabled ? (std::abs(atOne-2.5f)<0.02f && stop>2.5 && stop<2.8) :
+					(std::abs(atOne-4.0f)<1e-5f && stop==0),
+					"plane spin decay matches torque=length*mg; a zero material preserves free normal-axis spin");
+				if(IsPhysicsProfilingEnabled()) Expect((applied>0)==enabled,"plane probe reports applied torsional resistance");
+				std::cout<<"SPIN_PLANE rate="<<rate<<" enabled="<<enabled<<" one_second_spin="<<atOne
+					<<" stop_seconds="<<stop<<" peak_energy="<<maxEnergy<<" final_spin="<<body->m_AngularVelocity.y
+					<<" impulses="<<applied<<'\n';
+				if(enabled) stopped[rateIndex]=stop;
+			}
+			++rateIndex;
+			ShapeSphere sphere(1);PhysicsSystem system;auto* world=new PhysicsWorld(Vec3f(0));system.SetPhysicsWorld(world);
+			auto* body=world->CreateRigidBody3D();ConfigureSphereBody(*body,sphere,Vec3f(0,20,0));
+			body->SetSpinResistanceLength(1);body->m_AngularVelocity=Vec3f(1,4,2);
+			auto* reference=world->CreateRigidBody3D();ConfigureSphereBody(*reference,sphere,Vec3f(100,20,0));
+			reference->m_AngularVelocity=body->m_AngularVelocity;
+			ResetPhysicsProfile();
+			for(int tick=0;tick<4*rate;++tick) system.Update(Timestep(1.0f/rate));
+			Expect(body->m_AngularVelocity==reference->m_AngularVelocity && body->m_Orientation==reference->m_Orientation &&
+				Near(body->m_AngularVelocity,Vec3f(1,4,2),1e-5f) && GetPhysicsProfileSnapshot().spinResistanceImpulseCount==0,
+				"airborne body receives no contact resistance at either tick rate");
+		}
+		Expect(std::abs(stopped[0]-stopped[1])<=1.0/60+1e-6,
+			"60/120 Hz pure-spin settling differs by at most one 60 Hz tick");
+	}
+
+	int RunSpinResistanceRegression()
+	{
+		TestSpinResistanceRows();
+		TestSpinResistanceTwoBodies();
+		TestSpinMaterialAndWake();
+		TestSupportedSpinAndAirborne();
+		std::cout<<"Spin resistance: "<<testCount<<" checks, "<<failureCount<<" failures\n";
+		return failureCount ? 1 : 0;
+	}
+
+
 	void TestRestingCoulombProjection()
 	{
 		for (const float inverseMass : { 0.5f, 2.0f })
@@ -4749,7 +4950,7 @@ namespace
 	}
 
 
-	void TestExactBoxWorldTimestepStability()
+	void TestExactBoxWorldTimestepStability(float spinLength = 0.0f)
 	{
 		using namespace GEngine;
 		for (const int rate : { 60, 120 }) {
@@ -4774,6 +4975,7 @@ namespace
 				for (auto& point : points) input >> point.x >> point.y >> point.z;
 				Expect(input.good() && shapeType == int(ShapeType::Box) && pointsCount == 36,
 					"exact export retains mesh points, creation order, poses, velocities and materials");
+				body->SetSpinResistanceLength(spinLength);
 				body->Type = BodyType(type);
 				shapes.push_back(std::make_unique<ShapeBox>(points));
 				body->m_Shape = shapes.back().get();
@@ -7313,6 +7515,8 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--spin-resistance") return RunSpinResistanceRegression();
+		if (argument == "--spin-stability") { TestExactBoxWorldTimestepStability(0.05f); return failureCount ? 1 : 0; }
 		if (argument == "--runtime-transform") return RunRuntimeTransformRegression();
 		if (argument == "--absolute-scaling") return RunAbsoluteScalingRegression();
 		if (argument == "--epa-robustness") return RunEpaRobustnessRegression();
@@ -7473,6 +7677,10 @@ int main(int argc, char** argv)
 	TestContactIslandStorageRebuild();
 	TestContactIslandIdentityLifetime();
 	TestContactIslandSystemLifecycle();
+	TestSpinResistanceRows();
+	TestSpinResistanceTwoBodies();
+	TestSpinMaterialAndWake();
+	TestSupportedSpinAndAirborne();
 	TestIslandSleepAndWake();
 	TestSleepWakeSourcesAndBoundaries();
 	TestSleepEligibilityAndInteraction();

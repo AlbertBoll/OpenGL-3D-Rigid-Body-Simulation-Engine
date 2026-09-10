@@ -17,6 +17,8 @@ namespace GEngine
 		void Solve() override;
 		// Called after the manifold has solved its coupled normal rows.
 		void SolveFriction();
+		// Accumulated only within the current step; no cross-step torsional warm start.
+		double GetSpinImpulse() const { return m_SpinImpulse; }
 		// One bounded translation pass, after physical integration. Never changes velocities.
 		void PostSolve() override;
 		
@@ -29,6 +31,9 @@ namespace GEngine
 	private:
 		void Solve(bool solveNormal);
 		bool m_PositionCorrectionEnabled{ false };
+		void SolveSpin();
+		double m_SpinImpulse{};
+		float m_SpinResistanceLength{};
 
 	};
 

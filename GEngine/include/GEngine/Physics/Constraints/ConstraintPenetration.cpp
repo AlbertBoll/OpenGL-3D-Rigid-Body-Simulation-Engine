@@ -1,6 +1,7 @@
 #include "gepch.h"
 #include "ConstraintPenetration.h"
 #include "../PhysicsBody.h"
+#include "../PhysicsProfile.h"
 #include <cmath>
 
 namespace GEngine
@@ -101,6 +102,12 @@ namespace GEngine
 		{
 			m_CachedLambda.Zero();
 		}
+
+		// Start cold each step: refreshed/replaced/expired contacts cannot reuse torsion,
+		// and no old load is used for a torsional warm start before the normal solve.
+		m_SpinImpulse = 0.0;
+		m_SpinResistanceLength = dt_sec > 0.0f && Math::IsFinite(dt_sec)
+			? std::min(m_bodyA->GetSpinResistanceLength(), m_bodyB->GetSpinResistanceLength()) : 0.0f;
 
 		// Get the world space position of the hinge from A's orientation
 		const Vec3f worldAnchorA = m_bodyA->BodySpaceToWorldSpace(m_anchorA);
@@ -248,10 +255,50 @@ namespace GEngine
 		// Apply the impulses
 		const Vec<12> impulses = JacobianTranspose * lambdaN;
 		ApplyImpulses(impulses);
+		SolveSpin();
 		m_bodyA->AssertFiniteState();
 		m_bodyB->AssertFiniteState();
 	}
 	
+	void ConstraintPenetration::SolveSpin()
+	{
+		if (!(m_SpinResistanceLength > 0.0f)) return;
+		GE_PHYSICS_PROFILE_SCOPE(spinResistanceTimeNs);
+		GE_PHYSICS_PROFILE_ADD(spinResistanceSolveCount, 1);
+		// J = [0, -n, 0, n], k = n dot (IA^-1 + IB^-1) n.
+		const Vec3f axis(m_Jacobian[0][6], m_Jacobian[0][7], m_Jacobian[0][8]);
+		const double length2 = glm::dot(glm::dvec3(axis), glm::dvec3(axis));
+		if (!(length2 > 0.0) || !std::isfinite(length2)) return;
+		const Vec3f normal(glm::dvec3(axis) / std::sqrt(length2));
+		const Vec3f responseA = m_bodyA->GetInverseInertiaTensorWorldSpace() * normal;
+		const Vec3f responseB = m_bodyB->GetInverseInertiaTensorWorldSpace() * normal;
+		if (!Math::IsFinite(responseA) || !Math::IsFinite(responseB)) return;
+		const double k = glm::dot(glm::dvec3(normal), glm::dvec3(responseA) + glm::dvec3(responseB));
+		const double spin = glm::dot(glm::dvec3(m_bodyB->GetAngularVelocity()) -
+			glm::dvec3(m_bodyA->GetAngularVelocity()), glm::dvec3(normal));
+		if (!(k > 0.0) || !std::isfinite(k) || !std::isfinite(spin) ||
+			!Math::IsFinite(m_CachedLambda[0])) return;
+		// The length already includes the material coefficient and contact-patch scale.
+		// Each point uses its own solved load: a patch gets at most length * sum(lambdaN).
+		const double limit = double(m_SpinResistanceLength) * std::max(0.0f, m_CachedLambda[0]);
+		const double next = std::clamp(m_SpinImpulse - spin / k, -limit, limit);
+		const double delta = next - m_SpinImpulse;
+		if (!std::isfinite(delta) || std::abs(delta) > std::numeric_limits<float>::max()) return;
+		const float applied = static_cast<float>(delta);
+		if (applied == 0.0f) return;
+		const Vec3f impulse = normal * applied;
+		// Validate the actual float operations before either body is changed.
+		const Vec3f nextA = m_bodyA->m_AngularVelocity -
+			m_bodyA->GetInverseInertiaTensorWorldSpace() * impulse;
+		const Vec3f nextB = m_bodyB->m_AngularVelocity +
+			m_bodyB->GetInverseInertiaTensorWorldSpace() * impulse;
+		if (!Math::IsFinite(impulse) || !Math::IsFinite(nextA) || !Math::IsFinite(nextB)) return;
+		m_bodyA->ApplyImpulseAngular(-impulse);
+		m_bodyB->ApplyImpulseAngular(impulse);
+		m_SpinImpulse += applied;
+		GE_PHYSICS_PROFILE_ADD(spinResistanceImpulseCount, 1);
+	}
+
 	void ConstraintPenetration::PostSolve()
 	{
 		if (!m_PositionCorrectionEnabled || !m_bodyA || !m_bodyB || m_bodyA == m_bodyB)

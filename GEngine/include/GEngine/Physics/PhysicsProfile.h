@@ -48,6 +48,11 @@ namespace GEngine
 		std::uint64_t solverIterationCount{};
 		std::uint64_t solverTimeNs{};
 		std::uint64_t contactResolutionTimeNs{};
+		// Enabled torsional rows visited and nonzero incremental angular impulses applied.
+		// Inclusive subset of solver time; zero-coefficient rows do not start a timer.
+		std::uint64_t spinResistanceTimeNs{};
+		std::uint64_t spinResistanceSolveCount{};
+		std::uint64_t spinResistanceImpulseCount{};
 
 		std::uint64_t gravityTimeNs{};
 		std::uint64_t integratedBodyCount{};

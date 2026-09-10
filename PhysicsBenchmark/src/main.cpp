@@ -32,6 +32,8 @@ namespace
 		int steadyStateMeasuredSteps{};
 		float dtSeconds{ 1.0f / 120.0f };
 		bool physicsRegressionBaseline{};
+		float spinResistanceLength{};
+		bool spinWorkload{};
 		int solverIterations{ GEngine::PhysicsSystem::DefaultSolverIterations };
 	};
 
@@ -114,6 +116,16 @@ namespace
 					throw std::invalid_argument("solver iterations must be an integer in [1, 32]");
 				}
 			}
+			else if (argument == "--spin-workload") options.spinWorkload = true;
+			else if (argument.starts_with("--spin-resistance-length="))
+			{
+				const auto value = argument.substr(25);
+				std::size_t consumed{};
+				options.spinResistanceLength = std::stof(value, &consumed);
+				if (consumed != value.size() || !std::isfinite(options.spinResistanceLength) ||
+					options.spinResistanceLength < 0.0f)
+					throw std::invalid_argument("spin resistance length must be finite and nonnegative");
+			}
 			else if (argument == "--physics-regression-baseline")
 			{
 				options.physicsRegressionBaseline = true;
@@ -133,6 +145,8 @@ namespace
 				"warmups and steady-state step counts must be non-negative, samples positive, "
 				"steady-state warmup requires measured steps, and dt must be finite and positive");
 		}
+		if (options.physicsRegressionBaseline && (options.spinResistanceLength != 0.0f || options.spinWorkload))
+			throw std::invalid_argument("spin resistance option applies to collision/separated samples");
 		return options;
 	}
 
@@ -532,6 +546,7 @@ namespace
 		for (int bodyIndex = 0; bodyIndex < bodyCount; ++bodyIndex)
 		{
 			GEngine::RigidBody3D* body = world->CreateRigidBody3D();
+			body->SetSpinResistanceLength(options.spinResistanceLength);
 			const int pairIndex = bodyIndex / 2;
 			const int pairPattern = pairIndex % 4;
 			const bool firstBody = (bodyIndex % 2) == 0;
@@ -541,6 +556,11 @@ namespace
 			body->m_Shape = &shape;
 			body->Type = dynamic ? GEngine::Component::BodyType::Dynamic : GEngine::Component::BodyType::Static;
 			body->m_InvMass = dynamic ? 1.0f : 0.0f;
+			if (options.spinWorkload && dynamic) {
+				const float sign = firstBody ? 1.0f : -1.0f;
+				body->m_LinearVelocity = GEngine::Vec3f(sign, 0, 0);
+				body->m_AngularVelocity = GEngine::Vec3f(4 * sign, 0, 0);
+			}
 			body->m_Elasticity = 0.25f;
 			body->m_Friction = 0.5f;
 			body->m_Position = firstBody
@@ -717,7 +737,7 @@ namespace
 			<< "solver_constraints,solver_iterations,gravity_ms,broadphase_ms,pair_filter_ms,"
 			<< "narrowphase_ms,manifold_ms,solver_ms,contact_resolution_ms,integration_ms,"
 			<< "physics_world_ms,external_mean_ms,external_median_ms,external_min_ms,external_max_ms,"
-			<< "external_median_fps,final_state_fingerprint\n";
+			<< "external_median_fps,final_state_fingerprint,spin_ms,spin_solves,spin_impulses\n";
 	}
 
 	void PrintResult(int bodyCount, const std::vector<Sample>& samples)
@@ -767,7 +787,10 @@ namespace
 			<< AveragePerStep(samples, &PhysicsProfileSnapshot::physicsWorldTimeNs) * nsToMs << ','
 			<< externalMeanMs << ',' << externalMedianMs << ','
 			<< minimumSample->externalStepMs << ',' << maximumSample->externalStepMs << ','
-			<< (1000.0 / externalMedianMs) << ',' << samples.front().finalStateFingerprint << '\n';
+			<< (1000.0 / externalMedianMs) << ',' << samples.front().finalStateFingerprint << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::spinResistanceTimeNs) * nsToMs << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::spinResistanceSolveCount) << ','
+			<< AveragePerStep(samples, &PhysicsProfileSnapshot::spinResistanceImpulseCount) << '\n';
 	}
 }
 
@@ -790,6 +813,8 @@ int main(int argc, char** argv)
 		std::cout << "# warmup=" << options.warmupCount << "\n# samples=" << options.sampleCount
 			<< "\n# steady_state_warmup_steps=" << options.steadyStateWarmupSteps
 			<< "\n# measured_steps_per_sample=" << std::max(options.steadyStateMeasuredSteps, 1)
+			<< "\n# spin_workload=" << options.spinWorkload
+			<< "\n# spin_resistance_length=" << options.spinResistanceLength
 			<< "\n# solver_iterations=" << options.solverIterations
 			<< "\n# dt_seconds=" << std::setprecision(9) << options.dtSeconds << '\n';
 		PrintHeader();

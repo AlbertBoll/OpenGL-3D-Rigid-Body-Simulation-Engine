@@ -68,6 +68,16 @@ namespace GEngine
 		void ApplyImpulseLinear(const Vec3f& impulse);
 		void ApplyImpulseAngular(const Vec3f& impulse);
 
+		// Effective torsional friction length (world units): max torque / normal force.
+		// Pair policy is min(A, B); zero on either material disables spin resistance.
+		float GetSpinResistanceLength() const { return m_SpinResistanceLength; }
+		bool SetSpinResistanceLength(float length)
+		{
+			if (!Math::IsFinite(length) || length < 0.0f) return false;
+			if (length != m_SpinResistanceLength) { m_SpinResistanceLength = length; WakeUp(); }
+			return true;
+		}
+
 		struct SleepSettings
 		{
 			float linearSpeedThreshold{ 0.05f }; // world units / second
@@ -196,6 +206,8 @@ namespace GEngine
 		bool m_ExternalMutation{};
 		bool m_InPhysicsStep{};
 		std::size_t m_ActivationIsland{ static_cast<std::size_t>(-1) };
+
+		float m_SpinResistanceLength{}; // Opt-in material state; mutation goes through the wake API.
 
 		friend class PhysicsWorld;
 		friend class PhysicsSystem;

@@ -62,8 +62,8 @@ namespace GEngine
 		{
 			return Type == BodyType::Dynamic && Math::IsFinite(m_InvMass) && m_InvMass > 0.0f ? m_InvMass : 0.0f;
 		}
-		Vec3f GetLinearVelocity() const { return CanIntegrate() ? m_LinearVelocity : Vec3f(0.0f); }
-		Vec3f GetAngularVelocity() const { return CanIntegrate() ? m_AngularVelocity : Vec3f(0.0f); }
+		Vec3f GetLinearVelocity() const { return CanIntegrate() && !IsSleeping() ? m_LinearVelocity : Vec3f(0.0f); }
+		Vec3f GetAngularVelocity() const { return CanIntegrate() && !IsSleeping() ? m_AngularVelocity : Vec3f(0.0f); }
 		void ApplyImpulse(const Vec3f& impulsePoint, const Vec3f& impulse);
 		void ApplyImpulseLinear(const Vec3f& impulse);
 		void ApplyImpulseAngular(const Vec3f& impulse);
@@ -76,8 +76,8 @@ namespace GEngine
 			friend bool operator==(const SleepSettings&, const SleepSettings&) = default;
 		};
 
-		// Bookkeeping only: no integration/solver work is skipped and no velocity is zeroed.
-		// Island decisions and automatic mutation/contact wake-up belong to sleep integration.
+		// TrySleep remains a bookkeeping primitive; PhysicsSystem makes group decisions,
+		// zeros accepted residual motion, and skips sleeping work.
 		const SleepSettings& GetSleepSettings() const { return m_SleepSettings; }
 		// Finite nonnegative speed thresholds and a finite positive dwell are required.
 		// Invalid input is transactional; a changed valid policy wakes and resets the timer.
@@ -120,6 +120,12 @@ namespace GEngine
 		bool CanIntegrate() const { return Type == BodyType::Kinematic || GetInverseMass() > 0.0f; }
 
 		bool IsSleepEligible() const;
+		// Caller has established a positive finite dt and current physical eligibility.
+		void AdvanceSleepTimer(double dtSeconds)
+		{
+			const double remaining = m_SleepSettings.inactivitySeconds - m_InactiveSeconds;
+			m_InactiveSeconds = dtSeconds >= remaining ? m_SleepSettings.inactivitySeconds : m_InactiveSeconds + dtSeconds;
+		}
 
 		void UpdateRotationData() const;
 		void UpdateCenterOfMassData() const;
@@ -171,7 +177,28 @@ namespace GEngine
 		double m_InactiveSeconds{};
 		bool m_IsSleeping{};
 
+		// Source values at the last completed step detect supported legacy public edits.
+		struct SleepSource
+		{
+			Vec3f position, linearVelocity, angularVelocity;
+			Quat orientation;
+			float inverseMass, elasticity, friction;
+			std::uint32_t layer, mask;
+			PhysicalShape* shape;
+			std::uint64_t shapeRevision;
+			BodyType type;
+			friend bool operator==(const SleepSource&, const SleepSource&) = default;
+		};
+		SleepSource m_SleepSource{};
+		bool m_SleepSourceValid{};
+		bool m_SleepShapeValid{}; // Rechecked whenever the source shape/revision changes.
+		bool m_WakeRequested{};
+		bool m_ExternalMutation{};
+		bool m_InPhysicsStep{};
+		std::size_t m_ActivationIsland{ static_cast<std::size_t>(-1) };
+
 		friend class PhysicsWorld;
+		friend class PhysicsSystem;
 
 	};
 }

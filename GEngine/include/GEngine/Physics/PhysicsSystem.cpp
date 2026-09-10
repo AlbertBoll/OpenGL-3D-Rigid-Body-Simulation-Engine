@@ -12,9 +12,35 @@
 #include <cmath>
 #include <limits>
 #include <utility>
+#include <span>
 
 namespace GEngine
 {
+	// A small phase-local timer keeps attribution inside the sleep integration boundary.
+	class SleepPathTimer
+	{
+	public:
+#ifdef GE_ENABLE_PHYSICS_PROFILING
+		explicit SleepPathTimer(std::uint64_t& output)
+			: m_Output(output), m_Start(std::chrono::steady_clock::now()) {}
+		~SleepPathTimer() { Stop(); }
+		void Stop()
+		{
+			if (!m_Running) return;
+			m_Output += std::chrono::duration_cast<std::chrono::nanoseconds>(
+				std::chrono::steady_clock::now() - m_Start).count();
+			m_Running = false;
+		}
+	private:
+		std::uint64_t& m_Output;
+		std::chrono::steady_clock::time_point m_Start;
+		bool m_Running{ true };
+#else
+		explicit SleepPathTimer(std::uint64_t&) {}
+		void Stop() {}
+#endif
+	};
+
 	namespace ContactIslandDetail
 	{
 		template<class T> void Reserve(std::vector<T>& values, std::size_t size)
@@ -377,8 +403,33 @@ namespace GEngine
 
 	}
 
+	RigidBody3D* PhysicsSystem::ResolveBody(RigidBodyIdentity identity) const
+	{
+		if (!m_PhysicsWorld || !m_PhysicsWorld->IsBodyIdentityValid(identity)) return nullptr;
+		auto* body = m_PhysicsWorld->m_BodyIdentitySlots[identity.GetSlot() - 1].body;
+		return body->GetIdentity() == identity ? body : nullptr;
+	}
+
+	void PhysicsSystem::WakeConnectedTo(RigidBody3D* body)
+	{
+		if (!m_PhysicsWorld || !body) return;
+		const auto& bodies = m_PhysicsWorld->GetPhysicsBodies();
+		if (std::find(bodies.begin(), bodies.end(), body) == bodies.end()) return;
+		// Rebuild from still-live retained contacts before a mutation/removal retires
+		// support edges. This conservative wake graph is never the public solve graph.
+		BuildContactIslands(bodies, m_Manifolds.m_Manifolds, m_ActivationIslands, m_ContactIslandScratch);
+		const auto identity = body->GetIdentity();
+		for (const auto& island : m_ActivationIslands) {
+			if (std::find(island.dynamicBodies.begin(), island.dynamicBodies.end(), identity) == island.dynamicBodies.end() &&
+				std::find(island.boundaryBodies.begin(), island.boundaryBodies.end(), identity) == island.boundaryBodies.end()) continue;
+			for (auto member : island.dynamicBodies) if (auto* live = ResolveBody(member)) live->WakeUp();
+		}
+		body->WakeUp();
+	}
+
 	void PhysicsSystem::Update(Timestep ts)
 	{
+		m_SleepTimings = {};
 		// Invalidate the public snapshot while retaining its allocation capacity locally.
 		std::vector<ContactIsland> previousIslands;
 		previousIslands.swap(m_ContactIslands);
@@ -393,6 +444,62 @@ namespace GEngine
 		GE_PHYSICS_PROFILE_ADD(stepCount, 1);
 
 		using namespace Collision;
+
+		if (m_PhysicsWorld && dtSeconds > 0.0f) {
+			const auto gravity = m_PhysicsWorld->GetGravity();
+			if (!Math::IsFinite(gravity)) return;
+			const bool gravityChanged = m_HasSleepGravity && gravity != m_LastSleepGravity;
+			bool hasSleeping = false;
+			const auto& bodies = m_PhysicsWorld->GetPhysicsBodies();
+			SleepPathTimer sourceCheckTimer(m_SleepTimings.sourceCheckNs);
+			for (auto* body : std::span(bodies.data(), bodies.size())) {
+				const auto& previous = body->m_SleepSource;
+				const auto revision = body->m_Shape ? body->m_Shape->GetRevision() : 0;
+				if (!body->m_SleepSourceValid || body->m_Shape != previous.shape || revision != previous.shapeRevision)
+					body->m_SleepShapeValid = body->m_Shape && body->m_Shape->IsValid();
+				// Compare source fields in place; materialize a snapshot only on a change.
+				const bool sourceChanged = !body->m_SleepSourceValid ||
+					body->m_Position != previous.position || body->m_LinearVelocity != previous.linearVelocity ||
+					body->m_AngularVelocity != previous.angularVelocity || body->m_Orientation != previous.orientation ||
+					body->m_InvMass != previous.inverseMass || body->m_Elasticity != previous.elasticity ||
+					body->m_Friction != previous.friction || body->m_CollisionLayer != previous.layer ||
+					body->m_CollisionMask != previous.mask || body->m_Shape != previous.shape ||
+					revision != previous.shapeRevision || body->Type != previous.type;
+				body->m_ExternalMutation = body->m_WakeRequested || gravityChanged ||
+					(body->m_SleepSourceValid ? sourceChanged : body->IsSleeping());
+				hasSleeping |= body->IsSleeping();
+				body->m_ActivationIsland = static_cast<std::size_t>(-1);
+				if (body->m_ExternalMutation || !m_SleepingEnabled) body->WakeUp();
+				// An unchanged final snapshot already is this tick's start snapshot.
+				if (sourceChanged) body->m_SleepSource = { body->m_Position, body->m_LinearVelocity,
+					body->m_AngularVelocity, body->m_Orientation, body->m_InvMass, body->m_Elasticity,
+					body->m_Friction, body->m_CollisionLayer, body->m_CollisionMask, body->m_Shape, revision, body->Type };
+			}
+			sourceCheckTimer.Stop();
+			SleepPathTimer wakeTimer(m_SleepTimings.wakeNs);
+			if (hasSleeping && m_SleepingEnabled) {
+				// Wake conservatively using retained live contact identities before expiry can
+				// erase a changed/removed support. No connectivity decision is cached across ticks.
+				BuildContactIslands(bodies, m_Manifolds.m_Manifolds, m_ActivationIslands, m_ContactIslandScratch);
+				for (std::size_t i = 0; i < m_ActivationIslands.size(); ++i) {
+					const auto& island = m_ActivationIslands[i];
+					bool sleeping = false, awake = false, changed = false;
+					for (auto identity : std::span(island.dynamicBodies.data(), island.dynamicBodies.size())) if (auto* body = ResolveBody(identity)) {
+						body->m_ActivationIsland = i;
+						sleeping |= body->IsSleeping(); awake |= !body->IsSleeping();
+						changed |= body->m_ExternalMutation;
+					}
+					for (auto identity : std::span(island.boundaryBodies.data(), island.boundaryBodies.size())) if (auto* body = ResolveBody(identity)) {
+						changed |= body->m_ExternalMutation || (body->Type == BodyType::Kinematic &&
+							(body->GetLinearVelocity() != Vec3f(0) || body->GetAngularVelocity() != Vec3f(0)));
+					}
+					if (changed || (sleeping && awake))
+						for (auto identity : std::span(island.dynamicBodies.data(), island.dynamicBodies.size())) if (auto* body = ResolveBody(identity)) body->WakeUp();
+				}
+			}
+			m_LastSleepGravity = gravity;
+			m_HasSleepGravity = true;
+		}
 		{
 			GE_PHYSICS_PROFILE_SCOPE(manifoldTimeNs);
 			//Timeit("	m_Manifolds-RemoveExpired")
@@ -409,34 +516,19 @@ namespace GEngine
 			{
 				return;
 			}
-			for (const RigidBody3D* body : PhysicsBodies)
+			SleepPathTimer flagsTimer(m_SleepTimings.stepFlagsNs);
+			for (RigidBody3D* body : PhysicsBodies)
 			{
+				body->m_InPhysicsStep = true;
 				GENGINE_CORE_ASSERT(body != nullptr, "Physics world must not contain null bodies");
 				if (body)
 				{
 					body->AssertFiniteState();
 				}
 			}
-#ifdef GE_ENABLE_PHYSICS_PROFILING
-			std::uint64_t dynamicBodyCount = 0;
-			std::uint64_t activeBodyCount = 0;
-			for (const RigidBody3D* body : PhysicsBodies)
-			{
-				if (body->Type == BodyType::Dynamic)
-				{
-					++dynamicBodyCount;
-				}
-				if (body->Type != BodyType::Static)
-				{
-					++activeBodyCount;
-				}
-			}
-			GE_PHYSICS_PROFILE_SET(bodyCount, size);
-			GE_PHYSICS_PROFILE_SET(dynamicBodyCount, dynamicBodyCount);
-			GE_PHYSICS_PROFILE_SET(activeBodyCount, activeBodyCount);
-			GE_PHYSICS_PROFILE_SET(sleepingBodyCount, 0);
-#endif
 
+
+			flagsTimer.Stop();
 			// Gravity impulse
 			{
 				GE_PHYSICS_PROFILE_SCOPE(gravityTimeNs);
@@ -444,7 +536,7 @@ namespace GEngine
 				for (size_t i = 0; i < size; i++)
 				{
 					RigidBody3D* body = PhysicsBodies[i];
-					if (body->Type == BodyType::Dynamic && body->GetInverseMass() > 0.0f)
+					if (body->Type == BodyType::Dynamic && body->GetInverseMass() > 0.0f && !body->IsSleeping())
 					{
 						body->m_LinearVelocity += gravity * dtSeconds;
 						body->AssertFiniteState();
@@ -473,6 +565,24 @@ namespace GEngine
 			//	NarrowPhase (perform actual collision detection)
 			//
 			m_Contacts.clear();
+			const auto wakeSleeping = [&](RigidBody3D* seed) {
+				if (!seed->IsSleeping()) return false;
+				const auto wake = [&](RigidBody3D* body) {
+					if (!body || !body->IsSleeping()) return;
+					body->WakeUp();
+					// Gravity was skipped earlier. Apply it exactly once before this tick's solve.
+					if (body->GetInverseMass() > 0.0f) body->m_LinearVelocity += gravity * dtSeconds;
+				};
+				if (seed->m_ActivationIsland < m_ActivationIslands.size()) {
+					for (auto identity : m_ActivationIslands[seed->m_ActivationIsland].dynamicBodies) wake(ResolveBody(identity));
+				}
+				else wake(seed);
+				return true;
+			};
+			const auto inactiveEndpoint = [](const RigidBody3D* body) {
+				return !body->m_ExternalMutation && (body->IsSleeping() ||
+					(body->GetInverseMass() == 0.0f && body->GetLinearVelocity() == Vec3f(0) && body->GetAngularVelocity() == Vec3f(0)));
+			};
 			for (std::size_t i = 0; i < m_CollisionPairs.size(); ++i) {
 				const collisionPair_t& pair = m_CollisionPairs[i];
 				const bool validPair = pair.a >= 0 && pair.b >= 0 && pair.a != pair.b &&
@@ -507,11 +617,21 @@ namespace GEngine
 					continue;
 				}
 
+				// Keep every proxy in SAP so active/edited bodies can still discover sleepers.
+				if (m_SleepingEnabled && dtSeconds > 0.0f && inactiveEndpoint(bodyA) && inactiveEndpoint(bodyB) &&
+					(bodyA->IsSleeping() || bodyB->IsSleeping())) continue;
 				contact_t contact{};
 
 				GE_PHYSICS_PROFILE_ADD(narrowphaseCallCount, 1);
 				GE_PHYSICS_PROFILE_SCOPE_NAMED(narrowphaseTimer, narrowphaseTimeNs);
-				const bool didIntersect = Intersect(bodyA, bodyB, (float)ts, contact);
+				bool didIntersect = Intersect(bodyA, bodyB, (float)ts, contact);
+				if (didIntersect && IsFiniteContact(contact) && dtSeconds > 0.0f) {
+					const bool wokeA = wakeSleeping(bodyA), wokeB = wakeSleeping(bodyB);
+					if (wokeA || wokeB) {
+						GE_PHYSICS_PROFILE_ADD(narrowphaseCallCount, 1);
+						didIntersect = Intersect(bodyA, bodyB, dtSeconds, contact);
+					}
+				}
 				GE_PHYSICS_PROFILE_STOP(narrowphaseTimer);
 				if(didIntersect)
 				{
@@ -550,9 +670,15 @@ namespace GEngine
 			}
 
 #ifdef GE_ENABLE_PHYSICS_PROFILING
-			const int manifoldContactCount = m_Manifolds.GetContactCount();
+			int manifoldContactCount = 0;
+			for (auto& manifold : m_Manifolds.m_Manifolds) {
+				if (manifold.GetNumContacts() == 0) continue;
+				const auto contact = manifold.GetContact(0);
+				if ((contact.m_BodyA->GetInverseMass() > 0.0f && !contact.m_BodyA->IsSleeping()) ||
+					(contact.m_BodyB->GetInverseMass() > 0.0f && !contact.m_BodyB->IsSleeping())) manifoldContactCount += manifold.GetNumContacts();
+			}
 			GE_PHYSICS_PROFILE_SET(manifoldCount, m_Manifolds.m_Manifolds.size());
-			GE_PHYSICS_PROFILE_SET(manifoldContactCount, manifoldContactCount);
+			GE_PHYSICS_PROFILE_SET(manifoldContactCount, m_Manifolds.GetContactCount());
 			GE_PHYSICS_PROFILE_SET(solverConstraintCount, manifoldContactCount);
 #endif
 
@@ -564,7 +690,7 @@ namespace GEngine
 			}
 
 			// PreSolve may retire invalid manifolds. Describe exactly the retained graph
-			// without changing contact order, solving, sleep bookkeeping, or CCD.
+			// without changing contact order or CCD. Sleep decisions use this graph below.
 			BuildContactIslands(PhysicsBodies, m_Manifolds.m_Manifolds, previousIslands, m_ContactIslandScratch);
 			m_ContactIslands.swap(previousIslands);
 
@@ -632,9 +758,8 @@ namespace GEngine
 					GE_PHYSICS_PROFILE_SCOPE(integrationTimeNs);
 					for (RigidBody3D* body : PhysicsBodies)
 					{
-						body->Update(dt);
+						if (!body->IsSleeping()) { body->Update(dt); GE_PHYSICS_PROFILE_ADD(integratedBodyCount, 1); }
 					}
-					GE_PHYSICS_PROFILE_ADD(integratedBodyCount, size);
 				}
 				accumulatedTime = event.timeOfImpact;
 
@@ -677,9 +802,8 @@ namespace GEngine
 						//Timeit("	update entities rest")
 						for (int i = 0; i < size; i++) 
 						{
-							PhysicsBodies[i]->Update(timeRemaining);
+							if (!PhysicsBodies[i]->IsSleeping()) { PhysicsBodies[i]->Update(timeRemaining); GE_PHYSICS_PROFILE_ADD(integratedBodyCount, 1); }
 						}
-						GE_PHYSICS_PROFILE_ADD(integratedBodyCount, size);
 					}
 				}
 			}
@@ -690,12 +814,118 @@ namespace GEngine
 				m_Manifolds.PostSolve();
 			}
 
-			m_Contacts.clear();
+			if (dtSeconds > 0.0f && m_SleepingEnabled) {
+				SleepPathTimer depthTimer(m_SleepTimings.depthNs);
+				// Do not freeze residual penetration outside the existing position-stability
+				// gate: solver slop 0.02 plus its tested 0.00001 floating-point tolerance.
+				for (auto& manifold : m_Manifolds.m_Manifolds) for (int i = 0; i < manifold.GetNumContacts(); ++i) {
+					const auto contact = manifold.GetContact(i);
+					const Vec3f a = contact.m_BodyA->BodySpaceToWorldSpace(contact.ptOnA_LocalSpace);
+					const Vec3f b = contact.m_BodyB->BodySpaceToWorldSpace(contact.ptOnB_LocalSpace);
+					const float depth = -glm::dot(a - b, contact.normal);
+					if (!Math::IsFinite(depth) || depth > 0.02001f) {
+						if (contact.m_BodyA->GetInverseMass() > 0.0f) contact.m_BodyA->WakeUp();
+						if (contact.m_BodyB->GetInverseMass() > 0.0f) contact.m_BodyB->WakeUp();
+					}
+				}
+				depthTimer.Stop();
+				SleepPathTimer eligibilityTimer(m_SleepTimings.eligibilityNs);
+				bool hasSleepCandidate = false;
+				for (auto* body : std::span(PhysicsBodies.data(), PhysicsBodies.size())) {
+					if (body->IsSleeping()) { hasSleepCandidate = true; continue; }
+					if (body->GetInverseMass() <= 0.0f) { body->WakeUp(); continue; }
+					const bool unchangedPose = body->m_Position == body->m_SleepSource.position &&
+						body->m_Orientation == body->m_SleepSource.orientation;
+					bool moved = body->m_WakeRequested || !body->m_SleepShapeValid;
+					// Equal poses have zero displacement: avoid widening and squaring them.
+					// Changed poses retain the exact correction-motion equations and limits.
+					if (!moved && !unchangedPose) {
+						const auto& settings = body->GetSleepSettings();
+						const glm::dvec3 displacement = glm::dvec3(body->m_Position) - glm::dvec3(body->m_SleepSource.position);
+						const glm::dquat q(body->m_Orientation), old(body->m_SleepSource.orientation);
+						const auto dq = q - old, opposite = q + old;
+						const double linearLimit = double(settings.linearSpeedThreshold) * dtSeconds;
+						const double angularLimit = double(settings.angularSpeedThreshold) * dtSeconds * 0.5;
+						moved = glm::dot(displacement, displacement) > linearLimit * linearLimit ||
+							std::min(glm::dot(dq,dq), glm::dot(opposite,opposite)) > angularLimit * angularLimit;
+					}
+					if (moved) body->WakeUp();
+					else if (body->m_SleepSourceValid && !body->m_ExternalMutation && unchangedPose &&
+						body->m_InactiveSeconds > 0.0 &&
+						body->m_LinearVelocity == body->m_SleepSource.linearVelocity &&
+						body->m_AngularVelocity == body->m_SleepSource.angularVelocity) {
+						// Positive inactivity proves prior finite/speed eligibility. The complete
+						// source is unchanged, as are this step's motion and the sleep policy
+						// (policy setters wake/reset). Reuse that proof, not a connectivity decision.
+						body->AdvanceSleepTimer(dtSeconds);
+					}
+					else body->UpdateSleepTimer(dtSeconds);
+					hasSleepCandidate |= body->m_InactiveSeconds >= body->m_SleepSettings.inactivitySeconds;
+				}
+				eligibilityTimer.Stop();
+				SleepPathTimer qualificationTimer(m_SleepTimings.qualificationNs);
+				// With no retained contacts, every current island is a singleton without a boundary.
+				// If no timer has reached its dwell, there is no qualification or boundary wake work.
+				if (hasSleepCandidate || !m_Manifolds.m_Manifolds.empty())
+				for (const auto& island : std::span(m_ContactIslands.data(), m_ContactIslands.size())) {
+					bool ready = true;
+					for (auto identity : std::span(island.dynamicBodies.data(), island.dynamicBodies.size())) {
+						auto* body = ResolveBody(identity);
+						ready &= body && body->CanSleep();
+					}
+					for (auto identity : std::span(island.boundaryBodies.data(), island.boundaryBodies.size())) if (auto* body = ResolveBody(identity)) {
+						if (body->m_ExternalMutation || (body->Type == BodyType::Kinematic &&
+							(body->GetLinearVelocity() != Vec3f(0) || body->GetAngularVelocity() != Vec3f(0)))) {
+							ready = false;
+							for (auto member : std::span(island.dynamicBodies.data(), island.dynamicBodies.size())) if (auto* dynamic = ResolveBody(member)) dynamic->WakeUp();
+						}
+					}
+					if (ready) for (auto identity : std::span(island.dynamicBodies.data(), island.dynamicBodies.size())) if (auto* body = ResolveBody(identity)) {
+						body->TrySleep();
+						body->m_LinearVelocity = body->m_AngularVelocity = Vec3f(0);
+					}
+				}
+			}
+#ifdef GE_ENABLE_PHYSICS_PROFILING
+			std::uint64_t dynamicBodyCount = 0;
+			std::uint64_t activeBodyCount = 0, sleepingBodyCount = 0;
 			for (const RigidBody3D* body : PhysicsBodies)
+			{
+				if (body->Type == BodyType::Dynamic)
+				{
+					++dynamicBodyCount;
+				}
+				if (body->IsSleeping()) ++sleepingBodyCount;
+				if (body->Type != BodyType::Static && !body->IsSleeping())
+				{
+					++activeBodyCount;
+				}
+			}
+			GE_PHYSICS_PROFILE_SET(bodyCount, size);
+			GE_PHYSICS_PROFILE_SET(dynamicBodyCount, dynamicBodyCount);
+			GE_PHYSICS_PROFILE_SET(activeBodyCount, activeBodyCount);
+			GE_PHYSICS_PROFILE_SET(sleepingBodyCount, sleepingBodyCount);
+#endif
+			m_Contacts.clear();
+			SleepPathTimer storeTimer(m_SleepTimings.sourceStoreNs);
+			for (RigidBody3D* body : std::span(PhysicsBodies.data(), PhysicsBodies.size()))
 			{
 				if (body)
 				{
 					body->AssertFiniteState();
+					body->m_InPhysicsStep = false;
+					if (dtSeconds > 0.0f) {
+						// Configuration cannot change during this single-threaded step. Only
+						// integrated/solved motion needs to replace the start snapshot.
+						if (body->Type != BodyType::Static) {
+							body->m_SleepSource.position = body->m_Position;
+							body->m_SleepSource.orientation = body->m_Orientation;
+							body->m_SleepSource.linearVelocity = body->m_LinearVelocity;
+							body->m_SleepSource.angularVelocity = body->m_AngularVelocity;
+						}
+						body->m_SleepSourceValid = true;
+						body->m_WakeRequested = body->m_ExternalMutation = false;
+					}
 				}
 			}
 
@@ -722,6 +952,7 @@ namespace GEngine
 		if (body->m_Position == position &&
 			(body->m_Orientation == normalized || body->m_Orientation == -normalized)) return true;
 
+		WakeConnectedTo(body);
 		m_ContactIslands.clear();
 		RemoveManifoldsForBody(m_Manifolds, body);
 		RemoveContactsForBody(m_Contacts, body);
@@ -735,6 +966,8 @@ namespace GEngine
 
 	void PhysicsSystem::OnExit()
 	{
+		m_ActivationIslands.clear();
+		m_HasSleepGravity = false;
 		m_ContactIslands.clear();
 		m_Manifolds.Clear();
 		m_Broadphase.Clear();
@@ -759,6 +992,7 @@ namespace GEngine
 		{
 			m_PhysicsWorld->SetBodyRemovalCallback([this](RigidBody3D* body)
 			{
+				WakeConnectedTo(body);
 				m_ContactIslands.clear();
 				RemoveManifoldsForBody(m_Manifolds, body);
 				RemoveContactsForBody(m_Contacts, body);

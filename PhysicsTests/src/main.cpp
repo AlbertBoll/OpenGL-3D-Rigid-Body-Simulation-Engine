@@ -5755,6 +5755,10 @@ namespace
 		const auto bounds = body.GetWorldBounds();
 		body.UpdateSleepTimer(0.5);
 		Expect(body.TrySleep() && physicalState(body) == before, "explicit sleep does not zero small velocities or alter physical state");
+		Expect(body.GetLinearVelocity() == GEngine::Vec3f(0) && body.GetAngularVelocity() == GEngine::Vec3f(0),
+			"sleeping motion accessors agree with frozen integration while retaining raw primitive state");
+		body.Update(0.25f);
+		Expect(physicalState(body) == before, "explicit sleeping freezes direct body integration");
 		body.WakeUp();
 		Expect(physicalState(body) == before && body.m_Shape == &sphere && body.Type == BodyType::Dynamic &&
 			Near(body.GetInverseInertiaTensorWorldSpace(), inertia, 0.0f) &&
@@ -5762,6 +5766,8 @@ namespace
 			"wake preserves pose, motion, mass, materials, shape and derived data");
 
 		GEngine::PhysicsSystem control, candidate;
+		control.SetSleepingEnabled(false);
+		candidate.SetSleepingEnabled(false);
 		auto* controlWorld = new GEngine::PhysicsWorld();
 		auto* candidateWorld = new GEngine::PhysicsWorld();
 		control.SetPhysicsWorld(controlWorld);
@@ -5786,9 +5792,9 @@ namespace
 				GetManifolds(control).GetContactCount() == GetManifolds(candidate).GetContactCount();
 			contactsObserved |= GetManifolds(candidate).GetContactCount() > 0;
 		}
-		Expect(same && contactsObserved, "passive sleep metadata leaves gravity, contact response and full world trajectories exactly unchanged");
+		Expect(same && contactsObserved, "disabled sleeping preserves the fully active gravity/contact reference trajectories exactly");
 		Expect(!controlWorld->GetPhysicsBodies()[1]->IsSleeping() && controlWorld->GetPhysicsBodies()[1]->GetInactiveSeconds() == 0.0,
-			"PhysicsSystem does not automatically sample inactivity or sleep a quiet body in Phase 34");
+			"disabled sleeping does not accumulate inactivity or automatically sleep a quiet body");
 		const auto oldIdentity = passive->GetIdentity();
 		candidateWorld->RemoveRigidBody3D(passive);
 		auto* replacement = candidateWorld->CreateRigidBody3D();
@@ -6108,6 +6114,258 @@ namespace
 		Expect(system.GetContactIslands().size() == 2 && system.GetContactIslands()[0].contactPairs.empty() &&
 			system.GetContactIslands()[1].contactPairs.empty() && a->HasFiniteState() && b->HasFiniteState(),
 			"positive-TOI response stays outside the resting island graph and remains finite");
+	}
+
+
+	void TestIslandSleepAndWake()
+	{
+		using namespace GEngine;
+		Manifold empty;
+		empty.Solve(); empty.PostSolve(); empty.PreSolve(1.0f/60);
+		Expect(empty.GetNumContacts()==0, "sleep activity guards preserve safe no-op operations on an empty manifold");
+		ShapeSphere sphere(1.0f);
+		PhysicsSystem system;
+		auto* world = new PhysicsWorld(Vec3f(0));
+		system.SetPhysicsWorld(world);
+		auto* a = world->CreateRigidBody3D();
+		auto* b = world->CreateRigidBody3D();
+		auto* unrelated = world->CreateRigidBody3D();
+		ConfigureSphereBody(*a, sphere, Vec3f(0));
+		ConfigureSphereBody(*b, sphere, Vec3f(2,0,0));
+		ConfigureSphereBody(*unrelated, sphere, Vec3f(20,0,0));
+		for (int tick = 0; tick < 40; ++tick) system.Update(Timestep(1.0f/60));
+		Expect(a->IsSleeping() && b->IsSleeping() && unrelated->IsSleeping(),
+			"quiet connected dynamics and singleton islands automatically sleep after the dwell");
+		const auto position = a->m_Position;
+		for (int tick = 0; tick < 20; ++tick) system.Update(Timestep(1.0f/60));
+		Expect(a->IsSleeping() && a->m_Position == position && a->m_LinearVelocity == Vec3f(0),
+			"sleeping islands remain exactly frozen across repeated steps");
+		a->ApplyImpulseLinear(Vec3f(1,0,0));
+		Expect(!a->IsSleeping(), "external nonzero impulse immediately wakes its body");
+		system.Update(Timestep(1.0f/60));
+		Expect(!a->IsSleeping() && !b->IsSleeping() && unrelated->IsSleeping(),
+			"impulse wake reaches the connected island without waking a separated island");
+		Expect(b->m_LinearVelocity.x > 0.0f, "newly woken contact participates in the same step's response");
+	}
+
+
+	void TestSleepWakeSourcesAndBoundaries()
+	{
+		using namespace GEngine;
+		for (int mutation = 0; mutation < 13; ++mutation) {
+			ShapeSphere sphere(1);
+			PhysicsSystem system;
+			auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
+			auto* a = world->CreateRigidBody3D(); auto* b = world->CreateRigidBody3D();
+			auto* distant = world->CreateRigidBody3D();
+			ConfigureSphereBody(*a, sphere, Vec3f(0)); ConfigureSphereBody(*b, sphere, Vec3f(2,0,0));
+			ConfigureSphereBody(*distant, sphere, Vec3f(20,0,0));
+			for (int tick = 0; tick < 40; ++tick) system.Update(Timestep(1.0f/60));
+			Expect(a->IsSleeping() && b->IsSleeping() && distant->IsSleeping(), "mutation fixture starts with two sleeping islands");
+			switch (mutation) {
+			case 0: a->m_Position.y += 0.1f; break;
+			case 1: a->m_Orientation = glm::angleAxis(0.1f, Vec3f(0,0,1)); break;
+			case 2: a->m_LinearVelocity.x = 0.001f; break;
+			case 3: a->m_AngularVelocity.z = 0.001f; break;
+			case 4: a->m_InvMass = 2; break;
+			case 5: a->m_Friction = 0.75f; break;
+			case 6: a->m_Elasticity = 0.75f; break;
+			case 7: a->m_CollisionMask = 0; break;
+			case 8: a->m_CollisionLayer = 2; break;
+			case 9: a->WakeUp(); break;
+			case 10: a->ApplyImpulseAngular(Vec3f(0,0,0.01f)); break;
+			case 11: a->ApplyImpulse(a->m_Position + Vec3f(0,1,0), Vec3f(0.01f,0,0)); break;
+			case 12: system.SetBodyPose(a, Vec3f(0,0.1f,0), a->m_Orientation); break;
+			}
+			system.Update(Timestep(1.0f/60));
+			Expect(!a->IsSleeping() && !b->IsSleeping() && distant->IsSleeping(),
+				"public edits, explicit wake and impulses wake the connected island while preserving unrelated sleep");
+		}
+		for (int mutation = 0; mutation < 6; ++mutation) {
+			ShapeSphere boundaryShape(1), sphere(1);
+			PhysicsSystem system; auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
+			auto* boundary = world->CreateRigidBody3D();
+			auto* a = world->CreateRigidBody3D(); auto* b = world->CreateRigidBody3D();
+			ConfigureSphereBody(*boundary, boundaryShape, Vec3f(0));
+			boundary->SetBodyTypeAndInverseMass(mutation == 1 ? BodyType::Kinematic : BodyType::Static, 0);
+			ConfigureSphereBody(*a, sphere, Vec3f(-2,0,0)); ConfigureSphereBody(*b, sphere, Vec3f(2,0,0));
+			for (int tick = 0; tick < 40; ++tick) system.Update(Timestep(1.0f/60));
+			Expect(a->IsSleeping() && b->IsSleeping() && system.GetContactIslands().size() == 2,
+				"stationary shared static/kinematic boundaries permit independent sleeping islands");
+			if (mutation == 0) a->ApplyImpulseLinear(Vec3f(-1,0,0));
+			if (mutation == 1) boundary->m_LinearVelocity = Vec3f(0,0.1f,0);
+			if (mutation == 2) boundary->m_Position.y += 0.1f;
+			if (mutation == 3) boundaryShape.SetRadius(1.1f);
+			if (mutation == 4) system.SetBodyPose(boundary, Vec3f(0,0.1f,0), boundary->m_Orientation);
+			if (mutation == 5) world->RemoveRigidBody3D(boundary);
+			system.Update(Timestep(1.0f/60));
+			Expect(!a->IsSleeping() && (mutation == 0 ? b->IsSleeping() : !b->IsSleeping()),
+				"a boundary never transmits a dynamic wake, but its own motion, geometry edit or removal wakes all dependants");
+		}
+	}
+
+	void TestSleepEligibilityAndInteraction()
+	{
+		using namespace GEngine;
+		ShapeSphere sphere(1);
+		PhysicsSystem system; auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
+		auto* a = world->CreateRigidBody3D(); auto* b = world->CreateRigidBody3D();
+		ConfigureSphereBody(*a, sphere, Vec3f(0)); ConfigureSphereBody(*b, sphere, Vec3f(2,0,0));
+		a->SetSleepSettings({0.05f,0.02f,0.1}); b->SetSleepSettings({0.05f,0.02f,0.75});
+		for (int tick = 0; tick < 20; ++tick) system.Update(Timestep(1.0f/60));
+		Expect(!a->IsSleeping() && !b->IsSleeping() && a->CanSleep(), "an island waits for every member's full dwell");
+		for (int tick = 0; tick < 40; ++tick) system.Update(Timestep(1.0f/60));
+		Expect(a->IsSleeping() && b->IsSleeping(), "members with different dwells transition together");
+		a->ApplyImpulseLinear(Vec3f(0)); a->ApplyImpulseAngular(Vec3f(0));
+		Expect(a->IsSleeping(), "zero impulses preserve sleep");
+		const auto pose = a->m_Position; const auto timer = a->GetInactiveSeconds();
+		system.Update(Timestep(0));
+		Expect(a->IsSleeping() && a->m_Position == pose && a->GetInactiveSeconds() == timer, "paused steps preserve sleeping state and pose");
+		auto* projectile = world->CreateRigidBody3D(); ConfigureSphereBody(*projectile, sphere, Vec3f(-5,0,0));
+		projectile->m_LinearVelocity = Vec3f(60,0,0);
+		system.Update(Timestep(0.1f));
+		Expect(!a->IsSleeping() && !b->IsSleeping() && a->m_LinearVelocity.x > 0,
+			"a newly created positive-TOI impact discovers and wakes the sleeping group before response");
+		const auto stale = b->GetIdentity(); world->RemoveRigidBody3D(b);
+		auto* fresh = world->CreateRigidBody3D(); ConfigureSphereBody(*fresh, sphere, Vec3f(400,0,0));
+		Expect(!fresh->IsSleeping() && fresh->GetIdentity() != stale && !world->IsBodyIdentityValid(stale),
+			"reused identity slots cannot inherit an old island's sleeping state");
+		for (int tick = 0; tick < 40; ++tick) system.Update(Timestep(1.0f/60));
+		Expect(fresh->IsSleeping(), "a new isolated body can independently qualify for sleep");
+		world->SetGravity(Vec3f(0,-12,0)); system.Update(Timestep(1.0f/60));
+		Expect(!fresh->IsSleeping() && fresh->m_LinearVelocity.y < 0, "gravity changes wake sleepers and apply gravity in the same tick");
+		system.SetSleepingEnabled(false);
+		for (int tick = 0; tick < 40; ++tick) system.Update(Timestep(1.0f/60));
+		Expect(!fresh->IsSleeping() && fresh->GetInactiveSeconds() == 0, "disabling sleep restores active reference bookkeeping");
+		system.SetPhysicsWorld(new PhysicsWorld(Vec3f(0)));
+		Expect(system.GetContactIslands().empty() && !system.IsSleepingEnabled(), "world replacement clears sleep graph state and retains system policy");
+		system.OnExit(); system.OnExit(); system.Update(Timestep(1.0f/60));
+
+		PhysicsSystem penetrated; auto* overlap = new PhysicsWorld(Vec3f(0)); penetrated.SetPhysicsWorld(overlap);
+		auto* fixed = overlap->CreateRigidBody3D(); auto* moving = overlap->CreateRigidBody3D();
+		ConfigureSphereBody(*fixed, sphere, Vec3f(0)); fixed->SetBodyTypeAndInverseMass(BodyType::Static, 0);
+		ConfigureSphereBody(*moving, sphere, Vec3f(1,0,0)); moving->SetSleepSettings({0.05f,0.02f,0.001});
+		for (int tick = 0; tick < 8; ++tick) {
+			const auto before = moving->m_Position; penetrated.Update(Timestep(1.0f/60));
+			if (glm::length(moving->m_Position-before) > 0.05f/60)
+				Expect(!moving->IsSleeping(), "ongoing positional correction cannot be hidden by zero-velocity sleeping");
+		}
+	}
+
+
+	void TestSleepSupportAndDeterminism()
+	{
+		using namespace GEngine;
+		{
+			struct ObservedValiditySphere : ShapeSphere {
+				ObservedValiditySphere() : ShapeSphere(1) {}
+				mutable int queries{};
+				bool IsValid() const override { ++queries; return ShapeSphere::IsValid(); }
+			} shape;
+			PhysicsSystem system; auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
+			auto* body = world->CreateRigidBody3D(); ConfigureSphereBody(*body, shape, Vec3f(0));
+			for (int tick=0;tick<3;++tick) system.Update(Timestep(1.0f/60));
+			shape.queries=0;
+			for (int tick=0;tick<10;++tick) system.Update(Timestep(1.0f/60));
+			Expect(shape.queries==0, "unchanged separated geometry is not repeatedly revalidated for sleep eligibility");
+			shape.SetRadius(1.1f); system.Update(Timestep(1.0f/60));
+			Expect(shape.queries>0 && !body->IsSleeping() && body->GetInactiveSeconds()==0,
+				"geometry revision changes revalidate sleep eligibility and restart its dwell");
+		}
+		// A quiet body's reused eligibility must accumulate exactly like the primitive,
+		// and even a below-threshold public mutation must restart its dwell.
+		{
+			ShapeSphere shape(1);
+			PhysicsSystem system; auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
+			auto* body = world->CreateRigidBody3D(); ConfigureSphereBody(*body, shape, Vec3f(0));
+			system.Update(Timestep(1.0f/60));
+			RigidBody3D reference = *body;
+			bool exactDwell = true;
+			for (float dt : {0.001f, 0.01f, 1.0f/120, 1.0f/60, 0.02f, 0.1f}) {
+				reference.UpdateSleepTimer(dt); system.Update(Timestep(dt));
+				exactDwell &= body->GetInactiveSeconds() == reference.GetInactiveSeconds();
+			}
+			Expect(exactDwell && !body->IsSleeping(), "unchanged awake eligibility retains exact primitive dwell accumulation");
+			for (int change=0;change<6;++change) {
+				for (int tick=0;tick<4;++tick) system.Update(Timestep(1.0f/60));
+				if (change==0) body->m_Friction += 0.001f;
+				if (change==1) body->m_Position.x += 0.0001f;
+				if (change==2) body->m_LinearVelocity.x = 0.001f;
+				if (change==3) body->m_AngularVelocity.y = 0.001f;
+				if (change==4) body->SetSleepSettings({0.04f,0.02f,0.5});
+				if (change==5) body->ApplyImpulseLinear(Vec3f(0.0001f,0,0));
+				system.Update(Timestep(1.0f/60));
+				Expect(!body->IsSleeping() && body->GetInactiveSeconds()==0,
+					"small explicit mutations invalidate a partially accumulated sleep dwell");
+			}
+		}
+		ShapeSphere sphere(1);
+		PhysicsSystem first, second;
+		for (auto* system : {&first,&second}) {
+			auto* world = new PhysicsWorld(Vec3f(0)); system->SetPhysicsWorld(world);
+			for (int i=0;i<4;++i) ConfigureSphereBody(*world->CreateRigidBody3D(),sphere,Vec3f(i*2.0f,0,0));
+		}
+		bool exact = true, slept = false;
+		for (int tick=0;tick<240;++tick) {
+			for (auto* system : {&first,&second}) {
+				auto* body = system->GetPhysicsWorld()->GetPhysicsBodies()[0];
+				if(tick==60) body->ApplyImpulseLinear(Vec3f(1,0,0));
+				if(tick==120) system->SetBodyPose(body,body->m_Position+Vec3f(0,1,0),body->m_Orientation);
+				system->Update(Timestep(1.0f/60));
+			}
+			for (int i=0;i<4;++i) {
+				const auto* a=first.GetPhysicsWorld()->GetPhysicsBodies()[i];
+				const auto* b=second.GetPhysicsWorld()->GetPhysicsBodies()[i];
+				exact &= a->m_Position==b->m_Position && a->m_Orientation==b->m_Orientation &&
+					a->m_LinearVelocity==b->m_LinearVelocity && a->m_AngularVelocity==b->m_AngularVelocity &&
+					a->IsSleeping()==b->IsSleeping() && a->GetInactiveSeconds()==b->GetInactiveSeconds();
+				slept |= a->IsSleeping();
+			}
+		}
+		Expect(exact && slept,"repeated creation order and wake inputs preserve exact physical, timer and sleep state");
+
+		PhysicsSystem supported; auto* world=new PhysicsWorld(); supported.SetPhysicsWorld(world);
+		auto* support=world->CreateRigidBody3D(); auto* body=world->CreateRigidBody3D();
+		ConfigureSphereBody(*support,sphere,Vec3f(0)); support->SetBodyTypeAndInverseMass(BodyType::Static,0);
+		ConfigureSphereBody(*body,sphere,Vec3f(0,2,0));
+		for(int tick=0;tick<120;++tick) supported.Update(Timestep(1.0f/60));
+		Expect(body->IsSleeping(),"gravity-supported single sphere reaches sleeping rest");
+		Expect(supported.SetBodyPose(body,body->m_Position,body->m_Orientation) && body->IsSleeping(),
+			"identical pose resubmission preserves sleep and support caches");
+		const auto position=body->m_Position;
+		world->RemoveRigidBody3D(support);
+		Expect(!body->IsSleeping(),"support removal wakes its dependent body before the support is freed");
+		supported.Update(Timestep(1.0f/60));
+		Expect(body->m_Position.y<position.y && body->m_LinearVelocity.y<0,
+			"a sleeper falls immediately after support removal");
+
+		PhysicsSystem driven; auto* movingWorld=new PhysicsWorld(Vec3f(0)); driven.SetPhysicsWorld(movingWorld);
+		auto* kinematic=movingWorld->CreateRigidBody3D(); auto* dynamic=movingWorld->CreateRigidBody3D();
+		ConfigureSphereBody(*kinematic,sphere,Vec3f(0)); kinematic->SetBodyTypeAndInverseMass(BodyType::Kinematic,0);
+		ConfigureSphereBody(*dynamic,sphere,Vec3f(2,0,0));
+		kinematic->m_AngularVelocity=Vec3f(0.001f,0,0); // Motion about the contact normal: no tangential push.
+		for(int tick=0;tick<60;++tick) driven.Update(Timestep(1.0f/60));
+		Expect(!dynamic->IsSleeping() && dynamic->GetInactiveSeconds()==0,
+			"even slow kinematic interaction prevents sleep and clears dwell");
+		kinematic->m_AngularVelocity=Vec3f(0);
+		for(int tick=0;tick<20;++tick) driven.Update(Timestep(1.0f/60));
+		Expect(!dynamic->IsSleeping(),"stopping a kinematic support requires a new complete dwell");
+		for(int tick=0;tick<20;++tick) driven.Update(Timestep(1.0f/60));
+		Expect(dynamic->IsSleeping(),"a stopped kinematic support permits sleep after a fresh dwell");
+	}
+
+	int RunSleepIntegrationRegression()
+	{
+		TestIslandSleepAndWake();
+		TestSleepWakeSourcesAndBoundaries();
+		TestSleepEligibilityAndInteraction();
+		TestSleepSupportAndDeterminism();
+		if (failureCount != 0) {
+			std::cerr << failureCount << " of " << testCount << " sleep-integration checks failed\n";
+			return 1;
+		}
+		std::cout << "Sleep-integration regression: " << testCount << " checks passed\n";
+		return 0;
 	}
 
 	int RunContactIslandsRegression()
@@ -7075,6 +7333,7 @@ int main(int argc, char** argv)
 		if (argument == "--contact-convergence") return RunContactConvergenceRegression();
 		if (argument == "--resting-friction") return RunRestingFrictionRegression();
 		if (argument == "--contact-convention") return RunContactConventionRegression();
+		if (argument == "--sleep-integration") return RunSleepIntegrationRegression();
 		if (argument == "--contact-islands") return RunContactIslandsRegression();
 		if (argument == "--sleep-primitives") return RunSleepPrimitivesRegression();
 		if (argument == "--body-types") return RunBodyTypeRegression();
@@ -7214,6 +7473,10 @@ int main(int argc, char** argv)
 	TestContactIslandStorageRebuild();
 	TestContactIslandIdentityLifetime();
 	TestContactIslandSystemLifecycle();
+	TestIslandSleepAndWake();
+	TestSleepWakeSourcesAndBoundaries();
+	TestSleepEligibilityAndInteraction();
+	TestSleepSupportAndDeterminism();
 	TestSleepSettingsAndTimer();
 	TestSleepMotionAndEligibility();
 	TestSleepPhysicalStateAndLifetime();

@@ -11,6 +11,12 @@ namespace GEngine
 
 	namespace
 	{
+		bool HasActiveResponse(const RigidBody3D* a, const RigidBody3D* b)
+		{
+			return (a && a->GetInverseMass() > 0.0f && !a->IsSleeping()) ||
+				(b && b->GetInverseMass() > 0.0f && !b->IsSleeping());
+		}
+
 		constexpr double AnchorDistance2 = 0.02 * 0.02;
 		// Five degrees bounds both inter-body normal drift and new-query warm-start reuse.
 		constexpr float NormalCoherence = 0.9961947f;
@@ -268,7 +274,11 @@ namespace GEngine
 			const Vec3f normalA = m_BodyA->GetBodyToWorldRotation() * m_Constraints[i].m_Normal;
 			const Vec3f normalB = m_BodyB->GetBodyToWorldRotation() * m_NormalB[i];
 			if (!(glm::dot(normalA, normalB) >= NormalCoherence)) RemoveContact(i);
-			else m_Constraints[i++].PreSolve(dt_sec);
+			else {
+				// Keep compatibility/normal validation for sleeping contact caches.
+				if (HasActiveResponse(m_BodyA, m_BodyB)) m_Constraints[i].PreSolve(dt_sec);
+				++i;
+			}
 		}
 	}
 
@@ -413,6 +423,7 @@ namespace GEngine
 
 	void Manifold::Solve()
 	{
+		if (!HasActiveResponse(m_BodyA, m_BodyB)) return;
 		// Balance force and torque over the whole support patch before friction.
 		const bool blockSolved = SolveNormalBlock(m_Constraints, m_NumContacts);
 		for (int i = 0; i < m_NumContacts; ++i) {
@@ -422,6 +433,7 @@ namespace GEngine
 	}
 	void Manifold::PostSolve()
 	{
+		if (!HasActiveResponse(m_BodyA, m_BodyB)) return;
 		for (int i = 0; i < m_NumContacts; i++)
 		{
 			m_Constraints[i].PostSolve();

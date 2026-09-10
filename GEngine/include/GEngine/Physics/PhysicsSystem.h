@@ -35,6 +35,14 @@ namespace GEngine
 	{
 		// Inherited via System
 	public:
+		// Last Update only, in nanoseconds; zero when physics profiling is disabled.
+		// Wake time includes the conservative activation graph. Other fields exclude it.
+		struct SleepTimings
+		{
+			std::uint64_t sourceCheckNs{}, wakeNs{}, depthNs{}, eligibilityNs{};
+			std::uint64_t qualificationNs{}, sourceStoreNs{}, stepFlagsNs{};
+		};
+		const SleepTimings& GetSleepTimings() const { return m_SleepTimings; }
 		virtual ~PhysicsSystem();
 		void Initialize() override;
 		void Update(Timestep ts) override;
@@ -61,15 +69,27 @@ namespace GEngine
 		}
 		int GetSolverIterations() const noexcept { return m_SolverIterations; }
 
+		// Disabling sleeping restores the fully active reference traversal on the next tick.
+		// This policy is retained across world replacement.
+		void SetSleepingEnabled(bool enabled) { m_SleepingEnabled = enabled; }
+		bool IsSleepingEnabled() const { return m_SleepingEnabled; }
+
 		// Snapshot of the last resting solve after PreSolve validation, before integration.
 		// Rebuilt each Update; cleared by body removal, changed SetBodyPose, and world reset.
 		// Creation/direct body mutation is reflected at the next Update. This is not a
-		// final-pose/CCD graph or a sleep decision; no solver traversal consumes it yet.
+		// final-pose/CCD graph. Sleep decisions use its dynamic groups after integration.
 		const std::vector<ContactIsland>& GetContactIslands() const { return m_ContactIslands; }
 
 		
 
 	private:
+		RigidBody3D* ResolveBody(RigidBodyIdentity identity) const;
+		void WakeConnectedTo(RigidBody3D* body);
+		SleepTimings m_SleepTimings;
+		bool m_SleepingEnabled{ true };
+		Vec3f m_LastSleepGravity{};
+		bool m_HasSleepGravity{};
+		std::vector<ContactIsland> m_ActivationIslands;
 		int m_SolverIterations{ DefaultSolverIterations };
 		PhysicsWorld* m_PhysicsWorld{};
 		ManifoldCollector m_Manifolds;

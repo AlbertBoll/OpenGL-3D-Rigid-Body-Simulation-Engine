@@ -54,6 +54,7 @@ namespace GEngine
 		}
 	}
 
+
 	bool RigidBody3D::SetSleepSettings(const SleepSettings& settings)
 	{
 		if (!Math::IsFinite(settings.linearSpeedThreshold) || settings.linearSpeedThreshold < 0.0f ||
@@ -97,13 +98,12 @@ namespace GEngine
 			WakeUp();
 			return;
 		}
-		const double remaining = m_SleepSettings.inactivitySeconds - m_InactiveSeconds;
-		m_InactiveSeconds = dtSeconds >= remaining ? m_SleepSettings.inactivitySeconds : m_InactiveSeconds + dtSeconds;
+		AdvanceSleepTimer(dtSeconds);
 	}
 
 	bool RigidBody3D::CanSleep() const
 	{
-		return IsSleepEligible() && m_InactiveSeconds >= m_SleepSettings.inactivitySeconds;
+		return m_InactiveSeconds >= m_SleepSettings.inactivitySeconds && IsSleepEligible();
 	}
 
 	bool RigidBody3D::TrySleep()
@@ -125,6 +125,7 @@ namespace GEngine
 	{
 		m_IsSleeping = false;
 		m_InactiveSeconds = 0.0;
+		m_WakeRequested = true;
 	}
 
 	bool RigidBody3D::SetBodyTypeAndInverseMass(BodyType type, float inverseMass)
@@ -135,8 +136,10 @@ namespace GEngine
 		{
 			return false;
 		}
+		const float mass = type == BodyType::Dynamic ? inverseMass : 0.0f;
+		if (Type != type || m_InvMass != mass) WakeUp();
 		Type = type;
-		m_InvMass = type == BodyType::Dynamic ? inverseMass : 0.0f;
+		m_InvMass = mass;
 		return true;
 	}
 	void RigidBody3D::UpdateRotationData() const
@@ -342,6 +345,7 @@ namespace GEngine
 			return;
 		}
 
+		if (!m_InPhysicsStep && impulse != Vec3f(0.0f)) WakeUp();
 		m_LinearVelocity += impulse * m_InvMass;
 		AssertFiniteState();
 	}
@@ -359,6 +363,7 @@ namespace GEngine
 			return;
 		}
 
+		if (!m_InPhysicsStep && impulse != Vec3f(0.0f)) WakeUp();
 		m_AngularVelocity += GetInverseInertiaTensorWorldSpace() * impulse;
 
 		const float maxAngularSpeed = 30.0f; // 30 rad/s is fast enough for us. But feel free to adjust.
@@ -372,7 +377,7 @@ namespace GEngine
 	void RigidBody3D::Update(const float dt_sec)
 	{
 		GENGINE_CORE_ASSERT(Math::IsFinite(dt_sec), "Physics timestep must be finite");
-		if (!Math::IsFinite(dt_sec) || !m_Shape || !CanIntegrate())
+		if (!Math::IsFinite(dt_sec) || !m_Shape || !CanIntegrate() || IsSleeping())
 		{
 			return;
 		}

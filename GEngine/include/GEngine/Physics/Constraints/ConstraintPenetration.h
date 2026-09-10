@@ -1,5 +1,6 @@
 #pragma once
 #include "Constraint.h"
+#include "SolverMath.h"
 
 namespace GEngine
 {
@@ -27,8 +28,8 @@ namespace GEngine
 
 		Vec3f m_Normal{};
 		float m_Friction;
-		Mat<3, 12> m_Jacobian{};
-		Vec<3> m_CachedLambda{};
+		SolverMath::Matrix<3, 12> m_Jacobian{};
+		SolverMath::Vector<3> m_CachedLambda{};
 
 	private:
 		void Solve(bool solveNormal);

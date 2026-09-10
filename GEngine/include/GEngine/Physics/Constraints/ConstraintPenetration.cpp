@@ -8,7 +8,46 @@ namespace GEngine
 {
 	namespace
 	{
-		bool IsFinite(const Vec<3>& value)
+		// Mirror Constraint's mass layout and impulse order using contact-local storage.
+		SolverMath::Matrix<12, 12> SolverInverseMass(const RigidBody3D& a, const RigidBody3D& b)
+		{
+			SolverMath::Matrix<12, 12> result;
+			result[0][0] = a.GetInverseMass();
+			result[1][1] = a.GetInverseMass();
+			result[2][2] = a.GetInverseMass();
+			const Mat3 inertiaA = a.GetInverseInertiaTensorWorldSpace();
+			for (int row = 0; row < 3; ++row)
+				for (int column = 0; column < 3; ++column)
+					result[3 + row][3 + column] = inertiaA[column][row];
+			result[6][6] = b.GetInverseMass();
+			result[7][7] = b.GetInverseMass();
+			result[8][8] = b.GetInverseMass();
+			const Mat3 inertiaB = b.GetInverseInertiaTensorWorldSpace();
+			for (int row = 0; row < 3; ++row)
+				for (int column = 0; column < 3; ++column)
+					result[9 + row][9 + column] = inertiaB[column][row];
+			return result;
+		}
+
+		SolverMath::Vector<12> SolverVelocities(const RigidBody3D& a, const RigidBody3D& b)
+		{
+			SolverMath::Vector<12> result;
+			const Vec3f values[] = { a.GetLinearVelocity(), a.GetAngularVelocity(),
+				b.GetLinearVelocity(), b.GetAngularVelocity() };
+			for (int group = 0; group < 4; ++group)
+				for (int axis = 0; axis < 3; ++axis) result[group * 3 + axis] = values[group][axis];
+			return result;
+		}
+
+		void ApplySolverImpulses(RigidBody3D& a, RigidBody3D& b, const SolverMath::Vector<12>& impulse)
+		{
+			a.ApplyImpulseLinear(Vec3f(impulse[0], impulse[1], impulse[2]));
+			a.ApplyImpulseAngular(Vec3f(impulse[3], impulse[4], impulse[5]));
+			b.ApplyImpulseLinear(Vec3f(impulse[6], impulse[7], impulse[8]));
+			b.ApplyImpulseAngular(Vec3f(impulse[9], impulse[10], impulse[11]));
+		}
+
+		bool IsFinite(const SolverMath::Vector<3>& value)
 		{
 			return Math::IsFinite(value[0]) && Math::IsFinite(value[1]) && Math::IsFinite(value[2]);
 		}
@@ -20,7 +59,7 @@ namespace GEngine
 				? static_cast<double>(frictionA) * static_cast<double>(frictionB) : 0.0;
 		}
 
-		void ProjectCoulombImpulse(Vec<3>& impulse, const double friction)
+		void ProjectCoulombImpulse(SolverMath::Vector<3>& impulse, const double friction)
 		{
 			if (!IsFinite(impulse))
 			{
@@ -48,7 +87,8 @@ namespace GEngine
 
 		// Minimize 1/2 x^T Kt x - b^T x on the circular Coulomb disk.
 		// Clamping Kt^-1 b radially is only correct for isotropic tangent mass.
-		void SolveTangentDisk(Vec<3>& lambda, const Mat<3, 3>& mass, const Vec<3>& residual, double friction)
+		void SolveTangentDisk(SolverMath::Vector<3>& lambda, const SolverMath::Matrix<3, 3>& mass,
+			const SolverMath::Vector<3>& residual, double friction)
 		{
 			const double a = mass[1][1], b = mass[1][2], c = mass[2][2];
 			const double limit = friction * lambda[0];
@@ -212,8 +252,8 @@ namespace GEngine
 		//
 	// Apply warm starting from last frame
 	//
-		const Vec<12> impulses = m_Jacobian.Transpose() * m_CachedLambda;
-		ApplyImpulses(impulses);
+		const SolverMath::Vector<12> impulses = m_Jacobian.Transpose() * m_CachedLambda;
+		ApplySolverImpulses(*m_bodyA, *m_bodyB, impulses);
 
 		// A paused or reverse step must not depenetrate bodies. No 1/dt velocity bias.
 		m_PositionCorrectionEnabled = Math::IsFinite(dt_sec) && dt_sec > Math::NumericalEpsilon;
@@ -226,15 +266,15 @@ namespace GEngine
 
 	void ConstraintPenetration::Solve(bool solveNormal)
 	{
-		const Mat<12, 3> JacobianTranspose = m_Jacobian.Transpose();
+		const SolverMath::Matrix<12, 3> JacobianTranspose = m_Jacobian.Transpose();
 
 		// Build the system of equations
-		const Vec<12> q_dt = GetVelocities();
-		const Mat<12, 12> invMassMatrix = GetInverseMassMatrix();
-		const Mat<3, 3> J_W_Jt = m_Jacobian * invMassMatrix * JacobianTranspose;
-		Vec<3> rhs = m_Jacobian * q_dt * -1.0f;
+		const SolverMath::Vector<12> q_dt = SolverVelocities(*m_bodyA, *m_bodyB);
+		const SolverMath::Matrix<12, 12> invMassMatrix = SolverInverseMass(*m_bodyA, *m_bodyB);
+		const SolverMath::Matrix<3, 3> J_W_Jt = m_Jacobian * invMassMatrix * JacobianTranspose;
+		SolverMath::Vector<3> rhs = m_Jacobian * q_dt * -1.0f;
 
-		const Vec<3> oldLambda = m_CachedLambda;
+		const SolverMath::Vector<3> oldLambda = m_CachedLambda;
 		const double friction = m_Friction > 0.0f
 			? CombinedFriction(m_bodyA->m_Friction, m_bodyB->m_Friction) : 0.0;
 		if (!IsFinite(rhs)) return;
@@ -245,7 +285,7 @@ namespace GEngine
 		// Retain three local iterations, but solve the constrained accumulated
 		// impulse. Every correction must see the preceding normal/friction clamp.
 		for (int iteration = 0; iteration < (solveNormal ? 3 : 1); ++iteration) {
-			Vec<3> residual = rhs - J_W_Jt * (m_CachedLambda - oldLambda);
+			SolverMath::Vector<3> residual = rhs - J_W_Jt * (m_CachedLambda - oldLambda);
 			const float normalMass = J_W_Jt[0][0];
 			if (solveNormal && normalMass > Math::NumericalEpsilon && Math::IsFinite(residual[0])) {
 				const float next = m_CachedLambda[0] + residual[0] / normalMass;
@@ -255,11 +295,11 @@ namespace GEngine
 			if (IsFinite(residual)) SolveTangentDisk(m_CachedLambda, J_W_Jt, residual, friction);
 			ProjectCoulombImpulse(m_CachedLambda, friction);
 		}
-		const Vec<3> lambdaN = m_CachedLambda - oldLambda;
+		const SolverMath::Vector<3> lambdaN = m_CachedLambda - oldLambda;
 
 		// Apply the impulses
-		const Vec<12> impulses = JacobianTranspose * lambdaN;
-		ApplyImpulses(impulses);
+		const SolverMath::Vector<12> impulses = JacobianTranspose * lambdaN;
+		ApplySolverImpulses(*m_bodyA, *m_bodyB, impulses);
 		SolveSpin();
 		SolveRolling();
 		m_bodyA->AssertFiniteState();

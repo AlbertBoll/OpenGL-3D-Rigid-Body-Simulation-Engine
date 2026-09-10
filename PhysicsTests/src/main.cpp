@@ -27,6 +27,9 @@
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
+#if defined(_MSC_VER) && defined(_DEBUG)
+#include <crtdbg.h>
+#endif
 
 namespace
 {
@@ -289,6 +292,109 @@ namespace
 		bounds.mins = mins;
 		bounds.maxs = maxs;
 		return bounds;
+	}
+
+
+	// Phase 39 locks complete contact-row responses to the approved heap-math baseline.
+	// The MSVC x64 /fp:precise fingerprint covers scalars, never padding or pointers.
+#if defined(_MSC_VER) && defined(_DEBUG)
+	std::size_t solverAllocations = 0;
+	int CountSolverAllocation(int operation, void*, std::size_t, int, long, const unsigned char*, int)
+	{
+		if (operation == _HOOK_ALLOC || operation == _HOOK_REALLOC) ++solverAllocations;
+		return TRUE;
+	}
+#endif
+
+	void TestSolverStorage()
+	{
+		using namespace GEngine;
+		static_assert(std::is_trivially_copyable_v<SolverMath::Vector<3>>);
+		static_assert(std::is_trivially_copyable_v<SolverMath::Matrix<3, 12>>);
+		static_assert(sizeof(SolverMath::Matrix<3, 12>) == 36 * sizeof(float));
+		auto points = UnitBoxPoints();
+		for (auto& point : points) point *= Vec3f(1, 2, 3);
+		ShapeBox shapeA(UnitBoxPoints()), shapeB(points);
+		std::uint64_t fingerprint = 14695981039346656037ull;
+		const auto hash = [&](auto value) {
+			unsigned char bytes[sizeof(value)];
+			std::memcpy(bytes, &value, sizeof(value));
+			for (unsigned char byte : bytes) { fingerprint ^= byte; fingerprint *= 1099511628211ull; }
+		};
+		std::size_t allocations = 0;
+#if defined(_MSC_VER) && defined(_DEBUG)
+		const auto originalHook = _CrtSetAllocHook(CountSolverAllocation);
+		solverAllocations = 0;
+		{ Vec<12> sentinel; sentinel[0] = 1.0f; }
+		_CrtSetAllocHook(originalHook);
+		Expect(solverAllocations > 0, "solver allocation hook observes the original heap-backed math");
+#endif
+		hash(1.0f);
+		for (int sample = 0; sample < 96; ++sample) {
+			RigidBody3D a, b;
+			a.m_Shape = &shapeA; b.m_Shape = &shapeB;
+			a.SetBodyTypeAndInverseMass(sample % 4 == 3 ? Component::BodyType::Static : Component::BodyType::Dynamic, 0.75f);
+			b.SetBodyTypeAndInverseMass(sample % 4 == 0 ? Component::BodyType::Dynamic :
+				(sample % 4 == 2 ? Component::BodyType::Kinematic : Component::BodyType::Static), 1.25f);
+			a.m_Orientation = glm::angleAxis(0.013f * sample, glm::normalize(Vec3f(1, 2, 3)));
+			b.m_Orientation = glm::angleAxis(-0.021f * sample, glm::normalize(Vec3f(3, -1, 2)));
+			a.m_Position = Vec3f(-0.1f, 0.2f, 0.3f); b.m_Position = Vec3f(0.2f, -0.1f, 0.4f);
+			a.m_LinearVelocity = Vec3f(0.125f * (sample % 7 - 3), -0.75f, 0.25f);
+			b.m_LinearVelocity = Vec3f(-0.125f, 0.25f, -0.125f * (sample % 5));
+			a.m_AngularVelocity = Vec3f(0.25f, -0.5f, 0.125f * (sample % 3));
+			b.m_AngularVelocity = Vec3f(-0.5f, 0.125f, 0.25f);
+			a.m_Friction = sample % 3 == 0 ? 0.0f : 0.5f; b.m_Friction = 0.75f;
+			a.SetSpinResistanceLength(sample % 2 ? 0.05f : 0.0f); b.SetSpinResistanceLength(0.05f);
+			a.SetRollingResistanceLength(sample % 3 ? 0.05f : 0.0f); b.SetRollingResistanceLength(0.05f);
+#if defined(_MSC_VER) && defined(_DEBUG)
+			solverAllocations = 0;
+			_CrtSetAllocHook(CountSolverAllocation);
+#endif
+			{
+				ConstraintPenetration original;
+				original.m_bodyA = &a; original.m_bodyB = &b;
+				original.m_anchorA = Vec3f(0.125f, -0.25f, 0.5f);
+				original.m_anchorB = Vec3f(-0.25f, 0.125f, -0.125f);
+				original.m_Normal = glm::normalize(Vec3f(0.01f * (sample % 5), -1.0f, 0.02f * (sample % 7)));
+				original.m_CachedLambda[0] = sample % 2 ? 0.125f : 0.0f;
+				original.m_CachedLambda[1] = 0.03125f;
+				original.m_CachedLambda[2] = -0.015625f;
+				ConstraintPenetration contact = original;
+				original = contact;
+				const float dt[] = { 1.0f/60, 1.0f/120, 0.0f, -1.0f/60 };
+				for (int step = 0; step < 3; ++step) {
+					contact.PreSolve(dt[(sample / 4) % 4]);
+					for (int pass = 0; pass < 6; ++pass) {
+						if (pass % 2) contact.SolveFriction(); else contact.Solve();
+						for (int row = 0; row < 3; ++row) {
+							hash(contact.m_CachedLambda[row]);
+							for (int column = 0; column < 12; ++column) hash(contact.m_Jacobian[row][column]);
+						}
+						hash(contact.GetSpinImpulse());
+						hash(contact.GetRollingImpulse().x); hash(contact.GetRollingImpulse().y);
+						for (RigidBody3D* body : { &a, &b })
+							for (int axis = 0; axis < 3; ++axis) {
+								hash(body->m_LinearVelocity[axis]); hash(body->m_AngularVelocity[axis]);
+							}
+					}
+					contact.PostSolve();
+					for (int axis = 0; axis < 3; ++axis) { hash(a.m_Position[axis]); hash(b.m_Position[axis]); }
+				}
+			}
+#if defined(_MSC_VER) && defined(_DEBUG)
+			_CrtSetAllocHook(originalHook);
+			allocations += solverAllocations;
+#endif
+			Expect(a.HasFiniteState() && b.HasFiniteState(), "fixed-storage contact response remains finite across body/material/dt cases");
+		}
+		std::cout << "Solver storage: fingerprint=" << fingerprint << " allocations=" << allocations
+			<< " constraint_bytes=" << sizeof(ConstraintPenetration) << '\n';
+#if defined(_MSC_VER) && defined(_M_X64)
+		Expect(fingerprint == 14496816551934000004ull, "contact state exactly matches the Phase 38 heap-math reference");
+#endif
+#if defined(_MSC_VER) && defined(_DEBUG)
+		Expect(allocations == 0, "contact construction/copy/warm start/solve/post-solve perform no CRT allocations");
+#endif
 	}
 
 	void TestNormalization()
@@ -7777,6 +7883,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--solver-storage") { TestSolverStorage(); return failureCount ? 1 : 0; }
 		if (argument == "--angular-resistance-coupling") { TestCombinedAngularResistanceAnisotropy(); return failureCount ? 1 : 0; }
 		if (argument == "--rolling-resistance") return RunRollingResistanceRegression();
 		if (argument == "--rolling-stability") { TestExactBoxWorldTimestepStability(0.05f,0.05f); return failureCount ? 1 : 0; }
@@ -7855,6 +7962,7 @@ int main(int argc, char** argv)
 		return 2;
 	}
 
+	TestSolverStorage();
 	TestScaleSourceExceptionSafety();
 	TestAbsoluteSphereScaling();
 	TestAbsolutePointScaling<GEngine::ShapeBox>();

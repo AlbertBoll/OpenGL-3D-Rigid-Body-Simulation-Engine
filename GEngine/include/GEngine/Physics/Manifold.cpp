@@ -92,7 +92,7 @@ namespace GEngine
 	void Manifold::WriteContact(int slot, const contact_t& contact, const ConstraintPenetration* previous)
 	{
 		const Vec3f normal = Math::NormalizeOr(m_BodyA->GetWorldToBodyRotation() * -contact.normal);
-		Vec<3> lambda;
+		SolverMath::Vector<3> lambda;
 		lambda.Zero();
 		if (previous) {
 			// Re-express the old impulse in the refreshed orthonormal contact basis.

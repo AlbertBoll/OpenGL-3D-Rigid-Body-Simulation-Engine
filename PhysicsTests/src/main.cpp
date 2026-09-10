@@ -4446,6 +4446,267 @@ namespace
 	}
 
 
+	void TestRollingResistanceRows()
+	{
+		using namespace GEngine;
+		for (float radius : {0.25f, 1.0f, 3.0f})
+		for (float inverseMass : {0.5f, 2.0f})
+		for (float length : {0.0f, 0.01f, 0.2f, 100.0f})
+		for (float closing : {0.0f, 0.2f, 2.0f}) {
+			FrictionFixture f(0.0f, inverseMass);
+			f.sphere.SetRadius(radius);
+			f.body.SetRollingResistanceLength(length); f.support.SetRollingResistanceLength(0.2f);
+			f.body.m_LinearVelocity = Vec3f(0, -closing, 0);
+			f.body.m_AngularVelocity = Vec3f(3, 2, 4);
+			const float inertia = 0.4f * radius * radius / inverseMass;
+			const float bound = std::min(length, 0.2f) * closing / inverseMass;
+			const float impulse = std::min(bound, inertia * 5.0f);
+			const float scale = 1.0f - impulse / (inertia * 5.0f);
+			ResetPhysicsProfile(); f.constraint.PreSolve(1.0f/60); f.constraint.Solve();
+			Expect(Near(f.body.m_AngularVelocity, Vec3f(3*scale, 2, 4*scale), 3e-5f),
+				"rolling row follows the load/length/inertia law and leaves isotropic normal spin unchanged");
+			Expect(glm::length(f.constraint.GetRollingImpulse()) <= bound + 2e-6 &&
+				Near(float(glm::length(f.constraint.GetRollingImpulse())), impulse, 3e-5f),
+				"rolling impulse uses one circular load budget across radius, mass and material values");
+			const auto first=f.body.m_AngularVelocity;
+			for(int pass=0;pass<7;++pass) f.constraint.Solve();
+			Expect(Near(first,f.body.m_AngularVelocity,3e-5f),"extra passes do not multiply rolling resistance");
+			if(IsPhysicsProfilingEnabled()) Expect((GetPhysicsProfileSnapshot().rollingResistanceImpulseCount>0)==(impulse>0),
+				"rolling counters distinguish applied resistance from disabled and unloaded rows");
+		}
+		FrictionFixture f(0);
+		f.body.SetRollingResistanceLength(0.1f);f.support.SetRollingResistanceLength(0.1f);
+		f.body.m_LinearVelocity=Vec3f(0,-1,0);f.body.m_AngularVelocity=Vec3f(3,2,4);
+		f.constraint.PreSolve(1.0f/60);f.constraint.Solve();
+		const auto spun=f.body.m_AngularVelocity;
+		f.body.m_LinearVelocity=Vec3f(0,1,0);f.constraint.PreSolve(1.0f/120);
+		Expect(f.constraint.GetRollingImpulse()==glm::dvec2(0) && f.body.m_AngularVelocity==spun,
+			"rolling starts cold after a changed timestep without obsolete-load warm starting");
+		f.constraint.Solve();
+		Expect(f.constraint.m_CachedLambda[0]==0 && f.constraint.GetRollingImpulse()==glm::dvec2(0) && f.body.m_AngularVelocity==spun,
+			"separating contact receives no new rolling torque");
+		for(float dt : {0.0f,-0.01f}) {
+			f.body.m_LinearVelocity=Vec3f(0,-1,0);f.constraint.PreSolve(dt);f.constraint.Solve();
+			Expect(f.constraint.GetRollingImpulse()==glm::dvec2(0),"paused and reverse steps disable rolling resistance");
+		}
+		// Shrinking the supporting load must retract an already applied within-step budget.
+		f.body.m_LinearVelocity=Vec3f(0,-1,0);f.constraint.PreSolve(1.0f/60);f.constraint.Solve();
+		f.body.m_LinearVelocity=Vec3f(0,2,0);f.constraint.Solve();
+		Expect(f.constraint.m_CachedLambda[0]==0 && glm::length(f.constraint.GetRollingImpulse())<1e-7,
+			"rolling accumulation retracts when another solver row removes the normal load");
+	}
+
+	void TestRollingTwoBodiesAndAnisotropy()
+	{
+		using namespace GEngine;
+		for(bool reversed : {false,true})
+		for(BodyType type : {BodyType::Dynamic,BodyType::Static,BodyType::Kinematic})
+		for(Vec3f normal : {Vec3f(0,1,0),glm::normalize(Vec3f(1,2,3))}) {
+			FrictionFixture f(0);
+			const Vec3f tangent=glm::normalize(glm::cross(normal,Vec3f(1,0,0)));
+			f.support.SetBodyTypeAndInverseMass(type,0.5f);
+			f.body.m_Position=normal;f.support.m_Position=-normal;
+			f.constraint.m_anchorA=-normal;f.constraint.m_anchorB=normal;
+			f.constraint.m_Normal=-normal;
+			f.body.SetRollingResistanceLength(0.05f);f.support.SetRollingResistanceLength(0.1f);
+			f.body.m_LinearVelocity=-normal*2.0f;
+			f.body.m_AngularVelocity=tangent*4.0f+normal*2.0f;f.support.m_AngularVelocity=tangent;
+			if(reversed) {
+				std::swap(f.constraint.m_bodyA,f.constraint.m_bodyB);
+				std::swap(f.constraint.m_anchorA,f.constraint.m_anchorB);f.constraint.m_Normal=normal;
+			}
+			const float inverseB=f.support.GetInverseMass();
+			const float impulse=0.05f*2.0f/(1.0f+inverseB);
+			const auto momentum=f.body.m_AngularVelocity*0.4f+f.support.m_AngularVelocity*0.8f;
+			f.constraint.PreSolve(1.0f/60);f.constraint.Solve();
+			Expect(Near(f.body.m_AngularVelocity,tangent*(4.0f-2.5f*impulse)+normal*2.0f,3e-5f) &&
+				Near(f.support.m_AngularVelocity,tangent*(1.0f+2.5f*inverseB*impulse),3e-5f),
+				"sphere-sphere rolling respects pair reversal, normal directions and static/kinematic boundaries");
+			if(type==BodyType::Dynamic) Expect(Near(momentum,f.body.m_AngularVelocity*0.4f+f.support.m_AngularVelocity*0.8f,3e-5f),
+				"two dynamic spheres conserve angular momentum while relative rolling decays");
+		}
+		for(float length : {0.05f,100.0f}) {
+			FrictionFixture f(0);ShapeBox box(BoxPoints(Vec3f(1,2,3)));f.body.m_Shape=&box;
+			f.body.m_Orientation=glm::angleAxis(0.7f,glm::normalize(Vec3f(1,1,1)));
+			f.body.SetRollingResistanceLength(length);f.support.SetRollingResistanceLength(length);
+			f.body.m_LinearVelocity=Vec3f(0,-1,0);f.body.m_AngularVelocity=Vec3f(3,2,4);
+			f.constraint.m_Normal=f.body.GetWorldToBodyRotation()*Vec3f(0,-1,0);
+			const auto inertia=glm::inverse(f.body.GetInverseInertiaTensorWorldSpace());
+			const auto before=f.body.m_AngularVelocity;
+			const double energy=0.5*glm::dot(before,inertia*before);
+			f.constraint.PreSolve(1.0f/60);f.constraint.Solve();
+			const auto after=f.body.m_AngularVelocity, applied=inertia*(after-before);
+			Expect(0.5*glm::dot(after,inertia*after)<=energy+2e-5 && std::abs(applied.y)<2e-5,
+				"anisotropic rolling applies tangent torque without injecting kinetic energy");
+			if(length<1) {
+				Expect(Near(glm::length(applied),length,3e-5f) && std::abs(applied.x*after.z-applied.z*after.x)<3e-5 &&
+					glm::dot(applied,after)<=2e-5,"bounded anisotropic rolling satisfies the circular-disk KKT condition");
+			} else Expect(std::hypot(after.x,after.z)<3e-5,"unbounded anisotropic rolling cancels both tangent angular components");
+		}
+		FrictionFixture control(0),rolling(0);
+		for(auto*f : {&control,&rolling}) {
+			f->body.SetSpinResistanceLength(0.05f);f->support.SetSpinResistanceLength(0.05f);
+			f->body.m_LinearVelocity=Vec3f(0,-1,0);f->body.m_AngularVelocity=Vec3f(0,4,0);
+		}
+		rolling.body.SetRollingResistanceLength(0.05f);rolling.support.SetRollingResistanceLength(0.05f);
+		for(auto*f : {&control,&rolling}) {f->constraint.PreSolve(1.0f/60);f->constraint.Solve();}
+		Expect(control.body.m_AngularVelocity==rolling.body.m_AngularVelocity &&
+			control.constraint.GetSpinImpulse()==rolling.constraint.GetSpinImpulse() && rolling.constraint.GetRollingImpulse()==glm::dvec2(0),
+			"pure normal spin is governed only by Phase 37 without double-counted rolling resistance");
+	}
+
+	void TestCombinedAngularResistanceAnisotropy()
+	{
+		using namespace GEngine;
+		// Small material exercises both active bounds; large material exercises coupled cancellation.
+		for (float length : {0.05f, 100.0f}) {
+			const auto run = [&](bool reversed) {
+				FrictionFixture f(0);
+				ShapeBox shapeA(BoxPoints(Vec3f(1,2,3))), shapeB(BoxPoints(Vec3f(1.4f,0.75f,2.2f)));
+				f.body.m_Shape=&shapeA;f.support.m_Shape=&shapeB;
+				f.support.SetBodyTypeAndInverseMass(BodyType::Dynamic,0.5f);
+				f.body.m_Orientation=glm::angleAxis(0.7f,glm::normalize(Vec3f(1,1,1)));
+				f.support.m_Orientation=glm::angleAxis(-0.4f,glm::normalize(Vec3f(2,-1,1)));
+				const Vec3f normal=glm::normalize(Vec3f(2,1,3));
+				f.body.m_LinearVelocity=normal;
+				f.body.m_AngularVelocity=Vec3f(1.5f,2.0f,-0.75f);
+				f.support.m_AngularVelocity=Vec3f(-0.35f,0.4f,0.7f);
+				for(auto* body : {&f.body,&f.support}) {
+					body->SetSpinResistanceLength(length);body->SetRollingResistanceLength(length);
+				}
+				if(reversed) std::swap(f.constraint.m_bodyA,f.constraint.m_bodyB);
+				f.constraint.m_Normal=f.constraint.m_bodyA->GetWorldToBodyRotation()*(reversed?-normal:normal);
+				const glm::dmat3 inertiaA=glm::inverse(glm::dmat3(f.body.GetInverseInertiaTensorWorldSpace()));
+				const glm::dmat3 inertiaB=glm::inverse(glm::dmat3(f.support.GetInverseInertiaTensorWorldSpace()));
+				const auto energy = [&]() {
+					const glm::dvec3 a(f.body.m_AngularVelocity),b(f.support.m_AngularVelocity);
+					return 0.5*(glm::dot(a,inertiaA*a)+glm::dot(b,inertiaB*b));
+				};
+				const auto momentum=inertiaA*glm::dvec3(f.body.m_AngularVelocity)+inertiaB*glm::dvec3(f.support.m_AngularVelocity);
+				const double initial=energy();double previous=initial,peak=initial;
+				const float initialRelative=glm::length(f.body.m_AngularVelocity-f.support.m_AngularVelocity);
+				bool finite=true,dissipative=true,bounded=true,bothActive=false;
+				Vec3f previousA,previousB;
+				f.constraint.PreSolve(1.0f/60);
+				for(int pass=0;pass<32;++pass) {
+					previousA=f.body.m_AngularVelocity;previousB=f.support.m_AngularVelocity;
+					f.constraint.Solve();const double current=energy();peak=std::max(peak,current);
+					finite &= f.body.HasFiniteState() && f.support.HasFiniteState() && std::isfinite(current);
+					dissipative &= current<=previous+1e-6*std::max(1.0,initial);previous=current;
+					const double limit=double(length)*std::max(0.0f,f.constraint.m_CachedLambda[0]);
+					bounded &= std::abs(f.constraint.GetSpinImpulse())<=limit+3e-5 && glm::length(f.constraint.GetRollingImpulse())<=limit+3e-5;
+					bothActive |= std::abs(f.constraint.GetSpinImpulse())>1e-6 && glm::length(f.constraint.GetRollingImpulse())>1e-6;
+				}
+				const float relative=glm::length(f.body.m_AngularVelocity-f.support.m_AngularVelocity);
+				Expect(finite && dissipative && peak<=initial+1e-6*std::max(1.0,initial),
+					"combined spin/rolling on rotated anisotropic bodies stays finite and dissipative on every pass");
+				Expect(bounded && bothActive,"combined anisotropic contact exercises both independent physical load bounds");
+				Expect(Near(previousA,f.body.m_AngularVelocity,3e-5f) && Near(previousB,f.support.m_AngularVelocity,3e-5f) &&
+					(length>1 ? relative<3e-5f : relative<initialRelative),
+					"spin/rolling coupling converges without alternating growth or residual unconstrained rotation");
+				Expect(glm::length(momentum-inertiaA*glm::dvec3(f.body.m_AngularVelocity)-inertiaB*glm::dvec3(f.support.m_AngularVelocity))<3e-5,
+					"combined anisotropic resistance conserves equal/opposite angular momentum");
+				std::cout<<"ANGULAR_COUPLING length="<<length<<" reversed="<<reversed<<" initial_energy="<<initial
+					<<" peak_energy="<<peak<<" final_energy="<<previous<<" relative_speed="<<relative<<'\n';
+				return std::array<Vec3f,4>{f.body.m_AngularVelocity,f.support.m_AngularVelocity,f.body.m_LinearVelocity,f.support.m_LinearVelocity};
+			};
+			const auto forward=run(false),repeat=run(false),reversed=run(true);
+			Expect(forward==repeat,"combined anisotropic resistance repeats with identical body velocities");
+			bool equivalent=true;for(int i=0;i<4;++i)equivalent &= Near(forward[i],reversed[i],3e-5f);
+			Expect(equivalent,"reversing the anisotropic contact pair preserves the combined spin/rolling response");
+		}
+	}
+
+	void TestRollingPlaneAndAirborne()
+	{
+		using namespace GEngine;
+		double stopping[2]{};int index=0;
+		for(int rate : {60,120}) {
+			for(bool enabled : {false,true}) {
+				ShapeSphere sphere(1);ShapeBox floor(BoxPoints(Vec3f(30,0.5f,30)));
+				PhysicsSystem system;auto*world=new PhysicsWorld();system.SetPhysicsWorld(world);system.SetSleepingEnabled(false);
+				auto*support=world->CreateRigidBody3D();auto*body=world->CreateRigidBody3D();
+				ConfigureBoxBody(*support,floor,Vec3f(0),Quat(1,0,0,0));support->SetBodyTypeAndInverseMass(BodyType::Static,0);
+				ConfigureSphereBody(*body,sphere,Vec3f(0,1.5f,0));
+				support->m_Friction=body->m_Friction=0.5f;support->m_Elasticity=body->m_Elasticity=0;
+				support->SetRollingResistanceLength(enabled?0.05f:0);body->SetRollingResistanceLength(0.05f);
+				const Vec3f direction=glm::normalize(Vec3f(1,0,1));
+				body->m_LinearVelocity=2.0f*direction;body->m_AngularVelocity=glm::cross(Vec3f(0,1,0),body->m_LinearVelocity);
+				double peakEnergy=20.8,stop=0;bool finite=true;std::uint64_t impulses=0;float oneSecond=0;
+				for(int tick=1;tick<=8*rate;++tick) {
+					ResetPhysicsProfile();system.Update(Timestep(1.0f/rate));
+					const auto v=body->m_LinearVelocity,w=body->m_AngularVelocity;
+					const double energy=0.5*glm::dot(v,v)+0.2*glm::dot(w,w)+12*body->m_Position.y;
+					finite &= body->HasFiniteState() && std::isfinite(energy);peakEnergy=std::max(peakEnergy,energy);
+					impulses+=GetPhysicsProfileSnapshot().rollingResistanceImpulseCount;
+					if(tick==rate) oneSecond=glm::dot(v,direction);
+					if(!stop && glm::length(v)<=0.02f && glm::length(w)<=0.02f) stop=double(tick)/rate;
+				}
+				// No-slip deceleration is ell*m*g*R/(I+m*R^2) = 3/7 for this fixture.
+				Expect(finite && peakEnergy<=20.81,"rolling on a plane stays finite without mechanical-energy growth");
+				Expect(enabled ? (std::abs(oneSecond-11.0f/7)<0.03f && stop>4.4 && stop<5.0 &&
+					glm::length(body->m_LinearVelocity)<0.02f && glm::length(body->m_AngularVelocity)<0.02f) :
+					(std::abs(oneSecond-2.0f)<0.02f && stop==0),"rolling translation and rotation decay at the predicted physical rate");
+				if(IsPhysicsProfilingEnabled()) Expect((impulses>0)==enabled,"plane rolling telemetry respects a zero material");
+				std::cout<<"ROLLING_PLANE rate="<<rate<<" enabled="<<enabled<<" one_second_speed="<<oneSecond
+					<<" stop_seconds="<<stop<<" peak_energy="<<peakEnergy<<" final_v="<<glm::length(body->m_LinearVelocity)
+					<<" final_w="<<glm::length(body->m_AngularVelocity)<<" impulses="<<impulses<<'\n';
+				if(enabled) stopping[index]=stop;
+			}
+			++index;
+			ShapeSphere sphere(1);PhysicsSystem system;auto*world=new PhysicsWorld(Vec3f(0));system.SetPhysicsWorld(world);
+			auto*body=world->CreateRigidBody3D();auto*reference=world->CreateRigidBody3D();
+			ConfigureSphereBody(*body,sphere,Vec3f(0,20,0));ConfigureSphereBody(*reference,sphere,Vec3f(100,20,0));
+			body->SetRollingResistanceLength(0.05f);
+			body->m_AngularVelocity=reference->m_AngularVelocity=Vec3f(1,4,2);
+			ResetPhysicsProfile();for(int tick=0;tick<8*rate;++tick)system.Update(Timestep(1.0f/rate));
+			Expect(body->m_AngularVelocity==reference->m_AngularVelocity && body->m_Orientation==reference->m_Orientation &&
+				GetPhysicsProfileSnapshot().rollingResistanceImpulseCount==0,"airborne rolling material preserves the exact zero-material trajectory");
+		}
+		Expect(std::abs(stopping[0]-stopping[1])<=1.0/30+1e-6,"60/120 Hz rolling stopping times differ by at most two 60 Hz ticks");
+	}
+
+	void TestRollingMaterialAndWake()
+	{
+		using namespace GEngine;
+		ShapeSphere sphere(1);
+		PhysicsSystem system; auto* world=new PhysicsWorld(); system.SetPhysicsWorld(world);
+		auto* support=world->CreateRigidBody3D(); auto* body=world->CreateRigidBody3D();
+		ConfigureSphereBody(*support,sphere,Vec3f(0)); support->SetBodyTypeAndInverseMass(BodyType::Static,0);
+		ConfigureSphereBody(*body,sphere,Vec3f(0,2,0));
+		Expect(body->GetRollingResistanceLength()==0, "rolling resistance defaults to the approved reference behavior");
+		for(float value : {-1.0f,std::numeric_limits<float>::infinity(),std::numeric_limits<float>::quiet_NaN()})
+			Expect(!body->SetRollingResistanceLength(value) && body->GetRollingResistanceLength()==0,
+				"invalid resistance lengths are rejected transactionally");
+		Expect(body->SetRollingResistanceLength(std::numeric_limits<float>::max()) &&
+			body->SetRollingResistanceLength(0), "finite nonnegative resistance range is accepted");
+		for(int i=0;i<120;++i) system.Update(Timestep(1.0f/60));
+		Expect(body->IsSleeping(), "material-wake fixture reaches settled sleep");
+		support->SetRollingResistanceLength(0); system.Update(Timestep(1.0f/60));
+		Expect(body->IsSleeping(), "unchanged resistance setting preserves sleep");
+		support->SetRollingResistanceLength(0.05f); system.Update(Timestep(1.0f/60));
+		Expect(!body->IsSleeping(), "static material edit wakes its supported dependent via existing wake connectivity");
+		for(int i=0;i<120;++i) system.Update(Timestep(1.0f/60));
+		body->SetRollingResistanceLength(0.05f);
+		Expect(!body->IsSleeping() && body->GetInactiveSeconds()==0,
+			"dynamic material edit immediately wakes and clears dwell");
+		// The largest valid length must still yield a finite stop impulse.
+		FrictionFixture f(0);
+		f.body.SetRollingResistanceLength(std::numeric_limits<float>::max());
+		f.support.SetRollingResistanceLength(std::numeric_limits<float>::max());
+		f.body.m_LinearVelocity=Vec3f(0,-1,0);f.body.m_AngularVelocity=Vec3f(4,0,0);
+		f.constraint.PreSolve(1.0f/60);f.constraint.Solve();
+		Expect(f.body.HasFiniteState() && std::abs(f.body.m_AngularVelocity.x)<1e-5,
+			"extreme finite material length remains bounded by the finite cancellation impulse");
+	}
+
+	int RunRollingResistanceRegression()
+	{
+		TestRollingResistanceRows();TestRollingTwoBodiesAndAnisotropy();TestRollingMaterialAndWake();TestRollingPlaneAndAirborne();TestCombinedAngularResistanceAnisotropy();
+		std::cout<<"Rolling resistance: "<<testCount<<" checks, "<<failureCount<<" failures\n";
+		return failureCount ? 1 : 0;
+	}
+
 	void TestSpinResistanceRows()
 	{
 		using namespace GEngine;
@@ -4950,7 +5211,7 @@ namespace
 	}
 
 
-	void TestExactBoxWorldTimestepStability(float spinLength = 0.0f)
+	void TestExactBoxWorldTimestepStability(float spinLength = 0.0f, float rollingLength = 0.0f)
 	{
 		using namespace GEngine;
 		for (const int rate : { 60, 120 }) {
@@ -4976,6 +5237,7 @@ namespace
 				Expect(input.good() && shapeType == int(ShapeType::Box) && pointsCount == 36,
 					"exact export retains mesh points, creation order, poses, velocities and materials");
 				body->SetSpinResistanceLength(spinLength);
+				body->SetRollingResistanceLength(rollingLength);
 				body->Type = BodyType(type);
 				shapes.push_back(std::make_unique<ShapeBox>(points));
 				body->m_Shape = shapes.back().get();
@@ -7515,6 +7777,9 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--angular-resistance-coupling") { TestCombinedAngularResistanceAnisotropy(); return failureCount ? 1 : 0; }
+		if (argument == "--rolling-resistance") return RunRollingResistanceRegression();
+		if (argument == "--rolling-stability") { TestExactBoxWorldTimestepStability(0.05f,0.05f); return failureCount ? 1 : 0; }
 		if (argument == "--spin-resistance") return RunSpinResistanceRegression();
 		if (argument == "--spin-stability") { TestExactBoxWorldTimestepStability(0.05f); return failureCount ? 1 : 0; }
 		if (argument == "--runtime-transform") return RunRuntimeTransformRegression();
@@ -7677,6 +7942,11 @@ int main(int argc, char** argv)
 	TestContactIslandStorageRebuild();
 	TestContactIslandIdentityLifetime();
 	TestContactIslandSystemLifecycle();
+	TestRollingResistanceRows();
+	TestCombinedAngularResistanceAnisotropy();
+	TestRollingTwoBodiesAndAnisotropy();
+	TestRollingMaterialAndWake();
+	TestRollingPlaneAndAirborne();
 	TestSpinResistanceRows();
 	TestSpinResistanceTwoBodies();
 	TestSpinMaterialAndWake();

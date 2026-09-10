@@ -53,6 +53,10 @@ namespace GEngine
 		std::uint64_t spinResistanceTimeNs{};
 		std::uint64_t spinResistanceSolveCount{};
 		std::uint64_t spinResistanceImpulseCount{};
+		// Enabled rolling rows and nonzero incremental angular impulses; subset of solver time.
+		std::uint64_t rollingResistanceTimeNs{};
+		std::uint64_t rollingResistanceSolveCount{};
+		std::uint64_t rollingResistanceImpulseCount{};
 
 		std::uint64_t gravityTimeNs{};
 		std::uint64_t integratedBodyCount{};

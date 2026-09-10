@@ -78,6 +78,16 @@ namespace GEngine
 			return true;
 		}
 
+		// Effective rolling resistance length (world units): max tangent-plane torque / normal force.
+		// Pair policy is min(A, B); zero on either material disables rolling resistance.
+		float GetRollingResistanceLength() const { return m_RollingResistanceLength; }
+		bool SetRollingResistanceLength(float length)
+		{
+			if (!Math::IsFinite(length) || length < 0.0f) return false;
+			if (length != m_RollingResistanceLength) { m_RollingResistanceLength = length; WakeUp(); }
+			return true;
+		}
+
 		struct SleepSettings
 		{
 			float linearSpeedThreshold{ 0.05f }; // world units / second
@@ -208,6 +218,7 @@ namespace GEngine
 		std::size_t m_ActivationIsland{ static_cast<std::size_t>(-1) };
 
 		float m_SpinResistanceLength{}; // Opt-in material state; mutation goes through the wake API.
+		float m_RollingResistanceLength{};
 
 		friend class PhysicsWorld;
 		friend class PhysicsSystem;

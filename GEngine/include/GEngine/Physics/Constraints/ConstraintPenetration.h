@@ -19,6 +19,8 @@ namespace GEngine
 		void SolveFriction();
 		// Accumulated only within the current step; no cross-step torsional warm start.
 		double GetSpinImpulse() const { return m_SpinImpulse; }
+		// Coordinates in the deterministic world-normal tangent basis, reset each step.
+		glm::dvec2 GetRollingImpulse() const { return m_RollingImpulse; }
 		// One bounded translation pass, after physical integration. Never changes velocities.
 		void PostSolve() override;
 		
@@ -34,6 +36,9 @@ namespace GEngine
 		void SolveSpin();
 		double m_SpinImpulse{};
 		float m_SpinResistanceLength{};
+		void SolveRolling();
+		glm::dvec2 m_RollingImpulse{};
+		float m_RollingResistanceLength{};
 
 	};
 

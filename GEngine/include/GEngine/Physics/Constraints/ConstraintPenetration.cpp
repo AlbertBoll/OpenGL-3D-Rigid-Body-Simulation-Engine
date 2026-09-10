@@ -109,6 +109,11 @@ namespace GEngine
 		m_SpinResistanceLength = dt_sec > 0.0f && Math::IsFinite(dt_sec)
 			? std::min(m_bodyA->GetSpinResistanceLength(), m_bodyB->GetSpinResistanceLength()) : 0.0f;
 
+		// Rolling also starts cold: no cached load, normal, material or dt can leak across steps.
+		m_RollingImpulse = glm::dvec2(0.0);
+		m_RollingResistanceLength = dt_sec > 0.0f && Math::IsFinite(dt_sec)
+			? std::min(m_bodyA->GetRollingResistanceLength(), m_bodyB->GetRollingResistanceLength()) : 0.0f;
+
 		// Get the world space position of the hinge from A's orientation
 		const Vec3f worldAnchorA = m_bodyA->BodySpaceToWorldSpace(m_anchorA);
 
@@ -256,6 +261,7 @@ namespace GEngine
 		const Vec<12> impulses = JacobianTranspose * lambdaN;
 		ApplyImpulses(impulses);
 		SolveSpin();
+		SolveRolling();
 		m_bodyA->AssertFiniteState();
 		m_bodyB->AssertFiniteState();
 	}
@@ -297,6 +303,74 @@ namespace GEngine
 		m_bodyB->ApplyImpulseAngular(impulse);
 		m_SpinImpulse += applied;
 		GE_PHYSICS_PROFILE_ADD(spinResistanceImpulseCount, 1);
+	}
+
+	void ConstraintPenetration::SolveRolling()
+	{
+		if (!(m_RollingResistanceLength > 0.0f)) return;
+		GE_PHYSICS_PROFILE_SCOPE(rollingResistanceTimeNs);
+		GE_PHYSICS_PROFILE_ADD(rollingResistanceSolveCount, 1);
+		const glm::dvec3 axis(m_Jacobian[0][6], m_Jacobian[0][7], m_Jacobian[0][8]);
+		const double length2 = glm::dot(axis, axis);
+		if (!(length2 > 0.0) || !std::isfinite(length2) || !Math::IsFinite(m_CachedLambda[0])) return;
+		const glm::dvec3 normal = axis / std::sqrt(length2);
+		// The least-aligned coordinate axis gives a deterministic, well-conditioned basis.
+		const auto absolute = glm::abs(normal);
+		const glm::dvec3 seed = absolute.x <= absolute.y && absolute.x <= absolute.z
+			? glm::dvec3(1, 0, 0) : (absolute.y <= absolute.z ? glm::dvec3(0, 1, 0) : glm::dvec3(0, 0, 1));
+		const glm::dvec3 u = glm::normalize(glm::cross(normal, seed)), v = glm::cross(normal, u);
+		const Mat3 inverseA = m_bodyA->GetInverseInertiaTensorWorldSpace();
+		const Mat3 inverseB = m_bodyB->GetInverseInertiaTensorWorldSpace();
+		const glm::dmat3 inverse = glm::dmat3(inverseA) + glm::dmat3(inverseB);
+		const double a = glm::dot(u, inverse * u), b = glm::dot(u, inverse * v), c = glm::dot(v, inverse * v);
+		if (!(a > 0.0 && c > 0.0) || !std::isfinite(a) || !std::isfinite(b) || !std::isfinite(c)) return;
+		const glm::dvec3 relative = glm::dvec3(m_bodyB->GetAngularVelocity()) - glm::dvec3(m_bodyA->GetAngularVelocity());
+		const glm::dvec2 velocity(glm::dot(relative, u), glm::dot(relative, v));
+		if (!std::isfinite(velocity.x) || !std::isfinite(velocity.y)) return;
+		// Minimize 1/2 lambda^T K lambda - rhs^T lambda on |lambda| <= ell * lambdaN.
+		// A radial clamp of K^-1 rhs is incorrect for anisotropic angular inertia.
+		const glm::dvec2 rhs(a * m_RollingImpulse.x + b * m_RollingImpulse.y - velocity.x,
+			b * m_RollingImpulse.x + c * m_RollingImpulse.y - velocity.y);
+		const double limit = double(m_RollingResistanceLength) * std::max(0.0f, m_CachedLambda[0]);
+		glm::dvec2 next(0.0);
+		const auto solve = [&](double alpha) {
+			const double scale = std::max({a, c, alpha});
+			const double aa = a / scale + alpha / scale, bb = b / scale, cc = c / scale + alpha / scale;
+			const double determinant = aa * cc - bb * bb;
+			if (!(determinant > 0.0) || !std::isfinite(determinant)) return false;
+			const auto scaled = rhs / scale;
+			next = glm::dvec2(cc * scaled.x - bb * scaled.y, aa * scaled.y - bb * scaled.x) / determinant;
+			return std::isfinite(next.x) && std::isfinite(next.y);
+		};
+		if (limit > 0.0) {
+			if (!solve(0.0)) return;
+			if (std::hypot(next.x, next.y) > limit) {
+				double low = 0.0, high = std::hypot(rhs.x, rhs.y) / limit;
+				if (!std::isfinite(high)) return;
+				// SPD K makes the norm monotone in alpha; high is a feasible upper bound.
+				for (int iteration = 0; iteration < 48; ++iteration) {
+					const double mid = (low + high) * 0.5;
+					if (!solve(mid)) return;
+					if (std::hypot(next.x, next.y) > limit) low = mid;
+					else high = mid;
+				}
+				if (!solve(high)) return;
+			}
+		}
+		const auto delta = next - m_RollingImpulse;
+		const glm::dvec3 candidate = u * delta.x + v * delta.y;
+		const double maximum = std::numeric_limits<float>::max();
+		if (!(std::abs(candidate.x) <= maximum && std::abs(candidate.y) <= maximum && std::abs(candidate.z) <= maximum)) return;
+		const Vec3f impulse(candidate);
+		if (impulse == Vec3f(0.0f)) return;
+		// Check the actual float response transactionally before changing either body.
+		const Vec3f nextA = m_bodyA->m_AngularVelocity - inverseA * impulse;
+		const Vec3f nextB = m_bodyB->m_AngularVelocity + inverseB * impulse;
+		if (!Math::IsFinite(nextA) || !Math::IsFinite(nextB)) return;
+		m_bodyA->ApplyImpulseAngular(-impulse);
+		m_bodyB->ApplyImpulseAngular(impulse);
+		m_RollingImpulse += glm::dvec2(glm::dot(u, glm::dvec3(impulse)), glm::dot(v, glm::dvec3(impulse)));
+		GE_PHYSICS_PROFILE_ADD(rollingResistanceImpulseCount, 1);
 	}
 
 	void ConstraintPenetration::PostSolve()

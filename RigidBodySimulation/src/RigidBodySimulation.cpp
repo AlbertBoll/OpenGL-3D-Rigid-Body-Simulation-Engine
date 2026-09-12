@@ -16,9 +16,10 @@
 #include <Shapes/Cylinder.h>
 
 
-#define activate_boxes_stacking 1
-#define activate_sphere_lattice 0
+#define activate_boxes_stacking 0
+#define activate_sphere_lattice 1
 #define activate_sphere_diamond 0
+#define activate_sphere_boxes_stacking 0
 
 static std::string base_shader_dir = "../GEngine/include/GEngine/Assets/Shaders/";
 static std::string image_base_dir = "../GEngine/include/GEngine/Assets/Images/";
@@ -189,7 +190,7 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	
 	//
 	#if activate_sphere_diamond
-	sphereFixtureComp.Property.m_LinearVelocity = { -60.f, 0.f, 0.f };
+	sphereFixtureComp.Property.m_LinearVelocity = { -80.f, 0.f, 0.f };
 	_Entity woodSphereEntity = m_ActiveScene->CreateEntity("wood_sphere_0");
 	//smoothSphereGeo->AddEntityID(int((entt::entity)woodSphereEntity));
 	woodSphereEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
@@ -213,7 +214,7 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	convexFixtureComp.Property.m_Friction = 0.5f;
 	convexFixtureComp.Property.m_InvMass = 1.f;
 	convexFixtureComp.Property.m_AngularVelocity = { 5.f, 0.f, 5.f };
-	convexFixtureComp.Property.m_LinearVelocity = { 60.f, 0.f, 0.f };
+	convexFixtureComp.Property.m_LinearVelocity = { 80.f, 0.f, 0.f };
 	_Entity DiamondEntity = m_ActiveScene->CreateEntity("Diamond");
 	DiamondEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
 	DiamondEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
@@ -359,6 +360,52 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 		}
 	}
 	#endif
+
+
+	#if activate_sphere_boxes_stacking
+	float offset = 2.f;
+
+	for (int y = 0; y < 4; y++)
+	{
+		for (int x = 0; x < 4; x++)
+		{
+			//float x = i % 2 == 0 ? -0.7f : 0.7f;
+			_Entity woodBoxEntity = m_ActiveScene->CreateEntity("wood_box");
+
+			woodBoxEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
+			woodBoxEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
+			woodBoxEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ x * (offset + 0.01f), 1.5f + y * offset, 0.f }, Vec3f{ 0.f }, Vec3f{ 2.f });
+			//woodBoxEntity.GetComponent<Transform3DComponent>().SetRotation({ Math::Pi / 4.f, 0.f, 0.f });
+			boxFixtureComp.Property.m_Position = woodBoxEntity.GetComponent<Transform3DComponent>().Translation;
+			boxFixtureComp.Property.m_Orientation = woodBoxEntity.GetComponent<Transform3DComponent>().QuatRotation;
+			woodBoxEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
+			woodBoxEntity.AddOrReplaceComponent<BoxFixture3DComponent>(boxFixtureComp);
+			woodBoxEntity.AddOrReplaceComponent<TexturesComponent>(boxTextureComp);
+			woodBoxEntity.AddOrReplaceComponent<MeshComponent>(box);
+			m_ActiveScene->PushToRenderList(woodBoxEntity);
+
+		}
+	}
+
+	sphereFixtureComp.Property.m_LinearVelocity = { 0.f, 0.f, 40.f };
+	_Entity woodSphereEntity = m_ActiveScene->CreateEntity("wood_sphere_0");
+	//smoothSphereGeo->AddEntityID(int((entt::entity)woodSphereEntity));
+	woodSphereEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
+	woodSphereEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
+	woodSphereEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 3.5f, 5.0f, -20.f });
+	//sphereFixtureComp.Radius *= woodSphereEntity.GetComponent<Transform3DComponent>().Scale.x;
+	sphereFixtureComp.Property.m_Position = woodSphereEntity.GetComponent<Transform3DComponent>().Translation;
+	sphereFixtureComp.Property.m_Orientation = woodSphereEntity.GetComponent<Transform3DComponent>().QuatRotation;
+	woodSphereEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
+	woodSphereEntity.AddOrReplaceComponent<SphereFixture3DComponent>(sphereFixtureComp);
+	woodSphereEntity.AddOrReplaceComponent<TexturesComponent>(sphereTextureComp);
+	woodSphereEntity.AddOrReplaceComponent<MeshComponent>(smoothSphereGeo);
+	//woodSphereEntity.AddOrReplaceComponent<DirectionalLightComponent>(dirLightComp);
+	woodSphereEntity.AddOrReplaceComponent<MaterialComponent>(matComp);
+	m_ActiveScene->PushToRenderList(woodSphereEntity);
+	#endif
+
+
 	//m_ActiveScene->PushToRenderList(woodBoxEntity);
 	//m_ActiveScene->PushToRenderList(DiamondEntity);
 	//m_ActiveScene->PushToRenderList(woodSphereEntity);

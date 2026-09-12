@@ -26,3 +26,12 @@ logs/
 **.vcxproj.filters
 **.vcxproj.user
 
+# imgui ini
+**/imgui.ini
+
+# Local Codex / rendering refactor governance files
+/.codex/
+/AGENTS.md
+/MANIFEST.md
+/RENDERING_REFACTOR_PLAN.md
+/docs/rendering/

@@ -180,7 +180,7 @@ namespace GEngine
 			const double accepted = std::min(elapsed, MaxPendingPhysicsSeconds - m_PhysicsTiming.pendingSeconds);
 			m_PhysicsTiming.pendingSeconds += accepted;
 			m_PhysicsTiming.discardedSeconds = elapsed - accepted;
-			const double maxTotal = std::numeric_limits<double>::max();
+			constexpr double maxTotal = std::numeric_limits<double>::max();
 			m_PhysicsTiming.totalDiscardedSeconds += std::min(m_PhysicsTiming.discardedSeconds,
 				maxTotal - m_PhysicsTiming.totalDiscardedSeconds);
 			// Only absorb roundoff at a tick boundary (less than 5e-16 seconds).

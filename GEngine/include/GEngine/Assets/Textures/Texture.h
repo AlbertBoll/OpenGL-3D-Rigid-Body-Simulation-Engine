@@ -31,7 +31,7 @@ namespace GEngine
 
 		struct TextureParam
 		{
-			int m_TexTarget = 0x0DE1;
+			unsigned int m_TexTarget = 0x0DE1;
 			int m_MagFilter = 0x2601;
 			int m_MinFilter = 0x2703;
 			int m_WrapS = 0x2901;

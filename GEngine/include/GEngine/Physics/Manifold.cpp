@@ -508,14 +508,14 @@ namespace GEngine
 
 	void ManifoldCollector::RemoveExpired()
 	{
-		int size = m_Manifolds.size();
 		// Remove expired manifolds
-		for (int i = size - 1; i >= 0; i--) {
-			Manifold& manifold = m_Manifolds[i];
-			m_Manifolds[i].RemoveExpiredContacts();
+		for (auto it = m_Manifolds.end(); it != m_Manifolds.begin();) {
+			--it;
+			Manifold& manifold = *it;
+			manifold.RemoveExpiredContacts();
 
 			if (0 == manifold.m_NumContacts) {
-				m_Manifolds.erase(m_Manifolds.begin() + i);
+				it = m_Manifolds.erase(it);
 			}
 		}
 	}

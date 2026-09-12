@@ -1,4 +1,5 @@
 #include "SceneApp.h"
+#include <cstdint>
 #include "Managers/AssetsManager.h"
 #include "Managers/ShapeManager.h"
 #include "Managers/ShaderManager.h"
@@ -917,9 +918,9 @@ void SceneApp::ImGuiRender()
 
 
 	if(!m_RenderTarget->IsMultiSampled())
-		ImGui::Image(reinterpret_cast<void*>(m_RenderTarget->GetColorAttachmentID()), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
+		ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<std::intptr_t>(m_RenderTarget->GetColorAttachmentID())), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
 	else
-		ImGui::Image(reinterpret_cast<void*>(m_RenderTarget->GetScreenAttachmentID()), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
+		ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<std::intptr_t>(m_RenderTarget->GetScreenAttachmentID())), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
 	
 	auto windowSize = ImGui::GetWindowSize();
 	auto minBound = ImGui::GetWindowPos();

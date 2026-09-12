@@ -18,7 +18,7 @@ namespace GEngine
 {
     using namespace Manager;
 
-    BaseApp::BaseApp(): m_LastFrameTime(0.0f)
+    BaseApp::BaseApp(): m_LastFrameTime(0)
     {
       
     }

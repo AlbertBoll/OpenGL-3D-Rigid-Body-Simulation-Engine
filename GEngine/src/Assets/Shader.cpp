@@ -1,5 +1,8 @@
 #include "gepch.h"
 #include "Assets/Shaders/Shader.h"
+#include <glm/gtc/type_ptr.hpp>
+#include <limits>
+#include <stdexcept>
 
 namespace GEngine::Asset
 {
@@ -505,7 +508,11 @@ namespace GEngine::Asset
 	template<>
 	void Shader::SetUniform<Math::Mat4>(const char* name, const std::vector<Math::Mat4>& data)
 	{
-		glUniformMatrix4fv(GetUniformLocation(name), data.size(), false, (float*)&data[0][0]);
+		if (data.size() > static_cast<size_t>(std::numeric_limits<GLsizei>::max())) {
+			throw std::length_error("Matrix uniform count exceeds GLsizei");
+		}
+		glUniformMatrix4fv(GetUniformLocation(name), static_cast<GLsizei>(data.size()), false,
+			data.empty() ? nullptr : glm::value_ptr(data.front()));
 	}
 	
 	using namespace Math;

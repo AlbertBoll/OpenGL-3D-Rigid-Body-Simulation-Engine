@@ -168,7 +168,8 @@ namespace GEngine
 		inline float BarryCentric(Vec3f p1, Vec3f p2, Vec3f p3, Vec2f pos)
 		{
 			const float det = (p2.z - p3.z) * (p1.x - p3.x) + (p3.x - p2.x) * (p1.z - p3.z);
-			if (!IsFinite(det) || std::fabs(det) <= NumericalEpsilon)
+			// Keep the exact zero precondition explicit, including constant degenerate triangles.
+			if (det == 0.0f || !IsFinite(det) || std::fabs(det) <= NumericalEpsilon)
 			{
 				return IsFinite(p1.y) ? p1.y : 0.0f;
 			}

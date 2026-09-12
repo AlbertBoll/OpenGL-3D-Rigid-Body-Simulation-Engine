@@ -209,8 +209,8 @@ namespace GEngine::Manager
         {
             m_InputState.m_Mouse.m_CurrentButtons =
                 SDL_GetMouseState(&x, &y);
-            m_InputState.m_Mouse.m_MousePos.x = x;
-            m_InputState.m_Mouse.m_MousePos.y = y;
+            m_InputState.m_Mouse.m_MousePos.x = static_cast<float>(x);
+            m_InputState.m_Mouse.m_MousePos.y = static_cast<float>(y);
 
             if (m_SDLWindow->GetSDLWindow())
             {

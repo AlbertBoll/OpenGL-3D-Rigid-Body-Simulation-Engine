@@ -14,7 +14,7 @@ namespace GEngine
 
 	namespace Utils
 	{
-		static void FillRGBAToPixel(uint8_t* data, uint32_t index, const Vec4f& pixelColor)
+		static void FillRGBAToPixel(uint8_t* data, size_t index, const Vec4f& pixelColor)
 		{
 			data[4 * index + 0] = (uint8_t)(pixelColor.r * 255.0f);
 			data[4 * index + 1] = (uint8_t)(pixelColor.g * 255.0f);
@@ -151,7 +151,8 @@ namespace GEngine
 				for (size_t x = r.cols().begin(); x < r.cols().end(); x++)
 				{
 						
-					pixelColor = PerPixel(x, y);
+					// These range indices are bounded by the uint32_t image dimensions.
+					pixelColor = PerPixel(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
 					m_AccumulationData[x + y * width] += pixelColor;
 					Vec4f accumulatedColor = m_AccumulationData[x + y * width] / (float)m_FrameIndex;
 					accumulatedColor = glm::clamp(accumulatedColor, Vec4f(0.f), Vec4f(1.0f));

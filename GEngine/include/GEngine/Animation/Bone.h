@@ -5,6 +5,7 @@
 #include <assimp/anim.h>
 #include <Extras/AssimpGLMHelpers.h>
 #include <Core/Assert.h>
+#include <stdexcept>
 
 namespace GEngine
 {
@@ -92,6 +93,7 @@ namespace GEngine
 			}
 
 			ASSERT(false);
+			throw std::out_of_range("Animation time has no position key interval");
 		}
 
 		int GetRotationIndex(float animationTime)
@@ -103,6 +105,7 @@ namespace GEngine
 			}
 
 			ASSERT(false);
+			throw std::out_of_range("Animation time has no rotation key interval");
 		}
 
 		int GetScaleIndex(float animationTime)
@@ -114,6 +117,7 @@ namespace GEngine
 			}
 
 			ASSERT(false);
+			throw std::out_of_range("Animation time has no scale key interval");
 		}
 
 

@@ -1,7 +1,7 @@
 #pragma once
 #include "Geometry/Geometry.h"
 #include <Physics/ShapeConvex.h>
-#include <Physics/ShapeConvex.cpp>
+#include <Physics/detail/ConvexHull.h>
 
 namespace GEngine::Shape
 {
@@ -25,7 +25,7 @@ namespace GEngine::Shape
 			std::vector< Vec3f > hullPts;
 			std::vector< tri_t > hullTris;
 
-			BuildConvexHull(convex.GetPoints(), hullPts, hullTris);
+			detail::BuildConvexHull(convex.GetPoints(), hullPts, hullTris);
 
 			vertexNormalData.reserve(hullTris.size());
 			positionData.resize(hullPts.size());

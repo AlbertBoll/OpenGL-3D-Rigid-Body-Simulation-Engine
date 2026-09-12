@@ -43,9 +43,8 @@ namespace GEngine
 
 	void Bounds::Expand(const std::vector<Vec3f>& pts)
 	{
-		int size = pts.size();
-		for (int i = 0; i < size; i++) {
-			Expand(pts[i]);
+		for (const Vec3f& point : pts) {
+			Expand(point);
 		}
 	}
 

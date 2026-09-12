@@ -22,7 +22,6 @@ project "glad"
 	{
 		"system:windows"
 	}
-	buildoptions "/MTd"
 	systemversion "latest"
 
 

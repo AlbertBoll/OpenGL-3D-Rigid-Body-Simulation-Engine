@@ -1,3 +1,29 @@
+-- Bundled Premake 5.0.0-beta1 maps C++20 to /std:c++latest for VS2022.
+-- Keep the generated projects on the explicit, supported C++20 baseline.
+if _ACTION == "vs2022" then
+	require("vstudio")
+	premake.override(premake.vstudio.vc2010, "languageStandard", function(base, cfg)
+		if cfg.cppdialect == "C++20" then
+			premake.vstudio.vc2010.element("LanguageStandard", nil, "stdcpp20")
+		else
+			base(cfg)
+		end
+	end)
+	-- This bundled generator predates Premake's external-header APIs. Keep /W3
+	-- for project code, while identifying only vendor/STL roots as external.
+	premake.override(premake.vstudio.vc2010.elements, "clCompile", function(base, cfg)
+		local calls = base(cfg)
+		if cfg.language == "C++" then
+			table.insert(calls, function()
+				premake.vstudio.vc2010.element("ExternalWarningLevel", nil, "TurnOffAllWarnings")
+				-- Retain diagnostics when project code instantiates external templates.
+				premake.vstudio.vc2010.element("ExternalTemplatesDiagnostics", nil, "true")
+			end)
+		end
+		return calls
+	end)
+end
+
 workspace "GEngine"
 	startproject "Breakout"
 	architecture "x64"
@@ -7,6 +33,14 @@ workspace "GEngine"
 		"Debug",
 		"Release"
 	}
+	filter { "action:vs2022", "language:C++" }
+		buildoptions
+		{
+			'/external:I"' .. path.getabsolute("external") .. '"',
+			'/external:I"' .. path.getabsolute("GEngine/include/external") .. '"',
+			'/external:I"$(VCToolsInstallDir)include"'
+		}
+	filter {}
 
 newoption
 {
@@ -100,7 +134,6 @@ project "GEngine"
 
 
 
-	buildoptions "/MTd"
 
 
 	systemversion "lastest"
@@ -222,7 +255,6 @@ project "GEngineEditor"
 		"configurations:*"
 	}
 
-	buildoptions "/MTd"
 
 	systemversion "10.0"
 
@@ -380,7 +412,6 @@ project "Breakout"
 		"configurations:*"
 	}
 
-	buildoptions "/MTd"
 
 	systemversion "10.0"
 
@@ -537,7 +568,6 @@ project "Breakout"
 		"configurations:*"
 	}
 
-	buildoptions "/MTd"
 
 	systemversion "10.0"
 
@@ -699,7 +729,6 @@ project "Breakout"
 		"configurations:*"
 	}
 
-	buildoptions "/MTd"
 
 	systemversion "10.0"
 
@@ -835,7 +864,6 @@ project "PhysicsBenchmark"
 
 	filter "system:windows"
 		systemversion "10.0"
-		buildoptions "/MTd"
 		defines
 		{
 			"GENGINE_PLATFORM_WINDOWS",
@@ -887,7 +915,6 @@ project "PhysicsTests"
 
 	filter "system:windows"
 		systemversion "10.0"
-		buildoptions "/MTd"
 		defines
 		{
 			"GENGINE_PLATFORM_WINDOWS",

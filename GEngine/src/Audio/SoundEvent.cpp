@@ -3,6 +3,7 @@
 #include <fmod/fmod_studio.hpp>
 #include"Audio/AudioSystem.h"
 #include"Math/Matrix.h"
+#include <stdexcept>
 
 
 namespace GEngine::Audio
@@ -79,19 +80,17 @@ namespace GEngine::Audio
 
 	AUDIO_PLAYBACK_STATE SoundEvent::GetPlayState()const
 	{
-		// TODO: insert return statement here
-
-		FMOD_STUDIO_PLAYBACK_STATE state;
 		if (auto event = m_AudioSystem ? m_AudioSystem->GetEventInstance(m_ID) : nullptr; event)
 		{
-			auto it = event->getPlaybackState(&state);
-			if (it == FMOD_RESULT::FMOD_OK)
+			FMOD_STUDIO_PLAYBACK_STATE state;
+			if (event->getPlaybackState(&state) != FMOD_OK)
 			{
-				return (AUDIO_PLAYBACK_STATE)state;
-
+				throw std::runtime_error("FMOD playback state query failed");
 			}
-
+			return static_cast<AUDIO_PLAYBACK_STATE>(state);
 		}
+		// Default handles and events removed after stopping have no active playback.
+		return PLAYBACK_STOPPED;
 	}
 
 	bool SoundEvent::GetPaused() const

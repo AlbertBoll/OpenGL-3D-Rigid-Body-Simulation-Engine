@@ -88,7 +88,7 @@ namespace GEngine
 	{
 		PrimitivesSettings m_PrimitivesSetting;
 		RenderMode m_RenderMode = RenderMode::Arrays;
-		int m_TexTarget = 0x0DE1;
+		unsigned int m_TexTarget = 0x0DE1;
 		DrawMode m_Mode = DrawMode::TRIANGLES;
 		
 	};

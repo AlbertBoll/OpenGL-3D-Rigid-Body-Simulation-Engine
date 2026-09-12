@@ -9,10 +9,24 @@
 #include "Physics/PhysicsBody.h"
 #include "Physics/Shape.h"
 #include <imgui/imgui.h>
+#include <limits>
+#include <stdexcept>
 
 
 namespace GEngine
 {
+	namespace
+	{
+		GLsizei ViewportExtent(float value)
+		{
+			// Legacy GetResolution() exposes integral framebuffer dimensions as floats.
+			if (!std::isfinite(value) || value < 0.0f ||
+				static_cast<double>(value) > std::numeric_limits<GLsizei>::max()) {
+				throw std::out_of_range("Framebuffer extent is not representable as GLsizei");
+			}
+			return static_cast<GLsizei>(value);
+		}
+	}
 	//class _Entity;
 	//using namespace Camera;
 
@@ -501,8 +515,9 @@ namespace GEngine
 		if (BaseApp::GetInputManager()->GetMouseState().isButtonPressed(GEngineMouseCode::GENGINE_BUTTON_LEFT))
 		{
 			auto mousePos = BaseApp::GetInputManager()->GetMouseState().m_MousePos;
-			int x = mousePos.x;
-			int y = m_WindowHeight - mousePos.y;
+			// Retain pixel-coordinate truncation at the integer readback boundary.
+			const int x = static_cast<int>(mousePos.x);
+			const int y = static_cast<int>(m_WindowHeight - mousePos.y);
 			//m_MousePickFrameBuffer->Bind();
 			
 			int pixel_data = fb.ReadPixel(x, y);
@@ -870,7 +885,7 @@ namespace GEngine
 		depth_shader->Bind();
 		fb.Bind();
 		//glBindFramebuffer(GL_FRAMEBUFFER, fb.GetLightFBO());
-		glViewport(0, 0, fb.GetResolution().x, fb.GetResolution().y);
+		glViewport(0, 0, ViewportExtent(fb.GetResolution().x), ViewportExtent(fb.GetResolution().y));
 		glClear(GL_DEPTH_BUFFER_BIT);
 		glCullFace(GL_FRONT);  // peter panning
 		CascadedShadowPreRender(scene);
@@ -883,7 +898,7 @@ namespace GEngine
 	{
 		depth_shader->Bind();
 		fb.Bind();
-		glViewport(0, 0, fb.GetResolution().x, fb.GetResolution().y);
+		glViewport(0, 0, ViewportExtent(fb.GetResolution().x), ViewportExtent(fb.GetResolution().y));
 		glClear(GL_DEPTH_BUFFER_BIT);
 		float aspect = fb.GetResolution().x / fb.GetResolution().y; // Assuming square shadow map for simplicity
 		Mat4 perpective = glm::perspective(glm::radians(90.0f), aspect, near_plane, far_plane);
@@ -897,7 +912,7 @@ namespace GEngine
 	{
 		cascade_shader->Bind();
 		fb.Bind();
-		glViewport(0, 0, fb.GetResolution().x, fb.GetResolution().y);
+		glViewport(0, 0, ViewportExtent(fb.GetResolution().x), ViewportExtent(fb.GetResolution().y));
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		fb.ClearMousePickAttachment(-1); // Clear the color attachment to -1
 		//CascadedShadowSceneRender(scene, camera, shadowCascadeLevels);
@@ -909,7 +924,7 @@ namespace GEngine
 	{
 		mouse_pick_shader->Bind();
 		fb.Bind();
-		glViewport(0, 0, fb.GetResolution().x, fb.GetResolution().y);
+		glViewport(0, 0, ViewportExtent(fb.GetResolution().x), ViewportExtent(fb.GetResolution().y));
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		fb.ClearAttachment(0, -1); // Clear the color attachment to -1
 		//glDisable(GL_DEPTH_TEST);
@@ -927,7 +942,7 @@ namespace GEngine
 	{
 		mouse_pick_shader->Bind();
 		fb.Bind();
-		glViewport(0, 0, fb.GetResolution().x, fb.GetResolution().y);
+		glViewport(0, 0, ViewportExtent(fb.GetResolution().x), ViewportExtent(fb.GetResolution().y));
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		fb.ClearAttachment(0, -1); // Clear the color attachment to -1
 		//glDisable(GL_DEPTH_TEST);
@@ -1041,7 +1056,10 @@ namespace GEngine
 		glEnable(GL_LINE_SMOOTH);
 		glLineWidth(lineSetting.lineWidth);
 		debug_kd_tree_visualizer.m_KDTree->LoadKDTreeVisualizerDynamically(m_Points);
-		ArraysDraw(GL_LINES, m_Points.size());
+		if (m_Points.size() > static_cast<size_t>(std::numeric_limits<GLsizei>::max())) {
+			throw std::length_error("Debug line vertex count exceeds GLsizei");
+		}
+		ArraysDraw(GL_LINES, static_cast<GLsizei>(m_Points.size()));
 	}
 
 	void RenderSystem::PointLightsVisualize(_Scene* scene, const _EditorCamera& camera, Shader* point_light_shader)

@@ -1,5 +1,6 @@
 #include "gepch.h"
 #include "ShapeConvex.h"
+#include "detail/ConvexHull.h"
 
 
 #include <algorithm>
@@ -42,11 +43,11 @@ namespace GEngine
 	FindPointFurthestInDir
 	====================================================
 	*/
-	static int FindPointFurthestInDir(const std::vector<Vec3f>& pts, const Vec3f& dir) {
-		int maxIdx = 0;
-		int size = pts.size();
+	static size_t FindPointFurthestInDir(const std::vector<Vec3f>& pts, const Vec3f& dir) {
+		size_t maxIdx = 0;
+		const size_t size = pts.size();
 		float maxDist = glm::dot(dir, pts[0]);
-		for (int i = 1; i < size; i++) {
+		for (size_t i = 1; i < size; i++) {
 			float dist = glm::dot(dir, pts[i]);
 			if (dist > maxDist) {
 				maxDist = dist;
@@ -373,7 +374,7 @@ namespace GEngine
 		RemoveInternalPoints(hullPoints, hullTris, externalVerts);
 
 		while (externalVerts.size() > 0) {
-			int ptIdx = FindPointFurthestInDir(externalVerts, externalVerts[0]);
+			const auto ptIdx = FindPointFurthestInDir(externalVerts, externalVerts[0]);
 
 			Vec3f pt = externalVerts[ptIdx];
 
@@ -573,7 +574,7 @@ namespace GEngine
 			std::fabs(signedVolumeTimesSix) > volumeTolerance;
 	}
 
-	static bool BuildConvexHull(const std::vector<Vec3f>& verts,
+	bool detail::BuildConvexHull(const std::vector<Vec3f>& verts,
 		std::vector<Vec3f>& hullPts, std::vector<tri_t>& hullTris) {
 		Bounds inputBounds;
 		if (!HasFinitePointSet(verts, inputBounds)) {
@@ -595,7 +596,7 @@ namespace GEngine
 	{
 		std::vector< Vec3f > hullPoints;
 		std::vector< tri_t > hullTriangles;
-		if (!BuildConvexHull(pts, hullPoints, hullTriangles)) {
+		if (!detail::BuildConvexHull(pts, hullPoints, hullTriangles)) {
 			return;
 		}
 

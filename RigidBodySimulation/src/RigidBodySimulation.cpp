@@ -1,4 +1,5 @@
 #include "RigidBodySimulation.h"
+#include <cstdint>
 #include "EntryPoint.h"
 #include "Managers/ShapeManager.h"
 #include "Managers/AssetsManager.h"
@@ -644,7 +645,7 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 			
 				if(p->second->GetScreenWidth() == windowParam.Width && p->second->GetScreenHeight() == windowParam.Height)
 					return;
-				m_EditorCamera_.SetViewportSize(windowParam.Width, windowParam.Height);
+				m_EditorCamera_.SetViewportSize(static_cast<float>(windowParam.Width), static_cast<float>(windowParam.Height));
 				RenderSystem::SetSurfaceSize(windowParam.Width, windowParam.Height);
 				m_MousePickFrameBuffer->OnResize(windowParam.Width, windowParam.Height);
 				m_SDLWindow->OnResize(windowParam.Width, windowParam.Height);
@@ -682,7 +683,8 @@ void RigidBodySimulationApp::Initialize(const WindowProperties& prop)
 
 void RigidBodySimulationApp::Update(Timestep ts)
 {
-	OnViewportResize(m_ViewportSize.x, m_ViewportSize.y);
+	// ImGui reports subpixel extents; retain whole-pixel truncation for framebuffer resize.
+	OnViewportResize(static_cast<int>(m_ViewportSize.x), static_cast<int>(m_ViewportSize.y));
 	//auto entity = m_ActiveScene->FindEntityByName("sphere");
 
 	//auto& relationship = entity.GetComponent<RelationshipComponent>();
@@ -1000,9 +1002,9 @@ void RigidBodySimulationApp::ImGuiRender()
 
 	//ImGui::Image(reinterpret_cast<void*>(m_FinalFrameBuffer->GetColorMap()), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
 	if (!m_RenderTarget->IsMultiSampled())
-		ImGui::Image(reinterpret_cast<void*>(m_RenderTarget->GetColorAttachmentID()), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
+		ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<std::intptr_t>(m_RenderTarget->GetColorAttachmentID())), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
 	else
-		ImGui::Image(reinterpret_cast<void*>(m_RenderTarget->GetScreenAttachmentID()), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
+		ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<std::intptr_t>(m_RenderTarget->GetScreenAttachmentID())), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
 
 	/*m_MousePickFrameBuffer->Bind();
 	RenderSystem::OnMouseClicked(m_ActiveScene.get(), *m_MousePickFrameBuffer, m_ViewportBounds[0], m_ViewportBounds[1]);
@@ -1130,8 +1132,9 @@ void RigidBodySimulationApp::OnMouseClicked()
 	if (GetInputManager()->GetMouseState().isButtonPressed(GEngineMouseCode::GENGINE_BUTTON_LEFT))
 	{
 		auto mousePos = GetInputManager()->GetMouseState().m_MousePos;
-		int x = mousePos.x;
-		int y = m_SDLWindow->GetScreenHeight() - mousePos.y;
+		// Retain pixel-coordinate truncation at the integer readback boundary.
+		const int x = static_cast<int>(mousePos.x);
+		const int y = static_cast<int>(m_SDLWindow->GetScreenHeight() - mousePos.y);
 		//m_MousePickFrameBuffer->Bind();
 		int pixel_data = m_MousePickFrameBuffer->ReadPixel(x, y);
 		std::cout << "Mouse Clicked at: " << x << ", " << y << std::endl;
@@ -1169,7 +1172,7 @@ void RigidBodySimulationApp::OnViewportResize(int viewport_x, int viewport_y)
 		return;
 	//m_ViewportSize = { viewport_x, viewport_y };
 	m_RenderTarget->OnResize(viewport_x, viewport_y);
-	m_EditorCamera_.SetViewportSize(viewport_x, viewport_y);
+	m_EditorCamera_.SetViewportSize(static_cast<float>(viewport_x), static_cast<float>(viewport_y));
 	RenderSystem::SetSurfaceSize(viewport_x, viewport_y);
 	m_MousePickFrameBuffer->OnResize(viewport_x, viewport_y);
 	m_SDLWindow->OnResize(viewport_x, viewport_y);

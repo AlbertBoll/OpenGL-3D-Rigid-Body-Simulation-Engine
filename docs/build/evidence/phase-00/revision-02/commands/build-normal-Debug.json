@@ -1,0 +1,32 @@
+{
+  "name": "build-normal-Debug",
+  "revision": "02",
+  "argv": [
+    "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe",
+    "GEngine.sln",
+    "/m:2",
+    "/nr:false",
+    "/nologo",
+    "/p:Configuration=Debug",
+    "/p:Platform=x64",
+    "/v:diag",
+    "/t:Rebuild"
+  ],
+  "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\" GEngine.sln /m:2 /nr:false /nologo /p:Configuration=Debug /p:Platform=x64 /v:diag /t:Rebuild",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T04:09:43.801184+00:00",
+  "elapsed_seconds": 86.422,
+  "timeout_seconds": 1800,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-02/build-normal-Debug.txt",
+  "raw_sha256": "6230755cef5fe15d36dd03f93b847fbd3ae66fe55bd86882d501e98479a027f2",
+  "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/build-normal-Debug.txt.gz",
+  "compressed_sha256": "984f1571bbd5778a1cfc9135feac7a0814274f26fc27ccedd312234de03415f5",
+  "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+}

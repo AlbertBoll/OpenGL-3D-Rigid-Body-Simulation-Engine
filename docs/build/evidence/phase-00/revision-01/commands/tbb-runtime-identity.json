@@ -1,0 +1,26 @@
+{
+  "name": "tbb-runtime-identity",
+  "revision": "01",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "-c",
+    "\nimport ctypes,json,pathlib,hashlib\np=pathlib.Path(r'C:/dev/GEngine-build/bin-int/build-phase-00-revision-01/tbb-origin/oneapi-tbb-2021.5.0/redist/intel64/vc14/tbb12.dll')\nassert hashlib.sha256(p.read_bytes()).hexdigest()=='3bda7c5458d7f43bcd49f0dead5114eac1ea14f573aafc736f833089b1d2cd79'\ndll=ctypes.CDLL(str(p),winmode=0x1100)\ndll.TBB_runtime_version.restype=ctypes.c_char_p\ndll.TBB_runtime_interface_version.restype=ctypes.c_int\nprint(json.dumps({'path':str(p),'runtime_version':dll.TBB_runtime_version().decode(),'runtime_interface_version':dll.TBB_runtime_interface_version(),'load_flags':'LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32'}))\n"
+  ],
+  "command": "C:\\Python310\\python.exe -c \"\nimport ctypes,json,pathlib,hashlib\np=pathlib.Path(r'C:/dev/GEngine-build/bin-int/build-phase-00-revision-01/tbb-origin/oneapi-tbb-2021.5.0/redist/intel64/vc14/tbb12.dll')\nassert hashlib.sha256(p.read_bytes()).hexdigest()=='3bda7c5458d7f43bcd49f0dead5114eac1ea14f573aafc736f833089b1d2cd79'\ndll=ctypes.CDLL(str(p),winmode=0x1100)\ndll.TBB_runtime_version.restype=ctypes.c_char_p\ndll.TBB_runtime_interface_version.restype=ctypes.c_int\nprint(json.dumps({'path':str(p),'runtime_version':dll.TBB_runtime_version().decode(),'runtime_interface_version':dll.TBB_runtime_interface_version(),'load_flags':'LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32'}))\n\"",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": null,
+  "started_utc": "2026-09-13T03:23:10.773453+00:00",
+  "elapsed_seconds": 0.063,
+  "timeout_seconds": 120,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-01/tbb-runtime-identity.txt",
+  "raw_sha256": "27dfceba403e3caf305042b2cdf84ee47486e4bc7771b483609e8fad9c4209a4",
+  "compressed_log": "docs/build/evidence/phase-00/revision-01/commands/tbb-runtime-identity.txt.gz",
+  "compressed_sha256": "1dd69386923ae94c3b0c100d0dc2c4a02abb2a92934c497225399237e53327fd",
+  "initial_lineage": "86621b4bcbcbd46a79eaacc35de270b0b833b6eda9b1138a503b2b1eeb1f2a70"
+}

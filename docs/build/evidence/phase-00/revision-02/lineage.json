@@ -1,0 +1,30 @@
+{
+  "revision": "02",
+  "entry_sha256": "e15cde199aa60e3a7a67c8cfcb9016fb3d884dd40eb3f275ca3ab4f1948f92bd",
+  "previous_seal_sha256": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e",
+  "previous_review_sha256": "3190187742fdce876547f60077f51d7c19271789126c451520a8d92f61ff5055",
+  "initial_seal_sha256": "86621b4bcbcbd46a79eaacc35de270b0b833b6eda9b1138a503b2b1eeb1f2a70",
+  "authorization": "User REVISE 00 Revision 02: establish roots and minimum fixes B00-VALIDATION-003, B00-RUNTIME-004, B00-RUNTIME-005, B00-VALIDATION-006; accepted TBB unchanged; full acceptance matrix; no checkpoint or Phase 01.",
+  "ownership_receipts": [
+    {
+      "path": ".codex/build/phase-00-revision-02-ownership-01.json",
+      "sha256": "6a0425c842bc40cc421d28643ccb96a6e0be08c476de29d6d6df07de35bad6d9"
+    },
+    {
+      "path": ".codex/build/phase-00-revision-02-ownership-02.json",
+      "sha256": "6b5118fbeaba271f9c1e75dfce9c89b2605176f9e21fbb05eb14c9e565b4f0e7"
+    },
+    {
+      "path": ".codex/build/phase-00-revision-02-ownership-03.json",
+      "sha256": "108155581a3aa5944fd96da96c267757d9c72bfb65004df97ce4c9a71ccd365d"
+    },
+    {
+      "path": ".codex/build/phase-00-revision-02-ownership-04.json",
+      "sha256": "def75395394e2e6c84d0c834737dc5d40a13e0783950a2c1269989898fefea59"
+    },
+    {
+      "path": ".codex/build/phase-00-revision-02-ownership-05.json",
+      "sha256": "b87ea5df8605d09e347f181cbceefe65cca5a7a5a65f3ac0fed3519b4e81a87c"
+    }
+  ]
+}

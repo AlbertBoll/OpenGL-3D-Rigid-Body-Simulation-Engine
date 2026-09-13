@@ -1,0 +1,31 @@
+{
+  "name": "editor-fixed-early-Release",
+  "revision": "03",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py",
+    "_debugger",
+    "editor-fixed-early-Release",
+    "45",
+    "Release"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py _debugger editor-fixed-early-Release 45 Release",
+  "cwd": "C:\\dev\\GEngine-build\\GEngineEditor",
+  "configuration": "Release",
+  "started_utc": "2026-09-13T05:15:50.301859+00:00",
+  "elapsed_seconds": 86.266,
+  "harness_sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928.py",
+  "timeout_seconds": 195.0,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/editor-fixed-early-Release.txt",
+  "raw_sha256": "dbfbc925c6290d924902e0a74dc239ce6a8a1b019d7c538e9db62554e2101024",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/editor-fixed-early-Release.txt.gz",
+  "compressed_sha256": "b7f1e183169425f51d1e5ce729a59ec518f4e82ffec97fe3aa79a8781f7c3d91",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

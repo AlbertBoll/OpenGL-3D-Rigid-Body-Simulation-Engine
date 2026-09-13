@@ -1,0 +1,369 @@
+{
+  "origin_start_utc": "2026-09-13T05:06:11.481225+00:00",
+  "origin_end_utc": "2026-09-13T05:06:17.185225+00:00",
+  "overlapping_recorded_commands": [
+    {
+      "metadata": "docs/build/evidence/phase-00/revision-03/commands/benchmark-Release-normal-steady.json",
+      "metadata_sha256": "603c072a6360f56105f1893fb7a9aea54feb977c9f076f7fa7ff0cc78605506f",
+      "start_offset_seconds": 2.740021,
+      "end_offset_seconds": 2.849021,
+      "record": {
+        "name": "benchmark-Release-normal-steady",
+        "revision": "03",
+        "argv": [
+          "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsBenchmark\\PhysicsBenchmark.exe",
+          "--body-counts=50,100,200,500,1000,2000",
+          "--warmup=2",
+          "--samples=5",
+          "--dt=0.008333333",
+          "--steady-state-warmup-steps=4",
+          "--steady-state-measured-steps=8"
+        ],
+        "command": "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsBenchmark\\PhysicsBenchmark.exe --body-counts=50,100,200,500,1000,2000 --warmup=2 --samples=5 --dt=0.008333333 --steady-state-warmup-steps=4 --steady-state-measured-steps=8",
+        "cwd": "C:\\dev\\GEngine-build",
+        "configuration": "Release",
+        "started_utc": "2026-09-13T05:06:14.221246+00:00",
+        "elapsed_seconds": 0.109,
+        "harness_sha256": "0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee",
+        "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee.py",
+        "timeout_seconds": 1800,
+        "timed_out": false,
+        "exit_code": 0,
+        "result": "PASS",
+        "environment_override": {
+          "PYTHONDONTWRITEBYTECODE": "1"
+        },
+        "raw_log": "bin-int/build-phase-00-revision-03/benchmark-Release-normal-steady.txt",
+        "raw_sha256": "2c280015c9d027a2fd4fc283949f590d90a4b8cf4879624b667ab00af6a9c31f",
+        "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/benchmark-Release-normal-steady.txt.gz",
+        "compressed_sha256": "046d203908a637acbdcedcf6b395c06503758bdfca99b956c6ceeda7fcabb0c0",
+        "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+      }
+    },
+    {
+      "metadata": "docs/build/evidence/phase-00/revision-03/commands/benchmark-Release-normal.json",
+      "metadata_sha256": "10d1bda9932e499339faadd180ebb6759dbd81d1b8cfcfb2a805ad0660ed42ca",
+      "start_offset_seconds": 1.719014,
+      "end_offset_seconds": 2.594014,
+      "record": {
+        "name": "benchmark-Release-normal",
+        "revision": "03",
+        "argv": [
+          "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsBenchmark\\PhysicsBenchmark.exe",
+          "--body-counts=50,100,200,500,1000,2000",
+          "--warmup=2",
+          "--samples=5",
+          "--dt=0.008333333"
+        ],
+        "command": "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsBenchmark\\PhysicsBenchmark.exe --body-counts=50,100,200,500,1000,2000 --warmup=2 --samples=5 --dt=0.008333333",
+        "cwd": "C:\\dev\\GEngine-build",
+        "configuration": "Release",
+        "started_utc": "2026-09-13T05:06:13.200239+00:00",
+        "elapsed_seconds": 0.875,
+        "harness_sha256": "0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee",
+        "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee.py",
+        "timeout_seconds": 1800,
+        "timed_out": false,
+        "exit_code": 0,
+        "result": "PASS",
+        "environment_override": {
+          "PYTHONDONTWRITEBYTECODE": "1"
+        },
+        "raw_log": "bin-int/build-phase-00-revision-03/benchmark-Release-normal.txt",
+        "raw_sha256": "26ff0a8a6450afe93c5414306ffbc12166d77bcaf743257aabc712e09843f665",
+        "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/benchmark-Release-normal.txt.gz",
+        "compressed_sha256": "f22f1651597c8f0d5f8b17e7fe027f1f659a73c453f86206c315b5f4d3a85040",
+        "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+      }
+    },
+    {
+      "metadata": "docs/build/evidence/phase-00/revision-03/commands/build-editor-Debug-final.json",
+      "metadata_sha256": "f5cbc9e73caefcfdddc4b43dbafa74b15545589c707493b6b5c9b929fb5dda44",
+      "start_offset_seconds": 1.940016,
+      "end_offset_seconds": 15.581016,
+      "record": {
+        "name": "build-editor-Debug-final",
+        "revision": "03",
+        "argv": [
+          "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe",
+          "GEngine.sln",
+          "/m:2",
+          "/nr:false",
+          "/nologo",
+          "/p:Configuration=Debug",
+          "/p:Platform=x64",
+          "/v:diag",
+          "/t:GEngineEditor"
+        ],
+        "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\" GEngine.sln /m:2 /nr:false /nologo /p:Configuration=Debug /p:Platform=x64 /v:diag /t:GEngineEditor",
+        "cwd": "C:\\dev\\GEngine-build",
+        "configuration": "Debug",
+        "started_utc": "2026-09-13T05:06:13.421241+00:00",
+        "elapsed_seconds": 13.641,
+        "harness_sha256": "0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee",
+        "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee.py",
+        "timeout_seconds": 1800,
+        "timed_out": false,
+        "exit_code": 0,
+        "result": "PASS",
+        "environment_override": {
+          "PYTHONDONTWRITEBYTECODE": "1"
+        },
+        "raw_log": "bin-int/build-phase-00-revision-03/build-editor-Debug-final.txt",
+        "raw_sha256": "1d05f7d6a8aed7f6bb8eb3f1dae27f72c23ee29efd9287e888de6d76f97cc3f9",
+        "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/build-editor-Debug-final.txt.gz",
+        "compressed_sha256": "8844eb53fb2ca954c5751520d37ac1a349fd3f54719ad83c73b4218fee45585a",
+        "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+      }
+    },
+    {
+      "metadata": "docs/build/evidence/phase-00/revision-03/commands/resources-Debug-Breakout-final.json",
+      "metadata_sha256": "c8300dae24bf1ec5c5b7b86cd11dad826e750b73a6c2c89aea8b5330f51fefaa",
+      "start_offset_seconds": -62.21393,
+      "end_offset_seconds": 0.03607,
+      "record": {
+        "name": "resources-Debug-Breakout-final",
+        "revision": "03",
+        "argv": [
+          "C:\\Python310\\python.exe",
+          "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py",
+          "_resources",
+          "Debug",
+          "Breakout",
+          "resources-Debug-Breakout-final"
+        ],
+        "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py _resources Debug Breakout resources-Debug-Breakout-final",
+        "cwd": "C:\\dev\\GEngine-build\\Breakout",
+        "configuration": "Debug",
+        "started_utc": "2026-09-13T05:05:09.267295+00:00",
+        "elapsed_seconds": 62.25,
+        "harness_sha256": "0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee",
+        "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee.py",
+        "timeout_seconds": 300,
+        "timed_out": false,
+        "exit_code": 0,
+        "result": "PASS",
+        "environment_override": {
+          "PYTHONDONTWRITEBYTECODE": "1"
+        },
+        "raw_log": "bin-int/build-phase-00-revision-03/resources-Debug-Breakout-final.txt",
+        "raw_sha256": "e6e04882f84274a6bf1823a3544ac10953579e8bf3b610dd2846222d425ba730",
+        "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/resources-Debug-Breakout-final.txt.gz",
+        "compressed_sha256": "b1b858bbfcc3bdc3bfa90d394becf0ee0c7207632df5cfde8cb2d6a4d6e0e18f",
+        "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+      }
+    },
+    {
+      "metadata": "docs/build/evidence/phase-00/revision-03/commands/resources-Debug-RigidBodySimulation.json",
+      "metadata_sha256": "34800030ac1a95fee00cb9cd38d39f2ab5615fd1b3b20cf6d7b58dd2acf7a5f8",
+      "start_offset_seconds": -62.088928,
+      "end_offset_seconds": 0.176072,
+      "record": {
+        "name": "resources-Debug-RigidBodySimulation",
+        "revision": "03",
+        "argv": [
+          "C:\\Python310\\python.exe",
+          "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py",
+          "_resources",
+          "Debug",
+          "RigidBodySimulation",
+          "resources-Debug-RigidBodySimulation"
+        ],
+        "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py _resources Debug RigidBodySimulation resources-Debug-RigidBodySimulation",
+        "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+        "configuration": "Debug",
+        "started_utc": "2026-09-13T05:05:09.392297+00:00",
+        "elapsed_seconds": 62.265,
+        "harness_sha256": "0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee",
+        "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee.py",
+        "timeout_seconds": 300,
+        "timed_out": false,
+        "exit_code": 0,
+        "result": "PASS",
+        "environment_override": {
+          "PYTHONDONTWRITEBYTECODE": "1"
+        },
+        "raw_log": "bin-int/build-phase-00-revision-03/resources-Debug-RigidBodySimulation.txt",
+        "raw_sha256": "16b1a0d4a2928a5b22e58830d1f7420be823924c697a4a968696a5fa12890c12",
+        "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/resources-Debug-RigidBodySimulation.txt.gz",
+        "compressed_sha256": "d6300451b1bf950bba6f86dcfb9243531ffa4622f59aff8c8e8c51398932641a",
+        "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+      }
+    },
+    {
+      "metadata": "docs/build/evidence/phase-00/revision-03/commands/startup-Release-Breakout.json",
+      "metadata_sha256": "9e5e0f8dfba22fd883ea93b1ea90b3acc01ea42606440882ee1408148db7a0bb",
+      "start_offset_seconds": 0.219002,
+      "end_offset_seconds": 61.594002,
+      "record": {
+        "name": "startup-Release-Breakout",
+        "revision": "03",
+        "argv": [
+          "C:\\Python310\\python.exe",
+          "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py",
+          "_startup",
+          "Release",
+          "Breakout"
+        ],
+        "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py _startup Release Breakout",
+        "cwd": "C:\\dev\\GEngine-build\\Breakout",
+        "configuration": "Release",
+        "started_utc": "2026-09-13T05:06:11.700227+00:00",
+        "elapsed_seconds": 61.375,
+        "harness_sha256": "0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee",
+        "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee.py",
+        "timeout_seconds": 180,
+        "timed_out": false,
+        "exit_code": 0,
+        "result": "PASS",
+        "environment_override": {
+          "PYTHONDONTWRITEBYTECODE": "1"
+        },
+        "raw_log": "bin-int/build-phase-00-revision-03/startup-Release-Breakout.txt",
+        "raw_sha256": "de1b0c6b69fed34f8ba3632c0e53adaa3edd2c6de8e1190b6f85c6d11e92b9ab",
+        "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/startup-Release-Breakout.txt.gz",
+        "compressed_sha256": "aceac2e9b6527cfc26cd241e5121d1a472bf4d5a694c9e9471f3b93bb3b28812",
+        "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+      }
+    },
+    {
+      "metadata": "docs/build/evidence/phase-00/revision-03/commands/startup-Release-RayTracing.json",
+      "metadata_sha256": "083b9f66094515134df93465e36a43e7ddc1a13584ffad9017bd81539a65add3",
+      "start_offset_seconds": 0.0,
+      "end_offset_seconds": 5.704,
+      "record": {
+        "name": "startup-Release-RayTracing",
+        "revision": "03",
+        "argv": [
+          "C:\\Python310\\python.exe",
+          "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py",
+          "_startup",
+          "Release",
+          "RayTracing"
+        ],
+        "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py _startup Release RayTracing",
+        "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+        "configuration": "Release",
+        "started_utc": "2026-09-13T05:06:11.481225+00:00",
+        "elapsed_seconds": 5.704,
+        "harness_sha256": "0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee",
+        "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee.py",
+        "timeout_seconds": 180,
+        "timed_out": false,
+        "exit_code": 1,
+        "result": "FAIL",
+        "environment_override": {
+          "PYTHONDONTWRITEBYTECODE": "1"
+        },
+        "raw_log": "bin-int/build-phase-00-revision-03/startup-Release-RayTracing.txt",
+        "raw_sha256": "5749750fe228b318cc77d135962ad6d8aaaf35d3943c08f9a02b916f02fe2470",
+        "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/startup-Release-RayTracing.txt.gz",
+        "compressed_sha256": "a547ddd8679ce31a2a347080505cf0608869bf01b678da7e51e9033ad5dd7efe",
+        "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+      }
+    },
+    {
+      "metadata": "docs/build/evidence/phase-00/revision-03/commands/startup-Release-RigidBodySimulation.json",
+      "metadata_sha256": "1214d2d6b3fb315fff35e071176e3f1be78004e6f7f37f0ed4a914f2a708b4e3",
+      "start_offset_seconds": 0.363004,
+      "end_offset_seconds": 60.957004,
+      "record": {
+        "name": "startup-Release-RigidBodySimulation",
+        "revision": "03",
+        "argv": [
+          "C:\\Python310\\python.exe",
+          "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py",
+          "_startup",
+          "Release",
+          "RigidBodySimulation"
+        ],
+        "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py _startup Release RigidBodySimulation",
+        "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+        "configuration": "Release",
+        "started_utc": "2026-09-13T05:06:11.844229+00:00",
+        "elapsed_seconds": 60.594,
+        "harness_sha256": "0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee",
+        "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee.py",
+        "timeout_seconds": 180,
+        "timed_out": false,
+        "exit_code": 0,
+        "result": "PASS",
+        "environment_override": {
+          "PYTHONDONTWRITEBYTECODE": "1"
+        },
+        "raw_log": "bin-int/build-phase-00-revision-03/startup-Release-RigidBodySimulation.txt",
+        "raw_sha256": "aa82ee28f98056301b80c8a7057da7be219ea6713257033694bf62cba7e4417a",
+        "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/startup-Release-RigidBodySimulation.txt.gz",
+        "compressed_sha256": "528a85dc9114fed9a695d17f6cc639f91e8cdfb5e529c24e9b1144c099e212e2",
+        "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+      }
+    },
+    {
+      "metadata": "docs/build/evidence/phase-00/revision-03/commands/tests-Release-absolute-scaling.json",
+      "metadata_sha256": "c7d05cd1e6dfd9bd3ed7757011edf1a3d20148ede0ac5be0bd6fd0ed291a82d7",
+      "start_offset_seconds": -13.924854,
+      "end_offset_seconds": 1.231146,
+      "record": {
+        "name": "tests-Release-absolute-scaling",
+        "revision": "03",
+        "argv": [
+          "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsTests\\PhysicsTests.exe",
+          "--absolute-scaling"
+        ],
+        "command": "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsTests\\PhysicsTests.exe --absolute-scaling",
+        "cwd": "C:\\dev\\GEngine-build",
+        "configuration": "Release",
+        "started_utc": "2026-09-13T05:05:57.556371+00:00",
+        "elapsed_seconds": 15.156,
+        "harness_sha256": "0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee",
+        "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee.py",
+        "timeout_seconds": 600,
+        "timed_out": false,
+        "exit_code": 0,
+        "result": "PASS",
+        "environment_override": {
+          "PYTHONDONTWRITEBYTECODE": "1"
+        },
+        "raw_log": "bin-int/build-phase-00-revision-03/tests-Release-absolute-scaling.txt",
+        "raw_sha256": "00e8d57f4b2b1c82aba8af6882c396e97cae0c9c96fbd300fafda95a425282ac",
+        "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/tests-Release-absolute-scaling.txt.gz",
+        "compressed_sha256": "95f9bceeb56d48fd9965ade60735dcebd7d13d6eb2b44b3d382095446d7a243d",
+        "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+      }
+    },
+    {
+      "metadata": "docs/build/evidence/phase-00/revision-03/commands/tests-Release-box-manifolds.json",
+      "metadata_sha256": "121187b1895306300c1a027b95bd3506dc918793ed525ff43bf90ffba50671f2",
+      "start_offset_seconds": 1.441013,
+      "end_offset_seconds": 1.519013,
+      "record": {
+        "name": "tests-Release-box-manifolds",
+        "revision": "03",
+        "argv": [
+          "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsTests\\PhysicsTests.exe",
+          "--box-manifolds"
+        ],
+        "command": "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsTests\\PhysicsTests.exe --box-manifolds",
+        "cwd": "C:\\dev\\GEngine-build",
+        "configuration": "Release",
+        "started_utc": "2026-09-13T05:06:12.922238+00:00",
+        "elapsed_seconds": 0.078,
+        "harness_sha256": "0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee",
+        "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee.py",
+        "timeout_seconds": 600,
+        "timed_out": false,
+        "exit_code": 0,
+        "result": "PASS",
+        "environment_override": {
+          "PYTHONDONTWRITEBYTECODE": "1"
+        },
+        "raw_log": "bin-int/build-phase-00-revision-03/tests-Release-box-manifolds.txt",
+        "raw_sha256": "05b50369237d6e335d14a1272b2a4f0c08682d66478745c2effda10b16359add",
+        "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/tests-Release-box-manifolds.txt.gz",
+        "compressed_sha256": "0bad4a173ec1b658e2e2babffc35ec0ec321529abfa24f55141d92ff72723422",
+        "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+      }
+    }
+  ],
+  "limits": "Command intervals include harness overhead; process creation/termination at subsecond resolution and full historical environment/system GPU occupancy were not recorded. Do not equate requested offsets with identical scheduler state."
+}

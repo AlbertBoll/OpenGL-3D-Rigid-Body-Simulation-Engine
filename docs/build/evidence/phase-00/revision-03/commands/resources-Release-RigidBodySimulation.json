@@ -1,0 +1,31 @@
+{
+  "name": "resources-Release-RigidBodySimulation",
+  "revision": "03",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py",
+    "_resources",
+    "Release",
+    "RigidBodySimulation",
+    "resources-Release-RigidBodySimulation"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py _resources Release RigidBodySimulation resources-Release-RigidBodySimulation",
+  "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+  "configuration": "Release",
+  "started_utc": "2026-09-13T05:07:12.576720+00:00",
+  "elapsed_seconds": 61.969,
+  "harness_sha256": "6c7a1af68a08b8b5e3d8ef34a239d4371491d8ff2ef8bd6efb4645cb26373bee",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-6c7a1af68a08b8b5e3d8ef34a239d4371491d8ff2ef8bd6efb4645cb26373bee.py",
+  "timeout_seconds": 300,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/resources-Release-RigidBodySimulation.txt",
+  "raw_sha256": "b2e90261ffd266bbc194bea337fcb6b93aa99f89a01dbe930e2f30add6f89432",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/resources-Release-RigidBodySimulation.txt.gz",
+  "compressed_sha256": "ce6bd568573b9aada7b1e3ba0b5012a34fb0072c662c7692cb6b1537ec97c367",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

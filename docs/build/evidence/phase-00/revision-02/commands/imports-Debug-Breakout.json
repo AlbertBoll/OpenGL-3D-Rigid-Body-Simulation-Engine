@@ -1,0 +1,26 @@
+{
+  "name": "imports-Debug-Breakout",
+  "revision": "02",
+  "argv": [
+    "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+    "/imports",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\Breakout\\Breakout.exe"
+  ],
+  "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /imports C:\\dev\\GEngine-build\\bin\\Debug\\Breakout\\Breakout.exe",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T04:15:06.005495+00:00",
+  "elapsed_seconds": 0.016,
+  "timeout_seconds": 120,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-02/imports-Debug-Breakout.txt",
+  "raw_sha256": "730a5a064a7a947593dfe63457e1ff41943136d39022b84e7c422933ed0bb9c4",
+  "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/imports-Debug-Breakout.txt.gz",
+  "compressed_sha256": "c0e3c8f0fee25bb044a1773f72415e2dcfa1bd62c9645d96bf056b9b1e2c6ae4",
+  "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+}

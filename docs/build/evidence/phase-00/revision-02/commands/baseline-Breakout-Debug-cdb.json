@@ -1,0 +1,27 @@
+{
+  "name": "baseline-Breakout-Debug-cdb",
+  "revision": "02",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py",
+    "_debugger",
+    "Breakout"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py _debugger Breakout",
+  "cwd": "C:\\dev\\GEngine-build\\Breakout",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T04:05:13.971705+00:00",
+  "elapsed_seconds": 46.39,
+  "timeout_seconds": 210,
+  "timed_out": false,
+  "exit_code": 1,
+  "result": "FAIL",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-02/baseline-Breakout-Debug-cdb.txt",
+  "raw_sha256": "3d3065d3c7c1bfd0689a784d798b04d4c2ab731a585ad098a0e57bbb0c59b645",
+  "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/baseline-Breakout-Debug-cdb.txt.gz",
+  "compressed_sha256": "2667b09383ec32ffe1d0c2a51179741033b73a60a2c49e1f94391e7ad39161ec",
+  "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+}

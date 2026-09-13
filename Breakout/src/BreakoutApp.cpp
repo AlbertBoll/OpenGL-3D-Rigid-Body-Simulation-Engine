@@ -60,9 +60,7 @@ namespace GEngine
 
 	BreakoutApp::~BreakoutApp()
 	{
-		Manager::AssetsManager::FreeAllResources();
-		Manager::ShaderManager::FreeShader();
-		Manager::ShapeManager::FreeShape();
+		// BaseApp releases the shared asset, shader, and shape managers after this destructor.
 
 		if (m_Background) delete m_Background;
 		if (m_Player) delete m_Player;

@@ -1,0 +1,28 @@
+{
+  "name": "premake-profile",
+  "revision": "03",
+  "argv": [
+    "C:\\dev\\GEngine-build\\vendor\\bin\\premake\\premake5.exe",
+    "--physics-profiling",
+    "vs2022"
+  ],
+  "command": "C:\\dev\\GEngine-build\\vendor\\bin\\premake\\premake5.exe --physics-profiling vs2022",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": null,
+  "started_utc": "2026-09-13T04:53:18.395382+00:00",
+  "elapsed_seconds": 0.39,
+  "harness_sha256": "8e057666e57886516c574d06c2ea06623275830ed2adec931fb4190c2dd7ecee",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-8e057666e57886516c574d06c2ea06623275830ed2adec931fb4190c2dd7ecee.py",
+  "timeout_seconds": 120,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/premake-profile.txt",
+  "raw_sha256": "6786b18190d3d79cd1b7bec419605226f97a530964e9989f5a67459cce1fb066",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/premake-profile.txt.gz",
+  "compressed_sha256": "d30c04643f9d3d259c1d40fde349eeb9e67cd8921f561a2a8a827a77442ba98b",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

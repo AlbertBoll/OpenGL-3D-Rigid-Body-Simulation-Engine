@@ -1,0 +1,25 @@
+{
+  "name": "tests-Release-solver-storage",
+  "revision": "01",
+  "argv": [
+    "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsTests\\PhysicsTests.exe",
+    "--solver-storage"
+  ],
+  "command": "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsTests\\PhysicsTests.exe --solver-storage",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Release",
+  "started_utc": "2026-09-13T03:30:21.446945+00:00",
+  "elapsed_seconds": 0.0,
+  "timeout_seconds": 300,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-01/tests-Release-solver-storage.txt",
+  "raw_sha256": "f9f410ad80657fad045cb31a07e484b94d6eb606966d632155232218b2f1c1d4",
+  "compressed_log": "docs/build/evidence/phase-00/revision-01/commands/tests-Release-solver-storage.txt.gz",
+  "compressed_sha256": "9d619dc09bc8c54cb944089a74a194f7affb5ffcbae6af64aedc7eb69abbd544",
+  "initial_lineage": "86621b4bcbcbd46a79eaacc35de270b0b833b6eda9b1138a503b2b1eeb1f2a70"
+}

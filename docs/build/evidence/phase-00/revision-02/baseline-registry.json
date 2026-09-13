@@ -1,0 +1,24 @@
+{
+  "initial": {
+    "B00-RUNTIME-001": "Historical missing TBB; resolved by accepted Revision 01, unchanged",
+    "B00-VALIDATION-002": "Historical 120-second timeout remains INCOMPLETE, never a Physics failure"
+  },
+  "revision_01": {
+    "B00-VALIDATION-003": "Corrected conditional telemetry expectation; full normal Debug/Release tests PASS; profiling validation remains pending",
+    "B00-RUNTIME-004": "Corrected explicit relative path contract; Debug Breakout no fallback warnings; Release validation pending",
+    "B00-RUNTIME-005": "Corrected duplicate Breakout shared-manager cleanup after live stack capture; Debug normal close PASS; Release pending",
+    "B00-VALIDATION-006": "Corrected benchmark logger initialization after live null-logger stack capture; Debug/Release normal fixed-input benchmark PASS"
+  },
+  "new_blocker": {
+    "id": "B00-RUNTIME-007",
+    "target": "GEngineEditor Debug",
+    "result": "BLOCKED / additional source scope required",
+    "signature": "Late normal close causes 0xc0000005, freed-heap pointer, Texture destructor -> AssetsManager -> BaseApp destructor -> SceneApp destructor",
+    "evidence": "commands/new-blocker-Editor-Debug-cdb.txt.gz",
+    "cause": "SceneApp.cpp:42-44 duplicates shared manager cleanup already performed by BaseApp; Editor is an additional unchanged caller outside the four authorized fixes",
+    "related_cause": "Same deletion pattern as Breakout B00-RUNTIME-005; separate caller and acceptance failure, not silently adopted into its repair",
+    "additional_observation": "Earlier 45-second close probe ended 0x80000003 with Framebuffer status error. Later no-close startup stayed alive until a separately captured close at ~153 seconds, then produced the independent shutdown AV. The early-close framebuffer assertion location/root is not established or waived.",
+    "smallest_proposed_scope": "Explicitly authorize Editor shutdown correctness for duplicate shared cleanup plus investigation of the early-close framebuffer assertion, preserve all rendering behavior/resources/dependencies/toolchain/graph, then resume the complete acceptance matrix."
+  },
+  "final_acceptance": "BLOCKED; no failed or missing mandatory gate waived"
+}

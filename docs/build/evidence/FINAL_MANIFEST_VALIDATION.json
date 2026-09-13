@@ -1,0 +1,632 @@
+{
+  "kind": "FINAL_MANIFEST_STRUCTURAL_VALIDATION",
+  "result": "PASS",
+  "source_package": "MANIFEST (2).zip",
+  "roadmap_revision": {
+    "description": "Split original combined Assimp/oneTBB dependency phase into separate checkpoints.",
+    "phase_count": 45,
+    "range": "00-44",
+    "phase_07": "Integrate the Assimp package",
+    "phase_08": "Integrate the oneTBB package",
+    "renumbered_original_range": "08-43 -> 09-44",
+    "production_migration_performed": false,
+    "git_commit_tag_push_performed": false
+  },
+  "contracts": [
+    {
+      "phase": "00",
+      "title": "Capture the current Premake reference",
+      "kind": "REFERENCE PREPARATION",
+      "immediate_predecessor": "source tag",
+      "technical_prerequisites": [],
+      "sha256": "d61e196582aff4d667b284b5eacce0f614ab7f13b7afff4f8c1dd5dc1a79cce5"
+    },
+    {
+      "phase": "01",
+      "title": "Resolve dependency provenance and pin decisions",
+      "kind": "DEPENDENCY PREPARATION",
+      "immediate_predecessor": "build-phase-00-approved",
+      "technical_prerequisites": [
+        "00"
+      ],
+      "sha256": "d907d4d90c36e940c4f5590a64f8839d31a15fa522a842d1d78ef1bf634e9ad4"
+    },
+    {
+      "phase": "02",
+      "title": "Freeze source ownership and comparison tooling",
+      "kind": "OWNERSHIP PREPARATION",
+      "immediate_predecessor": "build-phase-01-approved",
+      "technical_prerequisites": [
+        "00",
+        "01"
+      ],
+      "sha256": "84b13e0ec716a726b9207436ca10d268e41ca83ce26e1aaf53faa6de60b245f5"
+    },
+    {
+      "phase": "03",
+      "title": "Introduce the CMake foundation and MSVC policies",
+      "kind": "BUILD FOUNDATION",
+      "immediate_predecessor": "build-phase-02-approved",
+      "technical_prerequisites": [
+        "01",
+        "02"
+      ],
+      "sha256": "0a2c8d79722c413cbb40b8c62ce7176710dd8b8d90fdb4ad17bdfafc97bf7c41"
+    },
+    {
+      "phase": "04",
+      "title": "Add Conan profiles and foundation packages",
+      "kind": "DEPENDENCY INTEGRATION",
+      "immediate_predecessor": "build-phase-03-approved",
+      "technical_prerequisites": [
+        "01",
+        "03"
+      ],
+      "sha256": "e77022c23677eeb9146904bb570d99813a65ef14898c2fe92c0b7364cf8cf030"
+    },
+    {
+      "phase": "05",
+      "title": "Isolate the vendored implementation targets",
+      "kind": "VENDOR / PCH BOUNDARY PREPARATION",
+      "immediate_predecessor": "build-phase-04-approved",
+      "technical_prerequisites": [
+        "02",
+        "03",
+        "04"
+      ],
+      "sha256": "eea04a5f048782019aa00f6c49133c895861807f6c1dbb7c2e620f1cf6d5c43c"
+    },
+    {
+      "phase": "06",
+      "title": "Integrate SDL2 and text-rendering packages",
+      "kind": "DEPENDENCY INTEGRATION",
+      "immediate_predecessor": "build-phase-05-approved",
+      "technical_prerequisites": [
+        "01",
+        "04",
+        "05"
+      ],
+      "sha256": "0d65d34590eb8c6f965ff1adf8dd3f52c766c091d82eb5c9373083f6aa16296a"
+    },
+    {
+      "phase": "07",
+      "title": "Integrate the Assimp package",
+      "kind": "DEPENDENCY INTEGRATION",
+      "immediate_predecessor": "build-phase-06-approved",
+      "technical_prerequisites": [
+        "01",
+        "04"
+      ],
+      "sha256": "4b7cb0788a122e36fdcb0040d288bc4d2b5ea160cb637f2b2eb94e9ee4e81449"
+    },
+    {
+      "phase": "08",
+      "title": "Integrate the oneTBB package",
+      "kind": "DEPENDENCY INTEGRATION",
+      "immediate_predecessor": "build-phase-07-approved",
+      "technical_prerequisites": [
+        "01",
+        "04"
+      ],
+      "sha256": "76a4941e77e72a69b449610c8ac3a5d365d0ff67f8d8ce7684a65420222d7718"
+    },
+    {
+      "phase": "09",
+      "title": "Model the local FMOD SDK with imported targets",
+      "kind": "SDK INTEGRATION",
+      "immediate_predecessor": "build-phase-08-approved",
+      "technical_prerequisites": [
+        "01",
+        "03"
+      ],
+      "sha256": "eac62f1736db784fb4f5cd971a181f443bec4105432b487fcaf589d5f2ce0ee6"
+    },
+    {
+      "phase": "10",
+      "title": "Extract the Core foundation target",
+      "kind": "MODULE EXTRACTION",
+      "immediate_predecessor": "build-phase-09-approved",
+      "technical_prerequisites": [
+        "02",
+        "04",
+        "05"
+      ],
+      "sha256": "27b2aae4de3a25ba997a361913d6c60a920dd6ec1e51ac786cc7ce79e9534f95"
+    },
+    {
+      "phase": "11",
+      "title": "Extract Math and neutral bounds",
+      "kind": "MODULE EXTRACTION / VALUE BOUNDARY PREPARATION",
+      "immediate_predecessor": "build-phase-10-approved",
+      "technical_prerequisites": [
+        "10"
+      ],
+      "sha256": "ddfd8ef34da1aeae590f35137aff488d0e58b3d8c17d62e1ccb916ad5da6978a"
+    },
+    {
+      "phase": "12",
+      "title": "Extract Events and shared input value declarations",
+      "kind": "MODULE EXTRACTION",
+      "immediate_predecessor": "build-phase-11-approved",
+      "technical_prerequisites": [
+        "10",
+        "11"
+      ],
+      "sha256": "5789137c6fa31f65b499ebb03dc0a362421cde227ed48fd6f396281711360800"
+    },
+    {
+      "phase": "13",
+      "title": "Remove Physics header and PCH dependence on scene components",
+      "kind": "CYCLE / BOUNDARY PREPARATION",
+      "immediate_predecessor": "build-phase-12-approved",
+      "technical_prerequisites": [
+        "11",
+        "12"
+      ],
+      "sha256": "320fb2ee5636975ec50be708949a088d30826d9db35ffe198010215c9bfaa21c"
+    },
+    {
+      "phase": "14",
+      "title": "Extract the Physics kernel target",
+      "kind": "MODULE EXTRACTION",
+      "immediate_predecessor": "build-phase-13-approved",
+      "technical_prerequisites": [
+        "13"
+      ],
+      "sha256": "10e621b207017409f136b10cd3800187af5ffc5140311c1ebfd389c5591483a1"
+    },
+    {
+      "phase": "15",
+      "title": "Prepare the Graphics and Assets ownership boundary",
+      "kind": "CYCLE / BOUNDARY PREPARATION",
+      "immediate_predecessor": "build-phase-14-approved",
+      "technical_prerequisites": [
+        "06",
+        "11",
+        "14"
+      ],
+      "sha256": "f54c8eaddf5b01da8f2dcd2e13acbad6b018665dda2eaad3e3e9ad9d08df9877"
+    },
+    {
+      "phase": "16",
+      "title": "Extract the Graphics target",
+      "kind": "MODULE EXTRACTION",
+      "immediate_predecessor": "build-phase-15-approved",
+      "technical_prerequisites": [
+        "15"
+      ],
+      "sha256": "b824be7b21ad0c53931eca81eb682b8af49ef27edfc984e9d5b0e64013c3d4c1"
+    },
+    {
+      "phase": "17",
+      "title": "Extract procedural Geometry",
+      "kind": "MODULE EXTRACTION",
+      "immediate_predecessor": "build-phase-16-approved",
+      "technical_prerequisites": [
+        "16"
+      ],
+      "sha256": "a1f5a463a0de1a595f2fe47c73adeede23d530e21cfbd6721658dab8126545d6"
+    },
+    {
+      "phase": "18",
+      "title": "Extract image and model Assets",
+      "kind": "MODULE EXTRACTION",
+      "immediate_predecessor": "build-phase-17-approved",
+      "technical_prerequisites": [
+        "07",
+        "17"
+      ],
+      "sha256": "3d7e406d332e4f39c5eda2bab955b0604853529eacc3e35645c5e0ac1c0104a5"
+    },
+    {
+      "phase": "19",
+      "title": "Extract Animation and its import boundary",
+      "kind": "MODULE EXTRACTION / BOUNDARY CHECK",
+      "immediate_predecessor": "build-phase-18-approved",
+      "technical_prerequisites": [
+        "07",
+        "17",
+        "18"
+      ],
+      "sha256": "9cd81f99cb883bc617661a5d99b67543fc6da0cf3e97438ef0a1a819c88911d9"
+    },
+    {
+      "phase": "20",
+      "title": "Prepare the one-way Scene to Physics integration",
+      "kind": "CYCLE / BOUNDARY PREPARATION",
+      "immediate_predecessor": "build-phase-19-approved",
+      "technical_prerequisites": [
+        "14",
+        "17",
+        "19"
+      ],
+      "sha256": "211160dfc5ca68506a89cda8496cce705f5d86a5cbd686b9841c6552416e35ca"
+    },
+    {
+      "phase": "21",
+      "title": "Separate ECS components from Render statistics and helpers",
+      "kind": "CYCLE / BOUNDARY PREPARATION",
+      "immediate_predecessor": "build-phase-20-approved",
+      "technical_prerequisites": [
+        "20"
+      ],
+      "sha256": "759f02f5aec438fd86f60a49af90042720193aad3037ca64267c33272e8d5515"
+    },
+    {
+      "phase": "22",
+      "title": "Extract the ECS Scene target",
+      "kind": "MODULE EXTRACTION",
+      "immediate_predecessor": "build-phase-21-approved",
+      "technical_prerequisites": [
+        "21"
+      ],
+      "sha256": "7432b14a07b38af1cd6fb9894dc0c4ab85160f871be4a75818cf3b232c54cd98"
+    },
+    {
+      "phase": "23",
+      "title": "Remove Input and event dispatch dependence on BaseApp",
+      "kind": "CYCLE / BOUNDARY PREPARATION",
+      "immediate_predecessor": "build-phase-22-approved",
+      "technical_prerequisites": [
+        "12",
+        "22"
+      ],
+      "sha256": "f1947e1293e4d58412850f68a916cf6a47e7506e5fc22ea0e4ff0bfa36cc819b"
+    },
+    {
+      "phase": "24",
+      "title": "Invert the Platform and UI lifecycle boundary",
+      "kind": "CYCLE / BOUNDARY PREPARATION",
+      "immediate_predecessor": "build-phase-23-approved",
+      "technical_prerequisites": [
+        "15",
+        "23"
+      ],
+      "sha256": "32e0c9eb577e62c122ad7f2be0985f6b23605d525f89e9d8083d0351730d56e0"
+    },
+    {
+      "phase": "25",
+      "title": "Extract Platform window and context services",
+      "kind": "MODULE EXTRACTION",
+      "immediate_predecessor": "build-phase-24-approved",
+      "technical_prerequisites": [
+        "24"
+      ],
+      "sha256": "2fd4071a8bb5c32435455b5865c3040e436b3d3073314a056e8a66be1fe1aec3"
+    },
+    {
+      "phase": "26",
+      "title": "Extract Input services",
+      "kind": "MODULE EXTRACTION",
+      "immediate_predecessor": "build-phase-25-approved",
+      "technical_prerequisites": [
+        "25"
+      ],
+      "sha256": "c5fb04ab533d4841c382ab3065d00f375bdc0d82e3490230ce4a0a5553976b29"
+    },
+    {
+      "phase": "27",
+      "title": "Extract Audio with FMOD ownership",
+      "kind": "MODULE EXTRACTION",
+      "immediate_predecessor": "build-phase-26-approved",
+      "technical_prerequisites": [
+        "09",
+        "10"
+      ],
+      "sha256": "b8d2de0dec6ca9f1ffa638e5407e5230a43ebf3896bf83037046c1cfcd056f1e"
+    },
+    {
+      "phase": "28",
+      "title": "Extract UI and its backend integration",
+      "kind": "MODULE EXTRACTION",
+      "immediate_predecessor": "build-phase-27-approved",
+      "technical_prerequisites": [
+        "05",
+        "16",
+        "25"
+      ],
+      "sha256": "9e124c5d34864f3f2637e1f1763f5e93ed5515e19d45b0b6349334b2acfbc94e"
+    },
+    {
+      "phase": "29",
+      "title": "Remove Render dependence on Application services",
+      "kind": "CYCLE / BOUNDARY PREPARATION",
+      "immediate_predecessor": "build-phase-28-approved",
+      "technical_prerequisites": [
+        "22",
+        "26",
+        "28"
+      ],
+      "sha256": "4a0fab71aa51374d9d94a52a6613d64d251c03241b959ea96f87ab9ed1252dc4"
+    },
+    {
+      "phase": "30",
+      "title": "Extract the Render target",
+      "kind": "MODULE EXTRACTION",
+      "immediate_predecessor": "build-phase-29-approved",
+      "technical_prerequisites": [
+        "08",
+        "29"
+      ],
+      "sha256": "392d74217c8f7b6691cdf1c6a501cf2225b8efa26a052ef6804b6d98e2c711d7"
+    },
+    {
+      "phase": "31",
+      "title": "Extract Application composition",
+      "kind": "MODULE EXTRACTION",
+      "immediate_predecessor": "build-phase-30-approved",
+      "technical_prerequisites": [
+        "30"
+      ],
+      "sha256": "a613a5facfefa8566ee6a1506a258c4438fcd685f2d775a4d474939e48194808"
+    },
+    {
+      "phase": "32",
+      "title": "Migrate the PhysicsBenchmark target closure",
+      "kind": "CONSUMER MIGRATION",
+      "immediate_predecessor": "build-phase-31-approved",
+      "technical_prerequisites": [
+        "14",
+        "31"
+      ],
+      "sha256": "2cc4757e72ee1ae19640f3810ea528eb4548fda3cce1c608bc7a02af48ded166"
+    },
+    {
+      "phase": "33",
+      "title": "Migrate PhysicsTests while preserving scene coverage",
+      "kind": "CONSUMER MIGRATION",
+      "immediate_predecessor": "build-phase-32-approved",
+      "technical_prerequisites": [
+        "22",
+        "32"
+      ],
+      "sha256": "0be8617fbd6e8f5d65aca048c3d8f7cd6808dc8fdbc649625759c718b9dc6dc3"
+    },
+    {
+      "phase": "34",
+      "title": "Add verified runtime DLL staging",
+      "kind": "RUNTIME SAFEGUARD",
+      "immediate_predecessor": "build-phase-33-approved",
+      "technical_prerequisites": [
+        "06",
+        "07",
+        "08",
+        "09",
+        "31",
+        "33"
+      ],
+      "sha256": "6ce9a82e357386f1cf5326ece365d05225976cba80379d7ed2ff38a2e10c377d"
+    },
+    {
+      "phase": "35",
+      "title": "Stage resources and declare application working directories",
+      "kind": "RESOURCE / CWD SAFEGUARD",
+      "immediate_predecessor": "build-phase-34-approved",
+      "technical_prerequisites": [
+        "34"
+      ],
+      "sha256": "788c39988af75699728a0b4769847c8ce2c9c7084d71864a8399ae8bc1890f85"
+    },
+    {
+      "phase": "36",
+      "title": "Migrate GEngineEditor",
+      "kind": "APPLICATION MIGRATION",
+      "immediate_predecessor": "build-phase-35-approved",
+      "technical_prerequisites": [
+        "31",
+        "35"
+      ],
+      "sha256": "f6c6ed9b273a9c21049d205209ae28181de00d37c0c0559fbed4a78e80d24d5b"
+    },
+    {
+      "phase": "37",
+      "title": "Migrate RigidBodySimulation",
+      "kind": "APPLICATION MIGRATION",
+      "immediate_predecessor": "build-phase-36-approved",
+      "technical_prerequisites": [
+        "36"
+      ],
+      "sha256": "d255468064e4fa1a57f1fc350c1443bafc990ff950fc449dc1da316e66c61700"
+    },
+    {
+      "phase": "38",
+      "title": "Migrate Breakout",
+      "kind": "APPLICATION MIGRATION",
+      "immediate_predecessor": "build-phase-37-approved",
+      "technical_prerequisites": [
+        "37"
+      ],
+      "sha256": "e6095cd9f003f57a32583258f33697b68510cbff0b80b288fb7124f791e3404c"
+    },
+    {
+      "phase": "39",
+      "title": "Migrate RayTracing",
+      "kind": "APPLICATION MIGRATION",
+      "immediate_predecessor": "build-phase-38-approved",
+      "technical_prerequisites": [
+        "08",
+        "38"
+      ],
+      "sha256": "eaf13a759fd16917137bfe2941357bc7f5d653ed51d6ba314781fbee91895cf5"
+    },
+    {
+      "phase": "40",
+      "title": "Add Python setup and build orchestration",
+      "kind": "DRIVER INTEGRATION",
+      "immediate_predecessor": "build-phase-39-approved",
+      "technical_prerequisites": [
+        "39"
+      ],
+      "sha256": "910ce35e9c410f212f40ff5630415d40017652e6c9d2c3789824660afee26845"
+    },
+    {
+      "phase": "41",
+      "title": "Complete Python run, build-run, test and safe clean",
+      "kind": "DRIVER INTEGRATION",
+      "immediate_predecessor": "build-phase-40-approved",
+      "technical_prerequisites": [
+        "40"
+      ],
+      "sha256": "82cfa36b09708a1ad96bd6d61b3496cceb809e1d3f289ebc41d644e8ae6043d3"
+    },
+    {
+      "phase": "42",
+      "title": "Demonstrate full Premake and CMake equivalence",
+      "kind": "FULL EQUIVALENCE GATE",
+      "immediate_predecessor": "build-phase-41-approved",
+      "technical_prerequisites": [
+        "41"
+      ],
+      "sha256": "ab3b83dd13f4aaa36851cd9f01dc061db69d2b8e7bab5e699f2fe4711ac903aa"
+    },
+    {
+      "phase": "43",
+      "title": "Make CMake and Conan the authoritative build",
+      "kind": "AUTHORITATIVE SWITCH",
+      "immediate_predecessor": "build-phase-42-approved",
+      "technical_prerequisites": [
+        "42"
+      ],
+      "sha256": "21b9f753464ee4a39d1b2967580338561147a6e39835a64b3598d1d117d9085d"
+    },
+    {
+      "phase": "44",
+      "title": "Retire Premake after the authoritative switch",
+      "kind": "PREMAKE RETIREMENT",
+      "immediate_predecessor": "build-phase-43-approved",
+      "technical_prerequisites": [
+        "43"
+      ],
+      "sha256": "a44eb75fc6cad75e7927c9c1bafc3fac055de3b98d231e8e83a7c5610d9103ae"
+    }
+  ],
+  "required_files": [
+    "AGENTS.md",
+    "MANIFEST.md",
+    ".codex/skills/build-phase-execution/SKILL.md",
+    ".codex/skills/build-phase-approval/SKILL.md",
+    ".codex/skills/build-phase-rejection/SKILL.md",
+    "docs/build/BUILD_SYSTEM_AUDIT.md",
+    "docs/build/BUILD_CODE_MAP.md",
+    "docs/build/BUILD_SYSTEM_MIGRATION_PLAN.md",
+    "docs/build/BUILD_STATE.md",
+    "docs/build/BUILD_PHASE_REVIEW_TEMPLATE.md",
+    "docs/build/reviews/BUILD_BOOTSTRAP_REVIEW.md"
+  ],
+  "errors": [],
+  "file_sha256": {
+    ".codex/skills/build-phase-approval/SKILL.md": "85be7438a597751dac388acabebfee762826152ebea95af025b1e10e52359cbf",
+    ".codex/skills/build-phase-execution/SKILL.md": "29653b2e2fbbecbfbe85153cb22ae4b94a38a202aeff886da600617f722c7598",
+    ".codex/skills/build-phase-rejection/SKILL.md": "16442f5f8e8c923e7d942287cb4d303e9dc1dbee92dd8fbdc3d499b968bc3e18",
+    "AGENTS.md": "7fedd84777fd827e55d858eb8620773cac6c4bedef0be4d63d97c993862ac0c6",
+    "MANIFEST.md": "86e8e9695b4858565ae72c8ade5ac7e76b921a5ecf691cae891e9fa928b8b481",
+    "docs/build/BUILD_CODE_MAP.md": "9fe45f3c9e889ea2d1c9cb5f3a0026751a65e5a243832fb67a59a0579f4fdd2b",
+    "docs/build/BUILD_PHASE_REVIEW_TEMPLATE.md": "044873dd931077fc3b03a1bbabdbd89a7bf2fa95faa174c1dc42c128a9929b7c",
+    "docs/build/BUILD_STATE.md": "cab7162e1dc73efcf9acf6e15d130312a6f6b096497e205e7e52295186ede0cf",
+    "docs/build/BUILD_SYSTEM_AUDIT.md": "269ea393ede846155982e8fc49cb02e174888169eb8c68b48cd7880f0530abb8",
+    "docs/build/BUILD_SYSTEM_MIGRATION_PLAN.md": "c26ef331ec2eaf88bb0153a0f11aa289c7d82fab4accf83c4b6099ae1c1abe6f",
+    "docs/build/evidence/BOOTSTRAP_BASELINE.json": "d55774e0408d2084c590365f834d5e47f7a62f96bcaf6705c080782107bdf3b0",
+    "docs/build/evidence/BOOTSTRAP_VALIDATION.json": "48fcb76736eb37c82ee99cdc8011ba83c32c23d0d2459c58b3ad066f0c97cbd4",
+    "docs/build/evidence/PREMAKE_VS2022_GRAPH.json": "e031105e2996bf15efa7dd8c0d626cbd468b63267925cdb65cad133ba76657dc",
+    "docs/build/evidence/RUNTIME_INVENTORY.json": "a97988134e863f6a98546ca40f060f086dc94ad0272285afec6108edda17dc3b",
+    "docs/build/phases/BUILD_PHASE_00.md": "d61e196582aff4d667b284b5eacce0f614ab7f13b7afff4f8c1dd5dc1a79cce5",
+    "docs/build/phases/BUILD_PHASE_01.md": "d907d4d90c36e940c4f5590a64f8839d31a15fa522a842d1d78ef1bf634e9ad4",
+    "docs/build/phases/BUILD_PHASE_02.md": "84b13e0ec716a726b9207436ca10d268e41ca83ce26e1aaf53faa6de60b245f5",
+    "docs/build/phases/BUILD_PHASE_03.md": "0a2c8d79722c413cbb40b8c62ce7176710dd8b8d90fdb4ad17bdfafc97bf7c41",
+    "docs/build/phases/BUILD_PHASE_04.md": "e77022c23677eeb9146904bb570d99813a65ef14898c2fe92c0b7364cf8cf030",
+    "docs/build/phases/BUILD_PHASE_05.md": "eea04a5f048782019aa00f6c49133c895861807f6c1dbb7c2e620f1cf6d5c43c",
+    "docs/build/phases/BUILD_PHASE_06.md": "0d65d34590eb8c6f965ff1adf8dd3f52c766c091d82eb5c9373083f6aa16296a",
+    "docs/build/phases/BUILD_PHASE_07.md": "4b7cb0788a122e36fdcb0040d288bc4d2b5ea160cb637f2b2eb94e9ee4e81449",
+    "docs/build/phases/BUILD_PHASE_08.md": "76a4941e77e72a69b449610c8ac3a5d365d0ff67f8d8ce7684a65420222d7718",
+    "docs/build/phases/BUILD_PHASE_09.md": "eac62f1736db784fb4f5cd971a181f443bec4105432b487fcaf589d5f2ce0ee6",
+    "docs/build/phases/BUILD_PHASE_10.md": "27b2aae4de3a25ba997a361913d6c60a920dd6ec1e51ac786cc7ce79e9534f95",
+    "docs/build/phases/BUILD_PHASE_11.md": "ddfd8ef34da1aeae590f35137aff488d0e58b3d8c17d62e1ccb916ad5da6978a",
+    "docs/build/phases/BUILD_PHASE_12.md": "5789137c6fa31f65b499ebb03dc0a362421cde227ed48fd6f396281711360800",
+    "docs/build/phases/BUILD_PHASE_13.md": "320fb2ee5636975ec50be708949a088d30826d9db35ffe198010215c9bfaa21c",
+    "docs/build/phases/BUILD_PHASE_14.md": "10e621b207017409f136b10cd3800187af5ffc5140311c1ebfd389c5591483a1",
+    "docs/build/phases/BUILD_PHASE_15.md": "f54c8eaddf5b01da8f2dcd2e13acbad6b018665dda2eaad3e3e9ad9d08df9877",
+    "docs/build/phases/BUILD_PHASE_16.md": "b824be7b21ad0c53931eca81eb682b8af49ef27edfc984e9d5b0e64013c3d4c1",
+    "docs/build/phases/BUILD_PHASE_17.md": "a1f5a463a0de1a595f2fe47c73adeede23d530e21cfbd6721658dab8126545d6",
+    "docs/build/phases/BUILD_PHASE_18.md": "3d7e406d332e4f39c5eda2bab955b0604853529eacc3e35645c5e0ac1c0104a5",
+    "docs/build/phases/BUILD_PHASE_19.md": "9cd81f99cb883bc617661a5d99b67543fc6da0cf3e97438ef0a1a819c88911d9",
+    "docs/build/phases/BUILD_PHASE_20.md": "211160dfc5ca68506a89cda8496cce705f5d86a5cbd686b9841c6552416e35ca",
+    "docs/build/phases/BUILD_PHASE_21.md": "759f02f5aec438fd86f60a49af90042720193aad3037ca64267c33272e8d5515",
+    "docs/build/phases/BUILD_PHASE_22.md": "7432b14a07b38af1cd6fb9894dc0c4ab85160f871be4a75818cf3b232c54cd98",
+    "docs/build/phases/BUILD_PHASE_23.md": "f1947e1293e4d58412850f68a916cf6a47e7506e5fc22ea0e4ff0bfa36cc819b",
+    "docs/build/phases/BUILD_PHASE_24.md": "32e0c9eb577e62c122ad7f2be0985f6b23605d525f89e9d8083d0351730d56e0",
+    "docs/build/phases/BUILD_PHASE_25.md": "2fd4071a8bb5c32435455b5865c3040e436b3d3073314a056e8a66be1fe1aec3",
+    "docs/build/phases/BUILD_PHASE_26.md": "c5fb04ab533d4841c382ab3065d00f375bdc0d82e3490230ce4a0a5553976b29",
+    "docs/build/phases/BUILD_PHASE_27.md": "b8d2de0dec6ca9f1ffa638e5407e5230a43ebf3896bf83037046c1cfcd056f1e",
+    "docs/build/phases/BUILD_PHASE_28.md": "9e124c5d34864f3f2637e1f1763f5e93ed5515e19d45b0b6349334b2acfbc94e",
+    "docs/build/phases/BUILD_PHASE_29.md": "4a0fab71aa51374d9d94a52a6613d64d251c03241b959ea96f87ab9ed1252dc4",
+    "docs/build/phases/BUILD_PHASE_30.md": "392d74217c8f7b6691cdf1c6a501cf2225b8efa26a052ef6804b6d98e2c711d7",
+    "docs/build/phases/BUILD_PHASE_31.md": "a613a5facfefa8566ee6a1506a258c4438fcd685f2d775a4d474939e48194808",
+    "docs/build/phases/BUILD_PHASE_32.md": "2cc4757e72ee1ae19640f3810ea528eb4548fda3cce1c608bc7a02af48ded166",
+    "docs/build/phases/BUILD_PHASE_33.md": "0be8617fbd6e8f5d65aca048c3d8f7cd6808dc8fdbc649625759c718b9dc6dc3",
+    "docs/build/phases/BUILD_PHASE_34.md": "6ce9a82e357386f1cf5326ece365d05225976cba80379d7ed2ff38a2e10c377d",
+    "docs/build/phases/BUILD_PHASE_35.md": "788c39988af75699728a0b4769847c8ce2c9c7084d71864a8399ae8bc1890f85",
+    "docs/build/phases/BUILD_PHASE_36.md": "f6c6ed9b273a9c21049d205209ae28181de00d37c0c0559fbed4a78e80d24d5b",
+    "docs/build/phases/BUILD_PHASE_37.md": "d255468064e4fa1a57f1fc350c1443bafc990ff950fc449dc1da316e66c61700",
+    "docs/build/phases/BUILD_PHASE_38.md": "e6095cd9f003f57a32583258f33697b68510cbff0b80b288fb7124f791e3404c",
+    "docs/build/phases/BUILD_PHASE_39.md": "eaf13a759fd16917137bfe2941357bc7f5d653ed51d6ba314781fbee91895cf5",
+    "docs/build/phases/BUILD_PHASE_40.md": "910ce35e9c410f212f40ff5630415d40017652e6c9d2c3789824660afee26845",
+    "docs/build/phases/BUILD_PHASE_41.md": "82cfa36b09708a1ad96bd6d61b3496cceb809e1d3f289ebc41d644e8ae6043d3",
+    "docs/build/phases/BUILD_PHASE_42.md": "ab3b83dd13f4aaa36851cd9f01dc061db69d2b8e7bab5e699f2fe4711ac903aa",
+    "docs/build/phases/BUILD_PHASE_43.md": "21b9f753464ee4a39d1b2967580338561147a6e39835a64b3598d1d117d9085d",
+    "docs/build/phases/BUILD_PHASE_44.md": "a44eb75fc6cad75e7927c9c1bafc3fac055de3b98d231e8e83a7c5610d9103ae",
+    "docs/build/reviews/BUILD_BOOTSTRAP_REVIEW.md": "e4973c0d3eaafdc72ef9a731d1606b628008e0e3177c461fd1ce245021dab4e2"
+  },
+  "governance_finalization": {
+    "description": "Governance-only finalization: resolve approval push destinations from verified BUILD_STATE/Git configuration; correct Phase 42 evidence directory to docs/build/evidence/phase-42.",
+    "changed_files": [
+      ".codex/skills/build-phase-approval/SKILL.md",
+      "docs/build/phases/BUILD_PHASE_42.md"
+    ],
+    "phase_count": 45,
+    "range": "00-44",
+    "architecture_and_phase_decomposition_changed": false,
+    "checks": {
+      "phase_existence": "PASS",
+      "required_contract_sections": "PASS",
+      "roadmap_predecessor_tag_review_references": "PASS",
+      "exact_requested_text_changes": "PASS",
+      "protected_manifest_files_unchanged": "PASS",
+      "manifest_hashes": "PASS",
+      "whitespace_files_checked": 61,
+      "whitespace_result": "PASS",
+      "git_line_ending_notices": 52,
+      "whitespace_interpretation": "No-index exit 1 means differing added file; whitespace diagnostics/non-difference errors fail. Existing Git LF-to-CRLF notices are separate.",
+      "approval_skill_validation": {
+        "command": [
+          "C:/Python/venv/Scripts/python.exe",
+          "C:/Users/alber/.codex/skills/.system/skill-creator/scripts/quick_validate.py",
+          ".codex/skills/build-phase-approval"
+        ],
+        "exit_code": 0,
+        "stdout": "Skill is valid!\n",
+        "stderr": ""
+      },
+      "git_diff_check": {
+        "command": [
+          "git",
+          "-c",
+          "safe.directory=C:/dev/GEngine-build",
+          "diff",
+          "--check"
+        ],
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "index_unchanged": true
+    },
+    "head": "b3b043b15ee814133e8419466a1bf3a985a3c958",
+    "git_status_short": "?? docs/build/\n",
+    "bootstrap_review_updated": false,
+    "historical_bootstrap_validation_updated": false,
+    "audit_rerun": false,
+    "production_cmake_conan_implemented": false,
+    "phase_00_started": false,
+    "commit_tag_push_performed": false
+  }
+}

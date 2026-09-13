@@ -1,0 +1,137 @@
+{
+  "supplementary_artifacts": [
+    {
+      "path": "bin-int/build-phase-00-revision-04/ambient-msbuild-sample-01.json",
+      "sha256": "9ef73856a75858c938f28437e278d822fc8b961074230e24a41fb6d010b08d0e",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/ambient-msbuild-sample-01.json.gz",
+      "compressed_sha256": "33c93403ed0b5c706007d75b1e8416e5c254da8d95b41007ac802c17e5e57adf"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/ambient-msbuild-sample-02.json",
+      "sha256": "9ef73856a75858c938f28437e278d822fc8b961074230e24a41fb6d010b08d0e",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/ambient-msbuild-sample-02.json.gz",
+      "compressed_sha256": "33c93403ed0b5c706007d75b1e8416e5c254da8d95b41007ac802c17e5e57adf"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/debugger-overlap-01-RayTracing-cdb-output.txt",
+      "sha256": "54a32a875b8dff257bea04cc4aa631573cfdb17dda5afde61e6e913844992160",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-01-RayTracing-cdb-output.txt.gz",
+      "compressed_sha256": "13b59c3d646698ae2415a68523b7ad29a6ae009087a5c38c4b752be33739c67e"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/debugger-overlap-01-RayTracing-cdb.txt",
+      "sha256": "c601de791905c1876e9cf3f96680c55f32cbf044522ccbc2b9281e67ca68c9cd",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-01-RayTracing-cdb.txt.gz",
+      "compressed_sha256": "5019eb1d277ab675a03dd60074f27257e15e097caf6b814fccc8d62b64a70c6d"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/debugger-overlap-02-RayTracing-cdb-output.txt",
+      "sha256": "109181104c181d679dc55fe78a3c7b5b17bf6cf1906ea15876a1d43b1b8a52f2",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-02-RayTracing-cdb-output.txt.gz",
+      "compressed_sha256": "70c75cfe631422c805fdfaf41d3ca74698da0f41178bb7b944898e58c4d78ae7"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/debugger-overlap-02-RayTracing-cdb.txt",
+      "sha256": "854390e6b2f83552398c706df991cfe9fae0e6e14dfe9d8152c5098c06dc45bb",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-02-RayTracing-cdb.txt.gz",
+      "compressed_sha256": "e7edd01afcfb3d0920d40280792cc8c63e4e0cf9f4bf297cd19d72c90e093f98"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/debugger-overlap-03-RayTracing-cdb-output.txt",
+      "sha256": "39e024b0bc1eb3d47a28c8cf753119cfa49af5b144248611bbbf84de35cdd70d",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-03-RayTracing-cdb-output.txt.gz",
+      "compressed_sha256": "fc2d63d65fa85c99de487544ae99de3c47605771dce37358cfad0824e3ebff9f"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/debugger-overlap-03-RayTracing-cdb.txt",
+      "sha256": "e5bb9b6cc853f856cbeae962c1cd8663b38a164d7fedceed36baf2ba289459dc",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-03-RayTracing-cdb.txt.gz",
+      "compressed_sha256": "b84902cb52fa5b21ce22c3270a6c5db8223c0c592ea6fa61e3e5325fee69ed4c"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/debugger-overlap-04-RayTracing-cdb-output.txt",
+      "sha256": "bc05c9a692156f28f7dde84eab38b742da9842f6fb67cd147d977dfbfc088bc3",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-04-RayTracing-cdb-output.txt.gz",
+      "compressed_sha256": "66683d366c472db6b7c3d64bd7c7478665d4953c3ab705bd8f88632e83da71af"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/debugger-overlap-04-RayTracing-cdb.txt",
+      "sha256": "186887194a1390b2b510eccd068d0f6750709f0651817f11ade1450b93dc39f9",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-04-RayTracing-cdb.txt.gz",
+      "compressed_sha256": "e0b9d8f39be97984d7aabdcec4b3d5aad13ac5ae6c513edc45fc5b072e10a679"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/debugger-overlap-05-RayTracing-cdb-output.txt",
+      "sha256": "c0668b7fe1b55c87381667571c27bf8560d3a5e48f46dbf5f287dbefc4da05f7",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-05-RayTracing-cdb-output.txt.gz",
+      "compressed_sha256": "4586d008eaf50b7afd701a1f4a927c0ba76d429633ed729c12fc417e17ab845f"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/debugger-overlap-05-RayTracing-cdb.txt",
+      "sha256": "0ad3f69dbc48ed48d6cbd1b118e30f142ee4ad12dd1e1e57defe0c6283a645bb",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-05-RayTracing-cdb.txt.gz",
+      "compressed_sha256": "1d5283a184112a7170d409ed7dfb55d9e83070f7d0138e32f872c96c7d13f82c"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/debugger-overlap-06-RayTracing-cdb-output.txt",
+      "sha256": "3d4e0350ffbfb498f2050dbb31da1902bd3183f4741727898574d3efcdb003ed",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-06-RayTracing-cdb-output.txt.gz",
+      "compressed_sha256": "151619dbb649b8551080fe923e9a7963abd829116bac52fda6fad112007c0aef"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/debugger-overlap-06-RayTracing-cdb.txt",
+      "sha256": "035c9cdc47f25401b89efd5897cbe87d6c8bafdc6e6d45c0bcb3d42a7ba3dcd8",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-06-RayTracing-cdb.txt.gz",
+      "compressed_sha256": "95a2965ecfb1b6e284255ac59f6cf4ef3965072228e01cc489f5d7a0bf55214e"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/driver-events-history.json",
+      "sha256": "641b71065051cefc902d7b9f5ffbcdfe0852457400296f788ea86b678a34469d",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/driver-events-history.json.gz",
+      "compressed_sha256": "f86d2b64427d4e4dcbe15c88aee134de1a139a20dfcb03baac858d03e556a688"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/gpu-memory-sampling.txt",
+      "sha256": "b07a7b9ec0ab00ecb416f7ee66bf5f77b83e477a213fb87898ddf826f9e32eea",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/gpu-memory-sampling.txt.gz",
+      "compressed_sha256": "1dbfe8a7c1ec1aa674f693ea40b93b7c673a436652116c718e605754d9795b4b"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/gpu-processes-isolated.txt",
+      "sha256": "fcdc8ca51b2583330942c3fd4668b97b4e8a126bbcde52094abe1fd80eadf7b8",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/gpu-processes-isolated.txt.gz",
+      "compressed_sha256": "8f555408470b37ce480312aa22803866050c21da0da6fffa5c2205d6a3967db4"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/original-failure-events.json",
+      "sha256": "f497592310f1d844404bd7cc1615fcd2e240bf3425b7746fb98f6594af9b0900",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/original-failure-events.json.gz",
+      "compressed_sha256": "943de8eec56379231e240ee82ab2bfc2b617ba2b0c2704ca93b833928530020e"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/original-failure-events.xml",
+      "sha256": "1aac3a7c1bd962a5754429498f7d2c6b4530729d3015a59c11a774dcf46066de",
+      "compressed": "docs/build/evidence/phase-00/revision-04/artifacts/original-failure-events.xml.gz",
+      "compressed_sha256": "0c8909907568abd08c169eaeb818e00f76484a3670096c356febecfc15f15f35"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/native-overlap-04-RayTracing.dmp",
+      "sha256": "35daea8c9191466406bc52834d95f3ee7ab806f031628f8bc8f94efac62be50a",
+      "bytes": 4137440798,
+      "classification": "PROTECTED_UNRELATED; retained ignored full dump; excluded from checkpoint; hash verified in closure"
+    },
+    {
+      "path": "bin-int/build-phase-00-revision-04/native-overlap-01-RayTracing.dmp",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "result": "FAILED dump attempt; preserved"
+    }
+  ],
+  "ordinary_and_native_raw_captures": "Exact raw/compressed hashes and argv in commands/*.json, explicitly enumerated in validation-matrix.json",
+  "event_queries": {
+    "historical": "Get-WinEvent Application between local 2026-09-12T22:05:55 and 22:06:45; ToXml and TimeCreated/Id/RecordId/ProviderName/Message",
+    "later_overlap": "Get-WinEvent Application local 23:16:10 to 23:17:30; no records returned",
+    "driver_history": "Get-WinEvent Application provider NVIDIA OpenGL Driver since local 2026-09-12T00:00:00"
+  },
+  "GPU_command": "C:/Windows/system32/nvidia-smi.exe --query-gpu=timestamp,name,driver_version,memory.total,memory.used,memory.free,utilization.gpu --format=csv,noheader (every two seconds)"
+}

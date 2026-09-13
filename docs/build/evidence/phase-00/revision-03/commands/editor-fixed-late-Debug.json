@@ -1,0 +1,31 @@
+{
+  "name": "editor-fixed-late-Debug",
+  "revision": "03",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py",
+    "_debugger",
+    "editor-fixed-late-Debug",
+    "120",
+    "Debug"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py _debugger editor-fixed-late-Debug 120 Debug",
+  "cwd": "C:\\dev\\GEngine-build\\GEngineEditor",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T05:09:36.464771+00:00",
+  "elapsed_seconds": 121.719,
+  "harness_sha256": "8309d5139719e00ab458fac7a68460b3be7758afedd8efff5776c46a81c7e4a3",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-8309d5139719e00ab458fac7a68460b3be7758afedd8efff5776c46a81c7e4a3.py",
+  "timeout_seconds": 270.0,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/editor-fixed-late-Debug.txt",
+  "raw_sha256": "a85e5104de33fc006be3ee5ae85f57a671ba8603f3c08c479140b7a7acd2f57c",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/editor-fixed-late-Debug.txt.gz",
+  "compressed_sha256": "94615cb9a48ddad82f47489384cdb857e1616dba9ef6c451ae022a375d6a7c95",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

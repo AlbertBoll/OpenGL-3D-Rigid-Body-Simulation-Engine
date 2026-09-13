@@ -1,0 +1,26 @@
+{
+  "name": "runtime-stage",
+  "revision": "01",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\stage_premake_runtime.py",
+    "stage"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\stage_premake_runtime.py stage",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": null,
+  "started_utc": "2026-09-13T03:25:14.795627+00:00",
+  "elapsed_seconds": 0.156,
+  "timeout_seconds": 120,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-01/runtime-stage.txt",
+  "raw_sha256": "8c7047dd6dadd4e348a35ede0722a1ada3565309d79c3eddbedd8d590ad66b02",
+  "compressed_log": "docs/build/evidence/phase-00/revision-01/commands/runtime-stage.txt.gz",
+  "compressed_sha256": "c221b87d7a889f79a0eda08242acdb1df36d747ce530a2543fedc038bf025815",
+  "initial_lineage": "86621b4bcbcbd46a79eaacc35de270b0b833b6eda9b1138a503b2b1eeb1f2a70"
+}

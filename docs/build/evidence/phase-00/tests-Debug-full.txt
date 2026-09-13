@@ -1,0 +1,395 @@
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:52:47] APP: Center of mass: x: 1, y: -2, z: 0.5
+[09/12/26 17:52:47] APP: Center of mass: x: 3, y: -6, z: 1.5
+[09/12/26 17:52:47] APP: Center of mass: x: 1, y: -2, z: 0.5
+[09/12/26 17:54:14] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:14] GENGINE: Cannot create rigid body from an invalid entity pose
+[09/12/26 17:54:21] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:21] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:22] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:22] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:22] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:22] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:22] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:22] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:22] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:22] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:22] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:22] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:22] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:22] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:22] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:26] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:32] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:37] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0.004, y: -0.0050000004, z: 0.006
+[09/12/26 17:54:41] APP: Center of mass: x: 4, y: -5, z: 6
+[09/12/26 17:54:41] APP: Center of mass: x: 4000, y: -5000, z: 6000
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 5, y: 6, z: 7
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0.00030000004, y: -0.00020000001, z: 0.00040000002
+[09/12/26 17:54:41] APP: Center of mass: x: 0.00030000004, y: -0.00020000001, z: 0.00040000002
+[09/12/26 17:54:41] APP: Center of mass: x: 0.00030000004, y: -0.00020000001, z: 0.00040000002
+[09/12/26 17:54:41] APP: Center of mass: x: 0.00030000004, y: -0.00020000001, z: 0.00040000002
+[09/12/26 17:54:41] APP: Center of mass: x: 0.00030000004, y: -0.00020000001, z: 0.00040000002
+[09/12/26 17:54:41] APP: Center of mass: x: 0.00030000004, y: -0.00020000001, z: 0.00040000002
+[09/12/26 17:54:41] APP: Center of mass: x: 0.00030000004, y: -0.00020000001, z: 0.00040000002
+[09/12/26 17:54:41] APP: Center of mass: x: 0.00030000004, y: -0.00020000001, z: 0.00040000002
+[09/12/26 17:54:41] APP: Center of mass: x: 0.00030000004, y: -0.00020000001, z: 0.00040000002
+[09/12/26 17:54:41] APP: Center of mass: x: 0.00030000004, y: -0.00020000001, z: 0.00040000002
+[09/12/26 17:54:41] APP: Center of mass: x: 0.00030000004, y: -0.00020000001, z: 0.00040000002
+[09/12/26 17:54:41] APP: Center of mass: x: 0.00030000004, y: -0.00020000001, z: 0.00040000002
+[09/12/26 17:54:41] APP: Center of mass: x: 0.29999998, y: -0.20000002, z: 0.39999998
+[09/12/26 17:54:41] APP: Center of mass: x: 0.29999998, y: -0.20000002, z: 0.39999998
+[09/12/26 17:54:41] APP: Center of mass: x: 0.29999998, y: -0.20000002, z: 0.39999998
+[09/12/26 17:54:41] APP: Center of mass: x: 0.29999998, y: -0.20000002, z: 0.39999998
+[09/12/26 17:54:41] APP: Center of mass: x: 0.29999998, y: -0.20000002, z: 0.39999998
+[09/12/26 17:54:41] APP: Center of mass: x: 0.29999998, y: -0.20000002, z: 0.39999998
+[09/12/26 17:54:41] APP: Center of mass: x: 0.29999998, y: -0.20000002, z: 0.39999998
+[09/12/26 17:54:41] APP: Center of mass: x: 0.29999998, y: -0.20000002, z: 0.39999998
+[09/12/26 17:54:41] APP: Center of mass: x: 0.29999998, y: -0.20000002, z: 0.39999998
+[09/12/26 17:54:41] APP: Center of mass: x: 0.29999998, y: -0.20000002, z: 0.39999998
+[09/12/26 17:54:41] APP: Center of mass: x: 0.29999998, y: -0.20000002, z: 0.39999998
+[09/12/26 17:54:41] APP: Center of mass: x: 0.29999998, y: -0.20000002, z: 0.39999998
+[09/12/26 17:54:41] APP: Center of mass: x: 300, y: -200, z: 400
+[09/12/26 17:54:41] APP: Center of mass: x: 300, y: -200, z: 400
+[09/12/26 17:54:41] APP: Center of mass: x: 300, y: -200, z: 400
+[09/12/26 17:54:41] APP: Center of mass: x: 300, y: -200, z: 400
+[09/12/26 17:54:41] APP: Center of mass: x: 300, y: -200, z: 400
+[09/12/26 17:54:41] APP: Center of mass: x: 300, y: -200, z: 400
+[09/12/26 17:54:41] APP: Center of mass: x: 300, y: -200, z: 400
+[09/12/26 17:54:41] APP: Center of mass: x: 300, y: -200, z: 400
+[09/12/26 17:54:41] APP: Center of mass: x: 300, y: -200, z: 400
+[09/12/26 17:54:41] APP: Center of mass: x: 300, y: -200, z: 400
+[09/12/26 17:54:41] APP: Center of mass: x: 300, y: -200, z: 400
+[09/12/26 17:54:41] APP: Center of mass: x: 300, y: -200, z: 400
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+Solver storage: fingerprint=14496816551934000004 allocations=0 constraint_bytes=288
+XPASS: body removal invalidates manifolds before deleting the body
+BASELINE contact_pair_order_normal_dot=1
+EPA_FUZZ queries=1596 iterations=19766 max_iterations=55 failures=36 reasons=402,452,328,0,0,0,0,0,0,18,0,0,
+GJK_FUZZ pairs=1200 max_iterations=34 safe_contact_failures=18 contact_fingerprint=2991584723466465015 reasons=0,0,0,764,185,338,2295,0,18,
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:41] APP: Center of mass: x: 0, y: 0, z: 0
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+FAIL: contact telemetry counts all four generated face contacts and solver constraints
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:42] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:43] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:43] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:43] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:43] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:43] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:43] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:43] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:43] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:43] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+BOX_FACE_REST iterations=1 reversed=0 angle=0 peak_energy=18 peak_speed=0 peak_omega=0 peak_depth=0 final_y=1.5 final_window_speed=0 final_window_omega=0 final_contacts=4 finite=1
+BOX_FACE_REST iterations=1 reversed=0 angle=0.785398 peak_energy=18 peak_speed=0 peak_omega=0 peak_depth=0 final_y=1.5 final_window_speed=0 final_window_omega=0 final_contacts=4 finite=1
+BOX_FACE_REST iterations=1 reversed=1 angle=0 peak_energy=18 peak_speed=0 peak_omega=0 peak_depth=0 final_y=1.5 final_window_speed=0 final_window_omega=0 final_contacts=4 finite=1
+BOX_FACE_REST iterations=1 reversed=1 angle=0.785398 peak_energy=18 peak_speed=0 peak_omega=0 peak_depth=0 final_y=1.5 final_window_speed=0 final_window_omega=0 final_contacts=4 finite=1
+BOX_FACE_REST iterations=8 reversed=0 angle=0 peak_energy=18 peak_speed=0 peak_omega=0 peak_depth=0 final_y=1.5 final_window_speed=0 final_window_omega=0 final_contacts=4 finite=1
+BOX_FACE_REST iterations=8 reversed=0 angle=0.785398 peak_energy=18 peak_speed=0 peak_omega=0 peak_depth=0 final_y=1.5 final_window_speed=0 final_window_omega=0 final_contacts=4 finite=1
+BOX_FACE_REST iterations=8 reversed=1 angle=0 peak_energy=18 peak_speed=0 peak_omega=0 peak_depth=0 final_y=1.5 final_window_speed=0 final_window_omega=0 final_contacts=4 finite=1
+BOX_FACE_REST iterations=8 reversed=1 angle=0.785398 peak_energy=18 peak_speed=0 peak_omega=0 peak_depth=0 final_y=1.5 final_window_speed=0 final_window_omega=0 final_contacts=4 finite=1
+POSITION_STACK repeat=0 peak_kinetic=0 final_max_depth=0.0200024 final_average_y=4.45
+POSITION_STACK repeat=1 peak_kinetic=0 final_max_depth=0.0200024 final_average_y=4.45
+ANGULAR_DRIFT hz=120 inverse_mass=0.25 max_energy_error_percent=4.24299 max_momentum_vector_error_percent=2.65486
+ANGULAR_DRIFT hz=240 inverse_mass=0.25 max_energy_error_percent=2.08342 max_momentum_vector_error_percent=1.31205
+ANGULAR_DRIFT hz=120 inverse_mass=1 max_energy_error_percent=4.24285 max_momentum_vector_error_percent=2.65483
+ANGULAR_DRIFT hz=240 inverse_mass=1 max_energy_error_percent=2.08325 max_momentum_vector_error_percent=1.31192
+ANGULAR_DRIFT hz=120 inverse_mass=4 max_energy_error_percent=4.24299 max_momentum_vector_error_percent=2.65486
+ANGULAR_DRIFT hz=240 inverse_mass=4 max_energy_error_percent=2.08342 max_momentum_vector_error_percent=1.31205
+ANGULAR_CACHE inverse_mass=0.37 max_relative_inverse_error=1.8858e-06 max_step_omega_error=1.68587e-07 max_step_orientation_radians=1.47749e-07
+ANGULAR_CACHE inverse_mass=1 max_relative_inverse_error=2.10502e-06 max_step_omega_error=1.78814e-07 max_step_orientation_radians=1.22878e-07
+ANGULAR_CACHE inverse_mass=2.5 max_relative_inverse_error=2.18948e-06 max_step_omega_error=1.3328e-07 max_step_orientation_radians=1.2578e-07
+CCD_REWIND_INITIAL position=1,2,3 linear_velocity=0.25,-0.5,0.75 orientation=0.934124,0.0953987,-0.190797,0.286196 angular_velocity=-0.576796,0.788674,1.81805
+CCD_REWIND toi=0.00416667 queries=1 position_residual=0 orientation_residual_radians=2.11822e-05 linear_velocity_residual=0 angular_velocity_residual=3.62657e-05
+CCD_REWIND toi=0.00416667 queries=1000 position_residual=0 orientation_residual_radians=0.0212664 linear_velocity_residual=0 angular_velocity_residual=0.0366794
+CCD_SNAPSHOT toi=0.00416667 position_residual=0 orientation_residual_radians=0 linear_velocity_residual=0 angular_velocity_residual=0
+CCD_REWIND toi=0.00833333 queries=1 position_residual=5.96046e-08 orientation_residual_radians=8.46787e-05 linear_velocity_residual=0 angular_velocity_residual=0.000145353
+CCD_REWIND toi=0.00833333 queries=1000 position_residual=5.96046e-08 orientation_residual_radians=0.0870288 linear_velocity_residual=0 angular_velocity_residual=0.152281
+CCD_SNAPSHOT toi=0.00833333 position_residual=0 orientation_residual_radians=0 linear_velocity_residual=0 angular_velocity_residual=0
+CCD_REWIND toi=0.0166667 queries=1 position_residual=0 orientation_residual_radians=0.000340406 linear_velocity_residual=0 angular_velocity_residual=0.00058366
+CCD_REWIND toi=0.0166667 queries=1000 position_residual=0 orientation_residual_radians=0.378089 linear_v[09/12/26 17:54:44] APP: Center of mass: x: 1, y: 2, z: 3
+[09/12/26 17:54:44] APP: Center of mass: x: 2, y: 2, z: 3
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Collision occurred
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Collision occurred
+[09/12/26 17:54:44] APP: Collision occurred
+[09/12/26 17:54:44] APP: Collision occurred
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Collision occurred
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Collision occurred
+[09/12/26 17:54:44] APP: Collision occurred
+[09/12/26 17:54:44] APP: Collision occurred
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Collision occurred
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Collision occurred
+[09/12/26 17:54:44] APP: Collision occurred
+[09/12/26 17:54:44] APP: Collision occurred
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Collision occurred
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Collision occurred
+[09/12/26 17:54:44] APP: Collision occurred
+[09/12/26 17:54:44] APP: Collision occurred
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:44] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0
+[09/12/26 17:54:47] APP: Center of mass: x: 0, y: 0, z: 0

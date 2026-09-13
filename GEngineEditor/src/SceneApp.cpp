@@ -39,12 +39,10 @@
 
 SceneApp::~SceneApp()
 {
-	Manager::AssetsManager::FreeAllResources();
-	Manager::ShaderManager::FreeShader();
-	Manager::ShapeManager::FreeShape();
+	// BaseApp owns shared manager cleanup.
 	if(m_AudioSystem)
 		m_AudioSystem->Shutdown();
-	if (m_EditorCamera) delete m_EditorCamera;
+	// The scene owns m_EditorCamera through its camera rig.
 	
 }
 

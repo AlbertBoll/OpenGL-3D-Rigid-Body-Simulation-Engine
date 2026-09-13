@@ -1,0 +1,25 @@
+{
+  "name": "tests-Debug-fixed-scheduling",
+  "revision": "01",
+  "argv": [
+    "C:\\dev\\GEngine-build\\bin\\Debug\\PhysicsTests\\PhysicsTests.exe",
+    "--fixed-scheduling"
+  ],
+  "command": "C:\\dev\\GEngine-build\\bin\\Debug\\PhysicsTests\\PhysicsTests.exe --fixed-scheduling",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T03:28:39.988654+00:00",
+  "elapsed_seconds": 16.75,
+  "timeout_seconds": 300,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-01/tests-Debug-fixed-scheduling.txt",
+  "raw_sha256": "7c063602b1f88722c214916c2fd8a24720a1bb7cfb856faca6582b2ac49c8b7a",
+  "compressed_log": "docs/build/evidence/phase-00/revision-01/commands/tests-Debug-fixed-scheduling.txt.gz",
+  "compressed_sha256": "cdfe3723fad5a79a2edd523bd1a281c2d130b91c8c8022d21bf09b8a5921213d",
+  "initial_lineage": "86621b4bcbcbd46a79eaacc35de270b0b833b6eda9b1138a503b2b1eeb1f2a70"
+}

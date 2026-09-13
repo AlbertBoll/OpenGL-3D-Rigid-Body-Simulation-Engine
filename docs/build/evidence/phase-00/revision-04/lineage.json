@@ -1,0 +1,938 @@
+{
+  "revision": "04",
+  "entry_sha256": "c5d54f9fe9088aa581beaad63927964dc068e977033c7f8836884244e22fc84d",
+  "previous_seal_sha256": "b7555343afd09764aa9e151cff09ad8bba47f028a4fc9fb96f8cab64e35d8418",
+  "previous_review_sha256": "ca27182094a014106b9df96a93a5536dd787f16f694c8958de77dbbd554f1fee",
+  "additional_exact_ownership": [
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/isolated-01-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/isolated-01-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/isolated-02-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/isolated-02-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/isolated-03-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/isolated-03-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/isolated-04-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/isolated-04-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/isolated-05-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/isolated-05-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/isolated-06-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/isolated-06-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-01-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-01-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-01-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-01-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-01-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-01-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-02-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-02-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-02-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-02-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-02-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-02-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-03-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-03-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-03-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-03-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-03-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-03-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-04-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-04-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-04-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-04-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-04-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-04-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-05-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-05-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-05-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-05-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-05-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-05-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-06-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-06-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-06-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-06-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-06-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/overlap-06-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-01-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-01-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-01-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-01-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-01-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-01-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-02-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-02-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-02-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-02-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-02-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-02-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-03-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-03-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-03-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-03-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-03-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-03-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-04-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-04-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-04-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-04-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-04-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-04-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-05-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-05-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-05-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-05-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-05-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-05-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-06-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-06-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-06-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-06-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-06-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-06-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "scripts/build_validation/native_debug_phase00_r04.py",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-01-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-01-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-01-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-01-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-01-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-01-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-02-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-02-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-02-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-02-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-02-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-02-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-03-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-03-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-03-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-03-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-03-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-03-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-05-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-05-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-05-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-05-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-05-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-05-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-06-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-06-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-06-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-06-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-06-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-06-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-dump-analysis.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-dump-analysis.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-driver-detail.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-driver-detail.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-driver-message.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-driver-message.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/acceptance-01-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/acceptance-01-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/acceptance-02-Breakout.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/acceptance-02-Breakout.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/acceptance-03-RigidBodySimulation.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/acceptance-03-RigidBodySimulation.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/acceptance-04-RayTracing.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/commands/acceptance-04-RayTracing.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/diagnostic-artifacts.json",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/ambient-msbuild-sample-01.json.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/ambient-msbuild-sample-02.json.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-01-RayTracing-cdb-output.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-01-RayTracing-cdb.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-02-RayTracing-cdb-output.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-02-RayTracing-cdb.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-03-RayTracing-cdb-output.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-03-RayTracing-cdb.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-04-RayTracing-cdb-output.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-04-RayTracing-cdb.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-05-RayTracing-cdb-output.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-05-RayTracing-cdb.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-06-RayTracing-cdb-output.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/debugger-overlap-06-RayTracing-cdb.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/driver-events-history.json.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/gpu-memory-sampling.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/gpu-processes-isolated.txt.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/original-failure-events.json.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    },
+    {
+      "path": "docs/build/evidence/phase-00/revision-04/artifacts/original-failure-events.xml.gz",
+      "entry_exists": false,
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "purpose": "Revision 04 investigation capture"
+    }
+  ]
+}

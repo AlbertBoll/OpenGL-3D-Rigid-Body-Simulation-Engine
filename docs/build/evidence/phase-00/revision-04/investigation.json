@@ -1,0 +1,45 @@
+{
+  "revision": "04",
+  "issue": "B00-RUNTIME-010",
+  "ordered_plan": [
+    "Six isolated ordinary Release launches",
+    "Recorded Release app offsets, serial rounds until first failure",
+    "Compare signatures and observed GPU pressure",
+    "CDB normal-heap repeats",
+    "Native debug events without upfront symbols; fatal exception record/register/module capture and full dump attempt",
+    "Disposition before final acceptance"
+  ],
+  "ordinary_launch_contract": {
+    "exe": "C:/dev/GEngine-build/bin/Release/RayTracing/RayTracing.exe",
+    "exe_sha256": "cb25301455b4fdeb46e4f1015c9913a5a59f2812dd965b25e7d8ea8ee13efc9c",
+    "cwd": "C:/dev/GEngine-build/RayTracing",
+    "PATH": "C:\\Windows\\System32;C:\\Windows",
+    "tbb_sha256": "3bda7c5458d7f43bcd49f0dead5114eac1ea14f573aafc736f833089b1d2cd79",
+    "layout_sha256": "5ee9fcdc99468056e6eb069cc80c7a0f0642d238f030da6a81552452a1aeec35",
+    "close_policy": "60-second observation, WM_CLOSE to SDL_app windows, 30-second normal exit allowance; no forced termination accepted",
+    "other_documented_flags": "SetErrorMode(0x8003); STARTF_USESHOWWINDOW=SW_HIDE; CREATE_NO_WINDOW; PYTHONDONTWRITEBYTECODE=1"
+  },
+  "context_expansion": [
+    "Revision 03 review, seal, validation matrix, raw startup and capture helper: recover exact mandatory failure and original concurrency intervals",
+    "Windows Application event log at historical failure time: recover driver diagnostic unavailable in empty Release app log",
+    "Read-only RayTracing initialization/viewport, SimpleRenderer and Image upload path: distinguish application allocation source from TBB/driver failures",
+    "Read-only BaseApp initialization and RenderTarget shadow allocations: explain graphics pressure without changing accepted code",
+    "Installed SDK minwinbase.h, winnt.h and minidumpapiset.h plus Microsoft debug API documentation: verify native exception/dump structure layout and fast-fail subcode",
+    "GPU memory sampling and observed module identities: distinguish runtime identity changes and concurrent resource pressure"
+  ],
+  "limits": [
+    "Historical child PID/full inherited environment and GPU occupancy were not captured; historical event correlation uses executable name and UTC interval",
+    "Original full system scheduling cannot be reconstructed; app-only overlap is a controlled subset and reproduces 0xc0000409 without the Editor build or Physics workloads",
+    "Unrelated ambient MSBuild PID 33260 was observed idle at constant CPU 1.90625 seconds; never terminated or modified",
+    "CDB affects timing and six passing debugger runs do not waive ordinary concurrent failure",
+    "Native attempt 01 captured exception/registers/modules but its empty dump reflects wrong MINIDUMP_EXCEPTION_INFORMATION packing; corrected according to installed SDK, prior attempt preserved",
+    "No production source/build/dependency/driver change, staging, commit, tag, push, approval or Phase 01",
+    "Dump contains 48 thread states; Release first-party PDB and NVIDIA private symbols unavailable. All stacks retain module-relative addresses; optional OS !peb/!address type queries unavailable.",
+    "Native 04 fatal event was captured at 4.672 seconds; full dump writing and hashing extends command duration to 45.75 seconds.",
+    "No new matching Windows driver events were returned by the later overlap query; the failing dump itself contains the diagnostic with PID/TID.",
+    "Read-only CIM query for ambient MSBuild command line was access denied; repeated Get-Process CPU observations established no accumulating CPU in the isolation window."
+  ],
+  "final_disposition": "NVIDIA OpenGL resource-exhaustion fast-fail under overlapping GPU-heavy probes; validation scheduling corrected; four serial final Release launches pass.",
+  "gpu_sampling_command": "C:/Windows/system32/nvidia-smi.exe --query-gpu=timestamp,name,driver_version,memory.total,memory.used,memory.free,utilization.gpu --format=csv,noheader (every two seconds)",
+  "fault_dump_sha256": "35daea8c9191466406bc52834d95f3ee7ab806f031628f8bc8f94efac62be50a"
+}

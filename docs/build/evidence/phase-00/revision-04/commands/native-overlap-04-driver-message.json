@@ -1,0 +1,21 @@
+{
+  "name": "native-overlap-04-driver-message",
+  "revision": "04",
+  "mode": "offline driver fatal message",
+  "argv": [
+    "C:\\Program Files (x86)\\Windows Kits\\10\\Debuggers\\x64\\cdb.exe",
+    "-z",
+    "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\native-overlap-04-RayTracing.dmp",
+    "-c",
+    ".ecxr; da 0000003c5ddfd080 L400; da 00007ffc014e3078 L80; da 00007ffc014e3150 L100; da 00007ffc014e3128 L100; q"
+  ],
+  "cwd": "C:\\dev\\GEngine-build",
+  "started_utc": "2026-09-13T06:31:24.723137+00:00",
+  "elapsed_seconds": 0.6559999999881256,
+  "exit_code": 0,
+  "result": "PASS",
+  "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-04-driver-message.txt",
+  "raw_sha256": "3cb41c938e35da5acac2722955261fef862d756a0e8385595fc80f2f7d1f98f1",
+  "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-driver-message.txt.gz",
+  "compressed_sha256": "f2a149b0109ab4fe96d936fe3b79f0693b9416803da7a2f3ff40ca9fd5b2aa36"
+}

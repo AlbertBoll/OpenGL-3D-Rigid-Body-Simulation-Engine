@@ -1,0 +1,27 @@
+{
+  "name": "tests-profile-Debug-box-manifolds",
+  "revision": "03",
+  "argv": [
+    "C:\\dev\\GEngine-build\\bin\\Debug\\PhysicsTests\\PhysicsTests.exe",
+    "--box-manifolds"
+  ],
+  "command": "C:\\dev\\GEngine-build\\bin\\Debug\\PhysicsTests\\PhysicsTests.exe --box-manifolds",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T04:55:01.441279+00:00",
+  "elapsed_seconds": 0.718,
+  "harness_sha256": "caac977868969f78e1ea9ec5318befc1663e8dee134cb17646df57cc9e4fb8f3",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-caac977868969f78e1ea9ec5318befc1663e8dee134cb17646df57cc9e4fb8f3.py",
+  "timeout_seconds": 600,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/tests-profile-Debug-box-manifolds.txt",
+  "raw_sha256": "861678e8be4e52ada1c0f5272c9973e4ff9d0df0ada12bcbe8c1214ada83fc7e",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/tests-profile-Debug-box-manifolds.txt.gz",
+  "compressed_sha256": "f01e5d26b4bb69284dca565e7d87cac9a91f61e42150c6fb5c620f32c993c4b3",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

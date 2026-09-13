@@ -1,0 +1,49 @@
+{
+  "name": "native-overlap-01-Breakout",
+  "revision": "04",
+  "mode": "startup",
+  "app": "Breakout",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "-B",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+    "_startup",
+    "native-overlap-01-Breakout",
+    "Breakout"
+  ],
+  "cwd": "C:\\dev\\GEngine-build\\Breakout",
+  "configuration": "Release",
+  "started_utc": "2026-09-13T06:24:42.450673+00:00",
+  "elapsed_seconds": 60.469,
+  "exit_code": 0,
+  "result": "PASS",
+  "process_result": [
+    {
+      "alive_for_smoke": true,
+      "SDL_window_created": true,
+      "diagnostic_dialogs": [],
+      "exit_code": 0,
+      "exit_hex": "0x0",
+      "forced_termination": false,
+      "application_log": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "text": ""
+      }
+    }
+  ],
+  "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-01-Breakout.txt",
+  "raw_sha256": "5aa4bc556ec1385fcc00cccc4acdfe83bee9524415ef23aa7f2cf3ebd9ce2774",
+  "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-01-Breakout.txt.gz",
+  "compressed_sha256": "579227a4d85999fb1a316718e185651afe5286368e48eede82ce7a0a3f60e1c8",
+  "harness_sha256": "808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d.py",
+  "unchanged_startup_implementation": {
+    "path": "scripts/build_validation/revise_phase00_r03.py",
+    "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+  },
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PATH": "C:\\Windows\\System32;C:\\Windows"
+  },
+  "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+}

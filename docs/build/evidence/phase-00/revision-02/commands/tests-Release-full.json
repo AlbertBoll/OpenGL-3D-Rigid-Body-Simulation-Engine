@@ -1,0 +1,24 @@
+{
+  "name": "tests-Release-full",
+  "revision": "02",
+  "argv": [
+    "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsTests\\PhysicsTests.exe"
+  ],
+  "command": "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsTests\\PhysicsTests.exe",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Release",
+  "started_utc": "2026-09-13T04:15:18.553900+00:00",
+  "elapsed_seconds": 13.344,
+  "timeout_seconds": 1800,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-02/tests-Release-full.txt",
+  "raw_sha256": "193eaf0957ebcaf00f8909ae24010a7c75dc9cfe9acf61f383e79a74674d6bbc",
+  "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/tests-Release-full.txt.gz",
+  "compressed_sha256": "64ffb62833c7dc63101dfea726cf8412c6ed83102e2c519754363b0d7cd3ef49",
+  "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+}

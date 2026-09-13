@@ -1,0 +1,28 @@
+{
+  "name": "benchmark-Release-normal",
+  "revision": "01",
+  "argv": [
+    "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsBenchmark\\PhysicsBenchmark.exe",
+    "--body-counts=50,100,200,500,1000,2000",
+    "--warmup=2",
+    "--samples=5",
+    "--dt=0.008333333"
+  ],
+  "command": "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsBenchmark\\PhysicsBenchmark.exe --body-counts=50,100,200,500,1000,2000 --warmup=2 --samples=5 --dt=0.008333333",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Release",
+  "started_utc": "2026-09-13T03:32:07.781417+00:00",
+  "elapsed_seconds": 0.578,
+  "timeout_seconds": 900,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-01/benchmark-Release-normal.txt",
+  "raw_sha256": "51cdae1a25e5b693aab78adf140115792c32ffdd9491ef3093c1e994510bfc67",
+  "compressed_log": "docs/build/evidence/phase-00/revision-01/commands/benchmark-Release-normal.txt.gz",
+  "compressed_sha256": "3f533c03af22c8ec376831c845bf09785fd639026dead3d2b61e16b2adb9c52f",
+  "initial_lineage": "86621b4bcbcbd46a79eaacc35de270b0b833b6eda9b1138a503b2b1eeb1f2a70"
+}

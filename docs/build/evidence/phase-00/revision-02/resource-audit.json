@@ -1,0 +1,148 @@
+{
+  "status": "PARTIAL / BLOCKED",
+  "startup_results": {
+    "startup-Debug-Breakout.txt.gz": {
+      "alive_for_smoke": true,
+      "visible_window_observed": false,
+      "SDL_window_created": true,
+      "window_policy": "STARTF_USESHOWWINDOW/SW_HIDE keeps the validation window hidden; close the SDL window by class even when hidden",
+      "diagnostic_dialogs": [],
+      "exit_code": 0,
+      "exit_hex": "0x0",
+      "forced_termination": false,
+      "application_log": {
+        "path": "C:\\dev\\GEngine-build\\Breakout\\GEngine.log",
+        "sha256": "39744d8b8810d0bfc2ce5cfa2e1414e5e1793d74275b1e5aba8f0bf514ae82c1",
+        "text": "[09/12/26 21:11:37] [info] GENGINE: Initialize Logging...\n[09/12/26 21:11:37] [info] GENGINE: GEngine v1.0\n[09/12/26 21:11:37] [info] GENGINE: Configuration: DEBUG\n[09/12/26 21:11:37] [info] GENGINE: Platform: WINDOWS\n[09/12/26 21:11:37] [info] GENGINE: Initialize SDL\n[09/12/26 21:11:37] [info] GENGINE: SDL 2.0.20\n[09/12/26 21:11:37] [info] GENGINE: Display width: 1707. Display height: 960. Refresh Rate: 165\n[09/12/26 21:11:37] [info] GENGINE: Initialize Window Manager...\n[09/12/26 21:11:37] [info] GENGINE: Initialize Windows...\n[09/12/26 21:11:37] [info] GENGINE: Initialize Input Manager...\n[09/12/26 21:11:37] [info] GENGINE: Initialize Event Manager...\n[09/12/26 21:11:37] [info] GENGINE: Initialize Shape Manager...\n[09/12/26 21:11:57] [info] GENGINE: Initialize font...\n[09/12/26 21:11:57] [info] GENGINE: Initialize Scene...\n[09/12/26 21:11:58] [info] GENGINE: Initialize Audio System...\n[09/12/26 21:11:58] [info] GENGINE: Initialize 2D Renderer...\n[09/12/26 21:11:58] [info] GENGINE: Initialize Orthographic Camera...\n"
+      }
+    },
+    "startup-Debug-GEngineEditor.txt.gz": {
+      "alive_for_smoke": true,
+      "visible_window_observed": false,
+      "SDL_window_created": true,
+      "window_policy": "STARTF_USESHOWWINDOW/SW_HIDE keeps the validation window hidden; close the SDL window by class even when hidden",
+      "diagnostic_dialogs": [],
+      "exit_code": 2147483651,
+      "exit_hex": "0x80000003",
+      "forced_termination": false,
+      "application_log": {
+        "path": "C:\\dev\\GEngine-build\\GEngineEditor\\GEngine.log",
+        "sha256": "81998433b9379c77c05e30d54e1089b976a400c3dad2ccb7ba72636bb0e70d39",
+        "text": "[09/12/26 21:12:23] [info] GENGINE: Initialize Logging...\n[09/12/26 21:12:23] [info] GENGINE: GEngine v1.0\n[09/12/26 21:12:23] [info] GENGINE: Configuration: DEBUG\n[09/12/26 21:12:23] [info] GENGINE: Platform: WINDOWS\n[09/12/26 21:12:23] [info] GENGINE: Initialize SDL\n[09/12/26 21:12:23] [info] GENGINE: SDL 2.0.20\n[09/12/26 21:12:23] [info] GENGINE: Display width: 1707. Display height: 960. Refresh Rate: 165\n[09/12/26 21:12:23] [info] GENGINE: Initialize Window Manager...\n[09/12/26 21:12:23] [info] GENGINE: Initialize Windows...\n[09/12/26 21:12:24] [info] GENGINE: Initialize Input Manager...\n[09/12/26 21:12:24] [info] GENGINE: Initialize Event Manager...\n[09/12/26 21:12:24] [info] GENGINE: Initialize Shape Manager...\n[09/12/26 21:12:49] [info] GENGINE: Initialize font...\n[09/12/26 21:12:49] [info] GENGINE: Initialize Scene...\n[09/12/26 21:12:49] [info] GENGINE: Initialize Audio System...\n[09/12/26 21:12:49] [info] GENGINE: Initialize 3D Renderer...\n[09/12/26 21:12:49] [info] GENGINE: OpenGL Info:\n  \t\t\t\t  Vendor: NVIDIA Corporation\n  \t\t\t        Renderer: NVIDIA GeForce RTX 3070 Laptop GPU/PCIe/SSE2\n  \t\t\t         Version: 4.6.0 NVIDIA 552.44\n[09/12/26 21:12:49] [info] GENGINE: Initialize Perspective Camera...\n[09/12/26 21:13:14] [error] GENGINE: Assertion failed: Framebuffer status error\n"
+      }
+    }
+  },
+  "source_cwd_file_checks": [
+    {
+      "app": "Breakout",
+      "cwd": "C:\\dev\\GEngine-build\\Breakout",
+      "checked_paths": [
+        {
+          "path": "C:\\dev\\GEngine-build\\Breakout\\..\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Regular.ttf",
+          "resolved": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Regular.ttf",
+          "sha256": "037236ed4bf58a85f67074c165d308260fd6be01c86d7df4e79ea16eb273f8c5"
+        },
+        {
+          "path": "C:\\dev\\GEngine-build\\Breakout\\..\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Bold.ttf",
+          "resolved": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Bold.ttf",
+          "sha256": "f7916a37377e38527d4306303cfe89b653b49b0a6b0b05c6b7593f7ab0248da8"
+        },
+        {
+          "path": "C:\\dev\\GEngine-build\\Breakout\\..\\Breakout\\include\\images\\background.png",
+          "resolved": "C:\\dev\\GEngine-build\\Breakout\\include\\images\\background.png",
+          "sha256": "b8bb5cd64e935f4aa39919ae2b1742ebe3190486c84ef6e3c09e14666470c5ca"
+        },
+        {
+          "path": "C:\\dev\\GEngine-build\\Breakout\\..\\Breakout\\include\\images\\paddle.png",
+          "resolved": "C:\\dev\\GEngine-build\\Breakout\\include\\images\\paddle.png",
+          "sha256": "20242526e3e7d354104fbcf543873ca008f0addc593fb7a887dec84c2b51edc4"
+        },
+        {
+          "path": "C:\\dev\\GEngine-build\\Breakout\\..\\Breakout\\include\\images\\awesomeface_r.png",
+          "resolved": "C:\\dev\\GEngine-build\\Breakout\\include\\images\\awesomeface_r.png",
+          "sha256": "a9da1ac6400c46e6ce02e425508d4293b9664ef7cb9c9fac4fee3c04411b5cb3"
+        },
+        {
+          "path": "C:\\dev\\GEngine-build\\Breakout\\..\\Breakout\\include\\images\\block.png",
+          "resolved": "C:\\dev\\GEngine-build\\Breakout\\include\\images\\block.png",
+          "sha256": "6be998394d8c237879c35ff35329c373b12a72027d9dbcd16e9b8d4246714a4e"
+        },
+        {
+          "path": "C:\\dev\\GEngine-build\\Breakout\\..\\Breakout\\include\\images\\block_solid.png",
+          "resolved": "C:\\dev\\GEngine-build\\Breakout\\include\\images\\block_solid.png",
+          "sha256": "9f44f1d4ff7c3230fb3283f19e63e7f692b8b6eb63f393e90282d258e2d160f3"
+        },
+        {
+          "path": "C:\\dev\\GEngine-build\\Breakout\\include\\levels\\four.lvl",
+          "resolved": "C:\\dev\\GEngine-build\\Breakout\\include\\levels\\four.lvl",
+          "sha256": "51b471f362881be1a6cc98c30c4869fdb506f10c281f4740006fad4802065bae"
+        },
+        {
+          "path": "C:\\dev\\GEngine-build\\Breakout\\include\\levels\\one.lvl",
+          "resolved": "C:\\dev\\GEngine-build\\Breakout\\include\\levels\\one.lvl",
+          "sha256": "4a60ca0e4d917fbe593aaf161e66f0072a6f0a3ef286eb65996f6e88272ee6ff"
+        },
+        {
+          "path": "C:\\dev\\GEngine-build\\Breakout\\include\\levels\\three.lvl",
+          "resolved": "C:\\dev\\GEngine-build\\Breakout\\include\\levels\\three.lvl",
+          "sha256": "f00d52e7482ee676b5ef13631da97979f4b5178330af0f1c732e746c98b3d54b"
+        },
+        {
+          "path": "C:\\dev\\GEngine-build\\Breakout\\include\\levels\\two.lvl",
+          "resolved": "C:\\dev\\GEngine-build\\Breakout\\include\\levels\\two.lvl",
+          "sha256": "79c0d4e28199731909c9e1d4fc891a0ca92ebe7eca40da3d4afc9c4a038a8b11"
+        }
+      ]
+    },
+    {
+      "app": "GEngineEditor",
+      "cwd": "C:\\dev\\GEngine-build\\GEngineEditor",
+      "checked_paths": [
+        {
+          "path": "C:\\dev\\GEngine-build\\GEngineEditor\\..\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Regular.ttf",
+          "resolved": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Regular.ttf",
+          "sha256": "037236ed4bf58a85f67074c165d308260fd6be01c86d7df4e79ea16eb273f8c5"
+        },
+        {
+          "path": "C:\\dev\\GEngine-build\\GEngineEditor\\..\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Bold.ttf",
+          "resolved": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Bold.ttf",
+          "sha256": "f7916a37377e38527d4306303cfe89b653b49b0a6b0b05c6b7593f7ab0248da8"
+        }
+      ]
+    },
+    {
+      "app": "RayTracing",
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "checked_paths": [
+        {
+          "path": "C:\\dev\\GEngine-build\\RayTracing\\..\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Regular.ttf",
+          "resolved": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Regular.ttf",
+          "sha256": "037236ed4bf58a85f67074c165d308260fd6be01c86d7df4e79ea16eb273f8c5"
+        },
+        {
+          "path": "C:\\dev\\GEngine-build\\RayTracing\\..\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Bold.ttf",
+          "resolved": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Bold.ttf",
+          "sha256": "f7916a37377e38527d4306303cfe89b653b49b0a6b0b05c6b7593f7ab0248da8"
+        }
+      ]
+    },
+    {
+      "app": "RigidBodySimulation",
+      "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+      "checked_paths": [
+        {
+          "path": "C:\\dev\\GEngine-build\\RigidBodySimulation\\..\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Regular.ttf",
+          "resolved": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Regular.ttf",
+          "sha256": "037236ed4bf58a85f67074c165d308260fd6be01c86d7df4e79ea16eb273f8c5"
+        },
+        {
+          "path": "C:\\dev\\GEngine-build\\RigidBodySimulation\\..\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Bold.ttf",
+          "resolved": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Bold.ttf",
+          "sha256": "f7916a37377e38527d4306303cfe89b653b49b0a6b0b05c6b7593f7ab0248da8"
+        }
+      ]
+    }
+  ],
+  "Breakout_Debug": "PASS: no malformed paths, no fallback warnings, initialized 2D renderer and normal exit 0; intended images and levels unchanged",
+  "limits": "Release app/resource launches and other Debug applications NOT RUN after new Editor blocker; file availability alone is not a resource-load pass."
+}

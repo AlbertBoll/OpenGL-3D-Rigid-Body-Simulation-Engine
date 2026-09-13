@@ -1,0 +1,182 @@
+[
+  {
+    "name": "premake-normal",
+    "argv": [
+      "C:\\dev\\GEngine-build\\vendor\\bin\\premake\\premake5.exe",
+      "vs2022"
+    ],
+    "command": "C:\\dev\\GEngine-build\\vendor\\bin\\premake\\premake5.exe vs2022",
+    "cwd": "C:\\dev\\GEngine-build",
+    "configuration": null,
+    "started_utc": "2026-09-13T00:50:11.440929+00:00",
+    "elapsed_seconds": 0.39,
+    "exit_code": 0,
+    "timed_out": false,
+    "result": "PASS",
+    "log": "docs/build/evidence/phase-00/premake-normal.txt",
+    "log_sha256": "45586c0406d561dcf80b5c8ecaad2d32e4c7c5306ecf9e5ad76f39ed695ddd41",
+    "environment": "environment.json; PYTHONDONTWRITEBYTECODE=1"
+  },
+  {
+    "name": "build-Debug",
+    "argv": [
+      "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe",
+      "GEngine.sln",
+      "/m:2",
+      "/nr:false",
+      "/nologo",
+      "/t:Build",
+      "/p:Configuration=Debug",
+      "/p:Platform=x64",
+      "/v:diag"
+    ],
+    "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\" GEngine.sln /m:2 /nr:false /nologo /t:Build /p:Configuration=Debug /p:Platform=x64 /v:diag",
+    "cwd": "C:\\dev\\GEngine-build",
+    "configuration": "Debug",
+    "started_utc": "2026-09-13T00:50:17.316335+00:00",
+    "elapsed_seconds": 89.031,
+    "exit_code": 0,
+    "timed_out": false,
+    "result": "PASS",
+    "log": "docs/build/evidence/phase-00/build-Debug.txt",
+    "log_sha256": "9d92cec254ee2a83cbeb741f119992142ac97b65c243d882c9105783318cde24",
+    "environment": "environment.json; PYTHONDONTWRITEBYTECODE=1"
+  },
+  {
+    "name": "imports-Debug-Breakout",
+    "argv": [
+      "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+      "/imports",
+      "C:\\dev\\GEngine-build\\bin\\Debug\\Breakout\\Breakout.exe"
+    ],
+    "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /imports C:\\dev\\GEngine-build\\bin\\Debug\\Breakout\\Breakout.exe",
+    "cwd": "C:\\dev\\GEngine-build",
+    "configuration": "Debug",
+    "started_utc": "2026-09-13T00:53:44.675757+00:00",
+    "elapsed_seconds": 0.031,
+    "exit_code": 0,
+    "timed_out": false,
+    "result": "PASS",
+    "log": "docs/build/evidence/phase-00/imports-Debug-Breakout.txt",
+    "log_sha256": "5cbb693e69b6b929f03636125d29d2b0243760ae8c4fc23b64f94c0bf9290939",
+    "environment": "environment.json; PYTHONDONTWRITEBYTECODE=1"
+  },
+  {
+    "name": "imports-Debug-GEngineEditor",
+    "argv": [
+      "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+      "/imports",
+      "C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor\\GEngineEditor.exe"
+    ],
+    "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /imports C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor\\GEngineEditor.exe",
+    "cwd": "C:\\dev\\GEngine-build",
+    "configuration": "Debug",
+    "started_utc": "2026-09-13T00:53:44.705491+00:00",
+    "elapsed_seconds": 0.016,
+    "exit_code": 0,
+    "timed_out": false,
+    "result": "PASS",
+    "log": "docs/build/evidence/phase-00/imports-Debug-GEngineEditor.txt",
+    "log_sha256": "d4ef594d201dea9df13f54ad549eb121e6e4fe8d27826d8f3987304216b8aed0",
+    "environment": "environment.json; PYTHONDONTWRITEBYTECODE=1"
+  },
+  {
+    "name": "imports-Debug-RayTracing",
+    "argv": [
+      "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+      "/imports",
+      "C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\RayTracing.exe"
+    ],
+    "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /imports C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\RayTracing.exe",
+    "cwd": "C:\\dev\\GEngine-build",
+    "configuration": "Debug",
+    "started_utc": "2026-09-13T00:53:44.722194+00:00",
+    "elapsed_seconds": 0.016,
+    "exit_code": 0,
+    "timed_out": false,
+    "result": "PASS",
+    "log": "docs/build/evidence/phase-00/imports-Debug-RayTracing.txt",
+    "log_sha256": "02b221766a7f5c232b7f4d7df8bacf7a730e0d5c7d2f59f143e0927ffebc8d76",
+    "environment": "environment.json; PYTHONDONTWRITEBYTECODE=1"
+  },
+  {
+    "name": "imports-Debug-RigidBodySimulation",
+    "argv": [
+      "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+      "/imports",
+      "C:\\dev\\GEngine-build\\bin\\Debug\\RigidBodySimulation\\RigidBodySimulation.exe"
+    ],
+    "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /imports C:\\dev\\GEngine-build\\bin\\Debug\\RigidBodySimulation\\RigidBodySimulation.exe",
+    "cwd": "C:\\dev\\GEngine-build",
+    "configuration": "Debug",
+    "started_utc": "2026-09-13T00:53:44.753445+00:00",
+    "elapsed_seconds": 0.016,
+    "exit_code": 0,
+    "timed_out": false,
+    "result": "PASS",
+    "log": "docs/build/evidence/phase-00/imports-Debug-RigidBodySimulation.txt",
+    "log_sha256": "ff8a06a513723129012bd6829885db6f2502e3f35227a7a038e44ab6507c7a06",
+    "environment": "environment.json; PYTHONDONTWRITEBYTECODE=1"
+  },
+  {
+    "name": "build-Release",
+    "argv": [
+      "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe",
+      "GEngine.sln",
+      "/m:2",
+      "/nr:false",
+      "/nologo",
+      "/t:Build",
+      "/p:Configuration=Release",
+      "/p:Platform=x64",
+      "/v:diag"
+    ],
+    "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\" GEngine.sln /m:2 /nr:false /nologo /t:Build /p:Configuration=Release /p:Platform=x64 /v:diag",
+    "cwd": "C:\\dev\\GEngine-build",
+    "configuration": "Release",
+    "started_utc": "2026-09-13T00:52:23.393518+00:00",
+    "elapsed_seconds": 99.75,
+    "exit_code": 0,
+    "timed_out": false,
+    "result": "PASS",
+    "log": "docs/build/evidence/phase-00/build-Release.txt",
+    "log_sha256": "3435f9e020d421753e555952c7548200f82f8352bb7fffdaa6f376788a1a03a0",
+    "environment": "environment.json; PYTHONDONTWRITEBYTECODE=1"
+  },
+  {
+    "name": "startup-Debug-RayTracing",
+    "argv": [
+      "C:\\Python310\\python.exe",
+      "-c",
+      "\nimport ctypes, json, os, pathlib, subprocess, sys, time\nctypes.windll.kernel32.SetErrorMode(0x0001 | 0x0002 | 0x8000)\nroot=pathlib.Path(r'C:/dev/GEngine-build')\nexe=root/'bin/Debug/RayTracing/RayTracing.exe'\nenv=os.environ.copy()\nenv['PATH']=str(pathlib.Path(os.environ['SystemRoot'])/'System32')+';'+os.environ['SystemRoot']\nstartup=subprocess.STARTUPINFO()\nstartup.dwFlags |= subprocess.STARTF_USESHOWWINDOW\nstartup.wShowWindow=0\nprint(json.dumps({'exe':str(exe),'cwd':str(pathlib.Path.cwd()),'PATH':env['PATH'],'local_tbb12_exists':(exe.parent/'tbb12.dll').is_file(),'source_baseline':'b3b043b15ee814133e8419466a1bf3a985a3c958'}),flush=True)\nt=time.monotonic()\np=subprocess.Popen([str(exe)],env=env,startupinfo=startup,creationflags=subprocess.CREATE_NO_WINDOW)\ntimed_out=False\ntry: code=p.wait(timeout=15)\nexcept subprocess.TimeoutExpired:\n    timed_out=True\n    p.kill()\n    code=p.wait()\nprint(json.dumps({'exit_code':code,'exit_hex':hex(code & 0xffffffff),'elapsed_seconds':time.monotonic()-t,'terminated_after_timeout':timed_out}),flush=True)\nsys.exit(1 if code or timed_out else 0)\n"
+    ],
+    "command": "C:\\Python310\\python.exe -c \"\nimport ctypes, json, os, pathlib, subprocess, sys, time\nctypes.windll.kernel32.SetErrorMode(0x0001 | 0x0002 | 0x8000)\nroot=pathlib.Path(r'C:/dev/GEngine-build')\nexe=root/'bin/Debug/RayTracing/RayTracing.exe'\nenv=os.environ.copy()\nenv['PATH']=str(pathlib.Path(os.environ['SystemRoot'])/'System32')+';'+os.environ['SystemRoot']\nstartup=subprocess.STARTUPINFO()\nstartup.dwFlags |= subprocess.STARTF_USESHOWWINDOW\nstartup.wShowWindow=0\nprint(json.dumps({'exe':str(exe),'cwd':str(pathlib.Path.cwd()),'PATH':env['PATH'],'local_tbb12_exists':(exe.parent/'tbb12.dll').is_file(),'source_baseline':'b3b043b15ee814133e8419466a1bf3a985a3c958'}),flush=True)\nt=time.monotonic()\np=subprocess.Popen([str(exe)],env=env,startupinfo=startup,creationflags=subprocess.CREATE_NO_WINDOW)\ntimed_out=False\ntry: code=p.wait(timeout=15)\nexcept subprocess.TimeoutExpired:\n    timed_out=True\n    p.kill()\n    code=p.wait()\nprint(json.dumps({'exit_code':code,'exit_hex':hex(code & 0xffffffff),'elapsed_seconds':time.monotonic()-t,'terminated_after_timeout':timed_out}),flush=True)\nsys.exit(1 if code or timed_out else 0)\n\"",
+    "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+    "configuration": "Debug",
+    "started_utc": "2026-09-13T00:54:35.552189+00:00",
+    "elapsed_seconds": 0.078,
+    "exit_code": 1,
+    "timed_out": false,
+    "result": "FAIL",
+    "log": "docs/build/evidence/phase-00/startup-Debug-RayTracing.txt",
+    "log_sha256": "9ddaeca3e9efb76604ce8da2ffa014e06ed8843fa4d7a39ed1e60a4752beceb2",
+    "environment": "environment.json; PYTHONDONTWRITEBYTECODE=1"
+  },
+  {
+    "name": "tests-Debug-full",
+    "argv": [
+      "C:\\dev\\GEngine-build\\bin\\Debug\\PhysicsTests\\PhysicsTests.exe"
+    ],
+    "command": "C:\\dev\\GEngine-build\\bin\\Debug\\PhysicsTests\\PhysicsTests.exe",
+    "cwd": "C:\\dev\\GEngine-build",
+    "configuration": "Debug",
+    "started_utc": "2026-09-13T00:52:47.150589+00:00",
+    "elapsed_seconds": 120.0,
+    "exit_code": 1,
+    "timed_out": true,
+    "result": "TIMEOUT",
+    "log": "docs/build/evidence/phase-00/tests-Debug-full.txt",
+    "log_sha256": "3de4a8fd48d65b4c999041606b2e2e18d1e6ab7870a7b055b908a276ef03a4bf",
+    "environment": "environment.json; PYTHONDONTWRITEBYTECODE=1"
+  }
+]

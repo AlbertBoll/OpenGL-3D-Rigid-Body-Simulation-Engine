@@ -1,0 +1,26 @@
+{
+  "name": "tbb-provenance",
+  "revision": "01",
+  "argv": [
+    "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+    "/headers",
+    "C:\\dev\\GEngine-build\\external\\tbb\\lib\\tbb12.lib"
+  ],
+  "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /headers C:\\dev\\GEngine-build\\external\\tbb\\lib\\tbb12.lib",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": null,
+  "started_utc": "2026-09-13T03:23:10.748745+00:00",
+  "elapsed_seconds": 0.015,
+  "timeout_seconds": 120,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-01/tbb-provenance.txt",
+  "raw_sha256": "b76e13ef90fd8700a51f0f80166bddf161df72c0e3ed12bb13abbaf32fa373ca",
+  "compressed_log": "docs/build/evidence/phase-00/revision-01/commands/tbb-provenance.txt.gz",
+  "compressed_sha256": "ead8ecfe9220424644e8b18d86d344a5936aba5e34af63831edf8bd99858e9f4",
+  "initial_lineage": "86621b4bcbcbd46a79eaacc35de270b0b833b6eda9b1138a503b2b1eeb1f2a70"
+}

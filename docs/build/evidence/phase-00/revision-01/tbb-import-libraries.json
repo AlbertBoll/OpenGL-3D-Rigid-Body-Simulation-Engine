@@ -1,0 +1,36 @@
+{
+  "consumed_library": "C:\\dev\\GEngine-build\\external\\tbb\\lib\\tbb12.lib",
+  "consumed_sha256": "bb72fee5dfebcd6d17448751647a5027027ca4d9309fdae0d4b099c72873ba72",
+  "historical_addition": "commit 0706a009749651a1b92b57ab1b377a6cba90a979\nAuthor:     AlbertBoll <albertboll19900124@gmail.com>\nAuthorDate: Thu May 19 18:01:45 2022 -0700\nCommit:     AlbertBoll <albertboll19900124@gmail.com>\nCommitDate: Thu May 19 18:01:45 2022 -0700\n\n    Adding TBB(Thread building block) to the project\n",
+  "link_reads": {
+    "Debug": {
+      "path": "C:\\dev\\GEngine-build\\bin-int\\Debug\\RayTracing\\RayTracing.tlog\\link.read.1.tlog",
+      "sha256": "169933ecba87060572612adbeec63d0d070f002baaa127e8f46347f28b70a742",
+      "tbb_paths": [
+        "C:\\DEV\\GENGINE-BUILD\\EXTERNAL\\TBB\\LIB\\TBB12.LIB",
+        "C:\\DEV\\GENGINE-BUILD\\EXTERNAL\\TBB\\LIB\\TBB12_DEBUG.LIB",
+        "C:\\DEV\\GENGINE-BUILD\\EXTERNAL\\TBB\\LIB\\TBB.LIB",
+        "C:\\DEV\\GENGINE-BUILD\\EXTERNAL\\TBB\\LIB\\TBB_DEBUG.LIB"
+      ]
+    },
+    "Release": {
+      "path": "C:\\dev\\GEngine-build\\bin-int\\Release\\RayTracing\\RayTracing.tlog\\link.read.1.tlog",
+      "sha256": "5cd8fc00a12cada6028ae0fde510fb0b88cf7282f8e8d99160c0679f55d188dd",
+      "tbb_paths": [
+        "C:\\DEV\\GENGINE-BUILD\\EXTERNAL\\TBB\\LIB\\TBB12.LIB",
+        "C:\\DEV\\GENGINE-BUILD\\EXTERNAL\\TBB\\LIB\\TBB12_DEBUG.LIB",
+        "C:\\DEV\\GENGINE-BUILD\\EXTERNAL\\TBB\\LIB\\TBB.LIB",
+        "C:\\DEV\\GENGINE-BUILD\\EXTERNAL\\TBB\\LIB\\TBB_DEBUG.LIB"
+      ]
+    }
+  },
+  "distribution_match": "Byte-identical lib/intel64/vc14/tbb12.lib in official 2021.5.0 archive; vc14_uwp import lib is also byte-identical. Select desktop vc14 runtime for existing Windows ConsoleApp targets.",
+  "runtime": {
+    "path": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\tbb-origin\\oneapi-tbb-2021.5.0\\redist\\intel64\\vc14\\tbb12.dll",
+    "sha256": "3bda7c5458d7f43bcd49f0dead5114eac1ea14f573aafc736f833089b1d2cd79",
+    "architecture": "0x8664",
+    "TBB_runtime_version": "2021.5",
+    "TBB_runtime_interface_version": 12050
+  },
+  "no_graph_change": "Both configurations name/read the four original TBB libraries; tbb.lib duplicates tbb12.lib and tbb_debug.lib duplicates tbb12_debug.lib. Fresh PE imports select tbb12.dll in both configurations. No link order or library changes."
+}

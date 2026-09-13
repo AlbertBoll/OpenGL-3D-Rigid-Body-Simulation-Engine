@@ -1,0 +1,118 @@
+{
+  "timestamp_utc": "2026-09-13T00:50:11.349280+00:00",
+  "platform": "Windows-10-10.0.19045-SP0",
+  "machine": "AMD64",
+  "python": "3.10.0 (tags/v3.10.0:b494f59, Oct  4 2021, 19:00:18) [MSC v.1929 64 bit (AMD64)]",
+  "versions": {
+    "python": {
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "Python 3.10.0\n",
+      "stderr": ""
+    },
+    "git": {
+      "argv": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "git version 2.45.1.windows.1\n",
+      "stderr": ""
+    },
+    "msbuild": {
+      "argv": [
+        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe",
+        "-version",
+        "-nologo"
+      ],
+      "exit_code": 0,
+      "stdout": "17.14.51.32402\n",
+      "stderr": ""
+    },
+    "premake": {
+      "argv": [
+        "C:\\dev\\GEngine-build\\vendor\\bin\\premake\\premake5.exe",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "premake5 (Premake Build Script Generator) 5.0.0-beta1\n",
+      "stderr": ""
+    },
+    "vswhere": {
+      "argv": [
+        "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe",
+        "-all",
+        "-products",
+        "*",
+        "-format",
+        "json"
+      ],
+      "exit_code": 0,
+      "stdout": "[\n  {\n    \"instanceId\": \"05f38d3e\",\n    \"installDate\": \"2021-12-04T22:32:34Z\",\n    \"installationName\": \"VisualStudio/16.11.59+37530.7\",\n    \"installationPath\": \"C:\\\\Program Files (x86)\\\\Microsoft Visual Studio\\\\2019\\\\BuildTools\",\n    \"installationVersion\": \"16.11.37530.7\",\n    \"productId\": \"Microsoft.VisualStudio.Product.BuildTools\",\n    \"productPath\": \"C:\\\\Program Files (x86)\\\\Microsoft Visual Studio\\\\2019\\\\BuildTools\\\\Common7\\\\Tools\\\\LaunchDevCmd.bat\",\n    \"state\": 4294967295,\n    \"isComplete\": true,\n    \"isLaunchable\": true,\n    \"isPrerelease\": false,\n    \"isRebootRequired\": false,\n    \"displayName\": \"Visual Studio Build Tools 2019\",\n    \"description\": \"The Visual Studio Build Tools allows you to build native and managed MSBuild-based applications without requiring the Visual Studio IDE. There are options to install the Visual C++ compilers and libraries, MFC, ATL, and C++/CLI support.\",\n    \"channelId\": \"VisualStudio.16.Release\",\n    \"channelUri\": \"https://aka.ms/vs/16/release/channel\",\n    \"enginePath\": \"C:\\\\Program Files (x86)\\\\Microsoft Visual Studio\\\\Installer\\\\resources\\\\app\\\\ServiceHub\\\\Services\\\\Microsoft.VisualStudio.Setup.Service\",\n    \"installedChannelId\": \"VisualStudio.16.Release\",\n    \"installedChannelUri\": \"https://aka.ms/vs/16/release/channel\",\n    \"releaseNotes\": \"https://docs.microsoft.com/en-us/visualstudio/releases/2019/release-notes-v16.11#16.11.59\",\n    \"resolvedInstallationPath\": \"C:\\\\Program Files (x86)\\\\Microsoft Visual Studio\\\\2019\\\\BuildTools\",\n    \"thirdPartyNotices\": \"https://go.microsoft.com/fwlink/?LinkId=660909\",\n    \"updateDate\": \"2026-08-24T18:47:48.966886Z\",\n    \"catalog\": {\n      \"buildBranch\": \"d16.11\",\n      \"buildVersion\": \"16.11.37530.7\",\n      \"id\": \"VisualStudio/16.11.59+37530.7\",\n      \"localBuild\": \"build-lab\",\n      \"manifestName\": \"VisualStudio\",\n      \"manifestType\": \"installer\",\n      \"productDisplayVersion\": \"16.11.59\",\n      \"productLine\": \"Dev16\",\n      \"productLineVersion\": \"2019\",\n      \"productMilestone\": \"RTW\",\n      \"productMilestoneIsPreRelease\": \"False\",\n      \"productName\": \"Visual Studio\",\n      \"productPatchVersion\": \"59\",\n      \"productPreReleaseMilestoneSuffix\": \"1.0\",\n      \"productSemanticVersion\": \"16.11.59+37530.7\",\n      \"requiredEngineVersion\": \"2.11.72.18200\"\n    },\n    \"properties\": {\n      \"campaignId\": \"670809496.1637962571\",\n      \"canceled\": \"0\",\n      \"channelManifestId\": \"VisualStudio.16.Release/16.11.59+37530.7\",\n      \"nickname\": \"\",\n      \"setupEngineFilePath\": \"C:\\\\Program Files (x86)\\\\Microsoft Visual Studio\\\\Installer\\\\setup.exe\"\n    }\n  },\n  {\n    \"instanceId\": \"6065931e\",\n    \"installDate\": \"2026-08-24T17:00:05Z\",\n    \"installationName\": \"VisualStudio/18.9.2+12120.119\",\n    \"installationPath\": \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Community\",\n    \"installationVersion\": \"18.9.12120.119\",\n    \"productId\": \"Microsoft.VisualStudio.Product.Community\",\n    \"productPath\": \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Community\\\\Common7\\\\IDE\\\\devenv.exe\",\n    \"state\": 4294967295,\n    \"isComplete\": true,\n    \"isLaunchable\": true,\n    \"isPrerelease\": false,\n    \"isRebootRequired\": false,\n    \"displayName\": \"Visual Studio Community 2026\",\n    \"description\": \"Everything you need to build modern apps - free for you, built for impact.\",\n    \"channelId\": \"VisualStudio.18.Release\",\n    \"channelUri\": \"https://aka.ms/vs/stable/channel\",\n    \"enginePath\": \"C:\\\\Program Files (x86)\\\\Microsoft Visual Studio\\\\Installer\\\\resources\\\\app\\\\ServiceHub\\\\Services\\\\Microsoft.VisualStudio.Setup.Service\",\n    \"expirationDate\": \"2026-11-18T17:00:00+00:00\",\n    \"installedChannelId\": \"VisualStudio.18.Release\",\n    \"installedChannelUri\": \"https://aka.ms/vs/stable/channel\",\n    \"releaseNotes\": \"https://docs.microsoft.com/en-us/visualstudio/releases/18/release-notes-v18.9#18.9.2\",\n    \"resolvedInstallationPath\": \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\18\\\\Community\",\n    \"retirementDate\": \"2027-02-16T17:00:00+00:00\",\n    \"thirdPartyNotices\": \"https://go.microsoft.com/fwlink/?LinkId=661480\",\n    \"updateDate\": \"2026-08-26T05:27:38.359244Z\",\n    \"catalog\": {\n      \"buildBranch\": \"stable\",\n      \"buildVersion\": \"18.9.12120.119\",\n      \"featureReleaseMonth\": \"08\",\n      \"featureReleaseYear\": \"2026\",\n      \"id\": \"VisualStudio/18.9.2+12120.119\",\n      \"includeBuildVersionInDisplayVersion\": \"False\",\n      \"localBuild\": \"build-lab\",\n      \"manifestName\": \"VisualStudio\",\n      \"manifestType\": \"installer\",\n      \"productDisplayVersion\": \"18.9.2\",\n      \"productLine\": \"Dev18\",\n      \"productLineVersion\": \"18\",\n      \"productMilestone\": \"RTW\",\n      \"productMilestoneIsPreRelease\": \"False\",\n      \"productName\": \"Visual Studio\",\n      \"productPatchVersion\": \"2\",\n      \"productPreReleaseMilestoneSuffix\": \"1.0\",\n      \"productRelease\": \"RTW\",\n      \"productSemanticVersion\": \"18.9.2+12120.119\",\n      \"requiredEngineVersion\": \"4.9.50.62957\"\n    },\n    \"properties\": {\n      \"campaignId\": \"\",\n      \"channelManifestId\": \"VisualStudio.18.Release/18.9.2+12120.119\",\n      \"includeRecommended\": \"1\",\n      \"nickname\": \"\",\n      \"setupEngineFilePath\": \"C:\\\\Program Files (x86)\\\\Microsoft Visual Studio\\\\Installer\\\\setup.exe\"\n    }\n  },\n  {\n    \"instanceId\": \"a0e18217\",\n    \"installDate\": \"2024-09-01T00:48:35Z\",\n    \"installationName\": \"VisualStudio/17.14.39+37614.0.-august.2026-\",\n    \"installationPath\": \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\",\n    \"installationVersion\": \"17.14.37614.0\",\n    \"productId\": \"Microsoft.VisualStudio.Product.Community\",\n    \"productPath\": \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\Common7\\\\IDE\\\\devenv.exe\",\n    \"state\": 4294967295,\n    \"isComplete\": true,\n    \"isLaunchable\": true,\n    \"isPrerelease\": false,\n    \"isRebootRequired\": false,\n    \"displayName\": \"Visual Studio Community 2022\",\n    \"description\": \"Powerful IDE, free for students, open-source contributors, and individuals\",\n    \"channelId\": \"VisualStudio.17.Release\",\n    \"channelUri\": \"https://aka.ms/vs/17/release/channel\",\n    \"enginePath\": \"C:\\\\Program Files (x86)\\\\Microsoft Visual Studio\\\\Installer\\\\resources\\\\app\\\\ServiceHub\\\\Services\\\\Microsoft.VisualStudio.Setup.Service\",\n    \"installedChannelId\": \"VisualStudio.17.Release\",\n    \"installedChannelUri\": \"https://aka.ms/vs/17/release/channel\",\n    \"releaseNotes\": \"https://docs.microsoft.com/en-us/visualstudio/releases/2022/release-notes-v17.14#17.14.39\",\n    \"resolvedInstallationPath\": \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\",\n    \"thirdPartyNotices\": \"https://go.microsoft.com/fwlink/?LinkId=661288\",\n    \"updateDate\": \"2026-08-24T16:47:27.2996114Z\",\n    \"catalog\": {\n      \"buildBranch\": \"d17.14\",\n      \"buildVersion\": \"17.14.37614.0\",\n      \"id\": \"VisualStudio/17.14.39+37614.0.-august.2026-\",\n      \"localBuild\": \"build-lab\",\n      \"manifestName\": \"VisualStudio\",\n      \"manifestType\": \"installer\",\n      \"productDisplayVersion\": \"17.14.39 (August 2026)\",\n      \"productLine\": \"Dev17\",\n      \"productLineVersion\": \"2022\",\n      \"productMilestone\": \"RTW\",\n      \"productMilestoneIsPreRelease\": \"False\",\n      \"productName\": \"Visual Studio\",\n      \"productPatchVersion\": \"39\",\n      \"productPreReleaseMilestoneSuffix\": \"1.0\",\n      \"productReleaseNameSuffix\": \"(August 2026)\",\n      \"productSemanticVersion\": \"17.14.39+37614.0.-august.2026-\",\n      \"requiredEngineVersion\": \"3.14.2094.42856\"\n    },\n    \"properties\": {\n      \"campaignId\": \"\",\n      \"canceled\": \"0\",\n      \"channelManifestId\": \"VisualStudio.17.Release/17.14.39+37614.0.-august.2026-\",\n      \"includeRecommended\": \"1\",\n      \"nickname\": \"\",\n      \"setupEngineFilePath\": \"C:\\\\Program Files (x86)\\\\Microsoft Visual Studio\\\\Installer\\\\setup.exe\"\n    }\n  }\n]\n",
+      "stderr": ""
+    }
+  },
+  "tools": [
+    {
+      "path": "C:\\Python310\\python.exe",
+      "sha256": "94a83686261e9364cf3386b61a01a9f70936e8547da8962d16f1f850226b8954"
+    },
+    {
+      "path": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe",
+      "sha256": "ba9e8c83c25f4ca9ab1f66290be2ce429d8563efb99b9eb699487d0d5aef8db7"
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe",
+      "sha256": "c54f3b7c9164ea9a0db8641e81ecdda80c2664ef5a47c4191406f848cc07c662"
+    },
+    {
+      "path": "C:\\dev\\GEngine-build\\vendor\\bin\\premake\\premake5.exe",
+      "sha256": "6810a9d0c39d6d8361158da6bce9cb146267ba3405cb9eaea98dd0df36e991e0"
+    },
+    {
+      "path": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+      "sha256": "88c8344236a27a6e727e0a8edc49aaa2690bdc7a9464b9d18cc7abe70a9f1c0d"
+    },
+    {
+      "path": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\link.exe",
+      "sha256": "ca11e6c45debd34bf652dfe984c5360a531a005ed78bf72852330c9c2590cf0d"
+    },
+    {
+      "path": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\lib.exe",
+      "sha256": "3d694c782f93e998fec5db0c2df78153565da23a028ee4618561fa0c33408489"
+    },
+    {
+      "path": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+      "sha256": "12a1cd87238bd66dfdb788b4fcdcb91ce4b3f81236aab12a7a29e5ae1d85af50"
+    }
+  ],
+  "windows_sdk_include_versions": [
+    "10.0.19041.0",
+    "10.0.22621.0",
+    "10.0.26100.0"
+  ],
+  "environment": {
+    "PATH": "C:\\Users\\alber\\.codex\\tmp\\arg0\\codex-arg0HqD1cy;C:\\Users\\alber\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\codex-path;C:\\VulkanSDK\\1.3.250.1\\Bin;C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v11.6\\bin;C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v11.6\\libnvvp;C:\\Program Files (x86)\\Common Files\\Intel\\Shared Libraries\\redist\\intel64\\compiler;C:\\Program Files (x86)\\Razer Chroma SDK\\bin;C:\\Program Files\\Razer Chroma SDK\\bin;C:\\Python310\\;C:\\Python\\venv\\Scripts;C:\\Program Files (x86)\\Razer\\ChromaBroadcast\\bin;C:\\Program Files\\Razer\\ChromaBroadcast\\bin;C:\\Python310\\Scripts\\;C:\\Windows\\system32;C:\\Windows;C:\\Windows\\System32\\Wbem;C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\;C:\\Windows\\System32\\OpenSSH\\;C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common;C:\\Program Files\\NVIDIA Corporation\\NVIDIA NvDLISR;C:\\Program Files\\nodejs\\;C:\\ProgramData\\chocolatey\\bin;C:\\Users\\alber\\AppData\\Roaming\\npm;C:\\MinGW\\bin;C:\\Windows\\system32\\config\\systemprofile\\AppData\\Local\\Microsoft\\WindowsApps;C:\\Program Files\\NVIDIA Corporation\\Nsight Compute 2022.1.1\\;C:\\Program Files\\dotnet\\;C:\\Program Files\\SourceGear\\Common\\DiffMerge\\;C:\\msys64\\mingw64\\bin;C:\\Program Files\\Git\\cmd;C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\;C:\\Program Files\\Docker\\Docker\\resources\\bin;C:\\Program Files\\CMake\\bin;C:\\Users\\alber\\AppData\\Local\\Programs\\Python\\Python39\\Scripts\\;C:\\Users\\alber\\AppData\\Local\\Programs\\Python\\Python39\\;C:\\Users\\alber\\AppData\\Local\\Microsoft\\WindowsApps;C:\\Microsoft VS Code\\bin;C:\\Users\\alber\\AppData\\Roaming\\npm;C:\\Program Files\\nodejs\\;C:\\MinGW\\bin;C:\\Program Files\\JetBrains\\PyCharm 2021.3\\bin;C:\\Program Files\\JetBrains\\PyCharm Community Edition 2021.3\\bin;C:\\Python310\\;C:\\multithreading\\Multithread\\vendor\\ia32\\vc14;C:\\multithreading\\Multithread\\vendor\\intel64\\vc14;C:\\multithreading\\Multithread\\Debug;C:\\Users\\alber\\.dotnet\\tools;C:\\Users\\alber\\AppData\\Local\\atom\\bin;C:\\Users\\alber\\.dotnet\\tools;C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE;C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Msbuild\\Current\\Bin;C:\\Library\\SDL2;C:\\Library\\SDL2\\lib\\x64;C:\\Library\\glm;C:\\Library\\glm\\lib;C:\\Library\\SDL3;C:\\Library\\SDL3\\lib\\x64;C:\\Library\\nlohmann_json;C:\\Library\\spdlog;",
+    "INCLUDE": null,
+    "LIB": null,
+    "LIBPATH": null,
+    "CL": null,
+    "_CL_": null,
+    "LINK": null,
+    "WindowsSdkDir": null,
+    "WindowsSDKVersion": null,
+    "VCToolsInstallDir": null,
+    "VSINSTALLDIR": null,
+    "TEMP": "C:\\Users\\alber\\AppData\\Local\\Temp",
+    "TMP": "C:\\Users\\alber\\AppData\\Local\\Temp"
+  },
+  "build_environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "selection": "Explicit VS2022 MSBuild; no vswhere -latest and no package/tool installation."
+}

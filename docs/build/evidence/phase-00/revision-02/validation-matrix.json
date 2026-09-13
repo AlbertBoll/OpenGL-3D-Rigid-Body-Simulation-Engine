@@ -1,0 +1,695 @@
+{
+  "executed": [
+    {
+      "name": "baseline-benchmark-Debug-cdb-retry",
+      "revision": "02",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py",
+        "_debugger",
+        "PhysicsBenchmark"
+      ],
+      "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py _debugger PhysicsBenchmark",
+      "cwd": "C:\\dev\\GEngine-build",
+      "configuration": "Debug",
+      "started_utc": "2026-09-13T04:06:40.320890+00:00",
+      "elapsed_seconds": 1.094,
+      "timeout_seconds": 210,
+      "timed_out": false,
+      "exit_code": 1,
+      "result": "FAIL",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/baseline-benchmark-Debug-cdb-retry.txt",
+      "raw_sha256": "cfa08925acbb41849d30bc313e761cabf23269b0523cd34e7b751373eb05dae2",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/baseline-benchmark-Debug-cdb-retry.txt.gz",
+      "compressed_sha256": "3f101ef26497ce163c1709b5140467ec2d2ad1343c3dd9ec4cd53678777912ab",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "baseline-benchmark-Debug-cdb",
+      "revision": "02",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py",
+        "_debugger",
+        "PhysicsBenchmark"
+      ],
+      "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py _debugger PhysicsBenchmark",
+      "cwd": "C:\\dev\\GEngine-build",
+      "configuration": "Debug",
+      "started_utc": "2026-09-13T04:05:13.755586+00:00",
+      "elapsed_seconds": 1.094,
+      "timeout_seconds": 210,
+      "timed_out": false,
+      "exit_code": 1,
+      "result": "FAIL",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/baseline-benchmark-Debug-cdb.txt",
+      "raw_sha256": "aa040cf421b9aa4b1e287249aae7b8a083f0476abde416dfd85f9b3d3b376461",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/baseline-benchmark-Debug-cdb.txt.gz",
+      "compressed_sha256": "b78f3f494a069476d1b1b36e6c09d0f3ea77cf366043760be185fb7f51610189",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "baseline-Breakout-Debug-cdb-retry",
+      "revision": "02",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py",
+        "_debugger",
+        "Breakout"
+      ],
+      "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py _debugger Breakout",
+      "cwd": "C:\\dev\\GEngine-build\\Breakout",
+      "configuration": "Debug",
+      "started_utc": "2026-09-13T04:06:50.225075+00:00",
+      "elapsed_seconds": 46.468,
+      "timeout_seconds": 210,
+      "timed_out": false,
+      "exit_code": 1,
+      "result": "FAIL",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/baseline-Breakout-Debug-cdb-retry.txt",
+      "raw_sha256": "013369e82b4fdfbb91e5388dc6386e0b36a9992a31a1fe39a37536b6e4060a8c",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/baseline-Breakout-Debug-cdb-retry.txt.gz",
+      "compressed_sha256": "f3d0c452f6e62cfe1cb2cec71180aacf7f92fd8d2f2edc2189826a44a3c0dfc4",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "baseline-Breakout-Debug-cdb",
+      "revision": "02",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py",
+        "_debugger",
+        "Breakout"
+      ],
+      "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py _debugger Breakout",
+      "cwd": "C:\\dev\\GEngine-build\\Breakout",
+      "configuration": "Debug",
+      "started_utc": "2026-09-13T04:05:13.971705+00:00",
+      "elapsed_seconds": 46.39,
+      "timeout_seconds": 210,
+      "timed_out": false,
+      "exit_code": 1,
+      "result": "FAIL",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/baseline-Breakout-Debug-cdb.txt",
+      "raw_sha256": "3d3065d3c7c1bfd0689a784d798b04d4c2ab731a585ad098a0e57bbb0c59b645",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/baseline-Breakout-Debug-cdb.txt.gz",
+      "compressed_sha256": "2667b09383ec32ffe1d0c2a51179741033b73a60a2c49e1f94391e7ad39161ec",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "benchmark-Debug-normal",
+      "revision": "02",
+      "argv": [
+        "C:\\dev\\GEngine-build\\bin\\Debug\\PhysicsBenchmark\\PhysicsBenchmark.exe",
+        "--body-counts=50,100,200,500,1000,2000",
+        "--warmup=2",
+        "--samples=5",
+        "--dt=0.008333333"
+      ],
+      "command": "C:\\dev\\GEngine-build\\bin\\Debug\\PhysicsBenchmark\\PhysicsBenchmark.exe --body-counts=50,100,200,500,1000,2000 --warmup=2 --samples=5 --dt=0.008333333",
+      "cwd": "C:\\dev\\GEngine-build",
+      "configuration": "Debug",
+      "started_utc": "2026-09-13T04:15:31.917562+00:00",
+      "elapsed_seconds": 6.344,
+      "timeout_seconds": 1800,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/benchmark-Debug-normal.txt",
+      "raw_sha256": "79211f59a8b3234de63e5bb33a65bd56e7e4c242d4c34e9da980cb1460e94357",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/benchmark-Debug-normal.txt.gz",
+      "compressed_sha256": "fdcfe78b6d80ef6da0fd368eb2f5c92c0cf30c4ae5523b001d6e87e699f635bd",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "benchmark-Release-normal",
+      "revision": "02",
+      "argv": [
+        "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsBenchmark\\PhysicsBenchmark.exe",
+        "--body-counts=50,100,200,500,1000,2000",
+        "--warmup=2",
+        "--samples=5",
+        "--dt=0.008333333"
+      ],
+      "command": "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsBenchmark\\PhysicsBenchmark.exe --body-counts=50,100,200,500,1000,2000 --warmup=2 --samples=5 --dt=0.008333333",
+      "cwd": "C:\\dev\\GEngine-build",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T04:15:38.278289+00:00",
+      "elapsed_seconds": 0.625,
+      "timeout_seconds": 1800,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/benchmark-Release-normal.txt",
+      "raw_sha256": "41b040bb1db7da9288239d9b93c674ae7204c956da5b9082cfcf271d7242ed97",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/benchmark-Release-normal.txt.gz",
+      "compressed_sha256": "c5c58f9e2ae51f6045467fc50ccf81e8dc3471d9fde2388fc0657f4126e247ef",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "build-normal-Debug",
+      "revision": "02",
+      "argv": [
+        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe",
+        "GEngine.sln",
+        "/m:2",
+        "/nr:false",
+        "/nologo",
+        "/p:Configuration=Debug",
+        "/p:Platform=x64",
+        "/v:diag",
+        "/t:Rebuild"
+      ],
+      "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\" GEngine.sln /m:2 /nr:false /nologo /p:Configuration=Debug /p:Platform=x64 /v:diag /t:Rebuild",
+      "cwd": "C:\\dev\\GEngine-build",
+      "configuration": "Debug",
+      "started_utc": "2026-09-13T04:09:43.801184+00:00",
+      "elapsed_seconds": 86.422,
+      "timeout_seconds": 1800,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/build-normal-Debug.txt",
+      "raw_sha256": "6230755cef5fe15d36dd03f93b847fbd3ae66fe55bd86882d501e98479a027f2",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/build-normal-Debug.txt.gz",
+      "compressed_sha256": "984f1571bbd5778a1cfc9135feac7a0814274f26fc27ccedd312234de03415f5",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "build-normal-Release",
+      "revision": "02",
+      "argv": [
+        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe",
+        "GEngine.sln",
+        "/m:2",
+        "/nr:false",
+        "/nologo",
+        "/p:Configuration=Release",
+        "/p:Platform=x64",
+        "/v:diag",
+        "/t:Rebuild"
+      ],
+      "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\" GEngine.sln /m:2 /nr:false /nologo /p:Configuration=Release /p:Platform=x64 /v:diag /t:Rebuild",
+      "cwd": "C:\\dev\\GEngine-build",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T04:11:13.467068+00:00",
+      "elapsed_seconds": 103.375,
+      "timeout_seconds": 1800,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/build-normal-Release.txt",
+      "raw_sha256": "807abe2175963301f940225c08fabbbd278834fd8a2aa5d253cc3408b8aa16bc",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/build-normal-Release.txt.gz",
+      "compressed_sha256": "237a7a1a93a8de440b65cf14ff37c87c1c704be974855f8668d562c9648a0da1",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "contract-history",
+      "revision": "02",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-c",
+        "import subprocess; from pathlib import Path; commands=[['show','97dbadb:PhysicsBenchmark/README.md'],['show','57fa05b','--','PhysicsTests/src/main.cpp'],['show','bd1d2b4','--','GEngine/src/Managers/AssetsManager.cpp'],['show','02865ec:GEngine/src/Managers/AssetsManager.cpp']]; [(print('GIT '+repr(c),flush=True),subprocess.run(['git','-c','safe.directory=C:/dev/GEngine-build',*c],check=True)) for c in commands]"
+      ],
+      "command": "C:\\Python310\\python.exe -c \"import subprocess; from pathlib import Path; commands=[['show','97dbadb:PhysicsBenchmark/README.md'],['show','57fa05b','--','PhysicsTests/src/main.cpp'],['show','bd1d2b4','--','GEngine/src/Managers/AssetsManager.cpp'],['show','02865ec:GEngine/src/Managers/AssetsManager.cpp']]; [(print('GIT '+repr(c),flush=True),subprocess.run(['git','-c','safe.directory=C:/dev/GEngine-build',*c],check=True)) for c in commands]\"",
+      "cwd": "C:\\dev\\GEngine-build",
+      "configuration": null,
+      "started_utc": "2026-09-13T04:10:54.125127+00:00",
+      "elapsed_seconds": 0.156,
+      "timeout_seconds": 60,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/contract-history.txt",
+      "raw_sha256": "425b77df9c6be2b364297cbbe9f82acc178df9c2ec6b324aa1b8a1968e8f4a61",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/contract-history.txt.gz",
+      "compressed_sha256": "baba1c752af25a3aa9089d3c23ae217e52642352bb872a9bf2719bd6b17cd0ac",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "imports-Debug-Breakout",
+      "revision": "02",
+      "argv": [
+        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+        "/imports",
+        "C:\\dev\\GEngine-build\\bin\\Debug\\Breakout\\Breakout.exe"
+      ],
+      "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /imports C:\\dev\\GEngine-build\\bin\\Debug\\Breakout\\Breakout.exe",
+      "cwd": "C:\\dev\\GEngine-build",
+      "configuration": "Debug",
+      "started_utc": "2026-09-13T04:15:06.005495+00:00",
+      "elapsed_seconds": 0.016,
+      "timeout_seconds": 120,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/imports-Debug-Breakout.txt",
+      "raw_sha256": "730a5a064a7a947593dfe63457e1ff41943136d39022b84e7c422933ed0bb9c4",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/imports-Debug-Breakout.txt.gz",
+      "compressed_sha256": "c0e3c8f0fee25bb044a1773f72415e2dcfa1bd62c9645d96bf056b9b1e2c6ae4",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "imports-Debug-GEngineEditor",
+      "revision": "02",
+      "argv": [
+        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+        "/imports",
+        "C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor\\GEngineEditor.exe"
+      ],
+      "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /imports C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor\\GEngineEditor.exe",
+      "cwd": "C:\\dev\\GEngine-build",
+      "configuration": "Debug",
+      "started_utc": "2026-09-13T04:15:06.035493+00:00",
+      "elapsed_seconds": 0.031,
+      "timeout_seconds": 120,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/imports-Debug-GEngineEditor.txt",
+      "raw_sha256": "d4ef594d201dea9df13f54ad549eb121e6e4fe8d27826d8f3987304216b8aed0",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/imports-Debug-GEngineEditor.txt.gz",
+      "compressed_sha256": "13d77efaf7f0941d0b899b4fda88c31d9c22712e73f77435dbfc8e5e184aa595",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "imports-Debug-RayTracing",
+      "revision": "02",
+      "argv": [
+        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+        "/imports",
+        "C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\RayTracing.exe"
+      ],
+      "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /imports C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\RayTracing.exe",
+      "cwd": "C:\\dev\\GEngine-build",
+      "configuration": "Debug",
+      "started_utc": "2026-09-13T04:15:06.065495+00:00",
+      "elapsed_seconds": 0.031,
+      "timeout_seconds": 120,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/imports-Debug-RayTracing.txt",
+      "raw_sha256": "026b9863f21f680377b3e8bce548a8ece399dd6af92cb487ee8c802d1277730c",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/imports-Debug-RayTracing.txt.gz",
+      "compressed_sha256": "dcc6bc7d117cc727de5ba8675bfe9e33b0d7d5659baee8e58773e1e9f21057c0",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "imports-Debug-RigidBodySimulation",
+      "revision": "02",
+      "argv": [
+        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+        "/imports",
+        "C:\\dev\\GEngine-build\\bin\\Debug\\RigidBodySimulation\\RigidBodySimulation.exe"
+      ],
+      "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /imports C:\\dev\\GEngine-build\\bin\\Debug\\RigidBodySimulation\\RigidBodySimulation.exe",
+      "cwd": "C:\\dev\\GEngine-build",
+      "configuration": "Debug",
+      "started_utc": "2026-09-13T04:15:06.096497+00:00",
+      "elapsed_seconds": 0.031,
+      "timeout_seconds": 120,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/imports-Debug-RigidBodySimulation.txt",
+      "raw_sha256": "ef8b645ffaca2f3af49b85cfa7e7de3fd92d8d9101ded5be1d7eb51d1a36d696",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/imports-Debug-RigidBodySimulation.txt.gz",
+      "compressed_sha256": "7c1c614c7e007a6a812584352e099da4a8c3ec4726a0cd89b52a28b60add1475",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "imports-Release-Breakout",
+      "revision": "02",
+      "argv": [
+        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+        "/imports",
+        "C:\\dev\\GEngine-build\\bin\\Release\\Breakout\\Breakout.exe"
+      ],
+      "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /imports C:\\dev\\GEngine-build\\bin\\Release\\Breakout\\Breakout.exe",
+      "cwd": "C:\\dev\\GEngine-build",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T04:15:06.126495+00:00",
+      "elapsed_seconds": 0.016,
+      "timeout_seconds": 120,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/imports-Release-Breakout.txt",
+      "raw_sha256": "aceb8e5d2d96f1401671f98e313febf2d85204f75db996a5d21b0846b6a6bc01",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/imports-Release-Breakout.txt.gz",
+      "compressed_sha256": "f0282b284fe5ad6227848fb5b03dd300bcbffc06c86e9d170e49c23d2fd526cd",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "imports-Release-GEngineEditor",
+      "revision": "02",
+      "argv": [
+        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+        "/imports",
+        "C:\\dev\\GEngine-build\\bin\\Release\\GEngineEditor\\GEngineEditor.exe"
+      ],
+      "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /imports C:\\dev\\GEngine-build\\bin\\Release\\GEngineEditor\\GEngineEditor.exe",
+      "cwd": "C:\\dev\\GEngine-build",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T04:15:06.155496+00:00",
+      "elapsed_seconds": 0.015,
+      "timeout_seconds": 120,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/imports-Release-GEngineEditor.txt",
+      "raw_sha256": "f70c0fee0a55bcc26a02f6d5f977e61d983f71bbaef052a7ffdccd445fda5c67",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/imports-Release-GEngineEditor.txt.gz",
+      "compressed_sha256": "95aaa4b709e4f039a3f2507691407ff29c9714b2f21190e754f7f26f5cc31afb",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "imports-Release-RayTracing",
+      "revision": "02",
+      "argv": [
+        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+        "/imports",
+        "C:\\dev\\GEngine-build\\bin\\Release\\RayTracing\\RayTracing.exe"
+      ],
+      "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /imports C:\\dev\\GEngine-build\\bin\\Release\\RayTracing\\RayTracing.exe",
+      "cwd": "C:\\dev\\GEngine-build",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T04:15:06.183497+00:00",
+      "elapsed_seconds": 0.015,
+      "timeout_seconds": 120,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/imports-Release-RayTracing.txt",
+      "raw_sha256": "6140a3fd83bcbbc94e7890cb83cc23d5d3656ed065646a254ffa374a34e4f66b",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/imports-Release-RayTracing.txt.gz",
+      "compressed_sha256": "4ff1d47d4e827c3f2e9141688098e670fe92b53d67e5d9fa170a80e8f7a9e1e6",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "imports-Release-RigidBodySimulation",
+      "revision": "02",
+      "argv": [
+        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+        "/imports",
+        "C:\\dev\\GEngine-build\\bin\\Release\\RigidBodySimulation\\RigidBodySimulation.exe"
+      ],
+      "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /imports C:\\dev\\GEngine-build\\bin\\Release\\RigidBodySimulation\\RigidBodySimulation.exe",
+      "cwd": "C:\\dev\\GEngine-build",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T04:15:06.214498+00:00",
+      "elapsed_seconds": 0.016,
+      "timeout_seconds": 120,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/imports-Release-RigidBodySimulation.txt",
+      "raw_sha256": "108e791cb0066b14dda44b84e0b93b6b58759d2ff83faec428f1085e56128c67",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/imports-Release-RigidBodySimulation.txt.gz",
+      "compressed_sha256": "6c011e2f55d997b885e12b4575c6a4cca7e678f233c2e01e18a2b2b84302583c",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "new-blocker-Editor-close-request",
+      "revision": "02",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-c",
+        "import sys,ctypes,json; from ctypes import wintypes; sys.path.insert(0,\"C:/dev/GEngine-build/scripts/build_validation\"); from revise_phase00_r02 import child_pids,process_windows; assert 30408 in child_pids(30564); windows=process_windows(30408); print(json.dumps({\"pid\":30408,\"debugger_pid\":30564,\"windows\":windows})); u=ctypes.WinDLL(\"user32\",use_last_error=True); u.PostMessageW.argtypes=[wintypes.HWND,wintypes.UINT,wintypes.WPARAM,wintypes.LPARAM]; targets=[w for w in windows if w[\"class\"]==\"SDL_app\"]; assert targets; print(json.dumps({\"WM_CLOSE_results\":[bool(u.PostMessageW(w[\"hwnd\"],0x10,0,0)) for w in targets]}))"
+      ],
+      "command": "C:\\Python310\\python.exe -c \"import sys,ctypes,json; from ctypes import wintypes; sys.path.insert(0,\\\"C:/dev/GEngine-build/scripts/build_validation\\\"); from revise_phase00_r02 import child_pids,process_windows; assert 30408 in child_pids(30564); windows=process_windows(30408); print(json.dumps({\\\"pid\\\":30408,\\\"debugger_pid\\\":30564,\\\"windows\\\":windows})); u=ctypes.WinDLL(\\\"user32\\\",use_last_error=True); u.PostMessageW.argtypes=[wintypes.HWND,wintypes.UINT,wintypes.WPARAM,wintypes.LPARAM]; targets=[w for w in windows if w[\\\"class\\\"]==\\\"SDL_app\\\"]; assert targets; print(json.dumps({\\\"WM_CLOSE_results\\\":[bool(u.PostMessageW(w[\\\"hwnd\\\"],0x10,0,0)) for w in targets]}))\"",
+      "cwd": "C:\\dev\\GEngine-build\\GEngineEditor",
+      "configuration": "Debug",
+      "started_utc": "2026-09-13T04:16:48.458131+00:00",
+      "elapsed_seconds": 0.125,
+      "timeout_seconds": 30,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/new-blocker-Editor-close-request.txt",
+      "raw_sha256": "8884ad8e39ee8f36b17eaa58f7858b389e71703297fe8c1744634fb74410ba3e",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/new-blocker-Editor-close-request.txt.gz",
+      "compressed_sha256": "13057895f03731fbb67cdde59e197f5489d8accb63c219ae2f6dc0668e1240cb",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "new-blocker-Editor-Debug-cdb",
+      "revision": "02",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py",
+        "_debugger",
+        "GEngineEditor"
+      ],
+      "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py _debugger GEngineEditor",
+      "cwd": "C:\\dev\\GEngine-build\\GEngineEditor",
+      "configuration": "Debug",
+      "started_utc": "2026-09-13T04:14:15.798430+00:00",
+      "elapsed_seconds": 153.422,
+      "timeout_seconds": 210,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/new-blocker-Editor-Debug-cdb.txt",
+      "raw_sha256": "a95d1a1cd7b3cf0a0a2a02e5097f4f4a7d1b8d9460c43ef11723a7d57af4f7f8",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/new-blocker-Editor-Debug-cdb.txt.gz",
+      "compressed_sha256": "2ab40eea696122eb0f4649cb9c439eb379ac5d414f6c2dc09619c33d3200bbc8",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "premake-normal",
+      "revision": "02",
+      "argv": [
+        "C:\\dev\\GEngine-build\\vendor\\bin\\premake\\premake5.exe",
+        "vs2022"
+      ],
+      "command": "C:\\dev\\GEngine-build\\vendor\\bin\\premake\\premake5.exe vs2022",
+      "cwd": "C:\\dev\\GEngine-build",
+      "configuration": null,
+      "started_utc": "2026-09-13T04:09:18.824610+00:00",
+      "elapsed_seconds": 0.407,
+      "timeout_seconds": 120,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/premake-normal.txt",
+      "raw_sha256": "39fb8c668e836127492768443101c2ad2bbdb741e07d417e65d08f15e2e05921",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/premake-normal.txt.gz",
+      "compressed_sha256": "1a0d7019592eecbf1b75954665b69e6dda41e40016f8008f945dda174185ff39",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "startup-Debug-Breakout",
+      "revision": "02",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py",
+        "_startup",
+        "Debug",
+        "Breakout"
+      ],
+      "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py _startup Debug Breakout",
+      "cwd": "C:\\dev\\GEngine-build\\Breakout",
+      "configuration": "Debug",
+      "started_utc": "2026-09-13T04:11:37.028582+00:00",
+      "elapsed_seconds": 46.218,
+      "timeout_seconds": 90,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/startup-Debug-Breakout.txt",
+      "raw_sha256": "1ebed4d956474395316ea98849cfc94213af493f2c03a7e18f0908775fae36a1",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/startup-Debug-Breakout.txt.gz",
+      "compressed_sha256": "666976a64e63985c7e5d549aa4d2a38d2f35bb529cbc9ad3a9de85481687a961",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "startup-Debug-GEngineEditor",
+      "revision": "02",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py",
+        "_startup",
+        "Debug",
+        "GEngineEditor"
+      ],
+      "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py _startup Debug GEngineEditor",
+      "cwd": "C:\\dev\\GEngine-build\\GEngineEditor",
+      "configuration": "Debug",
+      "started_utc": "2026-09-13T04:12:23.254189+00:00",
+      "elapsed_seconds": 51.203,
+      "timeout_seconds": 90,
+      "timed_out": false,
+      "exit_code": 1,
+      "result": "FAIL",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/startup-Debug-GEngineEditor.txt",
+      "raw_sha256": "612488e465f0100feeacf69b82b6a96251e5f8bc61d3afd42a4c92ae5fb0fb6f",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/startup-Debug-GEngineEditor.txt.gz",
+      "compressed_sha256": "c5c05a8f47c26f46195f09095bca09e9b45ce7512b7f68f2a1347f9edff0973f",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "tests-Debug-full",
+      "revision": "02",
+      "argv": [
+        "C:\\dev\\GEngine-build\\bin\\Debug\\PhysicsTests\\PhysicsTests.exe"
+      ],
+      "command": "C:\\dev\\GEngine-build\\bin\\Debug\\PhysicsTests\\PhysicsTests.exe",
+      "cwd": "C:\\dev\\GEngine-build",
+      "configuration": "Debug",
+      "started_utc": "2026-09-13T04:11:36.138675+00:00",
+      "elapsed_seconds": 197.844,
+      "timeout_seconds": 1800,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/tests-Debug-full.txt",
+      "raw_sha256": "560ddf3ff26776f54ce99417ca3be9695681c62918dd36d428865aaf1925d369",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/tests-Debug-full.txt.gz",
+      "compressed_sha256": "c6e8c52fb735b33ae62708fa08f92c41356f17c5369ea2546f56c8c3e5296c3c",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    },
+    {
+      "name": "tests-Release-full",
+      "revision": "02",
+      "argv": [
+        "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsTests\\PhysicsTests.exe"
+      ],
+      "command": "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsTests\\PhysicsTests.exe",
+      "cwd": "C:\\dev\\GEngine-build",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T04:15:18.553900+00:00",
+      "elapsed_seconds": 13.344,
+      "timeout_seconds": 1800,
+      "timed_out": false,
+      "exit_code": 0,
+      "result": "PASS",
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "raw_log": "bin-int/build-phase-00-revision-02/tests-Release-full.txt",
+      "raw_sha256": "193eaf0957ebcaf00f8909ae24010a7c75dc9cfe9acf61f383e79a74674d6bbc",
+      "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/tests-Release-full.txt.gz",
+      "compressed_sha256": "64ffb62833c7dc63101dfea726cf8412c6ed83102e2c519754363b0d7cd3ef49",
+      "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+    }
+  ],
+  "reserved_but_not_run": [
+    "benchmark-Debug-normal-steady",
+    "benchmark-Debug-profile",
+    "benchmark-Debug-profile-steady",
+    "benchmark-Release-normal-steady",
+    "benchmark-Release-profile",
+    "benchmark-Release-profile-steady",
+    "build-profile-Debug",
+    "build-profile-Release",
+    "build-restore-Debug",
+    "build-restore-Release",
+    "premake-profile",
+    "premake-restore",
+    "safeguards",
+    "startup-Debug-RayTracing",
+    "startup-Debug-RigidBodySimulation",
+    "startup-Release-Breakout",
+    "startup-Release-GEngineEditor",
+    "startup-Release-RayTracing",
+    "startup-Release-RigidBodySimulation",
+    "tests-Debug-absolute-scaling",
+    "tests-Debug-box-manifolds",
+    "tests-Debug-fixed-scheduling",
+    "tests-Debug-runtime-transform",
+    "tests-Debug-scene-runtime-lifecycle",
+    "tests-Debug-solver-storage",
+    "tests-Release-absolute-scaling",
+    "tests-Release-box-manifolds",
+    "tests-Release-fixed-scheduling",
+    "tests-Release-runtime-transform",
+    "tests-Release-scene-runtime-lifecycle",
+    "tests-Release-solver-storage",
+    "tests-profile-Debug-box-manifolds",
+    "tests-profile-Release-box-manifolds"
+  ],
+  "stop": {
+    "id": "B00-RUNTIME-007",
+    "target": "GEngineEditor Debug",
+    "result": "BLOCKED / additional source scope required",
+    "signature": "Late normal close causes 0xc0000005, freed-heap pointer, Texture destructor -> AssetsManager -> BaseApp destructor -> SceneApp destructor",
+    "evidence": "commands/new-blocker-Editor-Debug-cdb.txt.gz",
+    "cause": "SceneApp.cpp:42-44 duplicates shared manager cleanup already performed by BaseApp; Editor is an additional unchanged caller outside the four authorized fixes",
+    "related_cause": "Same deletion pattern as Breakout B00-RUNTIME-005; separate caller and acceptance failure, not silently adopted into its repair",
+    "additional_observation": "Earlier 45-second close probe ended 0x80000003 with Framebuffer status error. Later no-close startup stayed alive until a separately captured close at ~153 seconds, then produced the independent shutdown AV. The early-close framebuffer assertion location/root is not established or waived.",
+    "smallest_proposed_scope": "Explicitly authorize Editor shutdown correctness for duplicate shared cleanup plus investigation of the early-close framebuffer assertion, preserve all rendering behavior/resources/dependencies/toolchain/graph, then resume the complete acceptance matrix."
+  },
+  "counts_note": "CDB capture PASS means diagnostics/dump captured; it is an application failure. Original two retry exits FAIL include optional dump-path failures despite successful live stacks. No capture metadata is relabeled."
+}

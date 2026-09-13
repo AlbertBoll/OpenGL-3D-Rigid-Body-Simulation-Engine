@@ -1,0 +1,1285 @@
+{
+  "baseline": "b3b043b15ee814133e8419466a1bf3a985a3c958",
+  "method": "PE normal import directory; import-library DLL strings; no DLL loaded",
+  "limitations": "Delay imports and executable load closure require Phase 00. DLL filenames do not establish ABI/version.",
+  "dlls": [
+    {
+      "path": "bin/Debug/Breakout/SDL2.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+      "machine": "0x8664",
+      "imports": [
+        "ADVAPI32.dll",
+        "GDI32.dll",
+        "IMM32.dll",
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "ole32.dll",
+        "OLEAUT32.dll",
+        "SETUPAPI.dll",
+        "SHELL32.dll",
+        "USER32.dll",
+        "VERSION.dll",
+        "WINMM.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/Breakout/SDL2_ttf.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+      "machine": "0x8664",
+      "imports": [
+        "GDI32.dll",
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "RPCRT4.dll",
+        "SDL2.dll",
+        "USER32.dll",
+        "USP10.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/Breakout/assimp-vc140-mt.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "MSVCP140D.dll",
+        "VCRUNTIME140D.dll",
+        "VCRUNTIME140_1D.dll",
+        "ucrtbased.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/Breakout/assimp.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "MSVCP110.dll",
+        "MSVCR110.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/Breakout/fmod64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+      "machine": "0x8664",
+      "imports": [
+        "WS2_32.dll",
+        "WINMM.dll",
+        "MSACM32.dll",
+        "KERNEL32.dll",
+        "USER32.dll",
+        "ADVAPI32.dll",
+        "ole32.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/Breakout/fmodL64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+      "machine": "0x8664",
+      "imports": [
+        "WS2_32.dll",
+        "WINMM.dll",
+        "MSACM32.dll",
+        "KERNEL32.dll",
+        "USER32.dll",
+        "ADVAPI32.dll",
+        "ole32.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/Breakout/fmodstudio64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+      "machine": "0x8664",
+      "imports": [
+        "WINMM.dll",
+        "WS2_32.dll",
+        "KERNEL32.dll",
+        "ole32.dll",
+        "fmod64.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/Breakout/fmodstudioL64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+      "machine": "0x8664",
+      "imports": [
+        "WINMM.dll",
+        "WS2_32.dll",
+        "KERNEL32.dll",
+        "ole32.dll",
+        "fmodL64.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/Breakout/libfreetype-6.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "zlib1.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/Breakout/zlib1.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "msvcrt.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/GEngineEditor/SDL2.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+      "machine": "0x8664",
+      "imports": [
+        "ADVAPI32.dll",
+        "GDI32.dll",
+        "IMM32.dll",
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "ole32.dll",
+        "OLEAUT32.dll",
+        "SETUPAPI.dll",
+        "SHELL32.dll",
+        "USER32.dll",
+        "VERSION.dll",
+        "WINMM.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/GEngineEditor/SDL2_ttf.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+      "machine": "0x8664",
+      "imports": [
+        "GDI32.dll",
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "RPCRT4.dll",
+        "SDL2.dll",
+        "USER32.dll",
+        "USP10.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/GEngineEditor/assimp-vc140-mt.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "MSVCP140D.dll",
+        "VCRUNTIME140D.dll",
+        "VCRUNTIME140_1D.dll",
+        "ucrtbased.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/GEngineEditor/assimp.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "MSVCP110.dll",
+        "MSVCR110.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/GEngineEditor/fmod64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+      "machine": "0x8664",
+      "imports": [
+        "WS2_32.dll",
+        "WINMM.dll",
+        "MSACM32.dll",
+        "KERNEL32.dll",
+        "USER32.dll",
+        "ADVAPI32.dll",
+        "ole32.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/GEngineEditor/fmodL64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+      "machine": "0x8664",
+      "imports": [
+        "WS2_32.dll",
+        "WINMM.dll",
+        "MSACM32.dll",
+        "KERNEL32.dll",
+        "USER32.dll",
+        "ADVAPI32.dll",
+        "ole32.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/GEngineEditor/fmodstudio64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+      "machine": "0x8664",
+      "imports": [
+        "WINMM.dll",
+        "WS2_32.dll",
+        "KERNEL32.dll",
+        "ole32.dll",
+        "fmod64.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/GEngineEditor/fmodstudioL64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+      "machine": "0x8664",
+      "imports": [
+        "WINMM.dll",
+        "WS2_32.dll",
+        "KERNEL32.dll",
+        "ole32.dll",
+        "fmodL64.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/GEngineEditor/libfreetype-6.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "zlib1.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/GEngineEditor/zlib1.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "msvcrt.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RayTracing/SDL2.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+      "machine": "0x8664",
+      "imports": [
+        "ADVAPI32.dll",
+        "GDI32.dll",
+        "IMM32.dll",
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "ole32.dll",
+        "OLEAUT32.dll",
+        "SETUPAPI.dll",
+        "SHELL32.dll",
+        "USER32.dll",
+        "VERSION.dll",
+        "WINMM.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RayTracing/SDL2_ttf.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+      "machine": "0x8664",
+      "imports": [
+        "GDI32.dll",
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "RPCRT4.dll",
+        "SDL2.dll",
+        "USER32.dll",
+        "USP10.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RayTracing/assimp-vc140-mt.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "MSVCP140D.dll",
+        "VCRUNTIME140D.dll",
+        "VCRUNTIME140_1D.dll",
+        "ucrtbased.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RayTracing/assimp.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "MSVCP110.dll",
+        "MSVCR110.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RayTracing/fmod64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+      "machine": "0x8664",
+      "imports": [
+        "WS2_32.dll",
+        "WINMM.dll",
+        "MSACM32.dll",
+        "KERNEL32.dll",
+        "USER32.dll",
+        "ADVAPI32.dll",
+        "ole32.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RayTracing/fmodL64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+      "machine": "0x8664",
+      "imports": [
+        "WS2_32.dll",
+        "WINMM.dll",
+        "MSACM32.dll",
+        "KERNEL32.dll",
+        "USER32.dll",
+        "ADVAPI32.dll",
+        "ole32.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RayTracing/fmodstudio64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+      "machine": "0x8664",
+      "imports": [
+        "WINMM.dll",
+        "WS2_32.dll",
+        "KERNEL32.dll",
+        "ole32.dll",
+        "fmod64.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RayTracing/fmodstudioL64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+      "machine": "0x8664",
+      "imports": [
+        "WINMM.dll",
+        "WS2_32.dll",
+        "KERNEL32.dll",
+        "ole32.dll",
+        "fmodL64.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RayTracing/libfreetype-6.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "zlib1.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RayTracing/zlib1.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "msvcrt.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RigidBodySimulation/SDL2.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+      "machine": "0x8664",
+      "imports": [
+        "ADVAPI32.dll",
+        "GDI32.dll",
+        "IMM32.dll",
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "ole32.dll",
+        "OLEAUT32.dll",
+        "SETUPAPI.dll",
+        "SHELL32.dll",
+        "USER32.dll",
+        "VERSION.dll",
+        "WINMM.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RigidBodySimulation/SDL2_ttf.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+      "machine": "0x8664",
+      "imports": [
+        "GDI32.dll",
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "RPCRT4.dll",
+        "SDL2.dll",
+        "USER32.dll",
+        "USP10.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RigidBodySimulation/assimp-vc140-mt.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "MSVCP140D.dll",
+        "VCRUNTIME140D.dll",
+        "VCRUNTIME140_1D.dll",
+        "ucrtbased.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RigidBodySimulation/assimp.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "MSVCP110.dll",
+        "MSVCR110.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RigidBodySimulation/fmod64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+      "machine": "0x8664",
+      "imports": [
+        "WS2_32.dll",
+        "WINMM.dll",
+        "MSACM32.dll",
+        "KERNEL32.dll",
+        "USER32.dll",
+        "ADVAPI32.dll",
+        "ole32.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RigidBodySimulation/fmodL64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+      "machine": "0x8664",
+      "imports": [
+        "WS2_32.dll",
+        "WINMM.dll",
+        "MSACM32.dll",
+        "KERNEL32.dll",
+        "USER32.dll",
+        "ADVAPI32.dll",
+        "ole32.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RigidBodySimulation/fmodstudio64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+      "machine": "0x8664",
+      "imports": [
+        "WINMM.dll",
+        "WS2_32.dll",
+        "KERNEL32.dll",
+        "ole32.dll",
+        "fmod64.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RigidBodySimulation/fmodstudioL64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+      "machine": "0x8664",
+      "imports": [
+        "WINMM.dll",
+        "WS2_32.dll",
+        "KERNEL32.dll",
+        "ole32.dll",
+        "fmodL64.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RigidBodySimulation/libfreetype-6.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "zlib1.dll"
+      ]
+    },
+    {
+      "path": "bin/Debug/RigidBodySimulation/zlib1.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "msvcrt.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/Breakout/SDL2.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+      "machine": "0x8664",
+      "imports": [
+        "ADVAPI32.dll",
+        "GDI32.dll",
+        "IMM32.dll",
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "ole32.dll",
+        "OLEAUT32.dll",
+        "SETUPAPI.dll",
+        "SHELL32.dll",
+        "USER32.dll",
+        "VERSION.dll",
+        "WINMM.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/Breakout/SDL2_ttf.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+      "machine": "0x8664",
+      "imports": [
+        "GDI32.dll",
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "RPCRT4.dll",
+        "SDL2.dll",
+        "USER32.dll",
+        "USP10.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/Breakout/assimp-vc143-mt.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "MSVCP140.dll",
+        "VCRUNTIME140.dll",
+        "VCRUNTIME140_1.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-filesystem-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-convert-l1-1-0.dll",
+        "api-ms-win-crt-environment-l1-1-0.dll",
+        "api-ms-win-crt-time-l1-1-0.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/Breakout/assimp-vc143-mtd.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "ADVAPI32.dll",
+        "MSVCP140D.dll",
+        "VCRUNTIME140D.dll",
+        "VCRUNTIME140_1D.dll",
+        "ucrtbased.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/Breakout/assimp.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "MSVCP110.dll",
+        "MSVCR110.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/Breakout/fmod64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+      "machine": "0x8664",
+      "imports": [
+        "WS2_32.dll",
+        "WINMM.dll",
+        "MSACM32.dll",
+        "KERNEL32.dll",
+        "USER32.dll",
+        "ADVAPI32.dll",
+        "ole32.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/Breakout/fmodL64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+      "machine": "0x8664",
+      "imports": [
+        "WS2_32.dll",
+        "WINMM.dll",
+        "MSACM32.dll",
+        "KERNEL32.dll",
+        "USER32.dll",
+        "ADVAPI32.dll",
+        "ole32.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/Breakout/fmodstudio64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+      "machine": "0x8664",
+      "imports": [
+        "WINMM.dll",
+        "WS2_32.dll",
+        "KERNEL32.dll",
+        "ole32.dll",
+        "fmod64.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/Breakout/fmodstudioL64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+      "machine": "0x8664",
+      "imports": [
+        "WINMM.dll",
+        "WS2_32.dll",
+        "KERNEL32.dll",
+        "ole32.dll",
+        "fmodL64.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/Breakout/libfreetype-6.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "zlib1.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/Breakout/zlib1.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "msvcrt.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/GEngineEditor/SDL2.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+      "machine": "0x8664",
+      "imports": [
+        "ADVAPI32.dll",
+        "GDI32.dll",
+        "IMM32.dll",
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "ole32.dll",
+        "OLEAUT32.dll",
+        "SETUPAPI.dll",
+        "SHELL32.dll",
+        "USER32.dll",
+        "VERSION.dll",
+        "WINMM.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/GEngineEditor/SDL2_ttf.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+      "machine": "0x8664",
+      "imports": [
+        "GDI32.dll",
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "RPCRT4.dll",
+        "SDL2.dll",
+        "USER32.dll",
+        "USP10.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/GEngineEditor/assimp-vc140-mt.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "MSVCP140D.dll",
+        "VCRUNTIME140D.dll",
+        "VCRUNTIME140_1D.dll",
+        "ucrtbased.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/GEngineEditor/assimp-vc143-mt.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "MSVCP140.dll",
+        "VCRUNTIME140.dll",
+        "VCRUNTIME140_1.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-filesystem-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-convert-l1-1-0.dll",
+        "api-ms-win-crt-environment-l1-1-0.dll",
+        "api-ms-win-crt-time-l1-1-0.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/GEngineEditor/assimp-vc143-mtd.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "ADVAPI32.dll",
+        "MSVCP140D.dll",
+        "VCRUNTIME140D.dll",
+        "VCRUNTIME140_1D.dll",
+        "ucrtbased.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/GEngineEditor/assimp.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "MSVCP110.dll",
+        "MSVCR110.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/GEngineEditor/fmod64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+      "machine": "0x8664",
+      "imports": [
+        "WS2_32.dll",
+        "WINMM.dll",
+        "MSACM32.dll",
+        "KERNEL32.dll",
+        "USER32.dll",
+        "ADVAPI32.dll",
+        "ole32.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/GEngineEditor/fmodL64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+      "machine": "0x8664",
+      "imports": [
+        "WS2_32.dll",
+        "WINMM.dll",
+        "MSACM32.dll",
+        "KERNEL32.dll",
+        "USER32.dll",
+        "ADVAPI32.dll",
+        "ole32.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/GEngineEditor/fmodstudio64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+      "machine": "0x8664",
+      "imports": [
+        "WINMM.dll",
+        "WS2_32.dll",
+        "KERNEL32.dll",
+        "ole32.dll",
+        "fmod64.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/GEngineEditor/fmodstudioL64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+      "machine": "0x8664",
+      "imports": [
+        "WINMM.dll",
+        "WS2_32.dll",
+        "KERNEL32.dll",
+        "ole32.dll",
+        "fmodL64.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/GEngineEditor/libfreetype-6.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "zlib1.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/GEngineEditor/zlib1.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "msvcrt.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RayTracing/SDL2.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+      "machine": "0x8664",
+      "imports": [
+        "ADVAPI32.dll",
+        "GDI32.dll",
+        "IMM32.dll",
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "ole32.dll",
+        "OLEAUT32.dll",
+        "SETUPAPI.dll",
+        "SHELL32.dll",
+        "USER32.dll",
+        "VERSION.dll",
+        "WINMM.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RayTracing/SDL2_ttf.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+      "machine": "0x8664",
+      "imports": [
+        "GDI32.dll",
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "RPCRT4.dll",
+        "SDL2.dll",
+        "USER32.dll",
+        "USP10.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RayTracing/assimp-vc143-mt.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "MSVCP140.dll",
+        "VCRUNTIME140.dll",
+        "VCRUNTIME140_1.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-filesystem-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-convert-l1-1-0.dll",
+        "api-ms-win-crt-environment-l1-1-0.dll",
+        "api-ms-win-crt-time-l1-1-0.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RayTracing/assimp-vc143-mtd.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "ADVAPI32.dll",
+        "MSVCP140D.dll",
+        "VCRUNTIME140D.dll",
+        "VCRUNTIME140_1D.dll",
+        "ucrtbased.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RayTracing/assimp.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "MSVCP110.dll",
+        "MSVCR110.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RayTracing/fmod64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+      "machine": "0x8664",
+      "imports": [
+        "WS2_32.dll",
+        "WINMM.dll",
+        "MSACM32.dll",
+        "KERNEL32.dll",
+        "USER32.dll",
+        "ADVAPI32.dll",
+        "ole32.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RayTracing/fmodL64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+      "machine": "0x8664",
+      "imports": [
+        "WS2_32.dll",
+        "WINMM.dll",
+        "MSACM32.dll",
+        "KERNEL32.dll",
+        "USER32.dll",
+        "ADVAPI32.dll",
+        "ole32.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RayTracing/fmodstudio64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+      "machine": "0x8664",
+      "imports": [
+        "WINMM.dll",
+        "WS2_32.dll",
+        "KERNEL32.dll",
+        "ole32.dll",
+        "fmod64.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RayTracing/fmodstudioL64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+      "machine": "0x8664",
+      "imports": [
+        "WINMM.dll",
+        "WS2_32.dll",
+        "KERNEL32.dll",
+        "ole32.dll",
+        "fmodL64.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RayTracing/libfreetype-6.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "zlib1.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RayTracing/zlib1.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "msvcrt.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RigidBodySimulation/SDL2.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+      "machine": "0x8664",
+      "imports": [
+        "ADVAPI32.dll",
+        "GDI32.dll",
+        "IMM32.dll",
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "ole32.dll",
+        "OLEAUT32.dll",
+        "SETUPAPI.dll",
+        "SHELL32.dll",
+        "USER32.dll",
+        "VERSION.dll",
+        "WINMM.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RigidBodySimulation/SDL2_ttf.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+      "machine": "0x8664",
+      "imports": [
+        "GDI32.dll",
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "RPCRT4.dll",
+        "SDL2.dll",
+        "USER32.dll",
+        "USP10.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RigidBodySimulation/assimp-vc143-mt.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "MSVCP140.dll",
+        "VCRUNTIME140.dll",
+        "VCRUNTIME140_1.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-filesystem-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-convert-l1-1-0.dll",
+        "api-ms-win-crt-environment-l1-1-0.dll",
+        "api-ms-win-crt-time-l1-1-0.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RigidBodySimulation/assimp-vc143-mtd.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "ADVAPI32.dll",
+        "MSVCP140D.dll",
+        "VCRUNTIME140D.dll",
+        "VCRUNTIME140_1D.dll",
+        "ucrtbased.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RigidBodySimulation/assimp.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "MSVCP110.dll",
+        "MSVCR110.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RigidBodySimulation/fmod64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+      "machine": "0x8664",
+      "imports": [
+        "WS2_32.dll",
+        "WINMM.dll",
+        "MSACM32.dll",
+        "KERNEL32.dll",
+        "USER32.dll",
+        "ADVAPI32.dll",
+        "ole32.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RigidBodySimulation/fmodL64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+      "machine": "0x8664",
+      "imports": [
+        "WS2_32.dll",
+        "WINMM.dll",
+        "MSACM32.dll",
+        "KERNEL32.dll",
+        "USER32.dll",
+        "ADVAPI32.dll",
+        "ole32.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RigidBodySimulation/fmodstudio64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+      "machine": "0x8664",
+      "imports": [
+        "WINMM.dll",
+        "WS2_32.dll",
+        "KERNEL32.dll",
+        "ole32.dll",
+        "fmod64.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RigidBodySimulation/fmodstudioL64.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+      "machine": "0x8664",
+      "imports": [
+        "WINMM.dll",
+        "WS2_32.dll",
+        "KERNEL32.dll",
+        "ole32.dll",
+        "fmodL64.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RigidBodySimulation/libfreetype-6.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "msvcrt.dll",
+        "zlib1.dll"
+      ]
+    },
+    {
+      "path": "bin/Release/RigidBodySimulation/zlib1.dll",
+      "tracking": "TRACKED_BASELINE",
+      "sha256": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b",
+      "machine": "0x8664",
+      "imports": [
+        "KERNEL32.dll",
+        "msvcrt.dll"
+      ]
+    }
+  ],
+  "import_libraries": [
+    {
+      "path": "external/assimp/lib/assimp.lib",
+      "sha256": "d6e82cad3f705ce86bf3da2f472461d183c39d1e4a86559df587143a10d33d0a",
+      "dll_strings": [
+        "assimp-vc140-mt.dll"
+      ]
+    },
+    {
+      "path": "external/fmod/lib/fmod64_vc.lib",
+      "sha256": "1c15b30a7cc42febb9a535666e7d750b2567713f0b341abd6623628e439973e5",
+      "dll_strings": [
+        "fmod64.dll"
+      ]
+    },
+    {
+      "path": "external/fmod/lib/fmodL64_vc.lib",
+      "sha256": "ae29d1f833bd7bc7916b57430293ca741db76e260a16e62fd812a94f19b7f689",
+      "dll_strings": [
+        "fmodL64.dll"
+      ]
+    },
+    {
+      "path": "external/fmod/lib/fmodstudio64_vc.lib",
+      "sha256": "2839644a435dcf7f7b0c631c963af5c638de602c26b4a9f0ee9cdc7a5db7a08e",
+      "dll_strings": [
+        "fmodstudio64.dll"
+      ]
+    },
+    {
+      "path": "external/fmod/lib/fmodstudioL64_vc.lib",
+      "sha256": "bcf3d2b4c2b755486df94acc56a16b2bd0b88a844e58d3c6a824486e8c9a5807",
+      "dll_strings": [
+        "fmodstudioL64.dll"
+      ]
+    },
+    {
+      "path": "external/sdl2/lib/SDL2.lib",
+      "sha256": "3534271df1ddcc806d42efd64c0cad672f76ade9406f6c6d56d7504f4c06a3ba",
+      "dll_strings": [
+        "SDL2.dll"
+      ]
+    },
+    {
+      "path": "external/sdl2/lib/SDL2_ttf.lib",
+      "sha256": "e047e5ca7690e9575fc2ddbcbe2fecba44837d4eb16efad5743a2a1c9647549d",
+      "dll_strings": [
+        "SDL2_ttf.dll"
+      ]
+    },
+    {
+      "path": "external/sdl2/lib/SDL2main.lib",
+      "sha256": "e21268b89d44d8a9cbb0fc24505e63c2b5a1f902a2b395172f62a0b897b225ac",
+      "dll_strings": []
+    },
+    {
+      "path": "external/sdl2/lib/SDL2test.lib",
+      "sha256": "4707249f74a6742c7ffe32ef2706cfc30c86fb1838eb3790454076094fa16628",
+      "dll_strings": []
+    },
+    {
+      "path": "external/tbb/lib/tbb.lib",
+      "sha256": "bb72fee5dfebcd6d17448751647a5027027ca4d9309fdae0d4b099c72873ba72",
+      "dll_strings": [
+        "tbb12.dll"
+      ]
+    },
+    {
+      "path": "external/tbb/lib/tbb12.lib",
+      "sha256": "bb72fee5dfebcd6d17448751647a5027027ca4d9309fdae0d4b099c72873ba72",
+      "dll_strings": [
+        "tbb12.dll"
+      ]
+    },
+    {
+      "path": "external/tbb/lib/tbb12_debug.lib",
+      "sha256": "1366695363723bab3e5c85c4c501596da97c48ab20a34e4740c0d2df5e668701",
+      "dll_strings": [
+        "tbb12_debug.dll"
+      ]
+    },
+    {
+      "path": "external/tbb/lib/tbb_debug.lib",
+      "sha256": "1366695363723bab3e5c85c4c501596da97c48ab20a34e4740c0d2df5e668701",
+      "dll_strings": [
+        "tbb12_debug.dll"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "workflow": "BLOCKED",
+  "approval_eligible": false,
+  "checks": [
+    {
+      "check": "entry branch/HEAD/published source tag/index",
+      "result": "PASS"
+    },
+    {
+      "check": "normal Premake vs2022 regeneration",
+      "result": "PASS"
+    },
+    {
+      "check": "Debug all eight targets; 133 TUs; actual C++20/CRT/coverage/warning audit",
+      "result": "PASS"
+    },
+    {
+      "check": "Release all eight targets; 133 TUs; actual C++20/CRT/coverage/warning audit",
+      "result": "PASS"
+    },
+    {
+      "check": "Debug full PhysicsTests",
+      "result": "INCOMPLETE: 120-second capture limit; no completion summary"
+    },
+    {
+      "check": "Release full PhysicsTests; focused scene/CRT cases both configs",
+      "result": "NOT RUN after runtime stop gate"
+    },
+    {
+      "check": "fixed-input benchmark normal/profiling both configs",
+      "result": "NOT RUN after runtime stop gate"
+    },
+    {
+      "check": "restore normal generation",
+      "result": "NOT APPLICABLE: profiling generation never performed; normal generation retained"
+    },
+    {
+      "check": "four Debug app import inventories",
+      "result": "PASS: dumpbin capture, not successful runtime closure"
+    },
+    {
+      "check": "Debug RayTracing source-CWD startup",
+      "result": "FAIL: missing-module loader exit 0xc0000135"
+    },
+    {
+      "check": "other three Debug app launches; four Release imports/launches; resource checks",
+      "result": "NOT RUN after runtime stop gate"
+    },
+    {
+      "check": "runtime safeguard in disposable copied output",
+      "result": "NOT RUN after runtime stop gate"
+    }
+  ]
+}

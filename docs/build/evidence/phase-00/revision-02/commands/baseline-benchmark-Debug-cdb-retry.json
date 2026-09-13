@@ -1,0 +1,27 @@
+{
+  "name": "baseline-benchmark-Debug-cdb-retry",
+  "revision": "02",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py",
+    "_debugger",
+    "PhysicsBenchmark"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py _debugger PhysicsBenchmark",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T04:06:40.320890+00:00",
+  "elapsed_seconds": 1.094,
+  "timeout_seconds": 210,
+  "timed_out": false,
+  "exit_code": 1,
+  "result": "FAIL",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-02/baseline-benchmark-Debug-cdb-retry.txt",
+  "raw_sha256": "cfa08925acbb41849d30bc313e761cabf23269b0523cd34e7b751373eb05dae2",
+  "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/baseline-benchmark-Debug-cdb-retry.txt.gz",
+  "compressed_sha256": "3f101ef26497ce163c1709b5140467ec2d2ad1343c3dd9ec4cd53678777912ab",
+  "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+}

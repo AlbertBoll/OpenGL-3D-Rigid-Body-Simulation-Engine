@@ -1,0 +1,44 @@
+{
+  "name": "native-overlap-03-RayTracing",
+  "revision": "04",
+  "mode": "native",
+  "app": "RayTracing",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "-B",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+    "_native",
+    "native-overlap-03-RayTracing",
+    "RayTracing"
+  ],
+  "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+  "configuration": "Release",
+  "started_utc": "2026-09-13T06:26:57.020715+00:00",
+  "elapsed_seconds": 61.188,
+  "exit_code": 0,
+  "result": "PASS",
+  "process_result": [
+    {
+      "debugger_result": "CLEAN_EXIT",
+      "exit_code": 0,
+      "exit_hex": "0x0",
+      "normal_close_sent": true,
+      "forced_termination": false
+    }
+  ],
+  "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-03-RayTracing.txt",
+  "raw_sha256": "e2d8dcfbc1a5178d2cb42d417d70e4a501fed7d41164e5c8c38ee2d6349947de",
+  "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-03-RayTracing.txt.gz",
+  "compressed_sha256": "11b439482f583a3057b6b7a0ee3a64a76eabef2ecc9935b8e7bac68cbe2292b2",
+  "harness_sha256": "808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d.py",
+  "unchanged_startup_implementation": {
+    "path": "scripts/build_validation/revise_phase00_r03.py",
+    "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+  },
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PATH": "C:\\Windows\\System32;C:\\Windows"
+  },
+  "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+}

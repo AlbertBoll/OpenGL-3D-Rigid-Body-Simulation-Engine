@@ -1,0 +1,31 @@
+{
+  "name": "editor-baseline-early-repeat",
+  "revision": "03",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py",
+    "_debugger",
+    "editor-baseline-early-repeat",
+    "45",
+    "Debug"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py _debugger editor-baseline-early-repeat 45 Debug",
+  "cwd": "C:\\dev\\GEngine-build\\GEngineEditor",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T04:43:12.893735+00:00",
+  "elapsed_seconds": 72.469,
+  "harness_sha256": "b0033b645feedcbd222e8ba4bf8a8eb3f43f50289dec4914ce2e6f8305aaabe5",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-b0033b645feedcbd222e8ba4bf8a8eb3f43f50289dec4914ce2e6f8305aaabe5.py",
+  "timeout_seconds": 195.0,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/editor-baseline-early-repeat.txt",
+  "raw_sha256": "37ad38311aef335618ef2e9f56268ef1603008991df9ee0bd82d63daf419caaf",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/editor-baseline-early-repeat.txt.gz",
+  "compressed_sha256": "57cdf188a15f2520f674d65804e2b3d41c955aa1663e3e3553c6cb0b6ab11685",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

@@ -1,0 +1,13 @@
+{
+  "timestamp_utc": "2026-09-13T04:23:51.644811+00:00",
+  "path": "GEngineEditor/imgui.ini",
+  "classification": "PROTECTED_UNRELATED",
+  "entry_sha256": "d6facac12733ba8dd41ace25b4f972ece052128c3cf9afce933a46fdec266eb7",
+  "generated_sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c",
+  "retained_generated_capture": "bin-int/build-phase-00-revision-02/GEngineEditor-imgui-generated.ini",
+  "restored_sha256": "d6facac12733ba8dd41ace25b4f972ece052128c3cf9afce933a46fdec266eb7",
+  "restoration_source_blob": "12330310ae6e3a2040a89c7188ac29af3498e98d",
+  "encoding": "Verified Git blob plus original CRLF matches exact entry raw SHA-256 before writing",
+  "cause": "Editor ImGui normal runtime saves tracked imgui.ini even though ignore patterns match untracked ini files",
+  "validation_effect": "First startup used protected entry layout. Later diagnostic startup used the generated layout; both remain failed captures. No Editor acceptance is claimed. No staged runtime helper wrote this file. Exact protected bytes restored before final review/seal; future Editor validation must preserve this tracked runtime input explicitly."
+}

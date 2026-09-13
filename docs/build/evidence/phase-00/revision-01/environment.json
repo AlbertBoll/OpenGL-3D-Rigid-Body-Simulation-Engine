@@ -1,0 +1,16 @@
+{
+  "initial_environment": "docs/build/evidence/phase-00/environment.json",
+  "initial_sha256": "c81386d326eabadb638d16c18b5dadf96dfd371846a47b9c163ae0077ad0fa2d",
+  "python": {
+    "path": "C:\\Python310\\python.exe",
+    "version": "3.10.0 (tags/v3.10.0:b494f59, Oct  4 2021, 19:00:18) [MSC v.1929 64 bit (AMD64)]",
+    "sha256": "94a83686261e9364cf3386b61a01a9f70936e8547da8962d16f1f850226b8954"
+  },
+  "dumpbin": {
+    "path": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+    "sha256": "12a1cd87238bd66dfdb788b4fcdcb91ce4b3f81236aab12a7a29e5ae1d85af50"
+  },
+  "runtime_PATH": "C:\\Windows\\System32;C:\\Windows",
+  "runtime_CWD": "C:/dev/GEngine-build/<application>",
+  "selection": "Same explicit VS2022/MSVC/SDK identities as initial evidence; no installation, replacement or policy change. Official same-version TBB archive separately hash-verified."
+}

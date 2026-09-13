@@ -1,0 +1,26 @@
+{
+  "name": "contract-history",
+  "revision": "02",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "-c",
+    "import subprocess; from pathlib import Path; commands=[['show','97dbadb:PhysicsBenchmark/README.md'],['show','57fa05b','--','PhysicsTests/src/main.cpp'],['show','bd1d2b4','--','GEngine/src/Managers/AssetsManager.cpp'],['show','02865ec:GEngine/src/Managers/AssetsManager.cpp']]; [(print('GIT '+repr(c),flush=True),subprocess.run(['git','-c','safe.directory=C:/dev/GEngine-build',*c],check=True)) for c in commands]"
+  ],
+  "command": "C:\\Python310\\python.exe -c \"import subprocess; from pathlib import Path; commands=[['show','97dbadb:PhysicsBenchmark/README.md'],['show','57fa05b','--','PhysicsTests/src/main.cpp'],['show','bd1d2b4','--','GEngine/src/Managers/AssetsManager.cpp'],['show','02865ec:GEngine/src/Managers/AssetsManager.cpp']]; [(print('GIT '+repr(c),flush=True),subprocess.run(['git','-c','safe.directory=C:/dev/GEngine-build',*c],check=True)) for c in commands]\"",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": null,
+  "started_utc": "2026-09-13T04:10:54.125127+00:00",
+  "elapsed_seconds": 0.156,
+  "timeout_seconds": 60,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-02/contract-history.txt",
+  "raw_sha256": "425b77df9c6be2b364297cbbe9f82acc178df9c2ec6b324aa1b8a1968e8f4a61",
+  "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/contract-history.txt.gz",
+  "compressed_sha256": "baba1c752af25a3aa9089d3c23ae217e52642352bb872a9bf2719bd6b17cd0ac",
+  "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+}

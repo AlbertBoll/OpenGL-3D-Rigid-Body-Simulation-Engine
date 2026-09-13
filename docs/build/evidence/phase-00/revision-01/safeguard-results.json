@@ -1,0 +1,266 @@
+{
+  "result": "PASS",
+  "copy_root": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy",
+  "records": [
+    {
+      "test": "original-postbuild",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\Breakout\\postbuild.py",
+        "config=Debug",
+        "prj=Breakout"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy",
+      "exit_code": 0,
+      "stdout": "Optional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\Breakout\\PostBuildCopy\nOptional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\Breakout\\PostBuildCopy_windows\nRuntime baseline verified: Debug/Breakout\n",
+      "stderr": ""
+    },
+    {
+      "test": "original-postbuild",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\GEngineEditor\\postbuild.py",
+        "config=Debug",
+        "prj=GEngineEditor"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy",
+      "exit_code": 0,
+      "stdout": "Optional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\GEngineEditor\\PostBuildCopy\nOptional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\GEngineEditor\\PostBuildCopy_windows\nRuntime baseline verified: Debug/GEngineEditor\n",
+      "stderr": ""
+    },
+    {
+      "test": "original-postbuild",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RayTracing\\postbuild.py",
+        "config=Debug",
+        "prj=RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy",
+      "exit_code": 0,
+      "stdout": "Optional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RayTracing\\PostBuildCopy\nOptional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RayTracing\\PostBuildCopy_windows\nRuntime baseline verified: Debug/RayTracing\n",
+      "stderr": ""
+    },
+    {
+      "test": "original-postbuild",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RigidBodySimulation\\postbuild.py",
+        "config=Debug",
+        "prj=RigidBodySimulation"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy",
+      "exit_code": 0,
+      "stdout": "Optional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RigidBodySimulation\\PostBuildCopy\nOptional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RigidBodySimulation\\PostBuildCopy_windows\nRuntime baseline verified: Debug/RigidBodySimulation\n",
+      "stderr": ""
+    },
+    {
+      "test": "original-postbuild",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\Breakout\\postbuild.py",
+        "config=Release",
+        "prj=Breakout"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy",
+      "exit_code": 0,
+      "stdout": "Optional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\Breakout\\PostBuildCopy\nOptional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\Breakout\\PostBuildCopy_windows\nRuntime baseline verified: Release/Breakout\n",
+      "stderr": ""
+    },
+    {
+      "test": "original-postbuild",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\GEngineEditor\\postbuild.py",
+        "config=Release",
+        "prj=GEngineEditor"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy",
+      "exit_code": 0,
+      "stdout": "Optional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\GEngineEditor\\PostBuildCopy\nOptional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\GEngineEditor\\PostBuildCopy_windows\nRuntime baseline verified: Release/GEngineEditor\n",
+      "stderr": ""
+    },
+    {
+      "test": "original-postbuild",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RayTracing\\postbuild.py",
+        "config=Release",
+        "prj=RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy",
+      "exit_code": 0,
+      "stdout": "Optional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RayTracing\\PostBuildCopy\nOptional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RayTracing\\PostBuildCopy_windows\nRuntime baseline verified: Release/RayTracing\n",
+      "stderr": ""
+    },
+    {
+      "test": "original-postbuild",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RigidBodySimulation\\postbuild.py",
+        "config=Release",
+        "prj=RigidBodySimulation"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy",
+      "exit_code": 0,
+      "stdout": "Optional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RigidBodySimulation\\PostBuildCopy\nOptional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RigidBodySimulation\\PostBuildCopy_windows\nRuntime baseline verified: Release/RigidBodySimulation\n",
+      "stderr": ""
+    },
+    {
+      "test": "original-postbuild",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RayTracing\\postbuild.py",
+        "config=Debug",
+        "prj=RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy",
+      "exit_code": 0,
+      "stdout": "Optional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RayTracing\\PostBuildCopy\nOptional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RayTracing\\PostBuildCopy_windows\nRuntime baseline verified: Debug/RayTracing\n",
+      "stderr": ""
+    },
+    {
+      "test": "new-safeguard-missing-tbb",
+      "result": "PASS rejected missing runtime",
+      "message": "Missing or mismatched staged runtime: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\bin\\Debug\\RayTracing\\tbb12.dll"
+    },
+    {
+      "test": "refuse-mismatched-preexisting-output",
+      "result": "PASS",
+      "message": "Refusing to overwrite a pre-existing output"
+    },
+    {
+      "test": "refuse-wrong-source-runtime",
+      "result": "PASS",
+      "message": "Wrong source identity"
+    },
+    {
+      "test": "refuse-protected-tracked-destination",
+      "result": "PASS",
+      "message": "Destination not one of the two runtime outputs"
+    },
+    {
+      "test": "original-postbuild",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RayTracing\\postbuild.py",
+        "config=Debug",
+        "prj=RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy",
+      "exit_code": 1,
+      "stdout": "Optional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RayTracing\\PostBuildCopy\nOptional post-build directory absent: C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RayTracing\\PostBuildCopy_windows\n",
+      "stderr": "Traceback (most recent call last):\n  File \"C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\RayTracing\\postbuild.py\", line 9, in <module>\n    main(project_dir, sys.argv[1:])\n  File \"C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\tools\\postbuild.py\", line 53, in main\n    raise RuntimeError(\nRuntimeError: Missing tracked runtime DLLs in C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\bin\\Debug\\RayTracing: SDL2.dll. Restore the repository baseline from its root with: git restore --source=HEAD --worktree -- bin/Debug/RayTracing\n"
+    }
+  ],
+  "idempotence": [
+    {
+      "destination": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\bin\\Debug\\RayTracing\\tbb12.dll",
+      "action": "verified-existing; no write",
+      "sha256": "3bda7c5458d7f43bcd49f0dead5114eac1ea14f573aafc736f833089b1d2cd79"
+    },
+    {
+      "destination": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\safeguard-copy\\bin\\Release\\RayTracing\\tbb12.dll",
+      "action": "verified-existing; no write",
+      "sha256": "3bda7c5458d7f43bcd49f0dead5114eac1ea14f573aafc736f833089b1d2cd79"
+    }
+  ],
+  "original_bytes_preserved": {
+    "C:\\dev\\GEngine-build\\bin\\Debug\\Breakout\\assimp-vc140-mt.dll": "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\Breakout\\assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\Breakout\\Breakout.exe": "4896440b47306090c370b43fb1da23256f327475aff6efaa09235d24765d1d07",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\Breakout\\fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\Breakout\\fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\Breakout\\fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\Breakout\\fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\Breakout\\libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\Breakout\\SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\Breakout\\SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\Breakout\\zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor\\assimp-vc140-mt.dll": "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor\\assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor\\fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor\\fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor\\fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor\\fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor\\GEngineEditor.exe": "334b9794329fef67a32380caf9d105845b9323919b90171b8bafb46e9e6ef02d",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor\\libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor\\SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor\\SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor\\zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\assimp-vc140-mt.dll": "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\RayTracing.exe": "c8ada0ac04d1d7a2354684e40ce04f68e29b0c85e7287ae7b954341bdd5380fe",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\tbb12.dll": "3bda7c5458d7f43bcd49f0dead5114eac1ea14f573aafc736f833089b1d2cd79",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RigidBodySimulation\\assimp-vc140-mt.dll": "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RigidBodySimulation\\assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RigidBodySimulation\\fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RigidBodySimulation\\fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RigidBodySimulation\\fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RigidBodySimulation\\fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RigidBodySimulation\\libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RigidBodySimulation\\RigidBodySimulation.exe": "28280705e9ff0748852bc2ffa97194d2c7a04bf63dd9ef9f6761f68e1946f750",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RigidBodySimulation\\SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RigidBodySimulation\\SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RigidBodySimulation\\zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b",
+    "C:\\dev\\GEngine-build\\bin\\Release\\Breakout\\assimp-vc143-mt.dll": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+    "C:\\dev\\GEngine-build\\bin\\Release\\Breakout\\assimp-vc143-mtd.dll": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+    "C:\\dev\\GEngine-build\\bin\\Release\\Breakout\\assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+    "C:\\dev\\GEngine-build\\bin\\Release\\Breakout\\Breakout.exe": "1d0d9631d00ac2dbf310567f810c663472c7b51abf88d0c98b5c654c0b6a7abb",
+    "C:\\dev\\GEngine-build\\bin\\Release\\Breakout\\fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+    "C:\\dev\\GEngine-build\\bin\\Release\\Breakout\\fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+    "C:\\dev\\GEngine-build\\bin\\Release\\Breakout\\fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+    "C:\\dev\\GEngine-build\\bin\\Release\\Breakout\\fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+    "C:\\dev\\GEngine-build\\bin\\Release\\Breakout\\libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+    "C:\\dev\\GEngine-build\\bin\\Release\\Breakout\\SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+    "C:\\dev\\GEngine-build\\bin\\Release\\Breakout\\SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+    "C:\\dev\\GEngine-build\\bin\\Release\\Breakout\\zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b",
+    "C:\\dev\\GEngine-build\\bin\\Release\\GEngineEditor\\assimp-vc140-mt.dll": "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b",
+    "C:\\dev\\GEngine-build\\bin\\Release\\GEngineEditor\\assimp-vc143-mt.dll": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+    "C:\\dev\\GEngine-build\\bin\\Release\\GEngineEditor\\assimp-vc143-mtd.dll": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+    "C:\\dev\\GEngine-build\\bin\\Release\\GEngineEditor\\assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+    "C:\\dev\\GEngine-build\\bin\\Release\\GEngineEditor\\fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+    "C:\\dev\\GEngine-build\\bin\\Release\\GEngineEditor\\fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+    "C:\\dev\\GEngine-build\\bin\\Release\\GEngineEditor\\fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+    "C:\\dev\\GEngine-build\\bin\\Release\\GEngineEditor\\fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+    "C:\\dev\\GEngine-build\\bin\\Release\\GEngineEditor\\GEngineEditor.exe": "bb34095dcc769f4c2efd4895d1894f3471d63f14e53917d4bf5eba1d177b14fd",
+    "C:\\dev\\GEngine-build\\bin\\Release\\GEngineEditor\\libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+    "C:\\dev\\GEngine-build\\bin\\Release\\GEngineEditor\\SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+    "C:\\dev\\GEngine-build\\bin\\Release\\GEngineEditor\\SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+    "C:\\dev\\GEngine-build\\bin\\Release\\GEngineEditor\\zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RayTracing\\assimp-vc143-mt.dll": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RayTracing\\assimp-vc143-mtd.dll": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RayTracing\\assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RayTracing\\fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RayTracing\\fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RayTracing\\fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RayTracing\\fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RayTracing\\libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RayTracing\\RayTracing.exe": "2c2be168f0171997511683fcc130507385ecd4c2c4549eb093ba940a6bd813a6",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RayTracing\\SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RayTracing\\SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RayTracing\\tbb12.dll": "3bda7c5458d7f43bcd49f0dead5114eac1ea14f573aafc736f833089b1d2cd79",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RayTracing\\zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RigidBodySimulation\\assimp-vc143-mt.dll": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RigidBodySimulation\\assimp-vc143-mtd.dll": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RigidBodySimulation\\assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RigidBodySimulation\\fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RigidBodySimulation\\fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RigidBodySimulation\\fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RigidBodySimulation\\fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RigidBodySimulation\\libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RigidBodySimulation\\RigidBodySimulation.exe": "f51f2fe34b07506a50cdd5bf346fbd10e9ad8307e9b46ee68d9e9cfe27a31659",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RigidBodySimulation\\SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RigidBodySimulation\\SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RigidBodySimulation\\zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b"
+  },
+  "original_safeguard_gap": "Original safeguard passes with missing TBB; the new hash-verified supplement rejects it. Original SDL missing-file rejection remains effective."
+}

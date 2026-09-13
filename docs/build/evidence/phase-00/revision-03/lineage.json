@@ -1,0 +1,49 @@
+{
+  "revision": "03",
+  "entry_sha256": "68f185d99bcd3ae2972614dfdbc1d60757c1f9726b5ff8c0b73a11d2dd3f520a",
+  "previous_seal_sha256": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885",
+  "previous_review_sha256": "d607e1ee91ee806974c39fce8c8bae012cbaba6efae429c9ba055cc8741f59b5",
+  "initial_seal_sha256": "86621b4bcbcbd46a79eaacc35de270b0b833b6eda9b1138a503b2b1eeb1f2a70",
+  "revision_01_seal_sha256": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e",
+  "authorization": "Revision 03: Editor duplicate shared cleanup and independent early-close framebuffer investigation/minimal correction; protect checkpoint imgui.ini; complete acceptance matrix. Revision 02 four source corrections and Revision 01 TBB accepted unchanged; no checkpoint/publication or Phase 01.",
+  "accepted_revision_02_sources_unchanged": [
+    "Breakout/src/BreakoutApp.cpp",
+    "GEngine/src/Managers/AssetsManager.cpp",
+    "PhysicsBenchmark/src/main.cpp",
+    "PhysicsTests/src/main.cpp"
+  ],
+  "new_source_scope": [
+    "GEngineEditor/src/SceneApp.cpp",
+    "GEngine/src/Core/BaseApp.cpp"
+  ],
+  "ownership_receipts": [
+    {
+      "path": ".codex/build/phase-00-revision-03-ownership-01.json",
+      "sha256": "8c5f5ae1cae64554fae6ba80031211454198fca87667c0921f137382fde8f9a6"
+    },
+    {
+      "path": ".codex/build/phase-00-revision-03-ownership-02.json",
+      "sha256": "22dd81085e5d2fc61de9770410316f022ec60b7154d41cf95ffede95f6716456"
+    },
+    {
+      "path": ".codex/build/phase-00-revision-03-ownership-03.json",
+      "sha256": "1751fb8f742e9c2fd85edcf5f5d25db90d9d88a6d8e5bcd018e87ab814db0ce0"
+    },
+    {
+      "path": ".codex/build/phase-00-revision-03-ownership-04.json",
+      "sha256": "14373aa6b0a6e5b5d8085cea55b4ab15450c170719a347560e9a937687bddb3a"
+    },
+    {
+      "path": ".codex/build/phase-00-revision-03-ownership-05.json",
+      "sha256": "5bb3db35a705d23b1cdcdd3759f58eef661efb5df1a3d44df1d3278434f0ed2a"
+    },
+    {
+      "path": ".codex/build/phase-00-revision-03-ownership-06.json",
+      "sha256": "5ee772029f4af0c29d6b72f958d4f7b7a3fc0ffa925e4969ff7d251f7810a172"
+    },
+    {
+      "path": ".codex/build/phase-00-revision-03-ownership-07.json",
+      "sha256": "7dd7d6487b377f0c4c70a3e6b7ad5ef9cadd14364e227c65b6e8c6cf2269b5ed"
+    }
+  ]
+}

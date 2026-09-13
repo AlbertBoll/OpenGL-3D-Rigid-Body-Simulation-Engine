@@ -1,0 +1,27 @@
+{
+  "name": "tests-Release-fixed-scheduling",
+  "revision": "03",
+  "argv": [
+    "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsTests\\PhysicsTests.exe",
+    "--fixed-scheduling"
+  ],
+  "command": "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsTests\\PhysicsTests.exe --fixed-scheduling",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Release",
+  "started_utc": "2026-09-13T05:05:52.697737+00:00",
+  "elapsed_seconds": 4.406,
+  "harness_sha256": "0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee.py",
+  "timeout_seconds": 600,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/tests-Release-fixed-scheduling.txt",
+  "raw_sha256": "5ed947a72142c2ca7e2a447a6b9c512209e6a5b28514593be3b094d4ccfc51d9",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/tests-Release-fixed-scheduling.txt.gz",
+  "compressed_sha256": "4ce3f651357ed456f172640faacae2df6de09dca6e602e91f1f6a93841b42fc8",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

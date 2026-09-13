@@ -1,0 +1,26 @@
+{
+  "name": "imports-Release-GEngineEditor",
+  "revision": "02",
+  "argv": [
+    "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+    "/imports",
+    "C:\\dev\\GEngine-build\\bin\\Release\\GEngineEditor\\GEngineEditor.exe"
+  ],
+  "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /imports C:\\dev\\GEngine-build\\bin\\Release\\GEngineEditor\\GEngineEditor.exe",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Release",
+  "started_utc": "2026-09-13T04:15:06.155496+00:00",
+  "elapsed_seconds": 0.015,
+  "timeout_seconds": 120,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-02/imports-Release-GEngineEditor.txt",
+  "raw_sha256": "f70c0fee0a55bcc26a02f6d5f977e61d983f71bbaef052a7ffdccd445fda5c67",
+  "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/imports-Release-GEngineEditor.txt.gz",
+  "compressed_sha256": "95aaa4b709e4f039a3f2507691407ff29c9714b2f21190e754f7f26f5cc31afb",
+  "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+}

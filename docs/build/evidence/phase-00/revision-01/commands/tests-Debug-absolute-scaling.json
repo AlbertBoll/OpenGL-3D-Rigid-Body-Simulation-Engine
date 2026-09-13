@@ -1,0 +1,25 @@
+{
+  "name": "tests-Debug-absolute-scaling",
+  "revision": "01",
+  "argv": [
+    "C:\\dev\\GEngine-build\\bin\\Debug\\PhysicsTests\\PhysicsTests.exe",
+    "--absolute-scaling"
+  ],
+  "command": "C:\\dev\\GEngine-build\\bin\\Debug\\PhysicsTests\\PhysicsTests.exe --absolute-scaling",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T03:28:56.750361+00:00",
+  "elapsed_seconds": 84.672,
+  "timeout_seconds": 300,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-01/tests-Debug-absolute-scaling.txt",
+  "raw_sha256": "c02bfc2242044134c977862bcfd850b8559c7de8313a33ae480ad9ed8b4af8ba",
+  "compressed_log": "docs/build/evidence/phase-00/revision-01/commands/tests-Debug-absolute-scaling.txt.gz",
+  "compressed_sha256": "096590597f3aabee3d5a3fe79778f5c1583f04d32ecfca9baf3e8de7bdd48184",
+  "initial_lineage": "86621b4bcbcbd46a79eaacc35de270b0b833b6eda9b1138a503b2b1eeb1f2a70"
+}

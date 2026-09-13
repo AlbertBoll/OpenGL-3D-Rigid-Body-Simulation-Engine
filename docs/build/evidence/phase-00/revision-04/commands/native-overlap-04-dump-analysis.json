@@ -1,0 +1,25 @@
+{
+  "name": "native-overlap-04-dump-analysis",
+  "revision": "04",
+  "mode": "offline dump analysis",
+  "argv": [
+    "C:\\Program Files (x86)\\Windows Kits\\10\\Debuggers\\x64\\cdb.exe",
+    "-z",
+    "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\native-overlap-04-RayTracing.dmp",
+    "-y",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RayTracing",
+    "-lines",
+    "-c",
+    ".lastevent; .exr -1; .ecxr; r; kv; lm v; ~* kv; !runaway; !peb; !address -summary; q"
+  ],
+  "cwd": "C:\\dev\\GEngine-build",
+  "started_utc": "2026-09-13T06:29:36.575487+00:00",
+  "elapsed_seconds": 0.7190000000118744,
+  "exit_code": 0,
+  "result": "PASS",
+  "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-04-dump-analysis.txt",
+  "raw_sha256": "2cc2b1569d974a7b0fa94f724ab54738c81a9417dc0170d04ab114e4ca87638b",
+  "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-dump-analysis.txt.gz",
+  "compressed_sha256": "d90eba85e3bfa5375f676dc4b39f81c165d2a2c621b64716dd70e5dbb4938306",
+  "dump": "bin-int/build-phase-00-revision-04/native-overlap-04-RayTracing.dmp"
+}

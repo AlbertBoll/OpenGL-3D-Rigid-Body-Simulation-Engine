@@ -314,6 +314,10 @@ namespace GEngine
                     ProcessInput(inputTime);
                 }
 
+                // Input may close the window and destroy its rendering context.
+                if (!m_Running)
+                    break;
+
 
                 //update                              
                 Update(dt_sec);

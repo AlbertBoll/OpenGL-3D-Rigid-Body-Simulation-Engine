@@ -1,0 +1,31 @@
+{
+  "name": "editor-camera-ownership",
+  "revision": "03",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py",
+    "_debugger",
+    "editor-camera-ownership",
+    "120",
+    "Debug"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py _debugger editor-camera-ownership 120 Debug",
+  "cwd": "C:\\dev\\GEngine-build\\GEngineEditor",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T05:03:03.883553+00:00",
+  "elapsed_seconds": 125.813,
+  "harness_sha256": "c8f4272311d5f0f93ff1b5cefd978276fd2d65ee1fa89bbd31091405d6f654c0",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-c8f4272311d5f0f93ff1b5cefd978276fd2d65ee1fa89bbd31091405d6f654c0.py",
+  "timeout_seconds": 270.0,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/editor-camera-ownership.txt",
+  "raw_sha256": "6e4db81659d37980f2542ff75dd77c78c3d3a9f1c156e03804e97211ac3efdd8",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/editor-camera-ownership.txt.gz",
+  "compressed_sha256": "40f97dfad0f8a23fbeeb695422d4b6cf85204d91ff43b635950dec78d34d5d66",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

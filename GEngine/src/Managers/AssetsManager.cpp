@@ -18,7 +18,10 @@ namespace GEngine::Manager
 			return nullptr;
 		}*/
 
-		std::string image_dir = !info.b_CubeMap? image_base_dir + imageFilePath + extension: image_base_dir + imageFilePath;
+		// Explicit relative filenames already include their extension; logical names use the shared image directory.
+		const bool relativeFilePath = imageFilePath.starts_with("./") || imageFilePath.starts_with("../");
+		std::string image_dir = relativeFilePath ? imageFilePath :
+			(!info.b_CubeMap ? image_base_dir + imageFilePath + extension : image_base_dir + imageFilePath);
 
 		//std::string image_dir = image_base_dir + imageFilePath + image_extension;
 

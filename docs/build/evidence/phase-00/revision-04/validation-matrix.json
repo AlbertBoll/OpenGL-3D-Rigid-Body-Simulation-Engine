@@ -1,0 +1,2938 @@
+{
+  "revision": "04",
+  "final_acceptance": "PASS",
+  "required_gate_count": 62,
+  "complete_required_gate_matrix": [
+    {
+      "gate": "premake-profile",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/premake-profile.json"
+    },
+    {
+      "gate": "premake-normal",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/premake-normal.json"
+    },
+    {
+      "gate": "runtime-check",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/runtime-check.json"
+    },
+    {
+      "gate": "safeguards",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/safeguards.json"
+    },
+    {
+      "gate": "build-normal-Debug",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/build-normal-Debug.json"
+    },
+    {
+      "gate": "build-profile-Debug",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/build-profile-Debug.json"
+    },
+    {
+      "gate": "build-editor-Debug-final",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/build-editor-Debug-final.json"
+    },
+    {
+      "gate": "imports-Debug-GEngineEditor-final",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/imports-Debug-GEngineEditor-final.json"
+    },
+    {
+      "gate": "tests-Debug-full",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/tests-Debug-full.json"
+    },
+    {
+      "gate": "tests-Debug-solver-storage",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/tests-Debug-solver-storage.json"
+    },
+    {
+      "gate": "tests-Debug-runtime-transform",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/tests-Debug-runtime-transform.json"
+    },
+    {
+      "gate": "tests-Debug-scene-runtime-lifecycle",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/tests-Debug-scene-runtime-lifecycle.json"
+    },
+    {
+      "gate": "tests-Debug-fixed-scheduling",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/tests-Debug-fixed-scheduling.json"
+    },
+    {
+      "gate": "tests-Debug-absolute-scaling",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/tests-Debug-absolute-scaling.json"
+    },
+    {
+      "gate": "tests-Debug-box-manifolds",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/tests-Debug-box-manifolds.json"
+    },
+    {
+      "gate": "benchmark-Debug-normal",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/benchmark-Debug-normal.json"
+    },
+    {
+      "gate": "benchmark-Debug-profile",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/benchmark-Debug-profile.json"
+    },
+    {
+      "gate": "benchmark-Debug-normal-steady",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/benchmark-Debug-normal-steady.json"
+    },
+    {
+      "gate": "benchmark-Debug-profile-steady",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/benchmark-Debug-profile-steady.json"
+    },
+    {
+      "gate": "tests-profile-Debug-box-manifolds",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/tests-profile-Debug-box-manifolds.json"
+    },
+    {
+      "gate": "editor-fixed-early-Debug-final",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/editor-fixed-early-Debug-final.json"
+    },
+    {
+      "gate": "editor-fixed-late-Debug",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/editor-fixed-late-Debug.json"
+    },
+    {
+      "gate": "startup-Debug-Breakout",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/startup-Debug-Breakout.json"
+    },
+    {
+      "gate": "resources-Debug-Breakout-final",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/resources-Debug-Breakout-final.json"
+    },
+    {
+      "gate": "imports-Debug-Breakout",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/imports-Debug-Breakout.json"
+    },
+    {
+      "gate": "startup-Debug-GEngineEditor",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/startup-Debug-GEngineEditor.json"
+    },
+    {
+      "gate": "resources-Debug-GEngineEditor",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/resources-Debug-GEngineEditor.json"
+    },
+    {
+      "gate": "startup-Debug-RayTracing",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/startup-Debug-RayTracing.json"
+    },
+    {
+      "gate": "resources-Debug-RayTracing",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/resources-Debug-RayTracing.json"
+    },
+    {
+      "gate": "imports-Debug-RayTracing",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/imports-Debug-RayTracing.json"
+    },
+    {
+      "gate": "startup-Debug-RigidBodySimulation",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/startup-Debug-RigidBodySimulation.json"
+    },
+    {
+      "gate": "resources-Debug-RigidBodySimulation",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/resources-Debug-RigidBodySimulation.json"
+    },
+    {
+      "gate": "imports-Debug-RigidBodySimulation",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/imports-Debug-RigidBodySimulation.json"
+    },
+    {
+      "gate": "build-normal-Release",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/build-normal-Release.json"
+    },
+    {
+      "gate": "build-profile-Release",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/build-profile-Release.json"
+    },
+    {
+      "gate": "build-editor-Release-final",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/build-editor-Release-final.json"
+    },
+    {
+      "gate": "imports-Release-GEngineEditor-final",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/imports-Release-GEngineEditor-final.json"
+    },
+    {
+      "gate": "tests-Release-full",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/tests-Release-full.json"
+    },
+    {
+      "gate": "tests-Release-solver-storage",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/tests-Release-solver-storage.json"
+    },
+    {
+      "gate": "tests-Release-runtime-transform",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/tests-Release-runtime-transform.json"
+    },
+    {
+      "gate": "tests-Release-scene-runtime-lifecycle",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/tests-Release-scene-runtime-lifecycle.json"
+    },
+    {
+      "gate": "tests-Release-fixed-scheduling",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/tests-Release-fixed-scheduling.json"
+    },
+    {
+      "gate": "tests-Release-absolute-scaling",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/tests-Release-absolute-scaling.json"
+    },
+    {
+      "gate": "tests-Release-box-manifolds",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/tests-Release-box-manifolds.json"
+    },
+    {
+      "gate": "benchmark-Release-normal",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/benchmark-Release-normal.json"
+    },
+    {
+      "gate": "benchmark-Release-profile-verified",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/benchmark-Release-profile-verified.json"
+    },
+    {
+      "gate": "benchmark-Release-normal-steady",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/benchmark-Release-normal-steady.json"
+    },
+    {
+      "gate": "benchmark-Release-profile-steady-verified",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/benchmark-Release-profile-steady-verified.json"
+    },
+    {
+      "gate": "tests-profile-Release-box-manifolds-verified",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/tests-profile-Release-box-manifolds-verified.json"
+    },
+    {
+      "gate": "editor-fixed-early-Release",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/editor-fixed-early-Release.json"
+    },
+    {
+      "gate": "editor-fixed-late-Release",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/editor-fixed-late-Release.json"
+    },
+    {
+      "gate": "startup-Release-Breakout",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/startup-Release-Breakout.json"
+    },
+    {
+      "gate": "resources-Release-Breakout",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/resources-Release-Breakout.json"
+    },
+    {
+      "gate": "imports-Release-Breakout",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/imports-Release-Breakout.json"
+    },
+    {
+      "gate": "startup-Release-GEngineEditor",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/startup-Release-GEngineEditor.json"
+    },
+    {
+      "gate": "resources-Release-GEngineEditor",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/resources-Release-GEngineEditor.json"
+    },
+    {
+      "gate": "startup-Release-RayTracing",
+      "historical_capture_result": "FAIL",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Fresh corrected serial acceptance after demonstrated cause",
+      "evidence": "commands/acceptance-04-RayTracing.json"
+    },
+    {
+      "gate": "resources-Release-RayTracing",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/resources-Release-RayTracing.json"
+    },
+    {
+      "gate": "imports-Release-RayTracing",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/imports-Release-RayTracing.json"
+    },
+    {
+      "gate": "startup-Release-RigidBodySimulation",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/startup-Release-RigidBodySimulation.json"
+    },
+    {
+      "gate": "resources-Release-RigidBodySimulation",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/resources-Release-RigidBodySimulation.json"
+    },
+    {
+      "gate": "imports-Release-RigidBodySimulation",
+      "historical_capture_result": "PASS",
+      "current_acceptance": "PASS",
+      "evidence_kind": "Revision 03 evidence reused after complete unchanged-input verification",
+      "evidence": "../revision-03/commands/imports-Release-RigidBodySimulation.json"
+    }
+  ],
+  "executed_revision_04": [
+    {
+      "name": "acceptance-01-RayTracing",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "acceptance-01-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:32:17.636376+00:00",
+      "elapsed_seconds": 61.079,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/acceptance-01-RayTracing.txt",
+      "raw_sha256": "a27ca40ff76670eec14f78aede1201cf01919ac3c77bd056dca5ec30cb9ea734",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/acceptance-01-RayTracing.txt.gz",
+      "compressed_sha256": "e9e2af8e15ee442018a8c7dc281d18aaa6810ea97b06c1660535593cfc240bfa",
+      "harness_sha256": "eb927038a6f611db0863f2b227bc466b3d53dae380acc644457afa4dcdd40567",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-eb927038a6f611db0863f2b227bc466b3d53dae380acc644457afa4dcdd40567.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "acceptance-02-Breakout",
+      "revision": "04",
+      "mode": "startup",
+      "app": "Breakout",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "acceptance-02-Breakout",
+        "Breakout"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\Breakout",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:33:19.684045+00:00",
+      "elapsed_seconds": 60.5,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/acceptance-02-Breakout.txt",
+      "raw_sha256": "982154af1c53cbb771ccfb703ec3c64568e2f6e0f94915ea3150f36d7a45cd7a",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/acceptance-02-Breakout.txt.gz",
+      "compressed_sha256": "8f78d147096b4c498f0e05d72aba385be8d00ea721124d29f7de5a2dd93abd33",
+      "harness_sha256": "eb927038a6f611db0863f2b227bc466b3d53dae380acc644457afa4dcdd40567",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-eb927038a6f611db0863f2b227bc466b3d53dae380acc644457afa4dcdd40567.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "acceptance-03-RigidBodySimulation",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RigidBodySimulation",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "acceptance-03-RigidBodySimulation",
+        "RigidBodySimulation"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:34:21.122264+00:00",
+      "elapsed_seconds": 60.609,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/acceptance-03-RigidBodySimulation.txt",
+      "raw_sha256": "564834c7823803f7e5047d14596017077508f9b498099785fec4316f011e427a",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/acceptance-03-RigidBodySimulation.txt.gz",
+      "compressed_sha256": "d2ddb349f40399aebecc63d92b72798b2864792d316c7a7e87a8e71892fdf047",
+      "harness_sha256": "eb927038a6f611db0863f2b227bc466b3d53dae380acc644457afa4dcdd40567",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-eb927038a6f611db0863f2b227bc466b3d53dae380acc644457afa4dcdd40567.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "acceptance-04-RayTracing",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "acceptance-04-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:35:22.700310+00:00",
+      "elapsed_seconds": 61.203,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/acceptance-04-RayTracing.txt",
+      "raw_sha256": "b0c0bf9113e8a0d638e30cbc9a03b61bd8fbdfbcc197454164aae1767f542bf5",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/acceptance-04-RayTracing.txt.gz",
+      "compressed_sha256": "72b831c4e779614612172b4e4e4015c7f166ff8c2b9177ef7eea5001bfe69482",
+      "harness_sha256": "eb927038a6f611db0863f2b227bc466b3d53dae380acc644457afa4dcdd40567",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-eb927038a6f611db0863f2b227bc466b3d53dae380acc644457afa4dcdd40567.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "debugger-overlap-01-Breakout",
+      "revision": "04",
+      "mode": "startup",
+      "app": "Breakout",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "debugger-overlap-01-Breakout",
+        "Breakout"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\Breakout",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:17:52.167246+00:00",
+      "elapsed_seconds": 61.156,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-01-Breakout.txt",
+      "raw_sha256": "1d41158927a77155e0bd2d81b602d6f6d3184f2a6991468977ca481f42fafdb0",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-01-Breakout.txt.gz",
+      "compressed_sha256": "9f50134907b3ac33614036b1216b3ac95048e1b819592093011e119b99f6b2d9",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "debugger-overlap-01-RayTracing",
+      "revision": "04",
+      "mode": "debugger",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_debugger",
+        "debugger-overlap-01-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:17:51.932752+00:00",
+      "elapsed_seconds": 61.828,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "debugger_result": "CLEAN_EXIT",
+          "debugger_exit_code": 0,
+          "normal_close_sent": true,
+          "forced_termination": false,
+          "dump": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\debugger-overlap-01-RayTracing.dmp",
+          "dump_sha256": "ABSENT",
+          "module_identities": []
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-01-RayTracing.txt",
+      "raw_sha256": "853358a8e07a68635e44743f717c9d68f0635c8252bbd57bfce7667b52d511c8",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-01-RayTracing.txt.gz",
+      "compressed_sha256": "f38d5415d74473e4d1f2e1c31c70a2c845c09284a14d5c61b4cf2e3c1eeaabbc",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "debugger-overlap-01-RigidBodySimulation",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RigidBodySimulation",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "debugger-overlap-01-RigidBodySimulation",
+        "RigidBodySimulation"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:17:52.308681+00:00",
+      "elapsed_seconds": 61.422,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-01-RigidBodySimulation.txt",
+      "raw_sha256": "baa2c06efb8304c1ca6f627a5b4ec274325495c2307d397bde3f73cdc957767f",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-01-RigidBodySimulation.txt.gz",
+      "compressed_sha256": "f8799cd22e141094ca49f8846a82facb9c61233a919527e3b2a2b8ac7bc075f6",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "debugger-overlap-02-Breakout",
+      "revision": "04",
+      "mode": "startup",
+      "app": "Breakout",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "debugger-overlap-02-Breakout",
+        "Breakout"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\Breakout",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:18:53.994992+00:00",
+      "elapsed_seconds": 61.078,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-02-Breakout.txt",
+      "raw_sha256": "c66d1d6c9f05022986826665b49c00008202da90a7f8cb52b0e5722ee6bec73c",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-02-Breakout.txt.gz",
+      "compressed_sha256": "e58bf1c948bd591d2dbd6fcbabcd1bd0707721ecca09097f17704edc32cb1f22",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "debugger-overlap-02-RayTracing",
+      "revision": "04",
+      "mode": "debugger",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_debugger",
+        "debugger-overlap-02-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:18:53.761720+00:00",
+      "elapsed_seconds": 62.016,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "debugger_result": "CLEAN_EXIT",
+          "debugger_exit_code": 0,
+          "normal_close_sent": true,
+          "forced_termination": false,
+          "dump": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\debugger-overlap-02-RayTracing.dmp",
+          "dump_sha256": "ABSENT",
+          "module_identities": []
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-02-RayTracing.txt",
+      "raw_sha256": "f7ea499823714cd3437f0fa8a9e9f0a360f754cfba529194872500f05b428487",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-02-RayTracing.txt.gz",
+      "compressed_sha256": "e588ec768d9cfb4363d69e8c81547e0b84fd4b84db8137c9b7eebb596713f723",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "debugger-overlap-02-RigidBodySimulation",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RigidBodySimulation",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "debugger-overlap-02-RigidBodySimulation",
+        "RigidBodySimulation"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:18:54.137078+00:00",
+      "elapsed_seconds": 61.297,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-02-RigidBodySimulation.txt",
+      "raw_sha256": "f855123513117442e5f3a257acd69fdce54a29c089a69838a9094ae1e1dd20ed",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-02-RigidBodySimulation.txt.gz",
+      "compressed_sha256": "fc74648a147805d6a59b4c9307700a294d8d06a41c32b1758d2a6ece9ba39fe2",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "debugger-overlap-03-Breakout",
+      "revision": "04",
+      "mode": "startup",
+      "app": "Breakout",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "debugger-overlap-03-Breakout",
+        "Breakout"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\Breakout",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:19:56.011501+00:00",
+      "elapsed_seconds": 61.0,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-03-Breakout.txt",
+      "raw_sha256": "8117d01dc05639183b267f97bffc70bac2d3ce2031625f36adf884bd18c1dc5b",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-03-Breakout.txt.gz",
+      "compressed_sha256": "af77dda52a7d95d1e79a36b7e05470698573218f36bd6cff2791521e251a07c4",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "debugger-overlap-03-RayTracing",
+      "revision": "04",
+      "mode": "debugger",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_debugger",
+        "debugger-overlap-03-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:19:55.777742+00:00",
+      "elapsed_seconds": 61.781,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "debugger_result": "CLEAN_EXIT",
+          "debugger_exit_code": 0,
+          "normal_close_sent": true,
+          "forced_termination": false,
+          "dump": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\debugger-overlap-03-RayTracing.dmp",
+          "dump_sha256": "ABSENT",
+          "module_identities": []
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-03-RayTracing.txt",
+      "raw_sha256": "acdccdf3ed9209839a154ef2b9c3e4841b8a0e46f9d4e58bd6a862b1b422a7f3",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-03-RayTracing.txt.gz",
+      "compressed_sha256": "22c5f836caabd9164453212a3530401c7751d8ae1a91ac609d590d2d85b040b1",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "debugger-overlap-03-RigidBodySimulation",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RigidBodySimulation",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "debugger-overlap-03-RigidBodySimulation",
+        "RigidBodySimulation"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:19:56.153470+00:00",
+      "elapsed_seconds": 61.344,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-03-RigidBodySimulation.txt",
+      "raw_sha256": "02cd74fcf706626c1e4f42246770b37973b39bf07a4fbe7f34522612c5596e6f",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-03-RigidBodySimulation.txt.gz",
+      "compressed_sha256": "f0f0df51b6299ce8d2f8ec17000a0b428b03b66ffd2bb2b8399746fcc16304a0",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "debugger-overlap-04-Breakout",
+      "revision": "04",
+      "mode": "startup",
+      "app": "Breakout",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "debugger-overlap-04-Breakout",
+        "Breakout"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\Breakout",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:20:57.791701+00:00",
+      "elapsed_seconds": 61.359,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-04-Breakout.txt",
+      "raw_sha256": "22adf3655b0994b627874507cee6c1791fd264012daeb70fb9006073e1fca0f0",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-04-Breakout.txt.gz",
+      "compressed_sha256": "600483b1abc18da8871e7c00ee2a87eff219775639bf67cbd55e9c6b9f03f69e",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "debugger-overlap-04-RayTracing",
+      "revision": "04",
+      "mode": "debugger",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_debugger",
+        "debugger-overlap-04-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:20:57.573043+00:00",
+      "elapsed_seconds": 61.797,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "debugger_result": "CLEAN_EXIT",
+          "debugger_exit_code": 0,
+          "normal_close_sent": true,
+          "forced_termination": false,
+          "dump": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\debugger-overlap-04-RayTracing.dmp",
+          "dump_sha256": "ABSENT",
+          "module_identities": []
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-04-RayTracing.txt",
+      "raw_sha256": "e2b5f48ada4297bf5dc09ca2ed77b02ec79b8925c0c8e8b63a1246317370431a",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-04-RayTracing.txt.gz",
+      "compressed_sha256": "cd58d562dc56ae887ee115caf0b890707317db65dac4f6c5b88b2e0a4b171ff8",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "debugger-overlap-04-RigidBodySimulation",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RigidBodySimulation",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "debugger-overlap-04-RigidBodySimulation",
+        "RigidBodySimulation"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:20:57.948686+00:00",
+      "elapsed_seconds": 61.609,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-04-RigidBodySimulation.txt",
+      "raw_sha256": "999a5b6dd323ffd8428cc74ffc4a4044faa207c7c5b0c8f1381c4ce515a231f6",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-04-RigidBodySimulation.txt.gz",
+      "compressed_sha256": "02f4b0d63392b601782cfa06d2295474951b1630485c5c235990271c8ae8ed52",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "debugger-overlap-05-Breakout",
+      "revision": "04",
+      "mode": "startup",
+      "app": "Breakout",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "debugger-overlap-05-Breakout",
+        "Breakout"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\Breakout",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:21:59.788761+00:00",
+      "elapsed_seconds": 61.359,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-05-Breakout.txt",
+      "raw_sha256": "7d87f91b7376eeb7dbd89884bbf7b6e0ee82190fcd54381b6da06b819b78059c",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-05-Breakout.txt.gz",
+      "compressed_sha256": "96083e31348caad37df5f12938280bb8e215bf73ae8397a84d3b7a65ad22a74b",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "debugger-overlap-05-RayTracing",
+      "revision": "04",
+      "mode": "debugger",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_debugger",
+        "debugger-overlap-05-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:21:59.552846+00:00",
+      "elapsed_seconds": 61.891,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "debugger_result": "CLEAN_EXIT",
+          "debugger_exit_code": 0,
+          "normal_close_sent": true,
+          "forced_termination": false,
+          "dump": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\debugger-overlap-05-RayTracing.dmp",
+          "dump_sha256": "ABSENT",
+          "module_identities": []
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-05-RayTracing.txt",
+      "raw_sha256": "8c1749227f7459bc2b048da06995cefe66cd327eb9717974eaafe0e9fff93cf1",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-05-RayTracing.txt.gz",
+      "compressed_sha256": "4aba1774945dd1c98f775ed57cb85ed516145bb1ddb55e4934d641be4fdd32ff",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "debugger-overlap-05-RigidBodySimulation",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RigidBodySimulation",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "debugger-overlap-05-RigidBodySimulation",
+        "RigidBodySimulation"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:21:59.932250+00:00",
+      "elapsed_seconds": 61.516,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-05-RigidBodySimulation.txt",
+      "raw_sha256": "c4cfc03a52d00e3035bb7c906f061bf28642fb57301245f5f422aa8540b41341",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-05-RigidBodySimulation.txt.gz",
+      "compressed_sha256": "948645a2d3ec74fbabe23b140c3e8c5fa2c3b0f5e37529f4103b8260e78135cd",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "debugger-overlap-06-Breakout",
+      "revision": "04",
+      "mode": "startup",
+      "app": "Breakout",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "debugger-overlap-06-Breakout",
+        "Breakout"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\Breakout",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:23:01.684224+00:00",
+      "elapsed_seconds": 61.0,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-06-Breakout.txt",
+      "raw_sha256": "7129103878ccd870b0a6fce5017d08fb9319bc348ab1e3c48233d7b1cdd801c9",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-06-Breakout.txt.gz",
+      "compressed_sha256": "868f68fb7d38c9bec4c72f922bb8ca6782a231add85312d9755f6d797027ef81",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "debugger-overlap-06-RayTracing",
+      "revision": "04",
+      "mode": "debugger",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_debugger",
+        "debugger-overlap-06-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:23:01.453706+00:00",
+      "elapsed_seconds": 61.14,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "debugger_result": "CLEAN_EXIT",
+          "debugger_exit_code": 0,
+          "normal_close_sent": true,
+          "forced_termination": false,
+          "dump": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\debugger-overlap-06-RayTracing.dmp",
+          "dump_sha256": "ABSENT",
+          "module_identities": []
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-06-RayTracing.txt",
+      "raw_sha256": "c37893d9da9b7a952adb721813bf0dbf2f5d0646a4d16be173ac738a92bb9d3f",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-06-RayTracing.txt.gz",
+      "compressed_sha256": "f26deab1a7b1468fcc6085de60dd12170ad53e85b5188c605526304ff8f6a797",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "debugger-overlap-06-RigidBodySimulation",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RigidBodySimulation",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "debugger-overlap-06-RigidBodySimulation",
+        "RigidBodySimulation"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:23:01.825829+00:00",
+      "elapsed_seconds": 61.343,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-06-RigidBodySimulation.txt",
+      "raw_sha256": "9f2861e2a17e5651df946c4aa6c98897540ae9e47f90560e1265daef89eb74aa",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-06-RigidBodySimulation.txt.gz",
+      "compressed_sha256": "ae0fb3093c21250d2329c007624b16e207076c541943c5f8e719195042d44285",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "isolated-01-RayTracing",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "isolated-01-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:08:17.727464+00:00",
+      "elapsed_seconds": 61.11,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/isolated-01-RayTracing.txt",
+      "raw_sha256": "5730c5ed043ef49460117ef60765c823f2d9b65a13b38be789ae07543f49933a",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/isolated-01-RayTracing.txt.gz",
+      "compressed_sha256": "a4c19f2ce9e5b1c0df137b61687e6e1b8937883fa4db43bdf6289ecbe728d8cb",
+      "harness_sha256": "e8493f8129114ed4b4930f837ea1d682bb7681ff32990cd37dc88cf6ccc81c0c",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-e8493f8129114ed4b4930f837ea1d682bb7681ff32990cd37dc88cf6ccc81c0c.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "isolated-02-RayTracing",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "isolated-02-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:09:18.838705+00:00",
+      "elapsed_seconds": 61.093,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/isolated-02-RayTracing.txt",
+      "raw_sha256": "b7a6a79eb800e6aafbe73f3093823310f75f05d7038b16c0bc440628343be05a",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/isolated-02-RayTracing.txt.gz",
+      "compressed_sha256": "bb110e02387775962ea72bdc82ee42f8a38bfc77b77f65965229ffd2024a8727",
+      "harness_sha256": "e8493f8129114ed4b4930f837ea1d682bb7681ff32990cd37dc88cf6ccc81c0c",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-e8493f8129114ed4b4930f837ea1d682bb7681ff32990cd37dc88cf6ccc81c0c.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "isolated-03-RayTracing",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "isolated-03-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:10:19.919315+00:00",
+      "elapsed_seconds": 61.157,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/isolated-03-RayTracing.txt",
+      "raw_sha256": "afde0cc2c0fdb5af3fd7e12db5e869c5ca20d01d391d69aa3d330522e7927128",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/isolated-03-RayTracing.txt.gz",
+      "compressed_sha256": "6fbfa770f405ab8673f810919219291953664166222315edc2ddfb11760ccf0e",
+      "harness_sha256": "e8493f8129114ed4b4930f837ea1d682bb7681ff32990cd37dc88cf6ccc81c0c",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-e8493f8129114ed4b4930f837ea1d682bb7681ff32990cd37dc88cf6ccc81c0c.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "isolated-04-RayTracing",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "isolated-04-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:11:21.082370+00:00",
+      "elapsed_seconds": 61.156,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/isolated-04-RayTracing.txt",
+      "raw_sha256": "8db978f15c5bcc664f66fbcb6074fdc1c8936399346e4acd1ebe29f47037a991",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/isolated-04-RayTracing.txt.gz",
+      "compressed_sha256": "70af8e5b2b777b5243488d9a52405d9b2f0b08b9790b530bf9bcccac2c9f9fc1",
+      "harness_sha256": "e8493f8129114ed4b4930f837ea1d682bb7681ff32990cd37dc88cf6ccc81c0c",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-e8493f8129114ed4b4930f837ea1d682bb7681ff32990cd37dc88cf6ccc81c0c.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "isolated-05-RayTracing",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "isolated-05-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:12:22.231304+00:00",
+      "elapsed_seconds": 61.015,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/isolated-05-RayTracing.txt",
+      "raw_sha256": "ee02e9d3ddc580a60856c7d0a01518560e483aadc5e323a05eba325385ae75d7",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/isolated-05-RayTracing.txt.gz",
+      "compressed_sha256": "c0aa6119c1b705d5d2e037a4dd56acb3c0b072c477d8cd030f8c143d68690fb0",
+      "harness_sha256": "e8493f8129114ed4b4930f837ea1d682bb7681ff32990cd37dc88cf6ccc81c0c",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-e8493f8129114ed4b4930f837ea1d682bb7681ff32990cd37dc88cf6ccc81c0c.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "isolated-06-RayTracing",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "isolated-06-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:13:23.257333+00:00",
+      "elapsed_seconds": 61.204,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/isolated-06-RayTracing.txt",
+      "raw_sha256": "e680c168b16dc67b8072fcb07ba5c604846e5f2afcfae6e93bc7c8d68d3594b3",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/isolated-06-RayTracing.txt.gz",
+      "compressed_sha256": "b38ce439fe973fdeebf61ef784896bce02fbbfa0ece550e67adc5b8933f90426",
+      "harness_sha256": "e8493f8129114ed4b4930f837ea1d682bb7681ff32990cd37dc88cf6ccc81c0c",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-e8493f8129114ed4b4930f837ea1d682bb7681ff32990cd37dc88cf6ccc81c0c.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "native-overlap-01-Breakout",
+      "revision": "04",
+      "mode": "startup",
+      "app": "Breakout",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "native-overlap-01-Breakout",
+        "Breakout"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\Breakout",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:24:42.450673+00:00",
+      "elapsed_seconds": 60.469,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-01-Breakout.txt",
+      "raw_sha256": "5aa4bc556ec1385fcc00cccc4acdfe83bee9524415ef23aa7f2cf3ebd9ce2774",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-01-Breakout.txt.gz",
+      "compressed_sha256": "579227a4d85999fb1a316718e185651afe5286368e48eede82ce7a0a3f60e1c8",
+      "harness_sha256": "808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "native-overlap-01-RayTracing",
+      "revision": "04",
+      "mode": "native",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_native",
+        "native-overlap-01-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:24:42.213988+00:00",
+      "elapsed_seconds": 3.343,
+      "exit_code": 1,
+      "result": "FAIL",
+      "process_result": [
+        {
+          "debugger_result": "EXCEPTION_CAPTURED",
+          "exit_code": 3221226505,
+          "exit_hex": "0xc0000409",
+          "normal_close_sent": false,
+          "forced_termination": false
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-01-RayTracing.txt",
+      "raw_sha256": "57b61ed3b818b491ccdedcfb6e15ec10ddb80a9c60c5e1350b67542097e16681",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-01-RayTracing.txt.gz",
+      "compressed_sha256": "7cea5517b895831870817dd2323aea86b55bd3b5c3ebf633e4c14423558334af",
+      "harness_sha256": "808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "native-overlap-01-RigidBodySimulation",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RigidBodySimulation",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "native-overlap-01-RigidBodySimulation",
+        "RigidBodySimulation"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:24:42.607269+00:00",
+      "elapsed_seconds": 60.625,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-01-RigidBodySimulation.txt",
+      "raw_sha256": "848dbb88096827677436e3a588688b5189d93a77a60774f4f10f09bf19cd6084",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-01-RigidBodySimulation.txt.gz",
+      "compressed_sha256": "ea1bfb050b2e85f6e031955f90d1ecc63cadf7cf1f02955daff1b0233a0d0325",
+      "harness_sha256": "808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "native-overlap-02-Breakout",
+      "revision": "04",
+      "mode": "startup",
+      "app": "Breakout",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "native-overlap-02-Breakout",
+        "Breakout"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\Breakout",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:25:55.715639+00:00",
+      "elapsed_seconds": 61.015,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-02-Breakout.txt",
+      "raw_sha256": "b1945927b298e0fea3e314f11ebecd28e39b82c9fa7804117df69aa0957953eb",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-02-Breakout.txt.gz",
+      "compressed_sha256": "48cf2e0d4dce553dec5ec8f7513189d7347bba1bb9c8a9effe83899514aa56fe",
+      "harness_sha256": "808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "native-overlap-02-RayTracing",
+      "revision": "04",
+      "mode": "native",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_native",
+        "native-overlap-02-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:25:55.481484+00:00",
+      "elapsed_seconds": 61.0,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "debugger_result": "CLEAN_EXIT",
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "normal_close_sent": true,
+          "forced_termination": false
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-02-RayTracing.txt",
+      "raw_sha256": "f58e9d58e9b1f5b674c0b5b10e3a726141f014877f14df0eaae2c2d5acf468a6",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-02-RayTracing.txt.gz",
+      "compressed_sha256": "17b5dcdba916105b6a7580667ef3b25a4e388fba27a3754ce746d29b5ec4174d",
+      "harness_sha256": "808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "native-overlap-02-RigidBodySimulation",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RigidBodySimulation",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "native-overlap-02-RigidBodySimulation",
+        "RigidBodySimulation"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:25:55.858637+00:00",
+      "elapsed_seconds": 61.156,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-02-RigidBodySimulation.txt",
+      "raw_sha256": "e7bb2a9e9913eab1af1893755c50a46cca4c452178b89a84f63a34316f8ec5c6",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-02-RigidBodySimulation.txt.gz",
+      "compressed_sha256": "58ddca8d95d0d26a5679e8cf006e683bbbbb8c256a107786818ad6c02ccde75f",
+      "harness_sha256": "808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "native-overlap-03-Breakout",
+      "revision": "04",
+      "mode": "startup",
+      "app": "Breakout",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "native-overlap-03-Breakout",
+        "Breakout"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\Breakout",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:26:57.264578+00:00",
+      "elapsed_seconds": 61.484,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-03-Breakout.txt",
+      "raw_sha256": "c4de1802c2c076927f2fa48b0cc9ea23368afa856babd292202055c9615295aa",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-03-Breakout.txt.gz",
+      "compressed_sha256": "f47a31c138a0740f640f1198e5ec2d2b49362c9782e6c2edff593c1f244d7afc",
+      "harness_sha256": "808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "native-overlap-03-RayTracing",
+      "revision": "04",
+      "mode": "native",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_native",
+        "native-overlap-03-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:26:57.020715+00:00",
+      "elapsed_seconds": 61.188,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "debugger_result": "CLEAN_EXIT",
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "normal_close_sent": true,
+          "forced_termination": false
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-03-RayTracing.txt",
+      "raw_sha256": "e2d8dcfbc1a5178d2cb42d417d70e4a501fed7d41164e5c8c38ee2d6349947de",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-03-RayTracing.txt.gz",
+      "compressed_sha256": "11b439482f583a3057b6b7a0ee3a64a76eabef2ecc9935b8e7bac68cbe2292b2",
+      "harness_sha256": "808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "native-overlap-03-RigidBodySimulation",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RigidBodySimulation",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "native-overlap-03-RigidBodySimulation",
+        "RigidBodySimulation"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:26:57.407569+00:00",
+      "elapsed_seconds": 61.297,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-03-RigidBodySimulation.txt",
+      "raw_sha256": "6e37067981e1eb0fd7cb69159bc9e4b8d873662756e54ac4c9609523c695fa99",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-03-RigidBodySimulation.txt.gz",
+      "compressed_sha256": "cd4d5a5c796e50ada0f6ac55fc6cf65c7bda3e2c9c4bbead23390ab061a4e5ec",
+      "harness_sha256": "808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "native-overlap-04-Breakout",
+      "revision": "04",
+      "mode": "startup",
+      "app": "Breakout",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "native-overlap-04-Breakout",
+        "Breakout"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\Breakout",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:27:58.999234+00:00",
+      "elapsed_seconds": 60.907,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-04-Breakout.txt",
+      "raw_sha256": "1d681973159c862f92dbecc736ed30a3fb79558b92f16ed09cce5315515bd58b",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-Breakout.txt.gz",
+      "compressed_sha256": "06d409467db6cf6a50d5368cc23cd61857c56230593cd34dcdf0fb66cc39b2f8",
+      "harness_sha256": "808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "native-overlap-04-driver-detail",
+      "revision": "04",
+      "mode": "offline driver detail",
+      "argv": [
+        "C:\\Program Files (x86)\\Windows Kits\\10\\Debuggers\\x64\\cdb.exe",
+        "-z",
+        "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\native-overlap-04-RayTracing.dmp",
+        "-y",
+        "C:\\dev\\GEngine-build\\bin\\Release\\RayTracing",
+        "-lines",
+        "-c",
+        ".exr -1; .ecxr; ub 00007ffc005a27e2 L40; ub 00007ffc00baee7c L30; s -a 00007ffbffbf0000 L?2ca4000 \"An application has requested\"; ~0s; r; kv; lmvm RayTracing; q"
+      ],
+      "cwd": "C:\\dev\\GEngine-build",
+      "started_utc": "2026-09-13T06:30:36.847698+00:00",
+      "elapsed_seconds": 0.6719999999913853,
+      "exit_code": 0,
+      "result": "PASS",
+      "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-04-driver-detail.txt",
+      "raw_sha256": "0af8af5514709607a18b78f59797b965d5038190767cc7b20c77c621256a2253",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-driver-detail.txt.gz",
+      "compressed_sha256": "1fe89615693a0c7aa1b888b8717919564529f4440947d8ff553cc3b74b4d27d5"
+    },
+    {
+      "name": "native-overlap-04-driver-message",
+      "revision": "04",
+      "mode": "offline driver fatal message",
+      "argv": [
+        "C:\\Program Files (x86)\\Windows Kits\\10\\Debuggers\\x64\\cdb.exe",
+        "-z",
+        "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\native-overlap-04-RayTracing.dmp",
+        "-c",
+        ".ecxr; da 0000003c5ddfd080 L400; da 00007ffc014e3078 L80; da 00007ffc014e3150 L100; da 00007ffc014e3128 L100; q"
+      ],
+      "cwd": "C:\\dev\\GEngine-build",
+      "started_utc": "2026-09-13T06:31:24.723137+00:00",
+      "elapsed_seconds": 0.6559999999881256,
+      "exit_code": 0,
+      "result": "PASS",
+      "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-04-driver-message.txt",
+      "raw_sha256": "3cb41c938e35da5acac2722955261fef862d756a0e8385595fc80f2f7d1f98f1",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-driver-message.txt.gz",
+      "compressed_sha256": "f2a149b0109ab4fe96d936fe3b79f0693b9416803da7a2f3ff40ca9fd5b2aa36"
+    },
+    {
+      "name": "native-overlap-04-dump-analysis",
+      "revision": "04",
+      "mode": "offline dump analysis",
+      "argv": [
+        "C:\\Program Files (x86)\\Windows Kits\\10\\Debuggers\\x64\\cdb.exe",
+        "-z",
+        "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\native-overlap-04-RayTracing.dmp",
+        "-y",
+        "C:\\dev\\GEngine-build\\bin\\Release\\RayTracing",
+        "-lines",
+        "-c",
+        ".lastevent; .exr -1; .ecxr; r; kv; lm v; ~* kv; !runaway; !peb; !address -summary; q"
+      ],
+      "cwd": "C:\\dev\\GEngine-build",
+      "started_utc": "2026-09-13T06:29:36.575487+00:00",
+      "elapsed_seconds": 0.7190000000118744,
+      "exit_code": 0,
+      "result": "PASS",
+      "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-04-dump-analysis.txt",
+      "raw_sha256": "2cc2b1569d974a7b0fa94f724ab54738c81a9417dc0170d04ab114e4ca87638b",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-dump-analysis.txt.gz",
+      "compressed_sha256": "d90eba85e3bfa5375f676dc4b39f81c165d2a2c621b64716dd70e5dbb4938306",
+      "dump": "bin-int/build-phase-00-revision-04/native-overlap-04-RayTracing.dmp"
+    },
+    {
+      "name": "native-overlap-04-RayTracing",
+      "revision": "04",
+      "mode": "native",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_native",
+        "native-overlap-04-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:27:58.778358+00:00",
+      "elapsed_seconds": 45.75,
+      "exit_code": 1,
+      "result": "FAIL",
+      "process_result": [
+        {
+          "debugger_result": "EXCEPTION_CAPTURED",
+          "exit_code": 3221226505,
+          "exit_hex": "0xc0000409",
+          "normal_close_sent": false,
+          "forced_termination": false
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-04-RayTracing.txt",
+      "raw_sha256": "ad9d24dbb23f78a2f260afaefc3002580a97bc8f47dbd84984369326968b1ba6",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-RayTracing.txt.gz",
+      "compressed_sha256": "4f592c83b5800c9b878f0ad43feb18b4c35bf83df9d3801c2a00b4f570d77264",
+      "harness_sha256": "808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "native-overlap-04-RigidBodySimulation",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RigidBodySimulation",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "native-overlap-04-RigidBodySimulation",
+        "RigidBodySimulation"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:27:59.143235+00:00",
+      "elapsed_seconds": 61.031,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-04-RigidBodySimulation.txt",
+      "raw_sha256": "88d8f7253b8410a52c61a7fc01630f7deef28fc42c01e2d1b04e5e4fe5696c8a",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-RigidBodySimulation.txt.gz",
+      "compressed_sha256": "9ec7c15e46a060638b2e6cc4ad6e49478b8a65ae5f21c8ad96c60bb0aa7d39dc",
+      "harness_sha256": "808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-808f69b5abea0ade308419fbef730884a16eaf69d25c7a58e5c314596bd0952d.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "overlap-01-Breakout",
+      "revision": "04",
+      "mode": "startup",
+      "app": "Breakout",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "overlap-01-Breakout",
+        "Breakout"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\Breakout",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:15:15.012030+00:00",
+      "elapsed_seconds": 61.0,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/overlap-01-Breakout.txt",
+      "raw_sha256": "74382ee7fe50873ff2c86f9cbd84a9caf7d6424e60ea60ef8b3504e288f5810d",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/overlap-01-Breakout.txt.gz",
+      "compressed_sha256": "177efda3a1c2cb66015104a436adbe35d73b1ab960763c6caf800f6179c96568",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "overlap-01-RayTracing",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "overlap-01-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:15:14.785451+00:00",
+      "elapsed_seconds": 61.375,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/overlap-01-RayTracing.txt",
+      "raw_sha256": "fa3c75318a5bccc7e4cdc532805ddf385cf3dde5599f7b409e2b62dcfcd2c4e9",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/overlap-01-RayTracing.txt.gz",
+      "compressed_sha256": "a5b8d5167cc32234a873abb94cfc55944b3bf86dd1d19e8f63c760ea838b835a",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "overlap-01-RigidBodySimulation",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RigidBodySimulation",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "overlap-01-RigidBodySimulation",
+        "RigidBodySimulation"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:15:15.155032+00:00",
+      "elapsed_seconds": 61.015,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/overlap-01-RigidBodySimulation.txt",
+      "raw_sha256": "5ac336063c964aa99359964cf62f35da0e335fce3c79e06e32dac668580e8396",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/overlap-01-RigidBodySimulation.txt.gz",
+      "compressed_sha256": "b4d5532d6c24cbb53b573747ab71c331a4b8f9a1f55485a28a905cfc474f7994",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "overlap-02-Breakout",
+      "revision": "04",
+      "mode": "startup",
+      "app": "Breakout",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "overlap-02-Breakout",
+        "Breakout"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\Breakout",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:16:16.418689+00:00",
+      "elapsed_seconds": 60.5,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/overlap-02-Breakout.txt",
+      "raw_sha256": "6ccfc18f72de858d263ae55c5d7e3e35c8f71180a7f4df7ca0aeee2055fab026",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/overlap-02-Breakout.txt.gz",
+      "compressed_sha256": "2324f2a8f4e38dfb162db78ef2d2f19e1e7a248408fc193a1fe4352e94e59ead",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "overlap-02-RayTracing",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "overlap-02-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:16:16.196380+00:00",
+      "elapsed_seconds": 3.375,
+      "exit_code": 1,
+      "result": "FAIL",
+      "process_result": [
+        {
+          "alive_for_smoke": false,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 3221226505,
+          "exit_hex": "0xc0000409",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/overlap-02-RayTracing.txt",
+      "raw_sha256": "c22f12445ce5f68f2a10794b13a54845562fe28df31eca389106bedb9bdddc6a",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/overlap-02-RayTracing.txt.gz",
+      "compressed_sha256": "de533ad6bf2ca04d633a583093b5325663bbb6324a7faa8782bc664c4f8de103",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "overlap-02-RigidBodySimulation",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RigidBodySimulation",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "overlap-02-RigidBodySimulation",
+        "RigidBodySimulation"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:16:16.562692+00:00",
+      "elapsed_seconds": 60.625,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/overlap-02-RigidBodySimulation.txt",
+      "raw_sha256": "b094db0634797ce9980444c063f0a2621ecb46a3bf9a99d2dca1cae7f5d234cd",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/overlap-02-RigidBodySimulation.txt.gz",
+      "compressed_sha256": "b23082170bf8b2ea3dd7c19d870b79ecd9be07fec2a4c7004bff3cc5a6c5b8d4",
+      "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    }
+  ],
+  "fresh_final_acceptance": [
+    {
+      "name": "acceptance-01-RayTracing",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "acceptance-01-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:32:17.636376+00:00",
+      "elapsed_seconds": 61.079,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/acceptance-01-RayTracing.txt",
+      "raw_sha256": "a27ca40ff76670eec14f78aede1201cf01919ac3c77bd056dca5ec30cb9ea734",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/acceptance-01-RayTracing.txt.gz",
+      "compressed_sha256": "e9e2af8e15ee442018a8c7dc281d18aaa6810ea97b06c1660535593cfc240bfa",
+      "harness_sha256": "eb927038a6f611db0863f2b227bc466b3d53dae380acc644457afa4dcdd40567",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-eb927038a6f611db0863f2b227bc466b3d53dae380acc644457afa4dcdd40567.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "acceptance-02-Breakout",
+      "revision": "04",
+      "mode": "startup",
+      "app": "Breakout",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "acceptance-02-Breakout",
+        "Breakout"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\Breakout",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:33:19.684045+00:00",
+      "elapsed_seconds": 60.5,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/acceptance-02-Breakout.txt",
+      "raw_sha256": "982154af1c53cbb771ccfb703ec3c64568e2f6e0f94915ea3150f36d7a45cd7a",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/acceptance-02-Breakout.txt.gz",
+      "compressed_sha256": "8f78d147096b4c498f0e05d72aba385be8d00ea721124d29f7de5a2dd93abd33",
+      "harness_sha256": "eb927038a6f611db0863f2b227bc466b3d53dae380acc644457afa4dcdd40567",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-eb927038a6f611db0863f2b227bc466b3d53dae380acc644457afa4dcdd40567.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "acceptance-03-RigidBodySimulation",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RigidBodySimulation",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "acceptance-03-RigidBodySimulation",
+        "RigidBodySimulation"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:34:21.122264+00:00",
+      "elapsed_seconds": 60.609,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/acceptance-03-RigidBodySimulation.txt",
+      "raw_sha256": "564834c7823803f7e5047d14596017077508f9b498099785fec4316f011e427a",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/acceptance-03-RigidBodySimulation.txt.gz",
+      "compressed_sha256": "d2ddb349f40399aebecc63d92b72798b2864792d316c7a7e87a8e71892fdf047",
+      "harness_sha256": "eb927038a6f611db0863f2b227bc466b3d53dae380acc644457afa4dcdd40567",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-eb927038a6f611db0863f2b227bc466b3d53dae380acc644457afa4dcdd40567.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    },
+    {
+      "name": "acceptance-04-RayTracing",
+      "revision": "04",
+      "mode": "startup",
+      "app": "RayTracing",
+      "argv": [
+        "C:\\Python310\\python.exe",
+        "-B",
+        "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+        "_startup",
+        "acceptance-04-RayTracing",
+        "RayTracing"
+      ],
+      "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+      "configuration": "Release",
+      "started_utc": "2026-09-13T06:35:22.700310+00:00",
+      "elapsed_seconds": 61.203,
+      "exit_code": 0,
+      "result": "PASS",
+      "process_result": [
+        {
+          "alive_for_smoke": true,
+          "SDL_window_created": true,
+          "diagnostic_dialogs": [],
+          "exit_code": 0,
+          "exit_hex": "0x0",
+          "forced_termination": false,
+          "application_log": {
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "text": ""
+          }
+        }
+      ],
+      "raw_log": "bin-int/build-phase-00-revision-04/acceptance-04-RayTracing.txt",
+      "raw_sha256": "b0c0bf9113e8a0d638e30cbc9a03b61bd8fbdfbcc197454164aae1767f542bf5",
+      "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/acceptance-04-RayTracing.txt.gz",
+      "compressed_sha256": "72b831c4e779614612172b4e4e4015c7f166ff8c2b9177ef7eea5001bfe69482",
+      "harness_sha256": "eb927038a6f611db0863f2b227bc466b3d53dae380acc644457afa4dcdd40567",
+      "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-eb927038a6f611db0863f2b227bc466b3d53dae380acc644457afa4dcdd40567.py",
+      "unchanged_startup_implementation": {
+        "path": "scripts/build_validation/revise_phase00_r03.py",
+        "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+      },
+      "environment_override": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "C:\\Windows\\System32;C:\\Windows"
+      },
+      "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+    }
+  ],
+  "preserved_historical_failed_acceptance": [
+    "../revision-03/commands/startup-Release-RayTracing.json"
+  ],
+  "unwaived_mandatory_failures": [],
+  "reproduced_diagnostic_failures": [
+    "native-overlap-01-RayTracing",
+    "native-overlap-04-RayTracing",
+    "overlap-02-RayTracing"
+  ],
+  "reason_no_rebuild_or_test_rerun": "Only validation scheduling and external capture helpers changed; prior 4296-path behavior/build input closure, all application binaries, tracked sources, SDK/runtime/resource and staging inputs verify unchanged. Compiler/test/benchmark/import/resource/safeguard passes are reused, not represented as fresh runs.",
+  "warning_status": "No compilation in Revision 04; first-party/compiler/linker/vendor counts remain the verified Revision 03 captures. Diagnostic debugger messages are not compiler warnings."
+}

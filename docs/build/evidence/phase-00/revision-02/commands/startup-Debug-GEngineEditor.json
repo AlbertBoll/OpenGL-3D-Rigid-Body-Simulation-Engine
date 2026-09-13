@@ -1,0 +1,28 @@
+{
+  "name": "startup-Debug-GEngineEditor",
+  "revision": "02",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py",
+    "_startup",
+    "Debug",
+    "GEngineEditor"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py _startup Debug GEngineEditor",
+  "cwd": "C:\\dev\\GEngine-build\\GEngineEditor",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T04:12:23.254189+00:00",
+  "elapsed_seconds": 51.203,
+  "timeout_seconds": 90,
+  "timed_out": false,
+  "exit_code": 1,
+  "result": "FAIL",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-02/startup-Debug-GEngineEditor.txt",
+  "raw_sha256": "612488e465f0100feeacf69b82b6a96251e5f8bc61d3afd42a4c92ae5fb0fb6f",
+  "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/startup-Debug-GEngineEditor.txt.gz",
+  "compressed_sha256": "c5c05a8f47c26f46195f09095bca09e9b45ce7512b7f68f2a1347f9edff0973f",
+  "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+}

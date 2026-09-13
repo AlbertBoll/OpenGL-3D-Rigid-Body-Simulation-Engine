@@ -1,0 +1,57 @@
+{
+  "archive_sha256": "096c004c7079af89fe990bb259d58983b0ee272afa3a7ef0733875bfe09fcd8e",
+  "relevant_members": {
+    "oneapi-tbb-2021.5.0/redist/ia32/vc14_uwp/tbb12.dll": "675e376f78b69a6a647b6e78b13a9064e98e70e6415bd2c83a5d994d91cbc570",
+    "oneapi-tbb-2021.5.0/redist/ia32/vc14_uwp/tbb12_debug.dll": "064598456372254d552e356eb0176fd44749f18fd61226f9f6da4229b0e55901",
+    "oneapi-tbb-2021.5.0/redist/ia32/vc14/tbb12.dll": "12e7521088fa2de74473222fad83fe2912316f30f6c4ce178afda4e02456987d",
+    "oneapi-tbb-2021.5.0/redist/ia32/vc14/tbb12_debug.dll": "2c2d7365a91c838f1668eb5900577d3295a1e6e444736ebd88577a92408db566",
+    "oneapi-tbb-2021.5.0/redist/intel64/vc14_uwp/tbb12.dll": "fb32f59f365bf10c977db1e611d74066accd4bedc25bfd5c6da2e49746c63c55",
+    "oneapi-tbb-2021.5.0/redist/intel64/vc14_uwp/tbb12_debug.dll": "456dcab0d39775cc8defbf688932c4a47ec6770a19fbc8ee1e61f6f9ef747332",
+    "oneapi-tbb-2021.5.0/redist/intel64/vc14/tbb12.dll": "3bda7c5458d7f43bcd49f0dead5114eac1ea14f573aafc736f833089b1d2cd79",
+    "oneapi-tbb-2021.5.0/redist/intel64/vc14/tbb12_debug.dll": "95b9f438fc92ae699cbd69debde00adc34c730c2ad3d67ffc63f4bbbdc782fac",
+    "oneapi-tbb-2021.5.0/include/oneapi/tbb/version.h": "b4fc58152738270ede2aa0246a2d58ce4f2ce0dddf76f0efc045e8ab9f789e55",
+    "oneapi-tbb-2021.5.0/include/tbb/version.h": "9cd60c84daedc44c1c71b3224df9a692ebf8cf51923c4d6a28d9d544e7b4397a",
+    "oneapi-tbb-2021.5.0/lib/ia32/vc14_uwp/tbb12.lib": "36c5c01f2e305fd4e0c0ca09b26496d0b1c3c6aef651d6ff33107565ab4d019d",
+    "oneapi-tbb-2021.5.0/lib/ia32/vc14_uwp/tbb12_debug.lib": "53fadd78e541e0d3a0269085272a27d990c07fd00969024782d7a5eb61eb71bd",
+    "oneapi-tbb-2021.5.0/lib/ia32/vc14/tbb12.lib": "36c5c01f2e305fd4e0c0ca09b26496d0b1c3c6aef651d6ff33107565ab4d019d",
+    "oneapi-tbb-2021.5.0/lib/ia32/vc14/tbb12_debug.lib": "53fadd78e541e0d3a0269085272a27d990c07fd00969024782d7a5eb61eb71bd",
+    "oneapi-tbb-2021.5.0/lib/intel64/vc14_uwp/tbb12.lib": "bb72fee5dfebcd6d17448751647a5027027ca4d9309fdae0d4b099c72873ba72",
+    "oneapi-tbb-2021.5.0/lib/intel64/vc14_uwp/tbb12_debug.lib": "1366695363723bab3e5c85c4c501596da97c48ab20a34e4740c0d2df5e668701",
+    "oneapi-tbb-2021.5.0/lib/intel64/vc14/tbb12.lib": "bb72fee5dfebcd6d17448751647a5027027ca4d9309fdae0d4b099c72873ba72",
+    "oneapi-tbb-2021.5.0/lib/intel64/vc14/tbb12_debug.lib": "1366695363723bab3e5c85c4c501596da97c48ab20a34e4740c0d2df5e668701"
+  },
+  "repository_libraries": [
+    {
+      "path": "external/tbb/lib/tbb.lib",
+      "sha256": "bb72fee5dfebcd6d17448751647a5027027ca4d9309fdae0d4b099c72873ba72",
+      "byte_identical_archive_members": [
+        "oneapi-tbb-2021.5.0/lib/intel64/vc14_uwp/tbb12.lib",
+        "oneapi-tbb-2021.5.0/lib/intel64/vc14/tbb12.lib"
+      ]
+    },
+    {
+      "path": "external/tbb/lib/tbb12.lib",
+      "sha256": "bb72fee5dfebcd6d17448751647a5027027ca4d9309fdae0d4b099c72873ba72",
+      "byte_identical_archive_members": [
+        "oneapi-tbb-2021.5.0/lib/intel64/vc14_uwp/tbb12.lib",
+        "oneapi-tbb-2021.5.0/lib/intel64/vc14/tbb12.lib"
+      ]
+    },
+    {
+      "path": "external/tbb/lib/tbb12_debug.lib",
+      "sha256": "1366695363723bab3e5c85c4c501596da97c48ab20a34e4740c0d2df5e668701",
+      "byte_identical_archive_members": [
+        "oneapi-tbb-2021.5.0/lib/intel64/vc14_uwp/tbb12_debug.lib",
+        "oneapi-tbb-2021.5.0/lib/intel64/vc14/tbb12_debug.lib"
+      ]
+    },
+    {
+      "path": "external/tbb/lib/tbb_debug.lib",
+      "sha256": "1366695363723bab3e5c85c4c501596da97c48ab20a34e4740c0d2df5e668701",
+      "byte_identical_archive_members": [
+        "oneapi-tbb-2021.5.0/lib/intel64/vc14_uwp/tbb12_debug.lib",
+        "oneapi-tbb-2021.5.0/lib/intel64/vc14/tbb12_debug.lib"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "name": "native-overlap-04-driver-detail",
+  "revision": "04",
+  "mode": "offline driver detail",
+  "argv": [
+    "C:\\Program Files (x86)\\Windows Kits\\10\\Debuggers\\x64\\cdb.exe",
+    "-z",
+    "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\native-overlap-04-RayTracing.dmp",
+    "-y",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RayTracing",
+    "-lines",
+    "-c",
+    ".exr -1; .ecxr; ub 00007ffc005a27e2 L40; ub 00007ffc00baee7c L30; s -a 00007ffbffbf0000 L?2ca4000 \"An application has requested\"; ~0s; r; kv; lmvm RayTracing; q"
+  ],
+  "cwd": "C:\\dev\\GEngine-build",
+  "started_utc": "2026-09-13T06:30:36.847698+00:00",
+  "elapsed_seconds": 0.6719999999913853,
+  "exit_code": 0,
+  "result": "PASS",
+  "raw_log": "bin-int/build-phase-00-revision-04/native-overlap-04-driver-detail.txt",
+  "raw_sha256": "0af8af5514709607a18b78f59797b965d5038190767cc7b20c77c621256a2253",
+  "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/native-overlap-04-driver-detail.txt.gz",
+  "compressed_sha256": "1fe89615693a0c7aa1b888b8717919564529f4440947d8ff553cc3b74b4d27d5"
+}

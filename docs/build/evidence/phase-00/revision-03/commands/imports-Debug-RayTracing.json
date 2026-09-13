@@ -1,0 +1,28 @@
+{
+  "name": "imports-Debug-RayTracing",
+  "revision": "03",
+  "argv": [
+    "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+    "/imports",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\RayTracing.exe"
+  ],
+  "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /imports C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\RayTracing.exe",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T05:01:43.351205+00:00",
+  "elapsed_seconds": 0.015,
+  "harness_sha256": "e2bf34415b01c5621a9291a797bf04a749fef1ce8880e826a344933f19c9faed",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-e2bf34415b01c5621a9291a797bf04a749fef1ce8880e826a344933f19c9faed.py",
+  "timeout_seconds": 120,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/imports-Debug-RayTracing.txt",
+  "raw_sha256": "026b9863f21f680377b3e8bce548a8ece399dd6af92cb487ee8c802d1277730c",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/imports-Debug-RayTracing.txt.gz",
+  "compressed_sha256": "dcc6bc7d117cc727de5ba8675bfe9e33b0d7d5659baee8e58773e1e9f21057c0",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

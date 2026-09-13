@@ -1,0 +1,34 @@
+{
+  "name": "build-editor-Debug-final",
+  "revision": "03",
+  "argv": [
+    "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe",
+    "GEngine.sln",
+    "/m:2",
+    "/nr:false",
+    "/nologo",
+    "/p:Configuration=Debug",
+    "/p:Platform=x64",
+    "/v:diag",
+    "/t:GEngineEditor"
+  ],
+  "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\" GEngine.sln /m:2 /nr:false /nologo /p:Configuration=Debug /p:Platform=x64 /v:diag /t:GEngineEditor",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T05:06:13.421241+00:00",
+  "elapsed_seconds": 13.641,
+  "harness_sha256": "0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee.py",
+  "timeout_seconds": 1800,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/build-editor-Debug-final.txt",
+  "raw_sha256": "1d05f7d6a8aed7f6bb8eb3f1dae27f72c23ee29efd9287e888de6d76f97cc3f9",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/build-editor-Debug-final.txt.gz",
+  "compressed_sha256": "8844eb53fb2ca954c5751520d37ac1a349fd3f54719ad83c73b4218fee45585a",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

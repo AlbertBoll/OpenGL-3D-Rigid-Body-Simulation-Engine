@@ -2679,9 +2679,10 @@ namespace
 						system.Update(Timestep(1.0f / 120.0f));
 						Expect(GetManifolds(system).m_Manifolds.size() == 1 && GetManifolds(system).GetContactCount() == 4,
 							"aligned/rotated box faces start and remain a four-point world manifold in either creation order");
-						Expect(GetPhysicsProfileSnapshot().generatedContactCount == 4 &&
-							GetPhysicsProfileSnapshot().solverConstraintCount == 4,
-							"contact telemetry counts all four generated face contacts and solver constraints");
+						const auto expectedContactCount = IsPhysicsProfilingEnabled() ? 4u : 0u;
+						Expect(GetPhysicsProfileSnapshot().generatedContactCount == expectedContactCount &&
+							GetPhysicsProfileSnapshot().solverConstraintCount == expectedContactCount,
+							"contact telemetry counts four contacts when profiling is enabled and remains zero otherwise");
 					}
 					Expect(Near(boxBody->m_Position, Vec3f(0, 1.49f, 0)) &&
 						Near(boxBody->m_LinearVelocity, Vec3f(0)) && Near(boxBody->m_AngularVelocity, Vec3f(0)),

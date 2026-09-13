@@ -1,0 +1,26 @@
+{
+  "name": "tests-Debug-full",
+  "revision": "03",
+  "argv": [
+    "C:\\dev\\GEngine-build\\bin\\Debug\\PhysicsTests\\PhysicsTests.exe"
+  ],
+  "command": "C:\\dev\\GEngine-build\\bin\\Debug\\PhysicsTests\\PhysicsTests.exe",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T04:58:14.981429+00:00",
+  "elapsed_seconds": 193.219,
+  "harness_sha256": "e2bf34415b01c5621a9291a797bf04a749fef1ce8880e826a344933f19c9faed",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-e2bf34415b01c5621a9291a797bf04a749fef1ce8880e826a344933f19c9faed.py",
+  "timeout_seconds": 1800,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/tests-Debug-full.txt",
+  "raw_sha256": "a92326b8b37256e93b3f13fbe4c65dce8952dc3b6b6d43f22397da08a1e578c6",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/tests-Debug-full.txt.gz",
+  "compressed_sha256": "471c64b75e900d120b89eba61e59ab652887a52e5e7a5ef934df889c4c78a8d4",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

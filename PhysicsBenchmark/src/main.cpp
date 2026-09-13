@@ -819,6 +819,8 @@ int main(int argc, char** argv)
 		{
 			return RunPhysicsRegressionBaseline(options.solverIterations);
 		}
+		GEngine::Log::Initialize();
+		GEngine::Log::GetLogger()->set_level(spdlog::level::off);
 		GEngine::ShapeBox shape(UnitBoxPoints());
 
 		std::cout << "# benchmark="

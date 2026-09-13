@@ -1,0 +1,2 @@
+{"exe": "C:\\dev\\GEngine-build\\bin\\Debug\\RayTracing\\RayTracing.exe", "cwd": "C:\\dev\\GEngine-build\\RayTracing", "PATH": "C:\\Windows\\System32;C:\\Windows", "local_tbb12_exists": false, "source_baseline": "b3b043b15ee814133e8419466a1bf3a985a3c958"}
+{"exit_code": 3221225781, "exit_hex": "0xc0000135", "elapsed_seconds": 0.014999999999417923, "terminated_after_timeout": false}

@@ -1,0 +1,31 @@
+{
+  "name": "editor-fixed-early-Debug",
+  "revision": "03",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py",
+    "_debugger",
+    "editor-fixed-early-Debug",
+    "45",
+    "Debug"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py _debugger editor-fixed-early-Debug 45 Debug",
+  "cwd": "C:\\dev\\GEngine-build\\GEngineEditor",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T04:58:35.818521+00:00",
+  "elapsed_seconds": 165.296,
+  "harness_sha256": "e2bf34415b01c5621a9291a797bf04a749fef1ce8880e826a344933f19c9faed",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-e2bf34415b01c5621a9291a797bf04a749fef1ce8880e826a344933f19c9faed.py",
+  "timeout_seconds": 195.0,
+  "timed_out": false,
+  "exit_code": 2,
+  "result": "FAIL",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/editor-fixed-early-Debug.txt",
+  "raw_sha256": "8ca243516021f093ad67e2a3613c7cb94005aa6a19ed2081bbfdb8c5c215ab55",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/editor-fixed-early-Debug.txt.gz",
+  "compressed_sha256": "9d87403eec948952a3c43306d4c4c63e2d1df9e440cf93cb25dc607c45e3f076",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

@@ -1,0 +1,26 @@
+{
+  "name": "new-blocker-Editor-close-request",
+  "revision": "02",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "-c",
+    "import sys,ctypes,json; from ctypes import wintypes; sys.path.insert(0,\"C:/dev/GEngine-build/scripts/build_validation\"); from revise_phase00_r02 import child_pids,process_windows; assert 30408 in child_pids(30564); windows=process_windows(30408); print(json.dumps({\"pid\":30408,\"debugger_pid\":30564,\"windows\":windows})); u=ctypes.WinDLL(\"user32\",use_last_error=True); u.PostMessageW.argtypes=[wintypes.HWND,wintypes.UINT,wintypes.WPARAM,wintypes.LPARAM]; targets=[w for w in windows if w[\"class\"]==\"SDL_app\"]; assert targets; print(json.dumps({\"WM_CLOSE_results\":[bool(u.PostMessageW(w[\"hwnd\"],0x10,0,0)) for w in targets]}))"
+  ],
+  "command": "C:\\Python310\\python.exe -c \"import sys,ctypes,json; from ctypes import wintypes; sys.path.insert(0,\\\"C:/dev/GEngine-build/scripts/build_validation\\\"); from revise_phase00_r02 import child_pids,process_windows; assert 30408 in child_pids(30564); windows=process_windows(30408); print(json.dumps({\\\"pid\\\":30408,\\\"debugger_pid\\\":30564,\\\"windows\\\":windows})); u=ctypes.WinDLL(\\\"user32\\\",use_last_error=True); u.PostMessageW.argtypes=[wintypes.HWND,wintypes.UINT,wintypes.WPARAM,wintypes.LPARAM]; targets=[w for w in windows if w[\\\"class\\\"]==\\\"SDL_app\\\"]; assert targets; print(json.dumps({\\\"WM_CLOSE_results\\\":[bool(u.PostMessageW(w[\\\"hwnd\\\"],0x10,0,0)) for w in targets]}))\"",
+  "cwd": "C:\\dev\\GEngine-build\\GEngineEditor",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T04:16:48.458131+00:00",
+  "elapsed_seconds": 0.125,
+  "timeout_seconds": 30,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-02/new-blocker-Editor-close-request.txt",
+  "raw_sha256": "8884ad8e39ee8f36b17eaa58f7858b389e71703297fe8c1744634fb74410ba3e",
+  "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/new-blocker-Editor-close-request.txt.gz",
+  "compressed_sha256": "13057895f03731fbb67cdde59e197f5489d8accb63c219ae2f6dc0668e1240cb",
+  "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+}

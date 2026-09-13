@@ -1,0 +1,30 @@
+{
+  "name": "startup-Release-GEngineEditor",
+  "revision": "03",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py",
+    "_startup",
+    "Release",
+    "GEngineEditor"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py _startup Release GEngineEditor",
+  "cwd": "C:\\dev\\GEngine-build\\GEngineEditor",
+  "configuration": "Release",
+  "started_utc": "2026-09-13T05:19:17.966657+00:00",
+  "elapsed_seconds": 121.281,
+  "harness_sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928.py",
+  "timeout_seconds": 180,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/startup-Release-GEngineEditor.txt",
+  "raw_sha256": "331ff7d330b80df211312741f85140f5ff40e259949c835a1a7a6029e9e3142f",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/startup-Release-GEngineEditor.txt.gz",
+  "compressed_sha256": "795506bdef50d3f57bc5cf9448e16f697514bf01010f95fe42151db641d2a6c5",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

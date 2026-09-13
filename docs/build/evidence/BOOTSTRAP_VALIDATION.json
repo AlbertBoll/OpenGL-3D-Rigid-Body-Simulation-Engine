@@ -1,0 +1,1796 @@
+{
+  "kind": "BOOTSTRAP_GOVERNANCE_VALIDATION_NOT_PHASE_EXECUTION",
+  "result": "PASS",
+  "errors": [],
+  "branch": {
+    "command": [
+      "git",
+      "-c",
+      "safe.directory=C:/dev/GEngine-build",
+      "branch",
+      "--show-current"
+    ],
+    "exit_code": 0,
+    "stdout": "build/cmake-conan-migration\n",
+    "stderr": ""
+  },
+  "head": {
+    "command": [
+      "git",
+      "-c",
+      "safe.directory=C:/dev/GEngine-build",
+      "rev-parse",
+      "HEAD"
+    ],
+    "exit_code": 0,
+    "stdout": "b3b043b15ee814133e8419466a1bf3a985a3c958\n",
+    "stderr": ""
+  },
+  "source_tag": {
+    "command": [
+      "git",
+      "-c",
+      "safe.directory=C:/dev/GEngine-build",
+      "rev-parse",
+      "render-refactor-phase-00-approved^{}"
+    ],
+    "exit_code": 0,
+    "stdout": "b3b043b15ee814133e8419466a1bf3a985a3c958\n",
+    "stderr": ""
+  },
+  "remote": {
+    "command": [
+      "git",
+      "-c",
+      "safe.directory=C:/dev/GEngine-build",
+      "remote",
+      "-v"
+    ],
+    "exit_code": 0,
+    "stdout": "origin\thttps://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine.git (fetch)\norigin\thttps://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine.git (push)\n",
+    "stderr": ""
+  },
+  "tracked_diff": {
+    "command": [
+      "git",
+      "-c",
+      "safe.directory=C:/dev/GEngine-build",
+      "diff",
+      "HEAD",
+      "--name-status"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "staged_diff": {
+    "command": [
+      "git",
+      "-c",
+      "safe.directory=C:/dev/GEngine-build",
+      "diff",
+      "--cached",
+      "--name-status"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "diff_check": {
+    "command": [
+      "git",
+      "-c",
+      "safe.directory=C:/dev/GEngine-build",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "original_index_sha256": "6636606189e853606359cd02703c8da0c2b85a45bfc6968e1d405ddec2d82128",
+  "final_index_sha256": "6636606189e853606359cd02703c8da0c2b85a45bfc6968e1d405ddec2d82128",
+  "baseline_hash_count": 1265,
+  "baseline_hash_mismatches": [],
+  "contracts": [
+    {
+      "path": "docs/build/phases/BUILD_PHASE_00.md",
+      "title": "# BUILD PHASE 00: Capture the current Premake reference",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "render-refactor-phase-00-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_01.md",
+      "title": "# BUILD PHASE 01: Resolve dependency provenance and pin decisions",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-00-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_02.md",
+      "title": "# BUILD PHASE 02: Freeze source ownership and comparison tooling",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-01-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_03.md",
+      "title": "# BUILD PHASE 03: Introduce the CMake foundation and MSVC policies",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-02-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_04.md",
+      "title": "# BUILD PHASE 04: Add Conan profiles and foundation packages",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-03-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_05.md",
+      "title": "# BUILD PHASE 05: Isolate the vendored implementation targets",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-04-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_06.md",
+      "title": "# BUILD PHASE 06: Integrate SDL2 and text-rendering packages",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-05-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_07.md",
+      "title": "# BUILD PHASE 07: Integrate Assimp and oneTBB packages",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-06-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_08.md",
+      "title": "# BUILD PHASE 08: Model the local FMOD SDK with imported targets",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-07-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_09.md",
+      "title": "# BUILD PHASE 09: Extract the Core foundation target",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-08-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_10.md",
+      "title": "# BUILD PHASE 10: Extract Math and neutral bounds",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-09-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_11.md",
+      "title": "# BUILD PHASE 11: Extract Events and shared input value declarations",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-10-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_12.md",
+      "title": "# BUILD PHASE 12: Remove Physics header and PCH dependence on scene components",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-11-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_13.md",
+      "title": "# BUILD PHASE 13: Extract the Physics kernel target",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-12-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_14.md",
+      "title": "# BUILD PHASE 14: Prepare the Graphics and Assets ownership boundary",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-13-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_15.md",
+      "title": "# BUILD PHASE 15: Extract the Graphics target",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-14-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_16.md",
+      "title": "# BUILD PHASE 16: Extract procedural Geometry",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-15-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_17.md",
+      "title": "# BUILD PHASE 17: Extract image and model Assets",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-16-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_18.md",
+      "title": "# BUILD PHASE 18: Extract Animation and its import boundary",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-17-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_19.md",
+      "title": "# BUILD PHASE 19: Prepare the one-way Scene to Physics integration",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-18-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_20.md",
+      "title": "# BUILD PHASE 20: Separate ECS components from Render statistics and helpers",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-19-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_21.md",
+      "title": "# BUILD PHASE 21: Extract the ECS Scene target",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-20-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_22.md",
+      "title": "# BUILD PHASE 22: Remove Input and event dispatch dependence on BaseApp",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-21-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_23.md",
+      "title": "# BUILD PHASE 23: Invert the Platform and UI lifecycle boundary",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-22-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_24.md",
+      "title": "# BUILD PHASE 24: Extract Platform window and context services",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-23-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_25.md",
+      "title": "# BUILD PHASE 25: Extract Input services",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-24-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_26.md",
+      "title": "# BUILD PHASE 26: Extract Audio with FMOD ownership",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-25-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_27.md",
+      "title": "# BUILD PHASE 27: Extract UI and its backend integration",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-26-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_28.md",
+      "title": "# BUILD PHASE 28: Remove Render dependence on Application services",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-27-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_29.md",
+      "title": "# BUILD PHASE 29: Extract the Render target",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-28-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_30.md",
+      "title": "# BUILD PHASE 30: Extract Application composition",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-29-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_31.md",
+      "title": "# BUILD PHASE 31: Migrate the PhysicsBenchmark target closure",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-30-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_32.md",
+      "title": "# BUILD PHASE 32: Migrate PhysicsTests while preserving scene coverage",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-31-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_33.md",
+      "title": "# BUILD PHASE 33: Add verified runtime DLL staging",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-32-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_34.md",
+      "title": "# BUILD PHASE 34: Stage resources and declare application working directories",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-33-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_35.md",
+      "title": "# BUILD PHASE 35: Migrate GEngineEditor",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-34-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_36.md",
+      "title": "# BUILD PHASE 36: Migrate RigidBodySimulation",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-35-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_37.md",
+      "title": "# BUILD PHASE 37: Migrate Breakout",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-36-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_38.md",
+      "title": "# BUILD PHASE 38: Migrate RayTracing",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-37-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_39.md",
+      "title": "# BUILD PHASE 39: Add Python setup and build orchestration",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-38-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_40.md",
+      "title": "# BUILD PHASE 40: Complete Python run, build-run, test and safe clean",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-39-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_41.md",
+      "title": "# BUILD PHASE 41: Demonstrate full Premake and CMake equivalence",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-40-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_42.md",
+      "title": "# BUILD PHASE 42: Make CMake and Conan the authoritative build",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-41-approved",
+      "predecessor_verified": true
+    },
+    {
+      "path": "docs/build/phases/BUILD_PHASE_43.md",
+      "title": "# BUILD PHASE 43: Retire Premake after the authoritative switch",
+      "missing_sections": [],
+      "invalid_prerequisites": [],
+      "predecessor": "build-phase-42-approved",
+      "predecessor_verified": true
+    }
+  ],
+  "ordered_roadmap_matches": true,
+  "broken_local_links": [],
+  "new_text_files_checked": 59,
+  "whitespace_failures": [],
+  "whitespace_checks": [
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "AGENTS.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "MANIFEST.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        ".codex/skills/build-phase-approval/SKILL.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        ".codex/skills/build-phase-execution/SKILL.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        ".codex/skills/build-phase-rejection/SKILL.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/BUILD_CODE_MAP.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/BUILD_PHASE_REVIEW_TEMPLATE.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "warning: in the working copy of 'docs/build/BUILD_PHASE_REVIEW_TEMPLATE.md', LF will be replaced by CRLF the next time Git touches it\n"
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/BUILD_STATE.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "warning: in the working copy of 'docs/build/BUILD_STATE.md', LF will be replaced by CRLF the next time Git touches it\n"
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/BUILD_SYSTEM_AUDIT.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "warning: in the working copy of 'docs/build/BUILD_SYSTEM_AUDIT.md', LF will be replaced by CRLF the next time Git touches it\n"
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/BUILD_SYSTEM_MIGRATION_PLAN.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/evidence/BOOTSTRAP_BASELINE.json"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/evidence/BOOTSTRAP_VALIDATION.json"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/evidence/PREMAKE_VS2022_GRAPH.json"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/evidence/RUNTIME_INVENTORY.json"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_00.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_01.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_02.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_03.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_04.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_05.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_06.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_07.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_08.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_09.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_10.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_11.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_12.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_13.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_14.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_15.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_16.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_17.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_18.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_19.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_20.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_21.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_22.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_23.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_24.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_25.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_26.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_27.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_28.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_29.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_30.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_31.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_32.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_33.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_34.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_35.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_36.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_37.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_38.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_39.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_40.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_41.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_42.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/phases/BUILD_PHASE_43.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "safe.directory=C:/dev/GEngine-build",
+        "diff",
+        "--no-index",
+        "--check",
+        "--",
+        "NUL",
+        "docs/build/reviews/BUILD_BOOTSTRAP_REVIEW.md"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "warning: in the working copy of 'docs/build/reviews/BUILD_BOOTSTRAP_REVIEW.md', LF will be replaced by CRLF the next time Git touches it\n"
+    }
+  ],
+  "whitespace_interpretation": "git --no-index returns 1 for clean added-file differences; no whitespace diagnostics. Git LF-to-CRLF notices are recorded separately from compiler warnings. Controlled clean/dirty fixtures verified exit/diagnostic handling.",
+  "skill_validation": [
+    {
+      "command": [
+        "C:/Python/venv/Scripts/python.exe",
+        "C:/Users/alber/.codex/skills/.system/skill-creator/scripts/quick_validate.py",
+        ".codex/skills/build-phase-execution"
+      ],
+      "exit_code": 0,
+      "stdout": "Skill is valid!\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "C:/Python/venv/Scripts/python.exe",
+        "C:/Users/alber/.codex/skills/.system/skill-creator/scripts/quick_validate.py",
+        ".codex/skills/build-phase-approval"
+      ],
+      "exit_code": 0,
+      "stdout": "Skill is valid!\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "C:/Python/venv/Scripts/python.exe",
+        "C:/Users/alber/.codex/skills/.system/skill-creator/scripts/quick_validate.py",
+        ".codex/skills/build-phase-rejection"
+      ],
+      "exit_code": 0,
+      "stdout": "Skill is valid!\n",
+      "stderr": ""
+    }
+  ],
+  "preexisting_production_build_inputs": [
+    "GEngine/include/external/glm/CMakeLists.txt"
+  ],
+  "git_status_short": {
+    "command": [
+      "git",
+      "-c",
+      "safe.directory=C:/dev/GEngine-build",
+      "status",
+      "--short"
+    ],
+    "exit_code": 0,
+    "stdout": "?? docs/build/\n",
+    "stderr": ""
+  },
+  "git_status_untracked_all": {
+    "command": [
+      "git",
+      "-c",
+      "safe.directory=C:/dev/GEngine-build",
+      "status",
+      "--short",
+      "--untracked-files=all"
+    ],
+    "exit_code": 0,
+    "stdout": "?? docs/build/BUILD_CODE_MAP.md\n?? docs/build/BUILD_PHASE_REVIEW_TEMPLATE.md\n?? docs/build/BUILD_STATE.md\n?? docs/build/BUILD_SYSTEM_AUDIT.md\n?? docs/build/BUILD_SYSTEM_MIGRATION_PLAN.md\n?? docs/build/evidence/BOOTSTRAP_BASELINE.json\n?? docs/build/evidence/BOOTSTRAP_VALIDATION.json\n?? docs/build/evidence/PREMAKE_VS2022_GRAPH.json\n?? docs/build/evidence/RUNTIME_INVENTORY.json\n?? docs/build/phases/BUILD_PHASE_00.md\n?? docs/build/phases/BUILD_PHASE_01.md\n?? docs/build/phases/BUILD_PHASE_02.md\n?? docs/build/phases/BUILD_PHASE_03.md\n?? docs/build/phases/BUILD_PHASE_04.md\n?? docs/build/phases/BUILD_PHASE_05.md\n?? docs/build/phases/BUILD_PHASE_06.md\n?? docs/build/phases/BUILD_PHASE_07.md\n?? docs/build/phases/BUILD_PHASE_08.md\n?? docs/build/phases/BUILD_PHASE_09.md\n?? docs/build/phases/BUILD_PHASE_10.md\n?? docs/build/phases/BUILD_PHASE_11.md\n?? docs/build/phases/BUILD_PHASE_12.md\n?? docs/build/phases/BUILD_PHASE_13.md\n?? docs/build/phases/BUILD_PHASE_14.md\n?? docs/build/phases/BUILD_PHASE_15.md\n?? docs/build/phases/BUILD_PHASE_16.md\n?? docs/build/phases/BUILD_PHASE_17.md\n?? docs/build/phases/BUILD_PHASE_18.md\n?? docs/build/phases/BUILD_PHASE_19.md\n?? docs/build/phases/BUILD_PHASE_20.md\n?? docs/build/phases/BUILD_PHASE_21.md\n?? docs/build/phases/BUILD_PHASE_22.md\n?? docs/build/phases/BUILD_PHASE_23.md\n?? docs/build/phases/BUILD_PHASE_24.md\n?? docs/build/phases/BUILD_PHASE_25.md\n?? docs/build/phases/BUILD_PHASE_26.md\n?? docs/build/phases/BUILD_PHASE_27.md\n?? docs/build/phases/BUILD_PHASE_28.md\n?? docs/build/phases/BUILD_PHASE_29.md\n?? docs/build/phases/BUILD_PHASE_30.md\n?? docs/build/phases/BUILD_PHASE_31.md\n?? docs/build/phases/BUILD_PHASE_32.md\n?? docs/build/phases/BUILD_PHASE_33.md\n?? docs/build/phases/BUILD_PHASE_34.md\n?? docs/build/phases/BUILD_PHASE_35.md\n?? docs/build/phases/BUILD_PHASE_36.md\n?? docs/build/phases/BUILD_PHASE_37.md\n?? docs/build/phases/BUILD_PHASE_38.md\n?? docs/build/phases/BUILD_PHASE_39.md\n?? docs/build/phases/BUILD_PHASE_40.md\n?? docs/build/phases/BUILD_PHASE_41.md\n?? docs/build/phases/BUILD_PHASE_42.md\n?? docs/build/phases/BUILD_PHASE_43.md\n?? docs/build/reviews/BUILD_BOOTSTRAP_REVIEW.md\n",
+    "stderr": ""
+  },
+  "git_status_ignored_all": {
+    "command": [
+      "git",
+      "-c",
+      "safe.directory=C:/dev/GEngine-build",
+      "status",
+      "--short",
+      "--ignored",
+      "--untracked-files=all"
+    ],
+    "exit_code": 0,
+    "stdout": "?? docs/build/BUILD_CODE_MAP.md\n?? docs/build/BUILD_PHASE_REVIEW_TEMPLATE.md\n?? docs/build/BUILD_STATE.md\n?? docs/build/BUILD_SYSTEM_AUDIT.md\n?? docs/build/BUILD_SYSTEM_MIGRATION_PLAN.md\n?? docs/build/evidence/BOOTSTRAP_BASELINE.json\n?? docs/build/evidence/BOOTSTRAP_VALIDATION.json\n?? docs/build/evidence/PREMAKE_VS2022_GRAPH.json\n?? docs/build/evidence/RUNTIME_INVENTORY.json\n?? docs/build/phases/BUILD_PHASE_00.md\n?? docs/build/phases/BUILD_PHASE_01.md\n?? docs/build/phases/BUILD_PHASE_02.md\n?? docs/build/phases/BUILD_PHASE_03.md\n?? docs/build/phases/BUILD_PHASE_04.md\n?? docs/build/phases/BUILD_PHASE_05.md\n?? docs/build/phases/BUILD_PHASE_06.md\n?? docs/build/phases/BUILD_PHASE_07.md\n?? docs/build/phases/BUILD_PHASE_08.md\n?? docs/build/phases/BUILD_PHASE_09.md\n?? docs/build/phases/BUILD_PHASE_10.md\n?? docs/build/phases/BUILD_PHASE_11.md\n?? docs/build/phases/BUILD_PHASE_12.md\n?? docs/build/phases/BUILD_PHASE_13.md\n?? docs/build/phases/BUILD_PHASE_14.md\n?? docs/build/phases/BUILD_PHASE_15.md\n?? docs/build/phases/BUILD_PHASE_16.md\n?? docs/build/phases/BUILD_PHASE_17.md\n?? docs/build/phases/BUILD_PHASE_18.md\n?? docs/build/phases/BUILD_PHASE_19.md\n?? docs/build/phases/BUILD_PHASE_20.md\n?? docs/build/phases/BUILD_PHASE_21.md\n?? docs/build/phases/BUILD_PHASE_22.md\n?? docs/build/phases/BUILD_PHASE_23.md\n?? docs/build/phases/BUILD_PHASE_24.md\n?? docs/build/phases/BUILD_PHASE_25.md\n?? docs/build/phases/BUILD_PHASE_26.md\n?? docs/build/phases/BUILD_PHASE_27.md\n?? docs/build/phases/BUILD_PHASE_28.md\n?? docs/build/phases/BUILD_PHASE_29.md\n?? docs/build/phases/BUILD_PHASE_30.md\n?? docs/build/phases/BUILD_PHASE_31.md\n?? docs/build/phases/BUILD_PHASE_32.md\n?? docs/build/phases/BUILD_PHASE_33.md\n?? docs/build/phases/BUILD_PHASE_34.md\n?? docs/build/phases/BUILD_PHASE_35.md\n?? docs/build/phases/BUILD_PHASE_36.md\n?? docs/build/phases/BUILD_PHASE_37.md\n?? docs/build/phases/BUILD_PHASE_38.md\n?? docs/build/phases/BUILD_PHASE_39.md\n?? docs/build/phases/BUILD_PHASE_40.md\n?? docs/build/phases/BUILD_PHASE_41.md\n?? docs/build/phases/BUILD_PHASE_42.md\n?? docs/build/phases/BUILD_PHASE_43.md\n?? docs/build/reviews/BUILD_BOOTSTRAP_REVIEW.md\n!! .codex/skills/build-phase-approval/SKILL.md\n!! .codex/skills/build-phase-execution/SKILL.md\n!! .codex/skills/build-phase-rejection/SKILL.md\n!! AGENTS.md\n!! Breakout/Breakout.vcxproj\n!! Breakout/Breakout.vcxproj.filters\n!! GEngine.sln\n!! GEngine/GEngine.vcxproj\n!! GEngine/GEngine.vcxproj.filters\n!! GEngineEditor/GEngineEditor.vcxproj\n!! GEngineEditor/GEngineEditor.vcxproj.filters\n!! MANIFEST.md\n!! PhysicsBenchmark/PhysicsBenchmark.vcxproj\n!! PhysicsBenchmark/PhysicsBenchmark.vcxproj.filters\n!! PhysicsTests/PhysicsTests.vcxproj\n!! PhysicsTests/PhysicsTests.vcxproj.filters\n!! RayTracing/RayTracing.vcxproj\n!! RayTracing/RayTracing.vcxproj.filters\n!! RigidBodySimulation/RigidBodySimulation.vcxproj\n!! RigidBodySimulation/RigidBodySimulation.vcxproj.filters\n!! bin-int/build-bootstrap/capture.py\n!! bin-int/build-bootstrap/verify.py\n!! bin-int/build-bootstrap/write_phases.py\n!! external/glad/glad.vcxproj\n!! external/glad/glad.vcxproj.filters\n",
+    "stderr": ""
+  },
+  "tag_at_head": {
+    "command": [
+      "git",
+      "-c",
+      "safe.directory=C:/dev/GEngine-build",
+      "tag",
+      "--points-at",
+      "HEAD"
+    ],
+    "exit_code": 0,
+    "stdout": "render-refactor-phase-00-approved\n",
+    "stderr": ""
+  },
+  "build_phase_tags": {
+    "command": [
+      "git",
+      "-c",
+      "safe.directory=C:/dev/GEngine-build",
+      "tag",
+      "--list",
+      "build-phase-*-approved"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "artifact_hashes": {
+    "AGENTS.md": {
+      "sha256": "7fedd84777fd827e55d858eb8620773cac6c4bedef0be4d63d97c993862ac0c6",
+      "classification": "LOCAL_GOVERNANCE",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "MANIFEST.md": {
+      "sha256": "86e8e9695b4858565ae72c8ade5ac7e76b921a5ecf691cae891e9fa928b8b481",
+      "classification": "LOCAL_GOVERNANCE",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    ".codex/skills/build-phase-approval/SKILL.md": {
+      "sha256": "056f3f95e75fd3f7dea2efd3197aea422a7c96b69a26d7b4b10b6fed7fd14ccf",
+      "classification": "LOCAL_GOVERNANCE",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    ".codex/skills/build-phase-execution/SKILL.md": {
+      "sha256": "29653b2e2fbbecbfbe85153cb22ae4b94a38a202aeff886da600617f722c7598",
+      "classification": "LOCAL_GOVERNANCE",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    ".codex/skills/build-phase-rejection/SKILL.md": {
+      "sha256": "16442f5f8e8c923e7d942287cb4d303e9dc1dbee92dd8fbdc3d499b968bc3e18",
+      "classification": "LOCAL_GOVERNANCE",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/BUILD_CODE_MAP.md": {
+      "sha256": "9fe45f3c9e889ea2d1c9cb5f3a0026751a65e5a243832fb67a59a0579f4fdd2b",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/BUILD_PHASE_REVIEW_TEMPLATE.md": {
+      "sha256": "044873dd931077fc3b03a1bbabdbd89a7bf2fa95faa174c1dc42c128a9929b7c",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/BUILD_STATE.md": {
+      "sha256": "f8fe49ece054fdb363588846ba8d17ec30f042b254fdb5166cfb4175101ce70a",
+      "classification": "LOCAL_GOVERNANCE",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/BUILD_SYSTEM_AUDIT.md": {
+      "sha256": "5e2cbf6f09801c94bab949ec805ddfbbb2a995999f3840af30c357de01689ab4",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/BUILD_SYSTEM_MIGRATION_PLAN.md": {
+      "sha256": "21a1180895bc2e79fdb2a8d2dc5ca2a60f28b2578ba8ebd41b2fac16c88bfe22",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/evidence/BOOTSTRAP_BASELINE.json": {
+      "sha256": "d55774e0408d2084c590365f834d5e47f7a62f96bcaf6705c080782107bdf3b0",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/evidence/PREMAKE_VS2022_GRAPH.json": {
+      "sha256": "e031105e2996bf15efa7dd8c0d626cbd468b63267925cdb65cad133ba76657dc",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/evidence/RUNTIME_INVENTORY.json": {
+      "sha256": "a97988134e863f6a98546ca40f060f086dc94ad0272285afec6108edda17dc3b",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_00.md": {
+      "sha256": "0de2c628f1ad49167fd78721656f0bb044a47bbf171d3992bd2b0e33bc6d6c77",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_01.md": {
+      "sha256": "936f8bed4fe2c632cce641f8a51585d74b07257174e138bc256d3c7de4da2d3f",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_02.md": {
+      "sha256": "41a7f40101a2f631f66e20145830f5d089a7082bc193b3a3ac02b2d673a7ac22",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_03.md": {
+      "sha256": "c0cd678d3234fa5a8d4f924f37457b70a6affadfb5aec1898c46ad852d661ad4",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_04.md": {
+      "sha256": "4ec0bef1fcd44d94a941b06142740471b0b2c8ad98df9d5f0f6a025b566e2a15",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_05.md": {
+      "sha256": "d91b0dcbcf0fefc95bf975c4ea92133722589a783a95be3bd66fa0344ce07f7a",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_06.md": {
+      "sha256": "38e165c914926b41329a16ce0d9f327fd98c7f46e7ad2b461ffdd9167ba97a29",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_07.md": {
+      "sha256": "0fc226a8ccc07fb29784378aeca3d846e0553d212273eb04e4766962a6662980",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_08.md": {
+      "sha256": "a5eb97971c55f165d74c453845b8085a676877fa03d5b0fbb8bac6158d77d4bc",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_09.md": {
+      "sha256": "60f67f6b974df426f7079e36ae1d92ef2d5084aca4a0f2565a963adb1bef07da",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_10.md": {
+      "sha256": "e4280aa1c3620b417db0115bb33ca0f8d37e8f14dbc813fbe08cfc6f2ad24ad2",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_11.md": {
+      "sha256": "aba390d6b618873986e219f9fb2645889e3c21429d8217e58809250476ae0581",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_12.md": {
+      "sha256": "169489046b8bbc0fd4fff73e529c5710781a0406384a12a921c4a02bbb08e595",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_13.md": {
+      "sha256": "47795a6211bd571d4339b1d22f08d3fcfc7d1492cf724715a8b32bfd30f78513",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_14.md": {
+      "sha256": "df1c176efe00f5bb73fa8f0e6d6f28920bfe263f16313ae5b6e0a03f88ffba0d",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_15.md": {
+      "sha256": "2eab89284b03bb6c2d837359eef9eee6c55380a861420e3eb767d4214ee16f16",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_16.md": {
+      "sha256": "2a9a515a15fc512796aa3353f29fd7448ef450569e3cf774e5f9a6c621f71440",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_17.md": {
+      "sha256": "bacd98c0bc99244a3d1774dde94180ba4b9a365ed59a869d991bf32e55fc061b",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_18.md": {
+      "sha256": "103d494dc905ed8736b0bcec237aa54004240548396a3c7525f8fa450583e813",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_19.md": {
+      "sha256": "a7248e0d634e029f4505e72d09f81fe336780df1167dbe8c41ac119db9606d02",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_20.md": {
+      "sha256": "a434ba07a481b7cf908d743f62b5c1685b4aa4bf53e6c9885b05c6193a834642",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_21.md": {
+      "sha256": "9131f81ae2acf134e68154691613291dd08ffe0c62e435212c3e08d5de99a371",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_22.md": {
+      "sha256": "9719a6036adb8b3dcbd5d0a29815cde7e7837a9b00e213a1c68d0965ad3a025b",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_23.md": {
+      "sha256": "f140e08c3086834faf08d334a1f136fa96cb081d1c6661bc70db12180fee3410",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_24.md": {
+      "sha256": "a26a4c89d0998b512d070f3d310d744187a11d3ed5dc939b6899097716f301a2",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_25.md": {
+      "sha256": "ccc4f0c3acc4f26d005769ebfb9d6c717a01db86bf047c526af49fdf2be9dfe9",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_26.md": {
+      "sha256": "14e710235149160d631f59e6bdb2341e14491c514c48b96f2757af7809f3a94a",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_27.md": {
+      "sha256": "4e2f0729f52627207d057310b0c7cc0fc00546a26ddfbc9aeebab2f4340f8801",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_28.md": {
+      "sha256": "d18ce5ab5145b01389c3129ed3f19f22acd30242960455ce322fd53f1b153183",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_29.md": {
+      "sha256": "be665bf443cea91928a7851a28e3fbf884a37337164db3b737bf9dfe29d69803",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_30.md": {
+      "sha256": "c27e7cde8c329a9604645d517d343ddaae497e04f2151b9786e5403a2044f6ec",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_31.md": {
+      "sha256": "aaf00020f1ad0c61a0cda3ddcef6372e5e727f890a72b8c7e163d5547148d719",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_32.md": {
+      "sha256": "8493b4d07fefa149e79aa5023a73da557090a34ce10992901e2def9d465a4530",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_33.md": {
+      "sha256": "31bf19affc68583043610d801ee10d95493a7d8ee092d3d92959ada9e5f3b6a0",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_34.md": {
+      "sha256": "b1f66bae9f6527b3c170299ddd17b1c301eac988acff6d30f030c942ef7e99f9",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_35.md": {
+      "sha256": "873347ff2fbc554085c337e9cb365452f49c7b3e8e4f4db08f1c8666b051d184",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_36.md": {
+      "sha256": "a50fc2025dfb93648de0d4a7b49f4ceb8fd7c28e0fbaea5cabcc87ca408e28fa",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_37.md": {
+      "sha256": "8e5d9d72428f865dfb5a8e01ea4176e6544ac976001799c7543e533805746f34",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_38.md": {
+      "sha256": "4ddbc430c7cc6989237e9473ca8e07fd8bbe95351ea746624e486f51f7c8f092",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_39.md": {
+      "sha256": "13b0a9fed3a3f3b4abe33fd847626477742a3597c6118beb5be2f737aababf7d",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_40.md": {
+      "sha256": "d0e0a886a6efc897e867766323d84915c1aac6e5de2129775c28802962934647",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_41.md": {
+      "sha256": "366d5d0557a0b613661ebfe523f0c6fb0d51d217822055e3f2963e015a5621ae",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_42.md": {
+      "sha256": "6df6466d9006e2982ff04a92b9471742b0eeec25d1926fbf9698132cb77d9666",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/phases/BUILD_PHASE_43.md": {
+      "sha256": "a0a81129848d2c253d52e8e57da71469c37130923e82485af069fdbaccbd187e",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    },
+    "docs/build/reviews/BUILD_BOOTSTRAP_REVIEW.md": {
+      "sha256": "685f27959a1b8308c5b13d5bc6c195ab1bf44bcadbee3827e5f6338a0d96e7fe",
+      "classification": "PHASE_OWNED_NEW_TRACKED",
+      "checkpoint_status": "NO_PHASE_STARTED; versionable files require explicit Phase 00 adoption"
+    }
+  },
+  "self_hash_exclusion": "docs/build/evidence/BOOTSTRAP_VALIDATION.json",
+  "runtime_build_test_validation": "NOT RUN; reserved for Phase 00 and later contracts",
+  "commit_tag_push": "NONE",
+  "final_manifest_note": "Historical bootstrap validation for the original 44-contract roadmap. Final human roadmap refinement split Assimp and oneTBB into separate phases and renumbered former phases 08-43 to 09-44. See FINAL_MANIFEST_VALIDATION.json for final structural checks."
+}

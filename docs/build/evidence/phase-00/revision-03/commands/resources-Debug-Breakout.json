@@ -1,0 +1,30 @@
+{
+  "name": "resources-Debug-Breakout",
+  "revision": "03",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py",
+    "_resources",
+    "Debug",
+    "Breakout"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py _resources Debug Breakout",
+  "cwd": "C:\\dev\\GEngine-build\\Breakout",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T04:58:49.572903+00:00",
+  "elapsed_seconds": 61.563,
+  "harness_sha256": "e2bf34415b01c5621a9291a797bf04a749fef1ce8880e826a344933f19c9faed",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-e2bf34415b01c5621a9291a797bf04a749fef1ce8880e826a344933f19c9faed.py",
+  "timeout_seconds": 300,
+  "timed_out": false,
+  "exit_code": 1,
+  "result": "FAIL",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/resources-Debug-Breakout.txt",
+  "raw_sha256": "1572a5a52588250a710a93a71da3ead248977d1aa42b9bc4232b1f560712feac",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/resources-Debug-Breakout.txt.gz",
+  "compressed_sha256": "0a5ee325f500ebbbbede715c7c265e6eb81fe4ab1b5e5dfc607a7007bca5eb70",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

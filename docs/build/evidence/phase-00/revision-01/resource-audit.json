@@ -1,0 +1,198 @@
+{
+  "initial_revision_startup_log": {
+    "Debug/RayTracing": {
+      "path": "C:\\dev\\GEngine-build\\RayTracing\\GEngine.log",
+      "sha256": "e0e585634910d66f25046be74618abe2fa50428522ee83ae2fe246d8a3464373",
+      "text": "[09/12/26 20:28:39] [info] GENGINE: Initialize Logging...\n[09/12/26 20:28:39] [info] GENGINE: GEngine v1.0\n[09/12/26 20:28:39] [info] GENGINE: Configuration: DEBUG\n[09/12/26 20:28:39] [info] GENGINE: Platform: WINDOWS\n[09/12/26 20:28:39] [info] GENGINE: Initialize SDL\n[09/12/26 20:28:39] [info] GENGINE: SDL 2.0.20\n[09/12/26 20:28:39] [info] GENGINE: Display width: 1707. Display height: 960. Refresh Rate: 165\n[09/12/26 20:28:39] [info] GENGINE: Initialize Window Manager...\n[09/12/26 20:28:39] [info] GENGINE: Initialize Windows...\n[09/12/26 20:28:40] [info] GENGINE: Initialize Input Manager...\n[09/12/26 20:28:40] [info] GENGINE: Initialize Event Manager...\n[09/12/26 20:28:40] [info] GENGINE: Initialize Shape Manager...\n[09/12/26 20:28:59] [info] GENGINE: Initialize font...\n[09/12/26 20:28:59] [info] GENGINE: Initialize Scene...\n[09/12/26 20:29:00] [info] GENGINE: Initialize 3D Renderer...\n[09/12/26 20:29:00] [info] GENGINE: OpenGL Info:\n  \t\t\t\t  Vendor: NVIDIA Corporation\n  \t\t\t        Renderer: NVIDIA GeForce RTX 3070 Laptop GPU/PCIe/SSE2\n  \t\t\t         Version: 4.6.0 NVIDIA 552.44\n[09/12/26 20:29:00] [info] GENGINE: Initialize Perspective Camera...\n"
+    }
+  },
+  "status": "BLOCKED resource correctness; completed checks below, other startup/resource cases NOT RUN after scope stop",
+  "Breakout_Debug": {
+    "startup_result": {
+      "alive_for_smoke": true,
+      "visible_window_observed": false,
+      "SDL_window_created": true,
+      "window_policy": "STARTF_USESHOWWINDOW/SW_HIDE keeps the validation window hidden; close the SDL window by class even when hidden",
+      "diagnostic_dialogs": [],
+      "exit_code": 3221225477,
+      "exit_hex": "0xc0000005",
+      "forced_termination": false,
+      "application_log": {
+        "path": "C:\\dev\\GEngine-build\\Breakout\\GEngine.log",
+        "sha256": "d21ee495cdc9475ba18cfebc1594a84cff8b586eaf3eca9557137bd87eeb1568",
+        "text": "[09/12/26 20:31:11] [info] GENGINE: Initialize Logging...\n[09/12/26 20:31:11] [info] GENGINE: GEngine v1.0\n[09/12/26 20:31:11] [info] GENGINE: Configuration: DEBUG\n[09/12/26 20:31:11] [info] GENGINE: Platform: WINDOWS\n[09/12/26 20:31:11] [info] GENGINE: Initialize SDL\n[09/12/26 20:31:11] [info] GENGINE: SDL 2.0.20\n[09/12/26 20:31:11] [info] GENGINE: Display width: 1707. Display height: 960. Refresh Rate: 165\n[09/12/26 20:31:11] [info] GENGINE: Initialize Window Manager...\n[09/12/26 20:31:11] [info] GENGINE: Initialize Windows...\n[09/12/26 20:31:12] [info] GENGINE: Initialize Input Manager...\n[09/12/26 20:31:12] [info] GENGINE: Initialize Event Manager...\n[09/12/26 20:31:12] [info] GENGINE: Initialize Shape Manager...\n[09/12/26 20:31:30] [info] GENGINE: Initialize font...\n[09/12/26 20:31:30] [info] GENGINE: Initialize Scene...\n[09/12/26 20:31:31] [info] GENGINE: Initialize Audio System...\n[09/12/26 20:31:31] [info] GENGINE: Initialize 2D Renderer...\n[09/12/26 20:31:31] [info] GENGINE: Initialize Orthographic Camera...\n[09/12/26 20:31:31] [warning] GENGINE: Unable to load texture: ../GEngine/include/GEngine/Assets/Images/../Breakout/include/images/background.png.png - set to default checkboard\n[09/12/26 20:31:31] [warning] GENGINE: Unable to load texture: ../GEngine/include/GEngine/Assets/Images/../Breakout/include/images/paddle.png.png - set to default checkboard\n[09/12/26 20:31:31] [warning] GENGINE: Unable to load texture: ../GEngine/include/GEngine/Assets/Images/../Breakout/include/images/awesomeface_r.png.png - set to default checkboard\n[09/12/26 20:31:31] [warning] GENGINE: Unable to load texture: ../GEngine/include/GEngine/Assets/Images/../Breakout/include/images/block.png.png - set to default checkboard\n[09/12/26 20:31:31] [warning] GENGINE: Unable to load texture: ../GEngine/include/GEngine/Assets/Images/../Breakout/include/images/block_solid.png.png - set to default checkboard\n[09/12/26 20:31:31] [warning] GENGINE: Unable to load texture: ../GEngine/include/GEngine/Assets/Images/../Breakout/include/images/block.png.png - set to default checkboard\n[09/12/26 20:31:31] [warning] GENGINE: Unable to load texture: ../GEngine/include/GEngine/Assets/Images/../Breakout/include/images/block_solid.png.png - set to default checkboard\n[09/12/26 20:31:31] [warning] GENGINE: Unable to load texture: ../GEngine/include/GEngine/Assets/Images/../Breakout/include/images/block.png.png - set to default checkboard\n[09/12/26 20:31:31] [warning] GENGINE: Unable to load texture: ../GEngine/include/GEngine/Assets/Images/../Breakout/include/images/block_solid.png.png - set to default checkboard\n[09/12/26 20:31:31] [warning] GENGINE: Unable to load texture: ../GEngine/include/GEngine/Assets/Images/../Breakout/include/images/block.png.png - set to default checkboard\n[09/12/26 20:31:31] [warning] GENGINE: Unable to load texture: ../GEngine/include/GEngine/Assets/Images/../Breakout/include/images/block_solid.png.png - set to default checkboard\n"
+      }
+    },
+    "failed_texture_requests": [
+      {
+        "requested_string": "../GEngine/include/GEngine/Assets/Images/../Breakout/include/images/background.png.png",
+        "resolved_path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Breakout\\include\\images\\background.png.png",
+        "exists": false,
+        "warning_occurrences": 1,
+        "existing_expected_resource": "C:\\dev\\GEngine-build\\Breakout\\include\\images\\background.png",
+        "existing_resource_sha256": "b8bb5cd64e935f4aa39919ae2b1742ebe3190486c84ef6e3c09e14666470c5ca"
+      },
+      {
+        "requested_string": "../GEngine/include/GEngine/Assets/Images/../Breakout/include/images/paddle.png.png",
+        "resolved_path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Breakout\\include\\images\\paddle.png.png",
+        "exists": false,
+        "warning_occurrences": 1,
+        "existing_expected_resource": "C:\\dev\\GEngine-build\\Breakout\\include\\images\\paddle.png",
+        "existing_resource_sha256": "20242526e3e7d354104fbcf543873ca008f0addc593fb7a887dec84c2b51edc4"
+      },
+      {
+        "requested_string": "../GEngine/include/GEngine/Assets/Images/../Breakout/include/images/awesomeface_r.png.png",
+        "resolved_path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Breakout\\include\\images\\awesomeface_r.png.png",
+        "exists": false,
+        "warning_occurrences": 1,
+        "existing_expected_resource": "C:\\dev\\GEngine-build\\Breakout\\include\\images\\awesomeface_r.png",
+        "existing_resource_sha256": "a9da1ac6400c46e6ce02e425508d4293b9664ef7cb9c9fac4fee3c04411b5cb3"
+      },
+      {
+        "requested_string": "../GEngine/include/GEngine/Assets/Images/../Breakout/include/images/block.png.png",
+        "resolved_path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Breakout\\include\\images\\block.png.png",
+        "exists": false,
+        "warning_occurrences": 4,
+        "existing_expected_resource": "C:\\dev\\GEngine-build\\Breakout\\include\\images\\block.png",
+        "existing_resource_sha256": "6be998394d8c237879c35ff35329c373b12a72027d9dbcd16e9b8d4246714a4e"
+      },
+      {
+        "requested_string": "../GEngine/include/GEngine/Assets/Images/../Breakout/include/images/block_solid.png.png",
+        "resolved_path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Breakout\\include\\images\\block_solid.png.png",
+        "exists": false,
+        "warning_occurrences": 4,
+        "existing_expected_resource": "C:\\dev\\GEngine-build\\Breakout\\include\\images\\block_solid.png",
+        "existing_resource_sha256": "9f44f1d4ff7c3230fb3283f19e63e7f692b8b6eb63f393e90282d258e2d160f3"
+      }
+    ],
+    "source_evidence": [
+      "Breakout/src/BreakoutApp.cpp:19,200,212,223",
+      "Breakout/src/GameLevel.cpp:12,78,79",
+      "GEngine/src/Managers/AssetsManager.cpp:8,22",
+      "GEngine/src/Assets/Texture.cpp:118"
+    ],
+    "cause": "Breakout supplies a relative resource path already ending in .png; AssetsManager unconditionally prefixes the shared image root and appends the default .png extension. Five distinct requested files are absent; existing intended source images are preserved.",
+    "out_of_scope": "Repair would change application/engine path handling, or write aliases into the source resource tree. Neither is permitted by the runtime-output-only revision."
+  },
+  "source_cwd_availability": {
+    "Breakout": [
+      {
+        "path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Regular.ttf",
+        "exists": true,
+        "sha256": "037236ed4bf58a85f67074c165d308260fd6be01c86d7df4e79ea16eb273f8c5"
+      },
+      {
+        "path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Bold.ttf",
+        "exists": true,
+        "sha256": "f7916a37377e38527d4306303cfe89b653b49b0a6b0b05c6b7593f7ab0248da8"
+      },
+      {
+        "path": "C:\\dev\\GEngine-build\\Breakout\\include\\levels\\four.lvl",
+        "exists": true,
+        "sha256": "51b471f362881be1a6cc98c30c4869fdb506f10c281f4740006fad4802065bae"
+      },
+      {
+        "path": "C:\\dev\\GEngine-build\\Breakout\\include\\levels\\one.lvl",
+        "exists": true,
+        "sha256": "4a60ca0e4d917fbe593aaf161e66f0072a6f0a3ef286eb65996f6e88272ee6ff"
+      },
+      {
+        "path": "C:\\dev\\GEngine-build\\Breakout\\include\\levels\\three.lvl",
+        "exists": true,
+        "sha256": "f00d52e7482ee676b5ef13631da97979f4b5178330af0f1c732e746c98b3d54b"
+      },
+      {
+        "path": "C:\\dev\\GEngine-build\\Breakout\\include\\levels\\two.lvl",
+        "exists": true,
+        "sha256": "79c0d4e28199731909c9e1d4fc891a0ca92ebe7eca40da3d4afc9c4a038a8b11"
+      },
+      {
+        "path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Audio\\Bank\\Master Bank.bank",
+        "exists": true,
+        "sha256": "a2b8edcb68bfe81c3463c33a227b12127803a34275132bcb03aae196343339c2"
+      },
+      {
+        "path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Audio\\Bank\\Master Bank.strings.bank",
+        "exists": true,
+        "sha256": "d84e075dc086f986c5893ef500c691ec95ccdb493227f8a6236e69c233aaf883"
+      },
+      {
+        "path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Audio\\Bank\\ZeldaTheme.bank",
+        "exists": true,
+        "sha256": "2d098206cff3f6287d429d39e3716cff4d465790029a0d6b18ea908aef9a1ddf"
+      }
+    ],
+    "GEngineEditor": [
+      {
+        "path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Regular.ttf",
+        "exists": true,
+        "sha256": "037236ed4bf58a85f67074c165d308260fd6be01c86d7df4e79ea16eb273f8c5"
+      },
+      {
+        "path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Bold.ttf",
+        "exists": true,
+        "sha256": "f7916a37377e38527d4306303cfe89b653b49b0a6b0b05c6b7593f7ab0248da8"
+      },
+      {
+        "path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Audio\\Bank\\Master Bank.bank",
+        "exists": true,
+        "sha256": "a2b8edcb68bfe81c3463c33a227b12127803a34275132bcb03aae196343339c2"
+      },
+      {
+        "path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Audio\\Bank\\Master Bank.strings.bank",
+        "exists": true,
+        "sha256": "d84e075dc086f986c5893ef500c691ec95ccdb493227f8a6236e69c233aaf883"
+      },
+      {
+        "path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Audio\\Bank\\ZeldaTheme.bank",
+        "exists": true,
+        "sha256": "2d098206cff3f6287d429d39e3716cff4d465790029a0d6b18ea908aef9a1ddf"
+      },
+      {
+        "path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\AnimatedModels\\dancing_vampire.dae",
+        "exists": true,
+        "sha256": "0738a11b9741e74aba3940e656a0033c71c320e261f201ff4db4cf8f29b361a8"
+      }
+    ],
+    "RayTracing": [
+      {
+        "path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Regular.ttf",
+        "exists": true,
+        "sha256": "037236ed4bf58a85f67074c165d308260fd6be01c86d7df4e79ea16eb273f8c5"
+      },
+      {
+        "path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Bold.ttf",
+        "exists": true,
+        "sha256": "f7916a37377e38527d4306303cfe89b653b49b0a6b0b05c6b7593f7ab0248da8"
+      }
+    ],
+    "RigidBodySimulation": [
+      {
+        "path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Regular.ttf",
+        "exists": true,
+        "sha256": "037236ed4bf58a85f67074c165d308260fd6be01c86d7df4e79ea16eb273f8c5"
+      },
+      {
+        "path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Fonts\\OpenSans-Bold.ttf",
+        "exists": true,
+        "sha256": "f7916a37377e38527d4306303cfe89b653b49b0a6b0b05c6b7593f7ab0248da8"
+      },
+      {
+        "path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Audio\\Bank\\Master Bank.bank",
+        "exists": true,
+        "sha256": "a2b8edcb68bfe81c3463c33a227b12127803a34275132bcb03aae196343339c2"
+      },
+      {
+        "path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Audio\\Bank\\Master Bank.strings.bank",
+        "exists": true,
+        "sha256": "d84e075dc086f986c5893ef500c691ec95ccdb493227f8a6236e69c233aaf883"
+      },
+      {
+        "path": "C:\\dev\\GEngine-build\\GEngine\\include\\GEngine\\Assets\\Audio\\Bank\\ZeldaTheme.bank",
+        "exists": true,
+        "sha256": "2d098206cff3f6287d429d39e3716cff4d465790029a0d6b18ea908aef9a1ddf"
+      }
+    ]
+  },
+  "limits": "Availability checks establish paths/hashes only; they do not claim successful rendering or full resource loads for unlaunched targets. Release logging macros are compiled out in unchanged Core/Log.h. No source resource aliases created."
+}

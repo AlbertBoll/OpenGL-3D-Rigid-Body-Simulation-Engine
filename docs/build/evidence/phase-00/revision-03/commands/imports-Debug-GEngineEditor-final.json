@@ -1,0 +1,28 @@
+{
+  "name": "imports-Debug-GEngineEditor-final",
+  "revision": "03",
+  "argv": [
+    "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+    "/imports",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor\\GEngineEditor.exe"
+  ],
+  "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /imports C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor\\GEngineEditor.exe",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T05:06:27.107205+00:00",
+  "elapsed_seconds": 0.047,
+  "harness_sha256": "0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee.py",
+  "timeout_seconds": 120,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/imports-Debug-GEngineEditor-final.txt",
+  "raw_sha256": "d4ef594d201dea9df13f54ad549eb121e6e4fe8d27826d8f3987304216b8aed0",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/imports-Debug-GEngineEditor-final.txt.gz",
+  "compressed_sha256": "13d77efaf7f0941d0b899b4fda88c31d9c22712e73f77435dbfc8e5e184aa595",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

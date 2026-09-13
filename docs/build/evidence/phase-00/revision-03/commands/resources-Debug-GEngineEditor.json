@@ -1,0 +1,31 @@
+{
+  "name": "resources-Debug-GEngineEditor",
+  "revision": "03",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py",
+    "_resources",
+    "Debug",
+    "GEngineEditor",
+    "resources-Debug-GEngineEditor"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py _resources Debug GEngineEditor resources-Debug-GEngineEditor",
+  "cwd": "C:\\dev\\GEngine-build\\GEngineEditor",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T05:13:40.241576+00:00",
+  "elapsed_seconds": 129.922,
+  "harness_sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928.py",
+  "timeout_seconds": 300,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/resources-Debug-GEngineEditor.txt",
+  "raw_sha256": "0c1d3e40eccc40a1fec7e0fcc2683fb0d3b903277889da0f81de31893ed8858c",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/resources-Debug-GEngineEditor.txt.gz",
+  "compressed_sha256": "7b62987f8ba07ede150af1b29f4df242e1ab6a37a373816d78b93204c6cd2db6",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

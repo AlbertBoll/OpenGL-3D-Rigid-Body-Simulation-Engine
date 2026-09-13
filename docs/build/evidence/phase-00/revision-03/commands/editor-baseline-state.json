@@ -1,0 +1,32 @@
+{
+  "name": "editor-baseline-state",
+  "revision": "03",
+  "argv": [
+    "C:\\Program Files (x86)\\Windows Kits\\10\\Debuggers\\x64\\cdb.exe",
+    "-z",
+    "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\editor-baseline-early-repeat.dmp",
+    "-y",
+    "C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor",
+    "-c",
+    ".ecxr; .frame 3; dv /t; dt GEngineEditor!GEngine::BaseApp 000002239ff72200 m_Running; dt GEngineEditor!GEngine::Manager::WindowManager 000002239ffd9cb0 m_NumOfWindows; q"
+  ],
+  "command": "\"C:\\Program Files (x86)\\Windows Kits\\10\\Debuggers\\x64\\cdb.exe\" -z C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\editor-baseline-early-repeat.dmp -y C:\\dev\\GEngine-build\\bin\\Debug\\GEngineEditor -c \".ecxr; .frame 3; dv /t; dt GEngineEditor!GEngine::BaseApp 000002239ff72200 m_Running; dt GEngineEditor!GEngine::Manager::WindowManager 000002239ffd9cb0 m_NumOfWindows; q\"",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T04:45:27.646375+00:00",
+  "elapsed_seconds": 0.641,
+  "harness_sha256": "b0033b645feedcbd222e8ba4bf8a8eb3f43f50289dec4914ce2e6f8305aaabe5",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-b0033b645feedcbd222e8ba4bf8a8eb3f43f50289dec4914ce2e6f8305aaabe5.py",
+  "timeout_seconds": 60,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/editor-baseline-state.txt",
+  "raw_sha256": "7404183ebc357df5c10e3e6f030898bcf124eec658ccf166a8c3a77745d049bf",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/editor-baseline-state.txt.gz",
+  "compressed_sha256": "778ccd6b08d53d7b799ae3b7be6e8c4604b43d8da4bb06f62ac91386bcfa6fd0",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

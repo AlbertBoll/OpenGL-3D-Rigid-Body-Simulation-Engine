@@ -1,0 +1,28 @@
+{
+  "name": "runtime-check",
+  "revision": "03",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\stage_premake_runtime.py",
+    "check"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\stage_premake_runtime.py check",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": null,
+  "started_utc": "2026-09-13T05:13:34.884512+00:00",
+  "elapsed_seconds": 5.875,
+  "harness_sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928.py",
+  "timeout_seconds": 120,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/runtime-check.txt",
+  "raw_sha256": "9809489d2a7f71f791ae23478f58ba02650a4c1304cd6f3c9a5733f3b3e865c1",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/runtime-check.txt.gz",
+  "compressed_sha256": "e590abf0a940a78910a619d9d2918ab2748f386db51a1e0cac085dfbe70dc335",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

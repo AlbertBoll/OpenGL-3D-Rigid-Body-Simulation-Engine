@@ -1,0 +1,26 @@
+{
+  "name": "imports-Release-RigidBodySimulation",
+  "revision": "02",
+  "argv": [
+    "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe",
+    "/imports",
+    "C:\\dev\\GEngine-build\\bin\\Release\\RigidBodySimulation\\RigidBodySimulation.exe"
+  ],
+  "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\dumpbin.exe\" /imports C:\\dev\\GEngine-build\\bin\\Release\\RigidBodySimulation\\RigidBodySimulation.exe",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Release",
+  "started_utc": "2026-09-13T04:15:06.214498+00:00",
+  "elapsed_seconds": 0.016,
+  "timeout_seconds": 120,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-02/imports-Release-RigidBodySimulation.txt",
+  "raw_sha256": "108e791cb0066b14dda44b84e0b93b6b58759d2ff83faec428f1085e56128c67",
+  "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/imports-Release-RigidBodySimulation.txt.gz",
+  "compressed_sha256": "6c011e2f55d997b885e12b4575c6a4cca7e678f233c2e01e18a2b2b84302583c",
+  "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+}

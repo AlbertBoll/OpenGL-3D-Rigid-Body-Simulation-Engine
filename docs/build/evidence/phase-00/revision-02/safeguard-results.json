@@ -1,0 +1,8 @@
+{
+  "revision_02_disposable_rerun": "NOT RUN after new Editor scope blocker",
+  "historical_revision_01_result": "PASS; preserved, not a fresh run",
+  "historical_evidence": "../revision-01/safeguard-results.json",
+  "historical_sha256": "035a4e58266876b48588eed76574ffc67e64a319cadd6e5515e65c89f149cae2",
+  "current_import_closure": "PASS for all eight outputs",
+  "runtime_staging_changes": "NONE; accepted source and output DLL identities unchanged"
+}

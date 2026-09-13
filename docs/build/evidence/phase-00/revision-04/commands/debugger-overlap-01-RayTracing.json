@@ -1,0 +1,46 @@
+{
+  "name": "debugger-overlap-01-RayTracing",
+  "revision": "04",
+  "mode": "debugger",
+  "app": "RayTracing",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "-B",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+    "_debugger",
+    "debugger-overlap-01-RayTracing",
+    "RayTracing"
+  ],
+  "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+  "configuration": "Release",
+  "started_utc": "2026-09-13T06:17:51.932752+00:00",
+  "elapsed_seconds": 61.828,
+  "exit_code": 0,
+  "result": "PASS",
+  "process_result": [
+    {
+      "debugger_result": "CLEAN_EXIT",
+      "debugger_exit_code": 0,
+      "normal_close_sent": true,
+      "forced_termination": false,
+      "dump": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\debugger-overlap-01-RayTracing.dmp",
+      "dump_sha256": "ABSENT",
+      "module_identities": []
+    }
+  ],
+  "raw_log": "bin-int/build-phase-00-revision-04/debugger-overlap-01-RayTracing.txt",
+  "raw_sha256": "853358a8e07a68635e44743f717c9d68f0635c8252bbd57bfce7667b52d511c8",
+  "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/debugger-overlap-01-RayTracing.txt.gz",
+  "compressed_sha256": "f38d5415d74473e4d1f2e1c31c70a2c845c09284a14d5c61b4cf2e3c1eeaabbc",
+  "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+  "unchanged_startup_implementation": {
+    "path": "scripts/build_validation/revise_phase00_r03.py",
+    "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+  },
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PATH": "C:\\Windows\\System32;C:\\Windows"
+  },
+  "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+}

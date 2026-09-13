@@ -1,0 +1,38 @@
+{
+  "approved_reference": "NONE; this is fresh source-tag evidence, not an accepted baseline exception",
+  "failures": [
+    {
+      "id": "B00-RUNTIME-001",
+      "gate": "required runtime DLL / application startup",
+      "status": "BLOCKED",
+      "signature": "Debug RayTracing imports tbb12.dll; DLL absent in captured loader search locations; fresh launch exits 3221225781 / 0xc0000135 within 0.015 seconds before application startup.",
+      "evidence": [
+        "imports-Debug-RayTracing.txt",
+        "startup-Debug-RayTracing.txt",
+        "input-closure.json"
+      ],
+      "attribution_limit": "The observed loader exit reports a missing module, not its filename. The separately established missing TBB import is a concrete unresolved dependency; other transitive dependencies are not ruled out.",
+      "source_unchanged": true,
+      "approved_exception": false
+    },
+    {
+      "id": "B00-VALIDATION-002",
+      "gate": "full Debug PhysicsTests",
+      "status": "INCOMPLETE",
+      "signature": "Capture terminated this process after its 120-second limit; exit 1 is harness termination, not a reported assertion failure. Output has no final check summary.",
+      "evidence": [
+        "tests-Debug-full.txt",
+        "commands.json"
+      ],
+      "attribution_limit": "A slow run, hang and interactive CRT diagnostic are not distinguished. No Physics defect is classified from this timeout.",
+      "approved_exception": false
+    }
+  ],
+  "proposal": {
+    "title": "Reference runtime preparation for the existing Premake graph",
+    "dependency": "A verified x64 runtime matching the existing external/tbb import libraries, plus an audit of transitive imports of all freshly linked applications.",
+    "scope": "Authorize narrowly scoped runtime provenance/staging/safeguard work for the current Premake reference. Supply the matching TBB DLL from an explicit verified origin; permit only runtime closure repairs demonstrated by fresh import evidence. Keep engine/application/Physics behavior, compiler flags and dependency versions fixed.",
+    "validation": "Verify DLL architecture/hash/import-library compatibility; test safeguards in a disposable copied output; launch four apps in Debug/Release from source CWD with documented DLL search paths; resume the incomplete Phase 00 test and benchmark matrix with an adequate declared test time limit.",
+    "boundary": "Requires a separate human roadmap decision and explicit preparation contract; not executed here. No successor started."
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "name": "build-profile-Release",
+  "revision": "03",
+  "argv": [
+    "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe",
+    "GEngine.sln",
+    "/m:2",
+    "/nr:false",
+    "/nologo",
+    "/p:Configuration=Release",
+    "/p:Platform=x64",
+    "/v:diag",
+    "/t:Build"
+  ],
+  "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\" GEngine.sln /m:2 /nr:false /nologo /p:Configuration=Release /p:Platform=x64 /v:diag /t:Build",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Release",
+  "started_utc": "2026-09-13T04:55:02.228883+00:00",
+  "elapsed_seconds": 73.188,
+  "harness_sha256": "caac977868969f78e1ea9ec5318befc1663e8dee134cb17646df57cc9e4fb8f3",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-caac977868969f78e1ea9ec5318befc1663e8dee134cb17646df57cc9e4fb8f3.py",
+  "timeout_seconds": 1800,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/build-profile-Release.txt",
+  "raw_sha256": "949d6d5fcf2a1fce7f9f0995578579bcaabe4bbb9418b1d7f0bd4d1c0edc98e4",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/build-profile-Release.txt.gz",
+  "compressed_sha256": "d50d80d99b6e8ecb46ff507170a673efa6056656c64057c8f6809f0f097ef85c",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

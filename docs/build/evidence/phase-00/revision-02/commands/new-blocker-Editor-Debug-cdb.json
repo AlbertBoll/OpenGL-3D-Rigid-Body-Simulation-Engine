@@ -1,0 +1,27 @@
+{
+  "name": "new-blocker-Editor-Debug-cdb",
+  "revision": "02",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py",
+    "_debugger",
+    "GEngineEditor"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r02.py _debugger GEngineEditor",
+  "cwd": "C:\\dev\\GEngine-build\\GEngineEditor",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T04:14:15.798430+00:00",
+  "elapsed_seconds": 153.422,
+  "timeout_seconds": 210,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-02/new-blocker-Editor-Debug-cdb.txt",
+  "raw_sha256": "a95d1a1cd7b3cf0a0a2a02e5097f4f4a7d1b8d9460c43ef11723a7d57af4f7f8",
+  "compressed_log": "docs/build/evidence/phase-00/revision-02/commands/new-blocker-Editor-Debug-cdb.txt.gz",
+  "compressed_sha256": "2ab40eea696122eb0f4649cb9c439eb379ac5d414f6c2dc09619c33d3200bbc8",
+  "revision_01_lineage": "f2094ad1bbddaa7cde782adcf2a1f0a28bd5249cd55dc8897589ef73b797230e"
+}

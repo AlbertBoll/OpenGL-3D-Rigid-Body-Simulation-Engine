@@ -1,0 +1,30 @@
+{
+  "name": "startup-Debug-RigidBodySimulation",
+  "revision": "03",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py",
+    "_startup",
+    "Debug",
+    "RigidBodySimulation"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py _startup Debug RigidBodySimulation",
+  "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T05:04:07.641132+00:00",
+  "elapsed_seconds": 61.578,
+  "harness_sha256": "0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-0cf31eaf2d64d87b7f86f22f99ab508b445f21d4e8221b2583be11f3a03b24ee.py",
+  "timeout_seconds": 180,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/startup-Debug-RigidBodySimulation.txt",
+  "raw_sha256": "d0db790246e59da4086565bccae96b600ab4e2e22c4dc870ccdbfe05f3566035",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/startup-Debug-RigidBodySimulation.txt.gz",
+  "compressed_sha256": "fd0b4f47ae8ae5e3d4c44afd2a4a70c367a4ae0f402a64bc9e9247f1600ae81f",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

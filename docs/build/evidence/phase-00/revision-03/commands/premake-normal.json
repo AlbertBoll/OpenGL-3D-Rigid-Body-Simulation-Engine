@@ -1,0 +1,27 @@
+{
+  "name": "premake-normal",
+  "revision": "03",
+  "argv": [
+    "C:\\dev\\GEngine-build\\vendor\\bin\\premake\\premake5.exe",
+    "vs2022"
+  ],
+  "command": "C:\\dev\\GEngine-build\\vendor\\bin\\premake\\premake5.exe vs2022",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": null,
+  "started_utc": "2026-09-13T04:56:07.657038+00:00",
+  "elapsed_seconds": 0.422,
+  "harness_sha256": "caac977868969f78e1ea9ec5318befc1663e8dee134cb17646df57cc9e4fb8f3",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-caac977868969f78e1ea9ec5318befc1663e8dee134cb17646df57cc9e4fb8f3.py",
+  "timeout_seconds": 120,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/premake-normal.txt",
+  "raw_sha256": "044fb96165522e6630d9b0f82622e8923c55f402fa801a0e74695f40a66a173b",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/premake-normal.txt.gz",
+  "compressed_sha256": "fd0f584df33f9607a493876920d111d3eb8620d95f45932f90e8adc0274db9e6",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

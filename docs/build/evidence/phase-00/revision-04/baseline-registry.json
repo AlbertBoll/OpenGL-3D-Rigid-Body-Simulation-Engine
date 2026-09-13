@@ -1,0 +1,77 @@
+{
+  "revision": "04",
+  "previous_registry": {
+    "path": "docs/build/evidence/phase-00/revision-03/baseline-registry.json",
+    "sha256": "491c26c59b9afa6629eed468a7e971caaa290831dcb0bf21d36e72e2b9de68c0",
+    "verbatim_data": {
+      "initial": {
+        "B00-RUNTIME-001": "Historical missing TBB; resolved by accepted unchanged Revision 01",
+        "B00-VALIDATION-002": "Original 120-second Debug timeout remains INCOMPLETE evidence, never a Physics failure"
+      },
+      "revision_01_blockers_resolved_by_accepted_revision_02": {
+        "B00-VALIDATION-003": "Conditional telemetry test contract preserved; fresh normal tests and enabled-counter checks PASS",
+        "B00-RUNTIME-004": "Explicit Breakout relative filename correction preserved; both configurations resource opens and startup PASS",
+        "B00-RUNTIME-005": "Base-owned Breakout shared cleanup preserved; both configurations normal close PASS",
+        "B00-VALIDATION-006": "Ordinary benchmark logger initialization preserved; normal/profile benchmarks PASS"
+      },
+      "revision_03_corrections": {
+        "B00-RUNTIME-007": "Independent baseline late-close stack demonstrates repeated shared manager cleanup; remove only three redundant derived calls, preserve BaseApp cleanup; final early/late Debug/Release close PASS",
+        "B00-RUNTIME-008": "Independent RenderTarget.cpp:266 assertion has live m_Running=false and zero windows after input destroys GL context. Break frame after shutdown input; final early/late Debug/Release close PASS",
+        "B00-RUNTIME-009": "Same SceneApp destructor manually deletes scene-owned camera. Live pre-delete camera pointer exactly matches later failing unique_ptr delete. Remove redundant manual deletion; existing scene/rig owner preserved, final close PASS"
+      },
+      "new_blocker": {
+        "id": "B00-RUNTIME-010",
+        "target": "RayTracing Release",
+        "result": "BLOCKED",
+        "signature": "Fresh ordinary source-CWD startup exits 3221226505 / 0xc0000409 in 5.704 seconds before any close request; no diagnostic dialog and no forced termination",
+        "evidence": "commands/startup-Release-RayTracing.json",
+        "repeats": "Three independent ordinary 60-second repeats pass; resource-traced run and normal-heap debugger run exit 0. These do not explain or erase the original fast-fail.",
+        "root_cause": "UNRESOLVED; no failing stack obtained in debugger repeats. No evidence proves an Editor correction or accepted TBB distribution is incorrect. No RayTracing, driver, dependency, rendering or threading behavior was changed.",
+        "diagnostic_limits": "The first diagnostic stopped at process termination and its harness timed out; no failure stack or dump was captured. The normal-heap diagnostic exits 0 but capture metadata FAIL means the sought crash dump was absent. Original raw outcomes remain unchanged.",
+        "smallest_required_new_contract": "Scoped Release RayTracing startup fast-fail investigation: reproduce with a failure dump/stack under the documented source CWD and protected inputs, distinguish application/runtime/driver or probe-concurrency cause, authorize only a separately reviewed minimum correction if required. Preserve all accepted revisions, dependencies/toolchain/CRT/graph and resources. No broad architecture or migration work."
+      },
+      "final_acceptance": "BLOCKED",
+      "approval_exception": "NONE; no failed or missing gate waived"
+    }
+  },
+  "B00-RUNTIME-010": {
+    "historical_result": "FAIL; unchanged and preserved",
+    "classification": "Real NVIDIA OpenGL FAST_FAIL_FATAL_APP_EXIT, error 6 GPU resource exhaustion, reproduced under overlapping graphics-probe scheduling",
+    "evidence": [
+      "historical-overlap.json",
+      "classification.md",
+      "commands/overlap-02-RayTracing.json",
+      "commands/native-overlap-01-RayTracing.json",
+      "commands/native-overlap-04-RayTracing.json",
+      "commands/native-overlap-04-dump-analysis.json",
+      "commands/native-overlap-04-driver-message.json"
+    ],
+    "correction": "Revision 04 validation helper serializes graphics acceptance, rejects existing app/debugger probes and waits through normal exit/layout restoration. No production code or input edit.",
+    "acceptance_contract": "Normal source-CWD isolated app launch on the verified current runtime; simultaneous GPU-heavy probe acceptance is not asserted.",
+    "status": "RESOLVED FOR PHASE 00 ACCEPTANCE by demonstrated graphics-probe scheduling correction",
+    "fresh_acceptance": [
+      {
+        "name": "acceptance-01-RayTracing",
+        "result": "PASS",
+        "raw_sha256": "a27ca40ff76670eec14f78aede1201cf01919ac3c77bd056dca5ec30cb9ea734"
+      },
+      {
+        "name": "acceptance-02-Breakout",
+        "result": "PASS",
+        "raw_sha256": "982154af1c53cbb771ccfb703ec3c64568e2f6e0f94915ea3150f36d7a45cd7a"
+      },
+      {
+        "name": "acceptance-03-RigidBodySimulation",
+        "result": "PASS",
+        "raw_sha256": "564834c7823803f7e5047d14596017077508f9b498099785fec4316f011e427a"
+      },
+      {
+        "name": "acceptance-04-RayTracing",
+        "result": "PASS",
+        "raw_sha256": "b0c0bf9113e8a0d638e30cbc9a03b61bd8fbdfbcc197454164aae1767f542bf5"
+      }
+    ]
+  },
+  "final_acceptance": "PASS",
+  "approval_exception": "NONE; original and reproduction failures remain failures. New serial measurements follow demonstrated scheduling/resource cause, not a waiver based on repeat passes."
+}

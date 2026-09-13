@@ -1,0 +1,28 @@
+{
+  "name": "startup-Debug-Breakout",
+  "revision": "01",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00.py",
+    "_startup",
+    "Debug",
+    "Breakout"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00.py _startup Debug Breakout",
+  "cwd": "C:\\dev\\GEngine-build\\Breakout",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T03:31:11.531268+00:00",
+  "elapsed_seconds": 46.031,
+  "timeout_seconds": 75,
+  "timed_out": false,
+  "exit_code": 1,
+  "result": "FAIL",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-01/startup-Debug-Breakout.txt",
+  "raw_sha256": "7d27207d916a7c881b1b79bb0a5b3f53607d68539727f86c49acd8ef579f4beb",
+  "compressed_log": "docs/build/evidence/phase-00/revision-01/commands/startup-Debug-Breakout.txt.gz",
+  "compressed_sha256": "5b91b556fc14c38a0d241503abf8797ca0afd9c28c50c0d2f28c3e107e3a54ff",
+  "initial_lineage": "86621b4bcbcbd46a79eaacc35de270b0b833b6eda9b1138a503b2b1eeb1f2a70"
+}

@@ -1,0 +1,23 @@
+{
+  "revision": "01",
+  "classification": "PROTECTED_UNRELATED generated runtime output; excluded from checkpoint",
+  "source": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-01\\tbb-origin\\oneapi-tbb-2021.5.0\\redist\\intel64\\vc14\\tbb12.dll",
+  "source_sha256": "3bda7c5458d7f43bcd49f0dead5114eac1ea14f573aafc736f833089b1d2cd79",
+  "source_machine": "0x8664",
+  "archive_sha256": "096c004c7079af89fe990bb259d58983b0ee272afa3a7ef0733875bfe09fcd8e",
+  "matching_import_library_sha256": "bb72fee5dfebcd6d17448751647a5027027ca4d9309fdae0d4b099c72873ba72",
+  "destinations": [
+    {
+      "path": "bin/Debug/RayTracing/tbb12.dll",
+      "entry_exists": false,
+      "expected_sha256": "3bda7c5458d7f43bcd49f0dead5114eac1ea14f573aafc736f833089b1d2cd79",
+      "checkpoint_member": false
+    },
+    {
+      "path": "bin/Release/RayTracing/tbb12.dll",
+      "entry_exists": false,
+      "expected_sha256": "3bda7c5458d7f43bcd49f0dead5114eac1ea14f573aafc736f833089b1d2cd79",
+      "checkpoint_member": false
+    }
+  ]
+}

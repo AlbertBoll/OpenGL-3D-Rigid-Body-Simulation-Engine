@@ -1,0 +1,49 @@
+{
+  "name": "acceptance-03-RigidBodySimulation",
+  "revision": "04",
+  "mode": "startup",
+  "app": "RigidBodySimulation",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "-B",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+    "_startup",
+    "acceptance-03-RigidBodySimulation",
+    "RigidBodySimulation"
+  ],
+  "cwd": "C:\\dev\\GEngine-build\\RigidBodySimulation",
+  "configuration": "Release",
+  "started_utc": "2026-09-13T06:34:21.122264+00:00",
+  "elapsed_seconds": 60.609,
+  "exit_code": 0,
+  "result": "PASS",
+  "process_result": [
+    {
+      "alive_for_smoke": true,
+      "SDL_window_created": true,
+      "diagnostic_dialogs": [],
+      "exit_code": 0,
+      "exit_hex": "0x0",
+      "forced_termination": false,
+      "application_log": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "text": ""
+      }
+    }
+  ],
+  "raw_log": "bin-int/build-phase-00-revision-04/acceptance-03-RigidBodySimulation.txt",
+  "raw_sha256": "564834c7823803f7e5047d14596017077508f9b498099785fec4316f011e427a",
+  "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/acceptance-03-RigidBodySimulation.txt.gz",
+  "compressed_sha256": "d2ddb349f40399aebecc63d92b72798b2864792d316c7a7e87a8e71892fdf047",
+  "harness_sha256": "eb927038a6f611db0863f2b227bc466b3d53dae380acc644457afa4dcdd40567",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-eb927038a6f611db0863f2b227bc466b3d53dae380acc644457afa4dcdd40567.py",
+  "unchanged_startup_implementation": {
+    "path": "scripts/build_validation/revise_phase00_r03.py",
+    "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+  },
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PATH": "C:\\Windows\\System32;C:\\Windows"
+  },
+  "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+}

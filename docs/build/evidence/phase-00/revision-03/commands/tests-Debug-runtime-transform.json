@@ -1,0 +1,27 @@
+{
+  "name": "tests-Debug-runtime-transform",
+  "revision": "03",
+  "argv": [
+    "C:\\dev\\GEngine-build\\bin\\Debug\\PhysicsTests\\PhysicsTests.exe",
+    "--runtime-transform"
+  ],
+  "command": "C:\\dev\\GEngine-build\\bin\\Debug\\PhysicsTests\\PhysicsTests.exe --runtime-transform",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T05:03:15.082629+00:00",
+  "elapsed_seconds": 0.016,
+  "harness_sha256": "c8f4272311d5f0f93ff1b5cefd978276fd2d65ee1fa89bbd31091405d6f654c0",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-c8f4272311d5f0f93ff1b5cefd978276fd2d65ee1fa89bbd31091405d6f654c0.py",
+  "timeout_seconds": 600,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/tests-Debug-runtime-transform.txt",
+  "raw_sha256": "9690fe98abeb6d64bafce17b12037299a7837f14f708687a32d8a2f3fa0e4552",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/tests-Debug-runtime-transform.txt.gz",
+  "compressed_sha256": "c0dbfc2446650b8960f596c9755d2d0f2d7ca32827614908243980962a6a0eb1",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

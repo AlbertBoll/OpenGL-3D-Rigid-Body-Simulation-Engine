@@ -1,0 +1,25 @@
+{
+  "name": "tests-Debug-solver-storage",
+  "revision": "01",
+  "argv": [
+    "C:\\dev\\GEngine-build\\bin\\Debug\\PhysicsTests\\PhysicsTests.exe",
+    "--solver-storage"
+  ],
+  "command": "C:\\dev\\GEngine-build\\bin\\Debug\\PhysicsTests\\PhysicsTests.exe --solver-storage",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T03:28:39.842648+00:00",
+  "elapsed_seconds": 0.062,
+  "timeout_seconds": 300,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-01/tests-Debug-solver-storage.txt",
+  "raw_sha256": "e0660f029fe9265d4790a8f0f1fc7ffe9ecac34c44c5cd1eb9f66ea07b8222a4",
+  "compressed_log": "docs/build/evidence/phase-00/revision-01/commands/tests-Debug-solver-storage.txt.gz",
+  "compressed_sha256": "9e6e26e237141150b44c71ada539bf1b8f7b1683340acb03363e23e3c6ce13e0",
+  "initial_lineage": "86621b4bcbcbd46a79eaacc35de270b0b833b6eda9b1138a503b2b1eeb1f2a70"
+}

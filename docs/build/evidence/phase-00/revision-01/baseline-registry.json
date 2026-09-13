@@ -1,0 +1,84 @@
+{
+  "initial_blocked_registry": {
+    "path": "docs/build/evidence/phase-00/baseline-failures.json",
+    "sha256": "4b1d7c496fe6ffcc8ecc349e03667e9475c2f5cc90d72dd3c1203b137524b943",
+    "unchanged_entries": [
+      {
+        "id": "B00-RUNTIME-001",
+        "gate": "required runtime DLL / application startup",
+        "status": "BLOCKED",
+        "signature": "Debug RayTracing imports tbb12.dll; DLL absent in captured loader search locations; fresh launch exits 3221225781 / 0xc0000135 within 0.015 seconds before application startup.",
+        "evidence": [
+          "imports-Debug-RayTracing.txt",
+          "startup-Debug-RayTracing.txt",
+          "input-closure.json"
+        ],
+        "attribution_limit": "The observed loader exit reports a missing module, not its filename. The separately established missing TBB import is a concrete unresolved dependency; other transitive dependencies are not ruled out.",
+        "source_unchanged": true,
+        "approved_exception": false
+      },
+      {
+        "id": "B00-VALIDATION-002",
+        "gate": "full Debug PhysicsTests",
+        "status": "INCOMPLETE",
+        "signature": "Capture terminated this process after its 120-second limit; exit 1 is harness termination, not a reported assertion failure. Output has no final check summary.",
+        "evidence": [
+          "tests-Debug-full.txt",
+          "commands.json"
+        ],
+        "attribution_limit": "A slow run, hang and interactive CRT diagnostic are not distinguished. No Physics defect is classified from this timeout.",
+        "approved_exception": false
+      }
+    ]
+  },
+  "revision_dispositions": [
+    {
+      "id": "B00-RUNTIME-001",
+      "initial_status": "BLOCKED (preserved)",
+      "revision_status": "Matching runtime supplied to both RayTracing outputs; Debug loaded exact staged DLL and cleanly exited in corrected probe. Original missing-DLL capture remains unchanged.",
+      "remaining_limit": "Full eight-app startup/resource matrix incomplete; do not call the whole phase accepted."
+    },
+    {
+      "id": "B00-VALIDATION-002",
+      "initial_status": "INCOMPLETE 120-second timeout (preserved)",
+      "revision_status": "New independent full runs completed: Debug 185.766 seconds, Release 13.094 seconds; failures recorded separately as B00-VALIDATION-003."
+    }
+  ],
+  "new_failures": [
+    {
+      "id": "B00-VALIDATION-003",
+      "signature": "80 contact telemetry assertions fail in each normal configuration; Debug 80/18726, Release 80/18724",
+      "source_evidence": [
+        "PhysicsTests/src/main.cpp:2682",
+        "GEngine/include/GEngine/Physics/PhysicsProfile.cpp:93",
+        "GEngine/include/GEngine/Physics/PhysicsProfile.h:118"
+      ],
+      "explanation": "Normal generation omits GE_ENABLE_PHYSICS_PROFILING and returns an empty profile snapshot; test unconditionally expects generatedContactCount=4 and solverConstraintCount=4. Other suite checks pass. No normal/profiling policy or test changed.",
+      "accepted_exception": false
+    },
+    {
+      "id": "B00-RUNTIME-004",
+      "signature": "Breakout Debug logs 11 failed texture loads for 5 malformed .png.png paths; checkerboard fallback",
+      "evidence": "resource-audit.json",
+      "scope_blocker": "Needs application/engine path change or source-tree resource aliases; both forbidden.",
+      "accepted_exception": false
+    },
+    {
+      "id": "B00-RUNTIME-005",
+      "signature": "Breakout Debug alive for 45-second smoke; normal SDL WM_CLOSE then exit 0xc0000005 without forced termination",
+      "cause": "Unknown; no behavioral repair attempted",
+      "accepted_exception": false
+    },
+    {
+      "id": "B00-VALIDATION-006",
+      "signature": "Debug fixed-input normal PhysicsBenchmark exits 0xc0000005 after 32.313 seconds; stdout empty. Release same input completes.",
+      "cause": "Unknown; no Physics repair attempted",
+      "accepted_exception": false
+    }
+  ],
+  "capture_correction": {
+    "name": "revision startup-Debug-RayTracing first probe",
+    "description": "The harness deliberately hid the SDL window but mistakenly required visibility and only closed visible windows. It force-terminated the healthy process. This capture is retained as harness-limited evidence, not an application regression. Corrected probe identifies SDL_app class, closes the hidden window normally, exits 0, and captures exact loaded TBB hash."
+  },
+  "final_acceptance": "BLOCKED; no failed test/resource criterion waived"
+}

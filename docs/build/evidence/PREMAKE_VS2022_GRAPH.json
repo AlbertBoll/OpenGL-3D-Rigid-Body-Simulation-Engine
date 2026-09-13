@@ -1,0 +1,3614 @@
+{
+  "baseline": "b3b043b15ee814133e8419466a1bf3a985a3c958",
+  "command": "vendor/bin/premake/premake5.exe vs2022",
+  "result": 0,
+  "generator": "5.0.0-beta1",
+  "compilation_performed": false,
+  "projects": [
+    {
+      "target": "Breakout",
+      "project": "Breakout/Breakout.vcxproj",
+      "sha256": "5c3c1c7ef1237735deb9dd6af33ce2db10f40f00a9d42392d496213149e0d27e",
+      "compiled": [
+        {
+          "path": "Breakout/src/BreakoutApp.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "Breakout/src/GameLevel.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "Breakout/src/GameObject/BallObject.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "Breakout/src/main.cpp",
+          "per_file": {}
+        }
+      ],
+      "headers": [
+        {
+          "path": "Breakout/include/BreakoutApp.h",
+          "per_file": {}
+        },
+        {
+          "path": "Breakout/include/GameLevel.h",
+          "per_file": {}
+        },
+        {
+          "path": "Breakout/include/GameObject/BallObject.h",
+          "per_file": {}
+        }
+      ],
+      "references": [
+        {
+          "path": "GEngine/GEngine.vcxproj",
+          "per_file": {
+            "Project:": "{023A1B06-6E19-9AA1-7731-2578E38F0003}"
+          }
+        },
+        {
+          "path": "external/glad/glad.vcxproj",
+          "per_file": {
+            "Project:": "{DD62977C-C999-980D-7286-7E105E9C140F}"
+          }
+        }
+      ],
+      "property_groups": [
+        {
+          "condition": "",
+          "values": {
+            "ProjectGuid": "{A21ECC9E-8EEB-26AA-B704-1552A3305C38}",
+            "IgnoreWarnCompileDuplicatedFilename": "true",
+            "Keyword": "Win32Proj",
+            "RootNamespace": "Breakout"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "ConfigurationType": "Application",
+            "UseDebugLibraries": "true",
+            "CharacterSet": "Unicode",
+            "PlatformToolset": "v143"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "ConfigurationType": "Application",
+            "UseDebugLibraries": "false",
+            "CharacterSet": "Unicode",
+            "PlatformToolset": "v143"
+          }
+        },
+        {
+          "condition": "",
+          "values": {}
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "LinkIncremental": "true",
+            "OutDir": "..\\bin\\Debug\\Breakout\\",
+            "IntDir": "..\\bin-int\\Debug\\Breakout\\",
+            "TargetName": "Breakout",
+            "TargetExt": ".exe",
+            "IncludePath": "..\\external\\rttr\\include;..\\external\\tbb\\include;..\\GEngine\\include;..\\GEngine\\include\\external;..\\GEngine\\include\\GEngine;..\\external\\reflection\\include;..\\external\\spdlog\\include;..\\external\\entt\\include;..\\external\\assimp\\include;..\\external\\fmod\\include;include;$(IncludePath)"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "LinkIncremental": "false",
+            "OutDir": "..\\bin\\Release\\Breakout\\",
+            "IntDir": "..\\bin-int\\Release\\Breakout\\",
+            "TargetName": "Breakout",
+            "TargetExt": ".exe",
+            "IncludePath": "..\\external\\rttr\\include;..\\external\\tbb\\include;..\\GEngine\\include;..\\GEngine\\include\\external;..\\GEngine\\include\\GEngine;..\\external\\reflection\\include;..\\external\\spdlog\\include;..\\external\\entt\\include;..\\external\\assimp\\include;..\\external\\fmod\\include;include;$(IncludePath)"
+          }
+        }
+      ],
+      "configuration_settings": [
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "ClCompile": {
+              "PrecompiledHeader": "NotUsing",
+              "WarningLevel": "Level3",
+              "PreprocessorDefinitions": "GENGINE_PLATFORM_WINDOWS;_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING;GENGINE_CONFIG_DEBUG;%(PreprocessorDefinitions)",
+              "DebugInformationFormat": "EditAndContinue",
+              "Optimization": "Disabled",
+              "RuntimeLibrary": "MultiThreadedDebug",
+              "AdditionalOptions": "/external:I\"C:/dev/GEngine-build/external\" /external:I\"C:/dev/GEngine-build/GEngine/include/external\" /external:I\"$(VCToolsInstallDir)include\" %(AdditionalOptions)",
+              "LanguageStandard": "stdcpp20",
+              "ExternalWarningLevel": "TurnOffAllWarnings",
+              "ExternalTemplatesDiagnostics": "true"
+            },
+            "Link": {
+              "SubSystem": "Console",
+              "GenerateDebugInformation": "true",
+              "AdditionalDependencies": "SDL2main.lib;SDL2.lib;SDL2test.lib;tbb12.lib;tbb12_debug.lib;tbb.lib;tbb_debug.lib;SDL2_ttf.lib;assimp.lib;fmod64_vc.lib;fmodL64_vc.lib;fmodstudio64_vc.lib;fmodstudioL64_vc.lib;%(AdditionalDependencies)",
+              "AdditionalLibraryDirectories": "..\\external\\sdl2\\lib;..\\external\\tbb\\lib;..\\external\\rttr\\lib;..\\external\\assimp\\lib;..\\external\\fmod\\lib;%(AdditionalLibraryDirectories)"
+            },
+            "PostBuildEvent": {
+              "Command": "python C:/dev/GEngine-build/$(ProjectName)/postbuild.py config=Debug prj=$(ProjectName)"
+            }
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "ClCompile": {
+              "PrecompiledHeader": "NotUsing",
+              "WarningLevel": "Level3",
+              "PreprocessorDefinitions": "GENGINE_PLATFORM_WINDOWS;_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING;GENGINE_CONFIG_RELEASE;%(PreprocessorDefinitions)",
+              "DebugInformationFormat": "None",
+              "Optimization": "Full",
+              "FunctionLevelLinking": "true",
+              "IntrinsicFunctions": "true",
+              "MinimalRebuild": "false",
+              "StringPooling": "true",
+              "RuntimeLibrary": "MultiThreaded",
+              "AdditionalOptions": "/external:I\"C:/dev/GEngine-build/external\" /external:I\"C:/dev/GEngine-build/GEngine/include/external\" /external:I\"$(VCToolsInstallDir)include\" %(AdditionalOptions)",
+              "LanguageStandard": "stdcpp20",
+              "ExternalWarningLevel": "TurnOffAllWarnings",
+              "ExternalTemplatesDiagnostics": "true"
+            },
+            "Link": {
+              "SubSystem": "Console",
+              "GenerateDebugInformation": "false",
+              "EnableCOMDATFolding": "true",
+              "OptimizeReferences": "true",
+              "AdditionalDependencies": "SDL2main.lib;SDL2.lib;SDL2test.lib;tbb12.lib;tbb12_debug.lib;tbb.lib;tbb_debug.lib;SDL2_ttf.lib;assimp.lib;fmod64_vc.lib;fmodL64_vc.lib;fmodstudio64_vc.lib;fmodstudioL64_vc.lib;%(AdditionalDependencies)",
+              "AdditionalLibraryDirectories": "..\\external\\sdl2\\lib;..\\external\\tbb\\lib;..\\external\\rttr\\lib;..\\external\\assimp\\lib;..\\external\\fmod\\lib;%(AdditionalLibraryDirectories)"
+            },
+            "PostBuildEvent": {
+              "Command": "python C:/dev/GEngine-build/$(ProjectName)/postbuild.py config=Release prj=$(ProjectName)"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "target": "glad",
+      "project": "external/glad/glad.vcxproj",
+      "sha256": "c2d99bda79ced5c30d3daf6fe2bd11a70a7bc4487f020287c8e1a8bef5a06b66",
+      "compiled": [
+        {
+          "path": "external/glad/src/glad.c",
+          "per_file": {}
+        }
+      ],
+      "headers": [
+        {
+          "path": "external/glad/include/KHR/khrplatform.h",
+          "per_file": {}
+        },
+        {
+          "path": "external/glad/include/glad/glad.h",
+          "per_file": {}
+        }
+      ],
+      "references": [],
+      "property_groups": [
+        {
+          "condition": "",
+          "values": {
+            "ProjectGuid": "{DD62977C-C999-980D-7286-7E105E9C140F}",
+            "IgnoreWarnCompileDuplicatedFilename": "true",
+            "Keyword": "Win32Proj",
+            "RootNamespace": "glad",
+            "WindowsTargetPlatformVersion": "10.0"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "ConfigurationType": "StaticLibrary",
+            "UseDebugLibraries": "true",
+            "CharacterSet": "Unicode",
+            "PlatformToolset": "v143"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "ConfigurationType": "StaticLibrary",
+            "UseDebugLibraries": "false",
+            "CharacterSet": "Unicode",
+            "PlatformToolset": "v143"
+          }
+        },
+        {
+          "condition": "",
+          "values": {}
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "OutDir": "bin\\Debug\\glad\\",
+            "IntDir": "bin-int\\Debug\\glad\\",
+            "TargetName": "glad",
+            "TargetExt": ".lib",
+            "IncludePath": "include;$(IncludePath)"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "OutDir": "bin\\Release\\glad\\",
+            "IntDir": "bin-int\\Release\\glad\\",
+            "TargetName": "glad",
+            "TargetExt": ".lib",
+            "IncludePath": "include;$(IncludePath)"
+          }
+        }
+      ],
+      "configuration_settings": [
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "ClCompile": {
+              "PrecompiledHeader": "NotUsing",
+              "WarningLevel": "Level3",
+              "DebugInformationFormat": "EditAndContinue",
+              "Optimization": "Disabled",
+              "RuntimeLibrary": "MultiThreadedDebug"
+            },
+            "Link": {
+              "SubSystem": "Windows",
+              "GenerateDebugInformation": "true"
+            }
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "ClCompile": {
+              "PrecompiledHeader": "NotUsing",
+              "WarningLevel": "Level3",
+              "DebugInformationFormat": "None",
+              "Optimization": "Full",
+              "FunctionLevelLinking": "true",
+              "IntrinsicFunctions": "true",
+              "MinimalRebuild": "false",
+              "StringPooling": "true",
+              "RuntimeLibrary": "MultiThreaded"
+            },
+            "Link": {
+              "SubSystem": "Windows",
+              "GenerateDebugInformation": "false",
+              "EnableCOMDATFolding": "true",
+              "OptimizeReferences": "true"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "target": "GEngine",
+      "project": "GEngine/GEngine.vcxproj",
+      "sha256": "86267354511e31f98243fd5605faa531cc88c10af264a910fbede24d23527fc9",
+      "compiled": [
+        {
+          "path": "GEngine/include/GEngine/Camera/SceneCamera.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Camera/_Camera.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/RenderSystem.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Scene.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Bounds.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Broadphase.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Constraints/Constraint.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Constraints/ConstraintPenetration.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Contact.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/GJK.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Manifold.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/PhysicsBody.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/PhysicsProfile.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/PhysicsSystem.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/PhysicsWorld.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Shape.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/ShapeBox.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/ShapeConvex.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/ShapeSphere.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/SpatialPartition/KDTree.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/UI/UICore.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/glm.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/imgui.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/imgui_demo.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/imgui_draw.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/imgui_impl_opengl3.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/imgui_impl_sdl.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/imgui_stdlib.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/imgui_tables.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/imgui_widgets.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imguizmo/ImGuizmo.cpp",
+          "per_file": {
+            "PrecompiledHeader:": "NotUsing"
+          }
+        },
+        {
+          "path": "GEngine/include/external/stb_image/stb_image.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/stb_image/stb_image_write.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Animation/AnimatedModel.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Animation/Animation.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Animation/AnimationSystem.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Assets/Font.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Assets/Shader.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Assets/TextTexture.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Assets/Texture.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Audio/AudioSystem.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Audio/SoundEvent.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Camera/Camera.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Camera/EditorCamera.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Camera/OrthographicCamera.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Camera/PerspectiveCamera.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Camera/PlayerCamera.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Camera/RayTracingCamera.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Camera/ThirdPersonCamera.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Character/Character.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Component/Component.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/AAEntity.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/Actor.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/BaseApp.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/Entities.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/Entity.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/FrameBuffer.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/GEngine.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/GameObject2D.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/Image.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/Log.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/RandomGenerator.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/RawModel.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/RenderTarget.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/Renderer.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/Renderer2D.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/SceneGraph.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/SimpleRenderer.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/Sprite2D.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/UUID.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Core/Window.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Events/ApplicationEvent.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Events/Event.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Events/GameControllerEvent.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Events/KeyBoardEvent.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Events/MouseEvent.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Extras/Axes.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Extras/CameraRig.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Extras/Grid.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Factory/ShapeFactory.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Geometry/Curve.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Geometry/Geometry.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Light/LightEntity.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Managers/AssetsManager.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Managers/EventManager.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Managers/InputManager.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Managers/ShaderManager.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Managers/ShapeManager.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Managers/WindowManager.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Material/AAScreenMaterial.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Material/AnimatedMaterial.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Material/BasicMaterial.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Material/LightTextureMaterial.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Material/LineBasicMaterial.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Material/Material.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Material/NormalLightTextureMaterial.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Material/SkyBoxMaterial.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Material/SpriteMaterial.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Material/TerrainLightMaterial.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Material/TextureMaterial.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Math/Math.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Mesh/Attribute.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Mesh/BufferLayout.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Mesh/IndexBuffer.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Mesh/Mesh.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Mesh/VertexBuffer.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Scene/BoxEntity.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Scene/SkyBoxEntity.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Scene/_Entity.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Scene/_Scene.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Shapes/Box.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Shapes/Terrain.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Sprite/SpriteEntity.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Windows/ImGuiWindow.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/Windows/SDLWindow.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/src/gepch.cpp",
+          "per_file": {
+            "PrecompiledHeader:": "Create"
+          }
+        }
+      ],
+      "headers": [
+        {
+          "path": "GEngine/include/GEngine/Animation/AnimatedModel.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Animation/Animation.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Animation/AnimationSystem.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Animation/Bone.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Animation/BoneInfo.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Assets/Fonts/Font.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Assets/Shaders/Shader.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Assets/Textures/TextTexture.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Assets/Textures/Texture.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Audio/AudioSystem.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Audio/SoundEvent.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Camera/Camera.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Camera/EditorCamera.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Camera/OrthographicCamera.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Camera/PerspectiveCamera.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Camera/PlayerCamera.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Camera/RayTracingCamera.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Camera/SceneCamera.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Camera/ThirdPersonCamera.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Camera/_Camera.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Character/Character.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Component/Component.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Container/Array.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Container/Array1D.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Container/Array2D.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Container/Array3D.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Container/ArrayAccessor1D.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Container/ArrayAccessor2D.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Container/ArrayAccessor3D.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/AAEntity.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Actor.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Assert.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Base.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/BaseApp.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Entities.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Entity.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/FrameBuffer.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/GEngine.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/GameObject2D.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Group.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Image.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Log.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Parallel.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Pod.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/RandomGenerator.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/RawModel.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Ray.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/RayTracingScene.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/RenderSystem.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/RenderTarget.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Renderer.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Renderer2D.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Scene.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/SceneGraph.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/SimpleRenderer.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Sprite2D.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/System.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/ThreadPool.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Timer.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Timestep.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/UUID.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Utility.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Core/Window.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/EntryPoint.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Events/ApplicationEvent.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Events/Event.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Events/GameControllerEvent.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Events/KeyBoardEvent.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Events/MouseEvent.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Events/Property.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Events/Signal.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Extras/AssimpGLMHelpers.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Extras/Axes.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Extras/CameraRig.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Extras/Grid.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Factory/ShapeFactory.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Geometry/Curve.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Geometry/Geometry.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Geometry/Surface.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Inputs/ControllerCodes.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Inputs/KeyCodes.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Inputs/MouseCodes.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Light/LightEntity.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Managers/AssetsManager.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Managers/EventManager.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Managers/InputManager.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Managers/ManagerBase.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Managers/ShaderManager.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Managers/ShapeManager.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Managers/WindowManager.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Material/AAScreenMaterial.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Material/AnimatedMaterial.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Material/BasicMaterial.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Material/LightTextureMaterial.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Material/LineBasicMaterial.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Material/Material.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Material/NormalLightTextureMaterial.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Material/SkyBoxMaterial.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Material/SpriteMaterial.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Material/TerrainLightMaterial.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Material/TextureMaterial.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Math/Math.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Math/Matrix.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Mesh/Attribute.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Mesh/BufferLayout.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Mesh/IndexBuffer.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Mesh/Mesh.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Mesh/VertexBuffer.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Bounds.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/BoxContact.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Broadphase.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Constraints/Constraint.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Constraints/ConstraintPenetration.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Constraints/SolverMath.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Contact.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/ContactIsland.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/GJK.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Manifold.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/PhysicsBody.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/PhysicsProfile.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/PhysicsSystem.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/PhysicsWorld.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Shape.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/ShapeBox.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/ShapeConvex.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/ShapeSphere.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/detail/ConvexHull.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Scene/BoxEntity.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Scene/SkyBoxEntity.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Scene/_Entity.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Scene/_Scene.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/AABBBoundingBox.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/AxisHelper.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Box.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Circle.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Cone.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Convex.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Cylinder.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/CylindricalShape.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Diamond.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/DirectionalLightHelper.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Ellipsoid.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/GridHelper.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Hexagon.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Icosahedron.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/KDTreeVisualizer.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Line.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/ParametricSurface.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Plane.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/PointLightHelper.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Points.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Polygon.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Prism.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Pyramid.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Quad.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Rectangle.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Ring.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/SmoothSphere.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Sphere.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/SpriteQuad.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Terrain.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Torus.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Triangle.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Shapes/Tube.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/SpatialPartition/KDTree.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Sprite/ParticleEntity.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Sprite/SpriteEntity.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Sprite/SpriteGeometry.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/UI/UICore.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Windows/ImGuiWindow.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/Windows/SDLWindow.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/GEngine/gepch.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/callbacklist.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/eventdispatcher.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/eventpolicies.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/eventqueue.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/hetercallbacklist.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/hetereventdispatcher.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/hetereventqueue.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/internal/eventpolicies_i.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/internal/eventqueue_i.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/internal/hetercallbacklist_i.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/internal/typeutil_i.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/mixins/mixinfilter.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/mixins/mixinheterfilter.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/utilities/anyid.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/utilities/argumentadapter.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/utilities/conditionalfunctor.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/utilities/conditionalremover.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/utilities/counterremover.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/utilities/eventmaker.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/utilities/eventutil.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/utilities/orderedqueuelist.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/eventpp/utilities/scopedremover.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/common.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/_features.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/_fixes.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/_noise.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/_swizzle.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/_swizzle_func.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/_vectorize.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/compute_common.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/compute_vector_relational.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/qualifier.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/setup.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/type_float.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/type_half.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/type_mat2x2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/type_mat2x3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/type_mat2x4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/type_mat3x2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/type_mat3x3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/type_mat3x4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/type_mat4x2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/type_mat4x3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/type_mat4x4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/type_quat.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/type_vec1.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/type_vec2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/type_vec3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/detail/type_vec4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/exponential.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_clip_space.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_common.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_double2x2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_double2x2_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_double2x3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_double2x3_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_double2x4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_double2x4_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_double3x2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_double3x2_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_double3x3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_double3x3_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_double3x4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_double3x4_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_double4x2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_double4x2_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_double4x3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_double4x3_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_double4x4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_double4x4_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_float2x2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_float2x2_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_float2x3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_float2x3_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_float2x4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_float2x4_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_float3x2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_float3x2_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_float3x3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_float3x3_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_float3x4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_float3x4_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_float4x2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_float4x2_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_float4x3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_float4x3_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_float4x4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_float4x4_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_int2x2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_int2x2_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_int2x3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_int2x3_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_int2x4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_int2x4_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_int3x2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_int3x2_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_int3x3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_int3x3_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_int3x4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_int3x4_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_int4x2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_int4x2_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_int4x3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_int4x3_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_int4x4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_int4x4_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_integer.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_projection.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_relational.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_transform.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_uint2x2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_uint2x2_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_uint2x3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_uint2x3_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_uint2x4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_uint2x4_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_uint3x2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_uint3x2_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_uint3x3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_uint3x3_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_uint3x4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_uint3x4_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_uint4x2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_uint4x2_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_uint4x3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_uint4x3_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_uint4x4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/matrix_uint4x4_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/quaternion_common.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/quaternion_double.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/quaternion_double_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/quaternion_exponential.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/quaternion_float.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/quaternion_float_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/quaternion_geometric.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/quaternion_relational.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/quaternion_transform.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/quaternion_trigonometric.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/scalar_common.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/scalar_constants.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/scalar_int_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/scalar_integer.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/scalar_packing.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/scalar_reciprocal.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/scalar_relational.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/scalar_uint_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/scalar_ulp.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_bool1.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_bool1_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_bool2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_bool2_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_bool3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_bool3_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_bool4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_bool4_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_common.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_double1.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_double1_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_double2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_double2_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_double3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_double3_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_double4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_double4_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_float1.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_float1_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_float2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_float2_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_float3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_float3_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_float4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_float4_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_int1.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_int1_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_int2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_int2_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_int3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_int3_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_int4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_int4_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_integer.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_packing.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_reciprocal.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_relational.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_uint1.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_uint1_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_uint2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_uint2_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_uint3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_uint3_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_uint4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_uint4_sized.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/ext/vector_ulp.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/fwd.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/geometric.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/glm.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/bitfield.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/color_space.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/constants.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/epsilon.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/integer.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/matrix_access.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/matrix_integer.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/matrix_inverse.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/matrix_transform.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/noise.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/packing.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/quaternion.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/random.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/reciprocal.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/round.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/type_aligned.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/type_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/type_ptr.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/ulp.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtc/vec1.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/associated_min_max.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/bit.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/closest_point.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/color_encoding.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/color_space.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/color_space_YCoCg.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/common.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/compatibility.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/component_wise.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/dual_quaternion.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/easing.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/euler_angles.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/extend.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/extended_min_max.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/exterior_product.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/fast_exponential.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/fast_square_root.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/fast_trigonometry.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/functions.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/gradient_paint.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/handed_coordinate_space.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/hash.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/integer.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/intersect.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/io.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/log_base.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/matrix_cross_product.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/matrix_decompose.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/matrix_factorisation.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/matrix_interpolation.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/matrix_major_storage.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/matrix_operation.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/matrix_query.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/matrix_transform_2d.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/mixed_product.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/norm.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/normal.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/normalize_dot.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/number_precision.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/optimum_pow.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/orthonormalize.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/pca.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/perpendicular.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/polar_coordinates.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/projection.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/quaternion.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/range.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/raw_data.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/rotate_normalized_axis.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/rotate_vector.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/scalar_multiplication.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/scalar_relational.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/spline.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/std_based_type.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/string_cast.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/texture.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/transform.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/transform2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/type_aligned.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/type_trait.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/vec_swizzle.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/vector_angle.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/vector_query.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/gtx/wrap.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/integer.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/mat2x2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/mat2x3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/mat2x4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/mat3x2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/mat3x3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/mat3x4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/mat4x2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/mat4x3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/mat4x4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/matrix.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/packing.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/simd/common.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/simd/exponential.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/simd/geometric.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/simd/integer.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/simd/matrix.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/simd/neon.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/simd/packing.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/simd/platform.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/simd/trigonometric.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/simd/vector_relational.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/trigonometric.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/vec2.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/vec3.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/vec4.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/glm/vector_relational.hpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/SDL_config.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/SDL_error.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/SDL_stdinc.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/SDL_syswm.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/SDL_version.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/SDL_video.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/SDL_vulkan.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/begin_code.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/close_code.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/imconfig.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/imgui.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/imgui_impl_opengl3.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/imgui_impl_opengl3_loader.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/imgui_impl_sdl.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/imgui_internal.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/imgui_stdlib.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/imstb_rectpack.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/imstb_textedit.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imgui/imstb_truetype.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/imguizmo/ImGuizmo.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/stb_image/stb_image.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngine/include/external/stb_image/stb_image_write.h",
+          "per_file": {}
+        }
+      ],
+      "references": [],
+      "property_groups": [
+        {
+          "condition": "",
+          "values": {
+            "ProjectGuid": "{023A1B06-6E19-9AA1-7731-2578E38F0003}",
+            "IgnoreWarnCompileDuplicatedFilename": "true",
+            "Keyword": "Win32Proj",
+            "RootNamespace": "GEngine"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "ConfigurationType": "StaticLibrary",
+            "UseDebugLibraries": "true",
+            "CharacterSet": "Unicode",
+            "PlatformToolset": "v143"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "ConfigurationType": "StaticLibrary",
+            "UseDebugLibraries": "false",
+            "CharacterSet": "Unicode",
+            "PlatformToolset": "v143"
+          }
+        },
+        {
+          "condition": "",
+          "values": {}
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "OutDir": "..\\bin\\Debug\\GEngine\\",
+            "IntDir": "..\\bin-int\\Debug\\GEngine\\",
+            "TargetName": "GEngine",
+            "TargetExt": ".lib",
+            "IncludePath": "include\\GEngine;include\\external;..\\external\\sdl2\\include;..\\external\\spdlog\\include;..\\external\\glad\\include;..\\external\\tbb\\include;..\\external\\rttr\\include;..\\external\\reflection\\include;..\\external\\entt\\include;..\\external\\assimp\\include;..\\external\\fmod\\include;$(IncludePath)"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "OutDir": "..\\bin\\Release\\GEngine\\",
+            "IntDir": "..\\bin-int\\Release\\GEngine\\",
+            "TargetName": "GEngine",
+            "TargetExt": ".lib",
+            "IncludePath": "include\\GEngine;include\\external;..\\external\\sdl2\\include;..\\external\\spdlog\\include;..\\external\\glad\\include;..\\external\\tbb\\include;..\\external\\rttr\\include;..\\external\\reflection\\include;..\\external\\entt\\include;..\\external\\assimp\\include;..\\external\\fmod\\include;$(IncludePath)"
+          }
+        }
+      ],
+      "configuration_settings": [
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "ClCompile": {
+              "PrecompiledHeader": "Use",
+              "PrecompiledHeaderFile": "gepch.h",
+              "WarningLevel": "Level3",
+              "PreprocessorDefinitions": "GLFW_INCLUDE_NONE;GENGINE_PLATFORM_WINDOWS;GENGINE_WINDOW_SDL;_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING;GENGINE_CONFIG_DEBUG;%(PreprocessorDefinitions)",
+              "DebugInformationFormat": "EditAndContinue",
+              "Optimization": "Disabled",
+              "RuntimeLibrary": "MultiThreadedDebug",
+              "AdditionalOptions": "/external:I\"C:/dev/GEngine-build/external\" /external:I\"C:/dev/GEngine-build/GEngine/include/external\" /external:I\"$(VCToolsInstallDir)include\" %(AdditionalOptions)",
+              "LanguageStandard": "stdcpp20",
+              "ExternalWarningLevel": "TurnOffAllWarnings",
+              "ExternalTemplatesDiagnostics": "true"
+            },
+            "Link": {
+              "SubSystem": "Windows",
+              "GenerateDebugInformation": "true"
+            }
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "ClCompile": {
+              "PrecompiledHeader": "Use",
+              "PrecompiledHeaderFile": "gepch.h",
+              "WarningLevel": "Level3",
+              "PreprocessorDefinitions": "GLFW_INCLUDE_NONE;GENGINE_PLATFORM_WINDOWS;GENGINE_WINDOW_SDL;_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING;GENGINE_CONFIG_RELEASE;%(PreprocessorDefinitions)",
+              "DebugInformationFormat": "None",
+              "Optimization": "Full",
+              "FunctionLevelLinking": "true",
+              "IntrinsicFunctions": "true",
+              "MinimalRebuild": "false",
+              "StringPooling": "true",
+              "RuntimeLibrary": "MultiThreaded",
+              "AdditionalOptions": "/external:I\"C:/dev/GEngine-build/external\" /external:I\"C:/dev/GEngine-build/GEngine/include/external\" /external:I\"$(VCToolsInstallDir)include\" %(AdditionalOptions)",
+              "LanguageStandard": "stdcpp20",
+              "ExternalWarningLevel": "TurnOffAllWarnings",
+              "ExternalTemplatesDiagnostics": "true"
+            },
+            "Link": {
+              "SubSystem": "Windows",
+              "GenerateDebugInformation": "false",
+              "EnableCOMDATFolding": "true",
+              "OptimizeReferences": "true"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "target": "GEngineEditor",
+      "project": "GEngineEditor/GEngineEditor.vcxproj",
+      "sha256": "90db1011640ff926bfa6683f2680efd8b677dffb865d1d4f75f720cb59f77b60",
+      "compiled": [
+        {
+          "path": "GEngineEditor/src/Panels/SceneHierarchyPanel.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngineEditor/src/SceneApp.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngineEditor/src/SceneTest.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngineEditor/src/main.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "GEngineEditor/src/test.cpp",
+          "per_file": {}
+        }
+      ],
+      "headers": [
+        {
+          "path": "GEngineEditor/src/Panels/SceneHierarchyPanel.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngineEditor/src/SceneApp.h",
+          "per_file": {}
+        },
+        {
+          "path": "GEngineEditor/src/SceneTest.h",
+          "per_file": {}
+        }
+      ],
+      "references": [
+        {
+          "path": "GEngine/GEngine.vcxproj",
+          "per_file": {
+            "Project:": "{023A1B06-6E19-9AA1-7731-2578E38F0003}"
+          }
+        },
+        {
+          "path": "external/glad/glad.vcxproj",
+          "per_file": {
+            "Project:": "{DD62977C-C999-980D-7286-7E105E9C140F}"
+          }
+        }
+      ],
+      "property_groups": [
+        {
+          "condition": "",
+          "values": {
+            "ProjectGuid": "{494954E2-B509-D018-7E44-1996EAC314F5}",
+            "IgnoreWarnCompileDuplicatedFilename": "true",
+            "Keyword": "Win32Proj",
+            "RootNamespace": "GEngineEditor"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "ConfigurationType": "Application",
+            "UseDebugLibraries": "true",
+            "CharacterSet": "Unicode",
+            "PlatformToolset": "v143"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "ConfigurationType": "Application",
+            "UseDebugLibraries": "false",
+            "CharacterSet": "Unicode",
+            "PlatformToolset": "v143"
+          }
+        },
+        {
+          "condition": "",
+          "values": {}
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "LinkIncremental": "true",
+            "OutDir": "..\\bin\\Debug\\GEngineEditor\\",
+            "IntDir": "..\\bin-int\\Debug\\GEngineEditor\\",
+            "TargetName": "GEngineEditor",
+            "TargetExt": ".exe",
+            "IncludePath": "..\\external\\rttr\\include;..\\external\\tbb\\include;..\\GEngine\\include;..\\GEngine\\include\\external;..\\GEngine\\include\\GEngine;..\\external\\reflection\\include;..\\external\\spdlog\\include;..\\external\\entt\\include;..\\external\\assimp\\include;..\\external\\fmod\\include;$(IncludePath)"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "LinkIncremental": "false",
+            "OutDir": "..\\bin\\Release\\GEngineEditor\\",
+            "IntDir": "..\\bin-int\\Release\\GEngineEditor\\",
+            "TargetName": "GEngineEditor",
+            "TargetExt": ".exe",
+            "IncludePath": "..\\external\\rttr\\include;..\\external\\tbb\\include;..\\GEngine\\include;..\\GEngine\\include\\external;..\\GEngine\\include\\GEngine;..\\external\\reflection\\include;..\\external\\spdlog\\include;..\\external\\entt\\include;..\\external\\assimp\\include;..\\external\\fmod\\include;$(IncludePath)"
+          }
+        }
+      ],
+      "configuration_settings": [
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "ClCompile": {
+              "PrecompiledHeader": "NotUsing",
+              "WarningLevel": "Level3",
+              "PreprocessorDefinitions": "GENGINE_PLATFORM_WINDOWS;_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING;GENGINE_CONFIG_DEBUG;%(PreprocessorDefinitions)",
+              "DebugInformationFormat": "EditAndContinue",
+              "Optimization": "Disabled",
+              "RuntimeLibrary": "MultiThreadedDebug",
+              "AdditionalOptions": "/external:I\"C:/dev/GEngine-build/external\" /external:I\"C:/dev/GEngine-build/GEngine/include/external\" /external:I\"$(VCToolsInstallDir)include\" %(AdditionalOptions)",
+              "LanguageStandard": "stdcpp20",
+              "ExternalWarningLevel": "TurnOffAllWarnings",
+              "ExternalTemplatesDiagnostics": "true"
+            },
+            "Link": {
+              "SubSystem": "Console",
+              "GenerateDebugInformation": "true",
+              "AdditionalDependencies": "SDL2main.lib;SDL2.lib;SDL2test.lib;tbb12.lib;tbb12_debug.lib;tbb.lib;tbb_debug.lib;SDL2_ttf.lib;assimp.lib;fmod64_vc.lib;fmodL64_vc.lib;fmodstudio64_vc.lib;fmodstudioL64_vc.lib;%(AdditionalDependencies)",
+              "AdditionalLibraryDirectories": "..\\external\\sdl2\\lib;..\\external\\tbb\\lib;..\\external\\rttr\\lib;..\\external\\assimp\\lib;..\\external\\fmod\\lib;%(AdditionalLibraryDirectories)"
+            },
+            "PostBuildEvent": {
+              "Command": "python C:/dev/GEngine-build/$(ProjectName)/postbuild.py config=Debug prj=$(ProjectName)"
+            }
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "ClCompile": {
+              "PrecompiledHeader": "NotUsing",
+              "WarningLevel": "Level3",
+              "PreprocessorDefinitions": "GENGINE_PLATFORM_WINDOWS;_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING;GENGINE_CONFIG_RELEASE;%(PreprocessorDefinitions)",
+              "DebugInformationFormat": "None",
+              "Optimization": "Full",
+              "FunctionLevelLinking": "true",
+              "IntrinsicFunctions": "true",
+              "MinimalRebuild": "false",
+              "StringPooling": "true",
+              "RuntimeLibrary": "MultiThreaded",
+              "AdditionalOptions": "/external:I\"C:/dev/GEngine-build/external\" /external:I\"C:/dev/GEngine-build/GEngine/include/external\" /external:I\"$(VCToolsInstallDir)include\" %(AdditionalOptions)",
+              "LanguageStandard": "stdcpp20",
+              "ExternalWarningLevel": "TurnOffAllWarnings",
+              "ExternalTemplatesDiagnostics": "true"
+            },
+            "Link": {
+              "SubSystem": "Console",
+              "GenerateDebugInformation": "false",
+              "EnableCOMDATFolding": "true",
+              "OptimizeReferences": "true",
+              "AdditionalDependencies": "SDL2main.lib;SDL2.lib;SDL2test.lib;tbb12.lib;tbb12_debug.lib;tbb.lib;tbb_debug.lib;SDL2_ttf.lib;assimp.lib;fmod64_vc.lib;fmodL64_vc.lib;fmodstudio64_vc.lib;fmodstudioL64_vc.lib;%(AdditionalDependencies)",
+              "AdditionalLibraryDirectories": "..\\external\\sdl2\\lib;..\\external\\tbb\\lib;..\\external\\rttr\\lib;..\\external\\assimp\\lib;..\\external\\fmod\\lib;%(AdditionalLibraryDirectories)"
+            },
+            "PostBuildEvent": {
+              "Command": "python C:/dev/GEngine-build/$(ProjectName)/postbuild.py config=Release prj=$(ProjectName)"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "target": "PhysicsBenchmark",
+      "project": "PhysicsBenchmark/PhysicsBenchmark.vcxproj",
+      "sha256": "0b825279e3a1306a1a51eb47f7d14164abb5a89e014282b3b52aef68d043e459",
+      "compiled": [
+        {
+          "path": "PhysicsBenchmark/src/main.cpp",
+          "per_file": {}
+        }
+      ],
+      "headers": [],
+      "references": [
+        {
+          "path": "GEngine/GEngine.vcxproj",
+          "per_file": {
+            "Project:": "{023A1B06-6E19-9AA1-7731-2578E38F0003}"
+          }
+        }
+      ],
+      "property_groups": [
+        {
+          "condition": "",
+          "values": {
+            "ProjectGuid": "{335AFD43-1F53-1C96-4885-011B34DDFBA1}",
+            "IgnoreWarnCompileDuplicatedFilename": "true",
+            "Keyword": "Win32Proj",
+            "RootNamespace": "PhysicsBenchmark",
+            "WindowsTargetPlatformVersion": "10.0"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "ConfigurationType": "Application",
+            "UseDebugLibraries": "true",
+            "CharacterSet": "Unicode",
+            "PlatformToolset": "v143"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "ConfigurationType": "Application",
+            "UseDebugLibraries": "false",
+            "CharacterSet": "Unicode",
+            "PlatformToolset": "v143"
+          }
+        },
+        {
+          "condition": "",
+          "values": {}
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "LinkIncremental": "true",
+            "OutDir": "..\\bin\\Debug\\PhysicsBenchmark\\",
+            "IntDir": "..\\bin-int\\Debug\\PhysicsBenchmark\\",
+            "TargetName": "PhysicsBenchmark",
+            "TargetExt": ".exe",
+            "IncludePath": "..\\GEngine\\include;..\\GEngine\\include\\external;..\\GEngine\\include\\GEngine;..\\external\\spdlog\\include;..\\external\\entt\\include;$(IncludePath)"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "LinkIncremental": "false",
+            "OutDir": "..\\bin\\Release\\PhysicsBenchmark\\",
+            "IntDir": "..\\bin-int\\Release\\PhysicsBenchmark\\",
+            "TargetName": "PhysicsBenchmark",
+            "TargetExt": ".exe",
+            "IncludePath": "..\\GEngine\\include;..\\GEngine\\include\\external;..\\GEngine\\include\\GEngine;..\\external\\spdlog\\include;..\\external\\entt\\include;$(IncludePath)"
+          }
+        }
+      ],
+      "configuration_settings": [
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "ClCompile": {
+              "PrecompiledHeader": "NotUsing",
+              "WarningLevel": "Level3",
+              "PreprocessorDefinitions": "GENGINE_PLATFORM_WINDOWS;SDL_MAIN_HANDLED;_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING;GENGINE_CONFIG_DEBUG;%(PreprocessorDefinitions)",
+              "DebugInformationFormat": "EditAndContinue",
+              "Optimization": "Disabled",
+              "RuntimeLibrary": "MultiThreadedDebug",
+              "AdditionalOptions": "/external:I\"C:/dev/GEngine-build/external\" /external:I\"C:/dev/GEngine-build/GEngine/include/external\" /external:I\"$(VCToolsInstallDir)include\" %(AdditionalOptions)",
+              "LanguageStandard": "stdcpp20",
+              "ExternalWarningLevel": "TurnOffAllWarnings",
+              "ExternalTemplatesDiagnostics": "true"
+            },
+            "Link": {
+              "SubSystem": "Console",
+              "GenerateDebugInformation": "true"
+            }
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "ClCompile": {
+              "PrecompiledHeader": "NotUsing",
+              "WarningLevel": "Level3",
+              "PreprocessorDefinitions": "GENGINE_PLATFORM_WINDOWS;SDL_MAIN_HANDLED;_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING;GENGINE_CONFIG_RELEASE;%(PreprocessorDefinitions)",
+              "DebugInformationFormat": "None",
+              "Optimization": "Full",
+              "FunctionLevelLinking": "true",
+              "IntrinsicFunctions": "true",
+              "MinimalRebuild": "false",
+              "StringPooling": "true",
+              "RuntimeLibrary": "MultiThreaded",
+              "AdditionalOptions": "/external:I\"C:/dev/GEngine-build/external\" /external:I\"C:/dev/GEngine-build/GEngine/include/external\" /external:I\"$(VCToolsInstallDir)include\" %(AdditionalOptions)",
+              "LanguageStandard": "stdcpp20",
+              "ExternalWarningLevel": "TurnOffAllWarnings",
+              "ExternalTemplatesDiagnostics": "true"
+            },
+            "Link": {
+              "SubSystem": "Console",
+              "GenerateDebugInformation": "false",
+              "EnableCOMDATFolding": "true",
+              "OptimizeReferences": "true"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "target": "PhysicsTests",
+      "project": "PhysicsTests/PhysicsTests.vcxproj",
+      "sha256": "167b722db2d9494faa228e70672dbbacc37baedb6c8bd320a762a5aa5b8deffc",
+      "compiled": [
+        {
+          "path": "GEngine/include/GEngine/Physics/ShapeConvex.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "PhysicsTests/src/main.cpp",
+          "per_file": {}
+        }
+      ],
+      "headers": [],
+      "references": [
+        {
+          "path": "GEngine/GEngine.vcxproj",
+          "per_file": {
+            "Project:": "{023A1B06-6E19-9AA1-7731-2578E38F0003}"
+          }
+        },
+        {
+          "path": "external/glad/glad.vcxproj",
+          "per_file": {
+            "Project:": "{DD62977C-C999-980D-7286-7E105E9C140F}"
+          }
+        }
+      ],
+      "property_groups": [
+        {
+          "condition": "",
+          "values": {
+            "ProjectGuid": "{BB656FCD-A7C8-FE71-504E-37283C90CAF4}",
+            "IgnoreWarnCompileDuplicatedFilename": "true",
+            "Keyword": "Win32Proj",
+            "RootNamespace": "PhysicsTests",
+            "WindowsTargetPlatformVersion": "10.0"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "ConfigurationType": "Application",
+            "UseDebugLibraries": "true",
+            "CharacterSet": "Unicode",
+            "PlatformToolset": "v143"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "ConfigurationType": "Application",
+            "UseDebugLibraries": "false",
+            "CharacterSet": "Unicode",
+            "PlatformToolset": "v143"
+          }
+        },
+        {
+          "condition": "",
+          "values": {}
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "LinkIncremental": "true",
+            "OutDir": "..\\bin\\Debug\\PhysicsTests\\",
+            "IntDir": "..\\bin-int\\Debug\\PhysicsTests\\",
+            "TargetName": "PhysicsTests",
+            "TargetExt": ".exe",
+            "IncludePath": "..\\GEngine\\include;..\\GEngine\\include\\external;..\\GEngine\\include\\GEngine;..\\external\\sdl2\\include;..\\external\\glad\\include;..\\external\\spdlog\\include;..\\external\\entt\\include;$(IncludePath)"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "LinkIncremental": "false",
+            "OutDir": "..\\bin\\Release\\PhysicsTests\\",
+            "IntDir": "..\\bin-int\\Release\\PhysicsTests\\",
+            "TargetName": "PhysicsTests",
+            "TargetExt": ".exe",
+            "IncludePath": "..\\GEngine\\include;..\\GEngine\\include\\external;..\\GEngine\\include\\GEngine;..\\external\\sdl2\\include;..\\external\\glad\\include;..\\external\\spdlog\\include;..\\external\\entt\\include;$(IncludePath)"
+          }
+        }
+      ],
+      "configuration_settings": [
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "ClCompile": {
+              "PrecompiledHeader": "NotUsing",
+              "WarningLevel": "Level3",
+              "PreprocessorDefinitions": "GENGINE_PLATFORM_WINDOWS;SDL_MAIN_HANDLED;_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING;GENGINE_CONFIG_DEBUG;%(PreprocessorDefinitions)",
+              "DebugInformationFormat": "EditAndContinue",
+              "Optimization": "Disabled",
+              "RuntimeLibrary": "MultiThreadedDebug",
+              "AdditionalOptions": "/external:I\"C:/dev/GEngine-build/external\" /external:I\"C:/dev/GEngine-build/GEngine/include/external\" /external:I\"$(VCToolsInstallDir)include\" %(AdditionalOptions)",
+              "LanguageStandard": "stdcpp20",
+              "ExternalWarningLevel": "TurnOffAllWarnings",
+              "ExternalTemplatesDiagnostics": "true"
+            },
+            "Link": {
+              "SubSystem": "Console",
+              "GenerateDebugInformation": "true"
+            }
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "ClCompile": {
+              "PrecompiledHeader": "NotUsing",
+              "WarningLevel": "Level3",
+              "PreprocessorDefinitions": "GENGINE_PLATFORM_WINDOWS;SDL_MAIN_HANDLED;_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING;GENGINE_CONFIG_RELEASE;%(PreprocessorDefinitions)",
+              "DebugInformationFormat": "None",
+              "Optimization": "Full",
+              "FunctionLevelLinking": "true",
+              "IntrinsicFunctions": "true",
+              "MinimalRebuild": "false",
+              "StringPooling": "true",
+              "RuntimeLibrary": "MultiThreaded",
+              "AdditionalOptions": "/external:I\"C:/dev/GEngine-build/external\" /external:I\"C:/dev/GEngine-build/GEngine/include/external\" /external:I\"$(VCToolsInstallDir)include\" %(AdditionalOptions)",
+              "LanguageStandard": "stdcpp20",
+              "ExternalWarningLevel": "TurnOffAllWarnings",
+              "ExternalTemplatesDiagnostics": "true"
+            },
+            "Link": {
+              "SubSystem": "Console",
+              "GenerateDebugInformation": "false",
+              "EnableCOMDATFolding": "true",
+              "OptimizeReferences": "true"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "target": "RayTracing",
+      "project": "RayTracing/RayTracing.vcxproj",
+      "sha256": "d31a7ea1246fbf9c384462b2fde5e9916c7c58c7d3b01485f6e0c49d4be6c7ed",
+      "compiled": [
+        {
+          "path": "RayTracing/src/RayTracing.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "RayTracing/src/main.cpp",
+          "per_file": {}
+        }
+      ],
+      "headers": [
+        {
+          "path": "RayTracing/include/RayTracing.h",
+          "per_file": {}
+        }
+      ],
+      "references": [
+        {
+          "path": "GEngine/GEngine.vcxproj",
+          "per_file": {
+            "Project:": "{023A1B06-6E19-9AA1-7731-2578E38F0003}"
+          }
+        },
+        {
+          "path": "external/glad/glad.vcxproj",
+          "per_file": {
+            "Project:": "{DD62977C-C999-980D-7286-7E105E9C140F}"
+          }
+        }
+      ],
+      "property_groups": [
+        {
+          "condition": "",
+          "values": {
+            "ProjectGuid": "{393270A2-25EA-B1EF-8EF1-8A4B7AC84CE0}",
+            "IgnoreWarnCompileDuplicatedFilename": "true",
+            "Keyword": "Win32Proj",
+            "RootNamespace": "RayTracing"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "ConfigurationType": "Application",
+            "UseDebugLibraries": "true",
+            "CharacterSet": "Unicode",
+            "PlatformToolset": "v143"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "ConfigurationType": "Application",
+            "UseDebugLibraries": "false",
+            "CharacterSet": "Unicode",
+            "PlatformToolset": "v143"
+          }
+        },
+        {
+          "condition": "",
+          "values": {}
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "LinkIncremental": "true",
+            "OutDir": "..\\bin\\Debug\\RayTracing\\",
+            "IntDir": "..\\bin-int\\Debug\\RayTracing\\",
+            "TargetName": "RayTracing",
+            "TargetExt": ".exe",
+            "IncludePath": "..\\external\\rttr\\include;..\\external\\tbb\\include;..\\GEngine\\include;..\\GEngine\\include\\external;..\\GEngine\\include\\GEngine;..\\external\\reflection\\include;..\\external\\spdlog\\include;..\\external\\entt\\include;..\\external\\assimp\\include;..\\external\\fmod\\include;include;$(IncludePath)"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "LinkIncremental": "false",
+            "OutDir": "..\\bin\\Release\\RayTracing\\",
+            "IntDir": "..\\bin-int\\Release\\RayTracing\\",
+            "TargetName": "RayTracing",
+            "TargetExt": ".exe",
+            "IncludePath": "..\\external\\rttr\\include;..\\external\\tbb\\include;..\\GEngine\\include;..\\GEngine\\include\\external;..\\GEngine\\include\\GEngine;..\\external\\reflection\\include;..\\external\\spdlog\\include;..\\external\\entt\\include;..\\external\\assimp\\include;..\\external\\fmod\\include;include;$(IncludePath)"
+          }
+        }
+      ],
+      "configuration_settings": [
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "ClCompile": {
+              "PrecompiledHeader": "NotUsing",
+              "WarningLevel": "Level3",
+              "PreprocessorDefinitions": "GENGINE_PLATFORM_WINDOWS;_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING;GENGINE_CONFIG_DEBUG;%(PreprocessorDefinitions)",
+              "DebugInformationFormat": "EditAndContinue",
+              "Optimization": "Disabled",
+              "RuntimeLibrary": "MultiThreadedDebug",
+              "AdditionalOptions": "/external:I\"C:/dev/GEngine-build/external\" /external:I\"C:/dev/GEngine-build/GEngine/include/external\" /external:I\"$(VCToolsInstallDir)include\" %(AdditionalOptions)",
+              "LanguageStandard": "stdcpp20",
+              "ExternalWarningLevel": "TurnOffAllWarnings",
+              "ExternalTemplatesDiagnostics": "true"
+            },
+            "Link": {
+              "SubSystem": "Console",
+              "GenerateDebugInformation": "true",
+              "AdditionalDependencies": "SDL2main.lib;SDL2.lib;SDL2test.lib;tbb12.lib;tbb12_debug.lib;tbb.lib;tbb_debug.lib;SDL2_ttf.lib;assimp.lib;fmod64_vc.lib;fmodL64_vc.lib;fmodstudio64_vc.lib;fmodstudioL64_vc.lib;%(AdditionalDependencies)",
+              "AdditionalLibraryDirectories": "..\\external\\sdl2\\lib;..\\external\\tbb\\lib;..\\external\\rttr\\lib;..\\external\\assimp\\lib;..\\external\\fmod\\lib;%(AdditionalLibraryDirectories)"
+            },
+            "PostBuildEvent": {
+              "Command": "python C:/dev/GEngine-build/$(ProjectName)/postbuild.py config=Debug prj=$(ProjectName)"
+            }
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "ClCompile": {
+              "PrecompiledHeader": "NotUsing",
+              "WarningLevel": "Level3",
+              "PreprocessorDefinitions": "GENGINE_PLATFORM_WINDOWS;_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING;GENGINE_CONFIG_RELEASE;%(PreprocessorDefinitions)",
+              "DebugInformationFormat": "None",
+              "Optimization": "Full",
+              "FunctionLevelLinking": "true",
+              "IntrinsicFunctions": "true",
+              "MinimalRebuild": "false",
+              "StringPooling": "true",
+              "RuntimeLibrary": "MultiThreaded",
+              "AdditionalOptions": "/external:I\"C:/dev/GEngine-build/external\" /external:I\"C:/dev/GEngine-build/GEngine/include/external\" /external:I\"$(VCToolsInstallDir)include\" %(AdditionalOptions)",
+              "LanguageStandard": "stdcpp20",
+              "ExternalWarningLevel": "TurnOffAllWarnings",
+              "ExternalTemplatesDiagnostics": "true"
+            },
+            "Link": {
+              "SubSystem": "Console",
+              "GenerateDebugInformation": "false",
+              "EnableCOMDATFolding": "true",
+              "OptimizeReferences": "true",
+              "AdditionalDependencies": "SDL2main.lib;SDL2.lib;SDL2test.lib;tbb12.lib;tbb12_debug.lib;tbb.lib;tbb_debug.lib;SDL2_ttf.lib;assimp.lib;fmod64_vc.lib;fmodL64_vc.lib;fmodstudio64_vc.lib;fmodstudioL64_vc.lib;%(AdditionalDependencies)",
+              "AdditionalLibraryDirectories": "..\\external\\sdl2\\lib;..\\external\\tbb\\lib;..\\external\\rttr\\lib;..\\external\\assimp\\lib;..\\external\\fmod\\lib;%(AdditionalLibraryDirectories)"
+            },
+            "PostBuildEvent": {
+              "Command": "python C:/dev/GEngine-build/$(ProjectName)/postbuild.py config=Release prj=$(ProjectName)"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "target": "RigidBodySimulation",
+      "project": "RigidBodySimulation/RigidBodySimulation.vcxproj",
+      "sha256": "ede0466c8adddf59073b59c4d5f1600c6ab095396120036b00ad4c3d271f9a70",
+      "compiled": [
+        {
+          "path": "RigidBodySimulation/src/RigidBodySimulation.cpp",
+          "per_file": {}
+        },
+        {
+          "path": "RigidBodySimulation/src/main.cpp",
+          "per_file": {}
+        }
+      ],
+      "headers": [
+        {
+          "path": "RigidBodySimulation/include/RigidBodySimulation.h",
+          "per_file": {}
+        }
+      ],
+      "references": [
+        {
+          "path": "GEngine/GEngine.vcxproj",
+          "per_file": {
+            "Project:": "{023A1B06-6E19-9AA1-7731-2578E38F0003}"
+          }
+        },
+        {
+          "path": "external/glad/glad.vcxproj",
+          "per_file": {
+            "Project:": "{DD62977C-C999-980D-7286-7E105E9C140F}"
+          }
+        }
+      ],
+      "property_groups": [
+        {
+          "condition": "",
+          "values": {
+            "ProjectGuid": "{A7B98418-131B-6226-9C88-A8D808E998E5}",
+            "IgnoreWarnCompileDuplicatedFilename": "true",
+            "Keyword": "Win32Proj",
+            "RootNamespace": "RigidBodySimulation"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "ConfigurationType": "Application",
+            "UseDebugLibraries": "true",
+            "CharacterSet": "Unicode",
+            "PlatformToolset": "v143"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "ConfigurationType": "Application",
+            "UseDebugLibraries": "false",
+            "CharacterSet": "Unicode",
+            "PlatformToolset": "v143"
+          }
+        },
+        {
+          "condition": "",
+          "values": {}
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "LinkIncremental": "true",
+            "OutDir": "..\\bin\\Debug\\RigidBodySimulation\\",
+            "IntDir": "..\\bin-int\\Debug\\RigidBodySimulation\\",
+            "TargetName": "RigidBodySimulation",
+            "TargetExt": ".exe",
+            "IncludePath": "..\\external\\rttr\\include;..\\external\\tbb\\include;..\\GEngine\\include;..\\GEngine\\include\\external;..\\GEngine\\include\\GEngine;..\\external\\reflection\\include;..\\external\\spdlog\\include;..\\external\\entt\\include;..\\external\\assimp\\include;..\\external\\fmod\\include;include;$(IncludePath)"
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "LinkIncremental": "false",
+            "OutDir": "..\\bin\\Release\\RigidBodySimulation\\",
+            "IntDir": "..\\bin-int\\Release\\RigidBodySimulation\\",
+            "TargetName": "RigidBodySimulation",
+            "TargetExt": ".exe",
+            "IncludePath": "..\\external\\rttr\\include;..\\external\\tbb\\include;..\\GEngine\\include;..\\GEngine\\include\\external;..\\GEngine\\include\\GEngine;..\\external\\reflection\\include;..\\external\\spdlog\\include;..\\external\\entt\\include;..\\external\\assimp\\include;..\\external\\fmod\\include;include;$(IncludePath)"
+          }
+        }
+      ],
+      "configuration_settings": [
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Debug|x64'",
+          "values": {
+            "ClCompile": {
+              "PrecompiledHeader": "NotUsing",
+              "WarningLevel": "Level3",
+              "PreprocessorDefinitions": "GENGINE_PLATFORM_WINDOWS;_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING;GENGINE_CONFIG_DEBUG;%(PreprocessorDefinitions)",
+              "DebugInformationFormat": "EditAndContinue",
+              "Optimization": "Disabled",
+              "RuntimeLibrary": "MultiThreadedDebug",
+              "AdditionalOptions": "/external:I\"C:/dev/GEngine-build/external\" /external:I\"C:/dev/GEngine-build/GEngine/include/external\" /external:I\"$(VCToolsInstallDir)include\" %(AdditionalOptions)",
+              "LanguageStandard": "stdcpp20",
+              "ExternalWarningLevel": "TurnOffAllWarnings",
+              "ExternalTemplatesDiagnostics": "true"
+            },
+            "Link": {
+              "SubSystem": "Console",
+              "GenerateDebugInformation": "true",
+              "AdditionalDependencies": "SDL2main.lib;SDL2.lib;SDL2test.lib;tbb12.lib;tbb12_debug.lib;tbb.lib;tbb_debug.lib;SDL2_ttf.lib;assimp.lib;fmod64_vc.lib;fmodL64_vc.lib;fmodstudio64_vc.lib;fmodstudioL64_vc.lib;%(AdditionalDependencies)",
+              "AdditionalLibraryDirectories": "..\\external\\sdl2\\lib;..\\external\\tbb\\lib;..\\external\\rttr\\lib;..\\external\\assimp\\lib;..\\external\\fmod\\lib;%(AdditionalLibraryDirectories)"
+            },
+            "PostBuildEvent": {
+              "Command": "python C:/dev/GEngine-build/$(ProjectName)/postbuild.py config=Debug prj=$(ProjectName)"
+            }
+          }
+        },
+        {
+          "condition": "'$(Configuration)|$(Platform)'=='Release|x64'",
+          "values": {
+            "ClCompile": {
+              "PrecompiledHeader": "NotUsing",
+              "WarningLevel": "Level3",
+              "PreprocessorDefinitions": "GENGINE_PLATFORM_WINDOWS;_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING;GENGINE_CONFIG_RELEASE;%(PreprocessorDefinitions)",
+              "DebugInformationFormat": "None",
+              "Optimization": "Full",
+              "FunctionLevelLinking": "true",
+              "IntrinsicFunctions": "true",
+              "MinimalRebuild": "false",
+              "StringPooling": "true",
+              "RuntimeLibrary": "MultiThreaded",
+              "AdditionalOptions": "/external:I\"C:/dev/GEngine-build/external\" /external:I\"C:/dev/GEngine-build/GEngine/include/external\" /external:I\"$(VCToolsInstallDir)include\" %(AdditionalOptions)",
+              "LanguageStandard": "stdcpp20",
+              "ExternalWarningLevel": "TurnOffAllWarnings",
+              "ExternalTemplatesDiagnostics": "true"
+            },
+            "Link": {
+              "SubSystem": "Console",
+              "GenerateDebugInformation": "false",
+              "EnableCOMDATFolding": "true",
+              "OptimizeReferences": "true",
+              "AdditionalDependencies": "SDL2main.lib;SDL2.lib;SDL2test.lib;tbb12.lib;tbb12_debug.lib;tbb.lib;tbb_debug.lib;SDL2_ttf.lib;assimp.lib;fmod64_vc.lib;fmodL64_vc.lib;fmodstudio64_vc.lib;fmodstudioL64_vc.lib;%(AdditionalDependencies)",
+              "AdditionalLibraryDirectories": "..\\external\\sdl2\\lib;..\\external\\tbb\\lib;..\\external\\rttr\\lib;..\\external\\assimp\\lib;..\\external\\fmod\\lib;%(AdditionalLibraryDirectories)"
+            },
+            "PostBuildEvent": {
+              "Command": "python C:/dev/GEngine-build/$(ProjectName)/postbuild.py config=Release prj=$(ProjectName)"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

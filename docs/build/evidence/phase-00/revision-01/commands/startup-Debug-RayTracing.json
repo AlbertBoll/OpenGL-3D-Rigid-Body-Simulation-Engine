@@ -1,0 +1,28 @@
+{
+  "name": "startup-Debug-RayTracing",
+  "revision": "01",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00.py",
+    "_startup",
+    "Debug",
+    "RayTracing"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00.py _startup Debug RayTracing",
+  "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+  "configuration": "Debug",
+  "started_utc": "2026-09-13T03:27:15.599445+00:00",
+  "elapsed_seconds": 25.922,
+  "timeout_seconds": 45,
+  "timed_out": false,
+  "exit_code": 1,
+  "result": "FAIL",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-01/startup-Debug-RayTracing.txt",
+  "raw_sha256": "e4b64db767300d9af21962086589a34474b8738aa5b6963771c2438a94766b05",
+  "compressed_log": "docs/build/evidence/phase-00/revision-01/commands/startup-Debug-RayTracing.txt.gz",
+  "compressed_sha256": "ec140410fe499c48de61e46c8c3aeef8f8842ad68caffee7d88173c507455e45",
+  "initial_lineage": "86621b4bcbcbd46a79eaacc35de270b0b833b6eda9b1138a503b2b1eeb1f2a70"
+}

@@ -1,0 +1,32 @@
+{
+  "name": "benchmark-Release-profile-steady",
+  "revision": "03",
+  "argv": [
+    "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsBenchmark\\PhysicsBenchmark.exe",
+    "--body-counts=50,100,200,500,1000,2000",
+    "--warmup=2",
+    "--samples=5",
+    "--dt=0.008333333",
+    "--steady-state-warmup-steps=4",
+    "--steady-state-measured-steps=8"
+  ],
+  "command": "C:\\dev\\GEngine-build\\bin\\Release\\PhysicsBenchmark\\PhysicsBenchmark.exe --body-counts=50,100,200,500,1000,2000 --warmup=2 --samples=5 --dt=0.008333333 --steady-state-warmup-steps=4 --steady-state-measured-steps=8",
+  "cwd": "C:\\dev\\GEngine-build",
+  "configuration": "Release",
+  "started_utc": "2026-09-13T04:56:07.392105+00:00",
+  "elapsed_seconds": 0.047,
+  "harness_sha256": "caac977868969f78e1ea9ec5318befc1663e8dee134cb17646df57cc9e4fb8f3",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-caac977868969f78e1ea9ec5318befc1663e8dee134cb17646df57cc9e4fb8f3.py",
+  "timeout_seconds": 1800,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/benchmark-Release-profile-steady.txt",
+  "raw_sha256": "feb3ab8787d4db603d67ed9e214c18f4e2f68995c01a1468777657beed878ebb",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/benchmark-Release-profile-steady.txt.gz",
+  "compressed_sha256": "506c1fac4f3475208df350b50592fcb8b3e25590f2352c4d77591689d2d93361",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

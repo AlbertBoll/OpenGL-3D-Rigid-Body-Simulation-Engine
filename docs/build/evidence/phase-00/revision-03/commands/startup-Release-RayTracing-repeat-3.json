@@ -1,0 +1,31 @@
+{
+  "name": "startup-Release-RayTracing-repeat-3",
+  "revision": "03",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py",
+    "_startup",
+    "Release",
+    "RayTracing",
+    "startup-Release-RayTracing-repeat-3"
+  ],
+  "command": "C:\\Python310\\python.exe C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r03.py _startup Release RayTracing startup-Release-RayTracing-repeat-3",
+  "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+  "configuration": "Release",
+  "started_utc": "2026-09-13T05:16:10.943977+00:00",
+  "elapsed_seconds": 60.5,
+  "harness_sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-03\\harness-ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928.py",
+  "timeout_seconds": 180,
+  "timed_out": false,
+  "exit_code": 0,
+  "result": "PASS",
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "raw_log": "bin-int/build-phase-00-revision-03/startup-Release-RayTracing-repeat-3.txt",
+  "raw_sha256": "2a0312f39b2eb74ba6c2789b2e8fdd2d8d7b8b697d62733e49d8a3679ecac0ae",
+  "compressed_log": "docs/build/evidence/phase-00/revision-03/commands/startup-Release-RayTracing-repeat-3.txt.gz",
+  "compressed_sha256": "c974c887548ca773fa2ce1215485ea8d53549fb09b623c9f3d0df10f44ad2c5a",
+  "revision_02_lineage": "42e372560f4f0c2b650ba99ad735743a0c57e5fac3ac11aeadec89af74440885"
+}

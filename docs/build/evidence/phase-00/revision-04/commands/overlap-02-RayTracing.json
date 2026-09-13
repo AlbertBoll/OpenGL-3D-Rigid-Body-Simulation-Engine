@@ -1,0 +1,49 @@
+{
+  "name": "overlap-02-RayTracing",
+  "revision": "04",
+  "mode": "startup",
+  "app": "RayTracing",
+  "argv": [
+    "C:\\Python310\\python.exe",
+    "-B",
+    "C:\\dev\\GEngine-build\\scripts\\build_validation\\revise_phase00_r04.py",
+    "_startup",
+    "overlap-02-RayTracing",
+    "RayTracing"
+  ],
+  "cwd": "C:\\dev\\GEngine-build\\RayTracing",
+  "configuration": "Release",
+  "started_utc": "2026-09-13T06:16:16.196380+00:00",
+  "elapsed_seconds": 3.375,
+  "exit_code": 1,
+  "result": "FAIL",
+  "process_result": [
+    {
+      "alive_for_smoke": false,
+      "SDL_window_created": true,
+      "diagnostic_dialogs": [],
+      "exit_code": 3221226505,
+      "exit_hex": "0xc0000409",
+      "forced_termination": false,
+      "application_log": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "text": ""
+      }
+    }
+  ],
+  "raw_log": "bin-int/build-phase-00-revision-04/overlap-02-RayTracing.txt",
+  "raw_sha256": "c22f12445ce5f68f2a10794b13a54845562fe28df31eca389106bedb9bdddc6a",
+  "compressed_log": "docs/build/evidence/phase-00/revision-04/commands/overlap-02-RayTracing.txt.gz",
+  "compressed_sha256": "de533ad6bf2ca04d633a583093b5325663bbb6324a7faa8782bc664c4f8de103",
+  "harness_sha256": "f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe",
+  "retained_harness": "C:\\dev\\GEngine-build\\bin-int\\build-phase-00-revision-04\\harness-f621f01fbaed55c222ecbfd8a39b190782393c8282bad5dda30bf27c4e34fabe.py",
+  "unchanged_startup_implementation": {
+    "path": "scripts/build_validation/revise_phase00_r03.py",
+    "sha256": "ba6e0da657afc5b17bb011f863678de38402d0e2bd677c32edbf75ca1b168928"
+  },
+  "environment_override": {
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PATH": "C:\\Windows\\System32;C:\\Windows"
+  },
+  "environment_identity_sha256": "7af0ab83f634d8e01a2696ab401b1aa4cae75896733b8e040615f33753d195ea"
+}

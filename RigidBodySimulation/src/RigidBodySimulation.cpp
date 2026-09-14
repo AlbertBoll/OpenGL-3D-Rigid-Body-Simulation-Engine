@@ -20,9 +20,9 @@
 using namespace GEngine;
 
 #define activate_boxes_stacking 0
-#define activate_sphere_lattice 0
+#define activate_sphere_lattice 1
 #define activate_sphere_diamond 0
-#define activate_sphere_boxes_stacking 1
+#define activate_sphere_boxes_stacking 0
 
 static constexpr RuntimeAssets::Directory base_shader_dir{ "Shaders/" };
 

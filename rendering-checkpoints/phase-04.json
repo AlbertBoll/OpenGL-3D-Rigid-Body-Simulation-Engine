@@ -1,0 +1,207 @@
+{
+  "baseline": "8f9cff4604ad15fc8403cbf167b75d3cd4059e3e",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "RenderingValidation/README.md",
+    "RenderingValidation/src/main.cpp",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "premake5.lua",
+    "rendering-checkpoints/phase-04.json",
+    "tools/rendering_validation.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Add one small standalone RenderingValidation target and documented Python entry point with CPU, optional hidden GL and ASan controls.",
+      "finding": "GE-027 missing dedicated rendering validation executable; existing Physics/probe automation already present",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Restrict discovery to VS2022 and explicitly bind VCToolsVersion to the selected compiler/runtime. Both final ASan configurations pass.",
+      "finding": "Unrestricted Visual Studio discovery paired v143 objects with newer-major ASan runtime",
+      "status": "RESOLVED"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_04_REVIEW.md"
+  ],
+  "next_phase": "05",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "7ab3e921b09fd46041296c8dae3760d10551688b",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-04/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/7ab3e921b09fd46041296c8dae3760d10551688b",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "212a68ce06a38af3a4c5fe2dfa267a49c49ddc1618b82bda031ba4cc6ea9095c"
+      },
+      "mode": "100644",
+      "validated_blob": "8d517e0f0df579beb698fd6c40a20a1b06325305",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-04/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/8d517e0f0df579beb698fd6c40a20a1b06325305"
+    }
+  },
+  "phase": "04",
+  "previous_approved_tag": "render-refactor-phase-03-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_04_REVIEW.md",
+  "schema": 2,
+  "summary": "Standalone C++20 rendering validation target: CPU checks, optional hidden GL context lifetimes, deterministic failures, and isolated Debug/Release ASan smoke plus confirmed overflow detection. VS2022/v143/static CRT preserved. TSan unavailable on supported MSVC; canonical owner-mutable snapshot retained. Awaiting human review.",
+  "validation": [
+    {
+      "check": "Target-only Debug/Release builds, CPU/failure/exception/usage checks and two hidden context lifetimes per configuration",
+      "command": "python tools/rendering_validation.py --configuration Debug --gl --output logs/rendering/phase04/final/debug-context\npython tools/rendering_validation.py --configuration Release --gl --output logs/rendering/phase04/final/release-context",
+      "evidence": "logs/rendering/phase04/final/debug-context/results.json; logs/rendering/phase04/final/release-context/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Target-only Debug/Release ASan builds, clean CPU smoke and detected isolated heap-buffer-overflow",
+      "command": "python tools/rendering_validation.py --configuration Debug --asan --output logs/rendering/phase04/final/debug-asan\npython tools/rendering_validation.py --configuration Release --asan --output logs/rendering/phase04/final/release-asan",
+      "evidence": "logs/rendering/phase04/final/debug-asan/results.json; logs/rendering/phase04/final/release-asan/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Pure CPU operation without SDL on PATH and deterministic unavailable-GL exit 3",
+      "command": "Native Debug RenderingValidation.exe --self-test with system-only PATH; --gl with existing SDL PATH and intentionally invalid SDL_VIDEODRIVER",
+      "evidence": "logs/rendering/phase04/final/isolation-and-unavailable.json",
+      "result": "PASS"
+    },
+    {
+      "check": "ThreadSanitizer on the recorded Windows/MSVC toolchain",
+      "command": "Inspect installed toolchain policy and Microsoft supported sanitizer documentation",
+      "evidence": "RenderingValidation/README.md: ThreadSanitizer unavailable in MSVC/Windows; no alternate compiler introduced. https://learn.microsoft.com/en-us/cpp/sanitizers/asan?view=msvc-170",
+      "reason": "The recorded Windows x64 MSVC/v143 toolchain does not support ThreadSanitizer. Microsoft lists /fsanitize=thread as future tooling; no alternate compiler/platform is introduced by Phase 04.",
+      "result": "NOT_APPLICABLE"
+    },
+    {
+      "check": "Final input identity, existing-project isolation, protected/index/approved-history preservation and canonical owner content",
+      "command": "python logs/rendering/phase04/verify_phase04.py",
+      "evidence": "logs/rendering/phase04/verification.json; logs/rendering/phase04/preflight.json; logs/rendering/phase04/validation-inputs.json",
+      "result": "PASS"
+    },
+    {
+      "check": "25 focused canonical owner-mutable and destination-authorization helper regressions",
+      "command": "python logs/rendering/governance-hardening/run_focused_tests.py (prior completed governance-only work)",
+      "evidence": "logs/rendering/governance-hardening/focused-tests.json; logs/rendering/phase04/verification.json",
+      "result": "PASS",
+      "reuse_reason": "Checkpoint helper and test source hashes exactly match the completed governance-hardening validation. No helper behavior changed in Phase 04; do not rerun unaffected governance tests."
+    }
+  ],
+  "validation_input_hashes": {
+    ".agents/skills/rendering-phase-approval/SKILL.md": {
+      "executable": null,
+      "sha256": "1ba3555ad1d347c8aa26371760058d49cae374177db4ed18f0182e4db3669a15"
+    },
+    ".agents/skills/rendering-phase-execution/SKILL.md": {
+      "executable": null,
+      "sha256": "229848e02aef1a18616cc6222b9a7ccd23ac0181dc2e4f1fae67bdb069203e25"
+    },
+    ".agents/skills/rendering-phase-execution/references/snapshot.md": {
+      "executable": null,
+      "sha256": "6172e9746603e42d2f39528ae54d9c4bc2a66e56e08648a45b27e6444f4d9a30"
+    },
+    ".codex/tools/rendering_checkpoint.py": {
+      "executable": null,
+      "sha256": "6cd1293da6ededa598446eb09c84b8fc926b18e46e884a28545205c3713fb0a1"
+    },
+    ".codex/tools/validate_rendering_governance.py": {
+      "executable": null,
+      "sha256": "f241e715e343991ab98ed86e509a6133b88594bb38d747149ac60cf10c140624"
+    },
+    "AGENTS.md": {
+      "executable": null,
+      "sha256": "a0f0c30617f8d010078072a647b6c3eb874bbb225442efe1d545d939dcbde0aa"
+    },
+    "GEngine.sln": {
+      "executable": null,
+      "sha256": "bc69967ae88d485861216e225e1888d14c0c45428b73f59e6e93070c9c9b1dca"
+    },
+    "RenderingValidation/RenderingValidation.vcxproj": {
+      "executable": null,
+      "sha256": "ac8f7abfd7653070abe516b84286311ee7cda102c892178310c0f16d3b6af7c4"
+    },
+    "RenderingValidation/src/main.cpp": {
+      "executable": null,
+      "sha256": "70fdca2a153a387d103a55b0701fa5630e6c0e41a50093e46c895d69ed707b5a"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "212a68ce06a38af3a4c5fe2dfa267a49c49ddc1618b82bda031ba4cc6ea9095c"
+    },
+    "bin/Debug/GEngineEditor/SDL2.dll": {
+      "executable": null,
+      "sha256": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9"
+    },
+    "bin/Release/GEngineEditor/SDL2.dll": {
+      "executable": null,
+      "sha256": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9"
+    },
+    "external/sdl2/include/sdl2/SDL.h": {
+      "executable": null,
+      "sha256": "13600c67872a431ca22aeaa038cdf44618995458e617a8818ce90c6141b16316"
+    },
+    "external/sdl2/include/sdl2/SDL_opengl.h": {
+      "executable": null,
+      "sha256": "222e94b000504ec78b9116b489f29a37fc9ee36887fcffd4734e77adb82b4dc3"
+    },
+    "external/sdl2/lib/SDL2.lib": {
+      "executable": null,
+      "sha256": "3534271df1ddcc806d42efd64c0cad672f76ade9406f6c6d56d7504f4c06a3ba"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "e91388887a4588239d15e8febea5977f0b0ac00d8f70b52babb2baeb40966127"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "dbac67c696f8148edd940f96735b9ee130706c93ae9bd2757bb7a7df2ca6bb3a"
+    }
+  }
+}

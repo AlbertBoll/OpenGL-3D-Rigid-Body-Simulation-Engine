@@ -932,3 +932,35 @@ project "PhysicsTests"
 		runtime "Release"
 		symbols "off"
 		optimize "on"
+
+filter {}
+
+-- Small rendering validation entry point; no engine/application dependency.
+project "RenderingValidation"
+	location "RenderingValidation"
+	kind "ConsoleApp"
+	language "C++"
+	cppdialect "C++20"
+	staticruntime "on"
+	targetdir(tdir)
+	objdir(odir)
+	files { "RenderingValidation/src/**.cpp", "RenderingValidation/README.md" }
+	sysincludedirs { "%{externals.sdl2}/include" }
+	-- Compatible with opt-in MSBuild /p:EnableASAN=true in either configuration.
+	flags { "NoRuntimeChecks", "NoIncrementalLink" }
+	editandcontinue "Off"
+	symbols "on"
+	filter "system:windows"
+		systemversion "10.0"
+		defines { "SDL_MAIN_HANDLED", "NOMINMAX" }
+		libdirs { "%{externals.sdl2}/lib" }
+		links { "SDL2", "delayimp" }
+		-- CPU tests must run without loading SDL or requiring a display/driver.
+		linkoptions { "/DELAYLOAD:SDL2.dll" }
+	filter "configurations:Debug"
+		runtime "Debug"
+		optimize "Off"
+	filter "configurations:Release"
+		runtime "Release"
+		optimize "on"
+filter {}

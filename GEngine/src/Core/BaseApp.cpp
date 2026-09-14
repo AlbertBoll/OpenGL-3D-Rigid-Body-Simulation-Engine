@@ -11,6 +11,9 @@
 #include "Managers/ShaderManager.h"
 #include <Scene/_Entity.h>
 #include <Core/Timer.h>
+#include <charconv>
+#include <stdexcept>
+#include <string_view>
 
 //#include "Managers/EventManager.h"
 
@@ -65,6 +68,23 @@ namespace GEngine
 
         if (!m_Initialize)
         {
+            // One explicit resolution override; keep layer counts and techniques unchanged.
+            unsigned int shadowResolution = 4096;
+            const char* configuredShadowResolution = SDL_getenv("GENGINE_SHADOW_RESOLUTION");
+            if (configuredShadowResolution)
+            {
+                const std::string_view value(configuredShadowResolution);
+                const auto result = std::from_chars(value.data(), value.data() + value.size(), shadowResolution);
+                if (result.ec != std::errc{} || result.ptr != value.data() + value.size()
+                    || shadowResolution == 0 || shadowResolution > 8192)
+                {
+                    throw std::runtime_error("GENGINE_SHADOW_RESOLUTION must be an integer from 1 to 8192; unset it for the safe 4096 default.");
+                }
+            }
+            std::cout << "[Shadows] resolution=" << shadowResolution << "x" << shadowResolution
+                << " source=" << (configuredShadowResolution ? "GENGINE_SHADOW_RESOLUTION (explicit)" : "safe default")
+                << " estimated depth storage=" << (12ull * shadowResolution * shadowResolution * 4 / (1024 * 1024))
+                << " MiB (six cascade layers + six cube faces, estimated at four bytes/texel)" << std::endl;
             m_GEngine.Initialize(WindowsPropertyList);
         
             GENGINE_CORE_INFO("Initialize Scene...");
@@ -130,8 +150,8 @@ namespace GEngine
             
             m_RenderTarget = CreateScopedPtr<RenderTarget>(Vec2f{ m_SDLWindow->GetScreenWidth(), m_SDLWindow->GetScreenHeight() });
           
-			m_CascadeShadowFrameBuffer = CreateScopedPtr<CascadeShadowFrameBuffer>(8192, 8192, 5);
-			m_PointShadowFrameBuffer = CreateScopedPtr<PointShadowFrameBuffer>(8192, 8192);
+			m_CascadeShadowFrameBuffer = CreateScopedPtr<CascadeShadowFrameBuffer>(shadowResolution, shadowResolution, 5);
+			m_PointShadowFrameBuffer = CreateScopedPtr<PointShadowFrameBuffer>(shadowResolution, shadowResolution);
 			m_MousePickFrameBuffer = CreateScopedPtr<MousePickFrameBuffer>(m_SDLWindow->GetScreenWidth(), m_SDLWindow->GetScreenHeight());
 			m_FinalFrameBuffer = CreateScopedPtr<FinalFrameBuffer>(m_SDLWindow->GetScreenWidth(), m_SDLWindow->GetScreenHeight());
 			m_UniformBufferObject = CreateScopedPtr<UniformBufferObject<UniformType::MATRIX_4_4>>(16);

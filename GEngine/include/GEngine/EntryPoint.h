@@ -28,14 +28,19 @@ int main(int argc, char* args[])
         std::cerr << error.what() << std::endl;
         return 1;
     }
-	auto app = CreateApp();
-	
-	app->Initialize({ winProp });
-
-	app->Run();
-
-
-	delete app;
+	int exitCode = 0;
+	try
+	{
+		// Unwind application resources while their owning context is still alive.
+		ScopedPtr<BaseApp> app(CreateApp());
+		app->Initialize({ winProp });
+		app->Run();
+	}
+	catch (const std::exception& error)
+	{
+		std::cerr << "GEngine application failed: " << error.what() << std::endl;
+		exitCode = 1;
+	}
 	// All application and GL resource destructors run before platform teardown.
 	BaseApp::GetEngine().ReleasePlatform();
 	
@@ -118,6 +123,6 @@ int main(int argc, char* args[])
 
 	//std::cout << "Finish" << std::endl;
 
-	return 0;
+	return exitCode;
 
 }

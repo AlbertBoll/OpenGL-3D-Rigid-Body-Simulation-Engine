@@ -1,9 +1,45 @@
 #include "gepch.h"
 #include "Core/RenderTarget.h"
+#include <sstream>
+#include <stdexcept>
 
 namespace GEngine
 {
 	static constexpr uint32_t s_MaxFramebufferSize = 8192;
+
+	namespace
+	{
+		void CheckShadowAllocation(const char* kind, unsigned int width, unsigned int height,
+			unsigned int layers, const char* format, unsigned int& framebuffer, unsigned int& texture)
+		{
+			const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+			const GLenum error = glGetError();
+			if (error != GL_NO_ERROR || status != GL_FRAMEBUFFER_COMPLETE || !framebuffer || !texture)
+			{
+				std::ostringstream message;
+				message << "Shadow allocation failed: " << kind << " " << width << "x" << height
+					<< " layers/faces=" << layers << " format=" << format
+					<< " GL error=0x" << std::hex << error << " framebuffer status=0x" << status
+					<< ". Lower GENGINE_SHADOW_RESOLUTION or unset it for the safe 4096 default.";
+				// A failed constructor has no destructor; release partial allocations here.
+				glBindFramebuffer(GL_FRAMEBUFFER, 0);
+				glDeleteFramebuffers(1, &framebuffer);
+				glDeleteTextures(1, &texture);
+				framebuffer = 0;
+				texture = 0;
+				throw std::runtime_error(message.str());
+			}
+			std::cout << "[Shadows] " << kind << " " << width << "x" << height
+				<< " layers/faces=" << layers << " format=" << format << " framebuffer=complete" << std::endl;
+		}
+
+		void CheckShadowEntryErrors()
+		{
+			// Attribute pre-existing errors separately from the allocation below.
+			for (GLenum error = glGetError(); error != GL_NO_ERROR; error = glGetError())
+				std::cerr << "[Shadows] pre-existing GL error before allocation: " << error << std::endl;
+		}
+	}
 
 	namespace Utils {
 
@@ -514,6 +550,7 @@ namespace GEngine
 
 	void PointShadowFrameBuffer::Invalidate()
 	{
+		CheckShadowEntryErrors();
 		if (m_DepthMapFBO)
 		{
 			glDeleteFramebuffers(1, &m_DepthMapFBO);
@@ -542,6 +579,7 @@ namespace GEngine
 		glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, m_DepthCubeMaps, 0);
 		glDrawBuffer(GL_NONE);
 		glReadBuffer(GL_NONE);
+		CheckShadowAllocation("point", m_Width, m_Height, 6, "GL_DEPTH_COMPONENT (driver-selected)", m_DepthMapFBO, m_DepthCubeMaps);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 
@@ -565,6 +603,7 @@ namespace GEngine
 
 	void CascadeShadowFrameBuffer::Invalidate(unsigned int depth)
 	{
+		CheckShadowEntryErrors();
 		if (m_LightFBO)
 		{
 			//delete m_Texture;
@@ -607,11 +646,7 @@ namespace GEngine
 		//GLenum buffers[1] = { GL_COLOR_ATTACHMENT0};
 		//glDrawBuffers(1, buffers);
 
-		int status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-		if (status != GL_FRAMEBUFFER_COMPLETE)
-		{
-			std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!";
-		}
+		CheckShadowAllocation("cascade", m_Width, m_Height, depth + 1, "GL_DEPTH_COMPONENT32F", m_LightFBO, m_LightDepthMaps);
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 

@@ -17,17 +17,15 @@
 #include <Shapes/Sphere.h>
 #include <Shapes/Cylinder.h>
 
+using namespace GEngine;
 
 #define activate_boxes_stacking 0
-#define activate_sphere_lattice 1
+#define activate_sphere_lattice 0
 #define activate_sphere_diamond 0
-#define activate_sphere_boxes_stacking 0
+#define activate_sphere_boxes_stacking 1
 
-static constexpr ::GEngine::RuntimeAssets::Directory base_shader_dir{ "Shaders/" };
-static std::string image_base_dir = "../GEngine/include/GEngine/Assets/Images/";
-static std::string image_extension = ".png";
+static constexpr RuntimeAssets::Directory base_shader_dir{ "Shaders/" };
 
-	//using namespace Audio;
 
 RigidBodySimulationApp::~RigidBodySimulationApp()
 {
@@ -784,7 +782,6 @@ void RigidBodySimulationApp::Render()
 	RenderSystem::GetRenderStats().m_ElementsDrawCall = 0;
 	auto& windows = GetWindowManager()->GetWindows();
 
-	using namespace GEngine;
 	RenderParam_ param;
 	//m_MousePickFrameBuffer.get()->Bind();
 	param.ClearColor = { 0.1f, 0.1f, 0.1f, 1.f };

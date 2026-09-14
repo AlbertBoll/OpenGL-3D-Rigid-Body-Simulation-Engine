@@ -1,0 +1,310 @@
+{
+  "baseline": "431960d9b32a944ee9a33214911647a1e9b1d068",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/EntryPoint.h",
+    "GEngine/src/Core/BaseApp.cpp",
+    "GEngine/src/Core/RenderTarget.cpp",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-03.json",
+    "tools/SHADOW_CONFIGURATION.md",
+    "tools/shadow_framebuffer_probe.cpp",
+    "tools/test_shadow_configuration.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "4096 default, approximately 768 MiB, four times lower than original estimated storage; explicit original 8192 override retained.",
+      "finding": "GE-015 excessive default depth storage",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Implementation rejects 2048 default and selects 4096. Matched-input inspection is consistent with existing abrupt cascade transitions/texel footprint; no separate Phase 03 correctness fix identified. Final human visual acceptance is pending and is not inferred from automated evidence.",
+      "finding": "Human visual blocker: camera-following boundary at 2048; 4096 materially reduces it",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Same single-path Phase 02 semantics inherited by Phase 03. Exact validated simulation snapshot becomes a fingerprinted checkpoint member with retained raw/index blobs, mode and refs; later owner scene content remains unstaged and uncommitted. No rendering edits.",
+      "finding": "Phase 03 omitted inherited owner-mutable sealed blob/retention contract",
+      "status": "RESOLVED"
+    }
+  ],
+  "local_governance": [
+    ".agents/skills/rendering-phase-approval/SKILL.md",
+    ".agents/skills/rendering-phase-execution/references/snapshot.md",
+    ".codex/tools/rendering_checkpoint.py",
+    ".codex/tools/test_rendering_checkpoint.py",
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/phases/PHASE_03.md",
+    "docs/rendering/reviews/PHASE_03_REVIEW.md"
+  ],
+  "next_phase": "04",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "f6d353b2e398d0da1aa8344a2bd6284efc583749",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-03/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/f6d353b2e398d0da1aa8344a2bd6284efc583749",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "74acc93021ee1fc0064823751b4344d0005ceb2699d52b327de0f12667c03609"
+      },
+      "mode": "100644",
+      "validated_blob": "ced6a4e44db4cfacefe2bccd6b64436feb7e64b5",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-03/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/ced6a4e44db4cfacefe2bccd6b64436feb7e64b5"
+    }
+  },
+  "phase": "03",
+  "previous_approved_tag": "render-refactor-phase-02-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_03_REVIEW.md",
+  "schema": 2,
+  "summary": "Governance-only revision: preserve accepted Revision 02 rendering (owner-provided 4096 default, approximately 768 MiB, 4x lower than original 8192 estimate) and all existing evidence. Restore Phase 02 owner_mutable_after_seal contract for RigidBodySimulation/src/RigidBodySimulation.cpp using exact Revision 02 validated bytes, raw/index Git blobs and durable refs. Later unstaged owner content is preserved; ordinary guards unchanged. Awaiting human phase review; no approval or Git publication.",
+  "validation": [
+    {
+      "check": "All four affected graphical targets, Debug/Release x64",
+      "command": "python logs/rendering/phase03/run_build.py Debug revision02/debug GEngine.sln GEngineEditor,RigidBodySimulation,Breakout,RayTracing\npython logs/rendering/phase03/run_build.py Release revision02/release GEngine.sln GEngineEditor,RigidBodySimulation,Breakout,RayTracing",
+      "evidence": "logs/rendering/phase03/revision02/debug.log; logs/rendering/phase03/revision02/release.log",
+      "result": "PASS",
+      "reuse_reason": "Reused without rerun in governance revision: accepted Revision 02 renderer unchanged; exact validated simulation bytes retained; BaseApp pre-entry CRLF normalization proven text- and Git-blob-equivalent. No runtime/build behavior change."
+    },
+    {
+      "check": "Four revised-default Editor/RigidBodySimulation startups: 4096 complete, 768 MiB reported, responsive and exit 0",
+      "command": "python tools/test_shadow_configuration.py smoke Debug --only GEngineEditor:default --label-prefix rev02-\npython tools/test_shadow_configuration.py smoke Debug --only RigidBodySimulation:default --label-prefix rev02-\npython tools/test_shadow_configuration.py smoke Release --only GEngineEditor:default --label-prefix rev02-\npython tools/test_shadow_configuration.py smoke Release --only RigidBodySimulation:default --label-prefix rev02-",
+      "evidence": "logs/rendering/phase03/revision02/verification.json; logs/rendering/phase03/rev02-*-default.json",
+      "result": "PASS",
+      "reuse_reason": "Reused without rerun in governance revision: accepted Revision 02 renderer unchanged; exact validated simulation bytes retained; BaseApp pre-entry CRLF normalization proven text- and Git-blob-equivalent. No runtime/build behavior change."
+    },
+    {
+      "check": "Updated invalid-value diagnostic in Debug/Release, exit 1",
+      "command": "python tools/test_shadow_configuration.py smoke Debug --only GEngineEditor:invalid --label-prefix rev02-\npython tools/test_shadow_configuration.py smoke Release --only GEngineEditor:invalid --label-prefix rev02-",
+      "evidence": "logs/rendering/phase03/rev02-debug-gengineeditor-invalid.log; logs/rendering/phase03/rev02-release-gengineeditor-invalid.log",
+      "result": "PASS",
+      "reuse_reason": "Reused without rerun in governance revision: accepted Revision 02 renderer unchanged; exact validated simulation bytes retained; BaseApp pre-entry CRLF normalization proven text- and Git-blob-equivalent. No runtime/build behavior change."
+    },
+    {
+      "check": "Matched 2048/4096 scene/light/camera input identity and capture completion (not visual acceptance)",
+      "command": "python logs/rendering/phase03/revision02/matched_capture.py 2048\npython logs/rendering/phase03/revision02/matched_capture.py 4096",
+      "evidence": "logs/rendering/phase03/revision02/matched-comparison.json; logs/rendering/phase03/revision02/matched-2048/result.json; logs/rendering/phase03/revision02/matched-4096/result.json",
+      "result": "PASS",
+      "reuse_reason": "Reused without rerun in governance revision: accepted Revision 02 renderer unchanged; exact validated simulation bytes retained; BaseApp pre-entry CRLF normalization proven text- and Git-blob-equivalent. No runtime/build behavior change."
+    },
+    {
+      "check": "Shadow allocation/completeness/clear/destruction and deterministic incomplete/OOM cleanup/recovery",
+      "command": "python tools/test_shadow_configuration.py probe Debug|Release (iteration 1)",
+      "evidence": "logs/rendering/phase03/shadow-probe-debug.json; logs/rendering/phase03/shadow-probe-release.json",
+      "result": "PASS",
+      "reuse_reason": "Reused without rerun in governance revision: accepted Revision 02 renderer unchanged; exact validated simulation bytes retained; BaseApp pre-entry CRLF normalization proven text- and Git-blob-equivalent. No runtime/build behavior change. Prior reuse rationale: Only recovery diagnostic text changed in RenderTarget. Identical GL operations/cleanup and unchanged native fixture; fresh default/capture additionally exercise 4096 allocations."
+    },
+    {
+      "check": "18 invalid/range/overflow checks and override/parser behavior",
+      "command": "Iteration 1 python tools/test_shadow_configuration.py smoke Debug|Release; fresh targeted message/capture checks above",
+      "evidence": "logs/rendering/phase03/final-verification.json; logs/rendering/phase03/revision02/verification.json",
+      "result": "PASS",
+      "reuse_reason": "Reused without rerun in governance revision: accepted Revision 02 renderer unchanged; exact validated simulation bytes retained; BaseApp pre-entry CRLF normalization proven text- and Git-blob-equivalent. No runtime/build behavior change. Prior reuse rationale: Parser/range/override/exception logic unchanged; fresh checks cover changed default message. Old 2048-default visual quality or current-default startup acceptance is not reused."
+    },
+    {
+      "check": "Narrow source attribution, input/protected/index preservation and governance",
+      "command": "python logs/rendering/phase03/revision02/verify_revision.py; python .codex/tools/validate_rendering_governance.py",
+      "evidence": "logs/rendering/phase03/revision02/verification.json; logs/rendering/phase03/revision02/source-attribution.json; logs/rendering/phase03/revision02/governance-validation.json",
+      "result": "PASS",
+      "reuse_reason": "Historical Revision 02 attribution and preservation evidence retained for that candidate; fresh governance-only verification covers new classification, helper authorization, current protected/index preservation and seal."
+    },
+    {
+      "check": "15 focused checkpoint/owner-mutable helper tests, including actual Phase 03 import and approval semantics",
+      "command": "python logs/rendering/phase03/governance03/run_focused_tests.py",
+      "evidence": "logs/rendering/phase03/governance03/focused-tests.json; logs/rendering/phase03/governance03/focused-tests.log",
+      "result": "PASS"
+    },
+    {
+      "check": "Governance-only preservation, exact prior-input import, EOL attribution, single-path scope, current input and index identity",
+      "command": "python logs/rendering/phase03/governance03/verify_governance.py",
+      "evidence": "logs/rendering/phase03/governance03/preflight.json; logs/rendering/phase03/governance03/preservation-verification.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    ".agents/skills/rendering-phase-approval/SKILL.md": {
+      "executable": null,
+      "sha256": "75405b7b39611ea4bcaeec607371e92edf241f2e69c3f03cc991d5ca7b0b8ac0"
+    },
+    ".agents/skills/rendering-phase-execution/references/snapshot.md": {
+      "executable": null,
+      "sha256": "e8b6b962e136910f25ce7e9cc6604b39974679c16aacc5b0bb527b76caca6ed0"
+    },
+    ".codex/tools/rendering_checkpoint.py": {
+      "executable": null,
+      "sha256": "52a7dae59fdb57e90ee6e4eb2ffa122f370fe57a0c64b90789a9ab63cd84d21c"
+    },
+    ".codex/tools/test_rendering_checkpoint.py": {
+      "executable": null,
+      "sha256": "441e473b0909fe3d9d83e08dab379ff091b242511f6595fb2fa8fad6049c99b5"
+    },
+    "Breakout/Breakout.vcxproj": {
+      "executable": null,
+      "sha256": "2594775ffe1716ad05f4e30eef9951ea19740191cb90e0b40cf4566ee19ba88d"
+    },
+    "GEngine.sln": {
+      "executable": null,
+      "sha256": "ae09efada48c872ac07c05f1efce9a8d881455ed874e4d1d7b099a8a8e30e4a1"
+    },
+    "GEngine/GEngine.vcxproj": {
+      "executable": null,
+      "sha256": "57ec5332dc1bf3dad7f926bca340da6942ca1544b188bda2d3e2735222780293"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/pbr_cascade_shadow.frag": {
+      "executable": null,
+      "sha256": "a5ca7d383f0ca1b14aac28a17f543437ae3792b5f0549cdc1ae84b86b170850c"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/shadow_mapping_depth.gs": {
+      "executable": null,
+      "sha256": "9ddd17aecaf45576e6a5053e9e16b7bc80bc37246961aaac95027419b855a6d7"
+    },
+    "GEngine/include/GEngine/Camera/EditorCamera.h": {
+      "executable": null,
+      "sha256": "69449645b56e3fdb10f227fc0ebd987aad76f24d8482c767b0872614a4306336"
+    },
+    "GEngine/include/GEngine/Core/RenderSystem.cpp": {
+      "executable": null,
+      "sha256": "a79b2b02d796f36cd19f5727b5d2e85bf3113656db6c8ab9e8f9f7d2403068cc"
+    },
+    "GEngine/include/GEngine/EntryPoint.h": {
+      "executable": null,
+      "sha256": "1a9827ffdd6f188d0a73d9380986745666e842f2aaf31535ff44bf9131b581c4"
+    },
+    "GEngine/src/Camera/EditorCamera.cpp": {
+      "executable": null,
+      "sha256": "fdfc356b8b3efedf8caad0cac283048774eebff9e8f6a5312e5af439cea53fe5"
+    },
+    "GEngine/src/Core/BaseApp.cpp": {
+      "executable": null,
+      "sha256": "f76d7f647e24effb3bf44125c35d9c58d3984d7ff2ff23b105d9b403f624f538"
+    },
+    "GEngine/src/Core/RenderTarget.cpp": {
+      "executable": null,
+      "sha256": "0743851addff180bbbf48c9b1f8a20efac30e8656669c9b3d7b65cf61dca6ba1"
+    },
+    "GEngineEditor/GEngineEditor.vcxproj": {
+      "executable": null,
+      "sha256": "3c0d13d4c20e3c04ff8f1ecf6f44c70f2d7124dfdcd5b1c13aa47c0e8ef388d5"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "RayTracing/RayTracing.vcxproj": {
+      "executable": null,
+      "sha256": "1e97a74aaf9f34e494163808a871c4e2cc4a2b62d3e3273093359877014f56e8"
+    },
+    "RigidBodySimulation/RigidBodySimulation.vcxproj": {
+      "executable": null,
+      "sha256": "a363c1292b5a4158204416ef68058e8f15582e7dbad6e6353236988053bf4dfb"
+    },
+    "RigidBodySimulation/include/RigidBodySimulation.h": {
+      "executable": null,
+      "sha256": "a2cf5c5ae041ed862c9cac7389b3c4c4321c01721be2d9e79fc0f276ab534548"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "74acc93021ee1fc0064823751b4344d0005ceb2699d52b327de0f12667c03609"
+    },
+    "RigidBodySimulation/src/main.cpp": {
+      "executable": null,
+      "sha256": "4c088baf31bbfec10d9ba5f865f45e16b1a289a36dac807244688dfc0a6e4062"
+    },
+    "logs/rendering/phase03/governance03/run_focused_tests.py": {
+      "executable": null,
+      "sha256": "bde141071dff8eaee658421d028c93f87a841d88b6bb1df0b5b2587e09dccde8"
+    },
+    "logs/rendering/phase03/governance03/verify_governance.py": {
+      "executable": null,
+      "sha256": "e16fce2b7a959e4eed1ddf80f056889b72a36f4576340901f55b1b5387a0482c"
+    },
+    "logs/rendering/phase03/revision02/EntryPoint.h": {
+      "executable": null,
+      "sha256": "4ee1fd78be6a33466e17df70883925c7eb471407d41c3d085aa24f386318dcee"
+    },
+    "logs/rendering/phase03/revision02/RigidBodySimulation.h": {
+      "executable": null,
+      "sha256": "c9e75af45410b15b363cecc2079bf2c9dd4fd94f8b1abe5a0702aee1f40c4260"
+    },
+    "logs/rendering/phase03/revision02/matched_capture.cpp": {
+      "executable": null,
+      "sha256": "0af041b421026d954951e7e4eec5ae1fd4520e3d8f9624d9aec50f60463b7025"
+    },
+    "logs/rendering/phase03/revision02/matched_capture.py": {
+      "executable": null,
+      "sha256": "1bcd8af0fd55422643c3ff8c36539dadd34d4b89024667c19a336fb93bfaa132"
+    },
+    "logs/rendering/phase03/run_build.py": {
+      "executable": null,
+      "sha256": "5b0207dfb7a011fd8c146ad921fc93b4401e877244fd19ad4d852fc8216a4e54"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "5c7e824e36cee67299c08d6d0e8f35f22e7922ebd099d133472dca0fb1dbcae8"
+    },
+    "tools/postbuild.py": {
+      "executable": null,
+      "sha256": "bf75c56e292ac2c7b4d22dd079f5e45fc62c05903468a18ddd789e3c9c8bfb56"
+    },
+    "tools/runtime_assets.json": {
+      "executable": null,
+      "sha256": "de0f15f505442f26238e622fef1ca6d3ec794abf0875250b837344f804fce70c"
+    },
+    "tools/shadow_framebuffer_probe.cpp": {
+      "executable": null,
+      "sha256": "f9042c0a1ecf71ac53e76a1abe8e4beb5ff5b222a2d4686069700ec221bd30b3"
+    },
+    "tools/test_shadow_configuration.py": {
+      "executable": null,
+      "sha256": "43993d9cf9974a99dc10c2ce799830f288d62649ccf97d3a47a2ea162124a71b"
+    }
+  }
+}

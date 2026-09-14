@@ -1,5 +1,6 @@
 #include "gepch.h"
 #include "Core/BaseApp.h"
+#include "Core/GLDebug.h"
 #include "Core/RenderTarget.h"
 #include <Camera/PerspectiveCamera.h>
 #include <Camera/OrthographicCamera.h>
@@ -86,6 +87,7 @@ namespace GEngine
                 << " estimated depth storage=" << (12ull * shadowResolution * shadowResolution * 4 / (1024 * 1024))
                 << " MiB (six cascade layers + six cube faces, estimated at four bytes/texel)" << std::endl;
             m_GEngine.Initialize(WindowsPropertyList);
+            const GLDebug::Group initialization("Application render resources");
         
             GENGINE_CORE_INFO("Initialize Scene...");
             m_Scene = CreateScopedPtr<Scene>("Scene");
@@ -355,6 +357,7 @@ namespace GEngine
                 //Render scene
                 {
                     //Timeit(Render)
+                    const GLDebug::Group submission("Application render");
                     Render();
                 }
             }

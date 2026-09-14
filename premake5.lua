@@ -945,7 +945,8 @@ project "RenderingValidation"
 	targetdir(tdir)
 	objdir(odir)
 	files { "RenderingValidation/src/**.cpp", "RenderingValidation/README.md" }
-	sysincludedirs { "%{externals.sdl2}/include" }
+	sysincludedirs { "%{externals.sdl2}/include", "%{externals.glad}/include", "GEngine/include/GEngine" }
+	links { "glad" }
 	-- Compatible with opt-in MSBuild /p:EnableASAN=true in either configuration.
 	flags { "NoRuntimeChecks", "NoIncrementalLink" }
 	editandcontinue "Off"
@@ -960,7 +961,9 @@ project "RenderingValidation"
 	filter "configurations:Debug"
 		runtime "Debug"
 		optimize "Off"
+		defines { "GENGINE_CONFIG_DEBUG" }
 	filter "configurations:Release"
 		runtime "Release"
 		optimize "on"
+		defines { "GENGINE_CONFIG_RELEASE" }
 filter {}

@@ -1,6 +1,7 @@
 
 #include "gepch.h"
 #include "Windows/SDLWindow.h"
+#include "Core/GLDebug.h"
 #include "Windows/ImGuiWindow.h"
 #include <imgui/imgui.h>
 //#include <Core/Renderer.h>
@@ -29,6 +30,7 @@ namespace GEngine
 		// Specify version 4.6
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
+		GLDebug::ConfigureContext();
 		// Request a color buffer with 8-bits per RGBA channel
 		SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
 		SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
@@ -62,7 +64,7 @@ namespace GEngine
 		//Set Window Minimum Size
 		SDL_SetWindowMinimumSize(m_Window, winProp.m_MinWidth, winProp.m_MinHeight);
 
-		m_Context = SDL_GL_CreateContext(m_Window);
+		m_Context = GLDebug::CreateContext(m_Window);
 		ASSERT(m_Context, "SDL_GL context couldn't be created!");
 
 		SDL_SetHintWithPriority(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "1", SDL_HINT_OVERRIDE);
@@ -72,6 +74,8 @@ namespace GEngine
 
 		//Load OpenGL Context
 		ASSERT(success, "OpenGL functions couldn't be loaded!");
+		GLDebug::Initialize();
+		const GLDebug::Group initialization("Window initialization");
 
 		//winProp::SetCornFlowerBlue();
 		glClearColor(winProp.m_Red, winProp.m_Green, winProp.m_Blue, 1.0f);
@@ -107,7 +111,10 @@ namespace GEngine
 	{
 		// ImGui's GL backend needs the owning context and SDL window during cleanup.
 		if (m_Window && m_Context) SDL_GL_MakeCurrent(m_Window, m_Context);
-		delete m_ImGuiWindow;
+		{
+			const GLDebug::Group teardown("Window teardown");
+			delete m_ImGuiWindow;
+		}
 		m_ImGuiWindow = nullptr;
 		if (m_Context) FreeContext();
 		if (m_Window) SDL_DestroyWindow(m_Window);

@@ -1,7 +1,7 @@
 # Rendering validation
 
 `RenderingValidation` is a small C++20 console target in the existing Premake /
-VS2022 workspace. It has no GEngine or application dependency. Add named CPU
+VS2022 workspace. It does not link GEngine or an application. Add named CPU
 `TestCase` functions to its suite; `Require` and uncaught test exceptions produce
 concise failures. The initial suite tests the harness, not renderer correctness.
 
@@ -28,7 +28,7 @@ exception failures, and an invalid-argument failure. Expected negative controls
 are recorded with their actual nonzero exits. Driver exits are 0 PASS, 1 failure,
 2 invalid command line, and 3 unavailable optional prerequisite/platform.
 
-The native executable supports `--self-test` (also its default), `--gl`,
+The native executable supports `--self-test` (also its default), `--gl`, `--gl-debug`,
 `--failure-probe`, `--exception-probe`, `--asan-failure-probe`, and `--help`.
 Its normal exits use the same 0/1/2/3 contract. A sanitizer abort retains its native
 process exit; the Python runner checks both a nonzero exit and the specific ASan
@@ -49,6 +49,37 @@ The fixture loads just its GL query functions through SDL; it does not initializ
 engine-global GL state, allocate shadows, load scene assets, or capture images.
 For direct `RenderingValidation.exe --gl`, make that SDL2 DLL directory available
 on PATH. CPU invocation does not require it.
+
+## OpenGL debug diagnostics (Phase 05)
+
+After building Debug or Release, run `RenderingValidation.exe --gl-debug` with the
+same SDL DLL PATH described above. This focused mode uses the production
+`GEngine/Core/GLDebug.h` helpers and the existing glad library in two hidden context
+lifetimes; it does not link or start GEngine. Ordinary `--gl` keeps its original
+context-only checks. CPU modes still perform no GL/SDL initialization.
+
+Debug requests a Debug context, with one normal-context retry if creation fails.
+After GL loading it installs the KHR_debug callback synchronously on the context
+thread. Output goes to stderr with source, type, severity, numeric enums, message
+ID and driver text. Notification chatter and group-entry/exit messages are
+filtered; high, medium and low diagnostic messages remain enabled. No debugger
+trap or throwing callback is used. Non-debug fallback contexts are reported and
+may provide fewer driver messages; unavailable KHR_debug is explicitly reported.
+
+The fixture checks activation, callback fields/thread, filtering, scoped group
+balance (including exception unwind), the unavailable-capability path, and safe
+application-inserted high/medium/low markers. Those markers are validation-only
+messages, not real GL errors. Release verifies a non-debug context, no installed
+callback and no submitted groups. Production Release compiles callback/group
+instrumentation out, with no per-frame debug GL queries or logging.
+
+Production group labels cover window initialization/teardown, application render
+resource initialization/submission and main ImGui draw data. These groups remain
+on their owning context and do not add renderer counters or change scheduling.
+ImGui-created secondary viewport contexts remain owned by the existing backend;
+this phase installs the callback on engine-owned SDL contexts only.
+
+Reference: [KHR_debug specification](https://registry.khronos.org/OpenGL/extensions/KHR/KHR_debug.txt).
 
 ## AddressSanitizer and ThreadSanitizer
 

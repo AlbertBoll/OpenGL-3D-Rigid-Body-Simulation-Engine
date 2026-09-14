@@ -1,5 +1,6 @@
 #include "gepch.h"
 #include "Core/RuntimeAssets.h"
+#include "Core/GLDebug.h"
 #include "Windows/ImGuiWindow.h"
 #include "Windows/SDLWindow.h"
 #include <imgui/imgui.h>
@@ -106,7 +107,10 @@ namespace GEngine
 	void ImGuiWindow_::EndRender(SDLWindow* window)
 	{
 		ImGui::Render();
-		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+		{
+			const GLDebug::Group submission("ImGui draw data");
+			ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+		}
 
 		auto& io = ImGui::GetIO();
 		if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)

@@ -1,4 +1,5 @@
 #include "gepch.h"
+#include "Core/RuntimeAssets.h"
 #include "Managers/ShapeManager.h"
 #include <Shapes/Box.h>
 #include <Shapes/Circle.h>
@@ -30,10 +31,10 @@ namespace GEngine
 {
 	namespace Manager
 	{
-		static std::string model_base_dir = "../GEngine/include/GEngine/Assets/Models/";
+		static constexpr RuntimeAssets::Directory model_base_dir{ "Models/" };
 		static std::string model_extension = ".obj";
 
-		static std::string animated_model_base_dir = "../GEngine/include/GEngine/Assets/AnimatedModels/";
+		static constexpr RuntimeAssets::Directory animated_model_base_dir{ "AnimatedModels/" };
 		static std::string animated_model_extension = ".dae";
 
 		void ShapeManager::Initialize()

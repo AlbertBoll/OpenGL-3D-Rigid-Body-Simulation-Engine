@@ -1,4 +1,5 @@
 #include "GameLevel.h"
+#include "Core/RuntimeAssets.h"
 #include "Core/Renderer2D.h"
 #include "Camera/Camera.h"
 #include <fstream>
@@ -9,7 +10,7 @@
 
 
 
-static std::string ImagePath = "../Breakout/include/images/";
+static constexpr ::GEngine::RuntimeAssets::Directory ImagePath{ "Breakout/images/" };
 static std::string ImageExtension = ".png";
 
 void GameLevel::Load(const std::string& file, unsigned int levelWidth, unsigned int levelHeight)

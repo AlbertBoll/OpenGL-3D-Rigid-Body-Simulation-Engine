@@ -1,4 +1,5 @@
 #pragma once
+#include "Core/RuntimeAssets.h"
 
 #include <unordered_map>
 #include <Assets/Shaders/Shader.h>
@@ -106,7 +107,7 @@ namespace GEngine
 		
 		std::unordered_multimap<unsigned int, std::pair<unsigned int, unsigned int>> m_TextureList;
 
-		inline static std::string base_shader_dir = "../GEngine/include/GEngine/Assets/Shaders/";
+		inline static constexpr RuntimeAssets::Directory base_shader_dir{ "Shaders/" };
 
 
 

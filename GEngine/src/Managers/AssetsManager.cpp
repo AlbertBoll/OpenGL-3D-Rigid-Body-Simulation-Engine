@@ -1,11 +1,12 @@
 #include "gepch.h"
+#include "Core/RuntimeAssets.h"
 #include "Managers/AssetsManager.h"
 #include "Assets/Textures/TextTexture.h"
 
 
 namespace GEngine::Manager
 {
-	static std::string image_base_dir = "../GEngine/include/GEngine/Assets/Images/";
+	static constexpr RuntimeAssets::Directory image_base_dir{ "Images/" };
 	static std::string image_extension = ".png";
 
 	Asset::Texture* AssetsManager::GetTexture(const std::string& imageFilePath, 
@@ -18,7 +19,11 @@ namespace GEngine::Manager
 			return nullptr;
 		}*/
 
-		std::string image_dir = !info.b_CubeMap? image_base_dir + imageFilePath + extension: image_base_dir + imageFilePath;
+		// Short names remain image-relative; rooted application paths already name a file.
+        std::filesystem::path imagePath(imageFilePath);
+        if (!imagePath.is_absolute()) imagePath = image_base_dir + imageFilePath;
+        if (!info.b_CubeMap && !imagePath.has_extension()) imagePath += extension;
+        const std::string image_dir = imagePath.lexically_normal().string();
 
 		//std::string image_dir = image_base_dir + imageFilePath + image_extension;
 

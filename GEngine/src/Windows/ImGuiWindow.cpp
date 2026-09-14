@@ -1,4 +1,5 @@
 #include "gepch.h"
+#include "Core/RuntimeAssets.h"
 #include "Windows/ImGuiWindow.h"
 #include "Windows/SDLWindow.h"
 #include <imgui/imgui.h>
@@ -7,8 +8,8 @@
 #include <Inputs/KeyCodes.h>
 #include<imguizmo/ImGuizmo.h>
 
-static std::string regular_dir = "../GEngine/include/GEngine/Assets/Fonts/OpenSans-Regular.ttf";
-static std::string bold_dir = "../GEngine/include/GEngine/Assets/Fonts/OpenSans-Bold.ttf";
+
+
 
 namespace GEngine
 {
@@ -20,8 +21,8 @@ namespace GEngine
 		ImGui::StyleColorsDark();
 		ImGuiIO& io = ImGui::GetIO();
 
-		io.Fonts->AddFontFromFileTTF(bold_dir.c_str(), 18.f);
-		io.FontDefault = io.Fonts->AddFontFromFileTTF(regular_dir.c_str(), 18.f);
+		io.Fonts->AddFontFromFileTTF(RuntimeAssets::File("Fonts/OpenSans-Bold.ttf").c_str(), 18.f);
+		io.FontDefault = io.Fonts->AddFontFromFileTTF(RuntimeAssets::File("Fonts/OpenSans-Regular.ttf").c_str(), 18.f);
 
 
 		io.ConfigWindowsMoveFromTitleBarOnly = ImGuiWindowProps.bMoveFromTitleBarOnly;

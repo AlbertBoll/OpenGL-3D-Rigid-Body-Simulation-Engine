@@ -1,4 +1,5 @@
 #pragma once
+#include "Core/RuntimeAssets.h"
 #include <unordered_map>
 #include <Assets/Textures/Texture.h>
 #include <Assets/Fonts/Font.h>
@@ -48,7 +49,7 @@ namespace GEngine::Manager
 		static Asset::Texture* GetCascadedFrameBufferTexture(const CascadeShadowFrameBuffer& fb, const std::string& uniform_name = "");
 		static Asset::Texture* GetPointShadowFrameBufferTexture(const PointShadowFrameBuffer& fb, const std::string& uniform_name = "");
 		static Asset::Texture* GetTextTexture(const std::string& str,
-									   const std::string& font_file = "../Assets/Fonts/Carlito-Regular.ttf",
+									   const std::string& font_file = RuntimeAssets::File("Fonts/Carlito-Regular.ttf"),
 									   int pointSize = 24,
 									   const glm::vec3& font_color = { 0.0f, 0.0f, 1.0f },
 									   const std::string& uniform_name = "");

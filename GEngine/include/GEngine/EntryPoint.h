@@ -1,4 +1,6 @@
 #pragma once
+#include "Core/RuntimeAssets.h"
+#include <filesystem>
 //#define SDL_MAIN_HANDLED
 #include "Core/BaseApp.h"
 //#include"Physics/ShapeSphere.h"
@@ -17,6 +19,15 @@ int main(int argc, char* args[])
 {
 
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+    try
+    {
+        RuntimeAssets::Initialize(std::filesystem::path(args[0]).stem().string());
+    }
+    catch (const std::exception& error)
+    {
+        std::cerr << error.what() << std::endl;
+        return 1;
+    }
 	auto app = CreateApp();
 	
 	app->Initialize({ winProp });

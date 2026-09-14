@@ -1,4 +1,5 @@
 #pragma once
+#include "Core/RuntimeAssets.h"
 #include "Material.h"
 
 namespace GEngine
@@ -7,8 +8,8 @@ namespace GEngine
     class BasicMaterial: public Material
     {
     public:
-        BasicMaterial(const std::string& vertexFileName = "../GEngine/include/GEngine/Assets/Shaders/basic.vert",
-                        const std::string& fragFileName = "../GEngine/include/GEngine/Assets/Shaders/basic.frag"): Material(vertexFileName, fragFileName)
+        BasicMaterial(const std::string& vertexFileName = RuntimeAssets::File("Shaders/basic.vert"),
+                        const std::string& fragFileName = RuntimeAssets::File("Shaders/basic.frag")): Material(vertexFileName, fragFileName)
         {
             //UseProgram();
             //SetUniforms<Vec4f>({ {"uBaseColor", {1.0f, 1.0f, 1.0f, 1.0f}} });

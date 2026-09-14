@@ -1,4 +1,5 @@
 #include "BreakoutApp.h"
+#include "Core/RuntimeAssets.h"
 #include "Managers/AssetsManager.h"
 #include "Managers/ShapeManager.h"
 #include "Managers/ShaderManager.h"
@@ -14,9 +15,9 @@
 #include <fmod/fmod_studio.hpp>
 //using namespace GEngine::BreakoutApp;
 
-static std::string levelPath = "../Breakout/include/levels/";
+static constexpr ::GEngine::RuntimeAssets::Directory levelPath{ "Breakout/levels/" };
 static std::string levelFileExtension = ".lvl";
-static std::string ImagePath = "../Breakout/include/images/";
+static constexpr ::GEngine::RuntimeAssets::Directory ImagePath{ "Breakout/images/" };
 static std::string ImageExtension = ".png";
 
 

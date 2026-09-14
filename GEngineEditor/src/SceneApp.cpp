@@ -1,4 +1,5 @@
 #include "SceneApp.h"
+#include "Core/RuntimeAssets.h"
 #include <cstdint>
 #include "Managers/AssetsManager.h"
 #include "Managers/ShapeManager.h"
@@ -251,7 +252,7 @@ void SceneApp::Initialize(const std::initializer_list<WindowProperties>& Windows
 	terrainMaterial->SetLightComponent(lights).SetFogComponent(fog);
 
 	
-	AnimatedModel* model = new AnimatedModel("../GEngine/include/GEngine/Assets/AnimatedModels/dancing_vampire.dae");
+	AnimatedModel* model = new AnimatedModel(RuntimeAssets::File("AnimatedModels/dancing_vampire.dae"));
 
 	auto vampireTexNormal = AssetsManager::GetTexture("Vampire_normal", "u_normalTexture");
 	auto vampireTexDiffuse = AssetsManager::GetTexture("Vampire_diffuse", "u_diffuseTexture");
@@ -261,7 +262,7 @@ void SceneApp::Initialize(const std::initializer_list<WindowProperties>& Windows
 	
 	m_VampireGroup = new Group<Entity>(vampireGeo, vampireMaterial.get());
 
-	Animation* animation = new Animation("../GEngine/include/GEngine/Assets/AnimatedModels/dancing_vampire.dae", model);
+	Animation* animation = new Animation(RuntimeAssets::File("AnimatedModels/dancing_vampire.dae"), model);
 	m_AnimationSystem = CreateScopedPtr<AnimationSystem>(animation);
 
 	vampireMaterial->SetAnimationSystem(m_AnimationSystem.get());

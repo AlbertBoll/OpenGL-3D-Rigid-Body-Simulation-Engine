@@ -1,4 +1,5 @@
 #include "RigidBodySimulation.h"
+#include "Core/RuntimeAssets.h"
 #include <cstdint>
 #include "EntryPoint.h"
 #include "Managers/ShapeManager.h"
@@ -22,7 +23,7 @@
 #define activate_sphere_diamond 0
 #define activate_sphere_boxes_stacking 0
 
-static std::string base_shader_dir = "../GEngine/include/GEngine/Assets/Shaders/";
+static constexpr ::GEngine::RuntimeAssets::Directory base_shader_dir{ "Shaders/" };
 static std::string image_base_dir = "../GEngine/include/GEngine/Assets/Images/";
 static std::string image_extension = ".png";
 

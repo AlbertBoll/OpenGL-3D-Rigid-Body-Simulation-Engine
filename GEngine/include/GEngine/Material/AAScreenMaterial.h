@@ -1,4 +1,5 @@
 #pragma once
+#include "Core/RuntimeAssets.h"
 #include "Material.h"
 
 namespace GEngine
@@ -6,8 +7,8 @@ namespace GEngine
 	class AAScreenMaterial: public Material
 	{
 	public:
-		AAScreenMaterial(unsigned int screenTextureID, const std::string& vertexFileName = "../GEngine/include/GEngine/Assets/Shaders/aa_post.vert",
-			             const std::string& fragFileName = "../GEngine/include/GEngine/Assets/Shaders/aa_post.frag");
+		AAScreenMaterial(unsigned int screenTextureID, const std::string& vertexFileName = RuntimeAssets::File("Shaders/aa_post.vert"),
+			             const std::string& fragFileName = RuntimeAssets::File("Shaders/aa_post.frag"));
 
 		void UpdateRenderSettings() override;
 	};

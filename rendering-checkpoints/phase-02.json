@@ -1,0 +1,1211 @@
+{
+  "baseline": "9b625e5db9aa54dc86e770a916c6b7739d493438",
+  "baseline_handoff": {
+    "authorization": "docs/rendering/phases/PHASE_02.md",
+    "baseline": "9b625e5db9aa54dc86e770a916c6b7739d493438",
+    "phase": "02",
+    "previous_commit": "0fe193ab029acc159fe6dfe107ea7bea52a5dc1e",
+    "previous_tag": "render-refactor-phase-01-approved",
+    "previous_tag_object": "0687644ee0a838a67df4d02c2969bac5fd766297"
+  },
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "Breakout/src/BreakoutApp.cpp",
+    "Breakout/src/GameLevel.cpp",
+    "GEngine/include/GEngine/Core/RuntimeAssets.h",
+    "GEngine/include/GEngine/EntryPoint.h",
+    "GEngine/include/GEngine/Managers/AssetsManager.h",
+    "GEngine/include/GEngine/Material/AAScreenMaterial.h",
+    "GEngine/include/GEngine/Material/BasicMaterial.h",
+    "GEngine/include/GEngine/Material/Material.h",
+    "GEngine/include/GEngine/Material/TextureMaterial.h",
+    "GEngine/include/GEngine/Shapes/Terrain.h",
+    "GEngine/src/Audio/AudioSystem.cpp",
+    "GEngine/src/Core/RuntimeAssets.cpp",
+    "GEngine/src/Managers/AssetsManager.cpp",
+    "GEngine/src/Managers/ShapeManager.cpp",
+    "GEngine/src/Windows/ImGuiWindow.cpp",
+    "GEngineEditor/src/SceneApp.cpp",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "bin/.gitignore",
+    "rendering-checkpoints/phase-02.json",
+    "tools/postbuild.py",
+    "tools/run.bat",
+    "tools/run.py",
+    "tools/runtime_assets.json",
+    "tools/test_runtime_assets.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Owner-pinned phase/tag/commit/baseline/tag-object/parent/publication gate, 31 passing helper tests.",
+      "finding": "Exact post-Phase-01 baseline handoff required",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "One central asset root, shared staging, 4 scoped lists, 26 graphical checks and 12 actionable pre-graphics failure cases.",
+      "finding": "CWD-dependent built-in runtime assets and incomplete staging/startup diagnostics",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Added actual heightmap dependency to three profiles; isolated packages for all four apps now pass in both configurations.",
+      "finding": "Initial isolated-root startup list omitted shared terrain registration dependency",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "The source remains fully fingerprinted against retained validated/index blobs. Only unstaged worktree content drift is allowed; exact blob staging preserves newer owner bytes. 13 new focused cases plus 31 unchanged guards pass.",
+      "finding": "Post-seal owner edits to the explicitly named RigidBodySimulation source blocked approval",
+      "status": "RESOLVED"
+    }
+  ],
+  "local_governance": [
+    ".agents/skills/rendering-phase-approval/SKILL.md",
+    ".agents/skills/rendering-phase-approval/references/recovery.md",
+    ".agents/skills/rendering-phase-execution/references/snapshot.md",
+    ".codex/tools/rendering_checkpoint.py",
+    ".codex/tools/test_rendering_checkpoint.py",
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/RUNTIME_ASSET_ROOT.md",
+    "docs/rendering/phases/PHASE_02.md",
+    "docs/rendering/reviews/PHASE_02_REVIEW.md"
+  ],
+  "next_phase": "03",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "4eaff9d532950fa6583a75a9b39fb122ff6114a5",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-02/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/4eaff9d532950fa6583a75a9b39fb122ff6114a5",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "6996dbc0a95dba9060820c7873b9a0bcdbecaad8984f30b731b7306ce75adeb9"
+      },
+      "mode": "100644",
+      "validated_blob": "165f4bae1d3b2710412c338caa6ca33159e66c56",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-02/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/165f4bae1d3b2710412c338caa6ca33159e66c56"
+    }
+  },
+  "phase": "02",
+  "previous_approved_tag": "render-refactor-phase-01-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_02_REVIEW.md",
+  "schema": 2,
+  "summary": "Runtime Asset Root validated candidate preserved; the single authorized owner-mutable Phase 02 path commits its durable sealed Git blob while retaining newer unstaged owner content. Focused helper/preservation checks pass; original graphical/staging evidence is reused.",
+  "validation": [
+    {
+      "check": "Affected Debug and Release builds",
+      "command": "python logs/rendering/phase02/run_build.py Debug|Release final2-<configuration> GEngine.sln GEngineEditor,RigidBodySimulation,Breakout,RayTracing",
+      "evidence": "logs/rendering/phase02/final2-debug.log; logs/rendering/phase02/final2-release.log",
+      "result": "PASS",
+      "reuse_reason": "Full compiled code unchanged since final-debug/final-release; four-target incremental Build repeated after dependency list correction. Prior validated production/check result reused: this helper-only revision changes no sealed production, build, asset or graphical/staging fixture inputs. See owner-mutable-revision/REVISION_EVIDENCE.md."
+    },
+    {
+      "check": "All four applications, both configurations, output and unrelated CWD; responsive startup and natural exit 0",
+      "command": "python logs/rendering/phase02/validate_runtime2.py Debug|Release",
+      "evidence": "logs/rendering/phase02/runtime-summary2-debug.json; logs/rendering/phase02/runtime-summary2-release.json",
+      "result": "PASS",
+      "reuse_reason": "Debug Editor direct runs retain exact binary/profile/data/settings identity. All other final runtime entries fresh; see validation-reuse.json. Prior validated production/check result reused: this helper-only revision changes no sealed production, build, asset or graphical/staging fixture inputs. See owner-mutable-revision/REVISION_EVIDENCE.md."
+    },
+    {
+      "check": "Isolated absolute configured root for each application/configuration",
+      "command": "python logs/rendering/phase02/validate_runtime2.py Debug|Release",
+      "evidence": "logs/rendering/phase02/runtime-summary2-debug.json; logs/rendering/phase02/runtime-summary2-release.json",
+      "result": "PASS",
+      "reuse_reason": " Prior validated production/check result reused: this helper-only revision changes no sealed production, build, asset or graphical/staging fixture inputs. See owner-mutable-revision/REVISION_EVIDENCE.md."
+    },
+    {
+      "check": "12 missing shared/app asset and invalid-root cases, actionable pre-graphics exit 1",
+      "command": "python logs/rendering/phase02/validate_runtime2.py Debug|Release",
+      "evidence": "logs/rendering/phase02/runtime-summary2-debug.json; logs/rendering/phase02/runtime-summary2-release.json",
+      "result": "PASS",
+      "reuse_reason": " Prior validated production/check result reused: this helper-only revision changes no sealed production, build, asset or graphical/staging fixture inputs. See owner-mutable-revision/REVISION_EVIDENCE.md."
+    },
+    {
+      "check": "Both supported launchers from unrelated CWD",
+      "command": "python logs/rendering/phase02/validate_runtime2.py Release; python logs/rendering/phase02/exercise_bat.py",
+      "evidence": "logs/rendering/phase02/final2-release-launcher.json; logs/rendering/phase02/final-release-batch-launcher.json",
+      "result": "PASS",
+      "reuse_reason": " Prior validated production/check result reused: this helper-only revision changes no sealed production, build, asset or graphical/staging fixture inputs. See owner-mutable-revision/REVISION_EVIDENCE.md."
+    },
+    {
+      "check": "Postbuild missing-source/copy-failure propagation and scoped package contract, 7 tests",
+      "command": "python tools/test_runtime_assets.py",
+      "evidence": "logs/rendering/phase02/final2-staging-tests.log",
+      "result": "PASS",
+      "reuse_reason": " Prior validated production/check result reused: this helper-only revision changes no sealed production, build, asset or graphical/staging fixture inputs. See owner-mutable-revision/REVISION_EVIDENCE.md."
+    },
+    {
+      "check": "Exact handoff and owner-mutable content/index/retention/recovery guards, 44 tests",
+      "command": "python .codex/tools/test_rendering_checkpoint.py",
+      "evidence": "logs/rendering/phase02/owner-mutable-revision/focused-tests.log",
+      "result": "PASS",
+      "reuse_reason": "Fresh helper run after the focused input fingerprint; 13 new cases and 31 existing guard regressions. No engine validation."
+    },
+    {
+      "check": "Phase 01/baseline, original protected paths/index, newer owner file, and unchanged production snapshot preservation",
+      "command": "python logs/rendering/phase02/owner-mutable-revision/verify_preservation.py",
+      "evidence": "logs/rendering/phase02/owner-mutable-revision/preservation-result.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Governance structure, paths and context links",
+      "command": "python .codex/tools/validate_rendering_governance.py",
+      "evidence": "logs/rendering/phase02/final-governance-validation.json",
+      "result": "PASS",
+      "reuse_reason": " Prior validated production/check result reused: this helper-only revision changes no sealed production, build, asset or graphical/staging fixture inputs. See owner-mutable-revision/REVISION_EVIDENCE.md."
+    },
+    {
+      "check": "Physics tests/benchmarks and sanitizers",
+      "command": "Scope and source diff inspection",
+      "evidence": "docs/rendering/reviews/PHASE_02_REVIEW.md",
+      "reason": "Owner excludes further Physics stabilization/performance work. Only runtime path adapters/staging changed; no Physics numerical, lifecycle, ownership or threading behavior changed.",
+      "result": "NOT_APPLICABLE"
+    },
+    {
+      "check": "Updated approval/recovery/snapshot documentation paths and focused input identity",
+      "command": "python logs/rendering/phase02/owner-mutable-revision/verify_preservation.py",
+      "evidence": "logs/rendering/phase02/owner-mutable-revision/preservation-result.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    ".agents/skills/rendering-phase-approval/SKILL.md": {
+      "executable": null,
+      "sha256": "f7f441faa4b8741a79b58e288f0d890fb5cdf0a49587da152cb747b82f46b7aa"
+    },
+    ".agents/skills/rendering-phase-approval/references/recovery.md": {
+      "executable": null,
+      "sha256": "cadfba436d27548ec1fbfdeeaa0a13f4e8fdaf04987fb484ec3616bcd1bc1381"
+    },
+    ".agents/skills/rendering-phase-execution/references/snapshot.md": {
+      "executable": null,
+      "sha256": "539e57cd0be43d084f913f91f99da378ac377c19ff0c221c617d4c8547d66942"
+    },
+    ".codex/tools/rendering_checkpoint.py": {
+      "executable": null,
+      "sha256": "7a10fb7b009fdad129cd5fc1e9da6d03871b070963d0e39eeb9c755a29b2fde0"
+    },
+    ".codex/tools/test_rendering_checkpoint.py": {
+      "executable": null,
+      "sha256": "5e44958e7af0afdce97dc7d7be9d54ab159915994e5af750cf4db5168bc179ed"
+    },
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "Breakout/Breakout.vcxproj": {
+      "executable": null,
+      "sha256": "2594775ffe1716ad05f4e30eef9951ea19740191cb90e0b40cf4566ee19ba88d"
+    },
+    "Breakout/include/images/ViewCompletedForms.pdf": {
+      "executable": null,
+      "sha256": "19b09b887ecd636c95ad89c00b75139624581c7bc3baa9758155078053514e75"
+    },
+    "Breakout/include/images/awesomeface_r.png": {
+      "executable": null,
+      "sha256": "a9da1ac6400c46e6ce02e425508d4293b9664ef7cb9c9fac4fee3c04411b5cb3"
+    },
+    "Breakout/include/images/background.png": {
+      "executable": null,
+      "sha256": "b8bb5cd64e935f4aa39919ae2b1742ebe3190486c84ef6e3c09e14666470c5ca"
+    },
+    "Breakout/include/images/block.png": {
+      "executable": null,
+      "sha256": "6be998394d8c237879c35ff35329c373b12a72027d9dbcd16e9b8d4246714a4e"
+    },
+    "Breakout/include/images/block_solid.png": {
+      "executable": null,
+      "sha256": "9f44f1d4ff7c3230fb3283f19e63e7f692b8b6eb63f393e90282d258e2d160f3"
+    },
+    "Breakout/include/images/paddle.png": {
+      "executable": null,
+      "sha256": "20242526e3e7d354104fbcf543873ca008f0addc593fb7a887dec84c2b51edc4"
+    },
+    "Breakout/include/levels/four.lvl": {
+      "executable": null,
+      "sha256": "51b471f362881be1a6cc98c30c4869fdb506f10c281f4740006fad4802065bae"
+    },
+    "Breakout/include/levels/one.lvl": {
+      "executable": null,
+      "sha256": "4a60ca0e4d917fbe593aaf161e66f0072a6f0a3ef286eb65996f6e88272ee6ff"
+    },
+    "Breakout/include/levels/three.lvl": {
+      "executable": null,
+      "sha256": "f00d52e7482ee676b5ef13631da97979f4b5178330af0f1c732e746c98b3d54b"
+    },
+    "Breakout/include/levels/two.lvl": {
+      "executable": null,
+      "sha256": "79c0d4e28199731909c9e1d4fc891a0ca92ebe7eca40da3d4afc9c4a038a8b11"
+    },
+    "Breakout/src/BreakoutApp.cpp": {
+      "executable": null,
+      "sha256": "8732572555506d362cbd2933638671cf36ab4f2f0512cdd0508721155c33d9ee"
+    },
+    "Breakout/src/GameLevel.cpp": {
+      "executable": null,
+      "sha256": "b55b945caba4f193a467257285e3efd9a157aa7aed38f3166b377eb80b3c8a55"
+    },
+    "GEngine.sln": {
+      "executable": null,
+      "sha256": "ae09efada48c872ac07c05f1efce9a8d881455ed874e4d1d7b099a8a8e30e4a1"
+    },
+    "GEngine/GEngine.vcxproj": {
+      "executable": null,
+      "sha256": "57ec5332dc1bf3dad7f926bca340da6942ca1544b188bda2d3e2735222780293"
+    },
+    "GEngine/include/GEngine/Assets/AnimatedModels/dancing_vampire.dae": {
+      "executable": null,
+      "sha256": "0738a11b9741e74aba3940e656a0033c71c320e261f201ff4db4cf8f29b361a8"
+    },
+    "GEngine/include/GEngine/Assets/Audio/Bank/Master Bank.bank": {
+      "executable": null,
+      "sha256": "a2b8edcb68bfe81c3463c33a227b12127803a34275132bcb03aae196343339c2"
+    },
+    "GEngine/include/GEngine/Assets/Audio/Bank/Master Bank.strings.bank": {
+      "executable": null,
+      "sha256": "d84e075dc086f986c5893ef500c691ec95ccdb493227f8a6236e69c233aaf883"
+    },
+    "GEngine/include/GEngine/Assets/Audio/Bank/ZeldaTheme.bank": {
+      "executable": null,
+      "sha256": "2d098206cff3f6287d429d39e3716cff4d465790029a0d6b18ea908aef9a1ddf"
+    },
+    "GEngine/include/GEngine/Assets/Audio/Fsb/Gerudo_Valley.fsb": {
+      "executable": null,
+      "sha256": "926cf484dda0099d058fc8141d4eb21167fcca3c7c4576100a3842991e71ddc8"
+    },
+    "GEngine/include/GEngine/Assets/Fonts/Carlito-Regular.ttf": {
+      "executable": null,
+      "sha256": "b4ff23ba370cc95a3c349336b73f9c28514a1371210f89832efc85c4b1ea7131"
+    },
+    "GEngine/include/GEngine/Assets/Fonts/LICENSE.txt": {
+      "executable": null,
+      "sha256": "3ddf9be5c28fe27dad143a5dc76eea25222ad1dd68934a047064e56ed2fa40c5"
+    },
+    "GEngine/include/GEngine/Assets/Fonts/OpenSans-Bold.ttf": {
+      "executable": null,
+      "sha256": "f7916a37377e38527d4306303cfe89b653b49b0a6b0b05c6b7593f7ab0248da8"
+    },
+    "GEngine/include/GEngine/Assets/Fonts/OpenSans-BoldItalic.ttf": {
+      "executable": null,
+      "sha256": "b08b454c8e47e7ba3cbb59c0e6a8344174363c034d581fe12cb3c6fc3942b6d3"
+    },
+    "GEngine/include/GEngine/Assets/Fonts/OpenSans-ExtraBold.ttf": {
+      "executable": null,
+      "sha256": "4b2dc1f55b7b457c181d8ab3c2d34225f6eefac0b018d6e9abdd775a0eb29db6"
+    },
+    "GEngine/include/GEngine/Assets/Fonts/OpenSans-ExtraBoldItalic.ttf": {
+      "executable": null,
+      "sha256": "44356028d1a5a617da6804c3f7e3bc4595b38556da9f6c6bb171f6d53eb23a48"
+    },
+    "GEngine/include/GEngine/Assets/Fonts/OpenSans-Italic.ttf": {
+      "executable": null,
+      "sha256": "df8cd21a27b100aeb75454d0c4cb04bbf5d1cc54676cc35718189bf07b774000"
+    },
+    "GEngine/include/GEngine/Assets/Fonts/OpenSans-Light.ttf": {
+      "executable": null,
+      "sha256": "80d5513e21af52eeac6e5893ad47c3f7d74b2464987ad669d28690d45eeafa23"
+    },
+    "GEngine/include/GEngine/Assets/Fonts/OpenSans-LightItalic.ttf": {
+      "executable": null,
+      "sha256": "6554c38667bbc301ff5cbf6b724aea6815b8219b1a8086181377d4e54a6dc666"
+    },
+    "GEngine/include/GEngine/Assets/Fonts/OpenSans-Regular.ttf": {
+      "executable": null,
+      "sha256": "037236ed4bf58a85f67074c165d308260fd6be01c86d7df4e79ea16eb273f8c5"
+    },
+    "GEngine/include/GEngine/Assets/Fonts/OpenSans-SemiBold.ttf": {
+      "executable": null,
+      "sha256": "5e8d9e1a89083cd1b0849993fe2f3acc9aa33b7f439f7e8616872f6897f30684"
+    },
+    "GEngine/include/GEngine/Assets/Fonts/OpenSans-SemiBoldItalic.ttf": {
+      "executable": null,
+      "sha256": "c740413a1c59286e42a49467844a990819ba37f78ef687d21581e941708055d5"
+    },
+    "GEngine/include/GEngine/Assets/Images/Icons/PauseButton.png": {
+      "executable": null,
+      "sha256": "1da9d1e5de8a8f46fd118d7d77c5ef215e01dc6286a5de3f40a296fa40215929"
+    },
+    "GEngine/include/GEngine/Assets/Images/Icons/PlayButton.png": {
+      "executable": null,
+      "sha256": "b60aa295d54a68ab0ba0b19a7d7ecd58d1ebd6e044478ee5118a7004e1d6b865"
+    },
+    "GEngine/include/GEngine/Assets/Images/Icons/SimulateButton.png": {
+      "executable": null,
+      "sha256": "17629e6d81e9e0086a27eaf076c3621739159e7d4e6d1d84c83461c5c552d8cf"
+    },
+    "GEngine/include/GEngine/Assets/Images/Icons/StepButton.png": {
+      "executable": null,
+      "sha256": "05a7b9995e0cd7eeacf36b55050ddf8d11f9d8d03222bec6d2057f0373ad613f"
+    },
+    "GEngine/include/GEngine/Assets/Images/Icons/StopButton.png": {
+      "executable": null,
+      "sha256": "89676fa2ad553be6a3e5786e8a700f62e0b9a0656b3a8ebcd8bb5529db95b125"
+    },
+    "GEngine/include/GEngine/Assets/Images/Multifern.png": {
+      "executable": null,
+      "sha256": "5c0456436d876ed3e754e761c583adc9d1e7dfa6702173365ef711092f7ccc0a"
+    },
+    "GEngine/include/GEngine/Assets/Images/MultilowPolyTree.png": {
+      "executable": null,
+      "sha256": "6bf36a2cc2cdca5591fd4d94750d18f0446a12f7b5d2968bfa14ee92a9bb277b"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/base_white_tile/base-white-tile_albedo.png": {
+      "executable": null,
+      "sha256": "17b9c606092b48740ce52e79b234a5bf461326808d71b6911f3bd251a70af939"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/base_white_tile/base-white-tile_ao.png": {
+      "executable": null,
+      "sha256": "6be2b4dbf42f8a2b850914031b3ba195222292977821a0fd9ffa8ecc2dc1543e"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/base_white_tile/base-white-tile_metallic.png": {
+      "executable": null,
+      "sha256": "853c74cbddd9365725ee0f8e419931080c72fbb1f0be9eb70292e66327868198"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/base_white_tile/base-white-tile_normal-dx.png": {
+      "executable": null,
+      "sha256": "545a1f037856293c52deb910a68b8c9bc78d1735b71d6eccb44fb19f478adbd2"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/base_white_tile/base-white-tile_roughness.png": {
+      "executable": null,
+      "sha256": "afe133251f57c607e7cf1143c11f3f0d107e58b4de0bbd57205c757193b38a57"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/rustediron/rustediron2_basecolor.png": {
+      "executable": null,
+      "sha256": "ea49f2c44684c8810dfb628297c6b1bd8a8477fc77c469510f54db83edd1ba3b"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/rustediron/rustediron2_metallic.png": {
+      "executable": null,
+      "sha256": "571e89a4552fd8ae250e39a6058b484047798815f751f9eace60455ae64f0f91"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/rustediron/rustediron2_normal.png": {
+      "executable": null,
+      "sha256": "dea7d47c6c25f557803e4be7337c5bdb7b5b1592115d1dde18c1d661f17aa5e3"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/rustediron/rustediron2_roughness.png": {
+      "executable": null,
+      "sha256": "b078c4d5c20f9a04e7fe48c96119629d4692897bb6fa414c8419200946f125bc"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/subtle_black_granite/subtle-black-granite_albedo.png": {
+      "executable": null,
+      "sha256": "e1cc400f18e0c19c1399e0306b9c5ca5b59d66391471f443e1342055643891c1"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/subtle_black_granite/subtle-black-granite_ao.png": {
+      "executable": null,
+      "sha256": "b3fa938ce5cdb2cf78f72b91379e3acd9c7ca1583b2496bac2c370c0bc75d5b7"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/subtle_black_granite/subtle-black-granite_metallic.png": {
+      "executable": null,
+      "sha256": "cc51082b65093ba3192850bd54253f082beb841ad0e851122f6b8143343cbe70"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/subtle_black_granite/subtle-black-granite_normal-dx.png": {
+      "executable": null,
+      "sha256": "c7c504abbd6a27112197153872bc07c74dac02b2b6ef5407875e693efa35d5e2"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/subtle_black_granite/subtle-black-granite_roughness.png": {
+      "executable": null,
+      "sha256": "6af42c4c747199b484e0c42b29939947d02c080db79c38e40a180dd33c384207"
+    },
+    "GEngine/include/GEngine/Assets/Images/Plane/WoodFloor_8K_Diffuse.jpg": {
+      "executable": null,
+      "sha256": "55d48489a43ea116f4708881dde7f7ffb61dded42facd264a6ca6354718a816d"
+    },
+    "GEngine/include/GEngine/Assets/Images/Plane/WoodFloor_8K_Specular.jpg": {
+      "executable": null,
+      "sha256": "a6f8837e0737435e608a4e6bccab3bf32ad129c6472cbd4efc72609929681766"
+    },
+    "GEngine/include/GEngine/Assets/Images/Plane/WoodFloor_Diffuse.jpg": {
+      "executable": null,
+      "sha256": "e6a9439dd30c6e3e06f97a0c71239e5bf6bfed166abddd5724c878d39f4d2131"
+    },
+    "GEngine/include/GEngine/Assets/Images/Plane/WoodFloor_Specular.jpg": {
+      "executable": null,
+      "sha256": "f15e41508d5cdc21dd95853b3226d454aad7d8223321b8c9075c2e20b39b5c36"
+    },
+    "GEngine/include/GEngine/Assets/Images/Plane/wood_diffuse.png": {
+      "executable": null,
+      "sha256": "d75e076385ddec163df04d0d07d7620b05c141722b54a94c62b5a1e9391d027f"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/Day/negx.png": {
+      "executable": null,
+      "sha256": "f33662daff2067275631628a2927b45ec3a8a16c593c8383515db32c0d327c0f"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/Day/negy.png": {
+      "executable": null,
+      "sha256": "5ac9b01a493a900de59116aef27f18c7464bc5424026acaf22b470ea2b629cc5"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/Day/negz.png": {
+      "executable": null,
+      "sha256": "6eee94da3978b18c9f7876322b1ef657b5d26ad9a5620d0b63006c62653e26f9"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/Day/posx.png": {
+      "executable": null,
+      "sha256": "fb66a5d0f06444139553cb1b8dddac13b4446cccb3ced250f977aa4b4b279ec7"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/Day/posy.png": {
+      "executable": null,
+      "sha256": "5803fd062943d5b761278197bef1f9f0a54a20697da370ca73aaf552f27968da"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/Day/posz.png": {
+      "executable": null,
+      "sha256": "04617217e4b77de55d7a833aff677310b437dce12b83b92d469d2498f66a1c0d"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/Night/negx.png": {
+      "executable": null,
+      "sha256": "c142a4d8f94ac67f096e936f684bcdcea6fad1b1b40ab66f1ce814f4a73acc49"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/Night/negy.png": {
+      "executable": null,
+      "sha256": "6186aaae69dfb5d017a9e4bb09d0e68d3402b0cf33c9c619e0ecc74be388e3e1"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/Night/negz.png": {
+      "executable": null,
+      "sha256": "36255e8a74a06b6c546de70a289fac10ab73b7880418e1e216593f35bfd1eb35"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/Night/posx.png": {
+      "executable": null,
+      "sha256": "648b2cc7b587b1a4b8bd3b157a67be130d936e02cacaa6007777ba9108e3f6f7"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/Night/posy.png": {
+      "executable": null,
+      "sha256": "36b61f8873b5760d1948573895f6d1a6fad505c23c9626270dfa8b9979f49bbe"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/Night/posz.png": {
+      "executable": null,
+      "sha256": "14906052ca7fac21972b1a4c65bba78d5d376a947c96fd55b81127d225385fef"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/back.png": {
+      "executable": null,
+      "sha256": "adf804fdf710635dfb6bc0635641da89ddffb74b98b3eb19681ddeb580c18968"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/bottom.png": {
+      "executable": null,
+      "sha256": "63fe4b42c36306a566e55568650da484ed556052c6580469f1685c4cd2d74424"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/front.png": {
+      "executable": null,
+      "sha256": "a1d874ecaa93e1af987907860e68e43cb489792c666581beec9f5f7ce86bb58f"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/left.png": {
+      "executable": null,
+      "sha256": "5da64f5ad7709111a530498f88aae6286ac2473f7681ef051eb3fa26770bf6de"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/negx.png": {
+      "executable": null,
+      "sha256": "f33662daff2067275631628a2927b45ec3a8a16c593c8383515db32c0d327c0f"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/negy.png": {
+      "executable": null,
+      "sha256": "5ac9b01a493a900de59116aef27f18c7464bc5424026acaf22b470ea2b629cc5"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/negz.png": {
+      "executable": null,
+      "sha256": "6eee94da3978b18c9f7876322b1ef657b5d26ad9a5620d0b63006c62653e26f9"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/posx.png": {
+      "executable": null,
+      "sha256": "fb66a5d0f06444139553cb1b8dddac13b4446cccb3ced250f977aa4b4b279ec7"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/posy.png": {
+      "executable": null,
+      "sha256": "5803fd062943d5b761278197bef1f9f0a54a20697da370ca73aaf552f27968da"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/posz.png": {
+      "executable": null,
+      "sha256": "04617217e4b77de55d7a833aff677310b437dce12b83b92d469d2498f66a1c0d"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/right.png": {
+      "executable": null,
+      "sha256": "216578018f038e050cf2080747369adcba917f7de4d85d7556458eed40c320ac"
+    },
+    "GEngine/include/GEngine/Assets/Images/SkyBox/top.png": {
+      "executable": null,
+      "sha256": "ca4932bc65a86fde03cac6d3fe97cb573e645ad02cac26385d02d18186109638"
+    },
+    "GEngine/include/GEngine/Assets/Images/Sphere/Marble022_4K-JPG_Color.png": {
+      "executable": null,
+      "sha256": "d001ebe7893d86da16632ee53ee65fa5b559df6fe7c88d19aa99623831b40770"
+    },
+    "GEngine/include/GEngine/Assets/Images/Sphere/Metal_Sphere_8K_Diffuse.jpg": {
+      "executable": null,
+      "sha256": "2b65b16484b6dbb669c4facc1210f7043eae99f8340a258ac64abecc57a27389"
+    },
+    "GEngine/include/GEngine/Assets/Images/Sphere/Metal_Sphere_8K_Specular.jpg": {
+      "executable": null,
+      "sha256": "4c9de743a43fae548708bb2eef1ff5de15b30ef7be2b8be52ab705d3ff2125a0"
+    },
+    "GEngine/include/GEngine/Assets/Images/Sphere/Tiles012_4K-JPG_Color.png": {
+      "executable": null,
+      "sha256": "21cf67106b9e2da73794b190c3c15b0c7b5304c171d241dae1fc13d6adba7e4d"
+    },
+    "GEngine/include/GEngine/Assets/Images/Sphere/Tiles074_4K-JPG_Color.png": {
+      "executable": null,
+      "sha256": "ce104a5f821d04c2b6fa81bc261edaee0eff7d3818f2134413072682682031d4"
+    },
+    "GEngine/include/GEngine/Assets/Images/Sphere/Wood066_2K-JPG_Color.png": {
+      "executable": null,
+      "sha256": "aedebfbe763532efb9378ae9ca4e8f720900359f140f5db773e5e2b4e038df19"
+    },
+    "GEngine/include/GEngine/Assets/Images/Sphere/marble-speckled-albedo.png": {
+      "executable": null,
+      "sha256": "81b0b39646f14770b33dd4b3589307c4339cbce7d58e08bb3e833c4214687ae7"
+    },
+    "GEngine/include/GEngine/Assets/Images/Sphere/semi-gloss-wood_albedo.png": {
+      "executable": null,
+      "sha256": "0a7adef50de32f010bc3afbe83d24310bab4125ba3c79fd86557a7d044f6366c"
+    },
+    "GEngine/include/GEngine/Assets/Images/Sphere/wood_diffuse.png": {
+      "executable": null,
+      "sha256": "773043b7b845c4c9886cc82727fbdf39dd396f135dbc8890d6a9ea1273e09113"
+    },
+    "GEngine/include/GEngine/Assets/Images/Sphere/wood_metallic.png": {
+      "executable": null,
+      "sha256": "766ed13d904fbae3073b78eb5acc7f332e174b1ffc207daf1b4ba6b22385c3fd"
+    },
+    "GEngine/include/GEngine/Assets/Images/Vampire_diffuse.png": {
+      "executable": null,
+      "sha256": "0a7c94ff68a44247fc1909a9dc6fc3d5bab1acb4616bd6c0bc6fc80933601940"
+    },
+    "GEngine/include/GEngine/Assets/Images/Vampire_emission.png": {
+      "executable": null,
+      "sha256": "944b8d6a29f861838c56d6b9ee470d11274cbc73adba87d522bc88d859fa4d55"
+    },
+    "GEngine/include/GEngine/Assets/Images/Vampire_normal.png": {
+      "executable": null,
+      "sha256": "54a1b8013ffb91e409f7543ca71f850a7442e9ef26958e9490e81aa0c10a1049"
+    },
+    "GEngine/include/GEngine/Assets/Images/Vampire_specular.png": {
+      "executable": null,
+      "sha256": "6c470a4e4a7656d95e28988f7c7ff3bd2dcb123e3a6aaaea273176d5fae16a3a"
+    },
+    "GEngine/include/GEngine/Assets/Images/Wall/wall_diffuse.png": {
+      "executable": null,
+      "sha256": "14df7139560c897842255766d7144d154c9a68d34bf358dc11d98ff875854b99"
+    },
+    "GEngine/include/GEngine/Assets/Images/Wall/wall_specular.png": {
+      "executable": null,
+      "sha256": "7ec7fdf067cbe59a0dafcd4445c64784a09d9638c023e3a9c15c3e92fc7ac1bb"
+    },
+    "GEngine/include/GEngine/Assets/Images/Wall/wallpaper_albedo.png": {
+      "executable": null,
+      "sha256": "2c4fea5dfef862bc8fd24541c7bf8fd17ec4abf82ff4761a0b6dc5e633aa6c87"
+    },
+    "GEngine/include/GEngine/Assets/Images/Wall/wallpaper_metallic.png": {
+      "executable": null,
+      "sha256": "853c74cbddd9365725ee0f8e419931080c72fbb1f0be9eb70292e66327868198"
+    },
+    "GEngine/include/GEngine/Assets/Images/awesomeface.png": {
+      "executable": null,
+      "sha256": "dcfd8636cf368b27937903fe669eac5713ea0ae9a57778540e9dee35f2639a3a"
+    },
+    "GEngine/include/GEngine/Assets/Images/awesomeface_r.png": {
+      "executable": null,
+      "sha256": "a9da1ac6400c46e6ce02e425508d4293b9664ef7cb9c9fac4fee3c04411b5cb3"
+    },
+    "GEngine/include/GEngine/Assets/Images/barrel.png": {
+      "executable": null,
+      "sha256": "390b55afcc958c2059db9151b392e0d7c35305d8cdd03ce1b3af19782b8d72fb"
+    },
+    "GEngine/include/GEngine/Assets/Images/barrelNormal.png": {
+      "executable": null,
+      "sha256": "cb39d94a18a835bc9d1224a5efb0189e31559779bfe03fae65055f598b1a7c3b"
+    },
+    "GEngine/include/GEngine/Assets/Images/barrelNormalreflection.png": {
+      "executable": null,
+      "sha256": "31211a798e3d8d413a7738eaff352c8d4e73d76c1a9408ae60953c0572ffed15"
+    },
+    "GEngine/include/GEngine/Assets/Images/barrelreflection.png": {
+      "executable": null,
+      "sha256": "8c4e28e7376a0a270536e42dc7768e0f660c99be2b5810cc76ac8a9e694dc44b"
+    },
+    "GEngine/include/GEngine/Assets/Images/blendMap.png": {
+      "executable": null,
+      "sha256": "fec4a6d10b337f3c0d85366d2d6133c714789bfec3f78df7f4ee29a95ee3c7c5"
+    },
+    "GEngine/include/GEngine/Assets/Images/block.png": {
+      "executable": null,
+      "sha256": "6be998394d8c237879c35ff35329c373b12a72027d9dbcd16e9b8d4246714a4e"
+    },
+    "GEngine/include/GEngine/Assets/Images/block_solid.png": {
+      "executable": null,
+      "sha256": "9f44f1d4ff7c3230fb3283f19e63e7f692b8b6eb63f393e90282d258e2d160f3"
+    },
+    "GEngine/include/GEngine/Assets/Images/boulder.png": {
+      "executable": null,
+      "sha256": "8aeb85cd70dde81a3da82c0391dd27cf794fe3192c2ddade62fb45911257758e"
+    },
+    "GEngine/include/GEngine/Assets/Images/boulderNormal.png": {
+      "executable": null,
+      "sha256": "8019a38a79cc4f6c076e7665321313c022d202c9c8602fbf53aa4d56a13e5158"
+    },
+    "GEngine/include/GEngine/Assets/Images/box.png": {
+      "executable": null,
+      "sha256": "9bb862d51786e997569beee87ead59e536abd81d5822393d4b754b01efdf8fae"
+    },
+    "GEngine/include/GEngine/Assets/Images/crate.png": {
+      "executable": null,
+      "sha256": "e583072f3f6ff07e22ee7b65b526c8ccfbcf75437b731ea65490d67e5c304bc6"
+    },
+    "GEngine/include/GEngine/Assets/Images/crateNormal.png": {
+      "executable": null,
+      "sha256": "0b0aaaadc2823eb46b8b6419e89b5bbf5f0b28e34baed0ee10a298cff88c78d2"
+    },
+    "GEngine/include/GEngine/Assets/Images/diffuse.png": {
+      "executable": null,
+      "sha256": "867d68a25517c34662a3537632aaf815248727d0b615cb9147d9c8598072cad8"
+    },
+    "GEngine/include/GEngine/Assets/Images/dirt.png": {
+      "executable": null,
+      "sha256": "f58a0aa4f02999494d9fe0433a8cde511fddba308b0097e1deffa08a59023fd7"
+    },
+    "GEngine/include/GEngine/Assets/Images/earth_day.jpg": {
+      "executable": null,
+      "sha256": "88ab060b6e7d241cfc590c69f528fab2b3247b738d40124cb590999a6fe44abc"
+    },
+    "GEngine/include/GEngine/Assets/Images/earth_night.jpg": {
+      "executable": null,
+      "sha256": "9894e83a585a22c1c425e7ca4f987a9ba625bf08ecee45d3c9dcacae3c2ad5f7"
+    },
+    "GEngine/include/GEngine/Assets/Images/fern.png": {
+      "executable": null,
+      "sha256": "10b637ccc031d21eeacc85ef6caedbe4d6af0252c12bdfdbdc02636cba1a21fc"
+    },
+    "GEngine/include/GEngine/Assets/Images/flower.png": {
+      "executable": null,
+      "sha256": "ff877f6f65622253922203cba711bdb6449f4c3728f99db7e3220052ce549d59"
+    },
+    "GEngine/include/GEngine/Assets/Images/grass.png": {
+      "executable": null,
+      "sha256": "431996fee86f77f961854ccd048182f1d4494da4366243a3e6a8a7aecc23504c"
+    },
+    "GEngine/include/GEngine/Assets/Images/grassTexture.png": {
+      "executable": null,
+      "sha256": "d9a4295285dcc42ec1d105e150deee2182341e630a0e57b73c9f786ad7179a38"
+    },
+    "GEngine/include/GEngine/Assets/Images/grassy.png": {
+      "executable": null,
+      "sha256": "9389eac4ce753d52b606966d6b377f0ee2c76acf1c526514d98509bb7bbea866"
+    },
+    "GEngine/include/GEngine/Assets/Images/grassy2.png": {
+      "executable": null,
+      "sha256": "a071e10ecf25227756047be8c2899546de08676e5d033e8a466cfb92940d4630"
+    },
+    "GEngine/include/GEngine/Assets/Images/grassy3.png": {
+      "executable": null,
+      "sha256": "dd663449c4b7ef7860828c9465612d28f012435fa509ddd15698bed69e07d83d"
+    },
+    "GEngine/include/GEngine/Assets/Images/gravel.jpg": {
+      "executable": null,
+      "sha256": "ce7daccee48748821fee43108362062d71b4b78355ac6e45d775b63e7b61b518"
+    },
+    "GEngine/include/GEngine/Assets/Images/heightmap perlin.jpg": {
+      "executable": null,
+      "sha256": "0a2cc46fc10922428a49e988afc4c58aef4549b147dc64d7ced1212eee98482e"
+    },
+    "GEngine/include/GEngine/Assets/Images/heightmap.png": {
+      "executable": null,
+      "sha256": "c3f736b11d3810a329ee51e138e264abcc2ec282728e3f935c7a1b30592ebb97"
+    },
+    "GEngine/include/GEngine/Assets/Images/image.png": {
+      "executable": null,
+      "sha256": "c04bdff935e0069fbd2456a4c3f67ae8529fc78cab30086bbe6a854160b6e343"
+    },
+    "GEngine/include/GEngine/Assets/Images/jupiter.jpg": {
+      "executable": null,
+      "sha256": "0bd844bf20822c4e3e80882b077859833c0dac44c7e4e1e0cd63d1b1b6d43085"
+    },
+    "GEngine/include/GEngine/Assets/Images/lamp.png": {
+      "executable": null,
+      "sha256": "3f2c23ff3cddbbcfdaf8bfda6d2df7d02f9f56c60453318b4af73e2f4625bd3d"
+    },
+    "GEngine/include/GEngine/Assets/Images/lowPolyTree_Original.png": {
+      "executable": null,
+      "sha256": "8804610067a2b9d14ed743db04c0672e455bdba5cc3bb472e27b339b243b7a25"
+    },
+    "GEngine/include/GEngine/Assets/Images/mars.jpg": {
+      "executable": null,
+      "sha256": "4cc52149924abc6ae507d63032f994e1d42a55cb82c09e002d1a567ff66c23ee"
+    },
+    "GEngine/include/GEngine/Assets/Images/mercury.jpg": {
+      "executable": null,
+      "sha256": "5c8bd885ae3571c6ba2cd34b3446b9c6d767e314bf0ee8c1d5c147cadd388fc3"
+    },
+    "GEngine/include/GEngine/Assets/Images/mirror_reflect.png": {
+      "executable": null,
+      "sha256": "08b200c2bf922620f4cde0308125ee2f4faa7bee2ded29bdb8692f91526ed759"
+    },
+    "GEngine/include/GEngine/Assets/Images/mirror_reflect_horizontal.png": {
+      "executable": null,
+      "sha256": "12b26252c6aa13fea1fd8625092e1b76210ebab0f9652e7c6ac8f11458ad4e72"
+    },
+    "GEngine/include/GEngine/Assets/Images/moon.jpg": {
+      "executable": null,
+      "sha256": "d1875bcec83588ca25e4802e576f6bb9f88b39e1e403cb41ff55867419c54796"
+    },
+    "GEngine/include/GEngine/Assets/Images/mossPath256.png": {
+      "executable": null,
+      "sha256": "eedfccf49ed34b46f9199f170e02049e73415b10ad69960175e17e25f0167794"
+    },
+    "GEngine/include/GEngine/Assets/Images/mud.png": {
+      "executable": null,
+      "sha256": "e81e09a99e71035b7584763acc5fb6de5276d4f1455a15dc1cfe30a245557d8a"
+    },
+    "GEngine/include/GEngine/Assets/Images/neptune.jpg": {
+      "executable": null,
+      "sha256": "cb42ea82709741d28b0af44d8b283cbc6dbd0c521a7f0e1e1e010ade00977df6"
+    },
+    "GEngine/include/GEngine/Assets/Images/path.png": {
+      "executable": null,
+      "sha256": "d82d8eefcbce741b6bff5046b7a8dcd4ecbe2aedabab71e677838ba40bf64a28"
+    },
+    "GEngine/include/GEngine/Assets/Images/pine.png": {
+      "executable": null,
+      "sha256": "c9f3feca85db61cf46d9baa7d7c61ebe6c03c5c2b523a75904a0e9a65e5f9c23"
+    },
+    "GEngine/include/GEngine/Assets/Images/pinkFlowers.png": {
+      "executable": null,
+      "sha256": "4476af5fda7dfe23b5c0ebea2653d615c1a670dc93a403ceb1f2bcca13c1d849"
+    },
+    "GEngine/include/GEngine/Assets/Images/playerTexture.png": {
+      "executable": null,
+      "sha256": "ade8b18d21a63f8e12ad1d9fd9e02affc8cd38f339b9b9b5fdc299a73714141a"
+    },
+    "GEngine/include/GEngine/Assets/Images/saturn.jpg": {
+      "executable": null,
+      "sha256": "0d39a4a490c87c3edabe00a3881a29bb3418364178c79c534fe0986e97e09853"
+    },
+    "GEngine/include/GEngine/Assets/Images/stallTexture.png": {
+      "executable": null,
+      "sha256": "6a6e4d829655a7a210c9b8a298131f6bd298f66ad9c56908bc17b4264b8ab7bd"
+    },
+    "GEngine/include/GEngine/Assets/Images/stars.jpg": {
+      "executable": null,
+      "sha256": "80c2259d7d020f47e7d16d38a75a3ad932f32ab8b99b55be03f23e64bc970f62"
+    },
+    "GEngine/include/GEngine/Assets/Images/stars_milky_way.jpg": {
+      "executable": null,
+      "sha256": "1fd005ddd6d53364cc5106e0121b83fd3bca236b1503f6b51f5501d9d51eafaf"
+    },
+    "GEngine/include/GEngine/Assets/Images/sun.jpg": {
+      "executable": null,
+      "sha256": "f22b1cfb306ddce72a7e3b628668a0175b745038ce6268557cb2f7f1bdf98b9d"
+    },
+    "GEngine/include/GEngine/Assets/Images/tree.png": {
+      "executable": null,
+      "sha256": "2b2861fd93e8307ca3273600e4dca7d38bea7bff2eae0cdf0460e83f0dcd93d0"
+    },
+    "GEngine/include/GEngine/Assets/Images/uranus.jpg": {
+      "executable": null,
+      "sha256": "d15239d46f82d3ea13d2b260b5b29b2a382f42f2916dae0694d0387b1204a09d"
+    },
+    "GEngine/include/GEngine/Assets/Images/venus.jpg": {
+      "executable": null,
+      "sha256": "9bc21a50577ed8ac734cda91058724c7a741c19427aa276224ce349351432c5b"
+    },
+    "GEngine/include/GEngine/Assets/Images/water.jpg": {
+      "executable": null,
+      "sha256": "fbe0dffd6d756a24169ad8d473583c385d177afcde6f67cb62e0abc43e823fdc"
+    },
+    "GEngine/include/GEngine/Assets/Images/white.png": {
+      "executable": null,
+      "sha256": "9df468013cf4b189e6ec10d20f5653556ed6bad46482c6ac453dd74d74b7af9a"
+    },
+    "GEngine/include/GEngine/Assets/Models/barrel.obj": {
+      "executable": null,
+      "sha256": "8000e9cc67d051cc27580ef726e560f080e8127c169c901e3bd02d7dbeda1407"
+    },
+    "GEngine/include/GEngine/Assets/Models/boulder.obj": {
+      "executable": null,
+      "sha256": "7729f6fa38ba01642cedfdaedb2d0a6d9300ea52868911e730411c8aed774936"
+    },
+    "GEngine/include/GEngine/Assets/Models/box.obj": {
+      "executable": null,
+      "sha256": "b635e86add60eb7323a778ae4ed6b694296ce00807f80fb36601a5cc4932f821"
+    },
+    "GEngine/include/GEngine/Assets/Models/bunny.obj": {
+      "executable": null,
+      "sha256": "7d2a97faba2679806daf4c020f824e9655135bcfdb4d72b07037ec89059bf97c"
+    },
+    "GEngine/include/GEngine/Assets/Models/crate.obj": {
+      "executable": null,
+      "sha256": "779ab3f6c0452c1ab3ef0d9c939364cb00151ceb55d46ea2056574c3ae4cbebc"
+    },
+    "GEngine/include/GEngine/Assets/Models/dragon.obj": {
+      "executable": null,
+      "sha256": "175bb78b14b7ed417bd36620b6d831b8946922b33f2e8c3ae2d7647359286a78"
+    },
+    "GEngine/include/GEngine/Assets/Models/drone.obj": {
+      "executable": null,
+      "sha256": "e08abb6dcfae6f4b4c27878002079e9f153f7c242ca82fc095d7c9defa3fd0bc"
+    },
+    "GEngine/include/GEngine/Assets/Models/exampleOBJ.obj": {
+      "executable": null,
+      "sha256": "0c764d2693f2558cbae6108fbb26709dc2d68956fac2da7751390d55c0004f6d"
+    },
+    "GEngine/include/GEngine/Assets/Models/fern.obj": {
+      "executable": null,
+      "sha256": "291c132dc4e15e301e3e49e7f5c381a3c6bd53b9af8c86562dc23f4f3ba07380"
+    },
+    "GEngine/include/GEngine/Assets/Models/lamp.obj": {
+      "executable": null,
+      "sha256": "b28f3d9648cf381c222f5e685999e2967588b50a811d782c5d7243359b985b81"
+    },
+    "GEngine/include/GEngine/Assets/Models/lowPolyTree.obj": {
+      "executable": null,
+      "sha256": "ad4de167f177d45ad7b66b2dfffb717ed985d85e828d8d0c1baac5507e2899d8"
+    },
+    "GEngine/include/GEngine/Assets/Models/person.obj": {
+      "executable": null,
+      "sha256": "b70b6b564f1b750b47156a70dc1b14ee7e05ce7c69cc481c71a0935ba9875905"
+    },
+    "GEngine/include/GEngine/Assets/Models/pine.obj": {
+      "executable": null,
+      "sha256": "30c0dda425d609e5509218fbead2d5cd83c4d3ec2fe0407afca27af3c2bcb3a6"
+    },
+    "GEngine/include/GEngine/Assets/Models/plant.obj": {
+      "executable": null,
+      "sha256": "319b51207ff996c43dd3a838cce66df394029a33c08ac0b60ea5e066a0846b29"
+    },
+    "GEngine/include/GEngine/Assets/Models/stall.obj": {
+      "executable": null,
+      "sha256": "9975b8a79c2b2412d291d18ef62bbb858e3debef47794a41d0412195077342e8"
+    },
+    "GEngine/include/GEngine/Assets/Models/stanfordBunny.obj": {
+      "executable": null,
+      "sha256": "f753a0c8bbe05bc546bb6da4eaf51582704c1fb82c8fb46c574e8ee8b087e94b"
+    },
+    "GEngine/include/GEngine/Assets/Models/tree.obj": {
+      "executable": null,
+      "sha256": "df2bd85e3adf31a26e8192c018dba15d190083baa38031701115187743bde436"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/aa_post.frag": {
+      "executable": null,
+      "sha256": "2bb0759c5924167338f4d11d495559aa247545365ee866d0b032cd445eee29a2"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/aa_post.vert": {
+      "executable": null,
+      "sha256": "e06d49beec837d4065e9f928643a8b96b7019fabe3580e12a55067072895d3d3"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/animated.frag": {
+      "executable": null,
+      "sha256": "bed001247f829e99aa357984d8beb42d6e7d4ad655cbe086bf8f9d5ad73fcf57"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/animated.vert": {
+      "executable": null,
+      "sha256": "a4e67f7371e9d2ba8255626d18c3e80c4036a28b522613c349413f753d49fe2b"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/basic.frag": {
+      "executable": null,
+      "sha256": "e3c16d825d02ec1dd96fd34b87c1509c5329720f3a4a44372fe524d9e71ca9c7"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/basic.vert": {
+      "executable": null,
+      "sha256": "42d4f567ba504d72d9c0fc03bdc759c7b1342452785c111d6dca1ad467cef469"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/light.frag": {
+      "executable": null,
+      "sha256": "a88c1311acc761ca480033adbe23db9d1ec5c7ca218d164881d938d2a6a62a0c"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/light.vert": {
+      "executable": null,
+      "sha256": "2041878fc50e08cb58f4e5a9119d11dcfdb82852014c5387b3185652b63a1905"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/light_.frag": {
+      "executable": null,
+      "sha256": "82f98a874af0c63f0dff9d6825ca22c00e220c92e1033711c7f33f2ec2d00b04"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/light_.vert": {
+      "executable": null,
+      "sha256": "e731003d7176b2ce34688ef4a11d4cf408ef718de6bc05b119e4e2ee7fdfeeab"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/mouse_pick.frag": {
+      "executable": null,
+      "sha256": "587b048f59ef2909f5c008ceb888dad702a554d85b19818da36ceacab071cd22"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/mouse_pick.vert": {
+      "executable": null,
+      "sha256": "c349fab270eefff9caba005e91bc290ef86fe33b2a604eda1f22561ad7501f15"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/normal.frag": {
+      "executable": null,
+      "sha256": "bed001247f829e99aa357984d8beb42d6e7d4ad655cbe086bf8f9d5ad73fcf57"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/normal.vert": {
+      "executable": null,
+      "sha256": "bd9c62a912f2260af31bf0ad9da1450210911265d25a9393f8fa3d83275d6438"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/particle.frag": {
+      "executable": null,
+      "sha256": "514e6c207833f645148f4bb01420a221b76cfce14fa8bc408cb2acad0a8eb857"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/particle.vert": {
+      "executable": null,
+      "sha256": "7d6e09073723eff69596700e1c7b0fae197f3025969e80cb50449f0fdb3d4f1d"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/pbr_cascade_shadow.frag": {
+      "executable": null,
+      "sha256": "a5ca7d383f0ca1b14aac28a17f543437ae3792b5f0549cdc1ae84b86b170850c"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/pbr_cascade_shadow.vert": {
+      "executable": null,
+      "sha256": "91e74dae2dada3975f4ff0e885322b2feb5f1dc9aef75a744edecd0308c57e2a"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/point_light_sphere_visual.frag": {
+      "executable": null,
+      "sha256": "4d329a12c51d93340b1f41a15f88e11a65aa017f5f8b9dbe9fa4b829d00565c8"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/point_light_sphere_visual.vert": {
+      "executable": null,
+      "sha256": "b0047b5fd23fb4cdc26f58d30b6d0244e685b61019d78b4e9a39f5822334f78b"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/point_shadows_depth.frag": {
+      "executable": null,
+      "sha256": "47a8c5a2a30aaeea11b7c16238bcf32eae06de701b5f9b2494e051a18506d5f4"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/point_shadows_depth.gs": {
+      "executable": null,
+      "sha256": "0cc605676d845975e58e50091af07e2e55ff4d42db9fe6eae6e6453b68e2684e"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/point_shadows_depth.vert": {
+      "executable": null,
+      "sha256": "38941994e804b387626fd8abde23e9d33496bc1bb009163fa3b090ad461fee1e"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/shadow_mapping_depth.frag": {
+      "executable": null,
+      "sha256": "be5957b1e868114419977073b671aad7656a9b7b9ab013ef730619cf9be85600"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/shadow_mapping_depth.gs": {
+      "executable": null,
+      "sha256": "9ddd17aecaf45576e6a5053e9e16b7bc80bc37246961aaac95027419b855a6d7"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/shadow_mapping_depth.vert": {
+      "executable": null,
+      "sha256": "c7bae766ae4f0a82f27f4b9c5e64b41483eceb86b7bdd82bcca02501f1004184"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/skybox.frag": {
+      "executable": null,
+      "sha256": "31d9780059e496cafc9a17fd2a1239928d8cbcb89c0c475745d381325263a637"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/skybox.vert": {
+      "executable": null,
+      "sha256": "43e0bd31b433e21e264182395fc4c256759689d98c639a8e3f3621512778a1c1"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/skybox_environment.frag": {
+      "executable": null,
+      "sha256": "72fd58db48ecc8c393fccec53972c753fa693e980872ed1dc9b310daea133912"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/skybox_environment.vert": {
+      "executable": null,
+      "sha256": "1689f3895f60c342ac3b7acfa6f18f3b13ed102fffc83047860cacc07ba48a4f"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/sprite.frag": {
+      "executable": null,
+      "sha256": "440ae010c033774533ec097275f1a83031c674cae634644e5acb72f4f3d0abcf"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/sprite.vert": {
+      "executable": null,
+      "sha256": "f594d45cd2203c20b503b1e5cc92a0d6c5fa7c1e91863cbebbdffbcfa6f2f419"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/terrain.frag": {
+      "executable": null,
+      "sha256": "2b7db0830f5905c29647dcfaa3f537cdc46650c26c89c2fee0a74f7b86cc0d71"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/terrain.vert": {
+      "executable": null,
+      "sha256": "2e1750aafaab4a537662ed75a71a9f92796d9b06b2a3bfe3ae333a1fe98e29a1"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/texture.frag": {
+      "executable": null,
+      "sha256": "d579af1588e7cf411360b48913038b316a1623e70a8ee6e24241fbdef5ab8e36"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/texture.vert": {
+      "executable": null,
+      "sha256": "9466fa7d2f07f8d88ef2c839906d0df74614b60d3eb06093544c4e9e33fce376"
+    },
+    "GEngine/include/GEngine/Core/RuntimeAssets.h": {
+      "executable": null,
+      "sha256": "c7287266ef4b7c7dfe67056926be63d54762e875556472efc1451252d611524d"
+    },
+    "GEngine/include/GEngine/EntryPoint.h": {
+      "executable": null,
+      "sha256": "d61b3d5082f6dfaebdf54fb847631771454ce94a6fc0176ba44e7a5aefb3582e"
+    },
+    "GEngine/include/GEngine/Managers/AssetsManager.h": {
+      "executable": null,
+      "sha256": "f0e7c458d9472d64739d04da1b981ff167cbd8a6c8caf4b9d721958e1bedb073"
+    },
+    "GEngine/include/GEngine/Material/AAScreenMaterial.h": {
+      "executable": null,
+      "sha256": "9b586805b3af3cf4d9c80b4d7966f00afef87d483f3e2040ccf3f0c6cc68614f"
+    },
+    "GEngine/include/GEngine/Material/BasicMaterial.h": {
+      "executable": null,
+      "sha256": "38d406585649bbb2afab90137446487e10629462bf596971763423fb5c8efd9f"
+    },
+    "GEngine/include/GEngine/Material/Material.h": {
+      "executable": null,
+      "sha256": "800766eab5db18e11ef8fa0d87d822d2564ba5a3c20f21955b9579979722e425"
+    },
+    "GEngine/include/GEngine/Material/TextureMaterial.h": {
+      "executable": null,
+      "sha256": "892f69bde62e8b82941cd5989a903aab0b26ac1acffaa857c35bd1149c2dbe7f"
+    },
+    "GEngine/include/GEngine/Shapes/Terrain.h": {
+      "executable": null,
+      "sha256": "053e3710cf983d2a3e909bcfb28a48604245d4d46b30f6ba420d26f1e0b2400b"
+    },
+    "GEngine/src/Audio/AudioSystem.cpp": {
+      "executable": null,
+      "sha256": "a1d18e70947300480647751270f7ba289e3074bbccae56f63be5ff4247a8bf76"
+    },
+    "GEngine/src/Core/RuntimeAssets.cpp": {
+      "executable": null,
+      "sha256": "341438ba81e6fb0e66761190448b7b556f8d863efaa1824ea2b3e417c2942afb"
+    },
+    "GEngine/src/Managers/AssetsManager.cpp": {
+      "executable": null,
+      "sha256": "e10f052ca05cef14448a6603bce7e85a511f12b4b662b318bfc277d02477811d"
+    },
+    "GEngine/src/Managers/ShapeManager.cpp": {
+      "executable": null,
+      "sha256": "fe8e8a8cad905b23dab8355211f74411d3295ba4d4fdea98270b34b2e56b5b4b"
+    },
+    "GEngine/src/Windows/ImGuiWindow.cpp": {
+      "executable": null,
+      "sha256": "2e78731f7ef009a7383c01473758cc2584f6c6d2e581ade4f2d9606119c0c2bb"
+    },
+    "GEngineEditor/GEngineEditor.vcxproj": {
+      "executable": null,
+      "sha256": "3c0d13d4c20e3c04ff8f1ecf6f44c70f2d7124dfdcd5b1c13aa47c0e8ef388d5"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "GEngineEditor/src/SceneApp.cpp": {
+      "executable": null,
+      "sha256": "bb65b2b1be33be92c8699469dab52c8b3f2ae574e4a32ccd9b9ebd5a95294b18"
+    },
+    "RayTracing/RayTracing.vcxproj": {
+      "executable": null,
+      "sha256": "1e97a74aaf9f34e494163808a871c4e2cc4a2b62d3e3273093359877014f56e8"
+    },
+    "RigidBodySimulation/RigidBodySimulation.vcxproj": {
+      "executable": null,
+      "sha256": "a363c1292b5a4158204416ef68058e8f15582e7dbad6e6353236988053bf4dfb"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "6996dbc0a95dba9060820c7873b9a0bcdbecaad8984f30b731b7306ce75adeb9"
+    },
+    "bin/.gitignore": {
+      "executable": null,
+      "sha256": "8993ae0ab1614658fb146b01eb8c3b062824e9b0b5984c2958d781f31fcf7d22"
+    },
+    "docs/rendering/phases/PHASE_02.md": {
+      "executable": null,
+      "sha256": "ba9bdbfdf4e5b3e7545d2e57483585f428c468e2efc347a278b339c3f26561f0"
+    },
+    "external/glad/glad.vcxproj": {
+      "executable": null,
+      "sha256": "c2d99bda79ced5c30d3daf6fe2bd11a70a7bc4487f020287c8e1a8bef5a06b66"
+    },
+    "external/glad/premake5.lua": {
+      "executable": null,
+      "sha256": "881406fa3a22afd5865e2dd84ab76e29b5b7cb6c2c9e94542be20849f308962c"
+    },
+    "logs/rendering/phase02/exercise_apps.py": {
+      "executable": null,
+      "sha256": "02f1b6d250bbd550f5d1067ecf7c24162b535d1715f9ea62529e43a824d92a98"
+    },
+    "logs/rendering/phase02/exercise_bat.py": {
+      "executable": null,
+      "sha256": "0dc14d072deceb170760a39f8a4a1d469e3d3eaeca327d4148075ae7241668ed"
+    },
+    "logs/rendering/phase02/run_build.py": {
+      "executable": null,
+      "sha256": "5b0207dfb7a011fd8c146ad921fc93b4401e877244fd19ad4d852fc8216a4e54"
+    },
+    "logs/rendering/phase02/validate_runtime.py": {
+      "executable": null,
+      "sha256": "44c1e3472552437b61600e19ee13dc9cf13111d631db2e3d58a8206e92ec356b"
+    },
+    "logs/rendering/phase02/validate_runtime2.py": {
+      "executable": null,
+      "sha256": "c18deabe0231cfced7d4b1625cf6c6ed5ce19f29fddbc146ea64b793cc53a7dc"
+    },
+    "logs/rendering/phase02/winutil.py": {
+      "executable": null,
+      "sha256": "974a7a96dc956201853105cf6cfdb6a87d50c7b63b649d1a84b0360e3dea75ec"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "5c7e824e36cee67299c08d6d0e8f35f22e7922ebd099d133472dca0fb1dbcae8"
+    },
+    "tools/postbuild.py": {
+      "executable": null,
+      "sha256": "bf75c56e292ac2c7b4d22dd079f5e45fc62c05903468a18ddd789e3c9c8bfb56"
+    },
+    "tools/run.bat": {
+      "executable": null,
+      "sha256": "56c7f437dfe9e300d91e9bfe71899d9cfa7498b62db040c25f5b315e24db4277"
+    },
+    "tools/run.py": {
+      "executable": null,
+      "sha256": "48cadcb51d7988df1cf2de05ceb9dcda46c7d380547fe7b05eb060cb1a247e4a"
+    },
+    "tools/runtime_assets.json": {
+      "executable": null,
+      "sha256": "de0f15f505442f26238e622fef1ca6d3ec794abf0875250b837344f804fce70c"
+    },
+    "tools/test_runtime_assets.py": {
+      "executable": null,
+      "sha256": "6562b437d024da62d841d51285842f683d87ca55abea5aadbd2561289d0bce49"
+    }
+  }
+}

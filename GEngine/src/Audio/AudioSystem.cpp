@@ -1,11 +1,12 @@
 #include"gepch.h"
+#include "Core/RuntimeAssets.h"
 #include"Audio/AudioSystem.h"
 #include "Math/Matrix.h"
 #include "fmod/fmod_studio.hpp"
 #include "fmod/fmod_errors.h"
 #include"Audio/SoundEvent.h"
 
-static std::string bankPath = "../GEngine/include/GEngine/Assets/Audio/Bank/";
+static constexpr ::GEngine::RuntimeAssets::Directory bankPath{ "Audio/Bank/" };
 
 
 namespace GEngine::Audio

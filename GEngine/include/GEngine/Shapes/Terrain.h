@@ -1,4 +1,5 @@
 #pragma once
+#include "Core/RuntimeAssets.h"
 #include "Geometry/Geometry.h"
 
 
@@ -8,7 +9,7 @@ namespace GEngine
 	
 	class Terrain: public Geometry
 	{
-		inline static std::string Image_Dir = "../GEngine/include/GEngine/Assets/Images/";
+		inline static constexpr RuntimeAssets::Directory Image_Dir{ "Images/" };
 
 	public:
 		Terrain(int GridX, int GridZ, int size = 800, const std::string& heightMap = "heightmap");

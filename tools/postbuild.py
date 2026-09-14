@@ -1,6 +1,8 @@
 """Copy optional application overlays and verify the checked-in Windows runtime."""
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+import json
+import os
 import shutil
 import subprocess
 import sys
@@ -19,6 +21,69 @@ def runtime_dlls(config, project):
         if project == "GEngineEditor":
             names.append("assimp-vc140-mt.dll")
     return names
+
+
+
+def stage_runtime_assets(repo, destination):
+    """Stage the declared package; source or copy errors fail the postbuild."""
+    repo, destination = Path(repo).resolve(), Path(destination).resolve()
+    manifest = repo / "tools/runtime_assets.json"
+    try:
+        package = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise RuntimeError(f"Cannot read runtime asset manifest {manifest}: {error}") from error
+
+    def relative(value):
+        path = PurePosixPath(value)
+        if not value or path.is_absolute() or ".." in path.parts or ":" in value or "\\" in value or path.as_posix() != value:
+            raise RuntimeError(f"Invalid runtime asset manifest path: {value!r}")
+        return path
+
+    if package.get("schema") != 1 or set(package.get("startup", {})) != {"GEngineEditor", "RigidBodySimulation", "Breakout", "RayTracing"}:
+        raise RuntimeError(f"Invalid runtime asset package schema/profiles: {manifest}")
+    files = package["files"]
+    if not files:
+        raise RuntimeError(f"Empty runtime asset manifest: {manifest}")
+    for name, source_name in files.items():
+        relative(name)
+        source = repo / relative(source_name)
+        if not source.resolve().is_relative_to(repo) or not source.is_file():
+            raise RuntimeError(f"Missing runtime staging source: {source}; resource {name}; destination {destination}. Restore that tracked asset and rebuild.")
+    for application, required in package["startup"].items():
+        if not required or len(set(required)) != len(required) or not set(required) <= files.keys():
+            raise RuntimeError(f"Invalid startup asset list for {application}: {manifest}")
+
+    copied = 0
+    for name, source_name in files.items():
+        source, target = repo / source_name, destination / name
+        temporary = target.with_name(target.name + f".{os.getpid()}.stage-tmp")
+        try:
+            info = source.stat()
+            if target.is_file() and target.stat().st_size == info.st_size and target.stat().st_mtime_ns == info.st_mtime_ns:
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, temporary)
+            os.replace(temporary, target)
+            copied += 1
+        except OSError as error:
+            raise RuntimeError(f"Runtime asset copy failed: {source} -> {target}: {error}. Fix access/disk space and rebuild.") from error
+        finally:
+            if temporary.is_file():
+                temporary.unlink()
+    for application, required in package["startup"].items():
+        target = destination / "startup" / (application + ".txt")
+        temporary = target.with_name(target.name + f".{os.getpid()}.stage-tmp")
+        data = ("GENGINE_STARTUP_ASSETS_V1 " + application + "\n" + "\n".join(required) + "\n").encode("utf-8")
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            temporary.write_bytes(data)
+            os.replace(temporary, target)
+        except OSError as error:
+            raise RuntimeError(f"Cannot publish startup asset list for {application} at {target}: {error}") from error
+        finally:
+            if temporary.is_file():
+                temporary.unlink()
+    print(f"Runtime assets staged: {destination} ({len(files)} files; {copied} copied)", flush=True)
 
 
 def main(project_dir, arguments):
@@ -46,6 +111,8 @@ def main(project_dir, arguments):
                 raise RuntimeError(f"robocopy failed ({result.returncode}): {source} -> {dest}")
         else:
             shutil.copytree(source, dest, dirs_exist_ok=True)
+
+    stage_runtime_assets(project_dir.parent, dest.parent / "assets")
 
     if windows:
         missing = [name for name in runtime_dlls(config, project) if not (dest / name).is_file()]

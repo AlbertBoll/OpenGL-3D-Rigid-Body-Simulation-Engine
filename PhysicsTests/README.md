@@ -4,6 +4,29 @@
 correctness and numerical robustness. It does not initialize SDL, OpenGL,
 ImGui, renderer state, or runtime assets.
 
+## Contact telemetry contract
+
+`PhysicsProfileSnapshot` is optional instrumentation. Without
+`GE_ENABLE_PHYSICS_PROFILING`, every snapshot is zero and profiling macros are
+no-ops. Correctness assertions inspect live manifolds, constraint bindings and
+body state in both modes. They must not require nonzero disabled counters.
+
+With profiling enabled, `generatedContactCount` accumulates finite generated
+contact candidates before manifold insertion/deduplication (including expanded
+box-face contacts and transient positive-TOI contacts). `manifoldContactCount`
+is the retained manifold-contact total sampled before PreSolve;
+`solverConstraintCount` samples those contacts eligible for active resting
+response at that point. It excludes transient TOI contacts, scalar friction
+rows and iteration multiplicity. PreSolve may retire invalid contacts, so it
+is not a count of contacts that actually applied an impulse. ADD counters
+accumulate until `ResetPhysicsProfile`; SET counters describe the latest sample.
+
+`PhysicsTests.exe --contact-telemetry` checks the four-contact awake box-face
+fixture, constraint bindings, unchanged unforced motion and reset semantics.
+The same fixture requires exact nonzero instrumentation when profiling is
+enabled and explicit zero snapshots when disabled. `--box-manifolds` and the
+default suite also run these checks.
+
 Generate and run on Windows:
 
 ```powershell

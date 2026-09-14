@@ -27,6 +27,8 @@ namespace GEngine
 		Manager::EventManager* GetEventManager() { return m_EventManager.get(); }
 		//void Run();
 		void ShutDown();
+		// Entry point calls this after all application/resource destructors finish.
+		void ReleasePlatform();
 		bool IsRunning()const { return m_Running; }
 
 	private:

@@ -40,6 +40,6 @@ namespace GEngine::Manager
 		{
 			if(ele.second) delete ele.second;
 		}
-		
+		m_ShaderMap.clear();
 	}
 }

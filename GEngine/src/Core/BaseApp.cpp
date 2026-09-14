@@ -25,6 +25,8 @@ namespace GEngine
 
     BaseApp::~BaseApp()
     {
+        // Destroy scene borrowers before their shared caches, with GL still current.
+        m_Scene.reset();
         AssetsManager::FreeAllResources();
         ShaderManager::FreeShader();
         ShapeManager::FreeShape();
@@ -84,7 +86,15 @@ namespace GEngine
                     auto windows = BaseApp::GetWindowManager();
                     if (auto p = windows->GetWindows().find(windowParam.ID); p != windows->GetWindows().end())
                     {             
-                        windows->RemoveWindow(windowParam.ID);                 
+                        if (p->second.get() == m_SDLWindow)
+                        {
+                            // Keep the main context alive through derived/base destruction.
+                            m_Running = false;
+                        }
+                        else
+                        {
+                            windows->RemoveWindow(windowParam.ID);
+                        }
 
                     }
                 }));
@@ -313,6 +323,8 @@ namespace GEngine
                     //Timeit(ProcessInput)
                     ProcessInput(inputTime);
                 }
+
+                if (!m_Running) break;
 
 
                 //update                              

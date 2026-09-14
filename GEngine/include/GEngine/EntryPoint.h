@@ -25,6 +25,8 @@ int main(int argc, char* args[])
 
 
 	delete app;
+	// All application and GL resource destructors run before platform teardown.
+	BaseApp::GetEngine().ReleasePlatform();
 	
 	//using namespace GEngine;
 

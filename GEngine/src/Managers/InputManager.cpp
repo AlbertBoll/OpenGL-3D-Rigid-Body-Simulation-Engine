@@ -159,7 +159,8 @@ namespace GEngine::Manager
 
     void InputManager::ShutDown()
     {
-
+        if (m_GameController) SDL_GameControllerClose(m_GameController);
+        m_GameController = nullptr;
     }
 
 

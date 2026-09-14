@@ -2679,13 +2679,40 @@ namespace
 						system.Update(Timestep(1.0f / 120.0f));
 						Expect(GetManifolds(system).m_Manifolds.size() == 1 && GetManifolds(system).GetContactCount() == 4,
 							"aligned/rotated box faces start and remain a four-point world manifold in either creation order");
-						Expect(GetPhysicsProfileSnapshot().generatedContactCount == 4 &&
-							GetPhysicsProfileSnapshot().solverConstraintCount == 4,
-							"contact telemetry counts all four generated face contacts and solver constraints");
+						int activeConstraints = 0;
+						bool bindingsMatch = true;
+						for (auto& manifold : GetManifolds(system).m_Manifolds) {
+							for (int slot = 0; slot < manifold.GetNumContacts(); ++slot) {
+								const auto contact = manifold.GetContact(slot);
+								const auto& constraint = CachedConstraint(manifold, slot);
+								bindingsMatch &= constraint.m_bodyA == contact.m_BodyA && constraint.m_bodyB == contact.m_BodyB;
+								if ((constraint.m_bodyA && constraint.m_bodyA->GetInverseMass() > 0 && !constraint.m_bodyA->IsSleeping()) ||
+									(constraint.m_bodyB && constraint.m_bodyB->GetInverseMass() > 0 && !constraint.m_bodyB->IsSleeping())) ++activeConstraints;
+							}
+						}
+						Expect(bindingsMatch && activeConstraints == 4,
+							"four live face-contact constraints bind the retained contacts independently of profiling");
+						const auto profile = GetPhysicsProfileSnapshot();
+						if (IsPhysicsProfilingEnabled()) {
+							Expect(profile.generatedContactCount == 4 && profile.manifoldCount == 1 &&
+								profile.manifoldContactCount == 4 && profile.solverConstraintCount == static_cast<std::uint64_t>(activeConstraints),
+								"contact telemetry counts generated face contacts, retained contacts and active constraints separately");
+						}
+						else {
+							// Disabled profiling promises zero snapshots, not correctness telemetry.
+							Expect(profile.stepCount == 0 && profile.generatedContactCount == 0 && profile.manifoldCount == 0 &&
+								profile.manifoldContactCount == 0 && profile.solverConstraintCount == 0 && profile.solverIterationCount == 0,
+								"disabled contact profiling returns zero instrumentation while live constraints remain valid");
+						}
 					}
 					Expect(Near(boxBody->m_Position, Vec3f(0, 1.49f, 0)) &&
 						Near(boxBody->m_LinearVelocity, Vec3f(0)) && Near(boxBody->m_AngularVelocity, Vec3f(0)),
 						"face generation preserves an unforced resting pose and motion within the approved position slop");
+					ResetPhysicsProfile();
+					const auto reset = GetPhysicsProfileSnapshot();
+					Expect(reset.generatedContactCount == 0 && reset.manifoldCount == 0 &&
+						reset.manifoldContactCount == 0 && reset.solverConstraintCount == 0,
+						"contact profiling reset clears accumulated and latest-sample counters in either mode");
 				}
 			}
 		}
@@ -7899,6 +7926,12 @@ int main(int argc, char** argv)
 		if (argument == "--persistence-continuity") return RunPersistenceContinuityRegression();
 		if (argument == "--manifold-persistence") return RunManifoldPersistenceRegression();
 		if (argument == "--box-manifolds") return RunBoxManifoldRegression();
+		if (argument == "--contact-telemetry") {
+			TestBoxFaceManifoldWorld();
+			std::cout << "Contact telemetry (profiling " << (GEngine::IsPhysicsProfilingEnabled() ? "enabled" : "disabled")
+				<< "): " << (testCount - failureCount) << '/' << testCount << " checks passed\n";
+			return failureCount ? 1 : 0;
+		}
 		if (argument == "--box-features") return RunBoxFeatureRegression();
 		if (argument == "--position-stabilization") return RunPositionStabilizationRegression();
 		if (argument == "--solver-iterations") return RunSolverIterationsRegression();

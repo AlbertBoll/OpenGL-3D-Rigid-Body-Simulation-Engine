@@ -60,12 +60,11 @@ namespace GEngine
 
 	BreakoutApp::~BreakoutApp()
 	{
-		Manager::AssetsManager::FreeAllResources();
-		Manager::ShaderManager::FreeShader();
-		Manager::ShapeManager::FreeShape();
-
+		// These objects are app-owned; shared asset caches are released by BaseApp.
 		if (m_Background) delete m_Background;
 		if (m_Player) delete m_Player;
+		delete m_Ball;
+		delete m_EditorCamera;
 
 
 	}

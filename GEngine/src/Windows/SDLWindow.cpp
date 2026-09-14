@@ -105,17 +105,13 @@ namespace GEngine
 
 	void SDLWindow::ShutDown() 
 	{
-		//GENGINE_CORE_INFO("Release Window!");
-		SDL_DestroyWindow(m_Window);
-		//delete m_Window;
-		m_Window = nullptr;
-		FreeContext();
-		
+		// ImGui's GL backend needs the owning context and SDL window during cleanup.
+		if (m_Window && m_Context) SDL_GL_MakeCurrent(m_Window, m_Context);
 		delete m_ImGuiWindow;
 		m_ImGuiWindow = nullptr;
-		std::cout << "delete" << std::endl;
-			
-			
+		if (m_Context) FreeContext();
+		if (m_Window) SDL_DestroyWindow(m_Window);
+		m_Window = nullptr;
 	}
 
 	void SDLWindow::SetTitle(const std::string& title) const

@@ -118,7 +118,10 @@ namespace GEngine::Manager
 		{
 			if(ele.second) delete ele.second;
 		}
-		
+		m_TextureMap.clear();
+		// These wrappers borrow framebuffer GL names; Texture does not delete them.
+		for (auto& entry : m_FrameBufferTextures) delete entry.second;
+		m_FrameBufferTextures.clear();
 	}
 
 	void AssetsManager::FreeFontResource()
@@ -127,6 +130,7 @@ namespace GEngine::Manager
 		{
 			if(ele.second) delete ele.second;
 		}
+		m_FontMap.clear();
 	}
 
 	void AssetsManager::FreeAllResources()

@@ -134,5 +134,17 @@ namespace GEngine
 		m_Running = false;
 	}
 
+	void GEngine::ReleasePlatform()
+	{
+		// Called after application destruction; retire callbacks before their platform.
+		ShutDown();
+		m_EventManager.reset();
+		if (m_InputManager) m_InputManager->ShutDown();
+		m_InputManager.reset();
+		m_WindowManager.reset();
+		TTF_Quit();
+		SDL_Quit();
+	}
+
 
 }

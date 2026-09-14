@@ -516,7 +516,6 @@ namespace
 	{
 		constexpr int stepCount = 1200;
 		constexpr float dtSeconds = 1.0f / 120.0f;
-		GEngine::Log::Initialize();
 		GEngine::Log::GetLogger()->set_level(spdlog::level::off);
 
 		std::vector<RegressionResult> results;
@@ -815,6 +814,8 @@ int main(int argc, char** argv)
 	try
 	{
 		const Options options = ParseOptions(argc, argv);
+		// Shape construction and Debug physics diagnostics require both loggers.
+		GEngine::Log::Initialize();
 		if (options.physicsRegressionBaseline)
 		{
 			return RunPhysicsRegressionBaseline(options.solverIterations);

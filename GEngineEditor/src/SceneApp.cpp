@@ -39,12 +39,9 @@
 
 SceneApp::~SceneApp()
 {
-	Manager::AssetsManager::FreeAllResources();
-	Manager::ShaderManager::FreeShader();
-	Manager::ShapeManager::FreeShape();
 	if(m_AudioSystem)
 		m_AudioSystem->Shutdown();
-	if (m_EditorCamera) delete m_EditorCamera;
+	// The scene owns the camera through CameraRig's attachment child.
 	
 }
 

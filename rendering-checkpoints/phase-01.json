@@ -1,0 +1,196 @@
+{
+  "baseline": "b3b043b15ee814133e8419466a1bf3a985a3c958",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "rendering-checkpoints/phase-01.json"
+  ],
+  "eligible": true,
+  "findings": [],
+  "local_governance": [
+    "docs/rendering/BUILD_RUNTIME_COMMANDS.md",
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_01_REVIEW.md",
+    "logs/rendering/phase01/build-summary.json",
+    "logs/rendering/phase01/candidate-verification.json",
+    "logs/rendering/phase01/console-summary.json",
+    "logs/rendering/phase01/documentation-paths.json",
+    "logs/rendering/phase01/governance.json",
+    "logs/rendering/phase01/launch-summary.json",
+    "logs/rendering/phase01/launch_suite.py",
+    "logs/rendering/phase01/physics-classification.json",
+    "logs/rendering/phase01/preflight.json",
+    "logs/rendering/phase01/protected-settings.json",
+    "logs/rendering/phase01/runtime-dlls.json",
+    "logs/rendering/phase01/target-inventory.json",
+    "logs/rendering/phase01/toolchain.json",
+    "logs/rendering/phase01/tracked-input-hashes.json",
+    "logs/rendering/phase01/validate_inventory.py",
+    "logs/rendering/phase01/validation-input-hashes.json",
+    "logs/rendering/phase01/verify_candidate.py"
+  ],
+  "next_phase": "02",
+  "phase": "01",
+  "previous_approved_tag": "render-refactor-phase-00-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_01_REVIEW.md",
+  "schema": 2,
+  "summary": "Documentation-only build/runtime inventory: two libraries, six executables, source map and reproducible commands. Generation and Debug/Release builds pass; all 12 executable attempts classified. Eight graphical startups pass, six shutdowns fail; PhysicsTests has 80 telemetry failures/config; short benchmark fails in Debug (access violation), passes in Release. No runtime repair or performance/lifecycle baseline claimed.",
+  "validation": [
+    {
+      "check": "Generate and build the documented Debug/Release x64 inventory",
+      "command": "python logs/rendering/phase01/validate_inventory.py build",
+      "evidence": "logs/rendering/phase01/build-summary.json",
+      "result": "PASS",
+      "reuse_reason": "Final review-status update after successful initial seal only; all validated source, command, fixture and protected input identities remain unchanged."
+    },
+    {
+      "check": "Verify 16 generated outputs/settings and 85 tracked runtime DLL identities",
+      "command": "validate_inventory.py build invokes inventory after both builds",
+      "evidence": "logs/rendering/phase01/target-inventory.json; logs/rendering/phase01/runtime-dlls.json",
+      "result": "PASS",
+      "reuse_reason": "Final review-status update after successful initial seal only; all validated source, command, fixture and protected input identities remain unchanged."
+    },
+    {
+      "check": "Attempt and classify all eight graphical runs: startups 8 PASS, shutdowns 2 PASS / 6 FAIL; inventory coverage only",
+      "command": "python logs/rendering/phase01/launch_suite.py",
+      "evidence": "logs/rendering/phase01/launch-summary.json",
+      "result": "PASS",
+      "reuse_reason": "Final review-status update after successful initial seal only; all validated source, command, fixture and protected input identities remain unchanged."
+    },
+    {
+      "check": "Attempt and classify all four console runs: PhysicsTests FAIL both; benchmark Debug access violation, Release PASS; inventory coverage only",
+      "command": "python logs/rendering/phase01/validate_inventory.py console",
+      "evidence": "logs/rendering/phase01/console-summary.json; logs/rendering/phase01/physics-classification.json",
+      "result": "PASS",
+      "reuse_reason": "Final review-status update after successful initial seal only; all validated source, command, fixture and protected input identities remain unchanged."
+    },
+    {
+      "check": "Verify documented paths, unchanged validated inputs, all 45 protected paths, index bytes and approved state",
+      "command": "python logs/rendering/phase01/verify_candidate.py",
+      "evidence": "logs/rendering/phase01/candidate-verification.json; logs/rendering/phase01/documentation-paths.json",
+      "result": "PASS",
+      "reuse_reason": "Final review-status update after successful initial seal only; all validated source, command, fixture and protected input identities remain unchanged."
+    },
+    {
+      "check": "Validate governance structure and context-section links",
+      "command": "python .codex/tools/validate_rendering_governance.py",
+      "evidence": "logs/rendering/phase01/governance.json",
+      "result": "PASS",
+      "reuse_reason": "Final review-status update after successful initial seal only; all validated source, command, fixture and protected input identities remain unchanged."
+    }
+  ],
+  "validation_input_hashes": {
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "Breakout/postbuild.py": {
+      "executable": null,
+      "sha256": "d0d0fd0382fd599f06d0a2751187d6d744493ab50dde121a6240790b30fd17a4"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "GEngineEditor/postbuild.py": {
+      "executable": null,
+      "sha256": "d0d0fd0382fd599f06d0a2751187d6d744493ab50dde121a6240790b30fd17a4"
+    },
+    "RayTracing/postbuild.py": {
+      "executable": null,
+      "sha256": "d0d0fd0382fd599f06d0a2751187d6d744493ab50dde121a6240790b30fd17a4"
+    },
+    "RigidBodySimulation/postbuild.py": {
+      "executable": null,
+      "sha256": "d0d0fd0382fd599f06d0a2751187d6d744493ab50dde121a6240790b30fd17a4"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "a8bf14602d46ee7bcbd8a3dd68b6a2d86a04353acc8f038d503700a917f33eb9"
+    },
+    "external/glad/premake5.lua": {
+      "executable": null,
+      "sha256": "881406fa3a22afd5865e2dd84ab76e29b5b7cb6c2c9e94542be20849f308962c"
+    },
+    "logs/rendering/phase01/launch_suite.py": {
+      "executable": null,
+      "sha256": "4411edaa41f663ea920c2a97fedd07f1c649eec2e6adce9c05563f2bf7ac27f9"
+    },
+    "logs/rendering/phase01/validate_inventory.py": {
+      "executable": null,
+      "sha256": "6ebf38dd192d1230c137f2d02dc566eb6808ee613317d06c7b848ee2b0723a1d"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "5c7e824e36cee67299c08d6d0e8f35f22e7922ebd099d133472dca0fb1dbcae8"
+    },
+    "tools/globals.py": {
+      "executable": null,
+      "sha256": "f5871147935f2b031b2b8f89078d60adab529faae9e6e8058650a6f0afce617b"
+    },
+    "tools/postbuild.py": {
+      "executable": null,
+      "sha256": "b77a3458bd55817fc7baf173f1a3d68d4094d1b2368d61a0ea923c92ab9ec273"
+    },
+    "tools/run.bat": {
+      "executable": null,
+      "sha256": "f2ae2eac5eea6b0c13f234ac8bd98434889d770accc491a9c338c32a8629272d"
+    },
+    "tools/run.py": {
+      "executable": null,
+      "sha256": "1a0468ec2f90f25cfd8e3ca7bac0701c3109cd44ef0432e0957b3325cb8ca7f7"
+    },
+    "vendor/bin/premake/premake5.exe": {
+      "executable": null,
+      "sha256": "6810a9d0c39d6d8361158da6bce9cb146267ba3405cb9eaea98dd0df36e991e0"
+    }
+  }
+}

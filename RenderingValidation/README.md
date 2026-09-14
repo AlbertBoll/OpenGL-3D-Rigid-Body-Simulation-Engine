@@ -28,7 +28,7 @@ exception failures, and an invalid-argument failure. Expected negative controls
 are recorded with their actual nonzero exits. Driver exits are 0 PASS, 1 failure,
 2 invalid command line, and 3 unavailable optional prerequisite/platform.
 
-The native executable supports `--self-test` (also its default), `--gl`, `--gl-debug`,
+The native executable supports `--self-test` (also its default), `--gl`, `--gl-debug`, `--counters`, `--gl-counters`,
 `--failure-probe`, `--exception-probe`, `--asan-failure-probe`, and `--help`.
 Its normal exits use the same 0/1/2/3 contract. A sanitizer abort retains its native
 process exit; the Python runner checks both a nonzero exit and the specific ASan
@@ -80,6 +80,58 @@ ImGui-created secondary viewport contexts remain owned by the existing backend;
 this phase installs the callback on engine-owned SDL contexts only.
 
 Reference: [KHR_debug specification](https://registry.khronos.org/OpenGL/extensions/KHR/KHR_debug.txt).
+
+## Renderer counters (Phase 06)
+
+Run `RenderingValidation.exe --counters` for CPU reset/accumulation/snapshot checks
+and `RenderingValidation.exe --gl-counters` with the SDL DLL PATH above for two
+hidden context lifetimes. The latter submits a known arrays/indexed/instanced/line/
+zero-count sequence, checks a red pixel, repeated binds, null buffer allocation
+versus uploads, buffer replacement, readback timing, live names, deletion and
+context retirement. Run both configurations: Debug counts, Release stays at zero
+while forwarding the same GL work. Neither mode links GEngine.
+
+The launcher also supports `python tools/rendering_validation.py --configuration
+Debug --counters` (or `Release`); add `--no-build` to use an already built binary.
+
+`Core/RenderCounters.h` exposes `Current()` and `LastFrame()` value snapshots on
+the context-owning thread. `BaseApp::Run` starts a frame before input/update and
+finishes it after rendering; resource counts survive frame resets. Set
+`GENGINE_RENDER_COUNTERS_LOG=1` to print the last completed frame on normal exit.
+Debug enables counters by default. Release compiles them out, including wrappers,
+timers, resource maps and logging. An explicit `GENGINE_RENDER_COUNTERS=0` or `1`
+compiler definition must be consistent across all consumers and PCHs.
+
+Coverage is the current first-party GL entrypoints reached through `gepch.h`.
+The header wraps calls without replacing glad pointers. ImGui's separate GL
+loader, other third-party loaders and direct `glad_gl*` calls are outside coverage.
+Sampler binds are available and zero when the engine issues none. Binds include
+unbinds and repeated requests. Draws count issued calls (including zero counts
+and failures); triangles estimate submitted `GL_TRIANGLES` lists including
+instances, not strips/restart, geometry-shader amplification or rasterized output.
+Shadow/picking counts mark their pre-render routines once per invocation.
+Target reallocations mark replacement attempts in framebuffer invalidation paths,
+exclude initial creation, and count each entered invalidation routine. The normal
+main target/resolve pair uses one routine; the alternate `_Invalidate` path calls
+a separate resolve routine and counts that separately.
+
+Uploads count `glBufferSubData` and non-null `glBufferData`, with requested payload
+bytes; null `glBufferData` counts only as allocation. Texture uploads and mapped
+buffer writes are outside this buffer metric. Readback time is CPU elapsed time
+around `glReadPixels`, including any driver wait, not GPU time.
+
+Live counts are observed generated/created names minus delete requests, separated
+by resource kind and creating context. They include reserved names and exclude
+deferred driver destruction. This is not a leak detector or a shared-context
+registry. Context retirement clears its remaining observations. Estimated bytes
+cover requested stores for observed array, element, uniform and pixel pack/unpack
+buffers only; binding is queried on store allocation, never per draw/bind. Failed
+allocations are still requests. Texture/renderbuffer/driver overhead bytes are
+unknown. Shared-context cross-owner deletion is outside this early diagnostic
+model. No GL errors are consumed and no workers gain GL work.
+
+These counters establish observability only. Phase 13 owns the performance
+baseline; no trustworthy baseline or negligible *enabled* timing cost is claimed.
 
 ## AddressSanitizer and ThreadSanitizer
 

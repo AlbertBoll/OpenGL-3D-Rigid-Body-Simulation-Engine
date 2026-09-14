@@ -247,6 +247,7 @@ namespace GEngine
 
 	void SDLWindow::FreeContext()
 	{
+		RenderCounters::ForgetContext(m_Context);
 		SDL_GL_DeleteContext(m_Context);
 		m_Context = nullptr;
 	}

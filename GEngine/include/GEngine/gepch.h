@@ -41,6 +41,7 @@
 #include <utility>     // std::move
 #include <future>  
 #include <atomic> 
+#include "Core/RenderCounters.h"
 
 //#include "Math/Math.h"
 

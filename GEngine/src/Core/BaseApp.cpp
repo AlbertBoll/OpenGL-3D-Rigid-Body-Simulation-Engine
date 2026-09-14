@@ -305,6 +305,10 @@ namespace GEngine
 
     void BaseApp::Run()
     {
+#if GENGINE_RENDER_COUNTERS
+        const char* counterLog = SDL_getenv("GENGINE_RENDER_COUNTERS_LOG");
+        const bool reportCounters = counterLog && std::string_view(counterLog) == "1";
+#endif
         auto input = GetInputManager();
         auto windows = GetWindowManager();
 
@@ -341,6 +345,7 @@ namespace GEngine
                 }
 
                 //process input
+                RenderCounters::BeginFrame();
                 {
                     //Timeit(ProcessInput)
                     ProcessInput(inputTime);
@@ -360,9 +365,13 @@ namespace GEngine
                     const GLDebug::Group submission("Application render");
                     Render();
                 }
+                RenderCounters::EndFrame();
             }
          
-        } 
+        }
+#if GENGINE_RENDER_COUNTERS
+        if (reportCounters) RenderCounters::ReportLastFrame();
+#endif
 
         
     }

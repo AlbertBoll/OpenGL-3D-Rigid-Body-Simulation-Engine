@@ -26,6 +26,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--configuration", choices=["Debug", "Release"], default="Debug")
     parser.add_argument("--gl", action="store_true", help="Also require the optional hidden OpenGL 4.6 fixture")
+    parser.add_argument("--counters", action="store_true", help="Require CPU and hidden GL renderer-counter checks")
     parser.add_argument("--asan", action="store_true", help="Instrument this target and verify ASan detects an isolated heap overflow")
     parser.add_argument("--no-build", action="store_true", help="Use an already built matching binary")
     parser.add_argument("--output", type=Path, help="Directory for commands, logs and results.json")
@@ -33,7 +34,8 @@ def main():
     label = args.configuration + ("-asan" if args.asan else "")
     out = (args.output or ROOT / "logs/rendering/validation" / label).resolve()
     out.mkdir(parents=True, exist_ok=True)
-    report = {"configuration": args.configuration, "asan": args.asan, "gl_requested": args.gl, "steps": []}
+    report = {"configuration": args.configuration, "asan": args.asan,
+              "gl_requested": args.gl or args.counters, "counters_requested": args.counters, "steps": []}
     env = {k: v for k, v in os.environ.items() if k.lower() != "path"}
     env["Path"] = os.environ.get("PATH", os.environ.get("Path", ""))
     # An owner setting must not open a debugger, save dumps, or mask a negative control.
@@ -98,7 +100,10 @@ def main():
         if args.asan:
             invoke("asan-failure-probe", [executable, "--asan-failure-probe"], expected="nonzero",
                    marker="ERROR: AddressSanitizer: heap-buffer-overflow", child_env=cpu_env)
-        if args.gl:
+        if args.counters:
+            invoke("counter-reset-accumulation", [executable, "--counters"],
+                   marker="[PASS] counter-reset-accumulation", child_env=cpu_env)
+        if args.gl or args.counters:
             # Reuse the existing tracked SDL runtime; no application is launched.
             sdl = ROOT / "bin" / args.configuration / "GEngineEditor/SDL2.dll"
             if not sdl.is_file():
@@ -107,9 +112,11 @@ def main():
                 return code
             gl_env = dict(env, Path=str(sdl.parent) + os.pathsep + env["Path"])
             report["sdl_runtime"] = {"path": str(sdl), "sha256": hashlib.sha256(sdl.read_bytes()).hexdigest()}
-            step = invoke("hidden-gl-context", [executable, "--gl"], marker="[PASS] hidden-gl-context", child_env=gl_env)
+            name = "gl-renderer-counters" if args.counters else "hidden-gl-context"
+            mode = "--gl-counters" if args.counters else "--gl"
+            step = invoke(name, [executable, mode], marker="[PASS] " + name, child_env=gl_env)
             if step["exit"] == 3 and all(s["result"] == "PASS" for s in report["steps"][:-1]):
-                report["reason"] = "Optional GL prerequisite unavailable; see hidden-gl-context.log"
+                report["reason"] = "GL prerequisite unavailable; see " + name + ".log"
                 code = 3
                 return code
         code = 0 if all(step["result"] == "PASS" for step in report["steps"]) else 1

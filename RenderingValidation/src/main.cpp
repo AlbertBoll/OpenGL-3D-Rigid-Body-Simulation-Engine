@@ -1,6 +1,7 @@
 // Validation infrastructure only. This executable does not initialize GEngine.
 #include <sdl2/SDL.h>
 #include <Core/GLDebug.h>
+#include <Core/RenderCounters.h>
 #include <windows.h>
 
 #include <array>
@@ -65,6 +66,118 @@ namespace
         const std::span<int> values(storage.get(), 64);
         std::iota(values.begin(), values.end(), 0);
         Require(std::accumulate(values.begin(), values.end(), 0) == 2016, "CPU workload result differs");
+    }
+
+    void CounterReset()
+    {
+        namespace counters = GEngine::RenderCounters;
+        counters::BeginFrame();
+        counters::RecordPass(counters::Pass::Shadow);
+        counters::RecordPass(counters::Pass::Shadow);
+        counters::RecordPass(counters::Pass::Picking);
+        counters::RecordTargetReallocation(false);
+        counters::RecordTargetReallocation(true);
+        counters::EndFrame();
+        const auto first = counters::LastFrame();
+        Require(first.frame.shadowPasses == (counters::Enabled ? 2 : 0)
+            && first.frame.pickingPasses == (counters::Enabled ? 1 : 0)
+            && first.frame.targetReallocations == (counters::Enabled ? 1 : 0), "Pass/reallocation accumulation differs");
+        counters::BeginFrame();
+        Require(counters::Current().frame.shadowPasses == 0 && counters::Current().frame.pickingPasses == 0
+            && counters::Current().frame.targetReallocations == 0, "Frame counters were not reset");
+        Require(counters::LastFrame().frame.shadowPasses == first.frame.shadowPasses, "Completed snapshot changed at reset");
+        Require(counters::Current().frameNumber == first.frameNumber + (counters::Enabled ? 1 : 0), "Frame sequence differs");
+        counters::EndFrame();
+    }
+
+    void GlCounters()
+    {
+        namespace counters = GEngine::RenderCounters;
+        Require(gladLoadGLLoader(SDL_GL_GetProcAddress) != 0, "GL loader failed");
+        const auto context = SDL_GL_GetCurrentContext();
+        GLuint vao = 0, buffer = 0, textures[2]{}, sampler = 0, fbo = 0, rbo = 0;
+        glGenVertexArrays(1, &vao);
+        glGenBuffers(1, &buffer);
+        glGenTextures(1, textures);
+        glCreateTextures(GL_TEXTURE_2D, 1, textures + 1);
+        glGenSamplers(1, &sampler);
+        glGenFramebuffers(1, &fbo);
+        glGenRenderbuffers(1, &rbo);
+        const GLuint vertex = glCreateShader(GL_VERTEX_SHADER), fragment = glCreateShader(GL_FRAGMENT_SHADER);
+        const GLuint program = glCreateProgram();
+        const char* vs = "#version 460 core\nvoid main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.-1.,0.,1.);}";
+        const char* fs = "#version 460 core\nout vec4 color;void main(){color=vec4(1,0,0,1);}";
+        glShaderSource(vertex, 1, &vs, nullptr); glCompileShader(vertex);
+        glShaderSource(fragment, 1, &fs, nullptr); glCompileShader(fragment);
+        glAttachShader(program, vertex); glAttachShader(program, fragment); glLinkProgram(program);
+        GLint linked = 0; glGetProgramiv(program, GL_LINK_STATUS, &linked);
+        Require(linked == GL_TRUE, "Counter fixture program did not link");
+
+        counters::BeginFrame();
+        // Repeated requests count even when they repeat the same binding.
+        glUseProgram(program); glUseProgram(program);
+        glBindVertexArray(vao); glBindVertexArray(vao);
+        glBindTexture(GL_TEXTURE_2D, textures[0]); glBindTexture(GL_TEXTURE_2D, textures[0]);
+        glBindSampler(0, sampler); glBindSampler(0, sampler);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0); glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer);
+        const GLuint indices[]{ 0, 1, 2, 0, 1, 2 };
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices) * 2, nullptr, GL_STATIC_DRAW);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+        glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, sizeof(GLuint), indices);
+        glViewport(0, 0, 64, 64);
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+        glDrawArraysInstanced(GL_TRIANGLES, 0, 3, 2);
+        glDrawElementsInstanced(GL_TRIANGLES, 3, GL_UNSIGNED_INT, nullptr, 3);
+        glDrawArrays(GL_LINES, 0, 2);
+        glDrawArrays(GL_TRIANGLES, 0, 0);
+        std::array<unsigned char, 4> pixel{};
+        glReadPixels(32, 32, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.data());
+        Require(pixel[0] == 255 && pixel[1] == 0 && pixel[2] == 0, "Instrumented draw/readback changed output");
+        counters::EndFrame();
+        const auto snapshot = counters::LastFrame();
+        const auto& frame = snapshot.frame;
+        if constexpr (counters::Enabled)
+        {
+            Require(frame.draws == 6 && frame.indexedDraws == 2 && frame.submittedTriangles == 8, "Known draw sequence differs");
+            Require(frame.programBinds == 2 && frame.vaoBinds == 2 && frame.textureBinds == 2
+                && frame.samplerBinds == 2 && frame.framebufferBinds == 2, "Bind accumulation differs");
+            Require(frame.bufferAllocationCalls == 2 && frame.bufferUploadCalls == 2
+                && frame.bufferUploadBytes == sizeof(indices) + sizeof(GLuint), "Null allocation/upload accounting differs");
+            Require(frame.readbackCalls == 1 && frame.readbackCpuNanoseconds > 0, "Readback timing/count differs");
+            const std::array<std::uint64_t, 8> expected{ 1, 1, 2, 1, 1, 1, 2, 1 };
+            Require(snapshot.liveNames == expected && snapshot.estimatedBufferBytes == sizeof(indices), "Live name/store accounting differs");
+        }
+        else
+        {
+            Require(frame.draws == 0 && frame.indexedDraws == 0 && frame.submittedTriangles == 0
+                && frame.programBinds == 0 && frame.vaoBinds == 0 && frame.textureBinds == 0
+                && frame.samplerBinds == 0 && frame.framebufferBinds == 0 && frame.bufferAllocationCalls == 0
+                && frame.bufferUploadCalls == 0 && frame.bufferUploadBytes == 0 && frame.readbackCalls == 0
+                && frame.readbackCpuNanoseconds == 0 && snapshot.estimatedBufferBytes == 0,
+                "Disabled counters performed bookkeeping");
+        }
+        counters::BeginFrame();
+        Require(counters::Current().frame.draws == 0 && counters::Current().frame.bufferUploadBytes == 0
+            && counters::Current().frame.readbackCpuNanoseconds == 0, "GL frame counters were not reset");
+        Require(counters::Current().liveNames == snapshot.liveNames
+            && counters::Current().estimatedBufferBytes == snapshot.estimatedBufferBytes, "Frame reset lost live resources");
+        Require(counters::LastFrame().frame.draws == frame.draws, "Completed GL snapshot was not retained");
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, 0, nullptr, GL_STATIC_DRAW);
+        Require(counters::Current().estimatedBufferBytes == 0, "Zero-size buffer replacement retained old estimate");
+        glUseProgram(0); glBindVertexArray(0); glBindSampler(0, 0); glBindTexture(GL_TEXTURE_2D, 0);
+        glDeleteProgram(program); glDeleteShader(vertex); glDeleteShader(fragment);
+        glDeleteBuffers(1, &buffer); glDeleteBuffers(1, &buffer); // Repeated deletion must not underflow.
+        glDeleteVertexArrays(1, &vao); glDeleteTextures(2, textures);
+        glDeleteSamplers(1, &sampler); glDeleteFramebuffers(1, &fbo); glDeleteRenderbuffers(1, &rbo);
+        Require(counters::Current().liveNames == std::array<std::uint64_t, 8>{}, "Deleted resources remain in counters");
+        glGenBuffers(1, &buffer);
+        counters::ForgetContext(context);
+        Require(counters::Current().liveNames == std::array<std::uint64_t, 8>{}, "Context retirement retained names");
+        glDeleteBuffers(1, &buffer);
+        Require(glGetError() == GL_NO_ERROR, "Counter fixture left a GL error");
+        std::cout << "[COUNTERS] enabled=" << counters::Enabled << " draw-sequence=6/2/8 pixel=red reset=ok resources=retired\n";
     }
 
     void DebugDiagnostics()
@@ -146,7 +259,7 @@ namespace
             "Debug diagnostics left an unbalanced group or GL error");
     }
 
-    void HiddenGlContext(bool diagnostics)
+    void HiddenGlContext(bool diagnostics, bool counters = false)
     {
         // SDL is delay-loaded: neither CPU tests nor help need its runtime DLL.
         using Library = std::unique_ptr<std::remove_pointer_t<HMODULE>, decltype(&FreeLibrary)>;
@@ -185,6 +298,7 @@ namespace
                 Require(version && renderer && getError() == GL_NO_ERROR, "GL context query failed");
                 std::cout << "[GL] cycle=" << cycle << " version=" << version << " renderer=" << renderer << '\n';
                 if (diagnostics) DebugDiagnostics();
+                if (counters) GlCounters();
                 // Reverse declaration order deletes context before window, still here.
             }
             Require(SDL_ThreadID() == owner && SDL_GL_GetCurrentContext() == nullptr,
@@ -213,10 +327,20 @@ int main(int argc, char** argv)
     }
     if (mode == "--help")
     {
-        std::cout << "RenderingValidation [--self-test|--gl|--gl-debug|--failure-probe|--exception-probe|--asan-failure-probe]\n";
+        std::cout << "RenderingValidation [--self-test|--counters|--gl|--gl-debug|--gl-counters|--failure-probe|--exception-probe|--asan-failure-probe]\n";
         return Pass;
     }
     const std::array cpu{ TestCase{"cpu-self-test", &CpuSelfTest} };
+    if (mode == "--counters")
+    {
+        const std::array tests{ TestCase{"counter-reset-accumulation", &CounterReset} };
+        return Run(tests);
+    }
+    if (mode == "--gl-counters")
+    {
+        const std::array tests{ TestCase{"gl-renderer-counters", [] { HiddenGlContext(false, true); }} };
+        return Run(tests);
+    }
     if (mode == "--self-test")
     {
 #ifdef __SANITIZE_ADDRESS__

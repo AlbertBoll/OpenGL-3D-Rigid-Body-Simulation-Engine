@@ -200,6 +200,7 @@ namespace GEngine
 
 	void RenderTarget::Invalidate()
 	{
+		RenderCounters::RecordTargetReallocation(m_FrameBufferID != 0);
 		if (m_FrameBufferID)
 		{
 			//delete m_Texture;
@@ -310,6 +311,7 @@ namespace GEngine
 
 	void RenderTarget::_Invalidate()
 	{
+		RenderCounters::RecordTargetReallocation(m_FrameBufferID != 0);
 
 		if (m_FrameBufferID)
 		{
@@ -370,6 +372,7 @@ namespace GEngine
 
 	void RenderTarget::InvalidatePostProcessing()
 	{
+		RenderCounters::RecordTargetReallocation(m_ScreenFrameBufferID != 0);
 		if (m_ScreenFrameBufferID)
 		{
 			glDeleteFramebuffers(1, &m_ScreenFrameBufferID);
@@ -396,6 +399,7 @@ namespace GEngine
 
 	void RenderTarget::InvalidateMousePickProcessing()
 	{
+		RenderCounters::RecordTargetReallocation(m_MousePickFrameBufferID != 0);
 		if (m_MousePickFrameBufferID)
 		{
 			glDeleteFramebuffers(1, &m_MousePickFrameBufferID);
@@ -551,6 +555,7 @@ namespace GEngine
 	void PointShadowFrameBuffer::Invalidate()
 	{
 		CheckShadowEntryErrors();
+		RenderCounters::RecordTargetReallocation(m_DepthMapFBO != 0);
 		if (m_DepthMapFBO)
 		{
 			glDeleteFramebuffers(1, &m_DepthMapFBO);
@@ -604,6 +609,7 @@ namespace GEngine
 	void CascadeShadowFrameBuffer::Invalidate(unsigned int depth)
 	{
 		CheckShadowEntryErrors();
+		RenderCounters::RecordTargetReallocation(m_LightFBO != 0);
 		if (m_LightFBO)
 		{
 			//delete m_Texture;
@@ -786,6 +792,7 @@ namespace GEngine
 
 	void MousePickFrameBuffer::Invalidate()
 	{
+		RenderCounters::RecordTargetReallocation(m_MousePickFBO != 0);
 		if (m_MousePickFBO)
 		{
 			//delete m_Texture;
@@ -889,6 +896,7 @@ namespace GEngine
 
 	void FinalFrameBuffer::Invalidate()
 	{
+		RenderCounters::RecordTargetReallocation(m_FBO != 0);
 		if (m_FBO)
 		{
 			//delete m_Texture;

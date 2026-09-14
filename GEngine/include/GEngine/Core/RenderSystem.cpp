@@ -32,6 +32,7 @@ namespace GEngine
 
 	void RenderSystem::MousePickPreRender(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader)
 	{
+		RenderCounters::RecordPass(RenderCounters::Pass::Picking);
 		mouse_pick_shader->SetUniform("u_view", camera.GetViewMatrix());
 		mouse_pick_shader->SetUniform("u_projection", camera.GetProjection());
 
@@ -99,6 +100,7 @@ namespace GEngine
 
 	void RenderSystem::CascadedShadowPreRender(_Scene* scene)
 	{
+		RenderCounters::RecordPass(RenderCounters::Pass::Shadow);
 		auto& render_groups = scene->GetGroupEntities();
 
 		for (auto& group : render_groups)
@@ -139,6 +141,7 @@ namespace GEngine
 
 	void RenderSystem::PointShadowPreRender(_Scene* scene, Shader* point_shadow_depth_shader, const std::vector<Mat4>& shadowTransforms, const Vec3f& lightPos, float far_plane)
 	{
+		RenderCounters::RecordPass(RenderCounters::Pass::Shadow);
 		auto& render_groups = scene->GetGroupEntities();
 		for (int i = 0; i < shadowTransforms.size(); ++i)
 		{

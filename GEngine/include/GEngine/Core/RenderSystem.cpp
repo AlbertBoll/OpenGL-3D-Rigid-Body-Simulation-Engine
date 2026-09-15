@@ -17,6 +17,23 @@ namespace GEngine
 {
 	namespace
 	{
+		template<typename Light>
+		bool TryLoadLightUniforms(const _Entity& entity, Shader* shader)
+		{
+			if (!entity.HasAllComponents<Light>())
+				return false;
+			entity.GetComponent<Light>().LoadUniforms(shader);
+			return true;
+		}
+
+		void LoadLightUniforms(const _Entity& entity, Shader* shader)
+		{
+			// Preserve the legacy priority for entities with multiple light components.
+			if (TryLoadLightUniforms<DirectionalLightComponent>(entity, shader)) return;
+			if (TryLoadLightUniforms<PointLightComponent>(entity, shader)) return;
+			TryLoadLightUniforms<SpotLightComponent>(entity, shader);
+		}
+
 		GLsizei ViewportExtent(float value)
 		{
 			// Legacy GetResolution() exposes integral framebuffer dimensions as floats.
@@ -228,21 +245,7 @@ namespace GEngine
 
 				for (auto& light_entity : lightEntities)
 				{
-					if (light_entity.HasAllComponents<DirectionalLightComponent>())
-					{
-						auto it = light_entity.GetComponent<DirectionalLightComponent>();
-						it.LoadUniforms(shader);
-					}
-					else if (light_entity.HasAllComponents<PointLightComponent>())
-					{
-						auto it = light_entity.GetComponent<PointLightComponent>();
-						it.LoadUniforms(shader);
-					}
-					else if (light_entity.HasAllComponents<SpotLightComponent>())
-					{
-						auto it = light_entity.GetComponent<PointLightComponent>();
-						it.LoadUniforms(shader);
-					}
+					LoadLightUniforms(light_entity, shader);
 					shader->SetUniform("u_EntityID", int((entt::entity)light_entity));
 				}
 
@@ -352,21 +355,7 @@ namespace GEngine
 			
 				for (auto& light_entity : lightEntities)
 				{
-					if (light_entity.HasAllComponents<DirectionalLightComponent>())
-					{
-						auto it = light_entity.GetComponent<DirectionalLightComponent>();
-						it.LoadUniforms(shader);
-					}
-					else if (light_entity.HasAllComponents<PointLightComponent>())
-					{
-						auto it = light_entity.GetComponent<PointLightComponent>();
-						it.LoadUniforms(shader);
-					}
-					else if (light_entity.HasAllComponents<SpotLightComponent>())
-					{
-						auto it = light_entity.GetComponent<PointLightComponent>();
-						it.LoadUniforms(shader);
-					}
+					LoadLightUniforms(light_entity, shader);
 				}
 				
 

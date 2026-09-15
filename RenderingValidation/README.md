@@ -257,3 +257,36 @@ an independent matrix value from `Transform3DComponent`. Explicit scene destruct
 includes descendants by default; `excludeChildren=true` detaches surviving children.
 The legacy `first` argument remains accepted, and all calls clean reciprocal links.
 Single-entity duplicates become childless siblings of their source.
+
+## Phase 11: light component dispatch
+
+Run `python tools/test_light_components.py --configuration Debug` and repeat with
+`--configuration Release`. The runner builds GEngine, GEngineEditor (legacy scene
+consumer) and RigidBodySimulation (ECS consumer), then links the production library
+to `tools/light_components_probe.cpp` using the existing VS2022/v143, C++20 and
+static CRT policy. Commands, actual exits, toolchain and binary hashes are saved
+in `logs/rendering/phase11/<Configuration>/results.json`.
+
+Two hidden OpenGL 4.6 context lifetimes exercise `SceneRender` and
+`CascadedShadowSceneRender` with every component-presence combination, individual
+and mixed light entities, and directional/point/spot priority on one entity.
+Distinct uniform values and untouched sentinels are read from the real driver to
+detect wrong-type uploads. Removed components with retained light-list membership,
+re-added components, destroyed entities and unpublished lights are covered.
+Point-light visualization excludes spot/directional uploads. The legacy
+`Renderer::RenderScene` / `Scene::UploadLightsUniform` / `LightEntity` path is checked
+with empty, single and multiple light scenes, including position/color/attenuation.
+
+There is no ECS light enable flag in the current API. Disabled submission coverage
+uses absent components and unpublished entities; zero-intensity coverage verifies
+that directional/point ambient and legacy color overwrite preceding nonzero
+values. Skipping an upload does not clear persistent shader uniforms. Existing
+spot uploads contain direction only; this phase does not expand the lighting
+equations, uniform schema or introduce an enable API. Actor visibility is not a
+light-contribution switch. RenderFrame light extraction remains Phase 41.
+
+The fixture verifies uniform storage and GL errors using real empty VAOs, without
+claiming pixel-image or shadow-quality validation. All GL work, uniform readback
+and destruction occur on the context thread; diagnostics and teardown are checked
+in both configurations. This is focused GL integration coverage, not an application
+lifecycle suite, benchmark or sanitizer run.

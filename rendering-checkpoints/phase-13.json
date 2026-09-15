@@ -1,0 +1,197 @@
+{
+  "baseline": "22caffad72f140e464b61b4b243a20d284bc0812",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Core/RenderBaseline.h",
+    "GEngine/include/GEngine/EntryPoint.h",
+    "GEngine/src/Core/BaseApp.cpp",
+    "GEngine/src/Windows/SDLWindow.cpp",
+    "RenderingValidation/README.md",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "premake5.lua",
+    "rendering-checkpoints/phase-13-baseline.json",
+    "rendering-checkpoints/phase-13.json",
+    "tools/rendering_baseline.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "All selected gates pass; matched counters and explicit timing-noise fallback, representative diagnostic scenes, independent Physics measurements and restored defaults recorded.",
+      "finding": "Stable safety/performance reference after approved safety fixes",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Owned by Phase 28; Phase 13 records existing visual defects without correctness/architecture changes.",
+      "finding": "Multisample sampler-state GL_INVALID_ENUM and width-by-width auxiliary color attachments versus width-by-height depth attachments remain in RenderTarget.",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    },
+    {
+      "disposition": "Owned by Phase 63; Phase 13 records existing visual defects without correctness/architecture changes.",
+      "finding": "Triangle-input shadow geometry shaders still receive existing line-helper draws; integer picking target inherits blend/dither state. Original diagnostics retained.",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    },
+    {
+      "disposition": "Owned by Phase 63; Phase 13 records existing visual defects without correctness/architecture changes.",
+      "finding": "Editor scene resolves offscreen but its ImGuiRender call is disabled, leaving presentation black; scene.bmp records actual rendered output without fixing presentation.",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_13_REVIEW.md",
+    "logs/rendering/phase13/identity-and-contract.json"
+  ],
+  "next_phase": "14",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "7ab3e921b09fd46041296c8dae3760d10551688b",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-13/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/7ab3e921b09fd46041296c8dae3760d10551688b",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "212a68ce06a38af3a4c5fe2dfa267a49c49ddc1618b82bda031ba4cc6ea9095c"
+      },
+      "mode": "100644",
+      "validated_blob": "8d517e0f0df579beb698fd6c40a20a1b06325305",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-13/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/8d517e0f0df579beb698fd6c40a20a1b06325305"
+    }
+  },
+  "phase": "13",
+  "previous_approved_tag": "render-refactor-phase-12-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_13_REVIEW.md",
+  "schema": 2,
+  "summary": "Frozen four-application Release baseline with 2880 sampled frames, stable counters, classified timing noise, diagnostic images and separate deterministic Physics cost; default Debug/Release milestone lifecycles pass.",
+  "validation": [
+    {
+      "check": "Instrumented Debug/Release builds and enabled counter fixtures",
+      "command": "python tools/rendering_baseline.py build --configuration Release --output logs/rendering/phase13/final/Release-build (repeat Debug); python tools/rendering_validation.py --configuration Release --counters --no-build --output logs/rendering/phase13/final/Release-counters (repeat Debug)",
+      "evidence": "logs/rendering/phase13/final/",
+      "result": "PASS"
+    },
+    {
+      "check": "Four frozen Release workloads, matched counters/images, CPU timing noise classified",
+      "command": "python tools/rendering_baseline.py run --output logs/rendering/phase13/final/Release-run",
+      "evidence": "logs/rendering/phase13/final/Release-run/summary.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Debug production collection, resource queries, image capture and clean exit",
+      "command": "Recorded native command/environment in logs/rendering/phase13/final/Debug-collection/application.json and inputs.json",
+      "evidence": "logs/rendering/phase13/final/Debug-collection/result.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Separate deterministic Physics cost",
+      "command": "python tools/rendering_baseline.py physics --output logs/rendering/phase13/final/Physics",
+      "evidence": "logs/rendering/phase13/final/Physics/summary.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Normal Debug/Release builds, counter modes and four-app milestone lifecycle",
+      "command": "python logs/rendering/phase13/normal.py Release; python logs/rendering/phase13/normal.py Debug",
+      "evidence": "logs/rendering/phase13/final/normal-Debug/results.json; logs/rendering/phase13/final/normal-Release/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Malformed/incomplete/blank diagnostic evidence rejected",
+      "command": "Isolated samples/image_region controls recorded in verification-controls/results.json",
+      "evidence": "logs/rendering/phase13/verification-controls/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Source/asset/evidence identity, original index/protected work, active/shared governance",
+      "command": "python logs/rendering/phase13/prepare_review.py; python .codex/tools/validate_rendering_governance.py --shared-only",
+      "evidence": "logs/rendering/phase13/identity-and-contract.json",
+      "result": "PASS"
+    },
+    {
+      "check": "GPU and per-pass/extraction timing",
+      "command": "Current instrumentation inspection and runtime metadata",
+      "evidence": "rendering-checkpoints/phase-13-baseline.json",
+      "reason": "Phase 13 records metrics available at this point. No engine GPU/per-pass/extraction timers exist; no zero-time or secondary-baseline claim is made.",
+      "result": "NOT_APPLICABLE"
+    }
+  ],
+  "validation_input_hashes": {
+    "GEngine/include/GEngine/Core/RenderBaseline.h": {
+      "executable": null,
+      "sha256": "f47e56c4fea9a74ed348e56e0f3dacd9cde7830c498b71207528c331412985eb"
+    },
+    "GEngine/include/GEngine/EntryPoint.h": {
+      "executable": null,
+      "sha256": "753540b27d06855cf1f253f74982418f0ae632f5f51725b09bf73acc7989e338"
+    },
+    "GEngine/src/Core/BaseApp.cpp": {
+      "executable": null,
+      "sha256": "957afa5a33d81f72d3b4dcf6317b67977b5205ac256dc36f8309d42994b77bd1"
+    },
+    "GEngine/src/Windows/SDLWindow.cpp": {
+      "executable": null,
+      "sha256": "847a1063ecca0cb716b7acaf66111c318e9ee8baeef4bec5ddd1ca22e37684e5"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "212a68ce06a38af3a4c5fe2dfa267a49c49ddc1618b82bda031ba4cc6ea9095c"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "dc2b271508b274ee36c8a9b484761f375a3ccd0d8d1f01a424505210622e2932"
+    },
+    "tools/rendering_baseline.py": {
+      "executable": null,
+      "sha256": "6ca0919ec114f097ef0715db2b13371fb46e6bd06e9d4746fe1e2e34d99a7102"
+    }
+  }
+}

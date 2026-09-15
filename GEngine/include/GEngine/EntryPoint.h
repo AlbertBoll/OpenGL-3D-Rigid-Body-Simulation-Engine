@@ -3,6 +3,7 @@
 #include <filesystem>
 //#define SDL_MAIN_HANDLED
 #include "Core/BaseApp.h"
+#include "Core/RenderBaseline.h"
 //#include"Physics/ShapeSphere.h"
 #include<iostream>
 
@@ -19,6 +20,9 @@ int main(int argc, char* args[])
 {
 
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#ifdef GENGINE_RENDER_BASELINE
+    RenderBaseline::Configure(winProp);
+#endif
     try
     {
         RuntimeAssets::Initialize(std::filesystem::path(args[0]).stem().string());

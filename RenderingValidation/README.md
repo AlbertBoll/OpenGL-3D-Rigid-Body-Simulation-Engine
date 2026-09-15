@@ -1,5 +1,67 @@
 # Rendering validation
 
+## Phase 13 frozen safety/performance baseline
+
+`python tools/rendering_baseline.py build --configuration Release --output logs/rendering/phase13/build`
+generates the existing VS2022 projects with the opt-in `--render-baseline` option.
+It consistently enables renderer counters and the existing Physics profiler in
+all C++ consumers. Compiler, C++20, static CRT, dependencies and target ownership
+stay unchanged. Regenerate without the option to restore normal build definitions.
+
+Run `python tools/rendering_baseline.py run --output logs/rendering/phase13/run`
+after a successful build. The four applications run sequentially, three fresh
+processes each. The fixture uses a disposable CWD/layout, an explicit 4096 shadow
+resolution, 1280x720 drawable and confirmed VSYNC=0. It records 120 untimed warm-up
+frames followed by 240 samples; a final untimed frame captures the backbuffer and
+queries current framebuffer attachment dimensions/formats. All GL remains on the
+context thread, and normal application destruction follows collection.
+
+The default initialized scene and camera are retained. `Update` receives zero
+seconds in collection mode, so animations/game motion remain frozen while layout
+and resource update paths still run. Existing frame pacing remains active and is
+included in `frame_ns`; `work_ns` splits into input, update and render elapsed CPU
+durations. Render time includes ImGui, swaps, CPU ray tracing and the ray tracer's
+existing timer logging where applicable; it is not isolated submission time.
+No GPU timer or per-pass timing exists in this baseline. Startup timing begins
+before runtime asset validation and excludes executable loading by the OS.
+
+`frames.csv`, `runtime.txt`, `targets.txt`, `diagnostic.bmp`, per-process commands,
+exits and binary/DLL/layout hashes retain the evidence. `summary.json` reports
+median/p95/p99, per-run medians, and exact non-timing counter signatures. More than
+10% spread between run medians marks a timing metric NOISY; no speedup is inferred.
+The shared scene region must contain image detail and differ by at most 0.5% of
+pixels between repetitions on the same GPU/driver. These images diagnose a frozen
+workload; they are not final visual golden references or cross-GPU byte tests.
+Do not interact with the fixture windows while sampling.
+
+The editor currently leaves its resolved scene offscreen because its UI render
+call is disabled. Its black presented `diagnostic.bmp` is retained as a known
+visual defect. The runner additionally sets `GENGINE_BASELINE_SCENE_TARGET=1`
+for that application and saves the rendered texture to `scene.bmp`; this scene
+image supplies the same nonblank/stability check. Presentation is not repaired.
+
+Counters retain their Phase 06 limitations: issued requests can include failed
+draws and repeated binds; ImGui's independent GL loader and texture-upload bytes
+are not covered. Buffer bytes estimate observed stores; driver allocation and
+total GPU memory remain unknown. Shadow diagnostics distinguish the measured
+4096 configuration (768 MiB at an assumed four bytes/texel over twelve images)
+from the historical 8192 configuration (3072 MiB by the same estimate), which is
+not rerun. Attachment queries provide actual dimensions/formats separately.
+
+The fixture requires zero Physics steps/time in frozen rendering samples.
+`python tools/rendering_baseline.py physics --output logs/rendering/phase13/physics`
+separately runs the existing deterministic headless benchmark at 50/200/1000
+bodies, three warm-ups and ten reset-per-sample 1/120-second steps, repeated in
+three processes. These Physics results are never subtracted from render samples.
+
+`python tools/rendering_baseline.py verify --output logs/rendering/phase13/run`
+checks retained sample completeness, timing decomposition, settings, workload
+counters and diagnostic image stability without rerunning an application.
+Common Phase 65 metrics compare against the sealed Phase 13 baseline. Per-pass
+metrics introduced later establish their own secondary baseline at Phase 48.
+
+## Validation target overview
+
 `RenderingValidation` is a small C++20 console target in the existing Premake /
 VS2022 workspace. It does not link GEngine or an application. Add named CPU
 `TestCase` functions to its suite; `Require` and uncaught test exceptions produce

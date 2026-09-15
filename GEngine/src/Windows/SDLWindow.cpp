@@ -1,5 +1,6 @@
 
 #include "gepch.h"
+#include "Core/RenderBaseline.h"
 #include "Windows/SDLWindow.h"
 #include "Core/GLDebug.h"
 #include "Windows/ImGuiWindow.h"
@@ -104,6 +105,9 @@ namespace GEngine
 
 	void SDLWindow::SwapBuffer()
 	{
+#ifdef GENGINE_RENDER_BASELINE
+        RenderBaseline::Capture(m_Window);
+#endif
 		SDL_GL_SwapWindow(m_Window);
 	}
 

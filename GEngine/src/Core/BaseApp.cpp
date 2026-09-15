@@ -1,6 +1,7 @@
 #include "gepch.h"
 #include "Core/BaseApp.h"
 #include "Core/GLDebug.h"
+#include "Core/RenderBaseline.h"
 #include "Core/RenderTarget.h"
 #include <Camera/PerspectiveCamera.h>
 #include <Camera/OrthographicCamera.h>
@@ -306,6 +307,9 @@ namespace GEngine
 
     void BaseApp::Run()
     {
+#ifdef GENGINE_RENDER_BASELINE
+        RenderBaseline::Session baseline;
+#endif
 #if GENGINE_RENDER_COUNTERS
         const char* counterLog = SDL_getenv("GENGINE_RENDER_COUNTERS_LOG");
         const bool reportCounters = counterLog && std::string_view(counterLog) == "1";
@@ -319,6 +323,9 @@ namespace GEngine
         //GENGINE_CORE_INFO("{}", m_Running);
         while (m_Running)
         {
+#ifdef GENGINE_RENDER_BASELINE
+            baseline.Begin();
+#endif
             if (m_Minimized)
             {
                 // Keep restore/close events live without running application controls
@@ -360,6 +367,9 @@ namespace GEngine
 
                 //process input
                 RenderCounters::BeginFrame();
+#ifdef GENGINE_RENDER_BASELINE
+                baseline.Work();
+#endif
                 {
                     //Timeit(ProcessInput)
                     ProcessInput(inputTime);
@@ -368,9 +378,16 @@ namespace GEngine
                 if (!m_Running) break;
                 if (m_Minimized) continue;
 
-
+#ifdef GENGINE_RENDER_BASELINE
+                baseline.UpdatedInput();
+#endif
                 //update                              
+#ifdef GENGINE_RENDER_BASELINE
+                Update(baseline.Enabled() ? Timestep(0.0) : dt_sec);
+                baseline.Updated();
+#else
                 Update(dt_sec);
+#endif
                 
 
                 //m_LastFrameTime = now;
@@ -381,6 +398,10 @@ namespace GEngine
                     Render();
                 }
                 RenderCounters::EndFrame();
+#ifdef GENGINE_RENDER_BASELINE
+                baseline.CaptureScene(m_RenderTarget.get());
+                if (baseline.End()) ShutDown();
+#endif
             }
          
         }

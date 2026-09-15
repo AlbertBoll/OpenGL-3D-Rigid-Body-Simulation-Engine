@@ -48,6 +48,18 @@ newoption
 	description = "Enable physics profiling counters and timers"
 }
 
+newoption
+{
+	trigger = "render-baseline",
+	description = "Enable the opt-in frozen rendering baseline and consistent diagnostic counters"
+}
+if _OPTIONS["render-baseline"] then
+	filter { "language:C++" }
+		defines { "GENGINE_RENDER_BASELINE", "GENGINE_RENDER_COUNTERS=1", "GE_ENABLE_PHYSICS_PROFILING" }
+		includedirs { path.getabsolute("external/glad/include"), path.getabsolute("external/sdl2/include") }
+	filter {}
+end
+
 tdir = "bin/%{cfg.buildcfg}/%{prj.name}"
 odir = "bin-int/%{cfg.buildcfg}/%{prj.name}"
 

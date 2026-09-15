@@ -26,6 +26,8 @@ namespace GEngine
 
 		_Entity CreateEntity(const std::string& name = std::string());
 		_Entity CreateEntityWithUUID(UUID uuid, const std::string& name = std::string());
+		// Handles/relationships are non-owning. Explicit destruction includes descendants
+		// unless excludeChildren detaches them; legacy first is retained for source compatibility.
 		void DestroyEntity(_Entity entity, bool excludeChildren = false, bool first = true);
 		void DestroyEntity(UUID entityID, bool excludeChildren = false, bool first = true);
 

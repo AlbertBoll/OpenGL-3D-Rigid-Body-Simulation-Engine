@@ -230,3 +230,30 @@ No TSan PASS is claimed and no alternate compiler/platform is introduced. Other
 platforms are explicitly unavailable through this runner until separately
 validated. Sanitizers complement focused tests; they do not establish rendering
 quality, GPU correctness or absence of races in uninstrumented code.
+# Phase 10: entity API regression
+
+Run `python tools/test_entity_api.py --configuration Debug` and repeat with
+`--configuration Release`. The runner builds GEngine and its six executable
+consumers using the existing VS2022/v143, C++20 and static CRT configuration, then
+links `tools/entity_api_probe.cpp` and the existing program-grouping regression to
+the production library. Commands, exits, toolchain and binary hashes are recorded
+in `logs/rendering/phase10/<Configuration>/results.json`.
+
+The CPU fixture covers null/invalid/cross-scene/self/cyclic parents, reciprocal
+reparent/detach and UUID setters, non-owning wrapper lifetimes, lvalue/rvalue/UUID
+destruction, generation and UUID reuse, recursive destruction and surviving
+children, duplicate/scene-copy relationships, and const transform/component/name/
+children access. Existing program-grouping checks cover render-list cleanup.
+There are no GL calls, graphical smokes, physics workload changes or performance
+claims in this fixture.
+
+`_Entity` borrows a live scene; handles must not outlive that scene. `SetParent`
+throws `std::invalid_argument` for invalid inputs before changing links; a null
+handle or UUID zero detaches. Relationships are created lazily. Mutable component
+and `Children()` access remain low-level escape hatches whose callers must keep
+links consistent. Const component and child/name references borrow registry storage
+and must not be retained across structural mutation; const `Transform()` returns
+an independent matrix value from `Transform3DComponent`. Explicit scene destruction
+includes descendants by default; `excludeChildren=true` detaches surviving children.
+The legacy `first` argument remains accepted, and all calls clean reciprocal links.
+Single-entity duplicates become childless siblings of their source.

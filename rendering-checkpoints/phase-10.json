@@ -1,0 +1,195 @@
+{
+  "baseline": "ea335f9268cc21197a82398afbcbe684e4d3abf6",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Scene/_Entity.h",
+    "GEngine/include/GEngine/Scene/_Scene.h",
+    "GEngine/src/Scene/_Entity.cpp",
+    "GEngine/src/Scene/_Scene.cpp",
+    "RenderingValidation/README.md",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-10.json",
+    "tools/entity_api_probe.cpp",
+    "tools/test_entity_api.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Validate before reciprocal relinking, lazily create relationship data, return a Transform3D matrix value and borrowed const component references; all focused Debug/Release cases pass.",
+      "finding": "GE-016: active null/invalid/cyclic parenting and dangling/wrong-type const transform/component access confirmed.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Retain the by-value overload; validate scene/generation, support plain entities, detach links and excluded survivors; all entity/UUID/temporary forms and render-group cleanup pass.",
+      "finding": "GE-024: lvalue/rvalue mismatch already resolved at baseline; adjacent missing-relationship, stale/foreign destroy and surviving child-link defects confirmed.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Duplicate becomes a childless sibling; zero/live duplicate UUIDs are rejected and EnTT generation validity protects reused slots. Copy/duplicate/repeated-reuse tests pass.",
+      "finding": "Single-entity duplication aliases source relationship links; zero/duplicate UUID identity creation is unchecked.",
+      "status": "RESOLVED"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_10_REVIEW.md"
+  ],
+  "next_phase": "11",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "7ab3e921b09fd46041296c8dae3760d10551688b",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-10/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/7ab3e921b09fd46041296c8dae3760d10551688b",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "212a68ce06a38af3a4c5fe2dfa267a49c49ddc1618b82bda031ba4cc6ea9095c"
+      },
+      "mode": "100644",
+      "validated_blob": "8d517e0f0df579beb698fd6c40a20a1b06325305",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-10/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/8d517e0f0df579beb698fd6c40a20a1b06325305"
+    }
+  },
+  "phase": "10",
+  "previous_approved_tag": "render-refactor-phase-09-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_10_REVIEW.md",
+  "schema": 2,
+  "summary": "Validated reciprocal entity parenting rejects invalid inputs and cycles; explicit destruction safely handles plain/stale/foreign entities, preserves excluded children and prevents stale generation reuse. Const transforms return 3D matrix values; const component subobjects no longer dangle. Debug/Release six-consumer builds and 563 entity plus 34 render-group checks pass per configuration.",
+  "validation": [
+    {
+      "check": "Debug affected GEngine/six-consumer builds and 563 entity API plus 34 existing program-grouping checks",
+      "command": "python tools/test_entity_api.py --configuration Debug --output logs/rendering/phase10/final/Debug",
+      "evidence": "logs/rendering/phase10/final/Debug/results.json; logs/rendering/phase10/final/Debug/entity-api.log",
+      "result": "PASS",
+      "reuse_reason": "Fresh final candidate affected build, freshly linked probe and all focused checks; unchanged translation units use normal incremental dependencies."
+    },
+    {
+      "check": "Release affected GEngine/six-consumer builds and 563 entity API plus 34 existing program-grouping checks",
+      "command": "python tools/test_entity_api.py --configuration Release --output logs/rendering/phase10/final/Release",
+      "evidence": "logs/rendering/phase10/final/Release/results.json; logs/rendering/phase10/final/Release/entity-api.log",
+      "result": "PASS",
+      "reuse_reason": "Fresh final candidate affected build, freshly linked probe and all focused checks; unchanged translation units use normal incremental dependencies."
+    },
+    {
+      "check": "Pre-validation candidate fingerprints, original index and 45 protected paths",
+      "command": "rendering_checkpoint.py fingerprint --paths candidate inputs; compare Repo fingerprints and Git index with preflight after validation",
+      "evidence": "logs/rendering/phase10/validation-input-hashes.json; logs/rendering/phase10/identity-checks.json; logs/rendering/phase10/preflight.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Targeted architecture/code-map references and governance phase chain",
+      "command": "python .codex/tools/validate_rendering_governance.py",
+      "evidence": "logs/rendering/phase10/governance-check.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    "GEngine/include/GEngine/Component/Component.h": {
+      "executable": null,
+      "sha256": "d26035a72bc1b5e1b7f89dd4879fb31d0ab888117a55c9e26e69d722a68d23ae"
+    },
+    "GEngine/include/GEngine/Core/UUID.h": {
+      "executable": null,
+      "sha256": "f90003added0eb682e01af0e632f1f09281ebb874a674ccd355f9f1d15bad055"
+    },
+    "GEngine/include/GEngine/Scene/_Entity.h": {
+      "executable": null,
+      "sha256": "bfc016eb57ceaa2252d0f464d9ffc42da949b935b54ec6366344aad2864b9212"
+    },
+    "GEngine/include/GEngine/Scene/_Scene.h": {
+      "executable": null,
+      "sha256": "7fc419b6c7130f6450a753260b4c4266e873af25265651f76b18c5e44d102321"
+    },
+    "GEngine/include/GEngine/gepch.h": {
+      "executable": null,
+      "sha256": "7a4f068dc380fcea534385fe406bbbe4a8f60e2c35dd27cbbb73884c680440df"
+    },
+    "GEngine/src/Core/UUID.cpp": {
+      "executable": null,
+      "sha256": "88c505b745882f8107cde6e7696513d18b1e1e105958fd03b98196f9cfb5963f"
+    },
+    "GEngine/src/Scene/_Entity.cpp": {
+      "executable": null,
+      "sha256": "b27ed5ad3ab2fc638242a0243dc6789ef32d19ca897bd12cabb0304c7a43d024"
+    },
+    "GEngine/src/Scene/_Scene.cpp": {
+      "executable": null,
+      "sha256": "8ac74522b529f1ae15779c516e2a55ae728964b5d47eb58f391b4524b7adf175"
+    },
+    "PhysicsTests/src/ProgramGroupingTests.cpp": {
+      "executable": null,
+      "sha256": "7aff13f317ab53f152780cbd544066e66c7cbb73b71404a95e4e300539040755"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "212a68ce06a38af3a4c5fe2dfa267a49c49ddc1618b82bda031ba4cc6ea9095c"
+    },
+    "external/glad/premake5.lua": {
+      "executable": null,
+      "sha256": "881406fa3a22afd5865e2dd84ab76e29b5b7cb6c2c9e94542be20849f308962c"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "108bec448821ee86625c28dd53939afc4aa2c312fe55dc3e53642e1aad87eba9"
+    },
+    "tools/entity_api_probe.cpp": {
+      "executable": null,
+      "sha256": "43bac5bf0a153fc421593cf7af1ace23611f53ffdddd5c95858571bc4077f453"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/test_entity_api.py": {
+      "executable": null,
+      "sha256": "76be6aa7c8252856a0e189d8d7ac7d5f4b8ea8333d78d10288d97b03a9e43ed7"
+    }
+  }
+}

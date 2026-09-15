@@ -14,6 +14,7 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <utility>
 
 namespace GEngine
 {
@@ -261,10 +262,16 @@ namespace GEngine
 
 	_Entity _Scene::DuplicateEntity(_Entity entity)
 	{
+		if (entity.GetSceneContext() != this || !entity.HasAllComponents<IDComponent>())
+			throw std::invalid_argument("Duplicate requires a live entity in this scene");
 		// Copy name because we're going to modify component data structure
 		std::string name = entity.GetName();
 		_Entity newEntity = CreateEntity(name);
 		CopyComponentIfExists(AllComponents{}, newEntity, entity);
+		// A single-entity duplicate is a sibling; its source's children are not copied.
+		if (newEntity.HasAllComponents<RelationshipComponent>())
+			newEntity.GetComponent<RelationshipComponent>() = RelationshipComponent{};
+		newEntity.SetParent(entity.GetParent());
 		PushToRenderList(newEntity);
 		return newEntity;
 	}
@@ -282,10 +289,11 @@ namespace GEngine
 
 	_Entity _Scene::GetEntityByUUID(UUID uuid)
 	{
-		if (m_EntityMap.find(uuid) != m_EntityMap.end())
-		{
-			return { m_EntityMap[uuid], this };
-		}
+		const auto it = m_EntityMap.find(uuid);
+		if (it != m_EntityMap.end() && m_Registry.valid(it->second)
+			&& m_Registry.all_of<IDComponent>(it->second)
+			&& m_Registry.get<IDComponent>(it->second).ID == uuid)
+			return { it->second, this };
 
 		return {};
 	}
@@ -309,6 +317,8 @@ namespace GEngine
 
 	_Entity _Scene::CreateEntityWithUUID(UUID uuid, const std::string& name)
 	{
+		if (uuid == 0 || GetEntityByUUID(uuid))
+			throw std::invalid_argument("Entity UUID must be nonzero and unique in its scene");
 		_Entity entity = { m_Registry.create(), this };
 		entity.AddComponent<IDComponent>(uuid);
 		entity.AddComponent<Transform3DComponent>();
@@ -320,28 +330,32 @@ namespace GEngine
 		return entity;
 	}
 
-	void _Scene::DestroyEntity(_Entity entity, bool excludeChildren, bool first)
+	void _Scene::DestroyEntity(_Entity entity, bool excludeChildren, bool /*first*/)
 	{
+		if ((entt::entity)entity == entt::null)
+			return;
+		if (entity.GetSceneContext() != this)
+			throw std::invalid_argument("Destroy entity does not belong to this scene");
 		if (!entity)
 			return;
+		if (!entity.HasAllComponents<IDComponent>())
+			throw std::invalid_argument("Destroy requires a scene entity with an ID");
 
-		if (!excludeChildren)
+		const auto id = entity.GetUUID();
+		// Copy UUIDs before registry removals move components. Links do not own entities;
+		// only this explicit scene operation requests recursive destruction.
+		const auto children = std::as_const(entity).Children();
+		entity.SetParent({});
+		for (const auto childId : children)
 		{
-			// don't make this a foreach loop because entt will move the children
-			//            vector in memory as entities/components get deleted
-			size_t size = entity.Children().size();
-			for (size_t i = 0; i < size; i++)
+			auto child = GetEntityByUUID(childId);
+			if (child && child.GetParentUUID() == id)
 			{
-				auto childId = entity.Children()[i];
-				_Entity child = GetEntityByUUID(childId);
-				DestroyEntity(child, excludeChildren, false);
+				if (excludeChildren)
+					child.SetParent({});
+				else
+					DestroyEntity(child, false, false);
 			}
-		}
-
-		if (first)
-		{
-			if (auto parent = entity.GetParent(); parent)
-				parent.RemoveChild(entity);
 		}
 
 		// Remove recorded memberships even if the shader was replaced or removed.
@@ -358,7 +372,6 @@ namespace GEngine
 
 		}
 
-		UUID id = entity.GetUUID();
 		m_Registry.destroy((entt::entity)entity);
 		m_EntityMap.erase(id);
 

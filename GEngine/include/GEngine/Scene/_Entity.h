@@ -17,13 +17,13 @@ namespace GEngine
 		template<typename... Args>
 		bool HasAllComponents() const
 		{
-			return m_Scene->Reg().all_of<Args...>(m_EntityHandle);
+			return *this && m_Scene->Reg().all_of<Args...>(m_EntityHandle);
 		}
 
 		template<typename... Args>
 		bool HasAnyComponents() const
 		{
-			return m_Scene->Reg().any_of<Args...>(m_EntityHandle);
+			return *this && m_Scene->Reg().any_of<Args...>(m_EntityHandle);
 		}
 
 		template<typename T, typename ... Args>
@@ -39,7 +39,7 @@ namespace GEngine
 		}
 
 		template<typename T>
-		T GetComponent()const
+		const T& GetComponent()const
 		{
 			return m_Scene->m_Registry.get<T>(m_EntityHandle);
 		}
@@ -65,7 +65,7 @@ namespace GEngine
 		}
 
 
-		UUID GetUUID() 
+		UUID GetUUID() const
 		{
 			return GetComponent<Component::IDComponent>().ID; 
 		}
@@ -82,8 +82,6 @@ namespace GEngine
 
 		const std::string& GetName() { return GetComponent<Component::TagComponent>().Name; }
 
-		operator bool(){ return m_EntityHandle != entt::null; }
-
 		operator entt::entity() { return m_EntityHandle; }
 
 		operator uint32_t() const { return (uint32_t)m_EntityHandle; }
@@ -92,87 +90,34 @@ namespace GEngine
 
 		_Entity GetParent() const
 		{
-			return m_Scene->GetEntityByUUID(GetParentUUID());
+			return *this ? m_Scene->GetEntityByUUID(GetParentUUID()) : _Entity{};
 		}
 
-		void SetParent(_Entity parent)
-		{
-			_Entity currentParent = GetParent();
-			if (currentParent == parent)
-				return;
-
-			// If changing parent, remove child from existing parent
-			if (currentParent)
-				currentParent.RemoveChild(*this);
-
-			// Setting to null is okay
-			SetParentUUID(parent.GetUUID());
-
-			if (parent)
-			{
-				auto& parentChildren = parent.Children();
-				UUID uuid = GetUUID();
-				if (std::find(parentChildren.begin(), parentChildren.end(), uuid) == parentChildren.end())
-					parentChildren.emplace_back(GetUUID());
-			}
-		}
-
-
-		void SetParentUUID(UUID parent) { GetComponent<RelationshipComponent>().ParentHandle = parent; }
+		// Null detaches; invalid/cross-scene parents and cycles throw before relinking.
+		void SetParent(_Entity parent);
+		void SetParentUUID(UUID parent);
 
 		UUID GetParentUUID() const
 		{ 
-			return GetComponent<RelationshipComponent>().ParentHandle; 
+			return HasAllComponents<RelationshipComponent>() ? GetComponent<RelationshipComponent>().ParentHandle : UUID(0);
 		}
 
-		std::vector<UUID>& Children() { return GetComponent<RelationshipComponent>().Children; }
+		std::vector<UUID>& Children();
 
-		const std::vector<UUID>& Children() const { return GetComponent<RelationshipComponent>().Children; }
+		const std::vector<UUID>& Children() const;
 
-		operator bool() const { return  m_EntityHandle != entt::null; }
+		// Handles borrow their scene and must not outlive it. EnTT checks generation reuse.
+		operator bool() const { return m_Scene && m_Scene->Reg().valid(m_EntityHandle); }
 		_Scene* GetSceneContext()const { return m_Scene; }
 
-		bool RemoveChild(_Entity child)
-		{
-			UUID childId = child.GetUUID();
-			std::vector<UUID>& children = Children();
-			auto it = std::find(children.begin(), children.end(), childId);
-			if (it != children.end())
-			{
-				children.erase(it);
-				return true;
-			}
-
-			return false;
-		}
-
-		bool IsAncesterOf(_Entity entity) const
-		{
-			const auto& children = Children();
-
-			if (children.empty())
-				return false;
-
-			for (UUID child : children)
-			{
-				if (child == entity.GetUUID())
-					return true;
-			}
-
-			for (UUID child : children)
-			{
-				if (m_Scene->GetEntityByUUID(child).IsAncesterOf(entity))
-					return true;
-			}
-
-			return false;
-		}
+		bool RemoveChild(_Entity child);
+		bool IsAncesterOf(_Entity entity) const;
 
 		bool IsDescendantOf(_Entity entity) const { return entity.IsAncesterOf(*this); }
 
 
 		Transform3DComponent& Transform() { return m_Scene->m_Registry.get<Transform3DComponent>(m_EntityHandle); }
-		const Mat4& Transform() const { return m_Scene->m_Registry.get<TransformComponent>(m_EntityHandle).GetTransform(); }
+		Mat4 Transform() const { return GetComponent<Transform3DComponent>().GetTransform(); }
 
 		std::string& Name() { return HasAllComponents<TagComponent>() ? GetComponent<TagComponent>().Name : NoName; }
 		const std::string& Name() const { return HasAllComponents<TagComponent>() ? GetComponent<TagComponent>().Name : NoName; }

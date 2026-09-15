@@ -133,6 +133,41 @@ model. No GL errors are consumed and no workers gain GL work.
 These counters establish observability only. Phase 13 owns the performance
 baseline; no trustworthy baseline or negligible *enabled* timing cost is claimed.
 
+## VertexBuffer upload safety (Phase 08)
+
+The separate focused probe links the production `GEngine.lib` and uses two hidden
+OpenGL 4.6 context lifetimes. Run it from the repository root:
+
+```powershell
+python tools/test_vertex_buffer.py --configuration Debug
+python tools/test_vertex_buffer.py --configuration Release
+```
+
+The runner builds the affected GEngine target (including its Mesh consumer) and
+glad with the existing VS2022/v143, C++20 and static CRT settings, then compiles
+`tools/vertex_buffer_probe.cpp` against that library. Commands, actual exits,
+binary hashes and GPU diagnostics are saved under `logs/rendering/phase08/`.
+It does not launch an application or run the unrelated CPU harness suite.
+
+`VertexBuffer(std::span<const float>)` derives allocation bytes from the payload;
+the former payload-plus-size constructor is removed. The allocation-only
+constructor takes `capacityBytes` and rejects values beyond `GLsizeiptr` with
+`std::length_error`. `SetData(span, offsetBytes = 0)` rejects out-of-capacity
+ranges with `std::out_of_range` before GL calls, using subtraction/division to
+avoid overflow. Empty spans are no-ops at offsets from zero through capacity;
+larger offsets are rejected. A zero-capacity buffer accepts only an empty upload
+at zero. All operations still require the owning GL context thread.
+
+Tests read back full GPU contents after construction, full/partial updates,
+nonzero byte offsets and exact-end writes, including untouched neighbors. They
+cover empty and zero-capacity buffers, one-byte overflow, oversized payloads,
+maximum offsets, signed GL capacity limits, and an unaligned byte offset. Driver
+call observers verify empty/rejected operations issue no buffer calls in both
+configurations. A synchronous KHR_debug callback with a health marker plus
+`glGetError` checks uploads and destruction; Release diagnostics are test-only.
+Missing GL prerequisites fail this mandatory phase check. No sanitizer or
+performance result is implied.
+
 ## AddressSanitizer and ThreadSanitizer
 
 `--asan` uses MSBuild `/p:EnableASAN=true` for this target only, in Debug or Release,

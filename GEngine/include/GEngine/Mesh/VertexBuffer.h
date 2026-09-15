@@ -1,5 +1,7 @@
 #pragma once
 #include"BufferLayout.h"
+#include <cstddef>
+#include <span>
 
 namespace GEngine::Buffer
 {
@@ -10,8 +12,9 @@ namespace GEngine::Buffer
 	public:
 
 		NONCOPYMOVABLE(VertexBuffer);
-		VertexBuffer(unsigned int size);
-		VertexBuffer(const std::vector<float>& data, unsigned int size);
+		// Allocation sizes and upload offsets are bytes; payload sizes come from the span.
+		explicit VertexBuffer(std::size_t capacityBytes);
+		explicit VertexBuffer(std::span<const float> data);
 
 		~VertexBuffer();
 
@@ -25,11 +28,14 @@ namespace GEngine::Buffer
 			m_BufferLayout = layout;
 		}
 
-		void SetData(const std::vector<float>& data);
+		// Throws std::out_of_range before GL work when the upload exceeds capacity.
+		// Empty input is a no-op at any offset through capacity (inclusive).
+		void SetData(std::span<const float> data, std::size_t offsetBytes = 0);
 
 
 	private:
 		unsigned int m_VertexBufferRef{};
+		std::size_t m_CapacityBytes{};
 		BufferLayout m_BufferLayout;
 	};
 

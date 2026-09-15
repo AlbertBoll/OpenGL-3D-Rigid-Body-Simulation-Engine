@@ -1,0 +1,171 @@
+{
+  "baseline": "f4f38c6baf681b7512e64ebb791d0520e56b1f11",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Mesh/VertexBuffer.h",
+    "GEngine/src/Mesh/VertexBuffer.cpp",
+    "RenderingValidation/README.md",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-08.json",
+    "tools/test_vertex_buffer.py",
+    "tools/vertex_buffer_probe.cpp"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Typed float spans infer payload byte counts; stored byte capacity and overflow-safe bounds checks reject invalid updates before GL. Full/partial/empty/boundary GPU tests and GL diagnostics pass in Debug and Release.",
+      "finding": "GE-004 confirmed: VertexBuffer SetData passed float element count as GL bytes; the initial-data constructor also accepted an independent unchecked size.",
+      "status": "RESOLVED"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_08_REVIEW.md"
+  ],
+  "next_phase": "09",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "7ab3e921b09fd46041296c8dae3760d10551688b",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-08/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/7ab3e921b09fd46041296c8dae3760d10551688b",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "212a68ce06a38af3a4c5fe2dfa267a49c49ddc1618b82bda031ba4cc6ea9095c"
+      },
+      "mode": "100644",
+      "validated_blob": "8d517e0f0df579beb698fd6c40a20a1b06325305",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-08/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/8d517e0f0df579beb698fd6c40a20a1b06325305"
+    }
+  },
+  "phase": "08",
+  "previous_approved_tag": "render-refactor-phase-07-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_08_REVIEW.md",
+  "schema": 2,
+  "summary": "VertexBuffer infers upload bytes from typed spans, validates byte offsets and capacity without overflow, and makes valid empty uploads no-ops. Debug/Release production-library GPU readback and GL diagnostics pass.",
+  "validation": [
+    {
+      "check": "Debug GEngine/glad build, production VertexBuffer probe compile and required upload/GL cases in two hidden context lifetimes",
+      "command": "python tools/test_vertex_buffer.py --configuration Debug",
+      "evidence": "logs/rendering/phase08/Debug/results.json; build.log; compile-probe.log; probe.log",
+      "result": "PASS",
+      "reuse_reason": "Fresh for the finalized candidate; all actual command exits 0."
+    },
+    {
+      "check": "Release GEngine/glad build, production VertexBuffer probe compile and required upload/GL cases in two hidden context lifetimes",
+      "command": "python tools/test_vertex_buffer.py --configuration Release",
+      "evidence": "logs/rendering/phase08/Release/results.json; build.log; compile-probe.log; probe.log",
+      "result": "PASS",
+      "reuse_reason": "Fresh for the finalized candidate; all actual command exits 0."
+    },
+    {
+      "check": "Current caller scope, protected paths, index and prevalidation input identity",
+      "command": "rg -n VertexBuffer GEngine/src GEngine/include/GEngine GEngineEditor RigidBodySimulation Breakout RayTracing PhysicsTests PhysicsBenchmark -g *.h -g *.cpp; checkpoint Repo fingerprint and Git index comparison against preflight",
+      "evidence": "logs/rendering/phase08/identity-checks.json; logs/rendering/phase08/vertex-buffer-callers.txt; logs/rendering/phase08/preflight.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Governance phase chain and targeted architecture/code-map references",
+      "command": "python .codex/tools/validate_rendering_governance.py",
+      "evidence": "logs/rendering/phase08/governance-check.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    "GEngine/include/GEngine/Core/GLDebug.h": {
+      "executable": null,
+      "sha256": "95b3cca384884ae91d5a164711e7f94ae995bf99a5759cca4ec01aeb7ee09e49"
+    },
+    "GEngine/include/GEngine/Core/RenderCounters.h": {
+      "executable": null,
+      "sha256": "f7840d11684d4a0c98cfb77bed4674cf42f1723cd1f2df7df1a334693a7c243c"
+    },
+    "GEngine/include/GEngine/Mesh/BufferLayout.h": {
+      "executable": null,
+      "sha256": "dcc8eccc794dbeeb4e8144cdbfab62442fabbe6fc67c2da17a48091f66d39225"
+    },
+    "GEngine/include/GEngine/Mesh/VertexBuffer.h": {
+      "executable": null,
+      "sha256": "7b8bfbaea658f016a5475d67705bdef773969b7baae75a7305c95d602041d77c"
+    },
+    "GEngine/include/GEngine/gepch.h": {
+      "executable": null,
+      "sha256": "7a4f068dc380fcea534385fe406bbbe4a8f60e2c35dd27cbbb73884c680440df"
+    },
+    "GEngine/src/Mesh/VertexBuffer.cpp": {
+      "executable": null,
+      "sha256": "0933543517027990218b9b7aced0ea4045dc6d9c0990fe5a74e3f3ec958d77fa"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "212a68ce06a38af3a4c5fe2dfa267a49c49ddc1618b82bda031ba4cc6ea9095c"
+    },
+    "external/glad/premake5.lua": {
+      "executable": null,
+      "sha256": "881406fa3a22afd5865e2dd84ab76e29b5b7cb6c2c9e94542be20849f308962c"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "108bec448821ee86625c28dd53939afc4aa2c312fe55dc3e53642e1aad87eba9"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/test_vertex_buffer.py": {
+      "executable": null,
+      "sha256": "12d588bd7f6837b7a1d385f9292871b5a97b8cd9f971429618aa769203613e3d"
+    },
+    "tools/vertex_buffer_probe.cpp": {
+      "executable": null,
+      "sha256": "2c9b4aef98d7fe46294a94bc0c3a3a193d4c4ba14654426ea8f7d9dcdd1f1a9c"
+    }
+  }
+}

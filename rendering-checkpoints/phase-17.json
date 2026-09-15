@@ -1,0 +1,204 @@
+{
+  "baseline": "cf5390d305d71c4aed22cac8eaeaf08c0a438710",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Core/RenderSystem.cpp",
+    "GEngine/include/GEngine/Scene/_Scene.h",
+    "GEngine/src/Scene/_Entity.cpp",
+    "GEngine/src/Scene/_Scene.cpp",
+    "RenderingValidation/README.md",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-17.json",
+    "tools/interpolation_probe.cpp",
+    "tools/test_interpolation.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Owner explicitly authorized this governance-only revision. Keep the ZIP protected and seal its observed absence; all other prior snapshot hashes, current owner bytes and validation inputs match. Prior receipt/journal/review are preserved under logs/rendering/phase17/revision2/.",
+      "finding": "Approval was blocked because the protected Rendering Refactor Codex.zip was deleted after seal.",
+      "status": "RESOLVED"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_17_REVIEW.md",
+    "logs/rendering/phase17/identity-and-contract.json",
+    "logs/rendering/phase17/revision2/PHASE_17_REVIEW.iteration1.md",
+    "logs/rendering/phase17/revision2/identity-and-reuse.json",
+    "logs/rendering/phase17/revision2/prior-checkpoint-spec.json",
+    "logs/rendering/phase17/revision2/prior-journal.json",
+    "logs/rendering/phase17/revision2/prior-receipt.json",
+    "logs/rendering/phase17/revision2/reconcile_revision.py",
+    "logs/rendering/phase17/revision2/shared-governance.json"
+  ],
+  "next_phase": "18",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "a268b30bc53f76034c33e89ec94db28edd9e6416",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-17/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/a268b30bc53f76034c33e89ec94db28edd9e6416",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "6baaf75a0bacb1615d0d232055b60b64114228fe051f578ac7f8f75296581e94"
+      },
+      "mode": "100644",
+      "validated_blob": "ddf71371dff7b344f8474592db05333f8b132ec6",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-17/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/ddf71371dff7b344f8474592db05333f8b132ec6"
+    }
+  },
+  "phase": "17",
+  "previous_approved_tag": "render-refactor-phase-16-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "Rendering Refactor Codex.zip",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_17_REVIEW.md",
+  "schema": 2,
+  "summary": "World-space ECS presentation interpolates per-tick poses without changing authoritative physics; all model passes share sampled matrices and presentation revisions, with Debug/Release CPU, GPU-pixel, discontinuity/lifetime and deterministic-state coverage. Governance-only revision 2 records the owner-authorized absence of the unrelated protected ZIP; implementation and validated inputs are unchanged.",
+  "validation": [
+    {
+      "check": "All six affected consumers and focused interpolation, GPU pixel/pass consistency, suspension and Physics regressions in Debug/Release",
+      "command": "python tools/test_interpolation.py --configuration Debug --output logs/rendering/phase17/verified/Debug (repeat Release)",
+      "evidence": "logs/rendering/phase17/verified/Debug/results.json; logs/rendering/phase17/verified/Release/results.json",
+      "result": "PASS",
+      "reuse_reason": "All 19 original source/test/build/config fingerprints match exactly; only the unrelated protected ZIP is absent. Debug/Release evidence agrees with the original sealed identity record; no build or runtime rerun."
+    },
+    {
+      "check": "Narrow revision scope, unchanged validation inputs/owner work/index, preserved historical evidence and completed predecessor publication",
+      "command": "python logs/rendering/phase17/revision2/reconcile_revision.py prepare",
+      "evidence": "logs/rendering/phase17/revision2/identity-and-reuse.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh metadata identity check; original runtime evidence reused because relevant inputs and coverage are unchanged."
+    },
+    {
+      "check": "Shared rendering governance",
+      "command": "python .codex/tools/validate_rendering_governance.py --shared-only",
+      "evidence": "logs/rendering/phase17/revision2/shared-governance.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    "GEngine/include/GEngine/Component/Component.h": {
+      "executable": null,
+      "sha256": "d26035a72bc1b5e1b7f89dd4879fb31d0ab888117a55c9e26e69d722a68d23ae"
+    },
+    "GEngine/include/GEngine/Core/BaseApp.h": {
+      "executable": null,
+      "sha256": "e3f3a52dd2be5ca132d5af6649f984cc28de3c6981e1cc72289a6f2b83adeb62"
+    },
+    "GEngine/include/GEngine/Core/FrameClock.h": {
+      "executable": null,
+      "sha256": "b3786a76d594762ef71f218cc5ea46ac42b265723b49dd82ab94499787d6edfc"
+    },
+    "GEngine/include/GEngine/Core/RenderSystem.cpp": {
+      "executable": null,
+      "sha256": "68f40c38a10cc10a6259a9f0527dd4bf4fdc3666ec9746c8efffbb6e11bf4cae"
+    },
+    "GEngine/include/GEngine/Core/RenderSystem.h": {
+      "executable": null,
+      "sha256": "7f7fa21222c708e119f10562b2f108fb3928e0b27fa4010c12cce3397524b274"
+    },
+    "GEngine/include/GEngine/Physics/PhysicsBody.cpp": {
+      "executable": null,
+      "sha256": "15eca90ca0e150e61238f9a7d44ffe00f06a56ad5b3b9d87e533d4065caf9639"
+    },
+    "GEngine/include/GEngine/Physics/PhysicsSystem.cpp": {
+      "executable": null,
+      "sha256": "280667699d41348a1d5454ad61fac45a14fded91384e107b06d0a1b22d7037b4"
+    },
+    "GEngine/include/GEngine/Scene/_Entity.h": {
+      "executable": null,
+      "sha256": "bfc016eb57ceaa2252d0f464d9ffc42da949b935b54ec6366344aad2864b9212"
+    },
+    "GEngine/include/GEngine/Scene/_Scene.h": {
+      "executable": null,
+      "sha256": "00f1e3879c5a7343078700808c4b736d51a81204611827ae2fc99cb7c435a1ca"
+    },
+    "GEngine/src/Core/BaseApp.cpp": {
+      "executable": null,
+      "sha256": "a1bc43e3137d8d8904bb75ed18e8274185d629098cf0b89c56a71ebae173ed06"
+    },
+    "GEngine/src/Scene/_Entity.cpp": {
+      "executable": null,
+      "sha256": "6f2fb6ab35e88f41b1f1d63d3c42062d7377942b4333027ea08420afcacf4ba4"
+    },
+    "GEngine/src/Scene/_Scene.cpp": {
+      "executable": null,
+      "sha256": "ac20d21bae86cfcf3dfdd822c229ae71bf9b4e61dd155d7efd7b6a341b959128"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "PhysicsTests/src/main.cpp": {
+      "executable": null,
+      "sha256": "c3c3ca8fa77d66911c2cf848935e866768ace3bd731286322c1207cb139e7bcd"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "6baaf75a0bacb1615d0d232055b60b64114228fe051f578ac7f8f75296581e94"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "dc2b271508b274ee36c8a9b484761f375a3ccd0d8d1f01a424505210622e2932"
+    },
+    "tools/interpolation_probe.cpp": {
+      "executable": null,
+      "sha256": "f7439f034949889c889dbe6dc9271d261333fe21e26ddfbb6ad149000bf13b5a"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/test_interpolation.py": {
+      "executable": null,
+      "sha256": "526e16499ab0da2fb1c7f55cc480c72a44f2077304d0c832108c64842c6be80a"
+    }
+  }
+}

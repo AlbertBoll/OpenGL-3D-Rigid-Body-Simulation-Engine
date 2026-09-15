@@ -61,6 +61,7 @@ namespace GEngine
 			std::erase(currentParent.Children(), id);
 		// Component insertion can relocate storage: reacquire after parent.Children().
 		GetComponent<RelationshipComponent>().ParentHandle = parentId;
+		m_Scene->ResetRenderInterpolation(*this);
 	}
 
 	void _Entity::SetParentUUID(UUID parent)

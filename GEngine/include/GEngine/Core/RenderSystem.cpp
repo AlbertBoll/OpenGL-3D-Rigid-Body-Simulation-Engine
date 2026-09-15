@@ -69,7 +69,7 @@ namespace GEngine
 						auto geoComp = entity.GetComponent<MeshComponent>();
 						geoComp.m_Geometry->BindVAO();
 
-						mouse_pick_shader->SetUniform("u_model", entity.GetComponent<Transform3DComponent>().GetTransform());
+						mouse_pick_shader->SetUniform("u_model", scene->GetRenderTransform(entity).matrix);
 
 						if (geoComp.m_Geometry->IsUsingIndexBuffer())
 						{
@@ -99,7 +99,7 @@ namespace GEngine
 					auto geoComp = entity.GetComponent<MeshComponent>();
 					geoComp.m_Geometry->BindVAO();
 
-					mouse_pick_shader->SetUniform("u_model", entity.GetComponent<Transform3DComponent>().GetTransform());
+					mouse_pick_shader->SetUniform("u_model", scene->GetRenderTransform(entity).matrix);
 					
 					if (geoComp.m_Geometry->IsUsingIndexBuffer())
 					{
@@ -139,7 +139,7 @@ namespace GEngine
 						{
 							auto& comp = entity.GetComponent<Transform3DComponent>();
 
-							shader->SetUniform("u_model", entity.GetComponent<Transform3DComponent>().GetTransform());
+							shader->SetUniform("u_model", scene->GetRenderTransform(entity).matrix);
 						}
 
 						if (geoComp.m_Geometry->IsUsingIndexBuffer())
@@ -191,7 +191,7 @@ namespace GEngine
 						{
 							auto& comp = entity.GetComponent<Transform3DComponent>();
 
-							point_shadow_depth_shader->SetUniform("u_model", entity.GetComponent<Transform3DComponent>().GetTransform());
+							point_shadow_depth_shader->SetUniform("u_model", scene->GetRenderTransform(entity).matrix);
 						}
 
 						if (geoComp.m_Geometry->IsUsingIndexBuffer())
@@ -268,7 +268,7 @@ namespace GEngine
 					{
 						auto& comp = entity.GetComponent<Transform3DComponent>();
 
-						shader->SetUniform("u_model", entity.GetComponent<Transform3DComponent>().GetTransform());
+						shader->SetUniform("u_model", scene->GetRenderTransform(entity).matrix);
 					}
 
 					if (entity.HasAllComponents<TexturesComponent>())
@@ -381,7 +381,7 @@ namespace GEngine
 					{
 						auto& comp = entity.GetComponent<Transform3DComponent>();
 					
-						shader->SetUniform("u_model", entity.GetComponent<Transform3DComponent>().GetTransform());
+						shader->SetUniform("u_model", scene->GetRenderTransform(entity).matrix);
 					}
 
 					if (entity.HasAllComponents<TexturesComponent>())
@@ -623,7 +623,7 @@ namespace GEngine
 		shader->Bind();
 		shader->SetUniform("u_projection", camera.GetProjection());
 		shader->SetUniform("u_view", Mat4(Mat3(camera.GetViewMatrix())));
-		shader->SetUniform("u_model", skybox.GetComponent<Transform3DComponent>().GetTransform());
+		shader->SetUniform("u_model", skybox.GetSceneContext()->GetRenderTransform(skybox).matrix);
 		
 
 		auto& skybox_geo = skybox.GetComponent<MeshComponent>().m_Geometry;
@@ -1071,10 +1071,9 @@ namespace GEngine
 				for(auto& ent: scene->GetAllEntitiesWith<PointLightComponent, MeshComponent>())
 				{
 					_Entity entity = { ent, scene };
-					const auto& comp = entity.GetComponent<Transform3DComponent>();
 					const auto& pointLightComp = entity.GetComponent<PointLightComponent>();
 					pointLightComp.LoadUniforms(point_light_shader);
-					point_light_shader->SetUniform("u_model", comp.GetTransform());
+					point_light_shader->SetUniform("u_model", scene->GetRenderTransform(entity).matrix);
 					const auto& geoComp = entity.GetComponent<MeshComponent>();
 					geoComp.m_Geometry->BindVAO();
 

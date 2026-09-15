@@ -47,6 +47,20 @@ namespace GEngine
 		const PhysicsTiming& GetPhysicsTiming() const { return m_PhysicsTiming; }
 		void Update(Timestep ts);
 
+		// ECS transforms are world-space, including children. Parent links organize
+		// entities; they do not multiply TRS matrices or rescale physics bodies.
+		struct RenderTransform
+		{
+			Mat4 matrix{1.0f};
+			std::uint64_t revision{}; // Changes with the sampled matrix, even without a tick.
+			std::uint64_t simulationRevision{}; // Current scene fixed-update count.
+		};
+		double GetRenderInterpolationAlpha() const;
+		RenderTransform GetRenderTransform(const _Entity& entity);
+		void ResetRenderInterpolation(const _Entity& entity);
+		void SetRenderInterpolationEnabled(bool enabled) { m_RenderInterpolationEnabled = enabled; }
+		bool IsRenderInterpolationEnabled() const { return m_RenderInterpolationEnabled; }
+
 		entt::registry& Reg() { return m_Registry; }
 
 		void OnRuntimeStart();
@@ -70,7 +84,7 @@ namespace GEngine
 		bool IsRunning() const { return m_IsRunning; }
 		bool IsPaused() const { return m_IsPaused; }
 
-		void SetPaused(bool paused) { m_IsPaused = paused; }
+		void SetPaused(bool paused);
 
 		void Step(int frames = 1);
 
@@ -121,6 +135,8 @@ namespace GEngine
 		void OnPhysics3DStop();
 
 	private:
+		bool m_RenderInterpolationEnabled = true;
+		std::uint64_t m_RenderTransformRevision{};
 		entt::registry m_Registry;
 		uint32_t m_ViewportWidth = 0, m_ViewportHeight = 0;
 		bool m_IsRunning = false;

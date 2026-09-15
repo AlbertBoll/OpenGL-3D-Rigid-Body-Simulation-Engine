@@ -539,3 +539,71 @@ SDL interval selection and application pacing, not monitor scanout or exact OS
 sleep precision. Refresh-rate sweeps inject elapsed samples rather than changing
 the monitor. No performance benchmark, new sanitizer run or visual-quality claim
 is required by this phase.
+
+## Simulation-to-render interpolation (Phase 17)
+
+`_Scene::GetRenderTransform(entity)` is the ECS model-matrix source for scene,
+cascaded/point shadow, picking, skybox and point-light mesh passes. It returns a
+value containing the sampled matrix, its presentation `revision`, and the scene's
+fixed-update count as `simulationRevision`. Use the live scene/entity generation
+together with the presentation revision for render caches; the physics count alone
+does not detect movement on frames without a tick. Repeated unchanged samples keep
+the same presentation revision. Sampling changes only a runtime presentation cache.
+
+Registered physics bodies retain previous/current poses at **each** 1/60-second
+physics boundary, including both ticks of a catch-up update. Position uses linear
+interpolation; rotation uses normalized shortest-arc quaternion slerp. The factor
+is `clamp(pendingSeconds / PhysicsStepSeconds, 0, 1)`. Whole-tick backlog therefore
+shows current state without extrapolation or modulo wrap. Ordinary interpolation
+adds one fixed tick of presentation latency. `SetRenderInterpolationEnabled(false)`
+shows current authoritative state for comparison; it does not change scheduling,
+contacts, velocities or body sleep. Re-enabling samples the retained pair.
+
+The existing ECS transform contract is **world space**, including parented bodies.
+`RelationshipComponent` organizes ownership/editor traversal, not transform
+composition. Parent rotation/non-uniform scale is not multiplied into a child's
+model matrix or collision body. Each matrix is built directly as world translation
+times interpolated rotation times the entity's authored scale. Scale is not a
+physics-integrated channel: scale edits snap history, preserving non-uniform and
+negative scale without decomposing matrices or introducing shear.
+
+| Event | Presentation behavior |
+| --- | --- |
+| New entity / newly started physics body | Current pose immediately; initialize both history endpoints equally |
+| Author transform or Physics pose teleport | Snap immediately; normal `Update` accepts/rejects author edits and resets history without extra ticks |
+| Scale edit / reparent / detach | Snap to current world pose; subsequent ticks establish a fresh pair |
+| Pause / resume | Snap endpoints to current state; preserve pending time and avoid a tickless rewind |
+| Native minimize / restore | No Update/sample while suspended; retain existing pair/backlog and exclude suspended wall time |
+| Destruction / entity-generation reuse | Destroy runtime cache with entity; reject stale/foreign handles; new entity gets a fresh revision |
+| Runtime stop/restart / scene copy or entity duplicate | No inherited runtime interpolation history |
+
+Call `ResetRenderInterpolation` for an explicitly signaled discontinuity whose
+intermediate values are not observed by the normal update boundary. Raw relationship
+or transform edits are also detected when sampled/updated, but supported parenting
+uses `_Entity::SetParent`. Authoring and collision state remain authoritative;
+presentation never writes sampled transforms into those components or bodies.
+
+All current ECS model passes sample the same state on the context thread. There
+is no render-bounds/visibility cache yet; future caches must use the presentation
+matrix/revision, or conservatively bound the full previous/current motion interval.
+Existing debug AABB/KD overlays deliberately visualize authoritative Physics data
+and are not render-culling bounds. Light uniform positions remain independently
+authored light-component data; this phase does not add a body-to-light binding.
+
+```powershell
+python tools/test_interpolation.py --configuration Debug --output logs/rendering/phase17/Debug
+python tools/test_interpolation.py --configuration Release --output logs/rendering/phase17/Release
+```
+
+The runner builds all six consumers with the existing toolchain and checks CPU
+endpoints/near-one alpha, tickless revisions, 30/60/75/120/144/240 Hz smoothing,
+exact enabled/disabled kinematic and dynamic-contact states, teleports, rotation
+across 180 degrees, non-uniform scale, parenting, pause/restart, destruction/reuse
+and backlog clamp/drain. Existing Physics fixed-scheduling and runtime-transform
+regressions also run. Two hidden GL context lifetimes verify submitted model
+matrices across passes and read actual triangle pixels moving between physics
+ticks. A production BaseApp fixture injects a 350 ms stall and 900 ms native
+suspension, then checks retained presentation state and bounded catch-up on restore.
+GL creation, submission, readback and destruction stay on the main thread; the
+suspension worker only enqueues SDL events. These checks do not claim monitor
+scanout timing, full-scene visual quality or rendering performance.

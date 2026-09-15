@@ -11,6 +11,7 @@
 #include "Assets/Shaders/shader.h"
 #include "Geometry/Geometry.h"
 #include <Core/Timer.h>
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
@@ -29,7 +30,25 @@ namespace GEngine
 			RigidBody3D* body{};
 			Vec3f translation{};
 			Quat rotation{ 1.0f, 0.0f, 0.0f, 0.0f };
+			Vec3f previousTranslation{}, currentTranslation{}, scale{1.0f};
+			Quat previousRotation{1.0f, 0.0f, 0.0f, 0.0f}, currentRotation{1.0f, 0.0f, 0.0f, 0.0f};
+			UUID parent{0};
 		};
+
+		bool ValidPhysicsPose(PhysicsWorld* world, const Component::RigidBody3DComponent& rigidBody, const RuntimePhysicsPose& pose)
+		{
+			return world && rigidBody.RuntimeBody && rigidBody.RuntimeBody == pose.body
+				&& world->IsBodyIdentityValid(pose.identity);
+		}
+
+		void ResetPhysicsHistory(RuntimePhysicsPose& pose, const Component::Transform3DComponent& transform,
+			const RigidBody3D& body, UUID parent)
+		{
+			pose.previousTranslation = pose.currentTranslation = body.m_Position;
+			pose.previousRotation = pose.currentRotation = body.m_Orientation;
+			pose.scale = transform.Scale;
+			pose.parent = parent;
+		}
 
 		void PublishPhysicsPose(Component::Transform3DComponent& transform, RuntimePhysicsPose& pose,
 			const RigidBody3D& body)
@@ -164,12 +183,17 @@ namespace GEngine
 			const bool authoredEdit = transform.Translation != pose.translation || transform.QuatRotation != pose.rotation;
 			const bool staticPoseChanged = body->Type == BodyType::Static &&
 				(transform.Translation != body->m_Position || transform.QuatRotation != body->m_Orientation);
+			const auto parent = _Entity(e, this).GetParentUUID();
+			const bool discontinuity = body->m_Position != pose.currentTranslation
+				|| body->m_Orientation != pose.currentRotation || transform.Scale != pose.scale || parent != pose.parent;
 			if (authoredEdit || staticPoseChanged)
 			{
 				m_PhysicsSystem->SetBodyPose(body, transform.Translation, transform.QuatRotation);
 				// Rejected edits restore the last accepted body pose, including Euler display data.
 				PublishPhysicsPose(transform, pose, *body);
 			}
+			if (authoredEdit || staticPoseChanged || discontinuity)
+				ResetPhysicsHistory(pose, transform, *body, parent);
 		}
 		const double elapsed = ts.GetSecondsPrecise();
 		if (timingWorld && !m_IsPaused && std::isfinite(elapsed) && elapsed > 0.0)
@@ -186,7 +210,21 @@ namespace GEngine
 			while (m_PhysicsTiming.stepsLastUpdate < MaxPhysicsStepsPerUpdate &&
 				m_PhysicsTiming.pendingSeconds + roundoff >= PhysicsStepSeconds)
 			{
+				for (auto e : m_Registry.view<RigidBody3DComponent, RuntimePhysicsPose>())
+				{
+					auto& pose = m_Registry.get<RuntimePhysicsPose>(e);
+					if (!ValidPhysicsPose(timingWorld, m_Registry.get<RigidBody3DComponent>(e), pose)) continue;
+					pose.previousTranslation = pose.currentTranslation;
+					pose.previousRotation = pose.currentRotation;
+				}
 				m_PhysicsSystem->Update(Timestep(PhysicsStepSeconds));
+				for (auto e : m_Registry.view<RigidBody3DComponent, RuntimePhysicsPose>())
+				{
+					auto& pose = m_Registry.get<RuntimePhysicsPose>(e);
+					if (!ValidPhysicsPose(timingWorld, m_Registry.get<RigidBody3DComponent>(e), pose)) continue;
+					pose.currentTranslation = pose.body->m_Position;
+					pose.currentRotation = pose.body->m_Orientation;
+				}
 				m_PhysicsTiming.pendingSeconds = std::max(0.0, m_PhysicsTiming.pendingSeconds - PhysicsStepSeconds);
 				++m_PhysicsTiming.stepsLastUpdate;
 				++m_PhysicsTiming.totalSteps;
@@ -204,6 +242,80 @@ namespace GEngine
 			auto& transform = m_Registry.get<Transform3DComponent>(e);
 			PublishPhysicsPose(transform, pose, *rigidBody.RuntimeBody);
 		}
+	}
+
+	double _Scene::GetRenderInterpolationAlpha() const
+	{
+		// Whole retained ticks indicate overload: show current state, never extrapolate
+		// or wrap the remainder back toward an older pose.
+		return std::clamp(m_PhysicsTiming.pendingSeconds / PhysicsStepSeconds, 0.0, 1.0);
+	}
+
+	_Scene::RenderTransform _Scene::GetRenderTransform(const _Entity& entity)
+	{
+		if (entity.GetSceneContext() != this || !entity.HasAllComponents<Transform3DComponent>())
+			throw std::invalid_argument("Render transform requires a live entity in this scene");
+		const auto handle = static_cast<entt::entity>(entity);
+		const auto& transform = entity.GetComponent<Transform3DComponent>();
+		Vec3f translation = transform.Translation;
+		Quat rotation = transform.QuatRotation;
+		const auto* pose = m_Registry.try_get<RuntimePhysicsPose>(handle);
+		const auto* rigidBody = m_Registry.try_get<RigidBody3DComponent>(handle);
+		if (pose && rigidBody && ValidPhysicsPose(m_PhysicsSystem->GetPhysicsWorld(), *rigidBody, *pose))
+		{
+			// Edits between Update and submission must be visible immediately, but must
+			// not write back into physics. Update accepts/rejects authored poses as before.
+			const bool authoredEdit = transform.Translation != pose->translation
+				|| transform.QuatRotation != pose->rotation;
+			if (!authoredEdit)
+			{
+				const auto* body = rigidBody->RuntimeBody;
+				translation = body->m_Position;
+				rotation = body->m_Orientation;
+				if (m_RenderInterpolationEnabled && !m_IsPaused && transform.Scale == pose->scale
+					&& entity.GetParentUUID() == pose->parent && translation == pose->currentTranslation
+					&& rotation == pose->currentRotation)
+				{
+					const float alpha = static_cast<float>(GetRenderInterpolationAlpha());
+					translation = glm::mix(pose->previousTranslation, pose->currentTranslation, alpha);
+					// Shortest-arc normalized quaternion interpolation; no Euler or matrix lerp.
+					rotation = glm::normalize(glm::slerp(pose->previousRotation, pose->currentRotation, alpha));
+				}
+			}
+		}
+		// Scale is authored, not integrated. A scale edit snaps history; preserving
+		// T*R*S directly supports non-uniform/negative scale without matrix decomposition.
+		const Mat4 matrix = glm::translate(Mat4(1.0f), translation) * glm::toMat4(rotation)
+			* glm::scale(Mat4(1.0f), transform.Scale);
+		auto& sampled = m_Registry.get_or_emplace<RenderTransform>(handle);
+		if (sampled.revision == 0 || sampled.matrix != matrix)
+		{
+			sampled.matrix = matrix;
+			sampled.revision = ++m_RenderTransformRevision;
+		}
+		sampled.simulationRevision = m_PhysicsTiming.totalSteps;
+		return sampled;
+	}
+
+	void _Scene::ResetRenderInterpolation(const _Entity& entity)
+	{
+		if (entity.GetSceneContext() != this || !entity)
+			throw std::invalid_argument("Interpolation reset requires a live entity in this scene");
+		const auto handle = static_cast<entt::entity>(entity);
+		auto* pose = m_Registry.try_get<RuntimePhysicsPose>(handle);
+		const auto* rigidBody = m_Registry.try_get<RigidBody3DComponent>(handle);
+		const auto* transform = m_Registry.try_get<Transform3DComponent>(handle);
+		if (pose && rigidBody && transform && ValidPhysicsPose(m_PhysicsSystem->GetPhysicsWorld(), *rigidBody, *pose))
+			ResetPhysicsHistory(*pose, *transform, *rigidBody->RuntimeBody, entity.GetParentUUID());
+	}
+
+	void _Scene::SetPaused(bool paused)
+	{
+		if (m_IsPaused == paused) return;
+		m_IsPaused = paused;
+		// Pause/resume snaps to current state; resuming without a tick cannot rewind.
+		for (auto e : m_Registry.view<RuntimePhysicsPose>())
+			ResetRenderInterpolation(_Entity(e, this));
 	}
 
 	void _Scene::OnRuntimeStart()
@@ -557,6 +669,7 @@ namespace GEngine
 				pose.identity = body->GetIdentity();
 				pose.body = body;
 				PublishPhysicsPose(transform, pose, *body);
+				ResetPhysicsHistory(pose, transform, *body, entity.GetParentUUID());
 				Connection(transform, OnScaleChanged, *body->m_Shape, &PhysicalShape::HandleScaleChanged);
 			}
 		}

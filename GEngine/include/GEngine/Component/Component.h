@@ -610,7 +610,7 @@ namespace GEngine
 
 		};
 
-		using AllComponents = ComponentGroup<HelperMaterialComponent, DirectionalLightComponent, PreRenderPassComponent, Transform3DComponent, CameraComponent, TexturesComponent, RigidBody3DComponent, RenderComponent, RelationshipComponent,
+		using AllComponents = ComponentGroup<HelperMaterialComponent, DirectionalLightComponent, PointLightComponent, SpotLightComponent, PreRenderPassComponent, Transform3DComponent, CameraComponent, TexturesComponent, RigidBody3DComponent, RenderComponent, RelationshipComponent,
 			SphereFixture3DComponent, MeshComponent, BoxFixture3DComponent, ConvexFixture3DComponent, MaterialComponent>;
 
 

@@ -2,7 +2,25 @@
 
 `PhysicsTests` is the headless regression target for physics mathematical
 correctness and numerical robustness. It does not initialize SDL, OpenGL,
-ImGui, renderer state, or runtime assets.
+ImGui, or runtime assets.
+
+## Scene program grouping
+
+`PhysicsTests.exe --program-grouping` runs the real scene insertion, copy,
+duplication and deletion paths with synthetic sparse/full-width program names.
+The CPU fixture resets each injected name before Shader destruction and issues
+no GL calls. It checks material sharing, ordered groups, missing-light lookups,
+program recreation/name reuse, republishing after shader changes, all light kinds,
+cross-group hierarchy deletion and invalid inputs. Run in Debug and Release.
+Actual GL submission remains covered by the simulation application smoke.
+Debug links the existing SDL2 library with delayed loading for GEngine counters;
+CPU tests require no SDL runtime DLL. Release has no SDL linkage.
+
+Scene grouping uses ordered associative program keys as a transition to Phase 25
+asset handles. After changing/recreating a shader, republish each affected entity
+with `PushToRenderList`; existing shader pointers must remain alive. Insertion
+rejects null/uncreated programs and invalid/foreign entities. Missing light
+lookups return an empty range without allocating a group.
 
 ## Contact telemetry contract
 

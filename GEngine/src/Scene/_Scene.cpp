@@ -13,6 +13,7 @@
 #include <Core/Timer.h>
 #include <cmath>
 #include <limits>
+#include <stdexcept>
 
 namespace GEngine
 {
@@ -39,7 +40,6 @@ namespace GEngine
 		}
 	}
 
-	//static std::vector<std::vector<_Entity>> GroupEntities(10);
 
 	template<typename... Component>
 	static void CopyComponent(entt::registry& dst, entt::registry& src, const std::unordered_map<UUID, entt::entity>& enttMap)
@@ -94,8 +94,6 @@ namespace GEngine
 		{
 			auto& transform = m_Registry.get<TransformComponent>(entity);
 		}*/
-		m_GroupEntities.resize(5);
-		m_LightEntities.resize(5);
 		m_PhysicsSystem = new PhysicsSystem();
 		
 	}
@@ -132,8 +130,7 @@ namespace GEngine
 		auto RenderView = dstSceneRegistry.view<RenderComponent>();
 		for (auto e : RenderView)
 		{
-			auto renderID = dstSceneRegistry.get<RenderComponent>(e).Shader->GetHandle();
-			newScene->GetGroupEntities()[renderID - 1].emplace_back(e, newScene.get());
+			newScene->PushToRenderList(_Entity(e, newScene.get()));
 		}
 
 		return newScene;
@@ -268,12 +265,7 @@ namespace GEngine
 		std::string name = entity.GetName();
 		_Entity newEntity = CreateEntity(name);
 		CopyComponentIfExists(AllComponents{}, newEntity, entity);
-		if (newEntity.HasAllComponents<RenderComponent>())
-		{
-			auto shader_id = newEntity.GetComponent<RenderComponent>().Shader->GetHandle();
-			m_GroupEntities[shader_id - 1].emplace_back(newEntity);
-			//m_GroupEntities[shader_id - 1].emplace_back((entt::entity)newEntity, this);
-		}
+		PushToRenderList(newEntity);
 		return newEntity;
 	}
 
@@ -328,70 +320,6 @@ namespace GEngine
 		return entity;
 	}
 
-	void _Scene::DestroyEntity(_Entity& entity)
-	{	
-		//auto& _entity = entity;
-		//while (!_entity.IsChildListEmpty())
-		//{
-		//	for (auto child : _entity.GetChildrenEntitiesList())
-		//	{
-		//		DestroyEntity(child);
-		//	}
-		//}
-
-
-		//m_EntityMap.erase(_entity.GetUUID());
-		////m_Registry.destroy(_entity);
-		//if (_entity.HasAllComponents<RenderComponent>())
-		//{
-		//	auto& render_component = _entity.GetComponent<RenderComponent>();
-		//	auto id = render_component.Shader->GetHandle();
-		//	auto& entities_with_same_shader = m_GroupEntities[id - 1];
-		//	for (auto& __entity : entities_with_same_shader)
-		//	{
-		//		if (__entity == _entity)
-		//		{
-		//			entities_with_same_shader.erase(std::remove(entities_with_same_shader.begin(),
-		//				entities_with_same_shader.end(), __entity), entities_with_same_shader.end());
-		//			break;
-		//		}
-		//	}
-		//	
-		//}
-
-		//if (!_entity.IsRoot())
-		//{
-		//	auto& ChildrenEntitiesList = _entity.GetParent()->GetChildrenEntitiesList();
-		//	auto it = std::find(ChildrenEntitiesList.begin(), ChildrenEntitiesList.end(), _entity);
-		//	ASSERT(it != ChildrenEntitiesList.end());
-		//	ChildrenEntitiesList.erase(it);
-			///if(it!=)
-			//GENGINE_INFO("{}", it != ChildrenEntitiesList.end());
-			//ChildrenEntitiesList.erase(std::remove(ChildrenEntitiesList.begin(), ChildrenEntitiesList.end(), _entity), ChildrenEntitiesList.end());
-			//m_Registry.destroy(*ele);
-		
-
-		//m_Registry.destroy(_entity);
-
-		/*m_EntityMap.erase(entity.GetUUID());
-		m_Registry.destroy(entity);
-		if (entity.HasAllComponents<RenderComponent>())
-		{;
-			auto& render_component = entity.GetComponent<RenderComponent>();
-			auto id = render_component.Shader->GetHandle();
-			auto& entities_with_same_shader = m_GroupEntities[id-1];
-			for (auto& _entity : entities_with_same_shader)
-			{
-				if (_entity == entity)
-				{
-					entities_with_same_shader.erase(std::remove(entities_with_same_shader.begin(), 
-						entities_with_same_shader.end(), _entity), entities_with_same_shader.end());
-					return;
-				}
-			}
-		}*/
-	}
-
 	void _Scene::DestroyEntity(_Entity entity, bool excludeChildren, bool first)
 	{
 		if (!entity)
@@ -416,22 +344,8 @@ namespace GEngine
 				parent.RemoveChild(entity);
 		}
 
-		//delete the entity in the group render
-		if (entity.HasAllComponents<RenderComponent>())
-		{
-			auto& render_component = entity.GetComponent<RenderComponent>();
-			auto id = render_component.Shader->GetHandle();
-			auto& entities_with_same_shader = m_GroupEntities[id - 1];
-			for (auto& _entity : entities_with_same_shader)
-			{
-				if (_entity == entity)
-				{
-					entities_with_same_shader.erase(std::remove(entities_with_same_shader.begin(),
-						entities_with_same_shader.end(), _entity), entities_with_same_shader.end());
-					break;
-				}
-			}
-		}
+		// Remove recorded memberships even if the shader was replaced or removed.
+		RemoveFromRenderLists(entity);
 
 		//remove its corresponding rigid body if exists
 		if (entity.HasAllComponents<RigidBody3DComponent>())
@@ -458,33 +372,49 @@ namespace GEngine
 		DestroyEntity({ it->second, this }, excludeChildren, first);
 	}
 
-	void _Scene::PushToRenderList(_Entity entity)
+	const std::vector<_Entity>& _Scene::GetLightEntitiesWithRenderID(unsigned int id) const
 	{
-		if (auto it = m_EntityMap.find(entity.GetUUID()); it != m_EntityMap.end())
+		const auto it = m_LightEntities.find(id);
+		static const std::vector<_Entity> empty;
+		return it == m_LightEntities.end() ? empty : it->second;
+	}
+
+	void _Scene::RemoveFromRenderLists(const _Entity& entity)
+	{
+		for (auto* groups : { &m_GroupEntities, &m_LightEntities })
 		{
-			
-			if (entity.HasAllComponents<RenderComponent>() && entity.HasAnyComponents<DirectionalLightComponent, PointLightComponent, SpotLightComponent>())
+			for (auto it = groups->begin(); it != groups->end();)
 			{
-
-				auto renderId = entity.GetComponent<RenderComponent>().Shader->GetHandle();
-
-				m_LightEntities[renderId - 1].emplace_back((entt::entity)entity, this);
-			/*	if (entity.HasAllComponents<MeshComponent>())
-				{
-					m_GroupEntities[renderId - 1].emplace_back((entt::entity)entity, this);
-				}*/
+				std::erase(it->second, entity);
+				if (it->second.empty())
+					it = groups->erase(it);
+				else
+					++it;
 			}
-			else if (entity.HasAllComponents<RenderComponent>() && !entity.HasAnyComponents<DirectionalLightComponent, PointLightComponent, SpotLightComponent>())
-			{
-
-				auto renderId = entity.GetComponent<RenderComponent>().Shader->GetHandle();
-				m_GroupEntities[renderId - 1].emplace_back((entt::entity)entity, this);
-			}
-
-
 		}
 	}
 
+	void _Scene::PushToRenderList(_Entity entity)
+	{
+		if (entity.GetSceneContext() != this || !m_Registry.valid(entity))
+			throw std::invalid_argument("Render-list entity does not belong to this scene");
+		if (!entity.HasAllComponents<RenderComponent>())
+			return;
+
+		const auto* shader = entity.GetComponent<RenderComponent>().Shader;
+		if (!shader || shader->GetHandle() == 0)
+			throw std::invalid_argument("Render-list entity requires a nonzero shader program");
+		const auto program = static_cast<unsigned int>(shader->GetHandle());
+		auto& groups = entity.HasAnyComponents<DirectionalLightComponent, PointLightComponent, SpotLightComponent>()
+			? m_LightEntities : m_GroupEntities;
+		const auto found = groups.find(program);
+		if (found != groups.end() && std::find(found->second.begin(), found->second.end(), entity) != found->second.end())
+			return;
+
+		// Re-publishing after a shader change moves the entity from its old group.
+		RemoveFromRenderLists(entity);
+		groups[program].push_back(entity);
+	}
 
 
 	void _Scene::Step(int frames)

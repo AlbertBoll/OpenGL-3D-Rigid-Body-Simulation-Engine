@@ -38,7 +38,7 @@ namespace GEngine
 
 		auto& render_groups = scene->GetGroupEntities();
 		auto& light_groups = scene->GetLightEntities();
-		for (auto& group : light_groups)
+		for (auto& [program, group] : light_groups)
 		{
 			if (!group.empty())
 			{
@@ -68,7 +68,7 @@ namespace GEngine
 		}
 
 
-		for (auto& group : render_groups)
+		for (auto& [program, group] : render_groups)
 		{
 			if (!group.empty())
 			{
@@ -103,7 +103,7 @@ namespace GEngine
 		RenderCounters::RecordPass(RenderCounters::Pass::Shadow);
 		auto& render_groups = scene->GetGroupEntities();
 
-		for (auto& group : render_groups)
+		for (auto& [program, group] : render_groups)
 		{
 			if (!group.empty())
 			{
@@ -153,7 +153,7 @@ namespace GEngine
 
 		point_shadow_depth_shader->SetUniform("far_plane", far_plane);
 
-		for (auto& group : render_groups)
+		for (auto& [program, group] : render_groups)
 		{
 			if (!group.empty())
 			{
@@ -197,7 +197,7 @@ namespace GEngine
 
 		auto& render_groups = scene->GetGroupEntities();
 
-		for (auto& group : render_groups)
+		for (auto& [program, group] : render_groups)
 		{
 			if (!group.empty())
 			{
@@ -335,7 +335,7 @@ namespace GEngine
 		
 		auto& render_groups = scene->GetGroupEntities();
 
-		for (auto& group : render_groups)
+		for (auto& [program, group] : render_groups)
 		{
 			if (!group.empty())
 			{
@@ -1074,7 +1074,7 @@ namespace GEngine
 		point_light_shader->SetUniform("u_view", camera.GetViewMatrix());
 		point_light_shader->SetUniform("u_projection", camera.GetProjection());
 
-		for (auto& group : light_groups)
+		for (auto& [program, group] : light_groups)
 		{
 			if (!group.empty())
 			{

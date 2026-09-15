@@ -2,6 +2,7 @@
 #include"entt/entt.hpp"
 #include <Core/Timestep.h>
 #include <cstdint>
+#include <map>
 #include "Core/UUID.h"
 #include <Camera/EditorCamera.h>
 
@@ -25,7 +26,6 @@ namespace GEngine
 
 		_Entity CreateEntity(const std::string& name = std::string());
 		_Entity CreateEntityWithUUID(UUID uuid, const std::string& name = std::string());
-		void DestroyEntity(_Entity& entity);
 		void DestroyEntity(_Entity entity, bool excludeChildren = false, bool first = true);
 		void DestroyEntity(UUID entityID, bool excludeChildren = false, bool first = true);
 
@@ -100,10 +100,8 @@ namespace GEngine
 			return m_Registry.view<Components...>();
 		}
 
-		auto& GetLightEntitiesWithRenderID(int id)
-		{
-			return m_LightEntities[id - 1];
-		}
+		// A program name is an associative key, never an engine array index.
+		const std::vector<_Entity>& GetLightEntitiesWithRenderID(unsigned int id) const;
 
 		PhysicsSystem* GetPhysicsSystem()
 		{
@@ -111,6 +109,8 @@ namespace GEngine
 		}
 
 	private:
+		void RemoveFromRenderLists(const _Entity& entity);
+
 		template<typename T>
 		void OnComponentAdded(_Entity entity, T& component);
 
@@ -128,8 +128,10 @@ namespace GEngine
 		PhysicsTiming m_PhysicsTiming{};
 		PhysicsWorld* m_TimingWorld{};
 		std::unordered_map<UUID, entt::entity> m_EntityMap;
-		std::vector<std::vector<_Entity>> m_GroupEntities;
-		std::vector<std::vector<_Entity>> m_LightEntities;
+		// Transitional grouping: ascending program order and insertion order within a group.
+		using ProgramGroups = std::map<unsigned int, std::vector<_Entity>>;
+		ProgramGroups m_GroupEntities;
+		ProgramGroups m_LightEntities;
 	};
 
 

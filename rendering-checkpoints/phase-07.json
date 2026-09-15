@@ -1,0 +1,247 @@
+{
+  "baseline": "ab5d71d09fdeb6ce9bfa8ae952240f3f572c3816",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Component/Component.h",
+    "GEngine/include/GEngine/Core/RenderSystem.cpp",
+    "GEngine/include/GEngine/Scene/_Scene.h",
+    "GEngine/src/Scene/_Scene.cpp",
+    "PhysicsTests/README.md",
+    "PhysicsTests/src/ProgramGroupingTests.cpp",
+    "PhysicsTests/src/main.cpp",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "premake5.lua",
+    "rendering-checkpoints/phase-07.json"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Ordered associative grouping removes the bounds dependency across insertion/copy/duplicate/removal and lookup; focused actual-scene checks pass in both configurations.",
+      "finding": "Current scene paths use programName - 1 against five-element groups",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Unchanged approved-baseline submission bodies and observed error classes. Phase 28 owns framebuffer correctness; Phase 63 owns cross-pass state, with Phase 13 baseline triage. Smoke passes only startup/render/responsive-close.",
+      "finding": "Existing simulation GL errors 1280/1282 and integer-framebuffer/geometry warnings",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_07_REVIEW.md"
+  ],
+  "next_phase": "08",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "7ab3e921b09fd46041296c8dae3760d10551688b",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-07/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/7ab3e921b09fd46041296c8dae3760d10551688b",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "212a68ce06a38af3a4c5fe2dfa267a49c49ddc1618b82bda031ba4cc6ea9095c"
+      },
+      "mode": "100644",
+      "validated_blob": "8d517e0f0df579beb698fd6c40a20a1b06325305",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-07/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/8d517e0f0df579beb698fd6c40a20a1b06325305"
+    }
+  },
+  "phase": "07",
+  "previous_approved_tag": "render-refactor-phase-06-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_07_REVIEW.md",
+  "schema": 2,
+  "summary": "Replace fixed program-name-indexed scene arrays with ordered associative render/light groups, checked publication and missing-light lookup, consistent copy/duplicate and group cleanup; preserve submission order and per-entity materials. Debug/Release builds, 34 grouping checks and 9 lifecycle checks each, and simulation smokes pass. Final handles remain Phase 25; pre-existing GL errors remain separately documented.",
+  "validation": [
+    {
+      "check": "Debug affected-target/consumer build",
+      "command": "python logs/rendering/phase07/build.py Debug",
+      "evidence": "logs/rendering/phase07/debug-build.json (full compilation logs in attempt01/attempt02/; final incremental configuration check)",
+      "result": "PASS"
+    },
+    {
+      "check": "Debug program grouping (34 checks) and scene lifecycle (9 checks)",
+      "command": "python logs/rendering/phase07/runtime.py Debug cpu",
+      "evidence": "logs/rendering/phase07/debug-cpu.json",
+      "result": "PASS",
+      "reuse_reason": "Debug binary hash/effective settings unchanged by final Release-only delay-link adjustment."
+    },
+    {
+      "check": "Debug simulation render/responsive-close smoke",
+      "command": "python logs/rendering/phase07/runtime.py Debug smoke",
+      "evidence": "logs/rendering/phase07/phase07-debug-rigidbodysimulation-default.json",
+      "result": "PASS",
+      "reuse_reason": "Exact application binary/source/settings unchanged by final PhysicsTests linkage adjustment."
+    },
+    {
+      "check": "Release affected-target/consumer build",
+      "command": "python logs/rendering/phase07/build.py Release",
+      "evidence": "logs/rendering/phase07/release-build.json (full compilation logs in attempt01/attempt02/; final incremental configuration check)",
+      "result": "PASS"
+    },
+    {
+      "check": "Release program grouping (34 checks) and scene lifecycle (9 checks)",
+      "command": "python logs/rendering/phase07/runtime.py Release cpu",
+      "evidence": "logs/rendering/phase07/release-cpu.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Release simulation render/responsive-close smoke",
+      "command": "python logs/rendering/phase07/runtime.py Release smoke",
+      "evidence": "logs/rendering/phase07/phase07-release-rigidbodysimulation-default.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Scope/input preservation, submission bodies, recorded grouping counters and GL-error provenance",
+      "command": "python logs/rendering/phase07/verify.py",
+      "evidence": "logs/rendering/phase07/verification.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Governance/context links and whitespace",
+      "command": "python .codex/tools/validate_rendering_governance.py; git diff --check -- GEngine PhysicsTests premake5.lua",
+      "evidence": "logs/rendering/phase07/governance.json; logs/rendering/phase07/whitespace.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "Breakout/Breakout.vcxproj": {
+      "executable": null,
+      "sha256": "2594775ffe1716ad05f4e30eef9951ea19740191cb90e0b40cf4566ee19ba88d"
+    },
+    "GEngine.sln": {
+      "executable": null,
+      "sha256": "bc69967ae88d485861216e225e1888d14c0c45428b73f59e6e93070c9c9b1dca"
+    },
+    "GEngine/GEngine.vcxproj": {
+      "executable": null,
+      "sha256": "17ccee488a48107bf73bf6404506a9ae55a4920005d90f7ec91b1c95f9feebfa"
+    },
+    "GEngine/include/GEngine/Component/Component.h": {
+      "executable": null,
+      "sha256": "d26035a72bc1b5e1b7f89dd4879fb31d0ab888117a55c9e26e69d722a68d23ae"
+    },
+    "GEngine/include/GEngine/Core/RenderSystem.cpp": {
+      "executable": null,
+      "sha256": "39b5e3a6c3c04dbd9d852a74e7b666cea1cd13dd608eabce8269e6654b435453"
+    },
+    "GEngine/include/GEngine/Scene/_Scene.h": {
+      "executable": null,
+      "sha256": "cc90c20a6556acf1f044ea8d51a8a28b8d9f6195b54cb729e742d376706c0247"
+    },
+    "GEngine/src/Scene/_Scene.cpp": {
+      "executable": null,
+      "sha256": "59ab58424efd17228f4c2cdf1347a21044b59473493cc0284f4fddf1dec6b344"
+    },
+    "GEngineEditor/GEngineEditor.vcxproj": {
+      "executable": null,
+      "sha256": "3c0d13d4c20e3c04ff8f1ecf6f44c70f2d7124dfdcd5b1c13aa47c0e8ef388d5"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "PhysicsBenchmark/PhysicsBenchmark.vcxproj": {
+      "executable": null,
+      "sha256": "79108ac880f3d4d68e409cb1d874066e717cc1eadb71e8a45faf01f42127668f"
+    },
+    "PhysicsTests/PhysicsTests.vcxproj": {
+      "executable": null,
+      "sha256": "24db3d6132b94ee571be79088282b908494016b2ed78d16b8c1684cc79fe51c4"
+    },
+    "PhysicsTests/src/ProgramGroupingTests.cpp": {
+      "executable": null,
+      "sha256": "7aff13f317ab53f152780cbd544066e66c7cbb73b71404a95e4e300539040755"
+    },
+    "PhysicsTests/src/main.cpp": {
+      "executable": null,
+      "sha256": "c3c3ca8fa77d66911c2cf848935e866768ace3bd731286322c1207cb139e7bcd"
+    },
+    "RayTracing/RayTracing.vcxproj": {
+      "executable": null,
+      "sha256": "1e97a74aaf9f34e494163808a871c4e2cc4a2b62d3e3273093359877014f56e8"
+    },
+    "RigidBodySimulation/RigidBodySimulation.vcxproj": {
+      "executable": null,
+      "sha256": "a363c1292b5a4158204416ef68058e8f15582e7dbad6e6353236988053bf4dfb"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "212a68ce06a38af3a4c5fe2dfa267a49c49ddc1618b82bda031ba4cc6ea9095c"
+    },
+    "external/glad/glad.vcxproj": {
+      "executable": null,
+      "sha256": "c2d99bda79ced5c30d3daf6fe2bd11a70a7bc4487f020287c8e1a8bef5a06b66"
+    },
+    "logs/rendering/phase07/build.py": {
+      "executable": null,
+      "sha256": "d2770f8ffbfcbfe785079930105be04737f1abb0f9ae21d4f2edefafe63f0ce0"
+    },
+    "logs/rendering/phase07/runtime.py": {
+      "executable": null,
+      "sha256": "a4d4055b6e044c1db58b0cd6d7379d9154c7ab59672b33bfdca5cab5a335bb91"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "108bec448821ee86625c28dd53939afc4aa2c312fe55dc3e53642e1aad87eba9"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/test_shadow_configuration.py": {
+      "executable": null,
+      "sha256": "43993d9cf9974a99dc10c2ce799830f288d62649ccf97d3a47a2ea162124a71b"
+    }
+  }
+}

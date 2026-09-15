@@ -922,6 +922,13 @@ project "PhysicsTests"
 			"_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING"
 		}
 
+	filter { "system:windows", "configurations:Debug" }
+		-- Scene tests pull Debug renderer counters from GEngine. Keep CPU runs
+		-- independent of SDL2.dll by delaying its existing platform dependency.
+		libdirs { "%{externals.sdl2}/lib" }
+		links { "SDL2", "delayimp" }
+		linkoptions { "/DELAYLOAD:SDL2.dll" }
+
 	filter "configurations:Debug"
 		defines { "GENGINE_CONFIG_DEBUG" }
 		runtime "Debug"

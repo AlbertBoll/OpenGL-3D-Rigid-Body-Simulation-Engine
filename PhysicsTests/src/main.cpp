@@ -7904,12 +7904,15 @@ namespace
 
 }
 
+int RunProgramGroupingRegression();
+
 int main(int argc, char** argv)
 {
 	GEngine::Log::Initialize();
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--program-grouping") return RunProgramGroupingRegression();
 		if (argument == "--solver-storage") { TestSolverStorage(); return failureCount ? 1 : 0; }
 		if (argument == "--angular-resistance-coupling") { TestCombinedAngularResistanceAnisotropy(); return failureCount ? 1 : 0; }
 		if (argument == "--rolling-resistance") return RunRollingResistanceRegression();

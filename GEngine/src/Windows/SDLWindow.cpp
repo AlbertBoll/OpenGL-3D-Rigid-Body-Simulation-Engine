@@ -91,11 +91,11 @@ namespace GEngine
 		//glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		
 
-		if (winProp.m_IsVsync)
-		{
-			//Set VSYNC;
-			SDL_GL_SetSwapInterval(1);
-		}
+		// Apply both choices explicitly; the driver/context default is not policy.
+		// The application loop uses the actual interval if this request fails.
+		if (SDL_GL_SetSwapInterval(winProp.m_IsVsync ? 1 : 0) != 0)
+			GENGINE_CORE_WARN("Swap interval request failed: {} (actual {})",
+				SDL_GetError(), SDL_GL_GetSwapInterval());
 
 		m_ImGuiWindow = new ImGuiWindow_();
 		m_ImGuiWindow->Initialize(this, winProp.ImGuiWindowProperties);

@@ -478,3 +478,64 @@ implementations with renamed entry points. Real ImGui collapse/reopen cycles ver
 that scene draws/image uploads stop while hidden and resume when reopened. GL hooks
 in the fixture count uploads and forward every call on the context-owning thread.
 Logs, native exits and executable hashes are recorded under each configuration.
+
+## Fixed cadence and frame pacing (Phase 16)
+
+The scene remains the sole elapsed-time accumulator. Simulation runs at 60 Hz,
+with one `PhysicsSystem::Update(1/60 s)` per fixed tick and at most two ticks per
+application update. Solver iterations and collision time-of-impact subdivisions
+are internal to that tick, not another time accumulator or a higher fixed rate.
+The existing solver equations, iteration settings and body sleep policy are retained.
+Previously, application frames were limited by an unconditional 16 ms wait
+(at most 62.5 updates/second before work and VSYNC). Physics was already 60 Hz.
+Application controls, animation/UI and rendering now remain variable rate; the
+application forwards raw elapsed time once per visible frame to the scene.
+There is no second application accumulator and no presentation interpolation yet.
+
+The existing bounded-backlog policy is deliberate: retain fractional and whole
+pending ticks up to 250 ms **before** executing the current update's maximum of two
+ticks. Account for every excess positive second in `discardedSeconds` and the
+lifetime total. Subsequent positive updates drain retained backlog. Sustained rates
+below 30 application frames/second cannot keep up with 60 physics ticks/second;
+they keep the same work limit and report overflow. Native suspension adds no new
+elapsed time; previously pending physics time survives minimize/restore. Runtime
+stop/restart resets the scene clock. Invalid/nonpositive samples do not drain it.
+
+Window initialization explicitly requests swap interval 1 or 0. Failure logs the
+request error and actual interval. Before each active frame, `BaseApp` makes the
+main context current and queries its actual interval on the owning thread:
+
+| Actual swap interval | Manual cap | Pacing |
+| --- | --- | --- |
+| Nonzero (including adaptive -1) | Any | Swap/VSYNC owns pacing; no manual wait |
+| 0 | Positive | Wait until the previous measured frame start plus `1/cap` seconds |
+| 0 | 0 | Uncapped; no manual wait |
+
+`SetManualFrameRateLimit(fps)` selects the fallback cap; the default is 60 FPS.
+Work, stalls and oversleep count toward the next interval. A missed deadline adds
+no pacing debt. Cap/interval changes apply on the next active iteration. Suspended
+event polling retains its independent 16 ms idle delay. A lower cap is intentionally
+ignored while VSYNC is active; combining two independent pacers is unsupported.
+
+```powershell
+python tools/test_input_control.py --configuration Debug --frame-pacing --output logs/rendering/phase16/Debug
+python tools/test_input_control.py --configuration Release --frame-pacing --output logs/rendering/phase16/Release
+```
+
+The runner builds all six application/Physics consumers with the recorded toolchain.
+Production-scene samples at 30/60/75/120/144/240 Hz must each produce 600 ticks in
+ten seconds without loss. Existing `PhysicsTests --fixed-scheduling` adds exact
+body-state equivalence against direct fixed stepping, fractional remainder,
+invalid inputs, pause/restart, stalls and sustained overload. Hidden SDL/GL loop
+checks cover VSYNC on/off crossed with capped/uncapped settings, runtime changes,
+one render/swap per active update, a 350 ms stall, and a 900 ms minimize/restore
+cycle that retains the prior backlog without adding suspended time. Existing
+clock/input/close regressions also run. All GL and scene operations stay on main;
+the event worker only enqueues SDL events.
+
+Live pacing checks use a deliberately slow 2 FPS cap to distinguish manual waits
+from VSYNC/uncapped operation with a 400 ms upper tolerance. They verify actual
+SDL interval selection and application pacing, not monitor scanout or exact OS
+sleep precision. Refresh-rate sweeps inject elapsed samples rather than changing
+the monitor. No performance benchmark, new sanitizer run or visual-quality claim
+is required by this phase.

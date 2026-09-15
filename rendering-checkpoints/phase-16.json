@@ -1,0 +1,203 @@
+{
+  "baseline": "99b9633bad1c432c1cdc8372ac0c41c41f333576",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Core/BaseApp.h",
+    "GEngine/src/Core/BaseApp.cpp",
+    "GEngine/src/Windows/SDLWindow.cpp",
+    "RenderingValidation/README.md",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-16.json",
+    "tools/input_control_probe.cpp",
+    "tools/test_input_control.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Use the actual main-context interval; nonzero disables manual waits, interval zero uses a configurable 60 FPS fallback or uncapped mode.",
+      "finding": "Unconditional 16 ms frame waiting restricted fast displays and coexisted with VSYNC.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Explicitly request interval 1 or 0 and report errors with the actual interval; loop decisions use that actual value.",
+      "finding": "Window initialization only requested the enabled VSYNC case.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Current approved scene already owns the correct 60 Hz accumulator, remainder and bounded backlog. Retain it and validate exact counts, body-state equivalence and suspension; no solver or nested-scheduler change.",
+      "finding": "The phase asks for an accumulator and an intentional effective physics rate.",
+      "status": "RESOLVED"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_16_REVIEW.md",
+    "logs/rendering/phase16/identity-and-contract.json"
+  ],
+  "next_phase": "17",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "f11e97d84ec459da7910e2a8d4b7cb3c41cbec66",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-16/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/f11e97d84ec459da7910e2a8d4b7cb3c41cbec66",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "7b0f920841f78a8710841b80f2e6cbec695e97d8f2c6d86ef1904e35738a520a"
+      },
+      "mode": "100644",
+      "validated_blob": "415c04b184e4487a627bc73eb8bfbc75d6eb913c",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-16/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/415c04b184e4487a627bc73eb8bfbc75d6eb913c"
+    }
+  },
+  "phase": "16",
+  "previous_approved_tag": "render-refactor-phase-15-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_16_REVIEW.md",
+  "schema": 2,
+  "summary": "Preserve the single 60 Hz scene scheduler and bounded backlog; pace visible frames from actual VSYNC or an optional manual cap, with Debug/Release cadence, stall, restore and interval-transition coverage.",
+  "validation": [
+    {
+      "check": "All six affected application/Physics consumers, Debug and Release; focused clock, input, fixed-cadence and pacing checks",
+      "command": "python tools/test_input_control.py --configuration Debug --frame-pacing --output logs/rendering/phase16/Debug (repeat Release)",
+      "evidence": "logs/rendering/phase16/Debug/results.json; logs/rendering/phase16/Release/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Active phase cadence/backlog audit; unchanged scheduler, validation input identities, owner contents/index, predecessor publication and exact scope",
+      "command": "python logs/rendering/phase16/prepare_review.py",
+      "evidence": "logs/rendering/phase16/identity-and-contract.json; logs/rendering/phase16/preflight.json; logs/rendering/phase16/validation-inputs.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Shared rendering governance",
+      "command": "python .codex/tools/validate_rendering_governance.py --shared-only",
+      "evidence": "logs/rendering/phase16/shared-governance.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    "Breakout/src/BreakoutApp.cpp": {
+      "executable": null,
+      "sha256": "8732572555506d362cbd2933638671cf36ab4f2f0512cdd0508721155c33d9ee"
+    },
+    "GEngine/include/GEngine/Core/BaseApp.h": {
+      "executable": null,
+      "sha256": "e3f3a52dd2be5ca132d5af6649f984cc28de3c6981e1cc72289a6f2b83adeb62"
+    },
+    "GEngine/include/GEngine/Core/FrameClock.h": {
+      "executable": null,
+      "sha256": "b3786a76d594762ef71f218cc5ea46ac42b265723b49dd82ab94499787d6edfc"
+    },
+    "GEngine/include/GEngine/Core/Timestep.h": {
+      "executable": null,
+      "sha256": "1b9e2a4462863b1be49ef9fe2be1c750ac018b8957da4e87fde8706f934496c0"
+    },
+    "GEngine/include/GEngine/Physics/PhysicsSystem.cpp": {
+      "executable": null,
+      "sha256": "280667699d41348a1d5454ad61fac45a14fded91384e107b06d0a1b22d7037b4"
+    },
+    "GEngine/include/GEngine/Physics/PhysicsSystem.h": {
+      "executable": null,
+      "sha256": "8f4856a8195aad6ca4f92ddb29ae6c0082522d9dd6c4fa132a83de91726de113"
+    },
+    "GEngine/include/GEngine/Scene/_Scene.h": {
+      "executable": null,
+      "sha256": "cdb791d0594589f3681ba0f4d7490b7ce70ba08c3e6a6f49d82b13badd3a3f06"
+    },
+    "GEngine/src/Core/BaseApp.cpp": {
+      "executable": null,
+      "sha256": "a1bc43e3137d8d8904bb75ed18e8274185d629098cf0b89c56a71ebae173ed06"
+    },
+    "GEngine/src/Scene/_Scene.cpp": {
+      "executable": null,
+      "sha256": "8ac74522b529f1ae15779c516e2a55ae728964b5d47eb58f391b4524b7adf175"
+    },
+    "GEngine/src/Windows/SDLWindow.cpp": {
+      "executable": null,
+      "sha256": "dabb7138d2297be7f9033717be916bc18d4b1659d9cc9e3e80dbe4e7d2d419e0"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "GEngineEditor/src/SceneApp.cpp": {
+      "executable": null,
+      "sha256": "338736a32f76e28c896e4e8dd7ceb38e91602b36bc2f0dbfe67ab92720d06898"
+    },
+    "PhysicsTests/src/main.cpp": {
+      "executable": null,
+      "sha256": "c3c3ca8fa77d66911c2cf848935e866768ace3bd731286322c1207cb139e7bcd"
+    },
+    "RayTracing/src/RayTracing.cpp": {
+      "executable": null,
+      "sha256": "df7d903117ef3d795f076f98826573edc6cb177264882da19dcd7dd6d1765b65"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "7b0f920841f78a8710841b80f2e6cbec695e97d8f2c6d86ef1904e35738a520a"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "dc2b271508b274ee36c8a9b484761f375a3ccd0d8d1f01a424505210622e2932"
+    },
+    "tools/input_control_probe.cpp": {
+      "executable": null,
+      "sha256": "d1d31d2d8a76815b2bd92b11bff702f57ccab0e57f1767968178eb749a8164cb"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/test_input_control.py": {
+      "executable": null,
+      "sha256": "0e3dfa1280fa27623550b07feca1d2b4e45c18cced92fe6bc119eb8070d2faeb"
+    }
+  }
+}

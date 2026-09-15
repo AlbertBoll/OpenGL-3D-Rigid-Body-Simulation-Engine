@@ -472,6 +472,174 @@ namespace
         BaseApp::GetEngine().ReleasePlatform();
     }
 
+    void CadenceChecks()
+    {
+        // Exercise the production accumulator at additional presentation rates.
+        for (int hz : {30, 60, 75, 120, 144, 240})
+        {
+            _Scene scene;
+            scene.OnRuntimeStart();
+            for (int frame = 0; frame < hz * 10; ++frame)
+            {
+                scene.Update(Timestep(1.0 / hz));
+                const auto& timing = scene.GetPhysicsTiming();
+                Require(timing.stepsLastUpdate <= 2 && timing.totalDiscardedSeconds == 0,
+                    "Refresh-rate sweep exceeded fixed work budget or lost time");
+            }
+            const auto& timing = scene.GetPhysicsTiming();
+            Require(timing.totalSteps == 600 && timing.pendingSeconds < 1e-10,
+                "Ten seconds of presentation samples did not produce 600 fixed ticks");
+            std::cout << "[PASS] cadence render-hz=" << hz << " fixed-ticks=" << timing.totalSteps
+                << " pending-seconds=" << timing.pendingSeconds << '\n';
+        }
+    }
+
+    class PacingApp final : public BaseApp
+    {
+    public:
+        _Scene scene;
+        int updates = 0, renders = 0, swaps = 0;
+        bool stallResume = false, switchPacing = false;
+        double supplied = 0, firstSeconds = 0, stalledSeconds = 0, resumedSeconds = 0;
+        double retainedBeforeSuspend = 0;
+        std::uint64_t stepsBeforeSuspend = 0;
+        std::atomic<bool> restored{false};
+        std::jthread events;
+        std::vector<double> deltas;
+
+        void ProcessInput(Timestep ts) override
+        {
+            Require(ts.GetDuration() == GetFrameTime().renderDelta, "Pacing changed input time units");
+        }
+        void Update(Timestep ts) override
+        {
+            ++updates;
+            const double elapsed = ts.GetSecondsPrecise();
+            if (updates == 1) firstSeconds = elapsed;
+            deltas.push_back(elapsed);
+            Require(ts.GetDuration() == GetFrameTime().rawDelta, "Pacing hid elapsed simulation time");
+            scene.Update(ts);
+            supplied += elapsed;
+            const auto& timing = scene.GetPhysicsTiming();
+            Require(timing.stepsLastUpdate <= 2 && timing.pendingSeconds <= .25
+                && std::abs(supplied - (timing.totalSteps * _Scene::PhysicsStepSeconds
+                    + timing.pendingSeconds + timing.totalDiscardedSeconds)) < 1e-10,
+                "Live loop violated work bound or elapsed-time conservation");
+            if (stallResume && updates == 2)
+            {
+                stalledSeconds = elapsed;
+                Require(elapsed >= .350 && timing.stepsLastUpdate == 2 && timing.discardedSeconds >= .1,
+                    "Stall did not retain bounded backlog and report catastrophic overflow");
+                retainedBeforeSuspend = timing.pendingSeconds;
+                stepsBeforeSuspend = timing.totalSteps;
+            }
+            if (stallResume && updates == 3)
+            {
+                resumedSeconds = elapsed;
+                Require(elapsed < .25 && timing.stepsLastUpdate == 2 && timing.discardedSeconds == 0
+                    && timing.totalSteps == stepsBeforeSuspend + 2
+                    && std::abs(timing.pendingSeconds - (retainedBeforeSuspend + elapsed
+                        - 2 * _Scene::PhysicsStepSeconds)) < 1e-10,
+                    "Native suspension added time or lost the pre-existing physics backlog");
+            }
+        }
+        void Render() override
+        {
+            ++renders;
+            glClear(GL_COLOR_BUFFER_BIT);
+            GetSDLWindow()->SwapBuffer();
+            ++swaps;
+            if (stallResume && renders == 1)
+                std::this_thread::sleep_for(std::chrono::milliseconds(350));
+            if (stallResume && renders == 2)
+            {
+                const auto id = GetSDLWindow()->GetWindowID();
+                PushState(id, SDL_WINDOWEVENT_MINIMIZED);
+                events = std::jthread([this, id] {
+                    // Only enqueue events here; all context and physics work stays on main.
+                    std::this_thread::sleep_for(std::chrono::milliseconds(900));
+                    SDL_Event event{};
+                    event.type = SDL_WINDOWEVENT;
+                    event.window.windowID = id; event.window.event = SDL_WINDOWEVENT_RESTORED;
+                    restored = SDL_PushEvent(&event) == 1;
+                });
+            }
+            if (switchPacing)
+            {
+                if (renders == 1) SetManualFrameRateLimit(0);
+                if (renders == 2)
+                {
+                    SetManualFrameRateLimit(2);
+                    Require(SDL_GL_SetSwapInterval(1) == 0 && SDL_GL_GetSwapInterval() == 1,
+                        "Could not enable VSYNC during pacing transition");
+                }
+                if (renders == 3)
+                    Require(SDL_GL_SetSwapInterval(0) == 0 && SDL_GL_GetSwapInterval() == 0,
+                        "Could not disable VSYNC during pacing transition");
+            }
+            if (renders == (stallResume ? 3 : 4))
+            {
+                SDL_Event quit{}; quit.type = SDL_QUIT;
+                Require(SDL_PushEvent(&quit) == 1, "Could not queue pacing probe quit");
+            }
+        }
+    };
+
+    void PacingLoop(std::string_view mode)
+    {
+        SDL_SetMainReady();
+        RuntimeAssets::Initialize("GEngineEditor");
+        {
+            PacingApp app;
+            WindowProperties properties;
+            properties.m_Title = "Frame pacing probe";
+            properties.m_Width = properties.m_Height = 64;
+            properties.m_MinWidth = properties.m_MinHeight = 32;
+            properties.m_IsVsync = mode == "--pacing-on-cap" || mode == "--pacing-on-unlimited";
+            properties.flag = BitFlags<WindowFlags, uint8_t>{WindowFlags::INVISIBLE};
+            app.Initialize(properties);
+            const int interval = SDL_GL_GetSwapInterval();
+            Require(interval == (properties.m_IsVsync ? 1 : 0), "Requested swap interval is unavailable");
+            Require(app.GetManualFrameRateLimit() == 60, "Default fallback cap is not 60 FPS");
+            app.stallResume = mode == "--pacing-stall-resume";
+            app.switchPacing = mode == "--pacing-switch";
+            const bool capped = mode == "--pacing-off-cap" || mode == "--pacing-on-cap" || app.switchPacing;
+            if (!app.stallResume) app.SetManualFrameRateLimit(capped ? 2 : 0);
+            app.scene.OnRuntimeStart();
+            SDL_Event event{};
+            while (SDL_PollEvent(&event)) {}
+            PushState(app.GetSDLWindow()->GetWindowID(), SDL_WINDOWEVENT_SHOWN);
+            app.OnEvent(event);
+            app.Run();
+            if (app.events.joinable()) app.events.join();
+            Require(app.updates == app.renders && app.renders == app.swaps
+                && app.renders == (app.stallResume ? 3 : 4),
+                "Catch-up or suspension repeated/skipped a visible-frame render or swap");
+            if (app.stallResume)
+                Require(app.restored && app.firstSeconds >= 1.0 / 60.0,
+                    "Default manual cap or restore event failed");
+            else if (app.switchPacing)
+                Require(app.deltas[0] >= .5 && app.deltas[1] < .4
+                    && app.deltas[2] < .4 && app.deltas[3] >= .5,
+                    "Runtime cap/VSYNC changes did not select the next frame's pacing");
+            else if (capped && interval == 0)
+                for (double delta : app.deltas) Require(delta >= .5, "Manual cap did not limit frame starts");
+            else
+                for (double delta : app.deltas) Require(delta < .4,
+                    "VSYNC or uncapped mode still used the slow manual cap");
+            std::cout << "[PASS] pacing mode=" << mode << " actual-swap-interval=" << interval
+                << " updates=" << app.updates << " renders=" << app.renders << " swaps=" << app.swaps
+                << " fixed-ticks=" << app.scene.GetPhysicsTiming().totalSteps
+                << " pending=" << app.scene.GetPhysicsTiming().pendingSeconds
+                << " discarded=" << app.scene.GetPhysicsTiming().totalDiscardedSeconds
+                << " first-seconds=" << app.firstSeconds << " stall=" << app.stalledSeconds
+                << " resumed=" << app.resumedSeconds << " deltas=";
+            for (double delta : app.deltas) std::cout << delta << ',';
+            std::cout << '\n';
+        }
+        BaseApp::GetEngine().ReleasePlatform();
+    }
+
 #if defined(GENGINE_PROBE_SIMULATION) || defined(GENGINE_PROBE_RAY)
     unsigned imageUploads = 0;
     PFNGLTEXIMAGE2DPROC originalImage = nullptr;
@@ -564,6 +732,10 @@ int main(int argc, char** argv)
         const std::string_view mode = argc == 2 ? argv[1] : "";
         if (mode == "--state") { InitialStateAndButtons(); UntouchedFrames(); }
         else if (mode == "--clock") FrameClockChecks();
+        else if (mode == "--cadence") CadenceChecks();
+        else if (mode == "--pacing-off-cap" || mode == "--pacing-off-unlimited"
+            || mode == "--pacing-on-cap" || mode == "--pacing-on-unlimited"
+            || mode == "--pacing-stall-resume" || mode == "--pacing-switch") PacingLoop(mode);
         else if (mode == "--native-restore" || mode == "--native-close" || mode == "--native-resize"
             || mode == "--hidden-quit" || mode == "--hidden-show") NativeWindowLoop(mode);
 #if defined(GENGINE_PROBE_SIMULATION) || defined(GENGINE_PROBE_RAY)

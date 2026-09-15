@@ -332,10 +332,8 @@ namespace GEngine
         const bool reportCounters = counterLog && std::string_view(counterLog) == "1";
 #endif
         auto input = GetInputManager();
-        auto windows = GetWindowManager();
 
         FrameClock clock;
-        constexpr auto minimumFrameInterval = std::chrono::milliseconds(16);
         //input->SetRelativeMouseMode(true);
         //GENGINE_CORE_INFO("{}", m_Running);
         while (m_Running)
@@ -360,7 +358,13 @@ namespace GEngine
             if (!IsRenderingSuspended())
             {
 
-                std::this_thread::sleep_until(clock.LastSample() + minimumFrameInterval);
+                // Query the main context on its owning thread. VSYNC (including
+                // adaptive -1) owns pacing when active; otherwise use the manual cap.
+                // Anchor to measured frame starts, so work/oversleep counts toward
+                // the next interval and a missed deadline creates no pacing backlog.
+                m_SDLWindow->BeginRender();
+                if (SDL_GL_GetSwapInterval() == 0 && m_ManualFrameRateLimit != 0)
+                    std::this_thread::sleep_until(clock.LastSample() + Seconds(1.0 / m_ManualFrameRateLimit));
                 m_FrameTime = clock.Tick();
                 const Timestep inputTime(m_FrameTime.renderDelta);
                 // Preserve all elapsed time for the scene's existing overload accounting.

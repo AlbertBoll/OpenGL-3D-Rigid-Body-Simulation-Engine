@@ -46,6 +46,9 @@ namespace GEngine
 		virtual void ProcessInput(Timestep ts);
 		virtual void Run();
 		const FrameTime& GetFrameTime() const { return m_FrameTime; }
+		// Used only when the main context's actual swap interval is zero; 0 is uncapped.
+		void SetManualFrameRateLimit(uint32_t framesPerSecond) { m_ManualFrameRateLimit = framesPerSecond; }
+		uint32_t GetManualFrameRateLimit() const { return m_ManualFrameRateLimit; }
 		bool IsRenderingSuspended() const { return m_Minimized || m_WindowHidden || m_WindowZeroSize; }
 		bool HasVisibleViewport() const { return m_ViewportSize.x >= 1.f && m_ViewportSize.y >= 1.f; }
 		virtual void Render();
@@ -80,6 +83,7 @@ namespace GEngine
 		Vec2f m_ViewportBounds[2];
 
 		FrameTime m_FrameTime{};
+		uint32_t m_ManualFrameRateLimit = 60;
 		bool m_Running = true;
 		inline static bool m_Initialize = false;
 		bool m_Minimized = false;

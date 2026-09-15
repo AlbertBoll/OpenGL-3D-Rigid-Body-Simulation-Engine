@@ -149,6 +149,27 @@ namespace GEngine
           
 
             m_SDLWindow = static_cast<SDLWindow*>(GetWindowManager()->GetInternalWindow(1));
+            const auto windowFlags = SDL_GetWindowFlags(m_SDLWindow->GetSDLWindow());
+            m_Minimized = (windowFlags & SDL_WINDOW_MINIMIZED) != 0;
+            m_WindowHidden = (windowFlags & SDL_WINDOW_HIDDEN) != 0;
+            auto windowState = new Events<void(SDL_WindowEvent)>("WindowState");
+            windowState->Subscribe([this](SDL_WindowEvent event)
+                {
+                    if (event.windowID != m_SDLWindow->GetWindowID()) return;
+                    switch (event.event)
+                    {
+                    case SDL_WINDOWEVENT_MINIMIZED: m_Minimized = true; break;
+                    case SDL_WINDOWEVENT_RESTORED:
+                    case SDL_WINDOWEVENT_MAXIMIZED: m_Minimized = false; break;
+                    case SDL_WINDOWEVENT_HIDDEN: m_WindowHidden = true; break;
+                    case SDL_WINDOWEVENT_SHOWN: m_WindowHidden = false; break;
+                    case SDL_WINDOWEVENT_RESIZED:
+                    case SDL_WINDOWEVENT_SIZE_CHANGED:
+                        m_WindowZeroSize = event.data1 <= 0 || event.data2 <= 0;
+                        break;
+                    }
+                });
+            GetEventManager()->GetEventDispatcher().RegisterEvent(windowState);
             GetInputManager()->SetSDLWindow(m_SDLWindow);
             
             m_RenderTarget = CreateScopedPtr<RenderTarget>(Vec2f{ m_SDLWindow->GetScreenWidth(), m_SDLWindow->GetScreenHeight() });
@@ -297,11 +318,7 @@ namespace GEngine
         //    }
         //}
 
-        SDL_Event event{};
-
-        OnEvent(event);
-        // Poll events first so keyboard/button queries see this frame's SDL state.
-        input->Update();
+        // Run owns event pumping and state sampling before virtual application controls.
 
     }
 
@@ -326,7 +343,7 @@ namespace GEngine
 #ifdef GENGINE_RENDER_BASELINE
             baseline.Begin();
 #endif
-            if (m_Minimized)
+            if (IsRenderingSuspended())
             {
                 // Keep restore/close events live without running application controls
                 // or simulation/render work. Retire transient input while suspended.
@@ -336,11 +353,11 @@ namespace GEngine
                 input->Update();
                 clock.Reset();
                 m_FrameTime = {};
-                if (m_Running && m_Minimized) SDL_Delay(16);
+                if (m_Running && IsRenderingSuspended()) SDL_Delay(16);
                 continue;
             }
 
-            if (!m_Minimized)
+            if (!IsRenderingSuspended())
             {
 
                 std::this_thread::sleep_until(clock.LastSample() + minimumFrameInterval);
@@ -359,13 +376,18 @@ namespace GEngine
 #ifdef GENGINE_RENDER_BASELINE
                 baseline.Work();
 #endif
+                SDL_Event event{};
+                OnEvent(event);
+                input->Update();
+                if (!m_Running) break;
+                if (IsRenderingSuspended()) continue;
                 {
                     //Timeit(ProcessInput)
                     ProcessInput(inputTime);
                 }
 
                 if (!m_Running) break;
-                if (m_Minimized) continue;
+                if (IsRenderingSuspended()) continue;
 
 #ifdef GENGINE_RENDER_BASELINE
                 baseline.UpdatedInput();
@@ -419,21 +441,25 @@ namespace GEngine
 
         //Editor Camera
       
-        Renderer::RenderBegin(m_EditorCamera, m_RenderTarget.get());
-        Renderer::Set(param);
-        Renderer::RenderScene(m_Scene.get(), m_EditorCamera);
+        if (HasVisibleViewport())
+        {
+            Renderer::RenderBegin(m_EditorCamera, m_RenderTarget.get());
+            Renderer::Set(param);
+            Renderer::RenderScene(m_Scene.get(), m_EditorCamera);
 
-        //PlayerCamera
-     /*   Renderer::RenderBegin(m_PlayerCamera, m_RenderTarget.get());
-        Renderer::Set(param);
-        Renderer::RenderScene(m_Scene.get(), m_PlayerCamera);*/
+            //PlayerCamera
+         /*   Renderer::RenderBegin(m_PlayerCamera, m_RenderTarget.get());
+            Renderer::Set(param);
+            Renderer::RenderScene(m_Scene.get(), m_PlayerCamera);*/
 
-       if (m_RenderTarget && m_RenderTarget->IsMultiSampled()) m_RenderTarget->BindAndBlitToScreen();
+           if (m_RenderTarget && m_RenderTarget->IsMultiSampled()) m_RenderTarget->BindAndBlitToScreen();
 
-       if(m_RenderTarget)
-           m_RenderTarget->UnBind();
+           if(m_RenderTarget)
+               m_RenderTarget->UnBind();
 
-     
+
+        }
+
        for (auto& [windowID, window] : windows)
        {
            auto window_ = static_cast<SDLWindow*>(window.get());

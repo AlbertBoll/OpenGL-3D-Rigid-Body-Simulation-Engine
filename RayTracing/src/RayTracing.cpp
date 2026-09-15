@@ -196,10 +196,6 @@ namespace GEngine
 		ImGui::Begin("Setting");
 
 		ImGui::Text("Render: %.3fms", m_LastRenderTime);
-		//if (ImGui::Button("Render"))
-		//{
-			GenerateImage();
-		//}
 
 		ImGui::Separator();
 		ImGui::SliderInt("Threads", (int*)(&m_Renderer.GetNumOfThread()), 1, 16);
@@ -254,13 +250,15 @@ namespace GEngine
 		ImGui::End();
 
 
-		ImGui::Begin("Viewport");
-
-		m_Width = (uint32_t)ImGui::GetContentRegionAvail().x;
-		m_Height = (uint32_t)ImGui::GetContentRegionAvail().y;
+		const bool viewportVisible = ImGui::Begin("Viewport");
+		const auto extent = ImGui::GetContentRegionAvail();
+		const bool hasArea = viewportVisible && extent.x >= 1.f && extent.y >= 1.f;
+		m_Width = hasArea ? static_cast<uint32_t>(extent.x) : 0;
+		m_Height = hasArea ? static_cast<uint32_t>(extent.y) : 0;
+		if (hasArea) GenerateImage();
 
 		auto& image = m_Renderer.GetFinalImage();
-		if(m_Renderer.GetFinalImage())                                                              
+		if(hasArea && m_Renderer.GetFinalImage())
 			ImGui::Image((void*)((uint64_t)image->GetTexID()), { (float)image->GetWidth(), (float)image->GetHeight() }, {0.f, 1.f}, {1.f, 0.f});
 
 		ImGui::End();

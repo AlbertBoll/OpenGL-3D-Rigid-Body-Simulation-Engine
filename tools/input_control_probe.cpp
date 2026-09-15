@@ -10,6 +10,20 @@
 #include <new>
 #include <stdexcept>
 #include <string_view>
+#include <windows.h>
+
+// Compile the actual application implementation into a dedicated viewport fixture.
+// Its entry point is retained under another name; production sources need no test hooks.
+#if defined(GENGINE_PROBE_SIMULATION) || defined(GENGINE_PROBE_RAY)
+#define main ApplicationEntryPointForProbe
+#if defined(GENGINE_PROBE_SIMULATION)
+#include "../RigidBodySimulation/src/RigidBodySimulation.cpp"
+#else
+#include "../RayTracing/src/RayTracing.cpp"
+#endif
+#undef main
+WindowProperties winProp;
+#endif
 
 namespace
 {
@@ -196,6 +210,27 @@ namespace
         Require(SDL_PushEvent(&event) == 1, "Could not queue fixture window event");
     }
 
+    void PushState(Uint32 id, Uint8 state, int width = 64, int height = 64)
+    {
+        SDL_Event event{};
+        event.type = SDL_WINDOWEVENT;
+        event.window.windowID = id;
+        event.window.event = state;
+        event.window.data1 = width;
+        event.window.data2 = height;
+        Require(SDL_PushEvent(&event) == 1, "Could not queue SDL window state");
+    }
+
+    double ProcessCpuSeconds()
+    {
+        FILETIME created{}, exited{}, kernel{}, user{};
+        Require(GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user), "GetProcessTimes failed");
+        ULARGE_INTEGER k{}, u{};
+        k.LowPart = kernel.dwLowDateTime; k.HighPart = kernel.dwHighDateTime;
+        u.LowPart = user.dwLowDateTime; u.HighPart = user.dwHighDateTime;
+        return (k.QuadPart + u.QuadPart) * 1e-7;
+    }
+
     class LoopApp : public BaseApp
     {
     public:
@@ -212,7 +247,7 @@ namespace
             inputSeconds = ts.GetSecondsPrecise();
             Require(ts.GetDuration() == GetFrameTime().renderDelta,
                 "Input did not receive the measured presentation delta in seconds");
-            BaseApp::ProcessInput(ts);
+            // Intentionally omit BaseApp::ProcessInput: event pumping belongs to Run.
             const auto& mouse = GetInputManager()->GetMouseState();
             if (mouse.GetDX() == 7 && mouse.GetDY() == -9)
             {
@@ -280,6 +315,10 @@ namespace
                 "Active window getter return differs");
             SDL_Event event{};
             while (SDL_PollEvent(&event)) {}
+            // Logical visibility events exercise the production state machine while
+            // keeping the fixture's native GL window off the user's desktop.
+            PushState(id, SDL_WINDOWEVENT_SHOWN);
+            app.OnEvent(event);
             auto* resize = new Events<void(WindowResizeParam)>("WindowResize");
             resize->Subscribe([&](WindowResizeParam param) {
                 ++app.resizeEvents;
@@ -328,21 +367,21 @@ namespace
             Require(queued, "Worker failed to enqueue control event");
             if (resume)
             {
-                Require(app.resizeEvents == 1 && app.updates == 1 && app.renders == 1 && app.controls == 2,
+                Require(app.resizeEvents == 1 && app.updates == 1 && app.renders == 1 && app.controls == 1,
                     "Suspended loop ran controls/update/render or failed to resume");
                 Require(app.firstSeconds >= 0 && app.firstSeconds < 0.5, "Suspended time leaked into simulation timestep");
                 // Motion drained while suspended must not leak into the next untouched active frame.
                 Require(app.motionFrames == 0, "Suspended motion leaked into a later active frame");
             }
             else if (app.measureClock)
-                Require(app.controls == 3 && app.updates == 2 && app.renders == 2
+                Require(app.controls == 2 && app.updates == 2 && app.renders == 2
                     && app.firstSeconds >= .016 && app.stalledSeconds >= .350,
                     "Paced/stalled production frame sequence differs");
             else if (activeInput)
-                Require(app.controls == 2 && app.updates == 1 && app.renders == 1 && app.motionFrames == 1,
+                Require(app.controls == 1 && app.updates == 1 && app.renders == 1 && app.motionFrames == 1,
                     "Active input was stale, repeated, or not observed");
             else
-                Require(app.updates == 0 && app.renders == 0 && app.controls == (minimize ? 1 : 0),
+                Require(app.updates == 0 && app.renders == 0 && app.controls == 0,
                     "Suspended close or immediate minimize ran application work");
             app.Suspend(false);
             std::cout << "[PASS] " << mode << " controls=" << app.controls << " updates=" << app.updates
@@ -351,6 +390,171 @@ namespace
         }
         BaseApp::GetEngine().ReleasePlatform();
     }
+
+    void NativeWindowLoop(std::string_view mode)
+    {
+        SDL_SetMainReady();
+        RuntimeAssets::Initialize("GEngineEditor");
+        {
+            LoopApp app;
+            WindowProperties properties;
+            properties.m_Title = "Suspended event loop probe";
+            properties.m_Width = properties.m_Height = 64;
+            properties.m_MinWidth = properties.m_MinHeight = 32;
+            properties.m_IsVsync = false;
+            properties.flag = BitFlags<WindowFlags, uint8_t>{WindowFlags::INVISIBLE};
+            app.Initialize(properties);
+            SDL_Event event{};
+            while (SDL_PollEvent(&event)) {}
+            const auto id = app.GetSDLWindow()->GetWindowID();
+            Require(app.IsRenderingSuspended(), "Initially hidden window was treated as renderable");
+            const bool restore = mode == "--native-restore";
+            const bool show = mode == "--hidden-show";
+            const bool hidden = mode == "--hidden-quit" || show;
+            const bool resize = mode == "--native-resize";
+            if (show)
+            {
+                PushState(id, SDL_WINDOWEVENT_SHOWN);
+                PushState(id, SDL_WINDOWEVENT_HIDDEN);
+                PushState(id, SDL_WINDOWEVENT_RESTORED);
+                app.OnEvent(event);
+                Require(app.IsRenderingSuspended(), "Restore overrode hidden window state");
+            }
+            if (!hidden)
+            {
+                PushState(id, SDL_WINDOWEVENT_SHOWN);
+                PushState(id, SDL_WINDOWEVENT_MINIMIZED);
+                // Neither a foreign window nor a resize can restore a minimized main window.
+                PushState(id + 99, SDL_WINDOWEVENT_RESTORED);
+                PushState(id + 99, SDL_WINDOWEVENT_CLOSE);
+                PushState(id, SDL_WINDOWEVENT_SIZE_CHANGED, 96, 64);
+                app.OnEvent(event);
+                Require(app.IsRenderingSuspended(), "Resize/foreign-window event overrode minimize");
+                if (resize)
+                {
+                    PushState(id, SDL_WINDOWEVENT_SIZE_CHANGED, 0, 64);
+                    PushState(id, SDL_WINDOWEVENT_RESTORED);
+                    app.OnEvent(event);
+                    Require(app.IsRenderingSuspended(), "Restore overrode zero drawable extent");
+                }
+            }
+            std::atomic<bool> queued{false};
+            const double cpuStart = ProcessCpuSeconds();
+            const auto wallStart = FrameClock::Clock::now();
+            std::jthread events([&] {
+                std::this_thread::sleep_for(std::chrono::milliseconds(900));
+                SDL_Event signal{};
+                if (hidden && !show) signal.type = SDL_QUIT;
+                else
+                {
+                    signal.type = SDL_WINDOWEVENT; signal.window.windowID = id;
+                    signal.window.event = show ? SDL_WINDOWEVENT_SHOWN : resize ? SDL_WINDOWEVENT_SIZE_CHANGED
+                        : restore ? SDL_WINDOWEVENT_RESTORED : SDL_WINDOWEVENT_CLOSE;
+                    signal.window.data1 = 96; signal.window.data2 = 64;
+                }
+                queued = SDL_PushEvent(&signal) == 1;
+            });
+            app.Run();
+            events.join();
+            const double wall = Seconds(FrameClock::Clock::now() - wallStart).count();
+            const double cpu = ProcessCpuSeconds() - cpuStart;
+            Require(queued && wall >= .9 && wall < 3.0, "Suspended control event was lost or starved");
+            const int work = restore || resize || show ? 1 : 0;
+            Require(app.controls == work && app.updates == work && app.renders == work,
+                "Suspended window performed application work or failed to restore");
+            Require(app.firstSeconds < .5, "Suspended wall time leaked into first resumed update");
+            // Observation excludes context/resource startup and counts all process threads.
+            Require(cpu / wall < .25, "Idle loop consumed more than 25% of one logical CPU");
+            std::cout << "[PASS] suspended-cpu mode=" << mode << " wall-seconds=" << wall
+                << " process-cpu-seconds=" << cpu << " one-core-percent=" << cpu / wall * 100
+                << " controls=" << app.controls << " updates=" << app.updates << " renders=" << app.renders << '\n';
+        }
+        BaseApp::GetEngine().ReleasePlatform();
+    }
+
+#if defined(GENGINE_PROBE_SIMULATION) || defined(GENGINE_PROBE_RAY)
+    unsigned imageUploads = 0;
+    PFNGLTEXIMAGE2DPROC originalImage = nullptr;
+    PFNGLTEXSUBIMAGE2DPROC originalSubImage = nullptr;
+    void APIENTRY ImageUpload(GLenum target, GLint level, GLint format, GLsizei w, GLsizei h,
+        GLint border, GLenum externalFormat, GLenum type, const void* pixels)
+    {
+        if (pixels) ++imageUploads;
+        originalImage(target, level, format, w, h, border, externalFormat, type, pixels);
+    }
+    void APIENTRY SubImageUpload(GLenum target, GLint level, GLint x, GLint y, GLsizei w, GLsizei h,
+        GLenum format, GLenum type, const void* pixels)
+    {
+        if (pixels) ++imageUploads;
+        originalSubImage(target, level, x, y, w, h, format, type, pixels);
+    }
+
+    void ApplicationViewport()
+    {
+        SDL_SetMainReady();
+#if defined(GENGINE_PROBE_SIMULATION)
+        RuntimeAssets::Initialize("RigidBodySimulation");
+        using App = RigidBodySimulationApp;
+#else
+        RuntimeAssets::Initialize("RayTracing");
+        using App = RayTracingAPP;
+#endif
+        {
+            App app;
+            WindowProperties properties;
+            properties.m_Width = 640; properties.m_Height = 480;
+            properties.m_MinWidth = properties.m_MinHeight = 32;
+            properties.m_IsVsync = false;
+            properties.flag = BitFlags<WindowFlags, uint8_t>{WindowFlags::INVISIBLE};
+            app.Initialize(properties);
+            SDL_Event event{};
+            while (SDL_PollEvent(&event)) {}
+            PushState(app.GetSDLWindow()->GetWindowID(), SDL_WINDOWEVENT_SHOWN);
+            app.OnEvent(event);
+            originalImage = glad_glTexImage2D; originalSubImage = glad_glTexSubImage2D;
+            glad_glTexImage2D = ImageUpload; glad_glTexSubImage2D = SubImageUpload;
+            struct Restore { ~Restore() { glad_glTexImage2D = originalImage; glad_glTexSubImage2D = originalSubImage; } } restore;
+            auto frame = [&] {
+                imageUploads = 0;
+                app.Update(Timestep(0.0));
+                app.Render();
+                Require(!app.IsRenderingSuspended(), "Empty docked viewport suspended its own UI");
+            };
+            frame(); // Create the real application UI.
+            ImGui::SetWindowSize("Viewport", ImVec2(160, 160), ImGuiCond_Always);
+            ImGui::SetWindowCollapsed("Viewport", false, ImGuiCond_Always);
+            frame(); frame();
+#if defined(GENGINE_PROBE_SIMULATION)
+            Require(RenderSystem::GetRenderStats().m_ArrayDrawCall + RenderSystem::GetRenderStats().m_ElementsDrawCall > 0,
+                "Visible simulation viewport did not render");
+#else
+            Require(imageUploads > 0, "Visible ray viewport did not upload an image");
+#endif
+            ImGui::SetWindowCollapsed("Viewport", true, ImGuiCond_Always);
+            frame(); // The simulation consumes visibility on the following frame.
+            for (int i = 0; i < 3; ++i)
+            {
+                frame();
+#if defined(GENGINE_PROBE_SIMULATION)
+                Require(!app.HasVisibleViewport() && RenderSystem::GetRenderStats().m_ArrayDrawCall == 0
+                    && RenderSystem::GetRenderStats().m_ElementsDrawCall == 0, "Collapsed simulation viewport submitted scene draws");
+#else
+                Require(imageUploads == 0, "Collapsed ray viewport still generated/uploaded an image");
+#endif
+            }
+            ImGui::SetWindowCollapsed("Viewport", false, ImGuiCond_Always);
+            frame(); frame();
+#if defined(GENGINE_PROBE_SIMULATION)
+            Require(app.HasVisibleViewport() && RenderSystem::GetRenderStats().m_ArrayDrawCall
+                + RenderSystem::GetRenderStats().m_ElementsDrawCall > 0, "Reopened simulation viewport did not resume scene rendering");
+#else
+            Require(imageUploads > 0, "Reopened ray viewport did not resume image generation");
+#endif
+            std::cout << "[PASS] application-viewport visible/collapsed/reopened UI remains live\n";
+        }
+        BaseApp::GetEngine().ReleasePlatform();
+    }
+#endif
 }
 
 int main(int argc, char** argv)
@@ -360,6 +564,11 @@ int main(int argc, char** argv)
         const std::string_view mode = argc == 2 ? argv[1] : "";
         if (mode == "--state") { InitialStateAndButtons(); UntouchedFrames(); }
         else if (mode == "--clock") FrameClockChecks();
+        else if (mode == "--native-restore" || mode == "--native-close" || mode == "--native-resize"
+            || mode == "--hidden-quit" || mode == "--hidden-show") NativeWindowLoop(mode);
+#if defined(GENGINE_PROBE_SIMULATION) || defined(GENGINE_PROBE_RAY)
+        else if (mode == "--viewport") ApplicationViewport();
+#endif
         else if (mode == "--loop-resume" || mode == "--loop-close" || mode == "--loop-minimize"
             || mode == "--loop-input" || mode == "--loop-clock") ApplicationLoop(mode);
         else throw std::runtime_error("Expected --state, --clock, --loop-resume, --loop-close, --loop-minimize, --loop-input or --loop-clock");

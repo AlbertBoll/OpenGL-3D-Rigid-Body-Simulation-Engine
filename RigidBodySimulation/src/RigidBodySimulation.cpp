@@ -633,13 +633,9 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 		{
 
 			auto& windows = GetWindowManager()->GetWindows();
-			if (auto p = windows.find(windowParam.ID); p != windows.end())
+			if (auto p = windows.find(windowParam.ID); p != windows.end() && p->second.get() == m_SDLWindow)
 			{
-				if (windowParam.Width == 0 || windowParam.Height == 0)
-					m_Minimized = true;
-
-				else
-					m_Minimized = false;
+				if (windowParam.Width <= 0 || windowParam.Height <= 0) return;
 				//m_ActiveScene->OnViewportResize(windowParam.Width, windowParam.Height);
 			
 				if(p->second->GetScreenWidth() == windowParam.Width && p->second->GetScreenHeight() == windowParam.Height)
@@ -782,110 +778,113 @@ void RigidBodySimulationApp::Render()
 	RenderSystem::GetRenderStats().m_ElementsDrawCall = 0;
 	auto& windows = GetWindowManager()->GetWindows();
 
-	RenderParam_ param;
-	//m_MousePickFrameBuffer.get()->Bind();
-	param.ClearColor = { 0.1f, 0.1f, 0.1f, 1.f };
-	param.bEnableDepthTest = true;
-	param.bClearColorBit = true;
-	param.bClearDepthBit = true;
-	param.bClearStencilBit = true;
+	if (HasVisibleViewport())
+	{
+		RenderParam_ param;
+		//m_MousePickFrameBuffer.get()->Bind();
+		param.ClearColor = { 0.1f, 0.1f, 0.1f, 1.f };
+		param.bEnableDepthTest = true;
+		param.bClearColorBit = true;
+		param.bClearDepthBit = true;
+		param.bClearStencilBit = true;
 
-	//UBO SetUp
-	RenderSystem::SetupUBO(*m_UniformBufferObject, m_EditorCamera_, m_LightDirection, m_ShadowCascadeLevels);
+		//UBO SetUp
+		RenderSystem::SetupUBO(*m_UniformBufferObject, m_EditorCamera_, m_LightDirection, m_ShadowCascadeLevels);
 
-	RenderSystem::Set(param);
-	//begin render
-	//RenderSystem::BeginRender(m_EditorCamera_);
+		RenderSystem::Set(param);
+		//begin render
+		//RenderSystem::BeginRender(m_EditorCamera_);
 
-	//Mouse Pick pass
-	//auto mousePickShader = ShaderManager::GetShaderProgram({ base_shader_dir + "mouse_pick.vert", base_shader_dir + "mouse_pick.frag" });
-	//RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get());
-	//RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get(), m_ViewportBounds[0], m_ViewportBounds[1]);
+		//Mouse Pick pass
+		//auto mousePickShader = ShaderManager::GetShaderProgram({ base_shader_dir + "mouse_pick.vert", base_shader_dir + "mouse_pick.frag" });
+		//RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get());
+		//RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get(), m_ViewportBounds[0], m_ViewportBounds[1]);
 
-	//point shadow pass
-	auto pointLightShadowShader = ShaderManager::GetShaderProgram({ base_shader_dir + "point_shadows_depth.vert", base_shader_dir + "point_shadows_depth.gs", base_shader_dir + "point_shadows_depth.frag" });
-	RenderSystem::PointShadowPass(m_ActiveScene.get(), pointLightShadowShader, *m_PointShadowFrameBuffer, m_LightPos, m_NearPlane, m_FarPlane);
+		//point shadow pass
+		auto pointLightShadowShader = ShaderManager::GetShaderProgram({ base_shader_dir + "point_shadows_depth.vert", base_shader_dir + "point_shadows_depth.gs", base_shader_dir + "point_shadows_depth.frag" });
+		RenderSystem::PointShadowPass(m_ActiveScene.get(), pointLightShadowShader, *m_PointShadowFrameBuffer, m_LightPos, m_NearPlane, m_FarPlane);
 
-	//cascade shadow pass
-	auto cascadeShadowMapShader = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping_depth.vert", base_shader_dir + "shadow_mapping_depth.gs", base_shader_dir + "shadow_mapping_depth.frag" });
-	RenderSystem::CascadedShadowPass(m_ActiveScene.get(), cascadeShadowMapShader, *m_CascadeShadowFrameBuffer);
-
-	
-
-
-
-	// scene render to frame buffer
-	//auto cascadeSceneShader = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping.vert", base_shader_dir + "shadow_mapping.frag" });
-	/*RenderSystem::CascadedShadowScenePass(m_ActiveScene.get(), m_EditorCamera_, cascadeSceneShader,  m_ShadowCascadeLevels, *m_FinalFrameBuffer);
-	m_FinalFrameBuffer->BindReadFrameBuffer();
-	m_FinalFrameBuffer->BindDefaultDrawFrameBuffer();
-	m_FinalFrameBuffer->BlitFrameBuffer();*/
-	//m_FinalFrameBuffer->UnBind();
-
-	
-
-	//Mouse Pick pass
-	auto mousePickShader = ShaderManager::GetShaderProgram({ base_shader_dir + "mouse_pick.vert", base_shader_dir + "mouse_pick.frag" });
-	//RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get());
-	RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get(), m_ViewportBounds[0], m_ViewportBounds[1]);
-
-	//start final render
-	//m_FinalFrameBuffer->Bind();
-	RenderSystem::BeginFinalRender(m_EditorCamera_, m_RenderTarget.get());
-
-	//RenderSystem::BeginRender(m_EditorCamera_);
-
-	//m_RenderTarget->ClearAttachment(1, -1);
-	RenderSystem::CascadedShadowSceneRender(m_ActiveScene.get(), m_EditorCamera_, m_ShadowCascadeLevels, m_FarPlane);
-
-	//RenderSystem::OnMouseClicked(m_ActiveScene.get(), *m_RenderTarget, m_ViewportBounds[0], m_ViewportBounds[1]);
-
-	//visualize debug bounding boxes
-	//if (m_IsShowDebugBoundingBox)
-	//{
-		//auto debugBoundingBoxShader = ShaderManager::GetShaderProgram({ base_shader_dir + "basic.vert", base_shader_dir + "basic.frag" });
-		//RenderSystem::VisualizeDebugBoundingVolume(m_ActiveScene.get(), m_EditorCamera_, debugBoundingBoxShader, *m_DebugBoundingBoxComp.get());
-		//RenderSystem::VisualizeDebugBoundingVolume(m_ActiveScene.get(), m_EditorCamera_);
-	//}
-
-	//visualize kdtree
-	//if(!m_IsShowKDTree)
-	//{
-	//	
-	//	for (auto& e : m_ActiveScene->GetAllEntitiesWith<Transform3DComponent, RigidBody3DComponent>())
-	//	{
-	//		_Entity entity{ e, m_ActiveScene.get() };
-	//		auto& transform = entity.GetComponent<Transform3DComponent>();
-	//		m_ObjectsPoints.push_back(transform.Translation);
-
-	//	}
-	//	//auto debugShader = ShaderManager::GetShaderProgram({ base_shader_dir + "basic.vert", base_shader_dir + "basic.frag" });
-
-	//	////FilledKDTreePoints();
-	//	//m_KDTree.ConstructKDTree(m_ObjectsPoints);
-	//	//m_KDTree.CollectBoxes(m_KDTreePoints);
-	//	//RenderSystem::KDTreeVisualize(m_ActiveScene.get(), m_EditorCamera_, debugShader, m_KDTreePoints, *m_DebugKDTreeVisualizer);
-	//	m_ObjectsPoints.clear();
-	//	m_KDTreePoints.clear();
-	//	m_KDTree.ClearNode();
-	//}
-
-	//visualize point lights
-	auto visualShader = ShaderManager::GetShaderProgram({ base_shader_dir + "point_light_sphere_visual.vert", base_shader_dir + "point_light_sphere_visual.frag" });
-	RenderSystem::PointLightsVisualize(m_ActiveScene.get(), m_EditorCamera_, visualShader);
-	
-	////RenderSystem::SceneRender(m_ActiveScene.get(), m_EditorCamera_);
-	RenderSystem::SkyBoxRender(m_SkyBoxEntity, m_EditorCamera_);
-	//m_FinalFrameBuffer->UnBind();
+		//cascade shadow pass
+		auto cascadeShadowMapShader = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping_depth.vert", base_shader_dir + "shadow_mapping_depth.gs", base_shader_dir + "shadow_mapping_depth.frag" });
+		RenderSystem::CascadedShadowPass(m_ActiveScene.get(), cascadeShadowMapShader, *m_CascadeShadowFrameBuffer);
 
 
-	if (m_RenderTarget && m_RenderTarget->IsMultiSampled()) 
-		m_RenderTarget->BindAndBlitToScreen();
 
-	if (m_RenderTarget)
-		m_RenderTarget->UnBind();
 
-	
+
+		// scene render to frame buffer
+		//auto cascadeSceneShader = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping.vert", base_shader_dir + "shadow_mapping.frag" });
+		/*RenderSystem::CascadedShadowScenePass(m_ActiveScene.get(), m_EditorCamera_, cascadeSceneShader,  m_ShadowCascadeLevels, *m_FinalFrameBuffer);
+		m_FinalFrameBuffer->BindReadFrameBuffer();
+		m_FinalFrameBuffer->BindDefaultDrawFrameBuffer();
+		m_FinalFrameBuffer->BlitFrameBuffer();*/
+		//m_FinalFrameBuffer->UnBind();
+
+
+
+		//Mouse Pick pass
+		auto mousePickShader = ShaderManager::GetShaderProgram({ base_shader_dir + "mouse_pick.vert", base_shader_dir + "mouse_pick.frag" });
+		//RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get());
+		RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get(), m_ViewportBounds[0], m_ViewportBounds[1]);
+
+		//start final render
+		//m_FinalFrameBuffer->Bind();
+		RenderSystem::BeginFinalRender(m_EditorCamera_, m_RenderTarget.get());
+
+		//RenderSystem::BeginRender(m_EditorCamera_);
+
+		//m_RenderTarget->ClearAttachment(1, -1);
+		RenderSystem::CascadedShadowSceneRender(m_ActiveScene.get(), m_EditorCamera_, m_ShadowCascadeLevels, m_FarPlane);
+
+		//RenderSystem::OnMouseClicked(m_ActiveScene.get(), *m_RenderTarget, m_ViewportBounds[0], m_ViewportBounds[1]);
+
+		//visualize debug bounding boxes
+		//if (m_IsShowDebugBoundingBox)
+		//{
+			//auto debugBoundingBoxShader = ShaderManager::GetShaderProgram({ base_shader_dir + "basic.vert", base_shader_dir + "basic.frag" });
+			//RenderSystem::VisualizeDebugBoundingVolume(m_ActiveScene.get(), m_EditorCamera_, debugBoundingBoxShader, *m_DebugBoundingBoxComp.get());
+			//RenderSystem::VisualizeDebugBoundingVolume(m_ActiveScene.get(), m_EditorCamera_);
+		//}
+
+		//visualize kdtree
+		//if(!m_IsShowKDTree)
+		//{
+		//
+		//	for (auto& e : m_ActiveScene->GetAllEntitiesWith<Transform3DComponent, RigidBody3DComponent>())
+		//	{
+		//		_Entity entity{ e, m_ActiveScene.get() };
+		//		auto& transform = entity.GetComponent<Transform3DComponent>();
+		//		m_ObjectsPoints.push_back(transform.Translation);
+
+		//	}
+		//	//auto debugShader = ShaderManager::GetShaderProgram({ base_shader_dir + "basic.vert", base_shader_dir + "basic.frag" });
+
+		//	////FilledKDTreePoints();
+		//	//m_KDTree.ConstructKDTree(m_ObjectsPoints);
+		//	//m_KDTree.CollectBoxes(m_KDTreePoints);
+		//	//RenderSystem::KDTreeVisualize(m_ActiveScene.get(), m_EditorCamera_, debugShader, m_KDTreePoints, *m_DebugKDTreeVisualizer);
+		//	m_ObjectsPoints.clear();
+		//	m_KDTreePoints.clear();
+		//	m_KDTree.ClearNode();
+		//}
+
+		//visualize point lights
+		auto visualShader = ShaderManager::GetShaderProgram({ base_shader_dir + "point_light_sphere_visual.vert", base_shader_dir + "point_light_sphere_visual.frag" });
+		RenderSystem::PointLightsVisualize(m_ActiveScene.get(), m_EditorCamera_, visualShader);
+
+		////RenderSystem::SceneRender(m_ActiveScene.get(), m_EditorCamera_);
+		RenderSystem::SkyBoxRender(m_SkyBoxEntity, m_EditorCamera_);
+		//m_FinalFrameBuffer->UnBind();
+
+
+		if (m_RenderTarget && m_RenderTarget->IsMultiSampled())
+			m_RenderTarget->BindAndBlitToScreen();
+
+		if (m_RenderTarget)
+			m_RenderTarget->UnBind();
+
+
+	}
 
 	for (auto& [windowID, window] : windows)
 	{
@@ -975,7 +974,7 @@ void RigidBodySimulationApp::ImGuiRender()
 
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 });
 	//ImGui::ShowDemoWindow(&p_open);
-	ImGui::Begin("Viewport");
+	const bool viewportVisible = ImGui::Begin("Viewport");
 	auto viewportMinRegion = ImGui::GetWindowContentRegionMin();
 	auto viewportMaxRegion = ImGui::GetWindowContentRegionMax();
 	auto viewportOffset = ImGui::GetWindowPos();
@@ -990,7 +989,7 @@ void RigidBodySimulationApp::ImGuiRender()
 	//GENGINE_INFO("Hovered: {}", ImGui::IsWindowHovered());
 
 	auto viewportPanelSize = ImGui::GetContentRegionAvail();
-	m_ViewportSize = { viewportPanelSize.x, viewportPanelSize.y };
+	m_ViewportSize = viewportVisible ? Vec2f{ viewportPanelSize.x, viewportPanelSize.y } : Vec2f{};
 
 	//m_ViewportSize = {1280, 720};
 	//m_ViewportSize = { viewportPanelSize.x, viewportPanelSize.y };
@@ -999,9 +998,9 @@ void RigidBodySimulationApp::ImGuiRender()
 		//m_RenderTarget->BindAndBlitToScreen(0);
 
 	//ImGui::Image(reinterpret_cast<void*>(m_FinalFrameBuffer->GetColorMap()), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
-	if (!m_RenderTarget->IsMultiSampled())
+	if (HasVisibleViewport() && !m_RenderTarget->IsMultiSampled())
 		ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<std::intptr_t>(m_RenderTarget->GetColorAttachmentID())), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
-	else
+	else if (HasVisibleViewport())
 		ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<std::intptr_t>(m_RenderTarget->GetScreenAttachmentID())), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
 
 	/*m_MousePickFrameBuffer->Bind();
@@ -1156,15 +1155,8 @@ void RigidBodySimulationApp::FilledKDTreePoints()
 
 void RigidBodySimulationApp::OnViewportResize(int viewport_x, int viewport_y)
 {
-	if (viewport_x == 0 || viewport_y == 0)
-	{
-		m_Minimized = true;
-		return;
-	}
-	else
-	{
-		m_Minimized = false;
-	}
+	// A collapsed/empty docked viewport must keep its UI running so it can reopen.
+	if (viewport_x <= 0 || viewport_y <= 0) return;
 
 	if (viewport_x == m_SDLWindow->GetScreenWidth() && viewport_y == m_SDLWindow->GetScreenHeight())
 		return;

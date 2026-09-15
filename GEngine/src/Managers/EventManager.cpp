@@ -241,6 +241,8 @@ namespace GEngine::Manager
 
 			case SDL_WINDOWEVENT:
 			{
+				// Preserve the actual SDL state event; resizing and visibility are independent.
+				m_EventDispatcher.DispatchEvent("WindowState", SDL_WindowEvent(e.window));
 
 				if (e.window.event == SDL_WINDOWEVENT_CLOSE)
 				{
@@ -248,7 +250,7 @@ namespace GEngine::Manager
 					std::cout << "window close event" << std::endl;
 				}
 
-				else if (e.window.event == SDL_WINDOWEVENT_RESIZED)
+				else if (e.window.event == SDL_WINDOWEVENT_RESIZED || e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
 				{
 					m_EventDispatcher.DispatchEvent("WindowResize", WindowResizeParam{ .ID = e.window.windowID,
 																					   .Width = e.window.data1,

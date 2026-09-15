@@ -46,6 +46,8 @@ namespace GEngine
 		virtual void ProcessInput(Timestep ts);
 		virtual void Run();
 		const FrameTime& GetFrameTime() const { return m_FrameTime; }
+		bool IsRenderingSuspended() const { return m_Minimized || m_WindowHidden || m_WindowZeroSize; }
+		bool HasVisibleViewport() const { return m_ViewportSize.x >= 1.f && m_ViewportSize.y >= 1.f; }
 		virtual void Render();
 
 		void ShutDown();
@@ -80,7 +82,9 @@ namespace GEngine
 		FrameTime m_FrameTime{};
 		bool m_Running = true;
 		inline static bool m_Initialize = false;
-		inline static bool m_Minimized = false;
+		bool m_Minimized = false;
+		bool m_WindowHidden = false;
+		bool m_WindowZeroSize = false;
 		//Signal<void(Manager::WindowResizeParam)> m_WindowResizeSignal;
 		
 		int m_LastXRel{};

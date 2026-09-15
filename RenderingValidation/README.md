@@ -440,3 +440,41 @@ a 350 ms render stall, capped input versus raw update time, and existing input,
 close, minimize and restore behavior. `PhysicsTests --fixed-scheduling` checks the
 existing scheduler and direct-step equivalence. Real-clock checks use lower bounds
 and suspension tolerance, not exact sleep timing. No performance claim is made.
+
+## Event and minimized loop (Phase 15)
+
+`BaseApp::Run` owns event polling and SDL input sampling before virtual application
+controls. Native minimized, hidden, and zero-size states are independent and apply
+only to the main window. SDL minimize/restore/maximize, hide/show, resize/size-change,
+close and quit events remain live while suspended. Suspended iterations retain the
+existing 16 ms idle delay and reset the frame clock; controls, update and render are
+skipped. A resize or a foreign-window event cannot clear another suspension reason.
+
+Docked viewport visibility is separate from native window suspension. Collapsed or
+empty scene viewports skip scene passes while their UI continues running, so they
+can reopen. Simulation visibility takes effect on the next scene frame; the ray
+tracer uses the current UI frame's visibility/extent before generating an image.
+The Editor's previously disabled UI presentation call remains outside this phase.
+
+```powershell
+python tools/test_input_control.py --configuration Debug --event-loop --output logs/rendering/phase15/Debug
+python tools/test_input_control.py --configuration Release --event-loop --output logs/rendering/phase15/Release
+```
+
+The runner builds all four graphical consumers and retains the clock and input
+regressions. Native-state tests cover minimize/restore, minimize/close, hidden/quit,
+hide/show, zero-size/positive-size restore and unrelated window events. The fixture
+keeps its native GL window hidden and injects actual SDL window-event types through
+the production event manager. Native startup-hidden state is read from SDL flags.
+The control override deliberately omits the base call, proving events cannot be
+starved by a virtual override. Idle CPU observations exclude initialization, sample
+900 ms of suspension, and require less than 25% of one logical CPU (all process
+threads counted) plus zero suspended application work and bounded event response.
+These observations detect a busy loop; they are not rendering performance metrics.
+Reported zero CPU samples are limited by the OS counter's resolution.
+
+Two additional probe builds include the actual simulation and ray application
+implementations with renamed entry points. Real ImGui collapse/reopen cycles verify
+that scene draws/image uploads stop while hidden and resume when reopened. GL hooks
+in the fixture count uploads and forward every call on the context-owning thread.
+Logs, native exits and executable hashes are recorded under each configuration.

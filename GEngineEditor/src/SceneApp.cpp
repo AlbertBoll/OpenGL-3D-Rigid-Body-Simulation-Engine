@@ -873,7 +873,7 @@ void SceneApp::ImGuiRender()
 	//	}
 	//}
 	//ImGui::End();
-	ImGui::Begin("Viewport");
+	const bool viewportVisible = ImGui::Begin("Viewport");
 
 	auto viewportOffset = ImGui::GetCursorPos();
 
@@ -884,7 +884,7 @@ void SceneApp::ImGuiRender()
 	//GENGINE_INFO("Hovered: {}", ImGui::IsWindowHovered());
 	
 	auto viewportPanelSize = ImGui::GetContentRegionAvail();
-	m_ViewportSize = { viewportPanelSize.x, viewportPanelSize.y };
+	m_ViewportSize = viewportVisible ? Vec2f{ viewportPanelSize.x, viewportPanelSize.y } : Vec2f{};
 
 
 
@@ -915,9 +915,9 @@ void SceneApp::ImGuiRender()
 
 
 
-	if(!m_RenderTarget->IsMultiSampled())
+	if(HasVisibleViewport() && !m_RenderTarget->IsMultiSampled())
 		ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<std::intptr_t>(m_RenderTarget->GetColorAttachmentID())), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
-	else
+	else if (HasVisibleViewport())
 		ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<std::intptr_t>(m_RenderTarget->GetScreenAttachmentID())), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
 	
 	auto windowSize = ImGui::GetWindowSize();

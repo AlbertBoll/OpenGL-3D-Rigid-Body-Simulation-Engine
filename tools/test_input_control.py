@@ -16,6 +16,7 @@ def main():
     parser.add_argument("--configuration", choices=["Debug", "Release"], required=True)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--frame-clock", action="store_true", help="Also check typed frame time and the unchanged Physics scheduler")
+    parser.add_argument("--event-loop", action="store_true", help="Also check native suspension, idle CPU and real application viewports")
     args = parser.parse_args()
     config = args.configuration
     out = (args.output or ROOT / "logs/rendering/phase09" / config).resolve()
@@ -70,6 +71,7 @@ def main():
             return 1
         includes = [vc / "include", *(sdk / "Include" / sdk_version / part for part in ("ucrt", "shared", "um")),
                     ROOT / "GEngine/include/GEngine", ROOT / "GEngine/include/external",
+                    ROOT / "GEngine/include", ROOT / "RigidBodySimulation/include", ROOT / "RayTracing/include",
                     *(ROOT / "external" / part / "include" for part in ("sdl2", "spdlog", "glad", "assimp", "entt", "tbb"))]
         libraries = [vc / "lib/x64", sdk / "Lib" / sdk_version / "ucrt/x64",
                      sdk / "Lib" / sdk_version / "um/x64",
@@ -94,8 +96,10 @@ def main():
         env["Path"] = str(sdl.parent) + os.pathsep + env["Path"]
         outcomes = []
         modes = ["--state", "--loop-input", "--loop-resume", "--loop-close", "--loop-minimize"]
-        if args.frame_clock:
+        if args.frame_clock or args.event_loop:
             modes += ["--clock", "--loop-clock"]
+        if args.event_loop:
+            modes += ["--native-restore", "--native-close", "--native-resize", "--hidden-quit", "--hidden-show"]
         for mode in modes:
             runtime = out / mode[2:]
             runtime.mkdir(exist_ok=True)
@@ -108,6 +112,20 @@ def main():
             physics = ROOT / "bin" / config / "PhysicsTests/PhysicsTests.exe"
             report["inputs"][str(physics)] = hashlib.sha256(physics.read_bytes()).hexdigest()
             outcomes.append(invoke("fixed-scheduling", [physics, "--fixed-scheduling"], timeout=180))
+        if args.event_loop:
+            for variant, define in (("simulation-viewport", "GENGINE_PROBE_SIMULATION"), ("ray-viewport", "GENGINE_PROBE_RAY")):
+                binary = out / (variant + ".exe")
+                variant_command = [("/Fo" + str(out / (variant + ".obj"))) if str(arg).startswith("/Fo")
+                                   else ("/Fe" + str(binary)) if str(arg).startswith("/Fe") else arg for arg in command]
+                variant_command.insert(variant_command.index("/link"), "/D" + define)
+                if not invoke("compile-" + variant, variant_command, timeout=180):
+                    outcomes.append(False)
+                    continue
+                report["inputs"][str(binary)] = hashlib.sha256(binary.read_bytes()).hexdigest()
+                runtime = out / variant
+                runtime.mkdir(exist_ok=True)
+                outcomes.append(invoke(variant, [binary, "--viewport"], timeout=120, cwd=runtime,
+                                       marker="[PASS] application-viewport visible/collapsed/reopened UI remains live"))
         passed = all(outcomes)
         return 0 if passed else 1
     except (OSError, ValueError, subprocess.SubprocessError) as error:

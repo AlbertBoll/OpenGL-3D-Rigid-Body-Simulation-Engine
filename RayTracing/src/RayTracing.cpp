@@ -273,6 +273,8 @@ namespace GEngine
 	{
 		Timer timer;
 		m_Renderer.OnResize(m_Width, m_Height);
+		if (m_Width == 0 || m_Height == 0)
+			return;
 		m_Renderer.RenderBegin();
 		if (m_Camera.OnResize(m_Width, m_Height))
 		{

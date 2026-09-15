@@ -290,3 +290,61 @@ claiming pixel-image or shadow-quality validation. All GL work, uniform readback
 and destruction occur on the context thread; diagnostics and teardown are checked
 in both configurations. This is focused GL integration coverage, not an application
 lifecycle suite, benchmark or sanitizer run.
+
+## Phase 12: ray tracer concurrency and lifetime
+
+Run each configuration with the existing VS2022/v143, C++20 and static CRT policy:
+
+```powershell
+python tools/test_ray_tracing.py --configuration Debug --smoke
+python tools/test_ray_tracing.py --configuration Release --smoke
+python tools/test_ray_tracing.py --configuration Debug --asan
+python tools/test_ray_tracing.py --configuration Release --asan
+```
+
+The normal runner builds GEngine and RayTracing and links a production-library
+probe. `--smoke` adds the existing real RayTracing startup/close fixture, with
+disposable ImGui settings. Commands, exits, toolchain, binary hashes, full logs and
+checksums live under `logs/rendering/phase12/<Configuration>[-asan]/` (or `--output`).
+
+`SimpleRenderer` owns its RGBA bytes and floating-point accumulation in vectors and
+is move-only. Render/resize/settings changes/destruction run on the context thread;
+scene and camera inputs must remain unchanged until synchronous `Render` returns.
+TBB tasks own disjoint pixels and local color/RNG state, then join before the single
+texture upload. Worker count 1 runs the same pixel function serially; larger values
+limit a local TBB arena. Nonpositive worker counts use the serial path.
+
+RNG streams use a fixed SplitMix64 integer transform keyed by `Settings::Seed`,
+linear pixel index and one-based accumulation sample. An explicit 24-bit mapping
+produces each roughness coordinate in `[-0.5, 0.5)`, in x/y/z order. Reset restarts
+sample 1; disabling accumulation renders sample 1 immediately. Repeatability is
+defined for identical scene/camera/settings/dimensions and the same build/platform,
+independent of worker count/scheduling. It does not promise byte identity across
+compilers, floating-point configurations or platforms. Call `ResetFrameIndex` after
+changing scene/camera/bounce/seed inputs during an accumulated sequence.
+
+Resize replaces both CPU buffers and restarts accumulation; unchanged dimensions
+preserve pending allocation and existing samples. Zero dimensions suspend rendering
+and release renderer storage. Camera zero-size handling skips projection work.
+Render rejects mismatched camera dimensions, and uploads explicitly bind the final
+texture after workers finish. Dormant raw-thread, alternate double-render and
+in-place neighbor-filter branches have been removed.
+
+The hidden GL fixture compares complete RGBA output and checksums across three
+repeats at 1/2/3/8 workers and four accumulated samples. It checks seed changes,
+reset/accumulation-off, nonuniform hit/miss output, small/odd/zero/restored sizes,
+repeated pending resize, untouched unrelated textures, camera mismatch and oversized
+resize rejection, move ownership and repeated renderer/context destruction.
+Texture-call observers reject worker GL calls. Debug CRT heap checkpoints after
+warm-up require zero retained normal blocks/bytes across 24 renderer lifetimes.
+
+`--asan` builds an isolated **instrumented GEngine library and probe**, retaining
+MSVC vector/string annotations. A generated local MSBuild import selects `/Zi`
+instead of Edit-and-Continue and disables incompatible runtime checks only for
+that sanitizer build. Normal projects/outputs and CRT policy are unchanged.
+The same workload runs under ASan; a separate deliberate heap overflow must be
+detected. Third-party DLLs and the GPU driver remain uninstrumented. Windows MSVC
+does not provide ThreadSanitizer or LeakSanitizer in this toolchain; ASan covers
+memory errors, the Debug CRT check covers storage reclamation, and deterministic
+worker comparisons plus source ownership inspection cover the accumulator race.
+These checks make no performance or visual-quality claim.

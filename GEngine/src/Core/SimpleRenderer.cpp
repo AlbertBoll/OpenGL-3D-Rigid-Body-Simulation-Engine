@@ -1,239 +1,151 @@
 #include <gepch.h>
 #include "Core/SimpleRenderer.h"
-#include "Core/RandomGenerator.h"
 #include "Camera/RayTracingCamera.h"
 #include "Core/Ray.h"
 #include "Core/RayTracingScene.h"
-#include <numeric>
-#include <execution>
+#include <algorithm>
+#include <limits>
+#include <stdexcept>
 #include "tbb/tbb/blocked_range2d.h"
 #include "tbb/tbb/parallel_for.h"
+#include "tbb/tbb/task_arena.h"
 
 namespace GEngine
 {
+    namespace
+    {
+        // SplitMix64: unsigned arithmetic and an explicit 24-bit float mapping.
+        // One stream per (seed, linear pixel, accumulation sample), never per worker.
+        uint64_t Mix(uint64_t value)
+        {
+            value = (value ^ (value >> 30)) * UINT64_C(0xbf58476d1ce4e5b9);
+            value = (value ^ (value >> 27)) * UINT64_C(0x94d049bb133111eb);
+            return value ^ (value >> 31);
+        }
 
-	namespace Utils
+        struct PixelRandom
+        {
+            uint64_t state;
+            PixelRandom(uint64_t seed, size_t pixel, uint64_t sample)
+                : state(Mix(seed) ^ Mix(static_cast<uint64_t>(pixel) + UINT64_C(0x9e3779b97f4a7c15))
+                    ^ Mix(sample + UINT64_C(0xd1b54a32d192ed03))) {}
+            float Next()
+            {
+                state += UINT64_C(0x9e3779b97f4a7c15);
+                return static_cast<float>(Mix(state) >> 40) * (1.0f / 16777216.0f) - 0.5f;
+            }
+            Vec3f Roughness()
+            {
+                // Explicit order avoids compiler-dependent argument evaluation order.
+                const float x = Next(), y = Next(), z = Next();
+                return Vec3f(x, y, z);
+            }
+        };
+
+        void FillRGBAToPixel(uint8_t* data, size_t index, const Vec4f& color)
+        {
+            data[4 * index + 0] = static_cast<uint8_t>(color.r * 255.0f);
+            data[4 * index + 1] = static_cast<uint8_t>(color.g * 255.0f);
+            data[4 * index + 2] = static_cast<uint8_t>(color.b * 255.0f);
+            data[4 * index + 3] = static_cast<uint8_t>(color.a * 255.0f);
+        }
+    }
+
+    void SimpleRenderer::OnResize(uint32_t width, uint32_t height)
+    {
+        if (width == 0 || height == 0) {
+            m_FinalImage.reset();
+            std::vector<uint8_t>().swap(m_ImageData);
+            std::vector<Vec4f>().swap(m_AccumulationData);
+            m_NeedsAllocation = false;
+            ResetFrameIndex();
+            return;
+        }
+        if (m_FinalImage && m_FinalImage->GetWidth() == width && m_FinalImage->GetHeight() == height)
+            return; // Do not discard a pending first upload or reset active accumulation.
+        const size_t pixels = static_cast<size_t>(width) * height;
+        if (width > static_cast<uint32_t>((std::numeric_limits<GLsizei>::max)()) ||
+            height > static_cast<uint32_t>((std::numeric_limits<GLsizei>::max)()) ||
+            pixels > m_ImageData.max_size() / 4 || pixels > m_AccumulationData.max_size())
+            throw std::length_error("Ray image dimensions exceed supported storage");
+
+        // Allocate both CPU buffers before replacing the current, usable image.
+        std::vector<uint8_t> imageData(pixels * 4);
+        std::vector<Vec4f> accumulationData(pixels, Vec4f(0.0f));
+        if (m_FinalImage) m_FinalImage->Resize(width, height);
+        else m_FinalImage = CreateRefPtr<Image>(width, height, ImageFormat::RGBA);
+        m_ImageData.swap(imageData);
+        m_AccumulationData.swap(accumulationData);
+        m_NeedsAllocation = true;
+        ResetFrameIndex();
+    }
+
+    void SimpleRenderer::RenderBegin()
+    {
+        if (!m_FinalImage) return;
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glViewport(0, 0, m_FinalImage->GetWidth(), m_FinalImage->GetHeight());
+    }
+
+    void SimpleRenderer::Render(const RayTracingScene& scene, const RayTracingCamera& camera)
+    {
+        if (!m_FinalImage) return;
+        const auto width = m_FinalImage->GetWidth();
+        const auto height = m_FinalImage->GetHeight();
+        if (camera.GetViewportWidth() != width || camera.GetViewportHeight() != height ||
+            camera.GetRayDirections().size() != m_AccumulationData.size())
+            throw std::invalid_argument("Ray camera must be resized before rendering");
+        const bool accumulate = m_Settings.Acculmate;
+        if (!accumulate) ResetFrameIndex();
+        const auto sample = m_FrameIndex;
+        const auto seed = m_Settings.Seed;
+        const auto bounces = m_Bounces;
+        const int workers = (std::max)(1, m_NumberOfThreads);
+        if (sample == 1)
+            std::fill(m_AccumulationData.begin(), m_AccumulationData.end(), Vec4f(0.0f));
+
+        const auto renderRange = [&](const tbb::blocked_range2d<size_t>& range) {
+            for (size_t y = range.rows().begin(); y < range.rows().end(); ++y) {
+                for (size_t x = range.cols().begin(); x < range.cols().end(); ++x) {
+                    const size_t pixel = x + y * width;
+                    const Vec4f pixelColor = PerPixel(scene, camera, pixel, sample, seed, bounces);
+                    // Each task owns disjoint pixels; all reductions stay within that pixel.
+                    m_AccumulationData[pixel] += pixelColor;
+                    const Vec4f color = glm::clamp(m_AccumulationData[pixel] / static_cast<float>(sample),
+                        Vec4f(0.0f), Vec4f(1.0f));
+                    FillRGBAToPixel(m_ImageData.data(), pixel, color);
+                }
+            }
+        };
+        const tbb::blocked_range2d<size_t> imageRange(0, height, 0, width);
+        if (workers == 1) renderRange(imageRange);
+        else {
+            tbb::task_arena arena(workers);
+            arena.execute([&] { tbb::parallel_for(imageRange, renderRange); });
+        }
+
+        // parallel_for/execute are synchronous. Only the owning context thread uploads.
+        glBindTexture(GL_TEXTURE_2D, m_FinalImage->GetTexID());
+        if (m_NeedsAllocation) m_FinalImage->ReAllocateData(m_ImageData.data());
+        else m_FinalImage->UpdateData(m_ImageData.data());
+        m_NeedsAllocation = false;
+        if (accumulate && m_FrameIndex != (std::numeric_limits<uint64_t>::max)()) ++m_FrameIndex;
+        else ResetFrameIndex();
+    }
+
+	Vec4f SimpleRenderer::PerPixel(const RayTracingScene& scene, const RayTracingCamera& camera,
+		size_t pixel, uint64_t sample, uint64_t seed, int bounces)
 	{
-		static void FillRGBAToPixel(uint8_t* data, size_t index, const Vec4f& pixelColor)
-		{
-			data[4 * index + 0] = (uint8_t)(pixelColor.r * 255.0f);
-			data[4 * index + 1] = (uint8_t)(pixelColor.g * 255.0f);
-			data[4 * index + 2] = (uint8_t)(pixelColor.b * 255.0f);
-			data[4 * index + 3] = (uint8_t)(pixelColor.a * 255.0f);
-		}
+		Ray ray{ .Origin = camera.GetPosition(),
+			     .Direction = camera.GetRayDirections()[pixel]};
 
-		static void MultiSampled(uint8_t* data, uint32_t width, uint32_t height, int samples_per_pixel)
-		{
-			uint8_t pixel_color = 0;
-			tbb::parallel_for(tbb::blocked_range2d<size_t>(0, height, 0, width),
-				[&](tbb::blocked_range2d<size_t> r)
-				{
-					for (size_t y = r.rows().begin(); y < r.rows().end(); y++)
-					{
-						for (size_t x = r.cols().begin(); x < r.cols().end(); x++)
-						{
-							if (x != 0 && x != width - 1 && y != 0 && y != height - 1)
-							{
-								auto center_index = x + y * width;
-								auto left_index = (x - 1) + y * width;
-								auto right_index = (x + 1) + y * width;
-								auto up_index = x + (y - 1) * width;
-								auto down_index = x + (y + 1) * width;
-								Vec4f left_pixel =  { data[4 * left_index + 0], data[4 * left_index + 1], data[4 * left_index + 2], data[4 * left_index + 3]};
-								Vec4f right_pixel = { data[4 * right_index + 0], data[4 * right_index + 1], data[4 * right_index + 2], data[4 * right_index + 3] };
-								Vec4f up_pixel = { data[4 * up_index + 0], data[4 * up_index + 1], data[4 * up_index + 2], data[4 * up_index + 3] };
-								Vec4f down_pixel = { data[4 * down_index + 0], data[4 * down_index + 1], data[4 * down_index + 2], data[4 * down_index + 3] };
-								Vec4f center_pixel = { data[4 * center_index + 0], data[4 * center_index + 1], data[4 * center_index + 2], data[4 * center_index + 3] };
-								Vec4f average_pixel = (left_pixel + right_pixel + up_pixel + down_pixel + center_pixel) / 5.f;
-								average_pixel = glm::clamp(average_pixel, Vec4f(0.f), Vec4f(1.0f));
-								data[4 * center_index + 0] = (uint8_t)(average_pixel.r * 255.0f);
-								data[4 * center_index + 1] = (uint8_t)(average_pixel.g * 255.0f);
-								data[4 * center_index + 2] = (uint8_t)(average_pixel.b * 255.0f);
-								data[4 * center_index + 3] = (uint8_t)(average_pixel.a * 255.0f);
-
-							}
-						}
-
-					}
-
-				}
-			);
-		}
-		
-	}
-
-	void SimpleRenderer::OnResize(uint32_t width, uint32_t height)
-	{
-		if (m_FinalImage)
-		{
-			if (m_FinalImage->GetWidth() == width && m_FinalImage->GetHeight() == height)
-			{
-				b_IsReAlloc = false;
-				return;
-			}
-
-			m_FinalImage->Resize(width, height);
-			
-		}
-
-		else
-		{
-			m_FinalImage = CreateRefPtr<Image>(width, height, ImageFormat::RGBA);
-		}
-
-		delete[] m_ImageData;
-		m_ImageData = new uint8_t[width * height * 4];
-
-		delete[] m_AccumulationData;
-		m_AccumulationData = new Vec4f[width * height];
-
-		b_IsReAlloc = true;
-
-		/*m_ImageHorizontalIter.resize(width);
-		m_ImageVerticalIter.resize(height);
-		std::iota(m_ImageHorizontalIter.begin(), m_ImageHorizontalIter.end(), 0);
-		std::iota(m_ImageVerticalIter.begin(), m_ImageVerticalIter.end(), 0);*/
-	}
-
-	void SimpleRenderer::RenderBegin()
-	{
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glViewport(0, 0, m_FinalImage->GetWidth(), m_FinalImage->GetHeight());
-	}
-
-
-	void SimpleRenderer::Render(const RayTracingScene& scene, const RayTracingCamera& camera)
-	{
-		m_ActiveScene = &scene;
-		m_ActiveCamera = &camera;
-
-		auto width = m_FinalImage->GetWidth();
-		auto height = m_FinalImage->GetHeight();
-
-		if (m_FrameIndex == 1)
-		{
-			memset(m_AccumulationData, 0, width * height * sizeof(Vec4f));
-		}
-
-		Vec4f pixelColor{ 0.f };
-
-//#define STD_FOREACH 1
-
-#if RawMultiThread
-
-		int divide_height = height / m_NumberOfThreads;
-		uint32_t start{};
-		uint32_t end{};
-		for (auto height_division = 0; height_division < m_NumberOfThreads; height_division++)
-		{
-			start = height_division * divide_height;
-			end = (height_division + 1) * divide_height;
-			if(m_IsFirstEnter)
-				m_Workers.push_back(std::thread(&SimpleRenderer::ProcessDataSet, this, start, end, width));
-		}
-
-		ProcessDataSet(end, height, width);
-
-		for (auto& worker : m_Workers)
-		{
-			worker.join();
-		}
-	
-		m_Workers.clear();
-
-#endif	
-
-	tbb::parallel_for(tbb::blocked_range2d<size_t>(0, height, 0, width),
-		[&](tbb::blocked_range2d<size_t> r)
-		{
-			for (size_t y = r.rows().begin(); y < r.rows().end(); y++)
-			{
-				for (size_t x = r.cols().begin(); x < r.cols().end(); x++)
-				{
-						
-					// These range indices are bounded by the uint32_t image dimensions.
-					pixelColor = PerPixel(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
-					m_AccumulationData[x + y * width] += pixelColor;
-					Vec4f accumulatedColor = m_AccumulationData[x + y * width] / (float)m_FrameIndex;
-					accumulatedColor = glm::clamp(accumulatedColor, Vec4f(0.f), Vec4f(1.0f));
-					auto index = x + y * width;
-					Utils::FillRGBAToPixel(m_ImageData, index, accumulatedColor);
-				}
-			}
-		}
-	);
-
-	
-
-
-
-
-	//std::for_each(std::execution::par, m_ImageVerticalIter.begin(), m_ImageVerticalIter.end(),
-	//	[this, width](uint32_t y)
-	//	{
-	//		//std::for_each(std::execution::par, m_ImageHorizontalIter.begin(), m_ImageHorizontalIter.end(),
-	//			//[this, y](uint32_t x)
-	//		for (uint32_t x = 0; x < width; x++)
-	//		{
-
-	//			auto index = x + y * m_FinalImage->GetWidth();
-	//			Vec4f pixelColor = PerPixel(x, y);
-	//			m_AccumulationData[x + y * m_FinalImage->GetWidth()] += pixelColor;
-
-	//			Vec4f accumulatedColor = m_AccumulationData[x + y * m_FinalImage->GetWidth()] / (float)m_FrameIndex;
-
-	//			accumulatedColor = glm::clamp(accumulatedColor, Vec4f(0.f), Vec4f(1.0f));
-	//			Utils::FillRGBAToPixel(m_ImageData, index, accumulatedColor);
-
-
-	//		};
-	//	}
-	//);
-
-//#endif
-
-#if Original
-		for (uint32_t y = 0; y < height; y++)
-		{
-			for (uint32_t x = 0; x < width; x++)
-			{
-
-				auto index = x + y * width;
-				Vec4f pixelColor = PerPixel(x, y);
-				m_AccumulationData[x + y * width] += pixelColor;
-
-				Vec4f accumulatedColor = m_AccumulationData[x + y * width] / (float)m_FrameIndex;
-
-				accumulatedColor = glm::clamp(accumulatedColor, Vec4f(0.f), Vec4f(1.0f));
-				Utils::FillRGBAToPixel(m_ImageData, index, accumulatedColor);
-
-			}
-		}
-
-#endif
-
-
-
-		if (b_IsReAlloc) m_FinalImage->ReAllocateData(m_ImageData);
-		else m_FinalImage->UpdateData(m_ImageData);
-
-		if (m_Settings.Acculmate) m_FrameIndex++;
-		else ResetFrameIndex();
-
-	}
-
-	Vec4f SimpleRenderer::PerPixel(uint32_t x, uint32_t y)
-	{
-		Ray ray{ .Origin = m_ActiveCamera->GetPosition(), 
-			     .Direction = m_ActiveCamera->GetRayDirections()[x + y * m_FinalImage->GetWidth()]};
-
-		//int bounces = 5;
+		PixelRandom random(seed, pixel, sample);
 		Vec3f color(0.f);
 		float multiplier = 1.f;
 
-		for (int i = 0; i < m_Bounces; i++)
+		for (int i = 0; i < bounces; i++)
 		{
-			auto hit_info = TraceRay(ray);
+			auto hit_info = TraceRay(scene, ray);
 
 			if (!hit_info.HitDistance)
 			{
@@ -242,8 +154,8 @@ namespace GEngine
 				break;
 			}
 
-			const Sphere& sphere = m_ActiveScene->Spheres[hit_info.ObjectIndex];
-			const MaterialInfo& material = m_ActiveScene->Materials[sphere.MaterialIndex];
+			const Sphere& sphere = scene.Spheres[hit_info.ObjectIndex];
+			const MaterialInfo& material = scene.Materials[sphere.MaterialIndex];
 
 			Vec3f lightDir = glm::normalize(Vec3f{ -1.f, -1.f, -1.f });
 
@@ -256,7 +168,7 @@ namespace GEngine
 			multiplier *= 0.5f;
 
 			ray.Origin = hit_info.WorldPosition + hit_info.WorldNormal * 0.0001f;
-			ray.Direction = glm::reflect(ray.Direction, hit_info.WorldNormal + material.Roughness * RandomGenerator::Vec3(-0.5f, 0.5f));
+			ray.Direction = glm::reflect(ray.Direction, hit_info.WorldNormal + material.Roughness * random.Roughness());
 			
 		}
 
@@ -265,18 +177,18 @@ namespace GEngine
 	}
 
 
-	SimpleRenderer::HitInfo SimpleRenderer::TraceRay(const Ray& ray)
+	SimpleRenderer::HitInfo SimpleRenderer::TraceRay(const RayTracingScene& scene, const Ray& ray)
 	{
 
 		int closestSphere = -1;
 		float hitDistance = std::numeric_limits<float>::max();
 
-		auto size = m_ActiveScene->Spheres.size();
+		auto size = scene.Spheres.size();
 
 		for (size_t i = 0; i < size; ++i)
 		{
 
-			const Sphere& sphere = m_ActiveScene->Spheres[i];
+			const Sphere& sphere = scene.Spheres[i];
 
 			Vec3f origin = ray.Origin - sphere.Position;
 
@@ -303,16 +215,16 @@ namespace GEngine
 
 		}
 
-		if (closestSphere < 0) return Miss(ray);
+		if (closestSphere < 0) return HitInfo{};
 
-		return ClosestHit(ray, hitDistance, closestSphere);
+		return ClosestHit(scene, ray, hitDistance, closestSphere);
 
 
 	}
 
-	SimpleRenderer::HitInfo SimpleRenderer::ClosestHit(const Ray& ray, float hitDistance, int objectIndex)
+	SimpleRenderer::HitInfo SimpleRenderer::ClosestHit(const RayTracingScene& scene, const Ray& ray, float hitDistance, int objectIndex)
 	{
-		const Sphere& closestSphere = m_ActiveScene->Spheres[objectIndex];
+		const Sphere& closestSphere = scene.Spheres[objectIndex];
 
 		Vec3f origin = ray.Origin - closestSphere.Position;
 
@@ -326,32 +238,5 @@ namespace GEngine
 					    .WorldNormal = normal,
 					    .ObjectIndex = objectIndex };
 	}
-
-	SimpleRenderer::HitInfo SimpleRenderer::Miss(const Ray& ray)
-	{
-		return HitInfo{};
-	}
-
-	void SimpleRenderer::ProcessDataSet(uint32_t start, uint32_t end, uint32_t width)
-	{
-		for (uint32_t y = start; y < end; y++)
-		{
-			for (uint32_t x = 0; x < width; x++)
-			{
-				auto index = x + y * width;
-				Vec4f pixelColor = PerPixel(x, y);
-				m_AccumulationData[x + y * width] += pixelColor;
-
-				Vec4f accumulatedColor = m_AccumulationData[x + y * width] / (float)m_FrameIndex;
-
-				accumulatedColor = glm::clamp(accumulatedColor, Vec4f(0.f), Vec4f(1.0f));
-				Utils::FillRGBAToPixel(m_ImageData, index, accumulatedColor);
-
-			}
-		}
-	}
-
-	
-		
 
 }

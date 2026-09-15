@@ -4,7 +4,7 @@
 #include <Core/Image.h>
 #include <Math/Math.h>
 #include <optional>
-#include <thread>
+#include <vector>
 
 namespace GEngine
 {
@@ -21,12 +21,20 @@ namespace GEngine
 		struct Settings
 		{
 			bool Acculmate = false;
+			// Pixel/sample streams are independent of task order and worker count.
+			uint64_t Seed = 0;
 		};
 
 	public:
 		SimpleRenderer() = default;
-		~SimpleRenderer() { if (m_ImageData) delete[] m_ImageData; }
+		~SimpleRenderer() = default;
+		NONCOPYABLE(SimpleRenderer);
+		SimpleRenderer(SimpleRenderer&&) noexcept = default;
+		SimpleRenderer& operator=(SimpleRenderer&&) noexcept = default;
 
+		// Render, resize, settings changes and destruction belong to the context
+		// thread. Render joins all CPU tasks before uploading or returning; callers
+		// must keep scene/camera inputs unchanged until it returns.
 		void OnResize(uint32_t width, uint32_t height);
 		void RenderBegin();
 		void Render(const RayTracingScene& scene, const RayTracingCamera& camera);
@@ -40,8 +48,6 @@ namespace GEngine
 		int& GetNumOfThread() { return m_NumberOfThreads; }
 		int& GetBounces() { return m_Bounces; }
 
-		//void SetNumOfWorker(int workers);
-
 	private:
 
 		struct HitInfo
@@ -53,32 +59,22 @@ namespace GEngine
 			int ObjectIndex;
 		};
 
-		Vec4f PerPixel(uint32_t x, uint32_t y);
-		//Vec4f TraceRay(const RayTracingScene& scene, const Ray& ray);
-		HitInfo TraceRay(const Ray& ray);
-		HitInfo ClosestHit(const Ray& ray, float hitDistance, int objectIndex);
-		HitInfo Miss(const Ray& ray);
-		
-		void ProcessDataSet(uint32_t start, uint32_t end, uint32_t width);
+		static Vec4f PerPixel(const RayTracingScene& scene, const RayTracingCamera& camera,
+			size_t pixel, uint64_t sample, uint64_t seed, int bounces);
+		static HitInfo TraceRay(const RayTracingScene& scene, const Ray& ray);
+		static HitInfo ClosestHit(const RayTracingScene& scene, const Ray& ray, float hitDistance, int objectIndex);
 
 
 	private:
 		RefPtr<Image> m_FinalImage;
-		uint8_t* m_ImageData{};
-		Vec4f* m_AccumulationData{};
-		const RayTracingScene* m_ActiveScene{};
-		const RayTracingCamera* m_ActiveCamera{};
-		bool b_IsReAlloc = false;
+		std::vector<uint8_t> m_ImageData;
+		std::vector<Vec4f> m_AccumulationData;
+		bool m_NeedsAllocation = false;
 		Vec3f m_SphereColor;
-		uint32_t m_FrameIndex = 1;
+		uint64_t m_FrameIndex = 1;
 		Settings m_Settings;
-		std::vector<std::thread> m_Workers;
-		std::vector<uint32_t> m_ImageHorizontalIter;
-		std::vector<uint32_t> m_ImageVerticalIter;
 		int m_NumberOfThreads = 12;
-		bool m_IsFirstEnter = true;
 		int m_Bounces = 5;
-		int m_SamplesPerPixel = 12;
 	
 	};
 

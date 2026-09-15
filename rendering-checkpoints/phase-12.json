@@ -1,0 +1,236 @@
+{
+  "baseline": "6dcd9ef02bdd499dffa8fd4574ab68a1c9642513",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Camera/RayTracingCamera.h",
+    "GEngine/include/GEngine/Core/SimpleRenderer.h",
+    "GEngine/src/Camera/RayTracingCamera.cpp",
+    "GEngine/src/Core/SimpleRenderer.cpp",
+    "RayTracing/src/RayTracing.cpp",
+    "RenderingValidation/README.md",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-12.json",
+    "tools/ray_tracing_probe.cpp",
+    "tools/test_ray_tracing.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Pixel-local color and seed/pixel/sample-keyed RNG; disjoint accumulation/output slots; identical complete RGBA results for repeated serial and 1/2/3/8-worker runs.",
+      "finding": "GE-014: active TBB rendering shared pixelColor; thread-local global RNG was schedule-dependent.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Both CPU buffers have vector ownership; renderer is move-only. Debug CRT requires zero retained normal blocks/bytes over repeated lifetimes; instrumented ASan stress passes.",
+      "finding": "GE-030: accumulation allocation was not reclaimed by renderer destruction.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Removed the dormant branches and retained one synchronous serial/TBB pixel implementation; all GL image work follows the worker barrier.",
+      "finding": "Unsafe dormant raw-thread/alternate render and in-place filtering branches remained.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Resize replaces storage and resets accumulation; same-size calls preserve pending upload; zero sizes suspend; camera dimensions are checked; final texture binds on owner thread. Focused stress passes.",
+      "finding": "Resize/pending allocation/zero dimensions and texture binding could invalidate the accumulation/upload lifetime.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Owner phase: Phase 41 governance. That contract uses ## Goal/Required work/Exit criteria instead of the validator template. Preserve owner contract and validator; no Phase 12 contract/implementation failure. Full validator FAIL remains reported; active Phase 12 and shared governance checks PASS.",
+      "finding": "Full package governance validator rejects the separately edited Phase 41 contract heading format.",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_12_REVIEW.md"
+  ],
+  "next_phase": "13",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "7ab3e921b09fd46041296c8dae3760d10551688b",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-12/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/7ab3e921b09fd46041296c8dae3760d10551688b",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "212a68ce06a38af3a4c5fe2dfa267a49c49ddc1618b82bda031ba4cc6ea9095c"
+      },
+      "mode": "100644",
+      "validated_blob": "8d517e0f0df579beb698fd6c40a20a1b06325305",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-12/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/8d517e0f0df579beb698fd6c40a20a1b06325305"
+    }
+  },
+  "phase": "12",
+  "previous_approved_tag": "render-refactor-phase-11-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_12_REVIEW.md",
+  "schema": 2,
+  "summary": "Ray tracer uses pixel-local color and seed/pixel/sample RNG streams with identical serial/TBB output. Move-only renderer owns both CPU buffers, joins before owner-thread upload and handles resize/suspend/destruction. Debug/Release checksum/lifetime/GL suites, real RayTracing startup/close and isolated ASan engine/probe runs pass. Unrelated Phase 41 heading-format validator failure is disclosed.",
+  "validation": [
+    {
+      "check": "Debug GEngine/RayTracing build, 13711 production ray tracing/GL/lifetime checks and application startup/close",
+      "command": "python tools/test_ray_tracing.py --configuration Debug --smoke --output logs/rendering/phase12/final/Debug",
+      "evidence": "logs/rendering/phase12/final/Debug/results.json; logs/rendering/phase12/final/Debug/ray-tracing.log; logs/rendering/phase12/final/Debug/app-smoke/",
+      "result": "PASS",
+      "reuse_reason": "Fresh behavior/probe checks; one later trailing-space removal is linewise token-equivalent (whitespace-correction.json). Normal Debug precedes sanitizer-only runner changes; its exact recorded commands and production/probe inputs are unchanged."
+    },
+    {
+      "check": "Release GEngine/RayTracing build, 13709 production ray tracing/GL/lifetime checks and application startup/close",
+      "command": "python tools/test_ray_tracing.py --configuration Release --smoke --output logs/rendering/phase12/validated/Release",
+      "evidence": "logs/rendering/phase12/validated/Release/results.json; logs/rendering/phase12/validated/Release/ray-tracing.log; logs/rendering/phase12/validated/Release/app-smoke/",
+      "result": "PASS",
+      "reuse_reason": "Fresh behavior/probe checks; one later trailing-space removal is linewise token-equivalent (whitespace-correction.json). Normal Debug precedes sanitizer-only runner changes; its exact recorded commands and production/probe inputs are unchanged."
+    },
+    {
+      "check": "Debug isolated ASan GEngine/probe, deterministic/lifetime suite and deliberate overflow detection",
+      "command": "python tools/test_ray_tracing.py --configuration Debug --asan --output logs/rendering/phase12/validated/Debug-asan",
+      "evidence": "logs/rendering/phase12/validated/Debug-asan/results.json; logs/rendering/phase12/validated/Debug-asan/ray-tracing.log; logs/rendering/phase12/validated/Debug-asan/asan-negative.log",
+      "result": "PASS",
+      "reuse_reason": "Fresh instrumented engine and probe with container annotations enabled; negative control exits 1 with heap-buffer-overflow. One later trailing-space-only source correction preserves all C++ tokens."
+    },
+    {
+      "check": "Release isolated ASan GEngine/probe, deterministic/lifetime suite and deliberate overflow detection",
+      "command": "python tools/test_ray_tracing.py --configuration Release --asan --output logs/rendering/phase12/validated/Release-asan",
+      "evidence": "logs/rendering/phase12/validated/Release-asan/results.json; logs/rendering/phase12/validated/Release-asan/ray-tracing.log; logs/rendering/phase12/validated/Release-asan/asan-negative.log",
+      "result": "PASS",
+      "reuse_reason": "Fresh instrumented engine and probe with container annotations enabled; negative control exits 1 with heap-buffer-overflow. One later trailing-space-only source correction preserves all C++ tokens."
+    },
+    {
+      "check": "ThreadSanitizer and LeakSanitizer",
+      "command": "Installed cl.exe /c /fsanitize=thread and /fsanitize=leak capability probes",
+      "evidence": "logs/rendering/phase12/sanitizer-capabilities/results.json",
+      "reason": "Installed MSVC 19.44 ignores /fsanitize=thread and /fsanitize=leak with D9002. Active phase requires sanitizer where supported; ASan and Debug CRT storage lifetime checks pass. No TSan/LSan PASS claimed.",
+      "result": "NOT_APPLICABLE"
+    },
+    {
+      "check": "Final input/protected/index identity and non-behavioral evidence reuse",
+      "command": "rendering_checkpoint.py fingerprint --paths candidate inputs; compare Repo fingerprints/index with preflight and linewise source whitespace identity",
+      "evidence": "logs/rendering/phase12/validation-input-hashes.json; logs/rendering/phase12/identity-checks.json; logs/rendering/phase12/whitespace-correction.json; logs/rendering/phase12/preflight.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Active Phase 12 contract/context links and shared workflow governance",
+      "command": "python .codex/tools/validate_rendering_governance.py --shared-only; targeted Phase 12 specification/predecessor/next/context-header checks",
+      "evidence": "logs/rendering/phase12/targeted-governance.json; logs/rendering/phase12/shared-governance.log",
+      "result": "PASS",
+      "reuse_reason": "Fresh targeted check. Full package validator failed only for unrelated Phase 41 heading format; actual failure is retained in governance-check.json/.log and the out-of-scope finding."
+    }
+  ],
+  "validation_input_hashes": {
+    "GEngine/include/GEngine/Camera/RayTracingCamera.h": {
+      "executable": null,
+      "sha256": "bead079507fb540faec78fc55c028fb5a65402e95d4462c591af7a1662419dfb"
+    },
+    "GEngine/include/GEngine/Core/Image.h": {
+      "executable": null,
+      "sha256": "f719ede815849281117d5e02ad3b16ebd9e0ad959664ea2caaec58284c734d0e"
+    },
+    "GEngine/include/GEngine/Core/RayTracingScene.h": {
+      "executable": null,
+      "sha256": "cfc74eb2b3e7b538790336ae96c097e56d9badb5355df404f6f7d63f4a282c2c"
+    },
+    "GEngine/include/GEngine/Core/SimpleRenderer.h": {
+      "executable": null,
+      "sha256": "f22176c7c0b0e1769e2721173dbf0968ef9bc0f0a0f9b4a65cadca8450c0dcec"
+    },
+    "GEngine/include/GEngine/gepch.h": {
+      "executable": null,
+      "sha256": "7a4f068dc380fcea534385fe406bbbe4a8f60e2c35dd27cbbb73884c680440df"
+    },
+    "GEngine/src/Camera/RayTracingCamera.cpp": {
+      "executable": null,
+      "sha256": "92b0ee9c93421133f903bcbfac0c44ce41d2f275b52fb17427bc9074caac2713"
+    },
+    "GEngine/src/Core/Image.cpp": {
+      "executable": null,
+      "sha256": "dc4955e5e8c3d42b52667dae1f1a3e41f5b28c2788ce6e1406d0cbec562b924e"
+    },
+    "GEngine/src/Core/SimpleRenderer.cpp": {
+      "executable": null,
+      "sha256": "306d5807f2a9e8c2ab984e026da5e18d1bdeaddb95a6c22a4e228873275ff579"
+    },
+    "RayTracing/include/RayTracing.h": {
+      "executable": null,
+      "sha256": "8b8d7cdaf9445889d4076f219ce53c219256d18878423f5cfcc8c9edbc3a1d54"
+    },
+    "RayTracing/src/RayTracing.cpp": {
+      "executable": null,
+      "sha256": "e7a77393cbe9893a8731a14e7c71e18aca9f3e5d61b6f804f4904d003e1e52d8"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "212a68ce06a38af3a4c5fe2dfa267a49c49ddc1618b82bda031ba4cc6ea9095c"
+    },
+    "external/glad/premake5.lua": {
+      "executable": null,
+      "sha256": "881406fa3a22afd5865e2dd84ab76e29b5b7cb6c2c9e94542be20849f308962c"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "108bec448821ee86625c28dd53939afc4aa2c312fe55dc3e53642e1aad87eba9"
+    },
+    "tools/ray_tracing_probe.cpp": {
+      "executable": null,
+      "sha256": "5906a5d620375620244304e0706e02f05cb2f1db4b8028c491d2f37ea9cb2b1b"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/test_ray_tracing.py": {
+      "executable": null,
+      "sha256": "cc381130f8264dc6109975333ebba5ecb85a2832aa2af34a700713d791603192"
+    },
+    "tools/test_shadow_configuration.py": {
+      "executable": null,
+      "sha256": "43993d9cf9974a99dc10c2ce799830f288d62649ccf97d3a47a2ea162124a71b"
+    }
+  }
+}

@@ -129,6 +129,12 @@ namespace GEngine
 		m_ViewportWidth = width;
 		m_ViewportHeight = height;
 
+		if (width == 0 || height == 0)
+		{
+			m_RayDirections.clear();
+			return true;
+		}
+
 		RecalculateProjection();
 		RecalculateRayDirections();
 
@@ -161,7 +167,7 @@ namespace GEngine
 
 	void RayTracingCamera::RecalculateRayDirections()
 	{
-		m_RayDirections.resize(m_ViewportWidth * m_ViewportHeight);
+		m_RayDirections.resize(static_cast<size_t>(m_ViewportWidth) * m_ViewportHeight);
 
 		for (uint32_t y = 0; y < m_ViewportHeight; y++)
 		{
@@ -172,7 +178,7 @@ namespace GEngine
 
 				Vec4f target = m_InverseProjection * Vec4f(coord.x, coord.y, 1, 1);
 				Vec3f rayDirection = Vec3f(m_InverseView * Vec4f(glm::normalize(Vec3f(target) / target.w), 0)); // World space
-				m_RayDirections[x + y * m_ViewportWidth] = rayDirection;
+				m_RayDirections[x + static_cast<size_t>(y) * m_ViewportWidth] = rayDirection;
 			}
 		}
 	}

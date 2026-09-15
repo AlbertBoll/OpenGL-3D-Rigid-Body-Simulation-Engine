@@ -25,6 +25,8 @@ namespace GEngine
 		const auto& GetDirection() const { return m_ForwardDirection; }
 
 		const std::vector<Vec3f>& GetRayDirections() const { return m_RayDirections; }
+		uint32_t GetViewportWidth() const { return m_ViewportWidth; }
+		uint32_t GetViewportHeight() const { return m_ViewportHeight; }
 
 		float GetRotationSpeed();
 

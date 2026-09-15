@@ -168,6 +168,44 @@ configurations. A synchronous KHR_debug callback with a health marker plus
 Missing GL prerequisites fail this mandatory phase check. No sanitizer or
 performance result is implied.
 
+## Input and control-flow safety (Phase 09)
+
+```powershell
+python tools/test_input_control.py --configuration Debug
+python tools/test_input_control.py --configuration Release
+```
+
+This separate probe links the production GEngine library. The runner builds all
+four graphical consumers with the existing VS2022/v143, C++20 and static CRT
+settings, enabling `/we4715 /we4716` for return-path diagnostics on that invocation.
+Logs, actual exits and binary hashes go under `logs/rendering/phase09/`.
+
+The `--state` native mode uses SDL's dummy video driver. It checks default input
+construction over nonzero storage, all 5,120 combinations of previous/current
+mouse masks and the five supported buttons, invalid input codes, neutral
+disconnected-controller state, and transient resets across untouched frames.
+Mouse position and button history survive a frame reset; motion and wheel deltas
+reset before events. Keyboard queries before initialization return `None`.
+
+The native `--loop-input`, `--loop-resume`, `--loop-close` and `--loop-minimize`
+modes initialize the real BaseApp/SDL/ImGui stack with a hidden window and a
+32-pixel fixture shadow allocation. They verify polling before input sampling,
+single-frame motion, active ImGui/window return values, suspended close/restore,
+and skipping update/render immediately when an event minimizes the application.
+A worker only queues SDL events; it never calls GL or accesses application state.
+The fixture verifies that a 900 ms suspension is excluded from the resumed
+simulation timestep (500 ms scheduling tolerance, not a performance benchmark).
+Application overrides count update/render calls so the test covers the shared
+loop without simulating a scene. Disposable runtime directories contain ImGui
+settings writes. These tests do not certify framebuffer output or physics.
+
+Input state members have explicit defaults, all mouse mask tests use nonzero
+membership, and each frame resets relative motion/wheel deltas before polling
+events and sampling SDL state. While minimized, the loop continues processing
+events and retiring input with a 16 ms idle delay, skipping application controls,
+simulation and rendering. Restore starts timing from the current counter. The
+existing normal frame pacing and scene fixed-step scheduler remain in place.
+
 ## AddressSanitizer and ThreadSanitizer
 
 `--asan` uses MSBuild `/p:EnableASAN=true` for this target only, in Debug or Release,

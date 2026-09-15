@@ -12,6 +12,9 @@ namespace GEngine::Manager
 
     ButtonState KeyboardState::GetKeyState(GEngineKeyCode keyCode) const
     {
+        if (!m_CurrentState || static_cast<unsigned>(keyCode) >= GENGINE_MAX_KEYCODES)
+            return ButtonState::None;
+
         if (m_PreviousState[keyCode] == 0)
         {
             if (m_CurrentState[keyCode] == 0)
@@ -37,11 +40,13 @@ namespace GEngine::Manager
 
     bool MouseState::GetButtonValue(GEngineMouseCode button) const
     {
-        return (GENGINE_BUTTON(button) & m_CurrentButtons) == 1;
+        if (button < GENGINE_BUTTON_LEFT || button > GENGINE_BUTTON_X2) return false;
+        return (GENGINE_BUTTON(button) & m_CurrentButtons) != 0;
     }
 
     ButtonState MouseState::GetButtonState(GEngineMouseCode button) const
     {
+        if (button < GENGINE_BUTTON_LEFT || button > GENGINE_BUTTON_X2) return ButtonState::None;
         const int mask = GENGINE_BUTTON(button);
 
         if ((mask & m_PreviousButtons) == 0)
@@ -90,12 +95,14 @@ namespace GEngine::Manager
 
     bool ControllerState::GetButtonValue(GEngineControllerCode button) const
     {
+        if (static_cast<unsigned>(button) >= GENGINE_CONTROLLER_BUTTON_MAX) return false;
         return m_CurrentButtons[button] == 1;
     }
 
 
     ButtonState ControllerState::GetButtonState(GEngineControllerCode button) const
     {
+        if (static_cast<unsigned>(button) >= GENGINE_CONTROLLER_BUTTON_MAX) return ButtonState::None;
         if (m_PreviousButtons[button] == 0)
         {
             if (m_CurrentButtons[button] == 0)
@@ -131,7 +138,8 @@ namespace GEngine::Manager
 
     void InputManager::Initialize()
     {
-
+        // Reset every input field, including disconnected controller axes and mode.
+        m_InputState = {};
         // Keyboard
         // Assign current state pointer
         m_InputState.m_Keyboard.m_CurrentState = SDL_GetKeyboardState(nullptr);
@@ -143,6 +151,7 @@ namespace GEngine::Manager
         // Mouse (just set everything to 0)
         m_InputState.m_Mouse.m_CurrentButtons = 0;
         m_InputState.m_Mouse.m_PreviousButtons = 0;
+        m_InputState.m_Mouse.m_IsRelative = SDL_GetRelativeMouseMode() == SDL_TRUE;
 
         // Get the connected controller, if it exists
         m_GameController = SDL_GameControllerOpen(0);
@@ -168,12 +177,17 @@ namespace GEngine::Manager
     {
         // Copy current state to previous
         // Keyboard
-        memcpy(m_InputState.m_Keyboard.m_PreviousState,
-            m_InputState.m_Keyboard.m_CurrentState,
-            GENGINE_MAX_KEYCODES);
+        if (m_InputState.m_Keyboard.m_CurrentState)
+            memcpy(m_InputState.m_Keyboard.m_PreviousState,
+                m_InputState.m_Keyboard.m_CurrentState,
+                GENGINE_MAX_KEYCODES);
 
         // Mouse
         m_InputState.m_Mouse.m_PreviousButtons = m_InputState.m_Mouse.m_CurrentButtons;
+        // Motion and wheel values describe only events/polling in the next frame.
+        m_InputState.m_Mouse.m_XRel = 0;
+        m_InputState.m_Mouse.m_YRel = 0;
+        m_InputState.m_Mouse.m_ScrollWheel = {};
 
 
         if (m_InputState.m_Controller.m_IsConnected)
@@ -199,7 +213,7 @@ namespace GEngine::Manager
                 SDL_GetRelativeMouseState(&x, &y);
             m_InputState.m_Mouse.m_XRel = x;
             m_InputState.m_Mouse.m_YRel = y;
-            if (m_SDLWindow->GetSDLWindow())
+            if (m_SDLWindow && m_SDLWindow->GetSDLWindow())
             {
                 SDL_SetWindowGrab(m_SDLWindow->GetSDLWindow(), SDL_TRUE);
             }
@@ -213,7 +227,7 @@ namespace GEngine::Manager
             m_InputState.m_Mouse.m_MousePos.x = static_cast<float>(x);
             m_InputState.m_Mouse.m_MousePos.y = static_cast<float>(y);
 
-            if (m_SDLWindow->GetSDLWindow())
+            if (m_SDLWindow && m_SDLWindow->GetSDLWindow())
             {
                 SDL_SetWindowGrab(m_SDLWindow->GetSDLWindow(), SDL_FALSE);
             }

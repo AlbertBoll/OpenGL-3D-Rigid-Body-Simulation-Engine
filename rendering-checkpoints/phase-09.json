@@ -1,0 +1,232 @@
+{
+  "baseline": "987e7eeca986d2f6e77e79bdf7053aa33d9dc0ee",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Managers/InputManager.h",
+    "GEngine/src/Core/BaseApp.cpp",
+    "GEngine/src/Managers/InputManager.cpp",
+    "RenderingValidation/README.md",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-09.json",
+    "tools/input_control_probe.cpp",
+    "tools/test_input_control.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Explicit defaults and initialization, frame transient reset, event-before-sample order, and idle event processing with no application controls/update/render while minimized. Debug/Release focused state and real-loop cases pass.",
+      "finding": "GE-009: incomplete input defaults, persistent transients, sampling before events and minimized-loop event starvation confirmed in current source.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Nonzero mask membership with supported-code guards; all 5120 combinations of five buttons and previous/current masks pass in Debug/Release.",
+      "finding": "GE-025: GetButtonValue compared masked values with 1, recognizing only left-button membership.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Already resolved in inspected current supported paths: active ImGui/window getters return, SoundEvent has a stopped fallback/query-error throw, and Bone lookup throws after unsuccessful search. No source return fix required. Changed input functions and all graphical consumer builds pass missing-return compiler guards.",
+      "finding": "GE-017 and separate audio/animation return-path hints.",
+      "status": "RESOLVED"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_09_REVIEW.md"
+  ],
+  "next_phase": "10",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "7ab3e921b09fd46041296c8dae3760d10551688b",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-09/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/7ab3e921b09fd46041296c8dae3760d10551688b",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "212a68ce06a38af3a4c5fe2dfa267a49c49ddc1618b82bda031ba4cc6ea9095c"
+      },
+      "mode": "100644",
+      "validated_blob": "8d517e0f0df579beb698fd6c40a20a1b06325305",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-09/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/8d517e0f0df579beb698fd6c40a20a1b06325305"
+    }
+  },
+  "phase": "09",
+  "previous_approved_tag": "render-refactor-phase-08-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_09_REVIEW.md",
+  "schema": 2,
+  "summary": "Input has explicit neutral defaults and correct mouse masks; frame transients reset before event polling and SDL sampling. Minimized loops service close/restore without application update/render or suspended-time debt. Debug/Release consumer builds and all focused input/control checks pass.",
+  "validation": [
+    {
+      "check": "Debug four-application consumer builds with missing-return diagnostics as errors, production-library probe compile, deterministic state/all buttons/untouched frames and four real BaseApp input-control modes",
+      "command": "python tools/test_input_control.py --configuration Debug --output logs/rendering/phase09/verified/Debug",
+      "evidence": "logs/rendering/phase09/verified/Debug/results.json; logs/rendering/phase09/validation-summary.json",
+      "result": "PASS",
+      "reuse_reason": "Production compiled under the same flags in logs/rendering/phase09/Debug/build.log; only the fixture changed afterward. Final incremental consumer build and freshly compiled final probe plus all native modes passed."
+    },
+    {
+      "check": "Release four-application consumer builds with missing-return diagnostics as errors, production-library probe compile, deterministic state/all buttons/untouched frames and four real BaseApp input-control modes",
+      "command": "python tools/test_input_control.py --configuration Release --output logs/rendering/phase09/verified/Release",
+      "evidence": "logs/rendering/phase09/verified/Release/results.json; logs/rendering/phase09/validation-summary.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh affected-source build and all native modes for final candidate."
+    },
+    {
+      "check": "Current supported active application/render return paths and separate audio/animation fall-through hints",
+      "command": "Scoped source inspection plus /we4715 /we4716 compiler guard and real ImGui/window return checks in --loop-input",
+      "evidence": "logs/rendering/phase09/return-path-inspection.json; logs/rendering/phase09/validation-summary.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Protected work, original index and finalized validation-input hashes",
+      "command": "checkpoint Repo fingerprint and Git index comparison with preflight after all builds/runtime checks",
+      "evidence": "logs/rendering/phase09/identity-checks.json; logs/rendering/phase09/preflight.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Governance phase chain and targeted context-section links",
+      "command": "python .codex/tools/validate_rendering_governance.py",
+      "evidence": "logs/rendering/phase09/governance-check.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    "GEngine/include/GEngine/Animation/Bone.h": {
+      "executable": null,
+      "sha256": "a2ce58d992aa60448e52f4c28f414c51c4ab08a33b0e97181511bddb72f550b4"
+    },
+    "GEngine/include/GEngine/Core/BaseApp.h": {
+      "executable": null,
+      "sha256": "129b293bda82b4777a7164ace50cb52103dfa41a282e37ca166a35fae665881b"
+    },
+    "GEngine/include/GEngine/Core/Timestep.h": {
+      "executable": null,
+      "sha256": "aa2c9874ca1daa3e794dd99db0a7bf592b4f57d852f0be21ad059615d23ef0cc"
+    },
+    "GEngine/include/GEngine/Inputs/ControllerCodes.h": {
+      "executable": null,
+      "sha256": "7b3e772956579f42ddc599407d825491a8c04f502759c13fd6b5e3f03621b277"
+    },
+    "GEngine/include/GEngine/Inputs/KeyCodes.h": {
+      "executable": null,
+      "sha256": "11d4ca770f1b7b1da68c5868a5a6e5d24bef208227248a8ce20f2661a5ba978b"
+    },
+    "GEngine/include/GEngine/Inputs/MouseCodes.h": {
+      "executable": null,
+      "sha256": "3319f4a2930aa7876c1b391611795c84b35dc7b962538cef7fefa71cd9d97485"
+    },
+    "GEngine/include/GEngine/Managers/InputManager.h": {
+      "executable": null,
+      "sha256": "94524b0dcc7997cee93bec5bcd388481fd4a5627eac099034c04e46a9e44d173"
+    },
+    "GEngine/include/GEngine/gepch.h": {
+      "executable": null,
+      "sha256": "7a4f068dc380fcea534385fe406bbbe4a8f60e2c35dd27cbbb73884c680440df"
+    },
+    "GEngine/src/Audio/SoundEvent.cpp": {
+      "executable": null,
+      "sha256": "81e90c2607f1c1f6629a11625d0914327fd1c7afe0adeef34bec864ce7f41e44"
+    },
+    "GEngine/src/Core/BaseApp.cpp": {
+      "executable": null,
+      "sha256": "c1a4b4076ab0ce82c3d55e4337e07eee5325e5aa1f9ca088658724ae6ebb23b5"
+    },
+    "GEngine/src/Core/Window.cpp": {
+      "executable": null,
+      "sha256": "98487bbecce9f11f3a64a728cd2e2a7c55b7a0f95bfb1190813426331d865f87"
+    },
+    "GEngine/src/Managers/EventManager.cpp": {
+      "executable": null,
+      "sha256": "1ebbf2f9e69e1f709e0a8f82987dc5dc99e62dd57f5a9e54239bc8d31df19f85"
+    },
+    "GEngine/src/Managers/InputManager.cpp": {
+      "executable": null,
+      "sha256": "a7a01e909af95e3fcd2ac8740b954ca9a41bc73dbb33968f50230f8dedf37f0a"
+    },
+    "GEngine/src/Windows/ImGuiWindow.cpp": {
+      "executable": null,
+      "sha256": "8fdd5aba048a8d41b96d4b7bd3f6e74087484a036ab9259294d47329f692e51e"
+    },
+    "GEngine/src/Windows/SDLWindow.cpp": {
+      "executable": null,
+      "sha256": "cc4a0cb330cbcf2caff2971c4ecd94a56555b4045afeb7d6d7a4787817c7e354"
+    },
+    "GEngineEditor/src/SceneApp.cpp": {
+      "executable": null,
+      "sha256": "bb65b2b1be33be92c8699469dab52c8b3f2ae574e4a32ccd9b9ebd5a95294b18"
+    },
+    "RayTracing/src/RayTracing.cpp": {
+      "executable": null,
+      "sha256": "09373614f24da5e08f1470b20da1d6883ba33bfe432bf9802805bf4d2d9bee2c"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "212a68ce06a38af3a4c5fe2dfa267a49c49ddc1618b82bda031ba4cc6ea9095c"
+    },
+    "external/glad/premake5.lua": {
+      "executable": null,
+      "sha256": "881406fa3a22afd5865e2dd84ab76e29b5b7cb6c2c9e94542be20849f308962c"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "108bec448821ee86625c28dd53939afc4aa2c312fe55dc3e53642e1aad87eba9"
+    },
+    "tools/input_control_probe.cpp": {
+      "executable": null,
+      "sha256": "e3cbadf7870daa0246bd0d65a26060226a05e3b04879c2cbc92481d368c8cc15"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/test_input_control.py": {
+      "executable": null,
+      "sha256": "b961ee9e8cfe65d413f07be65eb90e616a49fbf34af50878524ef0aedb937c7b"
+    }
+  }
+}

@@ -169,7 +169,6 @@ namespace GEngine
     void BaseApp::ProcessInput(Timestep ts)
     {
         auto input = GetInputManager();
-        input->Update();
 
         auto& keyboardState = input->GetKeyboardState();
         auto& mouseState = input->GetMouseState();
@@ -297,9 +296,11 @@ namespace GEngine
         //    }
         //}
 
-        SDL_Event event;
+        SDL_Event event{};
 
         OnEvent(event);
+        // Poll events first so keyboard/button queries see this frame's SDL state.
+        input->Update();
 
     }
 
@@ -318,6 +319,19 @@ namespace GEngine
         //GENGINE_CORE_INFO("{}", m_Running);
         while (m_Running)
         {
+            if (m_Minimized)
+            {
+                // Keep restore/close events live without running application controls
+                // or simulation/render work. Retire transient input while suspended.
+                input->PrepareForUpdate();
+                SDL_Event event{};
+                OnEvent(event);
+                input->Update();
+                now = SDL_GetPerformanceCounter();
+                m_LastFrameTime = now;
+                if (m_Running && m_Minimized) SDL_Delay(16);
+                continue;
+            }
 
             if (!m_Minimized)
             {
@@ -352,6 +366,7 @@ namespace GEngine
                 }
 
                 if (!m_Running) break;
+                if (m_Minimized) continue;
 
 
                 //update                              

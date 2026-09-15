@@ -60,8 +60,8 @@ namespace GEngine::Manager
 
 	private:
 		friend class InputManager;
-		const uint8_t* m_CurrentState;
-		uint8_t m_PreviousState[GENGINE_MAX_KEYCODES];
+		const uint8_t* m_CurrentState{};
+		uint8_t m_PreviousState[GENGINE_MAX_KEYCODES]{};
 	};
 
 
@@ -90,16 +90,16 @@ namespace GEngine::Manager
 	public:
 		friend class MouseEvent;
 		friend class InputManager;
-		Vector2 m_MousePos;
-		Vector2 m_ScrollWheel;
-		uint32_t m_CurrentButtons;
-		uint32_t m_PreviousButtons;
+		Vector2 m_MousePos{};
+		Vector2 m_ScrollWheel{};
+		uint32_t m_CurrentButtons{};
+		uint32_t m_PreviousButtons{};
 
 		int m_XRel{};
 		int m_YRel{};
 
 		//Are we in relative mouse mode
-		bool m_IsRelative;
+		bool m_IsRelative{};
 	};
 
 	//helper for controller input
@@ -125,17 +125,17 @@ namespace GEngine::Manager
 	private:
 
 		friend class InputManager;
-		uint8_t m_CurrentButtons[GENGINE_CONTROLLER_BUTTON_MAX];
-		uint8_t m_PreviousButtons[GENGINE_CONTROLLER_BUTTON_MAX];
+		uint8_t m_CurrentButtons[GENGINE_CONTROLLER_BUTTON_MAX]{};
+		uint8_t m_PreviousButtons[GENGINE_CONTROLLER_BUTTON_MAX]{};
 
-		Vector2 m_LeftStick;
-		Vector2 m_RightStick;
+		Vector2 m_LeftStick{};
+		Vector2 m_RightStick{};
 
-		float m_LeftTrigger;
-		float m_RightTrigger;
+		float m_LeftTrigger{};
+		float m_RightTrigger{};
 
 		//Is controller connected
-		bool m_IsConnected;
+		bool m_IsConnected{};
 
 	};
 

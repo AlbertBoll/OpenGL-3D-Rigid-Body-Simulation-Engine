@@ -2,6 +2,8 @@
 #include "gepch.h"
 #include "Core/BaseApp.h"
 #include "Core/RuntimeAssets.h"
+#include "Core/Timer.h"
+#include "Scene/_Scene.h"
 #include "Windows/SDLWindow.h"
 #include <imgui/imgui.h>
 #include <array>
@@ -17,6 +19,66 @@ namespace
     void Require(bool condition, const char* message)
     {
         if (!condition) throw std::runtime_error(message);
+    }
+
+    void FrameClockChecks()
+    {
+        using namespace std::chrono_literals;
+        static_assert(FrameClock::Clock::is_steady && Timer::Clock::is_steady);
+        static_assert(_Scene::PhysicsStep == Seconds(1.0 / 60.0));
+        static_assert(_Scene::PhysicsStepSeconds == 1.0 / 60.0);
+        const auto origin = FrameClock::TimePoint{};
+        FrameClock clock(origin);
+        auto frame = clock.Tick(origin + 1250us);
+        Require(std::abs(frame.rawDelta.count() - .00125) < 1e-15
+            && frame.rawDelta == frame.clampedDelta && frame.clampedDelta == frame.renderDelta,
+            "Short frame was rounded, fabricated or scaled incorrectly");
+        const Timestep shortStep(frame.rawDelta);
+        Require(shortStep.GetDuration() == frame.rawDelta && shortStep.GetMilliseconds() == 1.25f
+            && shortStep.GetSeconds() == .00125f && static_cast<float>(shortStep) == .00125f,
+            "Typed timestep conversions do not match seconds/milliseconds");
+        Require(Timestep(250ms).GetSecondsPrecise() == .25 && Timestep(1.25).GetMilliseconds() == 1250.f,
+            "Chrono/legacy duration conversion differs");
+        Require(Timestep(Seconds::zero()).GetSeconds() == 0
+            && Timestep(-.125).GetSecondsPrecise() == -.125
+            && std::isinf(Timestep(std::numeric_limits<double>::max()).GetSeconds())
+            && std::isnan(Timestep(std::numeric_limits<double>::quiet_NaN()).GetSeconds()),
+            "Legacy invalid/large timestep values changed before the scheduler boundary");
+
+        frame = clock.Tick(origin + 601250us);
+        Require(std::abs(frame.rawDelta.count() - .6) < 1e-15
+            && frame.clampedDelta == 250ms && frame.renderDelta == 250ms,
+            "Long frame lost raw time or failed to bound presentation time");
+        const auto anchor = clock.LastSample();
+        Require(clock.Tick(anchor).rawDelta == Seconds::zero()
+            && clock.Tick(origin).rawDelta == Seconds::zero() && clock.LastSample() == anchor,
+            "Equal/backwards sample moved the monotonic anchor");
+        Require(clock.Tick(anchor + 5ms).rawDelta == 5ms, "Backwards sample double-counted elapsed time");
+        clock.Reset(origin + 10s);
+        Require(clock.Tick(origin + 10s + 2ms).rawDelta == 2ms, "Reset leaked suspended time");
+        clock.Reset(origin);
+        Seconds total{};
+        for (int i = 1; i <= 1000; ++i) total += clock.Tick(origin + i * 1ms).rawDelta;
+        Require(std::abs(total.count() - 1.0) < 1e-12, "Measured frame durations do not conserve elapsed time");
+
+        Timer timer(origin);
+        Require(timer.ElapsedDuration(origin + 1250ms) == 1250ms
+            && timer.ElapsedSeconds(origin + 1250ms) == 1.25f
+            && timer.ElapsedMilliSeconds(origin + 1250ms) == 1250.f
+            && timer.Elapsed(origin + 1250ms) == 1.25f, "Timer seconds/milliseconds disagree");
+        timer.Reset(origin + 3s);
+        Require(timer.ElapsedDuration(origin + 3s) == Seconds::zero()
+            && timer.ElapsedDuration(origin + 3250ms) == 250ms, "Timer reset/conversion differs");
+        timer.Reset(); // Keep the legacy destructor diagnostic meaningful.
+        FrameClock real;
+        auto previous = real.LastSample();
+        for (int i = 0; i < 1000; ++i)
+        {
+            Require(real.Tick().rawDelta >= Seconds::zero() && real.LastSample() >= previous,
+                "Steady-clock samples regressed");
+            previous = real.LastSample();
+        }
+        std::cout << "[PASS] clock-conversions/short-long/equal-backwards/reset/monotonic/conservation\n";
     }
 
     void Neutral(const InputState& state)
@@ -140,11 +202,16 @@ namespace
         int controls = 0, updates = 0, renders = 0, resizeEvents = 0;
         double firstSeconds = 0;
         int motionFrames = 0;
+        bool measureClock = false;
+        double inputSeconds = 0, stalledSeconds = 0;
         void Suspend(bool suspended) { m_Minimized = suspended; }
         bool Suspended() const { return m_Minimized; }
         void ProcessInput(Timestep ts) override
         {
             ++controls;
+            inputSeconds = ts.GetSecondsPrecise();
+            Require(ts.GetDuration() == GetFrameTime().renderDelta,
+                "Input did not receive the measured presentation delta in seconds");
             BaseApp::ProcessInput(ts);
             const auto& mouse = GetInputManager()->GetMouseState();
             if (mouse.GetDX() == 7 && mouse.GetDY() == -9)
@@ -159,10 +226,23 @@ namespace
         void Update(Timestep ts) override
         {
             if (++updates == 1) firstSeconds = ts.GetSecondsPrecise();
+            Require(ts.GetDuration() == GetFrameTime().rawDelta,
+                "Update did not receive all raw elapsed time");
+            if (measureClock && updates == 2)
+            {
+                stalledSeconds = ts.GetSecondsPrecise();
+                Require(stalledSeconds >= .350 && inputSeconds == .25,
+                    "Actual stall was fabricated/clamped for simulation or unbounded for input");
+            }
         }
         void Render() override
         {
             ++renders;
+            if (measureClock && renders == 1)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(350));
+                return;
+            }
             // Exercise the real SDL/ImGui event return and capture paths.
             auto* gui = GetSDLWindow()->GetImGuiWindow();
             SDL_Event handled{}; handled.type = SDL_MOUSEMOTION;
@@ -188,7 +268,7 @@ namespace
         {
             LoopApp app;
             WindowProperties properties;
-            properties.m_Title = "Phase 09 input control probe";
+            properties.m_Title = "Input and frame clock probe";
             properties.m_Width = properties.m_Height = 64;
             properties.m_MinWidth = properties.m_MinHeight = 32;
             properties.m_IsVsync = false;
@@ -207,7 +287,8 @@ namespace
             });
             BaseApp::GetEventManager()->GetEventDispatcher().RegisterEvent(resize);
             const bool resume = mode == "--loop-resume", minimize = mode == "--loop-minimize";
-            const bool activeInput = mode == "--loop-input";
+            app.measureClock = mode == "--loop-clock";
+            const bool activeInput = mode == "--loop-input" || app.measureClock;
             app.Suspend(!minimize && !activeInput);
             if (minimize) PushWindowEvent(id, 0);
             if (activeInput)
@@ -253,6 +334,10 @@ namespace
                 // Motion drained while suspended must not leak into the next untouched active frame.
                 Require(app.motionFrames == 0, "Suspended motion leaked into a later active frame");
             }
+            else if (app.measureClock)
+                Require(app.controls == 3 && app.updates == 2 && app.renders == 2
+                    && app.firstSeconds >= .016 && app.stalledSeconds >= .350,
+                    "Paced/stalled production frame sequence differs");
             else if (activeInput)
                 Require(app.controls == 2 && app.updates == 1 && app.renders == 1 && app.motionFrames == 1,
                     "Active input was stale, repeated, or not observed");
@@ -261,7 +346,8 @@ namespace
                     "Suspended close or immediate minimize ran application work");
             app.Suspend(false);
             std::cout << "[PASS] " << mode << " controls=" << app.controls << " updates=" << app.updates
-                << " renders=" << app.renders << " first-seconds=" << app.firstSeconds << '\n';
+                << " renders=" << app.renders << " first-seconds=" << app.firstSeconds
+                << " stalled-seconds=" << app.stalledSeconds << '\n';
         }
         BaseApp::GetEngine().ReleasePlatform();
     }
@@ -273,9 +359,10 @@ int main(int argc, char** argv)
     {
         const std::string_view mode = argc == 2 ? argv[1] : "";
         if (mode == "--state") { InitialStateAndButtons(); UntouchedFrames(); }
+        else if (mode == "--clock") FrameClockChecks();
         else if (mode == "--loop-resume" || mode == "--loop-close" || mode == "--loop-minimize"
-            || mode == "--loop-input") ApplicationLoop(mode);
-        else throw std::runtime_error("Expected --state, --loop-resume, --loop-close, --loop-minimize or --loop-input");
+            || mode == "--loop-input" || mode == "--loop-clock") ApplicationLoop(mode);
+        else throw std::runtime_error("Expected --state, --clock, --loop-resume, --loop-close, --loop-minimize, --loop-input or --loop-clock");
         std::cout << "[PASS] input-control-safety " << mode << '\n';
         return 0;
     }

@@ -23,7 +23,7 @@ namespace GEngine
 {
     using namespace Manager;
 
-    BaseApp::BaseApp(): m_LastFrameTime(0)
+    BaseApp::BaseApp()
     {
       
     }
@@ -317,8 +317,8 @@ namespace GEngine
         auto input = GetInputManager();
         auto windows = GetWindowManager();
 
-        uint64_t now = SDL_GetPerformanceCounter();
-        const double frequency = static_cast<double>(SDL_GetPerformanceFrequency());
+        FrameClock clock;
+        constexpr auto minimumFrameInterval = std::chrono::milliseconds(16);
         //input->SetRelativeMouseMode(true);
         //GENGINE_CORE_INFO("{}", m_Running);
         while (m_Running)
@@ -334,8 +334,8 @@ namespace GEngine
                 SDL_Event event{};
                 OnEvent(event);
                 input->Update();
-                now = SDL_GetPerformanceCounter();
-                m_LastFrameTime = now;
+                clock.Reset();
+                m_FrameTime = {};
                 if (m_Running && m_Minimized) SDL_Delay(16);
                 continue;
             }
@@ -343,22 +343,11 @@ namespace GEngine
             if (!m_Minimized)
             {
 
-                m_LastFrameTime = now;
-                now = SDL_GetPerformanceCounter();
-                // Preserve the existing pre-pacing input units; input policy is separate.
-                const float inputMicroseconds = static_cast<float>(1000000.f * (now - m_LastFrameTime) / frequency);
-                const Timestep inputTime(1000.f * inputMicroseconds);
-                double elapsedSeconds = static_cast<double>(now - m_LastFrameTime) / frequency;
-                if (elapsedSeconds < 0.016)
-                {
-                    const auto remainingMicros = static_cast<uint64_t>((0.016 - elapsedSeconds) * 1000000.0);
-                    std::this_thread::sleep_for(std::chrono::microseconds(remainingMicros));
-                    now = SDL_GetPerformanceCounter();
-                    elapsedSeconds = static_cast<double>(now - m_LastFrameTime) / frequency;
-                }
-                // Include actual pacing overshoot and stalls. Scene owns overload accounting.
-                const Timestep dt_sec(elapsedSeconds);
-                m_LastFrameTime = now;
+                std::this_thread::sleep_until(clock.LastSample() + minimumFrameInterval);
+                m_FrameTime = clock.Tick();
+                const Timestep inputTime(m_FrameTime.renderDelta);
+                // Preserve all elapsed time for the scene's existing overload accounting.
+                const Timestep updateTime(m_FrameTime.rawDelta);
                 //std::cout << "--------------------------------------" << "\n";
                 {
                     //Timeit(PrepareForUpdate)
@@ -383,14 +372,13 @@ namespace GEngine
 #endif
                 //update                              
 #ifdef GENGINE_RENDER_BASELINE
-                Update(baseline.Enabled() ? Timestep(0.0) : dt_sec);
+                Update(baseline.Enabled() ? Timestep(0.0) : updateTime);
                 baseline.Updated();
 #else
-                Update(dt_sec);
+                Update(updateTime);
 #endif
                 
 
-                //m_LastFrameTime = now;
                 //Render scene
                 {
                     //Timeit(Render)

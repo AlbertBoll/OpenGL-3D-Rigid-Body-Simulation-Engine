@@ -32,7 +32,8 @@ namespace GEngine
 		void DestroyEntity(UUID entityID, bool excludeChildren = false, bool first = true);
 
 		// Scene owns the application physics clock; PhysicsSystem remains one tick.
-		static constexpr double PhysicsStepSeconds = 1.0 / 60.0;
+		static constexpr Seconds PhysicsStep{1.0 / 60.0};
+		static constexpr double PhysicsStepSeconds = PhysicsStep.count(); // Legacy scheduler boundary.
 		static constexpr std::uint32_t MaxPhysicsStepsPerUpdate = 2;
 		static constexpr double MaxPendingPhysicsSeconds = 0.25;
 		struct PhysicsTiming

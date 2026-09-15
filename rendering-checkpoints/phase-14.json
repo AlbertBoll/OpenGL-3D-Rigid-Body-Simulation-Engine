@@ -1,0 +1,183 @@
+{
+  "baseline": "0751c1405661a3b7da7b20a94547bf133be42087",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Core/BaseApp.h",
+    "GEngine/include/GEngine/Core/FrameClock.h",
+    "GEngine/include/GEngine/Core/Timer.h",
+    "GEngine/include/GEngine/Core/Timestep.h",
+    "GEngine/include/GEngine/Scene/_Scene.h",
+    "GEngine/src/Core/BaseApp.cpp",
+    "RenderingValidation/README.md",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-14.json",
+    "tools/input_control_probe.cpp",
+    "tools/test_input_control.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Chrono durations with named seconds/milliseconds conversions; input receives measured capped presentation seconds.",
+      "finding": "Input elapsed time was scaled by 1e9 before a seconds-valued Timestep; Timer::ElapsedSeconds returned a value scaled by 1e6.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "FrameTime exposes raw/clamped/render durations and _Scene owns a typed PhysicsStep. Legacy numeric conversion remains explicit at the unchanged scheduler boundary.",
+      "finding": "Raw, clamped, fixed-step and render duration roles were implicit.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Retain measured pacing overshoot/stalls, migrate measurement to steady_clock, verify injected and real long frames. No scheduler replacement.",
+      "finding": "Historical fabricated fixed frame duration claim is already resolved for raw update time in the approved source.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Owned by Phase 28 and already recorded in Phase 13; frame-time and lifecycle assertions pass. No GL correctness claim or mandatory validation waiver.",
+      "finding": "Existing multisample sampler-state GL_INVALID_ENUM appears during hidden fixture initialization.",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_14_REVIEW.md",
+    "logs/rendering/phase14/identity-and-contract.json"
+  ],
+  "next_phase": "15",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "7ab3e921b09fd46041296c8dae3760d10551688b",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-14/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/7ab3e921b09fd46041296c8dae3760d10551688b",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "212a68ce06a38af3a4c5fe2dfa267a49c49ddc1618b82bda031ba4cc6ea9095c"
+      },
+      "mode": "100644",
+      "validated_blob": "8d517e0f0df579beb698fd6c40a20a1b06325305",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-14/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/8d517e0f0df579beb698fd6c40a20a1b06325305"
+    }
+  },
+  "phase": "14",
+  "previous_approved_tag": "render-refactor-phase-13-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_14_REVIEW.md",
+  "schema": 2,
+  "summary": "Typed steady frame durations, measured pacing and raw-update versus capped-input time; correct Timer units; existing scene fixed-step behavior retained and verified.",
+  "validation": [
+    {
+      "check": "Affected consumer Debug/Release builds and typed clock/input/loop/Physics scheduler checks",
+      "command": "python tools/test_input_control.py --configuration Debug --frame-clock --output logs/rendering/phase14/Debug (repeat Release); see Debug post-fingerprint-build.json for build identity confirmation",
+      "evidence": "logs/rendering/phase14/Debug/results.json; logs/rendering/phase14/Release/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Input fingerprints, protected work/index, unchanged scheduler implementation, active contract and context locators",
+      "command": "python logs/rendering/phase14/prepare_review.py",
+      "evidence": "logs/rendering/phase14/identity-and-contract.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Shared rendering governance",
+      "command": "python .codex/tools/validate_rendering_governance.py --shared-only",
+      "evidence": "logs/rendering/phase14/shared-governance.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    "GEngine/include/GEngine/Core/BaseApp.h": {
+      "executable": null,
+      "sha256": "3d0aaf620d160209966ec03dc748135d291e258a371a7558e6fadaeae3c1094f"
+    },
+    "GEngine/include/GEngine/Core/FrameClock.h": {
+      "executable": null,
+      "sha256": "b3786a76d594762ef71f218cc5ea46ac42b265723b49dd82ab94499787d6edfc"
+    },
+    "GEngine/include/GEngine/Core/Timer.h": {
+      "executable": null,
+      "sha256": "14995d9358faf7c2d2f4551ec809b2b4bba41806e3887c61d26eae4d79ce48d9"
+    },
+    "GEngine/include/GEngine/Core/Timestep.h": {
+      "executable": null,
+      "sha256": "1b9e2a4462863b1be49ef9fe2be1c750ac018b8957da4e87fde8706f934496c0"
+    },
+    "GEngine/include/GEngine/Scene/_Scene.h": {
+      "executable": null,
+      "sha256": "cdb791d0594589f3681ba0f4d7490b7ce70ba08c3e6a6f49d82b13badd3a3f06"
+    },
+    "GEngine/src/Core/BaseApp.cpp": {
+      "executable": null,
+      "sha256": "5ba73bf4f2fc76e88167cd3e4c0339e3e9b50266a18277c8c7253929058d0fd0"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "PhysicsTests/src/main.cpp": {
+      "executable": null,
+      "sha256": "c3c3ca8fa77d66911c2cf848935e866768ace3bd731286322c1207cb139e7bcd"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "212a68ce06a38af3a4c5fe2dfa267a49c49ddc1618b82bda031ba4cc6ea9095c"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "dc2b271508b274ee36c8a9b484761f375a3ccd0d8d1f01a424505210622e2932"
+    },
+    "tools/input_control_probe.cpp": {
+      "executable": null,
+      "sha256": "4db31ceeb54a813f601e1d4fbbc646954aa4a125c7030f8fcd8f5edf229bf6ca"
+    },
+    "tools/test_input_control.py": {
+      "executable": null,
+      "sha256": "fb0e09321fedd27dc678352e85d1aa1bad2532dd4c1f2df474d391ff49ab9f86"
+    }
+  }
+}

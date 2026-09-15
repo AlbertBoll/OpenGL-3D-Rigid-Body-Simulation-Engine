@@ -15,6 +15,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--configuration", choices=["Debug", "Release"], required=True)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--frame-clock", action="store_true", help="Also check typed frame time and the unchanged Physics scheduler")
     args = parser.parse_args()
     config = args.configuration
     out = (args.output or ROOT / "logs/rendering/phase09" / config).resolve()
@@ -58,7 +59,10 @@ def main():
             return 1
         report["compiler_return_guards"] = env["CL"]
         report["fixture_environment"] = {k: env[k] for k in ("GENGINE_ASSET_ROOT", "GENGINE_SHADOW_RESOLUTION")}
-        build = [msbuild, ROOT / "GEngine.sln", "/t:GEngineEditor;Breakout;RayTracing;RigidBodySimulation",
+        targets = "GEngineEditor;Breakout;RayTracing;RigidBodySimulation"
+        if args.frame_clock:
+            targets += ";PhysicsTests;PhysicsBenchmark"
+        build = [msbuild, ROOT / "GEngine.sln", "/t:" + targets,
                  "/m:1", "/nr:false", "/nologo", "/v:normal",
                  "/p:Configuration=" + config, "/p:Platform=x64", "/p:VCToolsVersion=" + vc.name,
                  "/p:WindowsTargetPlatformVersion=" + sdk_version, "/bl:" + str(out / "build.binlog")]
@@ -89,14 +93,21 @@ def main():
                             (executable, ROOT / "bin" / config / "GEngine/GEngine.lib", sdl)}
         env["Path"] = str(sdl.parent) + os.pathsep + env["Path"]
         outcomes = []
-        for mode in ("--state", "--loop-input", "--loop-resume", "--loop-close", "--loop-minimize"):
+        modes = ["--state", "--loop-input", "--loop-resume", "--loop-close", "--loop-minimize"]
+        if args.frame_clock:
+            modes += ["--clock", "--loop-clock"]
+        for mode in modes:
             runtime = out / mode[2:]
             runtime.mkdir(exist_ok=True)
             child_env = dict(env)
-            if mode == "--state":
+            if mode in ("--state", "--clock"):
                 child_env["SDL_VIDEODRIVER"] = "dummy"
             outcomes.append(invoke(mode[2:], [executable, mode], cwd=runtime, child_env=child_env,
                                    marker="[PASS] input-control-safety " + mode))
+        if args.frame_clock:
+            physics = ROOT / "bin" / config / "PhysicsTests/PhysicsTests.exe"
+            report["inputs"][str(physics)] = hashlib.sha256(physics.read_bytes()).hexdigest()
+            outcomes.append(invoke("fixed-scheduling", [physics, "--fixed-scheduling"], timeout=180))
         passed = all(outcomes)
         return 0 if passed else 1
     except (OSError, ValueError, subprocess.SubprocessError) as error:

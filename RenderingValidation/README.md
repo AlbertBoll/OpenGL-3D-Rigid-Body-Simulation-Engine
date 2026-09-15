@@ -410,3 +410,33 @@ does not provide ThreadSanitizer or LeakSanitizer in this toolchain; ASan covers
 memory errors, the Debug CRT check covers storage reclamation, and deterministic
 worker comparisons plus source ownership inspection cover the accumulator race.
 These checks make no performance or visual-quality claim.
+
+## Explicit frame clock (Phase 14)
+
+`BaseApp` measures frames with `std::chrono::steady_clock`. `GetFrameTime()` exposes
+typed `Seconds` durations: `rawDelta` includes actual pacing and stalls;
+`clampedDelta` caps that sample at 250 ms; `renderDelta` currently equals the clamped
+duration. Input receives this presentation duration in seconds. `Update` still
+receives the raw duration so the existing scene scheduler retains all overload
+accounting. The opt-in frozen baseline still deliberately passes zero to `Update`.
+The scene's typed `PhysicsStep` is 1/60 second; its legacy numeric boundary, two-step
+limit and backlog policy are unchanged. No interpolation or new scheduler is added.
+
+`Timestep` stores a chrono duration and keeps the existing numeric-seconds API at
+consumer boundaries. `Timer` uses a steady clock and returns seconds from
+`ElapsedSeconds`/`Elapsed`, milliseconds from `ElapsedMilliSeconds`, or a typed
+duration from `ElapsedDuration`.
+
+```powershell
+python tools/test_input_control.py --configuration Debug --frame-clock --output logs/rendering/phase14/Debug
+python tools/test_input_control.py --configuration Release --frame-clock --output logs/rendering/phase14/Release
+```
+
+This builds all four graphical applications and both Physics consumers with the
+existing toolchain. Injected clock samples cover fractional duration conversions,
+short/long/equal/backwards samples, monotonic anchors, elapsed-time conservation and
+reset after suspension. The real hidden application loop checks measured pacing,
+a 350 ms render stall, capped input versus raw update time, and existing input,
+close, minimize and restore behavior. `PhysicsTests --fixed-scheduling` checks the
+existing scheduler and direct-step equivalence. Real-clock checks use lower bounds
+and suspension tolerance, not exact sleep timing. No performance claim is made.

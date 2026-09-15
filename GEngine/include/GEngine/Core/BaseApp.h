@@ -2,6 +2,7 @@
 
 #include "GEngine.h"
 #include "Timestep.h"
+#include "FrameClock.h"
 #include "Camera/Camera.h"
 #include "Managers/EventManager.h"
 #include "Core/Renderer.h"
@@ -44,6 +45,7 @@ namespace GEngine
 		virtual void Update(Timestep ts){};
 		virtual void ProcessInput(Timestep ts);
 		virtual void Run();
+		const FrameTime& GetFrameTime() const { return m_FrameTime; }
 		virtual void Render();
 
 		void ShutDown();
@@ -75,7 +77,7 @@ namespace GEngine
 
 		Vec2f m_ViewportBounds[2];
 
-		uint64_t m_LastFrameTime{0};
+		FrameTime m_FrameTime{};
 		bool m_Running = true;
 		inline static bool m_Initialize = false;
 		inline static bool m_Minimized = false;

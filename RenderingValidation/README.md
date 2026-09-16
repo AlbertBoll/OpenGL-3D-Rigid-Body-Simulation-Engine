@@ -608,11 +608,52 @@ GL creation, submission, readback and destruction stay on the main thread; the
 suspension worker only enqueues SDL events. These checks do not claim monitor
 scanout timing, full-scene visual quality or rendering performance.
 
+## Phase 19: application-owned EngineContext
+
+`BaseApp` declares a value-owned, noncopyable/nonmovable `EngineContext` before
+its other members. The root is constructed before derived application resources
+and destroyed after them, the scene and renderer targets. Its legacy `GEngine`
+value owns the existing window, input and event managers through unique pointers.
+Shared asset/shader/shape caches retire before ImGui, GL, windows, TTF and SDL.
+`EntryPoint` only owns the application; manual platform release is no longer needed
+or public. Embedders destroy the application on the context's owner thread.
+
+Initialization order is logging -> SDL -> windows/GL/ImGui -> input -> events ->
+shapes -> TTF -> ready rendering services -> application scene/targets. A startup
+exception immediately releases partial services and leaves an inert root until
+destruction. Create a new application to retry. Root initialization may be attempted
+once; rendering before readiness and concurrent live application roots are rejected.
+The compatibility lookup is owner-thread-only, not a concurrent service registry.
+
+`BaseApp::GetEngineContext()` exposes `MainWindow`, `MakeCurrent` and a `RenderScene`
+facade used by `BaseApp::Render`. `BaseApp::GetEngine()` and `GEngine::Get()` resolve
+the same borrowed legacy engine while the root lives and throw without a root.
+Manager getters return null outside its lifetime. Existing manager caches and
+static renderer calls remain compatibility implementations for Phase 20. No physics,
+audio, scheduler or dependency migration is included.
+
+```powershell
+python tools/test_shutdown.py --configuration Debug --output logs/rendering/phase19/final/Debug
+python tools/test_shutdown.py --configuration Release --output logs/rendering/phase19/final/Release
+```
+
+The existing eleven-mode lifecycle fixture additionally checks uninitialized root
+construction/destruction, compatibility identity, a rejected second application,
+pre-initialization rendering, repeated initialization, wrong-thread rendering,
+ready-service ordering and real pixel output through the root's renderer facade.
+Application-unwind mode also injects a derived constructor failure. SDL, window,
+empty-window and ImGui failures check immediate rollback while the root still lives;
+the SDL-backend allocation fault now occurs in a second window after the first has
+entered the owned manager. Three successful application lifetimes per main mode
+verify automatic full platform cleanup and resource deletion order on the owner
+context/thread. Input/interpolation probes use the same scope-owned teardown.
+These checks retain the Phase 18 diagnostic boundary for pre-existing multisample
+sampler errors; they do not certify every legacy resource wrapper or rendering path.
+
 ## Phase 18: deterministic shutdown and GPU ownership
 
-The existing entry point owns the shutdown sequence. Close/quit requests stop the
-application loop; the application is destroyed before `GEngine::ReleasePlatform`.
-Keep this order when embedding the engine:
+Historical Phase 18 introduced the following shutdown order. Phase 19's application
+root now performs it automatically. Close/quit requests stop the application loop:
 
 1. Destroy derived application resources and scene borrowers.
 2. Destroy BaseApp renderer targets and its uniform buffer.

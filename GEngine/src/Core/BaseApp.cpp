@@ -30,10 +30,9 @@ namespace GEngine
 
     BaseApp::~BaseApp()
     {
-        // EntryPoint destroys the application before it releases the platform.
-        // Derived resources are already gone; keep the owning context current for
-        // scene borrowers, then renderer targets, then their shared asset caches.
-        if (m_SDLWindow) m_SDLWindow->BeginRender();
+        // Derived resources are already gone. The first-declared EngineContext
+        // outlives these borrowers and retires shared caches/platform last.
+        if (m_SDLWindow) m_EngineContext.MakeCurrent();
         m_Scene.reset();
         m_UniformBufferObject.reset();
         m_FinalFrameBuffer.reset();
@@ -41,9 +40,6 @@ namespace GEngine
         m_PointShadowFrameBuffer.reset();
         m_CascadeShadowFrameBuffer.reset();
         m_RenderTarget.reset();
-        AssetsManager::FreeAllResources();
-        ShaderManager::FreeShader();
-        ShapeManager::FreeShape();
         m_SDLWindow = nullptr;
         m_Initialize = false;
     }
@@ -98,13 +94,8 @@ namespace GEngine
                 << " source=" << (configuredShadowResolution ? "GENGINE_SHADOW_RESOLUTION (explicit)" : "safe default")
                 << " estimated depth storage=" << (12ull * shadowResolution * shadowResolution * 4 / (1024 * 1024))
                 << " MiB (six cascade layers + six cube faces, estimated at four bytes/texel)" << std::endl;
-            m_GEngine.Initialize(WindowsPropertyList);
-            // SDL window IDs are process-generated, not a permanent main-window ID.
-            auto& windows = GetWindowManager()->GetWindows();
-            const auto mainWindow = std::min_element(windows.begin(), windows.end(),
-                [](const auto& left, const auto& right) { return left.first < right.first; });
-            m_SDLWindow = static_cast<SDLWindow*>(mainWindow->second.get());
-            m_SDLWindow->BeginRender();
+            m_EngineContext.Initialize(WindowsPropertyList);
+            m_SDLWindow = m_EngineContext.MainWindow();
             const GLDebug::Group initialization("Application render resources");
         
             GENGINE_CORE_INFO("Initialize Scene...");
@@ -463,9 +454,7 @@ namespace GEngine
       
         if (HasVisibleViewport())
         {
-            Renderer::RenderBegin(m_EditorCamera, m_RenderTarget.get());
-            Renderer::Set(param);
-            Renderer::RenderScene(m_Scene.get(), m_EditorCamera);
+            m_EngineContext.RenderScene(m_Scene.get(), m_EditorCamera, m_RenderTarget.get(), param);
 
             //PlayerCamera
          /*   Renderer::RenderBegin(m_PlayerCamera, m_RenderTarget.get());

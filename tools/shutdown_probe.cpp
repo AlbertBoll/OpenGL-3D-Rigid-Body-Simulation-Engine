@@ -7,6 +7,7 @@
 #include "Managers/AssetsManager.h"
 #include "Managers/ShapeManager.h"
 #include "Managers/ShaderManager.h"
+#include "Camera/PerspectiveCamera.h"
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_opengl3.h>
 #include <sdl2/SDL_ttf.h>
@@ -70,6 +71,32 @@ namespace
         Check(SDL_WasInit(0) == 0 && TTF_WasInit() == 0, "SDL/TTF survived platform release");
         Check(!BaseApp::GetWindowManager() && !BaseApp::GetInputManager() && !BaseApp::GetEventManager(),
             "Engine kept a freed platform manager");
+    }
+
+    void RootContract()
+    {
+        static_assert(!std::is_copy_constructible_v<EngineContext> && !std::is_move_constructible_v<EngineContext>);
+        Check(EngineContext::TryGet() == nullptr, "A root exists before application construction");
+        bool rejected = false;
+        try { (void)BaseApp::GetEngine(); } catch (const std::logic_error&) { rejected = true; }
+        Check(rejected, "Legacy access outside an application lifetime was accepted");
+        {
+            BaseApp app;
+            auto& root = app.GetEngineContext();
+            Check(EngineContext::TryGet() == &root && !root.IsReady() && !root.MainWindow(),
+                "Uninitialized root published rendering services");
+            Check(&BaseApp::GetEngine() == &root.LegacyEngine() && &::GEngine::GEngine::Get() == &root.LegacyEngine(),
+                "Compatibility access constructed a second engine");
+            PlatformGone();
+            rejected = false;
+            try { root.MakeCurrent(); } catch (const std::logic_error&) { rejected = true; }
+            Check(rejected, "Rendering before initialization was accepted");
+            rejected = false;
+            try { BaseApp second; } catch (const std::logic_error&) { rejected = true; }
+            Check(rejected && EngineContext::TryGet() == &root, "Second application replaced the active root");
+        }
+        Check(!EngineContext::TryGet(), "Uninitialized destruction retained the root");
+        PlatformGone();
     }
 
     enum class Kind { Texture, Framebuffer, Buffer };
@@ -147,6 +174,38 @@ namespace
         int updates = 0;
         void Prepare()
         {
+            auto& root = GetEngineContext();
+            Check(root.IsReady() && root.MainWindow() == GetSDLWindow()
+                && GetWindowManager() && GetInputManager() && GetEventManager() && TTF_WasInit(),
+                "Application resources initialized before rendering/platform services");
+            Check(SDL_GL_GetCurrentContext() == root.MainWindow()->GetContext(), "Main context was not published current");
+            bool wrongThreadRejected = false;
+            std::jthread worker([&] {
+                try { root.MakeCurrent(); }
+                catch (const std::logic_error& error)
+                {
+                    wrongThreadRejected = std::string_view(error.what()) == "EngineContext access requires its owner thread";
+                }
+            });
+            worker.join();
+            Check(wrongThreadRejected && SDL_GL_GetCurrentContext() == root.MainWindow()->GetContext(),
+                "Worker reached ready rendering services or changed the owning context");
+            bool rejected = false;
+            try { root.Initialize({ Properties() }); } catch (const std::logic_error&) { rejected = true; }
+            Check(rejected && root.IsReady(), "Repeated initialization replaced live services");
+            // Exercise the root's submission facade with an empty production scene,
+            // including real target binding and pixel output.
+            Camera::PerspectiveCamera camera;
+            RenderParam parameters;
+            parameters.ClearColor = { 0.25f, 0.5f, 0.75f, 1.f };
+            root.RenderScene(m_Scene.get(), &camera, m_RenderTarget.get(), parameters);
+            m_RenderTarget->BindAndBlitToScreen();
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, m_RenderTarget->GetScreenFrameBufferID());
+            std::array<unsigned char, 4> pixel{};
+            glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.data());
+            Check(pixel[0] >= 63 && pixel[0] <= 64 && pixel[1] >= 127 && pixel[1] <= 128
+                && pixel[2] >= 191 && pixel[2] <= 192, "Root renderer facade did not submit/clear its target");
+            m_RenderTarget->UnBind();
             applicationTexture = std::make_unique<TextureOwner>(1);
             m_Scene->Add(new SceneActor);
             Watch(Kind::Buffer, m_UniformBufferObject->GetUBO(), 2, "BaseApp uniform buffer");
@@ -180,7 +239,27 @@ namespace
     };
     void Lifetimes(bool minimized, bool applicationFailure)
     {
+        RootContract();
         RuntimeAssets::Initialize("GEngineEditor");
+        if (applicationFailure)
+        {
+            struct FailingConstructor final : BaseApp
+            {
+                FailingConstructor()
+                {
+                    Initialize(Properties());
+                    throw std::runtime_error("injected derived constructor failure");
+                }
+            };
+            bool caught = false;
+            try { FailingConstructor app; }
+            catch (const std::runtime_error& error)
+            {
+                caught = std::string_view(error.what()) == "injected derived constructor failure";
+            }
+            Check(caught && !EngineContext::TryGet(), "Derived constructor failure retained its rendering root");
+            PlatformGone();
+        }
         for (int cycle = 0; cycle < 3; ++cycle)
         {
             auto app = std::make_unique<ProbeApp>();
@@ -228,15 +307,10 @@ namespace
             for (const auto& item : watched) Check(item.deletes == 1, "A watched resource survived application destruction");
             Check(lastPhase == 3 && observedFailures == 0, "Resource ownership/order checks failed");
             Check(ShapeManager::GetShape("phase18") == nullptr, "Freed geometry container was not cleared");
-            Check(SDL_GL_GetCurrentContext() == owner && SDL_GetWindowFromID(windowID), "Main platform died before explicit release");
-            Check(ImGui::GetIO().BackendRendererUserData && ImGui::GetIO().BackendPlatformUserData,
-                "Application cleanup destroyed ImGui prematurely");
+            Check(!EngineContext::TryGet() && !SDL_GetWindowFromID(windowID), "Application-owned root/platform survived destruction");
             // Empty-cache cleanup must remain idempotent, including framebuffer borrowers.
             AssetsManager::FreeAllResources(); ShaderManager::FreeShader(); ShapeManager::FreeShape();
-            Check(glGetError() == GL_NO_ERROR && debugErrors == 0, "GL teardown emitted errors");
-            BaseApp::GetEngine().ReleasePlatform();
             PlatformGone();
-            BaseApp::GetEngine().ReleasePlatform(); PlatformGone();
             Check(debugErrors == 0, "ImGui/context teardown emitted GL errors");
             teardown = false;
             std::cout << "[PASS] lifecycle cycle=" << cycle << " watched=" << watched.size()
@@ -252,7 +326,8 @@ namespace
         {
             auto& self = *static_cast<FaultAllocator*>(user);
             if (!self.injected && ImGui::GetCurrentContext() && ImGui::GetIO().BackendPlatformUserData
-                && !ImGui::GetIO().BackendRendererUserData)
+                && !ImGui::GetIO().BackendRendererUserData
+                && BaseApp::GetWindowManager()->GetNumOfWindows() == 1)
             {
                 self.injected = true;
                 throw std::bad_alloc();
@@ -274,28 +349,27 @@ namespace
     {
         Log::Initialize();
         if (platformBackend) RuntimeAssets::Initialize("GEngineEditor");
-        Check(SDL_Init(SDL_INIT_VIDEO) == 0, SDL_GetError());
-        auto manager = WindowManager::GetScopedInstance();
+        BaseApp app;
         bool caught = false;
         if (platformBackend)
         {
             FaultAllocator fault;
-            try { manager->AddWindows(Properties()); }
+            try { app.Initialize({ Properties(), Properties() }); }
             catch (const std::bad_alloc&) { caught = true; }
-            Check(fault.injected, "Partial SDL-backend allocation failure was not reached");
+            Check(fault.injected, "Second-window SDL-backend allocation failure was not reached");
         }
         else
         {
             // RuntimeAssets is deliberately uninitialized: font path resolution throws
             // after SDL/GL/ImGui context creation and before either ImGui backend.
-            try { manager->AddWindows(Properties()); }
+            try { app.Initialize(Properties()); }
             catch (const std::runtime_error&) { caught = true; }
         }
         Check(caught, "Expected partial ImGui initialization failure");
-        Check(manager->GetWindows().empty() && manager->GetNumOfWindows() == 0,
-            "Failed window construction entered its manager");
+        Check(!app.GetEngineContext().IsReady() && !app.GetEngineContext().MainWindow(),
+            "Failed window construction published rendering services");
         Check(!SDL_GL_GetCurrentContext() && !ImGui::GetCurrentContext(), "Partial window initialization leaked a context");
-        manager.reset(); SDL_Quit();
+        PlatformGone();
         ImGuiWindow_ neverInitialized; neverInitialized.ShutDown(); neverInitialized.ShutDown();
         SDLWindow noWindow; noWindow.ShutDown(); noWindow.ShutDown();
     }
@@ -310,10 +384,16 @@ namespace
                 else app.Initialize(Properties());
             }
             catch (const std::exception& error) { caught = true; std::cout << "[EXPECTED] " << error.what() << '\n'; }
+            PlatformGone(); // Rollback is immediate, even while the failed root lives.
+            Check(!app.GetEngineContext().IsReady(), "Failed platform published services");
+            bool retryRejected = false;
+            try { app.GetEngineContext().Initialize({ Properties() }); }
+            catch (const std::logic_error&) { retryRejected = true; }
+            Check(retryRejected, "Failed root accepted a second initialization attempt");
         }
         Check(caught, "Expected platform initialization failure");
-        BaseApp::GetEngine().ReleasePlatform(); PlatformGone();
-        BaseApp::GetEngine().ReleasePlatform(); PlatformGone();
+        Check(!EngineContext::TryGet(), "Failed application retained the compatibility root");
+        PlatformGone();
     }
     void WindowOwners()
     {
@@ -544,7 +624,6 @@ int main(int argc, char** argv)
     catch (const std::exception& error)
     {
         std::cerr << "[FAIL] shutdown: " << error.what() << '\n';
-        BaseApp::GetEngine().ReleasePlatform();
         return 1;
     }
 }

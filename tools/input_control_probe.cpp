@@ -388,7 +388,7 @@ namespace
                 << " renders=" << app.renders << " first-seconds=" << app.firstSeconds
                 << " stalled-seconds=" << app.stalledSeconds << '\n';
         }
-        BaseApp::GetEngine().ReleasePlatform();
+        // BaseApp owns the rendering platform; scope exit releases it.
     }
 
     void NativeWindowLoop(std::string_view mode)
@@ -469,7 +469,7 @@ namespace
                 << " process-cpu-seconds=" << cpu << " one-core-percent=" << cpu / wall * 100
                 << " controls=" << app.controls << " updates=" << app.updates << " renders=" << app.renders << '\n';
         }
-        BaseApp::GetEngine().ReleasePlatform();
+        // BaseApp owns the rendering platform; scope exit releases it.
     }
 
     void CadenceChecks()
@@ -637,7 +637,7 @@ namespace
             for (double delta : app.deltas) std::cout << delta << ',';
             std::cout << '\n';
         }
-        BaseApp::GetEngine().ReleasePlatform();
+        // BaseApp owns the rendering platform; scope exit releases it.
     }
 
 #if defined(GENGINE_PROBE_SIMULATION) || defined(GENGINE_PROBE_RAY)
@@ -720,7 +720,7 @@ namespace
 #endif
             std::cout << "[PASS] application-viewport visible/collapsed/reopened UI remains live\n";
         }
-        BaseApp::GetEngine().ReleasePlatform();
+        // BaseApp owns the rendering platform; scope exit releases it.
     }
 #endif
 }
@@ -750,7 +750,7 @@ int main(int argc, char** argv)
     catch (const std::exception& error)
     {
         std::cerr << "[FAIL] " << error.what() << '\n';
-        BaseApp::GetEngine().ReleasePlatform();
+        // BaseApp owns the rendering platform; scope exit releases it.
         return 1;
     }
 }

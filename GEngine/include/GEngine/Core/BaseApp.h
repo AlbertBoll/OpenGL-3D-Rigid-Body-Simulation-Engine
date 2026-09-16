@@ -21,6 +21,9 @@ namespace GEngine
 	{
 		             
 		friend class SceneHierarchyPanel;
+	private:
+		// First member, destroyed last: all derived/base GPU owners borrow its context.
+		EngineContext m_EngineContext;
 	public:
 		BaseApp();
 
@@ -28,11 +31,12 @@ namespace GEngine
 
 		virtual ~BaseApp();
 
-	    static GEngine& GetEngine(){ return m_GEngine;};
+	    static GEngine& GetEngine(){ return EngineContext::Current().LegacyEngine(); };
+		EngineContext& GetEngineContext() { return m_EngineContext; }
 
-	    static Manager::WindowManager* GetWindowManager() { return m_GEngine.GetWindowManager(); };
-		static Manager::EventManager* GetEventManager()   { return m_GEngine.GetEventManager(); };
-		static Manager::InputManager* GetInputManager()   { return m_GEngine.GetInputManager(); };
+	    static Manager::WindowManager* GetWindowManager() { return EngineContext::TryGet() ? GetEngine().GetWindowManager() : nullptr; };
+		static Manager::EventManager* GetEventManager()   { return EngineContext::TryGet() ? GetEngine().GetEventManager() : nullptr; };
+		static Manager::InputManager* GetInputManager()   { return EngineContext::TryGet() ? GetEngine().GetInputManager() : nullptr; };
 		SDLWindow* GetSDLWindow();
 
 		//CameraBase* GetCamera(){ return m_EditorCamera; }
@@ -61,7 +65,6 @@ namespace GEngine
 		virtual void OnUIRender() {};
 		
 	protected:
-		inline static GEngine m_GEngine;
 		CameraBase* m_EditorCamera{};
 		//CameraBase* m_GameOrthoCamera{};
 		//CameraBase* m_OrthoCamera{};
@@ -85,7 +88,7 @@ namespace GEngine
 		FrameTime m_FrameTime{};
 		uint32_t m_ManualFrameRateLimit = 60;
 		bool m_Running = true;
-		inline static bool m_Initialize = false;
+		bool m_Initialize = false;
 		bool m_Minimized = false;
 		bool m_WindowHidden = false;
 		bool m_WindowZeroSize = false;

@@ -390,7 +390,7 @@ namespace
                 "Suspension repeated work or failed to resume bounded catch-up");
             std::cout << "[PASS] live 350ms stall / 900ms suspend / restore, stable presentation and bounded ticks\n";
         }
-        BaseApp::GetEngine().ReleasePlatform();
+        // BaseApp owns the rendering platform; scope exit releases it.
     }
 }
 

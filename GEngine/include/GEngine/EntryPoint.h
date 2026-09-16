@@ -35,7 +35,7 @@ int main(int argc, char* args[])
 	int exitCode = 0;
 	try
 	{
-		// Unwind application resources while their owning context is still alive.
+		// BaseApp owns EngineContext, which outlives all application resources.
 		ScopedPtr<BaseApp> app(CreateApp());
 		app->Initialize({ winProp });
 		app->Run();
@@ -45,8 +45,6 @@ int main(int argc, char* args[])
 		std::cerr << "GEngine application failed: " << error.what() << std::endl;
 		exitCode = 1;
 	}
-	// All application and GL resource destructors run before platform teardown.
-	BaseApp::GetEngine().ReleasePlatform();
 	
 	//using namespace GEngine;
 

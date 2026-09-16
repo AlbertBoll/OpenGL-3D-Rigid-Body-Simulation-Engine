@@ -2,6 +2,9 @@
 #include "Core/GEngine.h"
 #include "Managers/ShapeManager.h"
 #include "Core/Renderer.h"
+#include "Managers/AssetsManager.h"
+#include "Managers/ShaderManager.h"
+#include "Windows/SDLWindow.h"
 #include <stdexcept>
 
 
@@ -15,9 +18,95 @@ namespace GEngine
 
 	GEngine& GEngine::Get()
 	{
-		static GEngine G_Engine;
-		return G_Engine;
+		return EngineContext::Current().LegacyEngine();
 	}
+
+    EngineContext::EngineContext() : m_OwnerThread(std::this_thread::get_id())
+    {
+        if (s_Current) throw std::logic_error("Only one live EngineContext is supported");
+        s_Current = this;
+    }
+
+    EngineContext::~EngineContext()
+    {
+        if (std::this_thread::get_id() != m_OwnerThread) std::terminate();
+        Release();
+        s_Current = nullptr;
+    }
+
+    EngineContext& EngineContext::Current()
+    {
+        if (!s_Current) throw std::logic_error("No live application EngineContext");
+        s_Current->RequireOwnerThread();
+        return *s_Current;
+    }
+
+    void EngineContext::RequireOwnerThread() const
+    {
+        if (std::this_thread::get_id() != m_OwnerThread)
+            throw std::logic_error("EngineContext access requires its owner thread");
+    }
+
+    GEngine& EngineContext::LegacyEngine()
+    {
+        RequireOwnerThread();
+        return m_LegacyEngine;
+    }
+
+    void EngineContext::Initialize(const std::initializer_list<WindowProperties>& properties)
+    {
+        RequireOwnerThread();
+        if (m_InitializationAttempted) throw std::logic_error("EngineContext initialization may only be attempted once");
+        m_InitializationAttempted = true;
+        m_PlatformStarted = true;
+        try
+        {
+            m_LegacyEngine.Initialize(properties);
+            auto& windows = m_LegacyEngine.GetWindowManager()->GetWindows();
+            m_MainWindow = static_cast<SDLWindow*>(std::min_element(windows.begin(), windows.end(),
+                [](const auto& left, const auto& right) { return left.first < right.first; })->second.get());
+            MakeCurrent();
+        }
+        catch (...)
+        {
+            Release();
+            throw;
+        }
+    }
+
+    void EngineContext::MakeCurrent()
+    {
+        RequireOwnerThread();
+        if (!IsReady()) throw std::logic_error("EngineContext rendering services are not initialized");
+        m_MainWindow->BeginRender();
+    }
+
+    void EngineContext::RenderScene(Actor* scene, CameraBase* camera, RenderTarget* target, const RenderParam& parameters)
+    {
+        MakeCurrent();
+        Renderer::RenderBegin(camera, target);
+        Renderer::Set(parameters);
+        Renderer::RenderScene(scene, camera);
+    }
+
+    void EngineContext::Release() noexcept
+    {
+        if (!m_PlatformStarted) return;
+        // Initialization can fail before MainWindow is published, with earlier
+        // windows and shared resources already owned by the compatibility engine.
+        if (auto* manager = m_LegacyEngine.GetWindowManager(); manager && !manager->GetWindows().empty())
+        {
+            auto& windows = manager->GetWindows();
+            std::min_element(windows.begin(), windows.end(),
+                [](const auto& left, const auto& right) { return left.first < right.first; })->second->BeginRender();
+        }
+        Manager::AssetsManager::FreeAllResources();
+        Manager::ShaderManager::FreeShader();
+        Manager::ShapeManager::FreeShape();
+        m_MainWindow = nullptr;
+        m_LegacyEngine.ReleasePlatform();
+        m_PlatformStarted = false;
+    }
 
 	void GEngine::GetEnvironmentInfo()const
 	{

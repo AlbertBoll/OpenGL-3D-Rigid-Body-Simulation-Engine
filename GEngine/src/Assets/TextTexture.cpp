@@ -2,6 +2,8 @@
 #include "Assets/Textures/TextTexture.h"
 #include "Managers/AssetsManager.h"
 #include <sdl2/SDL_ttf.h>
+#include <memory>
+#include <stdexcept>
 
 namespace GEngine::Asset
 {
@@ -22,18 +24,19 @@ namespace GEngine::Asset
 
 		// Find the font data for this point size
 		const auto iter = m_Font->GetFontData().find(pointSize);
-		ASSERT(iter != m_Font->GetFontData().end(), std::to_string(pointSize) + " Font size doesn't support");
+		if (iter == m_Font->GetFontData().end())
+            throw std::invalid_argument("Unsupported font size: " + std::to_string(pointSize));
 
 		TTF_Font* font_ = iter->second;
 		TTF_SetFontStyle(font_, TTF_STYLE_BOLD);
-		SDL_Surface* surf = TTF_RenderUTF8_Blended(font_, text.c_str(), sdlColor);
+		std::unique_ptr<SDL_Surface, decltype(&SDL_FreeSurface)> surf(
+            TTF_RenderUTF8_Blended(font_, text.c_str(), sdlColor), SDL_FreeSurface);
 		//SDL_Surface* surf = TTF_RenderUTF8_Shaded(font_, text.c_str(), sdlColor, background);
 
-		ASSERT(surf)
+		if (!surf) throw std::runtime_error(std::string("Text rendering failed: ") + TTF_GetError());
 
 		// Convert from surface to texture
-		CreateFromSurface(surf);
-		SDL_FreeSurface(surf);
+		CreateFromSurface(surf.get());
 
 	}
 }

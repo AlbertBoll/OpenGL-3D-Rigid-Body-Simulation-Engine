@@ -1,0 +1,373 @@
+{
+  "baseline": "f4583a371d57ea9573caf671bff7e467b643d169",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Core/GEngine.h",
+    "GEngine/include/GEngine/Managers/AssetsManager.h",
+    "GEngine/include/GEngine/Managers/ShaderManager.h",
+    "GEngine/include/GEngine/Managers/ShapeManager.h",
+    "GEngine/src/Assets/Font.cpp",
+    "GEngine/src/Assets/Shader.cpp",
+    "GEngine/src/Assets/TextTexture.cpp",
+    "GEngine/src/Core/GEngine.cpp",
+    "GEngine/src/Managers/AssetsManager.cpp",
+    "GEngine/src/Managers/ShaderManager.cpp",
+    "GEngine/src/Managers/ShapeManager.cpp",
+    "GEngineEditor/src/SceneTest.cpp",
+    "RenderingValidation/README.md",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-20.json",
+    "tools/shutdown_probe.cpp",
+    "tools/test_shutdown.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Root-owned noncopyable/nonmovable instances and instance maps; removed global Free APIs and derived manual frees. Normal Phase 19 platform ownership retained.",
+      "finding": "Rendering managers retained static storage and SceneTest manually freed shared resources.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Normalized image key, distinct text keys, stable framebuffer wrapper snapshots. Final cache-ownership tests verify aliases, variants, two targets and owning-context restoration.",
+      "finding": "Image lookup/insertion keys differed; framebuffer/text lookup could return an unrelated previous borrower.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Duplicate candidate is uniquely retired, original remains live, alias ownership rejected, and unregister retains retired owners until root shutdown.",
+      "finding": "Duplicate shape registration lost the incoming ownership; unregister destroyed live borrowers.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Recoverable exceptions and scoped pending ownership. Both configurations verify failures, GL object/program reclamation, retry, existing borrower survival and derived constructor unwind. Changes to the three asset source files are limited to required recoverable failure cleanup.",
+      "finding": "Shader/font/text failures used assertions and did not safely unwind unpublished resources.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Pre-existing unchanged contract issue owned by Phase 41, already recorded by Phase 19. No Phase 20 gate waived; targeted active contract/locators pass.",
+      "finding": "Package governance checker reports PHASE_41.md missing specification/exit criteria.",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/phases/PHASE_20_SCOPE_PROPOSAL.md",
+    "docs/rendering/reviews/PHASE_20_REVIEW.md"
+  ],
+  "next_phase": "21",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "a268b30bc53f76034c33e89ec94db28edd9e6416",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-20/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/a268b30bc53f76034c33e89ec94db28edd9e6416",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "6baaf75a0bacb1615d0d232055b60b64114228fe051f578ac7f8f75296581e94"
+      },
+      "mode": "100644",
+      "validated_blob": "ddf71371dff7b344f8474592db05333f8b132ec6",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-20/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/ddf71371dff7b344f8474592db05333f8b132ec6"
+    }
+  },
+  "phase": "20",
+  "previous_approved_tag": "render-refactor-phase-19-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_20_REVIEW.md",
+  "schema": 2,
+  "summary": "EngineContext uniquely owns asset/shader/shape manager instances and caches. Borrowed static access is readiness/thread/context guarded; global Free ownership is removed. Duplicate/retired geometry and asset wrappers preserve valid borrowers; recoverable shader/font/text failures unwind pending resources without cache publication. Final Debug/Release six-consumer builds, twelve lifecycle modes each, and all eight graphical smokes pass.",
+  "validation": [
+    {
+      "check": "Debug/Release affected six-consumer builds and probe compilation",
+      "command": "python tools/test_shutdown.py --configuration Debug --output logs/rendering/phase20/final/Debug-validated\npython tools/test_shutdown.py --configuration Release --output logs/rendering/phase20/final/Release",
+      "evidence": "logs/rendering/phase20/final/Debug-validated/results.json; logs/rendering/phase20/final/Release/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Twelve lifecycle modes per configuration: manager/root ownership, failures, retry, borrowers, threads, secondary context and shutdown",
+      "command": "python tools/test_shutdown.py --configuration Debug --output logs/rendering/phase20/final/Debug-validated\npython tools/test_shutdown.py --configuration Release --output logs/rendering/phase20/final/Release",
+      "evidence": "logs/rendering/phase20/validation-summary.json; per-mode final logs and native exits in final/Debug-validated and final/Release",
+      "result": "PASS"
+    },
+    {
+      "check": "Four actual graphical application startups and clean closes in Debug and Release",
+      "command": "python tools/test_shutdown.py --configuration Debug --smoke --output logs/rendering/phase20/smoke/Debug\npython tools/test_shutdown.py --configuration Release --smoke --output logs/rendering/phase20/smoke/Release",
+      "evidence": "logs/rendering/phase20/smoke/Debug/results.json; logs/rendering/phase20/smoke/Release/results.json; per-application smoke JSON",
+      "result": "PASS"
+    },
+    {
+      "check": "Active phase/locators, authorized file scope, whitespace, final input identity, original protected work/index",
+      "command": "python logs/rendering/phase20/verify_candidate.py",
+      "evidence": "logs/rendering/phase20/candidate-checks.json; preflight.json; validation-inputs.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "GEngine/include/GEngine/Core/GEngine.h": {
+      "executable": null,
+      "sha256": "dc5b88b5bd546892f9869d1cc9c56df6fc820e372b2c303fcee8efa87988b777"
+    },
+    "GEngine/include/GEngine/Managers/AssetsManager.h": {
+      "executable": null,
+      "sha256": "e1d35f88625c621b99a08c4516eeee33ae6d56b405c7d407904d3477e6df1a0a"
+    },
+    "GEngine/include/GEngine/Managers/ShaderManager.h": {
+      "executable": null,
+      "sha256": "a3ad5ef8f5e5414de503862b5d36d46a93e1f6f1fc7e49befe5f347484851323"
+    },
+    "GEngine/include/GEngine/Managers/ShapeManager.h": {
+      "executable": null,
+      "sha256": "0362eb5b655fb174bc48e7ca00e928e254fb6de540ef119f8ed630e498f1157a"
+    },
+    "GEngine/src/Assets/Font.cpp": {
+      "executable": null,
+      "sha256": "77ab8d39f2f743dcf9a50b000d58a2600e8990b5b6f0a1a7f8852904bd0a87f2"
+    },
+    "GEngine/src/Assets/Shader.cpp": {
+      "executable": null,
+      "sha256": "90843ca633c88c0e7707caf9f865859e595af98310ec4126b8dff01719eb3d89"
+    },
+    "GEngine/src/Assets/TextTexture.cpp": {
+      "executable": null,
+      "sha256": "7ff90f00887aa9fea391d9e233dcef2d56c7c3a19b5fd74339bfa23bbd3c01b8"
+    },
+    "GEngine/src/Core/GEngine.cpp": {
+      "executable": null,
+      "sha256": "4cd353ec5d682e3d33090c13d74dd21b97c1fdb41f28a27d37b12ede71f8cc94"
+    },
+    "GEngine/src/Managers/AssetsManager.cpp": {
+      "executable": null,
+      "sha256": "b751e8fbc8b28e00ded0ad221a64d08a2b49abf4d8138c4febf575487c65dd1f"
+    },
+    "GEngine/src/Managers/ShaderManager.cpp": {
+      "executable": null,
+      "sha256": "1b85cd5e7aa1ba07662666312ec60e00d411be2f70f4e2822c6f8d0ee45067f7"
+    },
+    "GEngine/src/Managers/ShapeManager.cpp": {
+      "executable": null,
+      "sha256": "670ae9c570ac506623708ef32cb86d6ec1621f0c3f78155420fedc20f57ccd17"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "GEngineEditor/src/SceneTest.cpp": {
+      "executable": null,
+      "sha256": "79e314ed2559665847196404bff21d5eadfa8dad5378894b8dadacc4fd974fe5"
+    },
+    "RenderingValidation/README.md": {
+      "executable": null,
+      "sha256": "baa85a0ce18348d81845430b7a263d1a1ace127df2ae39a22a713a293659ea40"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "6baaf75a0bacb1615d0d232055b60b64114228fe051f578ac7f8f75296581e94"
+    },
+    "docs/physics/PHASE_06_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_07_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_08_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_09_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_10_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_11_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_12_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_13_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_14_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_15_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_16_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_17_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_18_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_19_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_20_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_21_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_22_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_23_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_24_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_25_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_26_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_27_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_28_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_29_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_30_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_32_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_33_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_34_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_35_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_36_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_37_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_38_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_39_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_OPTIMIZATION.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_REFACTOR.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_00_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_01_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_02_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_03_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_04_REVIEW.md": {
+      "absent": true
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "dc2b271508b274ee36c8a9b484761f375a3ccd0d8d1f01a424505210622e2932"
+    },
+    "tools/postbuild.py": {
+      "executable": null,
+      "sha256": "bf75c56e292ac2c7b4d22dd079f5e45fc62c05903468a18ddd789e3c9c8bfb56"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/runtime_assets.json": {
+      "executable": null,
+      "sha256": "de0f15f505442f26238e622fef1ca6d3ec794abf0875250b837344f804fce70c"
+    },
+    "tools/shutdown_probe.cpp": {
+      "executable": null,
+      "sha256": "aca9c78519a62d4d34fddd88b066815c4270fc292636b3bf4bd4980247737fff"
+    },
+    "tools/test_shadow_configuration.py": {
+      "executable": null,
+      "sha256": "43993d9cf9974a99dc10c2ce799830f288d62649ccf97d3a47a2ea162124a71b"
+    },
+    "tools/test_shutdown.py": {
+      "executable": null,
+      "sha256": "a6ec6d158b1b22086038aeea12aa0b16a39cbf78b05a7a39c6ff361706e7ce85"
+    }
+  }
+}

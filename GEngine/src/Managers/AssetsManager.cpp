@@ -1,152 +1,102 @@
 #include "gepch.h"
+#include "Core/GEngine.h"
 #include "Core/RuntimeAssets.h"
 #include "Managers/AssetsManager.h"
 #include "Assets/Textures/TextTexture.h"
-
+#include <cmath>
+#include <stdexcept>
 
 namespace GEngine::Manager
 {
-	static constexpr RuntimeAssets::Directory image_base_dir{ "Images/" };
-	static std::string image_extension = ".png";
+    namespace
+    {
+        template<class T> void DeleteOwnedTexture(Asset::Texture* texture)
+        {
+            const auto name = texture->GetTextureID();
+            if (name) glDeleteTextures(1, &name);
+            // Texture has no virtual destructor; preserve the allocation type.
+            delete static_cast<T*>(texture);
+        }
+    }
 
-	Asset::Texture* AssetsManager::GetTexture(const std::string& imageFilePath, 
-									   const std::string& uniform_name,
-									   const std::string& extension, 
-									   const Asset::TextureInfo& info)
-	{
-	/*	if (texture_file.empty())
-		{
-			return nullptr;
-		}*/
+    AssetsManager& AssetsManager::Current() { return EngineContext::Current().Assets(); }
+    AssetsManager::~AssetsManager() = default;
 
-		// Short names remain image-relative; rooted application paths already name a file.
-        std::filesystem::path imagePath(imageFilePath);
-        if (!imagePath.is_absolute()) imagePath = image_base_dir + imageFilePath;
-        if (!info.b_CubeMap && !imagePath.has_extension()) imagePath += extension;
-        const std::string image_dir = imagePath.lexically_normal().string();
+    Asset::Texture* AssetsManager::GetTexture(const std::string& imageFilePath,
+        const std::string& uniform_name, const std::string& extension, const Asset::TextureInfo& info)
+    {
+        auto& cache = Current().m_TextureMap;
+        std::filesystem::path path(imageFilePath);
+        if (!path.is_absolute()) path = RuntimeAssets::Directory{"Images/"} + imageFilePath;
+        if (!info.b_CubeMap && !path.has_extension()) path += extension;
+        const auto key = path.lexically_normal().string();
+        if (auto it = cache.find(key); it != cache.end()) return it->second.get();
 
-		//std::string image_dir = image_base_dir + imageFilePath + image_extension;
+        TextureOwner texture(new Asset::Texture, DeleteOwnedTexture<Asset::Texture>);
+        texture->SetTextureInfo(info);
+        // Own the wrapper before loading, including any partially allocated GL name.
+        if (info.b_CubeMap && info.b_HDR) texture->LoadHdrCubeMap(key);
+        else if (info.b_CubeMap) texture->LoadCubeMap(key, extension);
+        else if (info.b_HDR) texture->LoadHdrTexture(key);
+        else texture->LoadTexture(key);
+        // Ordinary missing images retain the existing checkerboard fallback.
+        // Loaders that return no GL name cannot publish a usable cache entry.
+        if (!texture->GetTextureID()) throw std::runtime_error("Texture initialization failed: " + key);
+        if (!uniform_name.empty()) texture->SetUniformName(uniform_name);
+        auto* result = texture.get();
+        cache.emplace(key, std::move(texture));
+        return result;
+    }
 
-		if (auto it = m_TextureMap.find(image_dir); it != m_TextureMap.end())
-		{
-			return it->second;
-		}
+    Asset::Texture* AssetsManager::GetCascadedFrameBufferTexture(const CascadeShadowFrameBuffer& fb,
+        const std::string& uniform_name)
+    {
+        auto& wrappers = Current().m_FrameBufferTextures;
+        Asset::TextureInfo info;
+        info.m_TextureSpec.m_TexTarget = GL_TEXTURE_2D_ARRAY;
+        auto texture = std::make_unique<Asset::Texture>(fb.GetLightDepthMaps(), info, uniform_name);
+        auto* result = texture.get();
+        wrappers.push_back(std::move(texture));
+        return result;
+    }
 
-		Asset::Texture* new_Texture = new(std::nothrow) Asset::Texture(image_dir, extension, info);
-		ASSERT(new_Texture);
+    Asset::Texture* AssetsManager::GetPointShadowFrameBufferTexture(const PointShadowFrameBuffer& fb,
+        const std::string& uniform_name)
+    {
+        auto& wrappers = Current().m_FrameBufferTextures;
+        Asset::TextureInfo info;
+        info.m_TextureSpec.m_TexTarget = GL_TEXTURE_CUBE_MAP;
+        auto texture = std::make_unique<Asset::Texture>(fb.GetDepthCubeMaps(), info, uniform_name);
+        auto* result = texture.get();
+        wrappers.push_back(std::move(texture));
+        return result;
+    }
 
-		if (!uniform_name.empty()) new_Texture->SetUniformName(uniform_name);
+    Asset::Texture* AssetsManager::GetTextTexture(const std::string& text, const std::string& font_file,
+        int pointSize, const glm::vec3& color, const std::string& uniform_name)
+    {
+        auto& cache = Current().m_TextTextures;
+        if (!std::isfinite(color.x) || !std::isfinite(color.y) || !std::isfinite(color.z)
+            || color.x < 0.f || color.x > 1.f || color.y < 0.f || color.y > 1.f || color.z < 0.f || color.z > 1.f)
+            throw std::invalid_argument("Text color must be finite and within [0, 1]");
+        const TextKey key{font_file, text, pointSize, color.x, color.y, color.z, uniform_name};
+        if (auto it = cache.find(key); it != cache.end()) return it->second.get();
+        TextureOwner texture(new Asset::TextTexture(text, font_file, pointSize, color),
+            DeleteOwnedTexture<Asset::TextTexture>);
+        if (!uniform_name.empty()) texture->SetUniformName(uniform_name);
+        auto* result = texture.get();
+        cache.emplace(key, std::move(texture));
+        return result;
+    }
 
-		m_TextureMap.emplace(imageFilePath, new_Texture);
-
-		return new_Texture;
-
-
-
-	}
-
-	Asset::Texture* AssetsManager::GetCascadedFrameBufferTexture(const CascadeShadowFrameBuffer& fb, const std::string& uniform_name)
-	{
-		if (auto it = m_FrameBufferTextures.find(FrameBufferMapType::CascadedShadowMap); it != m_FrameBufferTextures.end())
-		{
-			return it->second;
-		}
-
-		Asset::TextureInfo info;
-		info.m_TextureSpec.m_TexTarget = GL_TEXTURE_2D_ARRAY;
-		auto* new_texture = new(std::nothrow) Asset::Texture(fb.GetLightDepthMaps(), info, uniform_name);
-		ASSERT(new_texture);
-		m_FrameBufferTextures.emplace(FrameBufferMapType::CascadedShadowMap, new_texture);
-		return new_texture;
-	}
-
-	Asset::Texture* AssetsManager::GetPointShadowFrameBufferTexture(const PointShadowFrameBuffer& fb, const std::string& uniform_name)
-	{
-		if (auto it = m_FrameBufferTextures.find(FrameBufferMapType::PointShadowMap); it != m_FrameBufferTextures.end())
-		{
-			return it->second;
-		}
-
-		Asset::TextureInfo info;
-		info.m_TextureSpec.m_TexTarget = GL_TEXTURE_CUBE_MAP;
-		auto* new_texture = new(std::nothrow) Asset::Texture(fb.GetDepthCubeMaps(), info, uniform_name);
-		ASSERT(new_texture);
-		m_FrameBufferTextures.emplace(FrameBufferMapType::PointShadowMap, new_texture);
-		return new_texture;
-	}
-
-	Asset::Texture* AssetsManager::GetTextTexture(const std::string& str,
-										   const std::string& font_file, 
-										   int pointSize, 
-										   const glm::vec3& font_color, 
-										   const std::string& uniform_name)
-	{
-		if (auto it = m_TextureMap.find(font_file); it != m_TextureMap.end())
-		{
-			return it->second;
-		}
-
-		auto* new_texture = new(std::nothrow) Asset::TextTexture(str, font_file, pointSize, font_color);
-		ASSERT(new_texture);
-
-		if (!uniform_name.empty()) new_texture->SetUniformName(uniform_name);
-		m_TextureMap.emplace(font_file, new_texture);
-
-		return new_texture;
-
-	}
-
-
-
-
-	Asset::Font* AssetsManager::GetFont(const std::string& font_file)
-	{
-		if (auto it = m_FontMap.find(font_file); it != m_FontMap.end())
-		{
-			return  it->second;
-		}
-
-		auto* new_font = new(std::nothrow) Asset::Font;
-
-		ASSERT(new_font);
-		new_font->LoadFont(font_file);
-
-		m_FontMap.emplace(font_file,  new_font);
-		return new_font;
-
-	}
-
-	void AssetsManager::FreeTextureResource()
-	{
-		
-		for (auto& ele : m_TextureMap)
-		{
-			// GetTexture/GetTextTexture allocate these names; this cache owns them.
-			if (ele.second)
-			{
-				const auto texture = ele.second->GetTextureID();
-				if (texture) glDeleteTextures(1, &texture);
-				delete ele.second;
-			}
-		}
-		m_TextureMap.clear();
-		// These wrappers borrow framebuffer GL names; Texture does not delete them.
-		for (auto& entry : m_FrameBufferTextures) delete entry.second;
-		m_FrameBufferTextures.clear();
-	}
-
-	void AssetsManager::FreeFontResource()
-	{
-		for (auto& ele : m_FontMap)
-		{
-			if(ele.second) delete ele.second;
-		}
-		m_FontMap.clear();
-	}
-
-	void AssetsManager::FreeAllResources()
-	{
-		FreeFontResource();
-		FreeTextureResource();
-	}
+    Asset::Font* AssetsManager::GetFont(const std::string& font_file)
+    {
+        auto& cache = Current().m_FontMap;
+        if (auto it = cache.find(font_file); it != cache.end()) return it->second.get();
+        auto font = std::make_unique<Asset::Font>();
+        font->LoadFont(font_file);
+        auto* result = font.get();
+        cache.emplace(font_file, std::move(font));
+        return result;
+    }
 }

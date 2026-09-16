@@ -759,3 +759,55 @@ iterations. They include the original missing UBO/framebuffer resources, the lat
 cached-texture leak, and a standalone fixture TTF initialization mistake. No failure
 was waived or relabeled. The current review records the final seal-dependent human
 review status; validation completion is not phase approval.
+
+## Phase 20 manager ownership
+
+EngineContext owns asset, shader and shape manager instances and their caches.
+Static lookup APIs are borrowed compatibility adapters: they require a live,
+initialized root on its owning thread and activate the main context before cache
+access. Only the root constructs or destroys managers. Shutdown remains derived
+resources/scene/renderer -> asset/shader/shape managers -> ImGui/GL -> SDL/TTF.
+The root exposes Uninitialized/Initializing/Ready/Releasing/Stopped/Failed state;
+failed initialization rolls back immediately and cannot be retried on that root.
+
+Global cache Free APIs are removed. Duplicate geometry registration consumes the
+new candidate while retaining the original. UnRegister removes the lookup and
+keeps old borrowers alive until root destruction; a new registration can then
+publish another geometry under that name. Aliasing an already owned geometry into
+a different key is rejected. Manager instances cannot be copied or moved.
+Image lookup/insertion uses one normalized path; ordinary missing images retain
+the checkerboard fallback. Text variants have separate stable entries. Framebuffer
+requests return root-owned wrapper snapshots that borrow names without deleting
+them or treating names as identities; callers must keep their framebuffer alive
+while using its wrapper. Cache pointers remain borrowed, not typed generation
+handles. Internal legacy model loader allocation/format handling is unchanged.
+
+Shader compilation/link and font/text load failures throw without publishing a
+cache entry. Pending shader objects/programs, opened fonts and SDL surfaces are
+retired during unwind. Successful cached resources survive unrelated load failures.
+Shader Validate remains the existing state-dependent diagnostic; Phase 20 does not
+change the earlier sampler-state boundary.
+
+```powershell
+python tools/test_shutdown.py --configuration Debug --output logs/rendering/phase20/final/Debug
+python tools/test_shutdown.py --configuration Release --output logs/rendering/phase20/final/Release
+python tools/test_shutdown.py --configuration Debug --smoke --output logs/rendering/phase20/smoke/Debug
+python tools/test_shutdown.py --configuration Release --smoke --output logs/rendering/phase20/smoke/Release
+```
+
+The twelve focused modes retain earlier shutdown/root checks. The adapted
+`--cache-ownership` mode runs two actual root lifetimes and checks image aliases,
+text variants, multiple framebuffer borrowers and exactly-once texture retirement.
+`--manager-failures` checks duplicate registration/retirement, missing model/font,
+font retry, unsupported text size, failed SDL surface, missing HDR plus fallback
+retry, missing/malformed/link-failed shaders, injected program/shader allocation
+failure, successful retry, existing borrower survival and derived constructor
+unwind. GL allocation/deletion observers check shader object/program reclamation
+and owning context/thread. Expected compiler errors are separated from teardown
+diagnostics. Ready-root worker rejection covers all three manager adapters.
+
+`--smoke` runs only the four real graphical startup/close checks against already
+built binaries, in isolated runtime directories. It does not rebuild. Results,
+commands, actual exits and limitations belong to the current Phase 20 review and
+the selected output directory, not to this usage description. These checks do not
+constitute a broad GPU-leak, performance, sanitizer or visual-comparison claim.

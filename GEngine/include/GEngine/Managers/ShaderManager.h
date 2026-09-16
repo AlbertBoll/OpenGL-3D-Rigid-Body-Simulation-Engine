@@ -1,9 +1,12 @@
 #pragma once
 #include <unordered_map>
+#include <memory>
 #include "Assets/Shaders/Shader.h"
 
 //using namespace GEngine::Asset;
 //class GEngine::Asset::Shader;
+
+namespace GEngine { class EngineContext; }
 
 namespace GEngine::Manager
 {
@@ -66,18 +69,22 @@ namespace GEngine::Manager
 
 		};
 
-		typedef std::unordered_map<Files, Shader*, FileHash> ShaderHashMap;
+		using ShaderHashMap = std::unordered_map<Files, std::unique_ptr<Shader>, FileHash>;
 
 
 	public:
+        ~ShaderManager();
+        NONCOPYMOVABLE(ShaderManager);
 		static Shader* GetShaderProgram(const Files& shader_file);
-		static void FreeShader();
 	
 		
 
 
 	private:
-		inline static ShaderHashMap m_ShaderMap;
+        friend class ::GEngine::EngineContext;
+        ShaderManager() = default;
+        static ShaderManager& Current();
+		ShaderHashMap m_ShaderMap;
 	};
 
 }

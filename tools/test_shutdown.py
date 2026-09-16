@@ -15,10 +15,21 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--configuration", choices=["Debug", "Release"], required=True)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--smoke", action="store_true", help="Smoke the four already-built applications without rebuilding")
     args = parser.parse_args()
     config = args.configuration
     out = (args.output or ROOT / "logs/rendering/phase18" / config).resolve()
     out.mkdir(parents=True, exist_ok=True)
+    if args.smoke:
+        import test_shadow_configuration as smoke
+        smoke.OUT = out
+        outcomes = [smoke.smoke(config, app + ":default") for app in
+                    ("GEngineEditor", "RigidBodySimulation", "Breakout", "RayTracing")]
+        passed = all(outcomes)
+        (out / "results.json").write_text(json.dumps({"configuration": config,
+            "result": "PASS" if passed else "FAIL", "exit": 0 if passed else 1,
+            "evidence": "Per-application smoke JSON contains native exits, commands and observations"}, indent=2) + "\n")
+        return 0 if passed else 1
     report = {"configuration": config, "steps": []}
     env = {k: v for k, v in os.environ.items() if k.lower() != "path"}
     env["Path"] = os.environ.get("PATH", os.environ.get("Path", ""))
@@ -93,7 +104,7 @@ def main():
         outcomes = []
         for mode in ("--lifetimes", "--minimized", "--application-failure", "--imgui-context-failure",
                      "--imgui-platform-failure", "--sdl-failure", "--window-failure", "--empty-windows", "--window-owners", "--resource-moves",
-                     "--cache-ownership"):
+                     "--cache-ownership", "--manager-failures"):
             runtime = out / mode[2:]
             runtime.mkdir(exist_ok=True)
             child_env = dict(env)
@@ -101,7 +112,7 @@ def main():
                 child_env["SDL_VIDEODRIVER"] = "phase18-unavailable-driver"
             elif mode == "--window-failure":
                 child_env["SDL_VIDEODRIVER"] = "dummy"
-            timeout = 180 if mode in ("--lifetimes", "--minimized", "--application-failure") else 60
+            timeout = 180 if mode in ("--lifetimes", "--minimized", "--application-failure", "--manager-failures") else 60
             outcomes.append(invoke(mode[2:], [executable, mode], timeout=timeout, cwd=runtime, child_env=child_env,
                                    marker="[PASS] shutdown " + mode))
         passed = all(outcomes)

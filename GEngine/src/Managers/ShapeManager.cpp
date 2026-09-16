@@ -1,6 +1,8 @@
 #include "gepch.h"
 #include "Core/RuntimeAssets.h"
 #include "Managers/ShapeManager.h"
+#include "Core/GEngine.h"
+#include <stdexcept>
 #include <Shapes/Box.h>
 #include <Shapes/Circle.h>
 #include <Shapes/Cone.h>
@@ -71,86 +73,88 @@ namespace GEngine
 			//_RegisterShape(Sphere, PointLight, 0.5f, 32, 32);
 		}
 
-		void ShapeManager::Register(const std::string& shape_name, Geometry* new_shape)
-		{
-			if (auto it = m_Shapes.find(shape_name); it == m_Shapes.end())
-			{
-				m_Shapes.emplace(shape_name, new_shape);
-			}
-		}
+        ShapeManager& ShapeManager::Current() { return EngineContext::Current().Shapes(); }
+        ShapeManager::~ShapeManager() = default;
 
-		void ShapeManager::UnRegister(const std::string& shape_name)
-		{
-			if (auto it = m_Shapes.find(shape_name); it != m_Shapes.end())
-			{
-				delete it->second;
-				m_Shapes.erase(it->first);
-			}
-		}
+        bool ShapeManager::Owns(const Geometry* shape) const
+        {
+            for (const auto& [name, owner] : m_Shapes) if (owner.get() == shape) return true;
+            for (const auto& owner : m_Retired) if (owner.get() == shape) return true;
+            for (const auto& [name, model] : m_Models)
+                for (const auto& owner : model.owners) if (owner.get() == shape) return true;
+            return false;
+        }
 
-		Geometry* ShapeManager::GetShape(const std::string& shape_name)
-		{
-			if (auto it = m_Shapes.find(shape_name); it != m_Shapes.end())
-				return it->second;
+        void ShapeManager::Register(const std::string& name, Geometry* shape)
+        {
+            auto& self = Current();
+            if (!shape) throw std::invalid_argument("Cannot register a null shape");
+            if (self.Owns(shape))
+            {
+                auto it = self.m_Shapes.find(name);
+                if (it != self.m_Shapes.end() && it->second.get() == shape) return;
+                throw std::invalid_argument("Geometry already belongs to this manager");
+            }
+            std::unique_ptr<Geometry> candidate(shape);
+            // try_emplace leaves candidate owned locally on duplicate or failure.
+            self.m_Shapes.try_emplace(name, std::move(candidate));
+        }
 
-			return nullptr;
-		}
+        void ShapeManager::UnRegister(const std::string& name)
+        {
+            auto& self = Current();
+            if (auto it = self.m_Shapes.find(name); it != self.m_Shapes.end())
+            {
+                self.m_Retired.push_back(std::move(it->second));
+                self.m_Shapes.erase(it);
+            }
+        }
 
-		Geometry* ShapeManager::GetModel(const std::string& modelName)
-		{
-			if (auto it = m_Shapes.find(modelName); it != m_Shapes.end())
-				return it->second;
+        Geometry* ShapeManager::GetShape(const std::string& name)
+        {
+            auto& shapes = Current().m_Shapes;
+            if (auto it = shapes.find(name); it != shapes.end()) return it->second.get();
+            return nullptr;
+        }
 
+        Geometry* ShapeManager::GetModel(const std::string& name)
+        {
+            auto& shapes = Current().m_Shapes;
+            if (auto it = shapes.find(name); it != shapes.end()) return it->second.get();
+            const auto path = model_base_dir + name + model_extension;
+            if (!std::filesystem::is_regular_file(path)) throw std::runtime_error("Model not found: " + path);
+            RawModel model(path);
+            auto shape = std::unique_ptr<Geometry>(model.GetGeometry(0));
+            if (!shape) throw std::runtime_error("Model contains no geometry: " + path);
+            auto* result = shape.get();
+            shapes.emplace(name, std::move(shape));
+            return result;
+        }
 
-			RawModel model(model_base_dir + modelName + model_extension);
-
-			//auto geo = model.GetGeometry(0);
-			//geo->ApplyTransform(Matrix::MakeRotationY(Math::PiOver2), 0, false);
-			m_Shapes.emplace(modelName, model.GetGeometry(0));
-			return m_Shapes[modelName];
-
-		}
-
-		std::vector<Geometry*>& ShapeManager::GetModels(const std::string& modelName)
-		{
-			if (auto it = _m_Shapes.find(modelName); it != _m_Shapes.end())
-				return it->second;
-
-			AnimatedModel model(animated_model_base_dir + modelName + animated_model_extension);
-
-			//auto geo = model.GetGeometry(0);
-			//geo->ApplyTransform(Matrix::MakeRotationY(Math::PiOver2), 0, false);
-			_m_Shapes.emplace(modelName, model.GetGeometries());
-			return _m_Shapes[modelName];
-		}
-
-		void ShapeManager::FreeShape()
-		{
-			for (auto& [name, instance] : m_Shapes)
-			{
-				if (instance)
-				{
-					delete instance;
-					instance = nullptr;
-				}
-			}
-
-			for (auto& [name, instances] : _m_Shapes)
-			{
-				for (auto& instance : instances)
-				{
-					if (instance)
-					{
-						delete instance;
-						instance = nullptr;
-					}
-
-				}
-			}
-
-			m_Shapes.clear();
-			_m_Shapes.clear();
-		}
-	}
-	
+        const std::vector<Geometry*>& ShapeManager::GetModels(const std::string& name)
+        {
+            auto& models = Current().m_Models;
+            if (auto it = models.find(name); it != models.end()) return it->second.borrowers;
+            const auto path = animated_model_base_dir + name + animated_model_extension;
+            if (!std::filesystem::is_regular_file(path)) throw std::runtime_error("Model not found: " + path);
+            AnimatedModel model(path);
+            auto& raw = model.GetGeometries();
+            // The legacy loader transfers its raw results. Adopt all of them even
+            // if allocation of the manager entry fails after the loader returns.
+            struct Pending
+            {
+                std::vector<Geometry*>& raw;
+                ~Pending() { for (auto* geometry : raw) delete geometry; }
+            } pending{raw};
+            ModelEntry entry;
+            entry.borrowers = raw;
+            entry.owners.reserve(raw.size());
+            for (auto*& geometry : raw)
+            {
+                entry.owners.emplace_back(geometry);
+                geometry = nullptr;
+            }
+            return models.emplace(name, std::move(entry)).first->second.borrowers;
+        }
+    }
 }

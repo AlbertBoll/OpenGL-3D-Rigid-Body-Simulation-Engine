@@ -18,6 +18,7 @@
 #include <thread>
 #include <array>
 #include <type_traits>
+#include <fstream>
 
 namespace
 {
@@ -71,11 +72,19 @@ namespace
         Check(SDL_WasInit(0) == 0 && TTF_WasInit() == 0, "SDL/TTF survived platform release");
         Check(!BaseApp::GetWindowManager() && !BaseApp::GetInputManager() && !BaseApp::GetEventManager(),
             "Engine kept a freed platform manager");
+        int rejected = 0;
+        try { (void)AssetsManager::GetFont("unavailable.ttf"); } catch (const std::logic_error&) { ++rejected; }
+        try { (void)ShaderManager::GetShaderProgram({}); } catch (const std::logic_error&) { ++rejected; }
+        try { (void)ShapeManager::GetShape("phase18"); } catch (const std::logic_error&) { ++rejected; }
+        Check(rejected == 3, "A manager remained accessible outside ready root lifetime");
     }
 
     void RootContract()
     {
         static_assert(!std::is_copy_constructible_v<EngineContext> && !std::is_move_constructible_v<EngineContext>);
+        static_assert(!std::is_default_constructible_v<AssetsManager> && !std::is_copy_constructible_v<AssetsManager>);
+        static_assert(!std::is_default_constructible_v<ShaderManager> && !std::is_move_constructible_v<ShaderManager>);
+        static_assert(!std::is_default_constructible_v<ShapeManager> && !std::is_copy_constructible_v<ShapeManager>);
         Check(EngineContext::TryGet() == nullptr, "A root exists before application construction");
         bool rejected = false;
         try { (void)BaseApp::GetEngine(); } catch (const std::logic_error&) { rejected = true; }
@@ -180,16 +189,21 @@ namespace
                 "Application resources initialized before rendering/platform services");
             Check(SDL_GL_GetCurrentContext() == root.MainWindow()->GetContext(), "Main context was not published current");
             bool wrongThreadRejected = false;
+            int managerThreadRejections = 0;
             std::jthread worker([&] {
                 try { root.MakeCurrent(); }
                 catch (const std::logic_error& error)
                 {
                     wrongThreadRejected = std::string_view(error.what()) == "EngineContext access requires its owner thread";
                 }
+                try { (void)AssetsManager::GetTexture("white"); } catch (const std::logic_error&) { ++managerThreadRejections; }
+                try { (void)ShaderManager::GetShaderProgram({}); } catch (const std::logic_error&) { ++managerThreadRejections; }
+                try { (void)ShapeManager::GetShape("Box"); } catch (const std::logic_error&) { ++managerThreadRejections; }
             });
             worker.join();
             Check(wrongThreadRejected && SDL_GL_GetCurrentContext() == root.MainWindow()->GetContext(),
                 "Worker reached ready rendering services or changed the owning context");
+            Check(managerThreadRejections == 3, "Worker accessed a rendering manager");
             bool rejected = false;
             try { root.Initialize({ Properties() }); } catch (const std::logic_error&) { rejected = true; }
             Check(rejected && root.IsReady(), "Repeated initialization replaced live services");
@@ -306,10 +320,7 @@ namespace
                     << " phase=" << item.phase << " deletes=" << item.deletes << '\n';
             for (const auto& item : watched) Check(item.deletes == 1, "A watched resource survived application destruction");
             Check(lastPhase == 3 && observedFailures == 0, "Resource ownership/order checks failed");
-            Check(ShapeManager::GetShape("phase18") == nullptr, "Freed geometry container was not cleared");
             Check(!EngineContext::TryGet() && !SDL_GetWindowFromID(windowID), "Application-owned root/platform survived destruction");
-            // Empty-cache cleanup must remain idempotent, including framebuffer borrowers.
-            AssetsManager::FreeAllResources(); ShaderManager::FreeShader(); ShapeManager::FreeShape();
             PlatformGone();
             Check(debugErrors == 0, "ImGui/context teardown emitted GL errors");
             teardown = false;
@@ -386,6 +397,8 @@ namespace
             catch (const std::exception& error) { caught = true; std::cout << "[EXPECTED] " << error.what() << '\n'; }
             PlatformGone(); // Rollback is immediate, even while the failed root lives.
             Check(!app.GetEngineContext().IsReady(), "Failed platform published services");
+            Check(app.GetEngineContext().GetState() == EngineContext::State::Failed,
+                "Failed root did not expose its terminal initialization state");
             bool retryRejected = false;
             try { app.GetEngineContext().Initialize({ Properties() }); }
             catch (const std::logic_error&) { retryRejected = true; }
@@ -526,58 +539,252 @@ namespace
     }
     void CacheOwnership()
     {
-        Log::Initialize(); RuntimeAssets::Initialize("GEngineEditor");
-        Check(SDL_Init(SDL_INIT_VIDEO) == 0, SDL_GetError());
-        Check(TTF_Init() == 0, TTF_GetError());
+        RuntimeAssets::Initialize("GEngineEditor");
+        for (int cycle = 0; cycle < 2; ++cycle)
         {
-            SDLWindow window; window.Initialize(Properties());
+            auto root = std::make_unique<EngineContext>();
+            root->Initialize({Properties(), Properties()});
+            Check(ShapeManager::GetShape("phase20-retired") == nullptr, "New manager retained a previous map");
+            Check(&root->Assets() == &root->Assets() && &root->Shapes() == &root->Shapes()
+                && &root->Shaders() == &root->Shaders(), "Root manager instances changed during their lifetime");
+            Hooks hooks;
             StartTeardownDiagnostics();
-            // A second cycle also proves the owning map was cleared before reuse.
-            for (int cycle = 0; cycle < 2; ++cycle)
+            std::vector<GLuint> owned;
             {
-                Hooks hooks;
-                std::array<GLuint, 2> owned{}, borrowed{};
+                CascadeShadowFrameBuffer cascade(16, 16, 3), otherCascade(16, 16, 3);
+                PointShadowFrameBuffer point(16, 16), otherPoint(16, 16);
+                auto* text = AssetsManager::GetTextTexture("Cache ownership",
+                    RuntimeAssets::File("Fonts/OpenSans-Regular.ttf"));
+                Check(AssetsManager::GetTextTexture("Cache ownership",
+                    RuntimeAssets::File("Fonts/OpenSans-Regular.ttf")) == text, "Identical text was not cached");
+                auto* otherText = AssetsManager::GetTextTexture("Different text",
+                    RuntimeAssets::File("Fonts/OpenSans-Regular.ttf"));
+                Check(otherText != text && otherText->GetTextureID() != text->GetTextureID(),
+                    "Different text replaced an existing borrower");
+                const auto imagePath = std::filesystem::path(RuntimeAssets::File("Images/white.png"))
+                    .lexically_normal().string();
+                auto& windows = root->LegacyEngine().GetWindowManager()->GetWindows();
+                auto otherWindow = std::find_if(windows.begin(), windows.end(), [&](const auto& entry) {
+                    return entry.second.get() != root->MainWindow();
+                });
+                otherWindow->second->BeginRender();
+                Check(SDL_GL_GetCurrentContext() != root->MainWindow()->GetContext(), "Secondary context was not activated");
+                const auto uniform = "cycle-" + std::to_string(cycle);
+                auto* image = AssetsManager::GetTexture("white", uniform);
+                Check(SDL_GL_GetCurrentContext() == root->MainWindow()->GetContext()
+                    && image->GetUniformName() == uniform, "Manager used a foreign context or retained a prior root cache");
+                Check(AssetsManager::GetTexture("white") == image && AssetsManager::GetTexture(imagePath) == image,
+                    "Short/absolute image names did not reuse their owner");
+                auto* fallback = AssetsManager::GetTexture("phase20-missing-image");
+                Check(fallback == AssetsManager::GetTexture("phase20-missing-image") && glIsTexture(fallback->GetTextureID()),
+                    "Missing ordinary image lost its checkerboard fallback/cache owner");
+                owned = {text->GetTextureID(), otherText->GetTextureID(), image->GetTextureID(), fallback->GetTextureID()};
+                auto* cascadeBorrower = AssetsManager::GetCascadedFrameBufferTexture(cascade);
+                auto* pointBorrower = AssetsManager::GetPointShadowFrameBufferTexture(point);
+                Check(AssetsManager::GetCascadedFrameBufferTexture(otherCascade)->GetTextureID() == otherCascade.GetLightDepthMaps()
+                    && AssetsManager::GetPointShadowFrameBufferTexture(otherPoint)->GetTextureID() == otherPoint.GetDepthCubeMaps(),
+                    "Second framebuffer request returned stale cached names");
+                Check(cascadeBorrower->GetTextureID() == cascade.GetLightDepthMaps()
+                    && pointBorrower->GetTextureID() == point.GetDepthCubeMaps(), "New framebuffer request mutated existing borrowers");
+                for (auto name : owned) Watch(Kind::Texture, name, 3);
+                for (auto name : {cascade.GetLightDepthMaps(), point.GetDepthCubeMaps(),
+                                 otherCascade.GetLightDepthMaps(), otherPoint.GetDepthCubeMaps()})
                 {
-                    CascadeShadowFrameBuffer cascade(16, 16, 3);
-                    PointShadowFrameBuffer point(16, 16);
-                    auto* text = AssetsManager::GetTextTexture("Cache ownership",
-                        RuntimeAssets::File("Fonts/OpenSans-Regular.ttf"));
-                    const auto imagePath = std::filesystem::path(RuntimeAssets::File("Images/white.png"))
-                        .lexically_normal().string();
-                    auto* image = AssetsManager::GetTexture(imagePath);
-                    Check(AssetsManager::GetTexture(imagePath) == image, "Image cache did not reuse its owner");
-                    owned = {text->GetTextureID(), image->GetTextureID()};
-                    borrowed = {cascade.GetLightDepthMaps(), point.GetDepthCubeMaps()};
-                    Check(AssetsManager::GetCascadedFrameBufferTexture(cascade)->GetTextureID() == borrowed[0]
-                        && AssetsManager::GetPointShadowFrameBufferTexture(point)->GetTextureID() == borrowed[1],
-                        "Framebuffer cache did not borrow the owners' texture names");
-                    for (auto name : owned) { Check(glIsTexture(name), "Owned cache texture is not live"); Watch(Kind::Texture, name, 3); }
-                    for (auto name : borrowed) { Check(glIsTexture(name), "Borrowed texture is not live"); Watch(Kind::Texture, name, 3); }
-                    AssetsManager::FreeTextureResource();
-                    AssetsManager::FreeTextureResource();
-                    for (size_t i = 0; i < owned.size(); ++i)
-                        Check(!glIsTexture(owned[i]) && watched[i].deletes == 1, "Owned cache texture was not deleted exactly once");
-                    for (size_t i = 0; i < borrowed.size(); ++i)
-                        Check(glIsTexture(borrowed[i]) && watched[owned.size() + i].deletes == 0,
-                            "Cache cleanup deleted a borrowed framebuffer texture");
-                    // Recreate borrowers while the same framebuffer owners remain live.
-                    Check(AssetsManager::GetCascadedFrameBufferTexture(cascade)->GetTextureID() == borrowed[0]
-                        && AssetsManager::GetPointShadowFrameBufferTexture(point)->GetTextureID() == borrowed[1],
-                        "Repopulated framebuffer cache changed borrowed names");
-                    AssetsManager::FreeAllResources(); AssetsManager::FreeAllResources();
-                    for (size_t i = 0; i < borrowed.size(); ++i)
-                        Check(glIsTexture(borrowed[i]) && watched[owned.size() + i].deletes == 0,
-                            "Repeated cleanup retired a live framebuffer owner's texture");
+                    Check(glIsTexture(name), "A cache wrapper deleted a borrowed texture");
+                    Watch(Kind::Texture, name, 1);
                 }
-                for (const auto& item : watched)
-                    Check(item.deletes == 1 && !glIsTexture(item.name), "Texture outlived its actual owner or was deleted twice");
-                AssetsManager::FreeAllResources();
-                Check(glGetError() == GL_NO_ERROR && observedFailures == 0 && debugErrors == 0,
-                    "Cache ownership cleanup emitted a GL or lifetime error");
             }
+            for (auto name : owned) Check(glIsTexture(name), "Framebuffer cleanup retired an owned cache texture");
+            root.reset();
+            for (const auto& item : watched) Check(item.deletes == 1, "Cache resource was leaked or deleted more than once");
+            PlatformGone();
+            Check(observedFailures == 0 && debugErrors == 0, "Root-owned cache teardown failed");
+            teardown = false;
         }
-        Check(!SDL_GL_GetCurrentContext() && !ImGui::GetCurrentContext(), "Cache fixture leaked its contexts");
-        TTF_Quit(); SDL_Quit(); teardown = false;
+    }
+    struct ShaderObjects
+    {
+        struct Object { GLuint name; bool program; int deletes = 0; };
+        std::vector<Object> objects;
+        inline static ShaderObjects* active = nullptr;
+        PFNGLCREATEPROGRAMPROC createProgram = glad_glCreateProgram;
+        PFNGLCREATESHADERPROC createShader = glad_glCreateShader;
+        PFNGLDELETEPROGRAMPROC deleteProgram = glad_glDeleteProgram;
+        PFNGLDELETESHADERPROC deleteShader = glad_glDeleteShader;
+        SDL_GLContext context = SDL_GL_GetCurrentContext();
+        std::thread::id thread = std::this_thread::get_id();
+        bool failProgram = false, failShader = false;
+        static GLuint APIENTRY CreateProgram()
+        {
+            auto& self = *active;
+            if (self.failProgram) { self.failProgram = false; return 0; }
+            auto name = self.createProgram();
+            if (name) self.objects.push_back({name, true});
+            return name;
+        }
+        static GLuint APIENTRY CreateShader(GLenum type)
+        {
+            auto& self = *active;
+            if (self.failShader) { self.failShader = false; return 0; }
+            auto name = self.createShader(type);
+            if (name) self.objects.push_back({name, false});
+            return name;
+        }
+        void Deleted(GLuint name, bool program)
+        {
+            Observe(SDL_GL_GetCurrentContext() == context && std::this_thread::get_id() == thread,
+                "Shader resource retired outside its owning context/thread");
+            auto it = std::find_if(objects.rbegin(), objects.rend(), [=](const auto& object) {
+                return object.name == name && object.program == program && object.deletes == 0;
+            });
+            Observe(it != objects.rend(), "Shader resource was deleted twice or never observed");
+            if (it != objects.rend()) ++it->deletes;
+        }
+        static void APIENTRY DeleteProgram(GLuint name) { active->Deleted(name, true); active->deleteProgram(name); }
+        static void APIENTRY DeleteShader(GLuint name) { active->Deleted(name, false); active->deleteShader(name); }
+        ShaderObjects()
+        {
+            active = this;
+            glad_glCreateProgram = CreateProgram; glad_glCreateShader = CreateShader;
+            glad_glDeleteProgram = DeleteProgram; glad_glDeleteShader = DeleteShader;
+        }
+        ~ShaderObjects()
+        {
+            glad_glCreateProgram = createProgram; glad_glCreateShader = createShader;
+            glad_glDeleteProgram = deleteProgram; glad_glDeleteShader = deleteShader;
+            active = nullptr;
+        }
+        void RetiredSince(size_t first)
+        {
+            for (size_t i = first; i < objects.size(); ++i)
+                Check(objects[i].deletes == 1, "Failed shader initialization leaked a GL object");
+        }
+    };
+    void WriteFixture(const char* path, const char* source)
+    {
+        std::ofstream file(path, std::ios::trunc);
+        file << source;
+        Check(bool(file), "Failed to write shader fixture");
+    }
+    template<class F> void ExpectFailure(F&& operation, const char* message)
+    {
+        bool caught = false;
+        try { operation(); } catch (const std::exception&) { caught = true; }
+        Check(caught, message);
+    }
+    void ManagerFailures()
+    {
+        RuntimeAssets::Initialize("GEngineEditor");
+        constexpr auto vertex = "#version 460 core\nvoid main(){gl_Position=vec4(0,0,0,1);}\n";
+        constexpr auto fragment = "#version 460 core\nout vec4 color; void main(){color=vec4(1);}\n";
+        for (int cycle = 0; cycle < 2; ++cycle)
+        {
+            auto root = std::make_unique<EngineContext>();
+            root->Initialize({Properties()});
+            Check(root->GetState() == EngineContext::State::Ready, "Initialized manager root is not ready");
+            Check(ShapeManager::GetShape("phase20-retired") == nullptr, "New shape manager contains stale state");
+            int oldDestroyed = 0, duplicateDestroyed = 0, replacementDestroyed = 0;
+            struct Counted final : Geometry
+            {
+                int& destroyed;
+                explicit Counted(int& counter) : destroyed(counter) {}
+                ~Counted() override { ++destroyed; }
+            };
+            auto* old = new Counted(oldDestroyed);
+            ShapeManager::Register("phase20-retired", old);
+            ShapeManager::Register("phase20-retired", old);
+            ShapeManager::Register("phase20-retired", new Counted(duplicateDestroyed));
+            Check(duplicateDestroyed == 1 && oldDestroyed == 0 && ShapeManager::GetShape("phase20-retired") == old,
+                "Duplicate registration leaked its candidate or invalidated the original borrower");
+            ExpectFailure([&] { ShapeManager::Register("alias", old); }, "Same geometry acquired two owners");
+            ShapeManager::UnRegister("phase20-retired");
+            ShapeManager::UnRegister("phase20-retired");
+            Check(!ShapeManager::GetShape("phase20-retired") && oldDestroyed == 0,
+                "Unregister invalidated an existing borrower");
+            auto* replacement = new Counted(replacementDestroyed);
+            ShapeManager::Register("phase20-retired", replacement);
+            Check(ShapeManager::GetShape("phase20-retired") == replacement && oldDestroyed == 0,
+                "Explicit replacement destroyed a retired borrower");
+            ExpectFailure([&] { ShapeManager::Register("alias", old); }, "Retired geometry acquired a second owner");
+            ExpectFailure([] { ShapeManager::GetModel("phase20-missing-model"); }, "Missing model was published");
+
+            const auto fontPath = std::filesystem::absolute("phase20-font.ttf");
+            std::filesystem::remove(fontPath); // Fixture-owned file in the isolated runtime directory.
+            ExpectFailure([&] { AssetsManager::GetFont(fontPath.string()); }, "Missing font did not fail recoverably");
+            ExpectFailure([&] { AssetsManager::GetFont(fontPath.string()); }, "Failed font was cached");
+            std::filesystem::copy_file(RuntimeAssets::File("Fonts/OpenSans-Regular.ttf"), fontPath);
+            auto* font = AssetsManager::GetFont(fontPath.string());
+            Check(font && font->GetFontData().size() == 29 && AssetsManager::GetFont(fontPath.string()) == font,
+                "Retry after missing font failed or created stale font state");
+            ExpectFailure([&] { font->LoadFont(fontPath.string()); }, "Loaded font accepted unsafe replacement");
+            ExpectFailure([&] { AssetsManager::GetTextTexture("text", fontPath.string(), 13); },
+                "Unsupported text size did not fail recoverably");
+            ExpectFailure([&] { AssetsManager::GetTextTexture("", fontPath.string()); },
+                "Failed SDL text surface was published");
+            auto* text = AssetsManager::GetTextTexture("valid text", fontPath.string());
+            Check(glIsTexture(text->GetTextureID()), "Valid text failed after a prior text load failure");
+            Asset::TextureInfo hdr; hdr.b_HDR = true;
+            ExpectFailure([&] { AssetsManager::GetTexture("phase20-missing.hdr", "", "", hdr); },
+                "Failed HDR load published an empty resource");
+            auto* fallback = AssetsManager::GetTexture("phase20-missing.hdr");
+            Check(glIsTexture(fallback->GetTextureID()), "Failed image cache entry prevented successful fallback retry");
+
+            ShaderObjects shaderObjects;
+            // Expected compiler/linker diagnostics are checked as failure results;
+            // they are not counted as teardown GL errors.
+            teardown = false;
+            auto failsWithoutLeaks = [&](const ShaderManager::Files& files) {
+                const auto first = shaderObjects.objects.size();
+                ExpectFailure([&] { ShaderManager::GetShaderProgram(files); }, "Invalid shader request was cached");
+                shaderObjects.RetiredSince(first);
+            };
+            WriteFixture("phase20.vert", vertex);
+            std::filesystem::remove("phase20.frag");
+            failsWithoutLeaks({"phase20.vert", "phase20.frag"});
+            failsWithoutLeaks({});
+            failsWithoutLeaks({"phase20.bad-extension"});
+            WriteFixture("phase20.frag", "#version 460 core\nthis is not valid GLSL\n");
+            failsWithoutLeaks({"phase20.vert", "phase20.frag"});
+            WriteFixture("phase20.vert", "#version 460 core\nout vec3 mismatch; void main(){mismatch=vec3(1); gl_Position=vec4(0,0,0,1);}\n");
+            WriteFixture("phase20.frag", "#version 460 core\nin vec4 mismatch; out vec4 color; void main(){color=mismatch;}\n");
+            failsWithoutLeaks({"phase20.vert", "phase20.frag"});
+            WriteFixture("phase20.vert", vertex); WriteFixture("phase20.frag", fragment);
+            shaderObjects.failProgram = true;
+            failsWithoutLeaks({"phase20.vert", "phase20.frag"});
+            shaderObjects.failShader = true;
+            failsWithoutLeaks({"phase20.vert", "phase20.frag"});
+            auto* shader = ShaderManager::GetShaderProgram({"phase20.vert", "phase20.frag"});
+            Check(shader->IsLinked() && glIsProgram(shader->GetHandle()), "Valid shader retry after failed initialization failed");
+            Check(ShaderManager::GetShaderProgram({"phase20.vert", "phase20.frag"}) == shader,
+                "Successful shader lookup replaced a live borrower");
+            WriteFixture("other.vert", vertex);
+            failsWithoutLeaks({"other.vert", "missing.frag"});
+            Check(shader->IsLinked() && glIsProgram(shader->GetHandle()), "Unrelated load failure retired a valid shader borrower");
+            StartTeardownDiagnostics();
+            root.reset();
+            shaderObjects.RetiredSince(0);
+            Check(oldDestroyed == 1 && replacementDestroyed == 1 && duplicateDestroyed == 1,
+                "Manager shutdown did not retire current/old/duplicate geometry exactly once");
+            PlatformGone();
+            Check(observedFailures == 0 && debugErrors == 0, "Manager failure or shutdown emitted unexpected diagnostics");
+            teardown = false;
+        }
+        for (bool shaderFailure : {false, true})
+        {
+            struct FailingApp final : BaseApp
+            {
+                explicit FailingApp(bool shaderFailure)
+                {
+                    Initialize(Properties());
+                    AssetsManager::GetTexture("white");
+                    if (shaderFailure) ShaderManager::GetShaderProgram({"phase20.vert", "missing.frag"});
+                    else AssetsManager::GetFont("phase20-missing-font.ttf");
+                }
+            };
+            ExpectFailure([&] { FailingApp app(shaderFailure); }, "Asset/shader application initialization unexpectedly succeeded");
+            Check(!EngineContext::TryGet(), "Asset/shader constructor failure retained the owning root");
+            PlatformGone();
+        }
     }
     void ResourceMoves()
     {
@@ -616,6 +823,7 @@ int main(int argc, char** argv)
         else if (mode == "--window-owners") WindowOwners();
         else if (mode == "--resource-moves") ResourceMoves();
         else if (mode == "--cache-ownership") CacheOwnership();
+        else if (mode == "--manager-failures") ManagerFailures();
         else throw std::invalid_argument("Unknown shutdown probe mode");
         Check(observedFailures == 0 && debugErrors == 0, "Observed lifecycle failures");
         std::cout << "[PASS] shutdown " << mode << " checks=" << checks << '\n';

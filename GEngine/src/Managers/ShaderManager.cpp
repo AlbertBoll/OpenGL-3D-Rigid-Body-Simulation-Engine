@@ -1,45 +1,27 @@
 #include "gepch.h"
+#include "Core/GEngine.h"
 #include "Managers/ShaderManager.h"
+#include <stdexcept>
 
 namespace GEngine::Manager
 {
-	Shader* ShaderManager::GetShaderProgram(const Files& shader_file)
-	{
-		{
-			if (auto it = m_ShaderMap.find(shader_file); it != m_ShaderMap.end())
-			{
-				return it->second;
-			}
+    ShaderManager& ShaderManager::Current() { return EngineContext::Current().Shaders(); }
+    ShaderManager::~ShaderManager() = default;
 
-			Shader* new_shader = new(std::nothrow) Shader;
-			ASSERT(new_shader);
-
-			for (auto& str : shader_file.keys_filepath)
-			{
-				new_shader->CompileShader(str.c_str());
-			}
-
-			new_shader->Link();
-			new_shader->Validate();
-			new_shader->FindUniformLocations();
-
-			m_ShaderMap.emplace(shader_file, new_shader);
-			//m_ShaderMap.insert({ shader_file, new_shader });
-
-			return new_shader;
-
-
-
-		}
-	}
-
-	void ShaderManager::FreeShader()
-	{
-		
-		for (auto& ele : m_ShaderMap)
-		{
-			if(ele.second) delete ele.second;
-		}
-		m_ShaderMap.clear();
-	}
+    Shader* ShaderManager::GetShaderProgram(const Files& files)
+    {
+        auto& cache = Current().m_ShaderMap;
+        if (auto it = cache.find(files); it != cache.end()) return it->second.get();
+        if (files.keys_filepath.empty()) throw std::invalid_argument("Shader program requires source files");
+        auto shader = std::make_unique<Shader>();
+        for (const auto& file : files.keys_filepath) shader->CompileShader(file.c_str());
+        shader->Link();
+        // Validate depends on current sampler/pipeline state, not successful linking.
+        // Preserve its existing diagnostic behavior; compilation/link failures throw.
+        shader->Validate();
+        shader->FindUniformLocations();
+        auto* result = shader.get();
+        cache.emplace(files, std::move(shader));
+        return result;
+    }
 }

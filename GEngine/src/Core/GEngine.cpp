@@ -53,23 +53,49 @@ namespace GEngine
         return m_LegacyEngine;
     }
 
+    void EngineContext::RequireManagers()
+    {
+        RequireOwnerThread();
+        if ((m_State != State::Ready && m_State != State::Initializing)
+            || !m_MainWindow || !m_Assets || !m_Shaders || !m_Shapes)
+            throw std::logic_error("EngineContext managers are not available");
+        // Compatibility access may follow a secondary window render. Every cache
+        // operation still belongs to the main owning context, including uploads.
+        if (SDL_GL_GetCurrentContext() != m_MainWindow->GetContext()) m_MainWindow->BeginRender();
+        if (SDL_GL_GetCurrentContext() != m_MainWindow->GetContext())
+            throw std::runtime_error("Unable to activate manager owning context");
+    }
+
+    Manager::AssetsManager& EngineContext::Assets() { RequireManagers(); return *m_Assets; }
+    Manager::ShaderManager& EngineContext::Shaders() { RequireManagers(); return *m_Shaders; }
+    Manager::ShapeManager& EngineContext::Shapes() { RequireManagers(); return *m_Shapes; }
+
     void EngineContext::Initialize(const std::initializer_list<WindowProperties>& properties)
     {
         RequireOwnerThread();
         if (m_InitializationAttempted) throw std::logic_error("EngineContext initialization may only be attempted once");
         m_InitializationAttempted = true;
         m_PlatformStarted = true;
+        m_State = State::Initializing;
         try
         {
             m_LegacyEngine.Initialize(properties);
             auto& windows = m_LegacyEngine.GetWindowManager()->GetWindows();
             m_MainWindow = static_cast<SDLWindow*>(std::min_element(windows.begin(), windows.end(),
                 [](const auto& left, const auto& right) { return left.first < right.first; })->second.get());
-            MakeCurrent();
+            m_MainWindow->BeginRender();
+            if (SDL_GL_GetCurrentContext() != m_MainWindow->GetContext())
+                throw std::runtime_error("Unable to initialize manager owning context");
+            m_Assets.reset(new Manager::AssetsManager);
+            m_Shaders.reset(new Manager::ShaderManager);
+            m_Shapes.reset(new Manager::ShapeManager);
+            m_Shapes->Initialize();
+            m_State = State::Ready;
         }
         catch (...)
         {
             Release();
+            m_State = State::Failed;
             throw;
         }
     }
@@ -92,20 +118,24 @@ namespace GEngine
     void EngineContext::Release() noexcept
     {
         if (!m_PlatformStarted) return;
+        m_State = State::Releasing;
         // Initialization can fail before MainWindow is published, with earlier
         // windows and shared resources already owned by the compatibility engine.
         if (auto* manager = m_LegacyEngine.GetWindowManager(); manager && !manager->GetWindows().empty())
         {
             auto& windows = manager->GetWindows();
-            std::min_element(windows.begin(), windows.end(),
-                [](const auto& left, const auto& right) { return left.first < right.first; })->second->BeginRender();
+            auto* window = static_cast<SDLWindow*>(std::min_element(windows.begin(), windows.end(),
+                [](const auto& left, const auto& right) { return left.first < right.first; })->second.get());
+            window->BeginRender();
+            if (SDL_GL_GetCurrentContext() != window->GetContext()) std::terminate();
         }
-        Manager::AssetsManager::FreeAllResources();
-        Manager::ShaderManager::FreeShader();
-        Manager::ShapeManager::FreeShape();
+        m_Assets.reset();
+        m_Shaders.reset();
+        m_Shapes.reset();
         m_MainWindow = nullptr;
         m_LegacyEngine.ReleasePlatform();
         m_PlatformStarted = false;
+        m_State = State::Stopped;
     }
 
 	void GEngine::GetEnvironmentInfo()const
@@ -189,8 +219,6 @@ namespace GEngine
 			m_EventManager = Manager::EventManager::GetScopedInstance();
 			m_EventManager->Initialize();
 		
-			GENGINE_CORE_INFO("Initialize Shape Manager...");
-			Manager::ShapeManager::Initialize();
 
 			
 

@@ -1,12 +1,17 @@
 #pragma once
 #include "Core/RuntimeAssets.h"
 #include <unordered_map>
+#include <memory>
+#include <map>
+#include <tuple>
 #include <Assets/Textures/Texture.h>
 #include <Assets/Fonts/Font.h>
 #include <Core/RenderTarget.h>
 
 
 
+
+namespace GEngine { class EngineContext; }
 
 namespace GEngine::Manager
 {
@@ -37,11 +42,14 @@ namespace GEngine::Manager
 	{
 		
 
-		typedef std::unordered_map<std::string, Asset::Texture*> TextureHashMap;
-		typedef std::unordered_map<FrameBufferMapType, Asset::Texture*, EnumClassHash> FrameBufferTextures;
-		typedef std::unordered_map<std::string, Asset::Font*> FontHashMap;
+		using TextureOwner = std::unique_ptr<Asset::Texture, void(*)(Asset::Texture*)>;
+		using TextKey = std::tuple<std::string, std::string, int, float, float, float, std::string>;
 
 	public:
+        ~AssetsManager();
+        NONCOPYMOVABLE(AssetsManager);
+        // Returned pointers borrow this EngineContext's lifetime. Only the root
+        // can create/retire the manager; failed loads never publish cache entries.
 		static Asset::Texture* GetTexture(const std::string& texture_name="",
 								   const std::string& uniform_name = "u_texture",
 								   const std::string& extension = ".png", 
@@ -57,19 +65,16 @@ namespace GEngine::Manager
 
 		static Asset::Font* GetFont(const std::string& font_file);
 
-		static void FreeTextureResource();
-
-		static void FreeFontResource();
-
-		static void FreeAllResources();
-	
-	
-
-
 	private:
-		inline static TextureHashMap m_TextureMap;
-		inline static FontHashMap m_FontMap;
-		inline static FrameBufferTextures m_FrameBufferTextures;
+        friend class ::GEngine::EngineContext;
+        AssetsManager() = default;
+        static AssetsManager& Current();
+        std::unordered_map<std::string, TextureOwner> m_TextureMap;
+        std::map<TextKey, TextureOwner> m_TextTextures;
+        std::unordered_map<std::string, std::unique_ptr<Asset::Font>> m_FontMap;
+        // Each call returns a stable wrapper snapshot. Names are borrowed data,
+        // never cache identities; the framebuffer must outlive its use.
+        std::vector<std::unique_ptr<Asset::Texture>> m_FrameBufferTextures;
 	};
 	
 

@@ -76,7 +76,7 @@ namespace GEngine::Asset
 
 		const auto it = extensions.find(ext);
 
-		ASSERT(it != extensions.end(), "Unrecognized extension: " + ext);
+		if (it == extensions.end()) throw std::runtime_error("Unrecognized shader extension: " + ext);
 
 		type = it->second;
 
@@ -87,7 +87,7 @@ namespace GEngine::Asset
 	void Shader::CompileShader(const char* fileName, ShaderType type)
 	{
 		//Assert filename exists
-		ASSERT(FileExists(fileName), std::string("Shader: ") + fileName + " not found.")
+		if (!FileExists(fileName)) throw std::runtime_error(std::string("Shader: ") + fileName + " not found.");
 
 
 			if (m_ProgramHandle <= 0)
@@ -95,12 +95,12 @@ namespace GEngine::Asset
 				m_ProgramHandle = glCreateProgram();
 
 				//Assert shader program was created successfully
-				ASSERT(m_ProgramHandle, "Unable to create shader program.")
+				if (!m_ProgramHandle) throw std::runtime_error("Unable to create shader program.");
 			}
 
 		std::ifstream inFile(fileName, std::ios::in);
 
-		ASSERT(inFile, std::string("Unable to open: ") + fileName)
+		if (!inFile) throw std::runtime_error(std::string("Unable to open shader: ") + fileName);
 
 		// Get file contents
 		std::stringstream code;
@@ -117,10 +117,14 @@ namespace GEngine::Asset
 			m_ProgramHandle = glCreateProgram();
 
 			//Assert shader program was created successfully
-			ASSERT(m_ProgramHandle, "Unable to create shader program.")
+			if (!m_ProgramHandle) throw std::runtime_error("Unable to create shader program.");
 		}
 
 		const GLuint shaderHandle = glCreateShader(type);
+		if (!shaderHandle) throw std::runtime_error("Unable to create shader object.");
+		// The program owns this pending object even if compilation/log allocation
+		// fails. Destroy() detaches/deletes all attached objects during unwind.
+		glAttachShader(m_ProgramHandle, shaderHandle);
 
 		const char* c_code = source.c_str();
 		glShaderSource(shaderHandle, 1, &c_code, nullptr);
@@ -151,20 +155,16 @@ namespace GEngine::Asset
 				msg += log;
 			}
 
-			ASSERT(result != GL_FALSE, msg)
+			throw std::runtime_error(msg);
 
 		}
 
-		else {
-			// Compile succeeded, attach shader
-			glAttachShader(m_ProgramHandle, shaderHandle);
-		}
 	}
 
 	void Shader::Link()
 	{
 		if (m_Linked) return;
-		ASSERT(m_ProgramHandle > 0, "Program has not been compiled.")
+		if (!m_ProgramHandle) throw std::runtime_error("Program has not been compiled.");
 
 		glLinkProgram(m_ProgramHandle);
 
@@ -190,7 +190,7 @@ namespace GEngine::Asset
 
 		DetachAndDeleteShaderObjects();
 
-		ASSERT(status == GL_TRUE, errString)
+		if (status != GL_TRUE) throw std::runtime_error(errString);
 	}
 
 	void Shader::Validate() const

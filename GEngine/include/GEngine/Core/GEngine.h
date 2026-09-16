@@ -12,6 +12,8 @@
 namespace GEngine
 {
 
+    namespace Manager { class AssetsManager; class ShaderManager; class ShapeManager; }
+
 		  
 	class GEngine
 	{
@@ -55,8 +57,8 @@ namespace GEngine
 
     // Application-owned service root. Declare before all application GPU owners
     // so it is destroyed last. One live root; all access stays on its owner thread.
-    // Manager storage and the static renderer remain compatibility implementations
-    // until their dedicated migration; this root owns their platform lifetime.
+    // Static manager accessors borrow these owned services. The renderer facade
+    // remains transitional; no process-global cache owns rendering resources.
     class EngineContext final
     {
     public:
@@ -64,22 +66,33 @@ namespace GEngine
         ~EngineContext();
         NONCOPYMOVABLE(EngineContext);
 
+        enum class State { Uninitialized, Initializing, Ready, Releasing, Stopped, Failed };
+        State GetState() const { return m_State; }
+
         static EngineContext* TryGet() { return s_Current; }
         static EngineContext& Current();
         GEngine& LegacyEngine();
         void Initialize(const std::initializer_list<WindowProperties>& properties);
         SDLWindow* MainWindow() const { return m_MainWindow; }
-        bool IsReady() const { return m_MainWindow != nullptr; }
+        bool IsReady() const { return m_State == State::Ready; }
+        Manager::AssetsManager& Assets();
+        Manager::ShaderManager& Shaders();
+        Manager::ShapeManager& Shapes();
         void MakeCurrent();
         void RenderScene(Actor* scene, CameraBase* camera, RenderTarget* target, const RenderParam& parameters);
 
     private:
         void RequireOwnerThread() const;
+        void RequireManagers();
         void Release() noexcept;
         inline static EngineContext* s_Current = nullptr; // Non-owning compatibility lookup.
         const std::thread::id m_OwnerThread;
         GEngine m_LegacyEngine;
+        ScopedPtr<Manager::AssetsManager> m_Assets;
+        ScopedPtr<Manager::ShaderManager> m_Shaders;
+        ScopedPtr<Manager::ShapeManager> m_Shapes;
         SDLWindow* m_MainWindow = nullptr; // Borrowed from the owned WindowManager.
+        State m_State = State::Uninitialized;
         bool m_InitializationAttempted = false;
         bool m_PlatformStarted = false;
     };

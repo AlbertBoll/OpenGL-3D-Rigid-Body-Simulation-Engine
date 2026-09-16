@@ -22,6 +22,7 @@ namespace GEngine
 
 	void SDLWindow::Initialize(const WindowProperties& winProp)
 	{
+		GLContextThread::RequireOwner(m_OwnerThread, "SDLWindow::Initialize");
 		if (m_Window || m_Context || m_ImGuiWindow)
 			throw std::logic_error("SDLWindow is already initialized");
 		uint32_t flag = GetWindowFlag(winProp);
@@ -111,6 +112,8 @@ namespace GEngine
 
 	void SDLWindow::SwapBuffer()
 	{
+		GLContextThread::RequireOwner(m_OwnerThread, "SDLWindow::SwapBuffer");
+		GLContextThread::AssertCurrent("SDLWindow::SwapBuffer");
 #ifdef GENGINE_RENDER_BASELINE
         RenderBaseline::Capture(m_Window);
 #endif
@@ -119,6 +122,7 @@ namespace GEngine
 
 	void SDLWindow::ShutDown() 
 	{
+		GLContextThread::RequireOwner(m_OwnerThread, "SDLWindow::ShutDown");
 		auto* previousWindow = SDL_GL_GetCurrentWindow();
 		const auto previousContext = SDL_GL_GetCurrentContext();
 		const bool restorePrevious = previousContext && previousContext != m_Context;
@@ -229,7 +233,9 @@ namespace GEngine
 
 	void SDLWindow::BeginRender() 
 	{
-		SDL_GL_MakeCurrent(m_Window, m_Context);
+		GLContextThread::RequireOwner(m_OwnerThread, "SDLWindow::BeginRender");
+		if (!m_Context || SDL_GL_MakeCurrent(m_Window, m_Context) != 0)
+			throw std::runtime_error(std::string("Unable to activate window context: ") + SDL_GetError());
 		if (m_ImGuiWindow) ImGui::SetCurrentContext(m_ImGuiWindow->GetContext());
 		//glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 		//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -237,6 +243,7 @@ namespace GEngine
 
 	void SDLWindow::NullRender() 
 	{
+		GLContextThread::RequireOwner(m_OwnerThread, "SDLWindow::NullRender");
 		SDL_GL_MakeCurrent(nullptr, nullptr);
 	}
 
@@ -269,6 +276,7 @@ namespace GEngine
 
 	void SDLWindow::FreeContext()
 	{
+		GLContextThread::RequireOwner(m_OwnerThread, "SDLWindow::FreeContext");
 		RenderCounters::ForgetContext(m_Context);
 		SDL_GL_DeleteContext(m_Context);
 		m_Context = nullptr;

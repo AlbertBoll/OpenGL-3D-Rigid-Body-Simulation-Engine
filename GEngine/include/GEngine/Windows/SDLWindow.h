@@ -1,5 +1,6 @@
 #pragma once
 #include "Core/Window.h"
+#include <thread>
 //#include <Core/Renderer.h>
 
 
@@ -35,6 +36,7 @@ namespace GEngine
         uint32_t GetWindowFlag(const WindowProperties& winProp);
 
     private:
+        const std::thread::id m_OwnerThread = std::this_thread::get_id();
         SDL_Window* m_Window{};
         ImGuiWindow_* m_ImGuiWindow{};
         void* m_Context{};

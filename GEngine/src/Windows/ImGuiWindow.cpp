@@ -18,6 +18,7 @@ namespace GEngine
 	using namespace Input::Key;
 	void ImGuiWindow_::Initialize(SDLWindow* window, const ImGuiWindowProperties& ImGuiWindowProps)
 	{
+		GLContextThread::RequireCurrent("ImGuiWindow::Initialize");
 		if (m_Context) throw std::logic_error("ImGuiWindow is already initialized");
 		IMGUI_CHECKVERSION();
 		m_Context = ImGui::CreateContext();
@@ -88,6 +89,7 @@ namespace GEngine
 	void ImGuiWindow_::ShutDown()
 	{
 		if (!m_Context) return;
+		GLContextThread::RequireCurrent("ImGuiWindow::ShutDown");
 		auto* previous = ImGui::GetCurrentContext();
 		ImGui::SetCurrentContext(m_Context);
 		// Backend-owned state records which initialization stages actually ran.
@@ -108,6 +110,7 @@ namespace GEngine
 
 	void ImGuiWindow_::BeginRender(SDLWindow* window)
 	{
+		GLContextThread::RequireCurrent("ImGuiWindow::BeginRender");
 		ImGui::SetCurrentContext(m_Context);
 		ImGuiIO& io = ImGui::GetIO();
 		io.DisplaySize = ImVec2{ static_cast<float>(window->GetScreenWidth()), static_cast<float>(window->GetScreenHeight()) };
@@ -121,6 +124,7 @@ namespace GEngine
 
 	void ImGuiWindow_::EndRender(SDLWindow* window)
 	{
+		GLContextThread::RequireCurrent("ImGuiWindow::EndRender");
 		ImGui::SetCurrentContext(m_Context);
 		ImGui::Render();
 		{

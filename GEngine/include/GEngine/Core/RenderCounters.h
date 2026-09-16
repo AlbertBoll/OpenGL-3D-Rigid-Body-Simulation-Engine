@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Core/GLContextThread.h"
+
 #include <glad/glad.h>
 #include <sdl2/SDL.h>
 #include <array>

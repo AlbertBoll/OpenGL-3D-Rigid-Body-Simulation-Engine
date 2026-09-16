@@ -811,3 +811,58 @@ built binaries, in isolated runtime directories. It does not rebuild. Results,
 commands, actual exits and limitations belong to the current Phase 20 review and
 the selected output directory, not to this usage description. These checks do not
 constitute a broad GPU-leak, performance, sanitizer or visual-comparison claim.
+
+## Phase 21 context-thread contract
+
+EngineContext retains its construction thread. SDLWindow now also retains its
+construction thread and checks initialization, context activation/detachment,
+presentation and teardown. `Core/GLContextThread.h` registers each SDL GL context
+with its creation thread. All concurrently live registered contexts belong to
+that same thread; the registration is removed when the context is deleted.
+Sequential platform lifetimes start with fresh registrations.
+
+Permitted transitions are owner-thread creation, switching between live contexts
+(including ImGui platform viewports), temporary detachment, owner-thread
+reattachment and deletion after GPU/ImGui owners have retired. SDL validates
+drawable compatibility when a context is restored onto another window. Worker
+threads may prepare CPU data and queue work/events, but cannot create, acquire,
+upload through, submit through, read back from or destroy an owning GL context.
+Moving a GPU wrapper or queueing a resource does not transfer thread permission.
+
+The checked SDL entry points apply in Debug and Release, including standalone
+fixtures that include gepch/GLDebug/RenderCounters. SDLWindow lifecycle and ImGui
+initialization/frame/shutdown boundaries also enforce ownership in both builds.
+Debug additionally asserts a registered current context before the existing
+first-party GL entry points, including create/upload/delete/draw/readback; the
+RenderCounters wrappers forward through these checks. Assertions log `[GLThread]`
+and terminate before the driver call. `IsCurrentOwner()` only inspects context
+identity/registration and can reject a validation worker without issuing GL.
+Ordinary Release GL calls retain their direct driver path.
+
+This is a transitional call boundary, not a RenderDevice or resource-identity
+migration. New GL entry points must be added to the explicit checked list. Direct
+`glad_gl*` calls bypass it and are reserved for loader/probe instrumentation. ImGui
+uses its private GL loader; its first-party boundaries and SDL context transitions
+are guarded, rather than replacing that loader. Context ownership does not prove
+that a resource name belongs to the selected context or establish GPU lifetime
+safety for every legacy wrapper.
+
+```powershell
+python tools/test_shutdown.py --configuration Debug --output logs/rendering/phase21/final/Debug
+python tools/test_shutdown.py --configuration Release --output logs/rendering/phase21/final/Release
+python tools/test_shutdown.py --configuration Debug --smoke --output logs/rendering/phase21/smoke/Debug
+python tools/test_shutdown.py --configuration Release --smoke --output logs/rendering/phase21/smoke/Release
+```
+
+The runner builds six consumers, retains the twelve lifecycle/manager modes and
+adds `--context-thread`: two real root lifetimes, worker-only permission queries,
+detach/restore, real buffer upload/readback/destruction and ImGui submission.
+Disposable rejection processes cover context creation/switch/deletion, window/root
+teardown and ImGui submission in both configurations. Debug additionally rejects
+create/upload/delete/draw/readback from workers and readback with a detached
+context. Those processes must exit 86 from the validation termination handler;
+GL rejection cases have driver sentinels that exit 87 if reached. A returned
+operation exits 89. A guard diagnostic is mandatory except for the pre-existing
+EngineContext teardown termination. Release never attempts illegal direct GL.
+The milestone smokes check all four applications for responsive startup and clean
+native close; they do not claim image equivalence or benchmark performance.

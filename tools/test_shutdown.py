@@ -38,19 +38,19 @@ def main():
     env["GENGINE_ASSET_ROOT"] = str(ROOT / "bin" / config / "assets")
     env["GENGINE_SHADOW_RESOLUTION"] = "32"
 
-    def invoke(name, command, timeout=60, cwd=ROOT, child_env=None, marker=None):
+    def invoke(name, command, timeout=60, cwd=ROOT, child_env=None, marker=None, expected_exit=0):
         command = [str(value) for value in command]
         log = out / (name + ".log")
         step = {"name": name, "command": command, "cwd": str(cwd), "log": str(log), "required_output": marker,
-                "timeout_seconds": timeout}
+                "timeout_seconds": timeout, "expected_exit": expected_exit}
         report["steps"].append(step)
         try:
             result = subprocess.run(command, cwd=cwd, env=child_env or env, capture_output=True,
                                     timeout=timeout, creationflags=subprocess.CREATE_NO_WINDOW)
             log.write_bytes(result.stdout + result.stderr)
             step["exit"] = result.returncode
-            step["result"] = "PASS" if result.returncode == 0 else "FAIL"
-            if marker and marker.encode() not in result.stdout:
+            step["result"] = "PASS" if result.returncode == expected_exit else "FAIL"
+            if marker and marker.encode() not in result.stdout + result.stderr:
                 step["result"] = "FAIL"
         except subprocess.TimeoutExpired as error:
             log.write_bytes((error.stdout or b"") + (error.stderr or b""))
@@ -104,7 +104,7 @@ def main():
         outcomes = []
         for mode in ("--lifetimes", "--minimized", "--application-failure", "--imgui-context-failure",
                      "--imgui-platform-failure", "--sdl-failure", "--window-failure", "--empty-windows", "--window-owners", "--resource-moves",
-                     "--cache-ownership", "--manager-failures"):
+                     "--cache-ownership", "--manager-failures", "--context-thread"):
             runtime = out / mode[2:]
             runtime.mkdir(exist_ok=True)
             child_env = dict(env)
@@ -115,6 +115,17 @@ def main():
             timeout = 180 if mode in ("--lifetimes", "--minimized", "--application-failure", "--manager-failures") else 60
             outcomes.append(invoke(mode[2:], [executable, mode], timeout=timeout, cwd=runtime, child_env=child_env,
                                    marker="[PASS] shutdown " + mode))
+        rejected = ["context-create", "context-switch", "context-delete", "window-teardown", "root-teardown", "imgui"]
+        if config == "Debug":
+            rejected += ["create", "upload", "delete", "submit", "readback", "detached"]
+        for case in rejected:
+            mode = "--reject-" + case
+            runtime = out / mode[2:]
+            runtime.mkdir(exist_ok=True)
+            # EngineContext already terminates on wrong-thread destruction.
+            marker = None if case == "root-teardown" else "[GLThread] assertion failed:"
+            outcomes.append(invoke(mode[2:], [executable, mode], cwd=runtime,
+                                   marker=marker, expected_exit=86))
         passed = all(outcomes)
         return 0 if passed else 1
     except (OSError, ValueError, subprocess.SubprocessError) as error:

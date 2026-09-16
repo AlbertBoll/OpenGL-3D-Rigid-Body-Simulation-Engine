@@ -805,6 +805,101 @@ namespace
         Check(!SDL_GL_GetCurrentContext() && !ImGui::GetCurrentContext(), "Resource move fixture leaked its contexts");
         TTF_Quit(); SDL_Quit(); teardown = false;
     }
+
+    void ContextThread()
+    {
+        RuntimeAssets::Initialize("GEngineEditor");
+        Check(!GLContextThread::IsCurrentOwner(), "Context permission existed before initialization");
+        for (int cycle = 0; cycle != 2; ++cycle)
+        {
+            {
+                auto properties = Properties();
+                properties.ImGuiWindowProperties.bViewPortEnabled = true;
+                BaseApp app; app.Initialize(properties);
+                auto* window = app.GetSDLWindow();
+                Check(GLContextThread::IsCurrentOwner(), "Owner context was not registered");
+                bool workerRejected = false;
+                std::jthread worker([&] { workerRejected = !GLContextThread::IsCurrentOwner(); });
+                worker.join();
+                Check(workerRejected, "Validation-only query allowed a worker without issuing GL");
+                window->NullRender();
+                Check(!GLContextThread::IsCurrentOwner(), "Detached context retained permission");
+                window->BeginRender();
+                Check(GLContextThread::IsCurrentOwner(), "Owner could not restore its context");
+                while (glGetError() != GL_NO_ERROR) {} // Existing target initialization diagnostics.
+                {
+                    const std::array<float, 4> initial{1.f, 2.f, 3.f, 4.f};
+                    UniformBufferObject<UniformType::VEC4F> buffer(1);
+                    glBindBuffer(GL_UNIFORM_BUFFER, buffer.GetUBO());
+                    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(initial), initial.data());
+                    const std::array<float, 2> update{8.f, 9.f};
+                    glBufferSubData(GL_UNIFORM_BUFFER, sizeof(float), sizeof(update), update.data());
+                    std::array<float, 4> result{};
+                    glGetBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(result), result.data());
+                    Check(result == std::array<float, 4>{1.f, 8.f, 9.f, 4.f}, "Owner upload/readback changed payload");
+                }
+                auto* gui = window->GetImGuiWindow();
+                for (int frame = 0; frame != 3; ++frame)
+                {
+                    gui->BeginRender(window);
+                    const auto* main = ImGui::GetMainViewport();
+                    ImGui::SetNextWindowPos(ImVec2(main->Pos.x + main->Size.x + 40.f, main->Pos.y));
+                    ImGui::SetNextWindowSize(ImVec2(128.f, 96.f));
+                    ImGui::Begin("Context owner viewport"); ImGui::TextUnformatted("Owner thread"); ImGui::End();
+                    gui->EndRender(window);
+                }
+                Check(ImGui::GetPlatformIO().Viewports.Size > 1, "ImGui secondary context was not exercised");
+                Check(GLContextThread::IsCurrentOwner(), "ImGui failed to restore the owner context");
+                Check(glGetError() == GL_NO_ERROR, "Correct-thread operations emitted a GL error");
+            }
+            Check(!GLContextThread::IsCurrentOwner(), "Teardown retained context permission");
+            PlatformGone();
+        }
+    }
+
+    // Each death case runs in a disposable process. The expected termination
+    // handler is installed only after valid initialization; driver sentinels exit
+    // with a different code if rejection ever forwards an illegal call to GL.
+    void APIENTRY ForbiddenGen(GLsizei, GLuint*) { std::_Exit(87); }
+    void APIENTRY ForbiddenUpload(GLenum, GLintptr, GLsizeiptr, const void*) { std::_Exit(87); }
+    void APIENTRY ForbiddenDelete(GLsizei, const GLuint*) { std::_Exit(87); }
+    void APIENTRY ForbiddenDraw(GLenum, GLint, GLsizei) { std::_Exit(87); }
+    void APIENTRY ForbiddenRead(GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, void*) { std::_Exit(87); }
+
+    void WrongThread(std::string_view mode)
+    {
+        RuntimeAssets::Initialize("GEngineEditor");
+        auto app = std::make_unique<BaseApp>(); app->Initialize(Properties());
+        auto* window = app->GetSDLWindow();
+        glad_glGenBuffers = ForbiddenGen;
+        glad_glBufferSubData = ForbiddenUpload;
+        glad_glDeleteBuffers = ForbiddenDelete;
+        glad_glDrawArrays = ForbiddenDraw;
+        glad_glReadPixels = ForbiddenRead;
+        const auto attempt = [&] {
+            // Install on the thread under test as well as the detached-owner case.
+            std::set_terminate([] { std::_Exit(86); });
+            GLuint id = 0;
+            std::array<unsigned char, 4> pixel{};
+            if (mode == "--reject-create") { UniformBufferObject<UniformType::VEC4F> buffer(1); }
+            else if (mode == "--reject-upload") glBufferSubData(GL_ARRAY_BUFFER, 0, 1, pixel.data());
+            else if (mode == "--reject-delete") glDeleteBuffers(1, &id);
+            else if (mode == "--reject-submit") glDrawArrays(GL_TRIANGLES, 0, 3);
+            else if (mode == "--reject-readback" || mode == "--reject-detached")
+                glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.data());
+            else if (mode == "--reject-imgui") window->GetImGuiWindow()->BeginRender(window);
+            else if (mode == "--reject-context-create") SDL_GL_CreateContext(window->GetSDLWindow());
+            else if (mode == "--reject-context-switch") SDL_GL_MakeCurrent(window->GetSDLWindow(), window->GetContext());
+            else if (mode == "--reject-context-delete") SDL_GL_DeleteContext(window->GetContext());
+            else if (mode == "--reject-window-teardown") window->ShutDown();
+            else if (mode == "--reject-root-teardown") app.reset();
+            else std::_Exit(88);
+            std::_Exit(89); // A rejected operation returned instead of terminating.
+        };
+        if (mode == "--reject-detached") { window->NullRender(); attempt(); }
+        std::jthread worker(attempt);
+        worker.join();
+    }
 }
 
 int main(int argc, char** argv)
@@ -824,6 +919,8 @@ int main(int argc, char** argv)
         else if (mode == "--resource-moves") ResourceMoves();
         else if (mode == "--cache-ownership") CacheOwnership();
         else if (mode == "--manager-failures") ManagerFailures();
+        else if (mode == "--context-thread") ContextThread();
+        else if (mode.starts_with("--reject-")) WrongThread(mode);
         else throw std::invalid_argument("Unknown shutdown probe mode");
         Check(observedFailures == 0 && debugErrors == 0, "Observed lifecycle failures");
         std::cout << "[PASS] shutdown " << mode << " checks=" << checks << '\n';

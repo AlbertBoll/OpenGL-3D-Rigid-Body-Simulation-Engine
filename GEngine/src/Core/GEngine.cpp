@@ -69,6 +69,7 @@ namespace GEngine
     Manager::AssetsManager& EngineContext::Assets() { RequireManagers(); return *m_Assets; }
     Manager::ShaderManager& EngineContext::Shaders() { RequireManagers(); return *m_Shaders; }
     Manager::ShapeManager& EngineContext::Shapes() { RequireManagers(); return *m_Shapes; }
+    Asset::AssetPublication& EngineContext::AssetPublications() { RequireManagers(); return m_AssetPublication; }
 
     void EngineContext::Initialize(const std::initializer_list<WindowProperties>& properties)
     {
@@ -132,6 +133,7 @@ namespace GEngine
         m_Assets.reset();
         m_Shaders.reset();
         m_Shapes.reset();
+        m_AssetPublication.RequireDrained();
         m_MainWindow = nullptr;
         m_LegacyEngine.ReleasePlatform();
         m_PlatformStarted = false;

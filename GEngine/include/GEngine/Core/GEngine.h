@@ -4,6 +4,7 @@
 #include "Managers/InputManager.h"
 #include "Managers/WindowManager.h"
 #include "Managers/EventManager.h"
+#include "Assets/AssetPublication.h"
 #include <thread>
 
 
@@ -78,6 +79,7 @@ namespace GEngine
         Manager::AssetsManager& Assets();
         Manager::ShaderManager& Shaders();
         Manager::ShapeManager& Shapes();
+        Asset::AssetPublication& AssetPublications();
         void MakeCurrent();
         void RenderScene(Actor* scene, CameraBase* camera, RenderTarget* target, const RenderParam& parameters);
 
@@ -87,6 +89,7 @@ namespace GEngine
         void Release() noexcept;
         inline static EngineContext* s_Current = nullptr; // Non-owning compatibility lookup.
         const std::thread::id m_OwnerThread;
+        Asset::AssetPublication m_AssetPublication;
         GEngine m_LegacyEngine;
         ScopedPtr<Manager::AssetsManager> m_Assets;
         ScopedPtr<Manager::ShaderManager> m_Shaders;

@@ -953,3 +953,106 @@ Program validation retains its existing pipeline-dependent diagnostic behavior.
 This phase does not introduce resource handles, shader hot reload, pipeline-state
 redesign, C++23, benchmark or sanitizer gates. Application smokes establish startup
 and clean native close, not visual equivalence.
+
+## Stable asset identity and publication (Phase 25)
+
+```powershell
+python tools/test_asset_registry.py --configuration Debug --output logs/rendering/phase25/final/Debug
+python tools/test_asset_registry.py --configuration Release --output logs/rendering/phase25/final/Release
+```
+
+`Assets/AssetHandle.h` defines the common `AssetHandle<Tag>` model and reserves
+MeshHandle, TextureHandle, SamplerHandle, ShaderProgramHandle, PipelineHandle,
+MaterialTemplateHandle and MaterialInstanceHandle. Every handle contains a 32-bit
+slot index, 64-bit generation and 64-bit registry lifetime identity. `{}` is null:
+index UINT32_MAX, generation zero, registry zero. Non-null syntax alone does not
+establish validity; resolution checks all fields. GL names and storage addresses
+are payload, never engine identities. Handles are process-local, not serialized
+asset keys. Registry identities are unique across types and root lifetimes in the
+current executable; a future DLL/plugin boundary must share that allocator.
+
+`AssetRegistry<Handle, Resource>` is stationary and owns immutable published
+resource versions. Create publishes revision 1. Replace keeps the handle and
+increments its revision; existing leases keep the old resource and revision.
+Consumers propagate changes by comparing `(handle, lease.Revision())` and rebuild
+dependent derived state before its next publication. A generation check alone is
+not cache invalidation for replacement. Destroy invalidates resolution immediately;
+slot reuse increments generation and resets revision to 1. Exhausted generations
+quarantine slots permanently. Revision exhaustion rejects replacement without
+changing the entry; destroy/create supplies a new identity. Exhausting the global
+registry identity allocator also fails permanently without wrapping. Configurable
+positive slot/generation/revision limits can reduce these ceilings; defaults use
+the full integer ranges. Exhaustion never revives a stale handle.
+
+The application-owned EngineContext exposes `AssetPublications()` only while its
+managers are available, on the owner thread with its main context current. New
+registry consumers use its common `AssetPublication` domain. Before extraction,
+enter `BeginPublication()` and create/replace/destroy/collect entries. End that
+scope before `BeginFrame()`, which covers serial extraction and all CPU submission
+using that frame. Publication and frame scopes cannot overlap, nest or come from
+another domain. Workers prepare CPU data; they do not access the registry or issue
+GL. The application chooses this serial boundary until the scheduler assumes it
+without changing its timing. Existing pointer-based managers/components are an
+explicit compatibility boundary; this phase supplies the shared identity system
+without migrating those consumers or adding a second scheduler.
+
+```cpp
+using Programs = GEngine::Asset::AssetRegistry<
+    GEngine::Asset::ShaderProgramHandle, GEngine::Asset::Shader>;
+auto& publication = context.AssetPublications();
+Programs programs(publication); // Must retire before the EngineContext.
+GEngine::Asset::ShaderProgramHandle handle;
+{
+    auto publish = publication.BeginPublication();
+    handle = programs.Create(publish, std::move(completeShader));
+}
+{
+    auto frame = publication.BeginFrame();
+    auto lease = programs.Acquire(frame, handle);
+    if (lease) lease->Bind();
+    // Keep the lease through every submission using this resolved version.
+}
+{
+    auto publish = publication.BeginPublication();
+    // Close returns false while CPU leases or required GPU fences remain.
+    if (!programs.Close(publish)) { /* finish users, then retry at a safe point */ }
+}
+```
+
+A lease provides const payload access and retains stable heap storage across slot
+vector growth, replacement and destruction. Copying it copies shared ownership,
+not heavy assets. Pointers/references obtained from it may not outlive the lease.
+Separate lease copies may be released by workers: the registry always retains a
+strong current/retirement reference, so the final GL deletion remains on the owner
+at collection or shutdown. Const access is not permission for worker GL calls or
+concurrent mutation of external storage. Any mutable side channels in a payload
+remain that resource system's responsibility.
+
+Storage whose GPU lifetime exceeds CPU submission must attach an owned
+`AssetRetirementFence` using `ProtectGpuUse(frame, lease, fence)` before queuing
+that GPU use. Fence registration can allocate; submit only after it succeeds. A
+fence remains incomplete until its associated submission completes. Multiple uses
+can attach separate fences, all of which must complete. Polling/fence destruction
+and resource destruction occur only on the context owner at a publication/retirement
+safe point. Ordinary GL object deletion may use the driver's deferred deletion;
+mapped/ring/storage reuse must supply the explicit fence contract. Collection never
+waits for GPU completion. Registry Close is retryable; destruction with live leases,
+incomplete fences, an active frame or a foreign owner terminates before releasing
+resources. EngineContext requires registries/scopes drained before context teardown.
+Resources and fences must have noexcept destructors and may not reenter their own
+registry while it mutates. Failed construction/allocation preserves published state.
+
+The runner first compiles a standalone CPU probe without SDL or engine linkage,
+then checks invalid/stale/foreign handles, 30,001 allocations and slot reuse, stable
+retained addresses, version propagation, generation/revision/domain exhaustion,
+wrong-owner/scoped access, worker lease release and allocation failure atomicity.
+Two real compiler-negative cases require wrong-type access/assignment diagnostics.
+Disposable teardown controls require exit 86 before resource destruction (87).
+It then builds six consumers and links the production library into the same probe:
+two EngineContext lifetimes publish/replace/destroy real Shader programs, submit a
+triangle, retain a real GL sync fence, and verify owner-thread deletion before
+context teardown. Root teardown rejection also requires a still-live context.
+The existing default application smoke runner covers all four applications after
+these builds. Known startup framebuffer diagnostics are separated from the focused
+registry GL checks. These are lifetime checks, not image, performance, device-loss,
+physical GPU exhaustion or sanitizer evidence. Toolchain/C++20/static CRT remain.

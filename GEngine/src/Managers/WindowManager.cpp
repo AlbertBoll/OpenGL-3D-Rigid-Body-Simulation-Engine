@@ -7,15 +7,9 @@ namespace GEngine::Manager
 {
 	WindowManager::~WindowManager()
 	{
-		for (auto& p : m_Windows)
-		{
-			if (p.second)
-			{
-				p.second->ShutDown();
-			}
-		}
-
+		// SDLWindow owns its shutdown, including failed AddWindows initialization.
 		m_Windows.clear();
+		m_NumOfWindows = 0;
 	}
 
 	ScopedPtr<WindowManager> WindowManager::GetScopedInstance()
@@ -71,10 +65,7 @@ namespace GEngine::Manager
 
 	void WindowManager::RemoveWindow(uint32_t ID)
 	{
-		--m_NumOfWindows;
-		ASSERT(m_Windows[ID]);
-		m_Windows[ID]->ShutDown();
-		m_Windows.erase(ID);
+		if (m_Windows.erase(ID)) --m_NumOfWindows;
 		/*if (--m_NumOfWindows == 0)
 		{
 			FreeContext();

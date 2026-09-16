@@ -53,6 +53,12 @@ namespace GEngine
 	{
 	public:
 		FinalFrameBuffer(unsigned int resolution_x, unsigned int resolution_y);
+		// Owning GL context must be current for destruction and replacing a live owner.
+		~FinalFrameBuffer();
+		FinalFrameBuffer(const FinalFrameBuffer&) = delete;
+		FinalFrameBuffer& operator=(const FinalFrameBuffer&) = delete;
+		FinalFrameBuffer(FinalFrameBuffer&& other) noexcept;
+		FinalFrameBuffer& operator=(FinalFrameBuffer&& other) noexcept;
 		unsigned int GetFBO() const { return m_FBO; }
 		unsigned int GetColorMap() const { return m_ColorMap; }
 		unsigned int GetMousePickMap() const { return m_MousePickMap; }
@@ -68,6 +74,8 @@ namespace GEngine
 
 	private:
 		void Invalidate();
+		void Release() noexcept;
+		void Swap(FinalFrameBuffer& other) noexcept;
 	private:
 		unsigned int m_FBO{};
 		unsigned int m_ColorMap{};
@@ -165,10 +173,17 @@ namespace GEngine
 	{
 	public:
 		UniformBufferObject(unsigned int max_size, unsigned int bind_point = 0);
+		// Move transfers ownership, not the context/thread that may delete the buffer.
+		~UniformBufferObject();
+		UniformBufferObject(const UniformBufferObject&) = delete;
+		UniformBufferObject& operator=(const UniformBufferObject&) = delete;
+		UniformBufferObject(UniformBufferObject&& other) noexcept;
+		UniformBufferObject& operator=(UniformBufferObject&& other) noexcept;
 		unsigned int GetUBO() const { return m_UBO; }
 		unsigned int GetUniformTypeSize() const { return m_UniformTypeSize; }
 		
 	private:
+		void Swap(UniformBufferObject& other) noexcept;
 		unsigned int m_UBO{};
 		unsigned int m_MaxSize{};
 		unsigned int m_BindingPoint{};

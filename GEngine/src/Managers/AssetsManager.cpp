@@ -121,7 +121,13 @@ namespace GEngine::Manager
 		
 		for (auto& ele : m_TextureMap)
 		{
-			if(ele.second) delete ele.second;
+			// GetTexture/GetTextTexture allocate these names; this cache owns them.
+			if (ele.second)
+			{
+				const auto texture = ele.second->GetTextureID();
+				if (texture) glDeleteTextures(1, &texture);
+				delete ele.second;
+			}
 		}
 		m_TextureMap.clear();
 		// These wrappers borrow framebuffer GL names; Texture does not delete them.

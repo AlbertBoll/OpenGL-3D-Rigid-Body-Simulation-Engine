@@ -8,6 +8,7 @@
 #include <imgui/imgui_impl_opengl3.h>
 #include <Inputs/KeyCodes.h>
 #include<imguizmo/ImGuizmo.h>
+#include <stdexcept>
 
 
 
@@ -17,8 +18,10 @@ namespace GEngine
 	using namespace Input::Key;
 	void ImGuiWindow_::Initialize(SDLWindow* window, const ImGuiWindowProperties& ImGuiWindowProps)
 	{
+		if (m_Context) throw std::logic_error("ImGuiWindow is already initialized");
 		IMGUI_CHECKVERSION();
-		ImGui::CreateContext();
+		m_Context = ImGui::CreateContext();
+		ImGui::SetCurrentContext(m_Context);
 		ImGui::StyleColorsDark();
 		ImGuiIO& io = ImGui::GetIO();
 
@@ -75,25 +78,37 @@ namespace GEngine
 		io.KeyMap[ImGuiKey_Y] =			  GENGINE_KEY_Y;
 		io.KeyMap[ImGuiKey_Z] =			  GENGINE_KEY_Z;*/
 
-		ImGui_ImplSDL2_InitForOpenGL(window->GetSDLWindow(), window->GetContext());
-		ImGui_ImplOpenGL3_Init("#version 430");
+		if (!ImGui_ImplSDL2_InitForOpenGL(window->GetSDLWindow(), window->GetContext()))
+			throw std::runtime_error("ImGui SDL backend initialization failed");
+		if (!ImGui_ImplOpenGL3_Init("#version 430"))
+			throw std::runtime_error("ImGui OpenGL backend initialization failed");
 	
 	}
 
 	void ImGuiWindow_::ShutDown()
 	{
-		ImGui_ImplOpenGL3_Shutdown();
-		ImGui_ImplSDL2_Shutdown();
-		ImGui::DestroyContext();
+		if (!m_Context) return;
+		auto* previous = ImGui::GetCurrentContext();
+		ImGui::SetCurrentContext(m_Context);
+		// Backend-owned state records which initialization stages actually ran.
+		// Keep SDL alive while the GL backend destroys secondary platform windows.
+		if (ImGui::GetIO().BackendRendererUserData) ImGui_ImplOpenGL3_Shutdown();
+		if (ImGui::GetIO().BackendPlatformUserData) ImGui_ImplSDL2_Shutdown();
+		ImGui::DestroyContext(m_Context);
+		ImGui::SetCurrentContext(previous == m_Context ? nullptr : previous);
+		m_Context = nullptr;
 	}
 
 	bool ImGuiWindow_::HandleSDLEvent(SDL_Event& e)
 	{
+		if (!m_Context) return false;
+		ImGui::SetCurrentContext(m_Context);
 		return ImGui_ImplSDL2_ProcessEvent(&e);
 	}
 
 	void ImGuiWindow_::BeginRender(SDLWindow* window)
 	{
+		ImGui::SetCurrentContext(m_Context);
 		ImGuiIO& io = ImGui::GetIO();
 		io.DisplaySize = ImVec2{ static_cast<float>(window->GetScreenWidth()), static_cast<float>(window->GetScreenHeight()) };
 		ImGui_ImplOpenGL3_NewFrame();
@@ -106,6 +121,7 @@ namespace GEngine
 
 	void ImGuiWindow_::EndRender(SDLWindow* window)
 	{
+		ImGui::SetCurrentContext(m_Context);
 		ImGui::Render();
 		{
 			const GLDebug::Group submission("ImGui draw data");
@@ -157,11 +173,15 @@ namespace GEngine
 
 	bool ImGuiWindow_::WantCaptureMouse()
 	{
+		if (!m_Context) return false;
+		ImGui::SetCurrentContext(m_Context);
 		return ImGui::GetIO().WantCaptureMouse;
 	}
 
 	bool ImGuiWindow_::WantCaptureKeyBoard()
 	{
+		if (!m_Context) return false;
+		ImGui::SetCurrentContext(m_Context);
 		return ImGui::GetIO().WantCaptureKeyboard;
 	}
 

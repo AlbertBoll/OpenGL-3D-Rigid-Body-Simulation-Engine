@@ -607,3 +607,114 @@ suspension, then checks retained presentation state and bounded catch-up on rest
 GL creation, submission, readback and destruction stay on the main thread; the
 suspension worker only enqueues SDL events. These checks do not claim monitor
 scanout timing, full-scene visual quality or rendering performance.
+
+## Phase 18: deterministic shutdown and GPU ownership
+
+The existing entry point owns the shutdown sequence. Close/quit requests stop the
+application loop; the application is destroyed before `GEngine::ReleasePlatform`.
+Keep this order when embedding the engine:
+
+1. Destroy derived application resources and scene borrowers.
+2. Destroy BaseApp renderer targets and its uniform buffer.
+3. Clear shared asset, shader and geometry caches.
+4. For each window, destroy its ImGui OpenGL backend, SDL backend and ImGui context
+   while that window's GL context is current.
+5. Delete the GL context and native window, then close controllers, TTF and SDL.
+
+Window owners clean themselves up, including failed initialization before they
+enter the manager. Removing a missing window and releasing an already released
+platform are safe. ImGui cleanup uses the owned context and only shuts down
+backends whose state exists. Closing a secondary window restores the surviving
+current GL/ImGui contexts. Scene/renderer cleanup and nonempty GPU-owner destruction
+must run on the application thread with the owning GL context current. Failure to
+reacquire a window's owning context is fatal; cleanup never intentionally proceeds
+against a foreign context. The existing single-live-application contract remains.
+
+`FinalFrameBuffer` owns one framebuffer and all three attachment textures.
+`UniformBufferObject<Type>` owns its GL buffer for every supported uniform type.
+Both reject copying and provide `noexcept` move construction and assignment.
+Moves transfer handles and metadata without reallocating GPU storage or changing
+its contents. Assignment retires the destination's previous resources immediately;
+self-move is a no-op, and moving an empty owner into a live owner releases the old
+resources. Moved-from objects hold zero GL names and make no GL deletion calls when
+destroyed. Moves do not transfer permission to use or destroy resources on another
+thread/context. Framebuffer formats, allocation sizes, drawing and resize algorithms
+retain their existing behavior.
+
+`AssetsManager::m_TextureMap` owns the textures allocated by `GetTexture` and
+`GetTextTexture`. Cleanup deletes each nonzero GL name before deleting its wrapper
+and clearing the map. `m_FrameBufferTextures` contains borrowed shadow framebuffer
+names and deletes wrappers only. These caches must be cleaned on the owning context
+thread; repeated empty-cache cleanup issues no further texture deletions.
+
+```powershell
+python tools/test_shutdown.py --configuration Debug --output logs/rendering/phase18/final/Debug
+python tools/test_shutdown.py --configuration Release --output logs/rendering/phase18/final/Release-recovered
+```
+
+The runner builds GEngineEditor, Breakout, RayTracing, RigidBodySimulation,
+PhysicsTests and PhysicsBenchmark using the existing VS2022/v143, C++20, static-CRT
+and Premake configuration. It then links a fixture against the production GEngine
+library and runs eleven scenarios. The three full application modes each have a
+180-second bound for three Debug initialization cycles; other modes have 60 seconds.
+Each command, timeout, exit and required success marker is recorded in `results.json`.
+
+| Scenario | Coverage |
+| --- | --- |
+| `--lifetimes` | Three application/platform cycles; exactly-once deletion and scene/renderer/cache ordering |
+| `--minimized` | Three close cycles while native minimize is requested and minimized state is queued; no application update while suspended |
+| `--application-failure` | Three exception-unwind cycles with initialized application, scene, renderer and cache resources |
+| `--imgui-context-failure` | Font-path exception after ImGui context creation but before backend initialization |
+| `--imgui-platform-failure` | Injected allocation failure after SDL backend state exists, before the GL backend owns resources |
+| `--sdl-failure`, `--window-failure`, `--empty-windows` | Invalid SDL driver, dummy driver without OpenGL windows, and rejected empty window list; partial and repeated platform cleanup |
+| `--window-owners` | Independent window contexts, secondary removal/restoration, repeated shutdown/removal and ImGui font texture retirement before context deletion |
+| `--resource-moves` | Compile-time non-copyability/nothrow-move checks; all six UBO types; framebuffer attachments and pixel contents; live replacement, self-move, reuse of empty owners and exactly-once GL deletion |
+| `--cache-ownership` | Two cache lifetimes with real image/text textures and live cascade/point framebuffer borrowers; owned names deleted once, borrowed names preserved through repeated cleanup/repopulation, then deleted by their actual owners |
+
+Deletion observers verify the current context, application thread, backend/platform
+liveness and ordering. The probe installs synchronous GL debug reporting in both
+configurations for teardown and checks GL errors before deleting the context.
+First-party GL deletion calls are observed through GLAD; ImGui uses its independent
+loader and is additionally checked through actual font texture retirement and GL
+diagnostics. The event worker only queues SDL events.
+
+These are focused lifecycle checks, not a full GPU-leak audit or four-application
+visual/performance benchmark. The earlier multisample sampler-state diagnostics
+still occur during BaseApp initialization and belong to Phase 28; the fixture
+separates them from the zero-error teardown gate. Earlier development and candidate
+runs remain under `logs/rendering/phase18/development/`, `verified/`, `diagnostic/`
+and `revision2/`. A directory name alone does not imply PASS: consult `results.json`
+and the current Phase 18 review. Final phase validation requires all selected checks
+to pass in both configurations; a surviving-resource assertion blocks sealing.
+
+### Current Phase 18 revision results
+
+The authorized nine-file candidate passes all selected Debug/Release gates. Each
+configuration builds all six consumers with 0 warnings and 0 errors, compiles the
+production-library probe, and completes every scenario with exit 0.
+
+| Scenario | Checks per configuration | Result in Debug and Release |
+| --- | --- | --- |
+| Normal lifetime / minimized close / application unwind | 472 / 475 / 469; three full cycles per mode | PASS |
+| ImGui context failure / SDL-backend partial failure | 5 / 6 | PASS |
+| SDL failure / window failure / empty window list | 10 each | PASS |
+| Window ownership | 9 | PASS |
+| Resource moves | 238 | PASS |
+| Owned/borrowed texture cache | 101; two cache lifetimes | PASS |
+
+Final evidence is `logs/rendering/phase18/final/Debug/results.json` and
+`logs/rendering/phase18/final/Release-recovered/results.json`. All 78 behavior and
+protected-input fingerprints still match `final-inputs.json`. Debug completed
+before the interruption and is reused on that identity basis. The interrupted
+`final/Release/` contains only partial build evidence and is not counted as passed.
+The resumed attempt under `final/Release-resumed/` failed on a zero-byte generated
+`imgui.obj` (LNK1136). That object and its metadata were preserved under
+`final/recovery/`; the unchanged toolchain regenerated it, and the recovered Release
+run passed all gates. Source, assertions and the existing eight-file implementation
+were unchanged during this recovery.
+
+Historical failures remain in their original directories and the prior review
+iterations. They include the original missing UBO/framebuffer resources, the later
+cached-texture leak, and a standalone fixture TTF initialization mistake. No failure
+was waived or relabeled. The current review records the final seal-dependent human
+review status; validation completion is not phase approval.

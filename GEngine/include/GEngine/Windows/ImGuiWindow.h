@@ -1,6 +1,7 @@
 #pragma once
 
 union SDL_Event;
+struct ImGuiContext;
 
 namespace GEngine
 {
@@ -19,6 +20,9 @@ namespace GEngine
 	public:
 		ImGuiWindow_() {}
 		~ImGuiWindow_() { ShutDown(); };
+		ImGuiWindow_(const ImGuiWindow_&) = delete;
+		ImGuiWindow_& operator=(const ImGuiWindow_&) = delete;
+		ImGuiContext* GetContext() const { return m_Context; }
 
 		void Initialize(SDLWindow* window, const ImGuiWindowProperties& ImGuiWindowProps = ImGuiWindowProperties{});
 		void ShutDown();
@@ -32,6 +36,8 @@ namespace GEngine
 
 		bool WantCaptureMouse();
 		bool WantCaptureKeyBoard();
+	private:
+		ImGuiContext* m_Context = nullptr;
 	};
 	
 

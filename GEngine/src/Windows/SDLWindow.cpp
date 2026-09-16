@@ -7,6 +7,7 @@
 #include <imgui/imgui.h>
 //#include <Core/Renderer.h>
 #include "Core/BaseApp.h"
+#include <stdexcept>
 
 namespace GEngine
 {
@@ -16,11 +17,13 @@ namespace GEngine
 
 	SDLWindow::~SDLWindow()
 	{
-		
+		ShutDown();
 	}
 
 	void SDLWindow::Initialize(const WindowProperties& winProp)
 	{
+		if (m_Window || m_Context || m_ImGuiWindow)
+			throw std::logic_error("SDLWindow is already initialized");
 		uint32_t flag = GetWindowFlag(winProp);
 	
 
@@ -56,7 +59,8 @@ namespace GEngine
 
 		SetWindow(mode.w, mode.h, flag, winProp);
 		
-		ASSERT(m_Window, "SDL Window couldn't be created!");
+		if (!m_Window)
+			throw std::runtime_error(std::string("SDL window creation failed: ") + SDL_GetError());
 
 		m_ScreenWidth = winProp.m_Width;
 		m_ScreenHeight = winProp.m_Height;
@@ -66,7 +70,8 @@ namespace GEngine
 		SDL_SetWindowMinimumSize(m_Window, winProp.m_MinWidth, winProp.m_MinHeight);
 
 		m_Context = GLDebug::CreateContext(m_Window);
-		ASSERT(m_Context, "SDL_GL context couldn't be created!");
+		if (!m_Context)
+			throw std::runtime_error(std::string("OpenGL context creation failed: ") + SDL_GetError());
 
 		SDL_SetHintWithPriority(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "1", SDL_HINT_OVERRIDE);
 		//SDL_SetHintWithPriority(SDL_HINT_MOUSE_RELATIVE_SCALING, "1", SDL_HINT_OVERRIDE);
@@ -74,7 +79,8 @@ namespace GEngine
 		int success = gladLoadGL();
 
 		//Load OpenGL Context
-		ASSERT(success, "OpenGL functions couldn't be loaded!");
+		if (!success)
+			throw std::runtime_error("OpenGL functions could not be loaded");
 		GLDebug::Initialize();
 		const GLDebug::Group initialization("Window initialization");
 
@@ -113,9 +119,19 @@ namespace GEngine
 
 	void SDLWindow::ShutDown() 
 	{
+		auto* previousWindow = SDL_GL_GetCurrentWindow();
+		const auto previousContext = SDL_GL_GetCurrentContext();
+		const bool restorePrevious = previousContext && previousContext != m_Context;
 		// ImGui's GL backend needs the owning context and SDL window during cleanup.
-		if (m_Window && m_Context) SDL_GL_MakeCurrent(m_Window, m_Context);
+		if (m_Window && m_Context && SDL_GL_MakeCurrent(m_Window, m_Context) != 0)
 		{
+			// Continuing would delete GPU resources against the wrong context.
+			std::fprintf(stderr, "Cannot make the owning shutdown context current: %s\n", SDL_GetError());
+			std::terminate();
+		}
+		if (m_ImGuiWindow)
+		{
+			// No diagnostic GL calls before the loader succeeded on partial init.
 			const GLDebug::Group teardown("Window teardown");
 			delete m_ImGuiWindow;
 		}
@@ -123,6 +139,7 @@ namespace GEngine
 		if (m_Context) FreeContext();
 		if (m_Window) SDL_DestroyWindow(m_Window);
 		m_Window = nullptr;
+		if (restorePrevious) SDL_GL_MakeCurrent(previousWindow, previousContext);
 	}
 
 	void SDLWindow::SetTitle(const std::string& title) const
@@ -213,6 +230,7 @@ namespace GEngine
 	void SDLWindow::BeginRender() 
 	{
 		SDL_GL_MakeCurrent(m_Window, m_Context);
+		if (m_ImGuiWindow) ImGui::SetCurrentContext(m_ImGuiWindow->GetContext());
 		//glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 		//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 	}

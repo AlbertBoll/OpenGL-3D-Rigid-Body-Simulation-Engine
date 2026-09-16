@@ -1,4 +1,5 @@
 #include "gepch.h"
+#include <utility>
 #include "Core/RenderTarget.h"
 #include <sstream>
 #include <stdexcept>
@@ -727,6 +728,38 @@ namespace GEngine
 		glBindBuffer(GL_UNIFORM_BUFFER, 0);
 	}
 
+	template<UniformType Type>
+	UniformBufferObject<Type>::~UniformBufferObject()
+	{
+		if (m_UBO) glDeleteBuffers(1, &m_UBO);
+	}
+
+	template<UniformType Type>
+	void UniformBufferObject<Type>::Swap(UniformBufferObject& other) noexcept
+	{
+		std::swap(m_UBO, other.m_UBO);
+		std::swap(m_MaxSize, other.m_MaxSize);
+		std::swap(m_BindingPoint, other.m_BindingPoint);
+		std::swap(m_UniformTypeSize, other.m_UniformTypeSize);
+	}
+
+	template<UniformType Type>
+	UniformBufferObject<Type>::UniformBufferObject(UniformBufferObject&& other) noexcept
+	{
+		Swap(other);
+	}
+
+	template<UniformType Type>
+	UniformBufferObject<Type>& UniformBufferObject<Type>::operator=(UniformBufferObject&& other) noexcept
+	{
+		if (this != &other)
+		{
+			UniformBufferObject retired(std::move(other));
+			Swap(retired); // The replaced resource retires here on the calling context thread.
+		}
+		return *this;
+	}
+
 	template class UniformBufferObject<UniformType::VEC2F>;
 	template class UniformBufferObject<UniformType::VEC3F>;
 	template class UniformBufferObject<UniformType::VEC4F>;
@@ -841,6 +874,46 @@ namespace GEngine
 
 	}
 
+	FinalFrameBuffer::~FinalFrameBuffer()
+	{
+		Release();
+	}
+
+	void FinalFrameBuffer::Release() noexcept
+	{
+		if (m_FBO) glDeleteFramebuffers(1, &m_FBO);
+		if (m_MousePickMap) glDeleteTextures(1, &m_MousePickMap);
+		if (m_DepthMap) glDeleteTextures(1, &m_DepthMap);
+		if (m_ColorMap) glDeleteTextures(1, &m_ColorMap);
+		m_FBO = m_MousePickMap = m_DepthMap = m_ColorMap = 0;
+	}
+
+	void FinalFrameBuffer::Swap(FinalFrameBuffer& other) noexcept
+	{
+		std::swap(m_FBO, other.m_FBO);
+		std::swap(m_ColorMap, other.m_ColorMap);
+		std::swap(m_MousePickMap, other.m_MousePickMap);
+		std::swap(m_DepthMap, other.m_DepthMap);
+		std::swap(m_Width, other.m_Width);
+		std::swap(m_Height, other.m_Height);
+		std::swap(m_Samples, other.m_Samples);
+	}
+
+	FinalFrameBuffer::FinalFrameBuffer(FinalFrameBuffer&& other) noexcept
+	{
+		Swap(other);
+	}
+
+	FinalFrameBuffer& FinalFrameBuffer::operator=(FinalFrameBuffer&& other) noexcept
+	{
+		if (this != &other)
+		{
+			FinalFrameBuffer retired(std::move(other));
+			Swap(retired);
+		}
+		return *this;
+	}
+
 	void FinalFrameBuffer::OnResize(unsigned int width, unsigned int height)
 	{
 		m_Width = width;
@@ -897,14 +970,7 @@ namespace GEngine
 	void FinalFrameBuffer::Invalidate()
 	{
 		RenderCounters::RecordTargetReallocation(m_FBO != 0);
-		if (m_FBO)
-		{
-			//delete m_Texture;
-			glDeleteFramebuffers(1, &m_FBO);
-			glDeleteTextures(1, &m_MousePickMap);
-			glDeleteTextures(1, &m_DepthMap);
-			glDeleteTextures(1, &m_ColorMap);
-		}
+		Release();
 
 		// Create a frame buffer
 		glGenFramebuffers(1, &m_FBO);

@@ -30,11 +30,22 @@ namespace GEngine
 
     BaseApp::~BaseApp()
     {
-        // Destroy scene borrowers before their shared caches, with GL still current.
+        // EntryPoint destroys the application before it releases the platform.
+        // Derived resources are already gone; keep the owning context current for
+        // scene borrowers, then renderer targets, then their shared asset caches.
+        if (m_SDLWindow) m_SDLWindow->BeginRender();
         m_Scene.reset();
+        m_UniformBufferObject.reset();
+        m_FinalFrameBuffer.reset();
+        m_MousePickFrameBuffer.reset();
+        m_PointShadowFrameBuffer.reset();
+        m_CascadeShadowFrameBuffer.reset();
+        m_RenderTarget.reset();
         AssetsManager::FreeAllResources();
         ShaderManager::FreeShader();
         ShapeManager::FreeShape();
+        m_SDLWindow = nullptr;
+        m_Initialize = false;
     }
 
     void BaseApp::Initialize(const WindowProperties& WindowsPropertyList)
@@ -88,6 +99,12 @@ namespace GEngine
                 << " estimated depth storage=" << (12ull * shadowResolution * shadowResolution * 4 / (1024 * 1024))
                 << " MiB (six cascade layers + six cube faces, estimated at four bytes/texel)" << std::endl;
             m_GEngine.Initialize(WindowsPropertyList);
+            // SDL window IDs are process-generated, not a permanent main-window ID.
+            auto& windows = GetWindowManager()->GetWindows();
+            const auto mainWindow = std::min_element(windows.begin(), windows.end(),
+                [](const auto& left, const auto& right) { return left.first < right.first; });
+            m_SDLWindow = static_cast<SDLWindow*>(mainWindow->second.get());
+            m_SDLWindow->BeginRender();
             const GLDebug::Group initialization("Application render resources");
         
             GENGINE_CORE_INFO("Initialize Scene...");
@@ -148,7 +165,6 @@ namespace GEngine
             GetEventManager()->GetEventDispatcher().RegisterEvent(AppQuitEvent);
           
 
-            m_SDLWindow = static_cast<SDLWindow*>(GetWindowManager()->GetInternalWindow(1));
             const auto windowFlags = SDL_GetWindowFlags(m_SDLWindow->GetSDLWindow());
             m_Minimized = (windowFlags & SDL_WINDOW_MINIMIZED) != 0;
             m_WindowHidden = (windowFlags & SDL_WINDOW_HIDDEN) != 0;

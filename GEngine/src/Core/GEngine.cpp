@@ -2,6 +2,7 @@
 #include "Core/GEngine.h"
 #include "Managers/ShapeManager.h"
 #include "Core/Renderer.h"
+#include <stdexcept>
 
 
 
@@ -42,8 +43,11 @@ namespace GEngine
 
 	void GEngine::Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)
 	{
-
-			Log::Initialize();
+			if (WindowsPropertyList.size() == 0)
+				throw std::invalid_argument("GEngine requires a main window");
+			m_Running = true;
+			// Logging is process-owned; repeated platform lifetimes reuse its loggers.
+			if (!Log::GetCoreLogger()) Log::Initialize();
 			GENGINE_CORE_INFO("Initialize Logging...");
 			GENGINE_CORE_INFO("GEngine v{}.{}", 1, 0);
 
@@ -57,15 +61,17 @@ namespace GEngine
 			//int code = SDL_Init(SDL_INIT_EVERYTHING);
 			int code = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER);
 
-			ASSERT(!code, "SDL initialize failure");
+			if (code != 0)
+				throw std::runtime_error(std::string("SDL initialization failed: ") + SDL_GetError());
 
 			SDL_version version{};
 			SDL_VERSION(&version);
 
 			GENGINE_CORE_INFO("SDL {}.{}.{}", (uint32_t)version.major, (uint32_t)version.minor, (uint32_t)version.patch);
 
-			SDL_DisplayMode mode;
-			SDL_GetDesktopDisplayMode(0, &mode);
+			mode = {};
+			if (SDL_GetDesktopDisplayMode(0, &mode) != 0)
+				throw std::runtime_error(std::string("SDL display query failed: ") + SDL_GetError());
 			GENGINE_CORE_INFO("Display width: {}. Display height: {}. Refresh Rate: {}", mode.w, mode.h, mode.refresh_rate);
 
 			GENGINE_CORE_INFO("Initialize Window Manager...");
@@ -75,6 +81,10 @@ namespace GEngine
 
 		    
 			GetWindowManager()->AddWindows(WindowsPropertyList);
+			// Shared engine resources belong to the first application's GL context.
+			auto& windows = GetWindowManager()->GetWindows();
+			std::min_element(windows.begin(), windows.end(),
+				[](const auto& left, const auto& right) { return left.first < right.first; })->second->BeginRender();
 			
 
 
@@ -99,7 +109,7 @@ namespace GEngine
 
 			if (TTF_Init() != 0)
 			{
-				GENGINE_CORE_ERROR("Failed to initialize SDL_ttf");
+				throw std::runtime_error(std::string("SDL_ttf initialization failed: ") + TTF_GetError());
 			}
 			
 			
@@ -139,11 +149,12 @@ namespace GEngine
 		// Called after application destruction; retire callbacks before their platform.
 		ShutDown();
 		m_EventManager.reset();
+		// Window owners retire ImGui, GL contexts and native windows in that order.
+		m_WindowManager.reset();
 		if (m_InputManager) m_InputManager->ShutDown();
 		m_InputManager.reset();
-		m_WindowManager.reset();
-		TTF_Quit();
-		SDL_Quit();
+		if (TTF_WasInit()) TTF_Quit();
+		if (SDL_WasInit(0)) SDL_Quit();
 	}
 
 

@@ -29,169 +29,184 @@ namespace GEngine::Asset
 
 
 
-	Shader::Shader(): m_ProgramHandle{0}, m_Linked{false}
-	{
+    namespace
+    {
+        [[noreturn]] void CreationFailure(ShaderCreationCode code, std::optional<ShaderType> type,
+            std::string_view source, std::string log)
+        {
+            throw ShaderCreationException({code, type, std::string(source), std::move(log)});
+        }
 
-	}
+        struct ShaderObject
+        {
+            GLuint name;
+            explicit ShaderObject(GLuint value) : name(value) {}
+            ShaderObject(const ShaderObject&) = delete;
+            ShaderObject& operator=(const ShaderObject&) = delete;
+            ~ShaderObject() { if (name) glDeleteShader(name); }
+        };
 
+        std::string CreationLog(GLuint name, bool program)
+        {
+            GLint length = 0;
+            if (program) glGetProgramiv(name, GL_INFO_LOG_LENGTH, &length);
+            else glGetShaderiv(name, GL_INFO_LOG_LENGTH, &length);
+            if (length <= 1) return {};
+            std::string log(static_cast<std::size_t>(length), '\0');
+            GLsizei written = 0;
+            if (program) glGetProgramInfoLog(name, length, &written, log.data());
+            else glGetShaderInfoLog(name, length, &written, log.data());
+            log.resize(static_cast<std::size_t>(written));
+            return log;
+        }
+    }
 
-	Shader::~Shader()
-	{
-		Destroy();
-	}
+    Shader::Shader() noexcept = default;
+    Shader::~Shader() { Destroy(); }
 
-	Shader::Shader(Shader&& other) noexcept
-	{
-		m_Linked = other.m_Linked;
-		m_ProgramHandle = other.m_ProgramHandle;
+    Shader::Shader(Shader&& other) noexcept
+        : m_ProgramHandle(std::exchange(other.m_ProgramHandle, 0)),
+          m_Linked(std::exchange(other.m_Linked, false)),
+          m_UniformLocations(std::move(other.m_UniformLocations)),
+          m_ShaderObjects(std::move(other.m_ShaderObjects))
+    {}
 
-		other.m_Linked = false;
-		other.m_ProgramHandle = 0; //invalid handle
-		m_UniformLocations = std::move(other.m_UniformLocations);
-	}
+    Shader& Shader::operator=(Shader&& other) noexcept
+    {
+        if (this != &other)
+        {
+            Destroy();
+            m_ProgramHandle = std::exchange(other.m_ProgramHandle, 0);
+            m_Linked = std::exchange(other.m_Linked, false);
+            m_UniformLocations = std::move(other.m_UniformLocations);
+            m_ShaderObjects = std::move(other.m_ShaderObjects);
+        }
+        return *this;
+    }
 
+    void Shader::CompileShader(const char* fileName)
+    {
+        try
+        {
+            if (!fileName || !*fileName)
+                CreationFailure(ShaderCreationCode::InvalidInput, {}, {}, "Shader filename is empty");
+            const auto it = extensions.find(GetExtension(fileName));
+            if (it == extensions.end())
+                CreationFailure(ShaderCreationCode::InvalidInput, {}, fileName, "Unrecognized shader extension");
+            CompileShader(fileName, it->second);
+        }
+        catch (...) { if (!m_Linked) Destroy(); throw; }
+    }
 
-	Shader& Shader::operator=(Shader&& other) noexcept
-	{
-		if (this != &other)
-		{
-			Destroy();
-			m_Linked = other.m_Linked;
-			m_ProgramHandle = other.m_ProgramHandle;
+    void Shader::CompileShader(const char* fileName, ShaderType type)
+    {
+        try
+        {
+            if (!fileName || !*fileName)
+                CreationFailure(ShaderCreationCode::InvalidInput, type, {}, "Shader filename is empty");
+            if (m_Linked)
+                CreationFailure(ShaderCreationCode::InvalidState, type, fileName, "Build a new Shader to replace a linked program");
+            std::ifstream input(fileName, std::ios::in | std::ios::binary);
+            if (!input)
+                CreationFailure(ShaderCreationCode::FileRead, type, fileName, "Unable to open shader source");
+            std::stringstream code;
+            code << input.rdbuf();
+            if (input.bad() || code.bad())
+                CreationFailure(ShaderCreationCode::FileRead, type, fileName, "Unable to read shader source");
+            CompileShader(code.str(), type, fileName);
+        }
+        catch (...) { if (!m_Linked) Destroy(); throw; }
+    }
 
-			other.m_Linked = false;
-			other.m_ProgramHandle = 0; //invalid handle
+    void Shader::CompileShader(const std::string& source, ShaderType type, const char* fileName)
+    {
+        try
+        {
+            const std::string_view label = fileName ? fileName : "";
+            if (m_Linked)
+                CreationFailure(ShaderCreationCode::InvalidState, type, label, "Build a new Shader to replace a linked program");
+            if (type != VERTEX && type != FRAGMENT && type != GEOMETRY
+                && type != TESS_CONTROL && type != TESS_EVALUATION && type != COMPUTE)
+                CreationFailure(ShaderCreationCode::InvalidInput, type, label, "Unsupported shader stage");
+            if (source.empty() || source.size() > static_cast<std::size_t>((std::numeric_limits<GLint>::max)()))
+                CreationFailure(ShaderCreationCode::InvalidInput, type, label, "Shader source is empty or exceeds the GL length limit");
+            if (!m_ProgramHandle)
+            {
+                m_ProgramHandle = glCreateProgram();
+                if (!m_ProgramHandle)
+                    CreationFailure(ShaderCreationCode::ProgramAllocation, type, label, "Unable to create shader program");
+            }
+            ShaderObject shader(glCreateShader(type));
+            if (!shader.name)
+                CreationFailure(ShaderCreationCode::ShaderAllocation, type, label, "Unable to create shader object");
+            const char* text = source.data();
+            const auto length = static_cast<GLint>(source.size());
+            glShaderSource(shader.name, 1, &text, &length);
+            glCompileShader(shader.name);
+            GLint status = GL_FALSE;
+            glGetShaderiv(shader.name, GL_COMPILE_STATUS, &status);
+            if (status != GL_TRUE)
+                CreationFailure(ShaderCreationCode::Compile, type, label, "Shader compilation failed:\n" + CreationLog(shader.name, false));
+            // Allocation can throw here; the local owner still owns the shader.
+            if (!m_ShaderObjects)
+                m_ShaderObjects = std::make_unique<std::vector<unsigned int>>(0);
+            m_ShaderObjects->push_back(shader.name);
+            const auto name = std::exchange(shader.name, 0);
+            glAttachShader(m_ProgramHandle, name);
+        }
+        catch (...) { if (!m_Linked) Destroy(); throw; }
+    }
 
-			m_UniformLocations = std::move(other.m_UniformLocations);
-		}
-		return *this;
-	}
+    void Shader::Link()
+    {
+        if (m_Linked) return;
+        try
+        {
+            if (!m_ProgramHandle || !m_ShaderObjects || m_ShaderObjects->empty())
+                CreationFailure(ShaderCreationCode::InvalidState, {}, {}, "Program has no compiled shader stages");
+            glLinkProgram(m_ProgramHandle);
+            GLint status = GL_FALSE;
+            glGetProgramiv(m_ProgramHandle, GL_LINK_STATUS, &status);
+            if (status != GL_TRUE)
+                CreationFailure(ShaderCreationCode::Link, {}, {}, "Program link failed:\n" + CreationLog(m_ProgramHandle, true));
+            DetachAndDeleteShaderObjects();
+            FindUniformLocations();
+            m_Linked = true;
+        }
+        catch (...) { Destroy(); throw; }
+    }
 
+    ShaderCreationResult CreateShaderProgram(std::span<const ShaderSource> sources)
+    {
+        Shader candidate;
+        try
+        {
+            if (sources.empty())
+                CreationFailure(ShaderCreationCode::InvalidInput, {}, {}, "Shader program requires source stages");
+            for (const auto& source : sources)
+            {
+                const std::string label(source.label);
+                candidate.CompileShader(std::string(source.source), source.type, label.c_str());
+            }
+            candidate.Link();
+            return candidate;
+        }
+        catch (const ShaderCreationException& failure) { return failure.Error(); }
+    }
 
-	void Shader::CompileShader(const char* fileName)
-	{
-		// Check the file name's extension to determine the shader type
-		const std::string ext = GetExtension(fileName);
-		ShaderType type = VERTEX; //default is vertex shader
-
-		const auto it = extensions.find(ext);
-
-		if (it == extensions.end()) throw std::runtime_error("Unrecognized shader extension: " + ext);
-
-		type = it->second;
-
-		// Pass the discovered shader type along
-		CompileShader(fileName, type);
-	}
-
-	void Shader::CompileShader(const char* fileName, ShaderType type)
-	{
-		//Assert filename exists
-		if (!FileExists(fileName)) throw std::runtime_error(std::string("Shader: ") + fileName + " not found.");
-
-
-			if (m_ProgramHandle <= 0)
-			{
-				m_ProgramHandle = glCreateProgram();
-
-				//Assert shader program was created successfully
-				if (!m_ProgramHandle) throw std::runtime_error("Unable to create shader program.");
-			}
-
-		std::ifstream inFile(fileName, std::ios::in);
-
-		if (!inFile) throw std::runtime_error(std::string("Unable to open shader: ") + fileName);
-
-		// Get file contents
-		std::stringstream code;
-		code << inFile.rdbuf();
-		inFile.close();
-
-		CompileShader(code.str(), type, fileName);
-	}
-
-
-	void Shader::CompileShader(const std::string& source, ShaderType type, const char* fileName)
-	{
-		if (m_ProgramHandle <= 0) {
-			m_ProgramHandle = glCreateProgram();
-
-			//Assert shader program was created successfully
-			if (!m_ProgramHandle) throw std::runtime_error("Unable to create shader program.");
-		}
-
-		const GLuint shaderHandle = glCreateShader(type);
-		if (!shaderHandle) throw std::runtime_error("Unable to create shader object.");
-		// The program owns this pending object even if compilation/log allocation
-		// fails. Destroy() detaches/deletes all attached objects during unwind.
-		glAttachShader(m_ProgramHandle, shaderHandle);
-
-		const char* c_code = source.c_str();
-		glShaderSource(shaderHandle, 1, &c_code, nullptr);
-
-		// Compile the shader
-		glCompileShader(shaderHandle);
-
-		// Check for errors
-		int result;
-		glGetShaderiv(shaderHandle, GL_COMPILE_STATUS, &result);
-
-		if (GL_FALSE == result) {
-			// Compile failed, get log
-			std::string msg;
-			if (fileName) {
-				msg = std::string(fileName) + ": shader compilation failed\n";
-			}
-			else {
-				msg = "Shader compilation failed.\n";
-			}
-
-			int length = 0;
-			glGetShaderiv(shaderHandle, GL_INFO_LOG_LENGTH, &length);
-			if (length > 0) {
-				std::string log(length, ' ');
-				int written = 0;
-				glGetShaderInfoLog(shaderHandle, length, &written, &log[0]);
-				msg += log;
-			}
-
-			throw std::runtime_error(msg);
-
-		}
-
-	}
-
-	void Shader::Link()
-	{
-		if (m_Linked) return;
-		if (!m_ProgramHandle) throw std::runtime_error("Program has not been compiled.");
-
-		glLinkProgram(m_ProgramHandle);
-
-		int status = 0;
-		std::string errString;
-		glGetProgramiv(m_ProgramHandle, GL_LINK_STATUS, &status);
-		if (GL_FALSE == status) {
-			// Store log and return false
-			int length = 0;
-			glGetProgramiv(m_ProgramHandle, GL_INFO_LOG_LENGTH, &length);
-			errString += "Program link failed:\n";
-			if (length > 0) {
-				std::string log(length, ' ');
-				int written = 0;
-				glGetProgramInfoLog(m_ProgramHandle, length, &written, &log[0]);
-				errString += log;
-			}
-		}
-		else {
-			FindUniformLocations();
-			m_Linked = true;
-		}
-
-		DetachAndDeleteShaderObjects();
-
-		if (status != GL_TRUE) throw std::runtime_error(errString);
-	}
+    ShaderCreationResult CreateShaderProgramFromFiles(std::span<const std::string> files)
+    {
+        Shader candidate;
+        try
+        {
+            if (files.empty())
+                CreationFailure(ShaderCreationCode::InvalidInput, {}, {}, "Shader program requires source files");
+            for (const auto& file : files) candidate.CompileShader(file.c_str());
+            candidate.Link();
+            return candidate;
+        }
+        catch (const ShaderCreationException& failure) { return failure.Error(); }
+    }
 
 	void Shader::Validate() const
 	{
@@ -244,15 +259,13 @@ namespace GEngine::Asset
 	}
 
 
-	void Shader::Destroy()
-	{
-		if (m_ProgramHandle == 0) return;
-		DetachAndDeleteShaderObjects();
-
-		// Delete the program
-		glDeleteProgram(m_ProgramHandle);
-		m_ProgramHandle = 0;
-	}
+    void Shader::Destroy() noexcept
+    {
+        DetachAndDeleteShaderObjects();
+        if (m_ProgramHandle) glDeleteProgram(std::exchange(m_ProgramHandle, 0));
+        m_Linked = false;
+        m_UniformLocations.reset();
+    }
 
 	void Shader::BindAttribLocation(unsigned int location, const char* name) const
 	{
@@ -299,30 +312,25 @@ namespace GEngine::Asset
 	}
 
 
-	void Shader::FindUniformLocations()
-	{
-		m_UniformLocations.clear();
-
-		GLint numUniforms = 0;
-
-		// For OpenGL 4.3 and above, use glGetProgramResource
-		glGetProgramInterfaceiv(m_ProgramHandle, GL_UNIFORM, GL_ACTIVE_RESOURCES, &numUniforms);
-
-		GLenum properties[] = { GL_NAME_LENGTH, GL_TYPE, GL_LOCATION, GL_BLOCK_INDEX };
-
-		for (GLint i = 0; i < numUniforms; ++i) {
-			GLint results[4];
-			glGetProgramResourceiv(m_ProgramHandle, GL_UNIFORM, i, 4, properties, 4, nullptr, results);
-
-			if (results[3] != -1) continue;  // Skip uniforms in blocks
-			const GLint nameBufSize = results[0] + 1;
-			char* name = new char[nameBufSize];
-			glGetProgramResourceName(m_ProgramHandle, GL_UNIFORM, i, nameBufSize, nullptr, name);
-			m_UniformLocations[name] = results[2];
-			delete[] name;
-		}
-	}
-
+    void Shader::FindUniformLocations()
+    {
+        auto locations = std::make_unique<UniformLocations>();
+        GLint count = 0;
+        glGetProgramInterfaceiv(m_ProgramHandle, GL_UNIFORM, GL_ACTIVE_RESOURCES, &count);
+        const GLenum properties[] = { GL_NAME_LENGTH, GL_LOCATION, GL_BLOCK_INDEX };
+        for (GLint i = 0; i < count; ++i)
+        {
+            GLint values[3]{};
+            glGetProgramResourceiv(m_ProgramHandle, GL_UNIFORM, i, 3, properties, 3, nullptr, values);
+            if (values[2] != -1) continue;
+            std::string name(static_cast<std::size_t>(values[0]), '\0');
+            GLsizei written = 0;
+            glGetProgramResourceName(m_ProgramHandle, GL_UNIFORM, i, values[0], &written, name.data());
+            name.resize(static_cast<std::size_t>(written));
+            locations->emplace(std::move(name), values[1]);
+        }
+        m_UniformLocations = std::move(locations);
+    }
 
 	void Shader::PrintActiveUniforms() const
 	{
@@ -421,44 +429,26 @@ namespace GEngine::Asset
 	}
 
 
-	GLuint Shader::GetUniformLocation(const char* name)
-	{
-		if (const auto pos = m_UniformLocations.find(name); pos != m_UniformLocations.end())
-		{
-			return pos->second;
-		}
+    int Shader::GetUniformLocation(const char* name)
+    {
+        if (!m_Linked || !name) return -1;
+        auto& locations = GetUniformLocations();
+        if (const auto found = locations.find(name); found != locations.end()) return found->second;
+        const GLint location = glGetUniformLocation(m_ProgramHandle, name);
+        locations.emplace(name, location); // Cache missing (-1) locations too.
+        return location;
+    }
 
-		const GLint loc = glGetUniformLocation(m_ProgramHandle, name);
-		m_UniformLocations[name] = loc;
-		return loc;
-
-	}
-
-
-	void Shader::DetachAndDeleteShaderObjects() const
-	{
-		// Detach and delete the shader objects (if they are not already removed)
-		GLint numShaders = 0;
-		glGetProgramiv(m_ProgramHandle, GL_ATTACHED_SHADERS, &numShaders);
-		std::vector<GLuint> shaderNames(numShaders);
-		glGetAttachedShaders(m_ProgramHandle, numShaders, nullptr, shaderNames.data());
-		for (GLuint shader : shaderNames) {
-			glDetachShader(m_ProgramHandle, shader);
-			glDeleteShader(shader);
-		}
-	}
-
-
-	bool Shader::FileExists(const std::string& fileName)
-	{
-
-		struct stat info {};
-		int ret = -1;
-
-		ret = stat(fileName.c_str(), &info);
-		return 0 == ret;
-	}
-
+    void Shader::DetachAndDeleteShaderObjects() noexcept
+    {
+        if (!m_ShaderObjects) return;
+        for (const auto shader : *m_ShaderObjects)
+        {
+            glDetachShader(m_ProgramHandle, shader);
+            glDeleteShader(shader);
+        }
+        m_ShaderObjects.reset();
+    }
 
 	std::string Shader::GetExtension(const char* name)
 	{

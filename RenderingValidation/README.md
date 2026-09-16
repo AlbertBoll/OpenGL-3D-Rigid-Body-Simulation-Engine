@@ -909,3 +909,47 @@ sampler diagnostics; standalone RBO checks cover real multisample storage.
 Framebuffer ownership/format redesign, visual equivalence, benchmarks and
 sanitizers are outside this phase. The existing application smoke runner can check
 all four default configurations after these builds.
+
+## Shader program ownership (Phase 24)
+
+```powershell
+python tools/test_shader_program.py --configuration Debug --output logs/rendering/phase24/final/Debug
+python tools/test_shader_program.py --configuration Release --output logs/rendering/phase24/final/Release
+```
+
+The runner builds all six consumers with the existing C++20/static CRT toolchain,
+then runs the production Shader implementation through two real GL 4.6 context
+lifetimes per configuration. It also runs the existing ShaderManager failure/cache
+fixture. The four default application smokes use `tools/test_shutdown.py --smoke`
+after these builds. Runtime shader fixtures are written into disposable log folders.
+
+`CreateShaderProgram` and `CreateShaderProgramFromFiles` return a C++20 variant
+containing either a completely linked/reflected move-only Shader or a structured
+error (code, optional stage, source label and diagnostic log). Incremental builders
+and the existing manager boundary throw `ShaderCreationException` with the same
+error fields. Standard allocation failures can still propagate as `std::bad_alloc`;
+all partial shader/program names are retired during unwinding. Failed incremental
+builds reset immediately. Compiling into a linked owner is rejected without
+changing it; build a separate candidate for replacement.
+
+Link retires all intermediate shaders and discovers uniforms once. The manager
+publishes only a successful candidate and no longer repeats discovery. Missing
+uniforms cache signed -1 and GL ignores uploads at that location. Moves, replacement
+and destruction allocate no memory, including with MSVC Debug container proxies;
+CPU containers transfer through unique ownership. GL operations and destruction
+still require the owning context thread and a live context.
+
+The probe checks real valid/invalid GLSL, link interface mismatch, missing source,
+unsupported input, missing-uniform caching, uniform readback, moves/relocation,
+exact deletion and context-thread ownership. It injects zero-name creation,
+allocation denial after compilation, and log/reflection exceptions, then checks
+cleanup and recovery. These are deterministic controls, not physical GPU-memory
+exhaustion or device-loss tests. Expected compiler diagnostics are isolated to the
+negative GLSL cases; unexpected GL errors/high/medium diagnostics fail the probe.
+A marker confirms that diagnostics are active. Debug additionally requires worker
+destruction rejection with exit 86 before the driver sentinel (87).
+
+Program validation retains its existing pipeline-dependent diagnostic behavior.
+This phase does not introduce resource handles, shader hot reload, pipeline-state
+redesign, C++23, benchmark or sanitizer gates. Application smokes establish startup
+and clean native close, not visual equivalence.

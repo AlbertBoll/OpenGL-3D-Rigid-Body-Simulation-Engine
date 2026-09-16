@@ -12,14 +12,13 @@ namespace GEngine::Manager
     {
         auto& cache = Current().m_ShaderMap;
         if (auto it = cache.find(files); it != cache.end()) return it->second.get();
-        if (files.keys_filepath.empty()) throw std::invalid_argument("Shader program requires source files");
-        auto shader = std::make_unique<Shader>();
-        for (const auto& file : files.keys_filepath) shader->CompileShader(file.c_str());
-        shader->Link();
+        auto creation = CreateShaderProgramFromFiles(files.keys_filepath);
+        if (const auto* error = std::get_if<ShaderCreationError>(&creation))
+            throw ShaderCreationException(*error);
+        auto shader = std::make_unique<Shader>(std::move(std::get<Shader>(creation)));
         // Validate depends on current sampler/pipeline state, not successful linking.
         // Preserve its existing diagnostic behavior; compilation/link failures throw.
         shader->Validate();
-        shader->FindUniformLocations();
         auto* result = shader.get();
         cache.emplace(files, std::move(shader));
         return result;

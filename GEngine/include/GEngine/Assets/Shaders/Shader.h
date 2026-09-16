@@ -1,6 +1,15 @@
 #pragma once
 
 #include <map>
+#include <memory>
+#include <optional>
+#include <span>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
 #include "Math/Math.h"
 #include <glm/gtc/type_ptr.hpp>
 
@@ -35,12 +44,37 @@ namespace GEngine
 		};
 
 
+		enum class ShaderCreationCode { InvalidInput, InvalidState, FileRead, ProgramAllocation, ShaderAllocation, Compile, Link };
+		struct ShaderCreationError
+		{
+			ShaderCreationCode code;
+			std::optional<ShaderType> shaderType;
+			std::string source;
+			std::string log;
+		};
+		// Compatibility for incremental builders and the existing manager API.
+		class ShaderCreationException : public std::runtime_error
+		{
+		public:
+			explicit ShaderCreationException(ShaderCreationError error)
+				: std::runtime_error(error.log), m_Error(std::move(error)) {}
+			const ShaderCreationError& Error() const noexcept { return m_Error; }
+		private:
+			ShaderCreationError m_Error;
+		};
+		struct ShaderSource
+		{
+			ShaderType type;
+			std::string_view source;
+			std::string_view label;
+		};
+
 		class Shader
 		{
 
 		public:
 			//friend class GEngine::Material;
-			Shader();
+			Shader() noexcept;
 			~Shader();
 
 			//Shader class holds resource, make it non copyable
@@ -59,7 +93,7 @@ namespace GEngine
 			[[nodiscard]] int GetHandle() const;
 			[[nodiscard]] bool IsLinked() const;
 
-			void Destroy();
+			void Destroy() noexcept;
 			void BindAttribLocation(unsigned int location, const char* name) const;
 			void BindFragDataLocation(unsigned int location, const char* name) const;
 			static const char* GetTypeString(unsigned int type);
@@ -104,13 +138,16 @@ namespace GEngine
 
 
 
-			auto& GetUniformLocations() { return m_UniformLocations; }
+			auto& GetUniformLocations()
+			{
+				if (!m_UniformLocations) m_UniformLocations = std::make_unique<UniformLocations>();
+				return *m_UniformLocations;
+			}
 
 
 		private:
-			unsigned int GetUniformLocation(const char* name);
-			void DetachAndDeleteShaderObjects()const;
-			static bool FileExists(const std::string& fileName);
+			int GetUniformLocation(const char* name);
+			void DetachAndDeleteShaderObjects() noexcept;
 			static std::string GetExtension(const char* name);
 
 			template<typename T>
@@ -121,9 +158,18 @@ namespace GEngine
 		private:
 			unsigned int m_ProgramHandle{};
 			bool m_Linked{};
-			std::map<std::string, int> m_UniformLocations;
+			using UniformLocations = std::map<std::string, int>;
+			// Indirection keeps moves allocation-free even with MSVC's map sentinel.
+			std::unique_ptr<UniformLocations> m_UniformLocations;
+			// The Debug STL vector proxy can allocate even in its noexcept move.
+			std::unique_ptr<std::vector<unsigned int>> m_ShaderObjects;
 
 		};
+
+		// C++20 result: only a completely linked/reflected Shader is published.
+		using ShaderCreationResult = std::variant<Shader, ShaderCreationError>;
+		[[nodiscard]] ShaderCreationResult CreateShaderProgram(std::span<const ShaderSource> sources);
+		[[nodiscard]] ShaderCreationResult CreateShaderProgramFromFiles(std::span<const std::string> files);
 
 	}
 

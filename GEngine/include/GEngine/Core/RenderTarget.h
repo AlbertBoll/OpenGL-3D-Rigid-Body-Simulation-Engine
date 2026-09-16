@@ -172,6 +172,7 @@ namespace GEngine
 	class UniformBufferObject
 	{
 	public:
+		// max_size is a nonzero element count; invalid bindings/allocation failures throw.
 		UniformBufferObject(unsigned int max_size, unsigned int bind_point = 0);
 		// Move transfers ownership, not the context/thread that may delete the buffer.
 		~UniformBufferObject();
@@ -188,6 +189,29 @@ namespace GEngine
 		unsigned int m_MaxSize{};
 		unsigned int m_BindingPoint{};
 		unsigned int m_UniformTypeSize{};
+	};
+
+	// Owns one depth/stencil renderbuffer. Resize allocates before retiring the old
+	// name; a failed allocation preserves the owner and the prior GL binding.
+	class RenderBufferObject
+	{
+	public:
+		RenderBufferObject() noexcept = default;
+		RenderBufferObject(unsigned int width, unsigned int height, unsigned int samples = 1);
+		// Destruction/replacement require the owning current context thread.
+		~RenderBufferObject();
+		RenderBufferObject(const RenderBufferObject&) = delete;
+		RenderBufferObject& operator=(const RenderBufferObject&) = delete;
+		RenderBufferObject(RenderBufferObject&& other) noexcept;
+		RenderBufferObject& operator=(RenderBufferObject&& other) noexcept;
+		void Resize(unsigned int width, unsigned int height, unsigned int samples = 1);
+		unsigned int GetID() const { return m_ID; }
+		unsigned int GetWidth() const { return m_Width; }
+		unsigned int GetHeight() const { return m_Height; }
+		unsigned int GetSamples() const { return m_Samples; }
+	private:
+		void Swap(RenderBufferObject& other) noexcept;
+		unsigned int m_ID{}, m_Width{}, m_Height{}, m_Samples{};
 	};
 
 	class RenderTarget
@@ -211,7 +235,7 @@ namespace GEngine
 		[[nodiscard]] int GetColorAttachmentID() const { return m_ColorAttachmentID; }
 		[[nodiscard]] int GetScreenAttachmentID() const { return m_ScreenColorAttachmentID; }
 		[[nodiscard]] int GetMousePickAttachmentID() const { return m_MousePickColorAttachmentID; }
-		[[nodiscard]] int GetRenderBufferID() const { return m_RenderBufferID; }
+		[[nodiscard]] int GetRenderBufferID() const { return m_RenderBuffer.GetID(); }
 		//[[nodiscard]] Asset::Texture* GetTexture() const { return m_Texture; }
 
 		
@@ -243,15 +267,7 @@ namespace GEngine
 		void RenderSize(const Math::Vec2f& resolution = { 512, 512 });
 
 		unsigned int& GetSamples() { return m_Samples; }
-		void SetSamples(int new_Sample) 
-		{
-			if (new_Sample != m_Samples)
-			{
-				m_Samples = new_Sample;
-				Invalidate();
-			}
-				
-		}
+		void SetSamples(int new_Sample);
 
 		void OnResize(uint32_t width, uint32_t height);
 
@@ -265,7 +281,7 @@ namespace GEngine
 		bool b_MousePickEnabled = true;
 		unsigned int m_Samples = 16;
 		unsigned int m_FrameBufferID{};
-		unsigned int m_RenderBufferID{};
+		RenderBufferObject m_RenderBuffer;
 		unsigned int m_ColorAttachmentID{};
 		unsigned int m_MousePickColorID{};
 		unsigned int m_ScreenFrameBufferID{};

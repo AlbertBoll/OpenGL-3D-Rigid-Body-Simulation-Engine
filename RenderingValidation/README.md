@@ -866,3 +866,46 @@ operation exits 89. A guard diagnostic is mandatory except for the pre-existing
 EngineContext teardown termination. Release never attempts illegal direct GL.
 The milestone smokes check all four applications for responsive startup and clean
 native close; they do not claim image equivalence or benchmark performance.
+
+## Uniform and renderbuffer ownership (Phase 23)
+
+```powershell
+python tools/test_uniform_renderbuffer.py --configuration Debug --output logs/rendering/phase23/final/Debug
+python tools/test_uniform_renderbuffer.py --configuration Release --output logs/rendering/phase23/final/Release
+```
+
+The runner builds all six consumers with the existing toolchain, then links the
+production library into `uniform_renderbuffer_probe.cpp`. Two hidden GL 4.6
+context lifetimes per configuration check all six UBO types, RBO single/multisample
+storage, compile-time ownership traits, moves, self/empty assignment, container
+relocation, readback, indexed bindings, replacement, resize and exactly-once
+deletion on the owning thread. Debug also runs two worker-destruction rejection
+processes: exit 86 and a guard diagnostic are required; driver forwarding exits
+87 and an unexpected return exits 89. Ordinary Release GL guards remain disabled.
+
+UBO element counts must be nonzero and binding points valid for the context.
+Allocation byte multiplication uses the GL signed size type. RBO dimensions and
+sample counts must be positive and within context limits; multisample storage may
+round the requested sample count upward. Successful initialization is confirmed
+through storage queries, leaving pending driver errors observable to the caller.
+Failed creation releases partial names and restores the generic binding. Failed
+replacement preserves the old owner; indexed UBO bindings publish only after
+storage exists. Empty/moved-from owners do not issue deletion calls.
+
+The fixture injects zero-name and omitted-storage failures plus a synthetic
+out-of-memory error at the glad boundary. It checks cleanup, unchanged bindings,
+no premature framebuffer/texture allocation, recovery, and full-width large UBO
+requests without actually exhausting GPU memory. These are deterministic failure
+controls, not evidence of recovery from every driver/device-loss condition.
+Live Debug counters are checked against observed names and return to zero;
+Release deletion observers remain active while production counters stay disabled.
+
+RenderTarget uses the RBO owner on both existing allocation paths. Its legacy
+`RenderSize` convenience entry now uses the normal attachment resize path instead
+of mutating whichever RBO was bound. Failed RBO allocation preserves its existing
+attachments and restores dimensions/sample settings. Integration fixtures use
+single-sample targets to isolate ownership from existing multisample texture
+sampler diagnostics; standalone RBO checks cover real multisample storage.
+Framebuffer ownership/format redesign, visual equivalence, benchmarks and
+sanitizers are outside this phase. The existing application smoke runner can check
+all four default configurations after these builds.

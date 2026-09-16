@@ -3,6 +3,8 @@
 #include "Core/RenderTarget.h"
 #include <sstream>
 #include <stdexcept>
+#include <cmath>
+#include <limits>
 
 namespace GEngine
 {
@@ -151,7 +153,6 @@ namespace GEngine
 		if (m_FrameBufferID)
 		{
 			glDeleteFramebuffers(1, &m_FrameBufferID);
-			glDeleteRenderbuffers(1, &m_RenderBufferID);
 			glDeleteTextures(1, &m_ColorAttachmentID);
 			glDeleteTextures(1, &m_MousePickColorID);
 		}
@@ -201,12 +202,13 @@ namespace GEngine
 
 	void RenderTarget::Invalidate()
 	{
+		// RBO failure must leave the existing framebuffer and attachments alive.
+		RenderBufferObject renderBuffer(m_Width, m_Height, m_Samples);
 		RenderCounters::RecordTargetReallocation(m_FrameBufferID != 0);
 		if (m_FrameBufferID)
 		{
 			//delete m_Texture;
 			glDeleteFramebuffers(1, &m_FrameBufferID);
-			glDeleteRenderbuffers(1, &m_RenderBufferID);
 			glDeleteTextures(1, &m_ColorAttachmentID);
 			//glDeleteTextures(1, &m_MousePickColorID);
 		}
@@ -286,13 +288,8 @@ namespace GEngine
 		//glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, m_MousePickColorID, 0);	// we only need a mouse color buffer
 
 
-		glGenRenderbuffers(1, &m_RenderBufferID);
-		glBindRenderbuffer(GL_RENDERBUFFER, m_RenderBufferID);
-
-		if(multisampled) glRenderbufferStorageMultisample(GL_RENDERBUFFER, m_Samples, GL_DEPTH24_STENCIL8, m_Width, m_Height);
-		else glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, m_Width, m_Height);
-
-		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_RenderBufferID);
+		m_RenderBuffer = std::move(renderBuffer);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_RenderBuffer.GetID());
 
 		GLenum drawBuffers[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
 		glDrawBuffers(2, drawBuffers);
@@ -312,6 +309,9 @@ namespace GEngine
 
 	void RenderTarget::_Invalidate()
 	{
+		bool multisampled = m_Samples > 1;
+		RenderBufferObject renderBuffer(m_Specification.Width, m_Specification.Height,
+			multisampled ? m_Specification.Samples : 1);
 		RenderCounters::RecordTargetReallocation(m_FrameBufferID != 0);
 
 		if (m_FrameBufferID)
@@ -322,14 +322,11 @@ namespace GEngine
 
 			m_ColorAttachments.clear();
 
-			glDeleteRenderbuffers(1, &m_RenderBufferID);
 		}
 
 		// Create a frame buffer
 		glGenFramebuffers(1, &m_FrameBufferID);
 		glBindFramebuffer(GL_FRAMEBUFFER, m_FrameBufferID);
-
-		bool multisampled = m_Samples > 1;
 
 		// Attachments
 		if (m_ColorAttachmentSpecifications.size())
@@ -352,13 +349,8 @@ namespace GEngine
 			}
 		}
 
-		glGenRenderbuffers(1, &m_RenderBufferID);
-		glBindRenderbuffer(GL_RENDERBUFFER, m_RenderBufferID);
-
-		if (multisampled) glRenderbufferStorageMultisample(GL_RENDERBUFFER, m_Specification.Samples, GL_DEPTH24_STENCIL8, m_Specification.Width, m_Specification.Height);
-		else glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, m_Specification.Width, m_Specification.Height);
-
-		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_RenderBufferID);
+		m_RenderBuffer = std::move(renderBuffer);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_RenderBuffer.GetID());
 		glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
 		//Assert the frame buffer created successfully
@@ -428,7 +420,6 @@ namespace GEngine
 	void RenderTarget::Bind(unsigned int ID) const
 	{
 		glBindFramebuffer(GL_FRAMEBUFFER, ID);
-		//glBindRenderbuffer(GL_RENDERBUFFER, m_RenderBufferID);
 	}
 
 	//void RenderTarget::BindFrameBuffer() const
@@ -443,7 +434,7 @@ namespace GEngine
 
 	void RenderTarget::BindRenderBuffer() const
 	{
-		glBindRenderbuffer(GL_RENDERBUFFER, m_RenderBufferID);
+		glBindRenderbuffer(GL_RENDERBUFFER, m_RenderBuffer.GetID());
 	}
 
 	void RenderTarget::BindAndBlitToScreen()
@@ -494,25 +485,33 @@ namespace GEngine
 	
 	void RenderTarget::RenderSize(const Math::Vec2f& resolution)
 	{
-		
-		m_Width = static_cast<int>(resolution.x);
-		m_Height = static_cast<int>(resolution.y);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, m_Width, m_Height);
-		
-		//glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, m_Width, m_Height);
+		if (!std::isfinite(resolution.x) || !std::isfinite(resolution.y)
+			|| resolution.x < 1 || resolution.y < 1
+			|| resolution.x > s_MaxFramebufferSize || resolution.y > s_MaxFramebufferSize)
+			throw std::invalid_argument("RenderTarget resize dimensions are invalid");
+		// Keep attachment ownership coherent instead of resizing an arbitrary bound RBO.
+		OnResize(static_cast<uint32_t>(resolution.x), static_cast<uint32_t>(resolution.y));
 	}
 
 	void RenderTarget::OnResize(uint32_t width, uint32_t height)
 	{
-		/*if (width == 0 || height == 0 || width > s_MaxFramebufferSize || height > s_MaxFramebufferSize)
-		{
-			GENGINE_CORE_WARN("Attempted to resize framebuffer to {0}, {1}", width, height);
-			return;
-		}*/
-
+		if (!width || !height || width > s_MaxFramebufferSize || height > s_MaxFramebufferSize)
+			throw std::invalid_argument("RenderTarget resize dimensions are invalid");
+		const auto oldWidth = m_Width, oldHeight = m_Height;
 		m_Width = width;
 		m_Height = height;
-		Invalidate();
+		try { Invalidate(); }
+		catch (...) { m_Width = oldWidth; m_Height = oldHeight; throw; }
+	}
+
+	void RenderTarget::SetSamples(int samples)
+	{
+		if (samples < 1) throw std::invalid_argument("RenderTarget sample count must be positive");
+		if (static_cast<unsigned int>(samples) == m_Samples) return;
+		const auto oldSamples = m_Samples;
+		m_Samples = samples;
+		try { Invalidate(); }
+		catch (...) { m_Samples = oldSamples; throw; }
 	}
 
 
@@ -692,6 +691,82 @@ namespace GEngine
 	
 
 
+	RenderBufferObject::RenderBufferObject(unsigned int width, unsigned int height, unsigned int samples)
+	{
+		Resize(width, height, samples);
+	}
+
+	RenderBufferObject::~RenderBufferObject()
+	{
+		if (m_ID) glDeleteRenderbuffers(1, &m_ID);
+	}
+
+	void RenderBufferObject::Swap(RenderBufferObject& other) noexcept
+	{
+		std::swap(m_ID, other.m_ID);
+		std::swap(m_Width, other.m_Width);
+		std::swap(m_Height, other.m_Height);
+		std::swap(m_Samples, other.m_Samples);
+	}
+
+	RenderBufferObject::RenderBufferObject(RenderBufferObject&& other) noexcept
+	{
+		Swap(other);
+	}
+
+	RenderBufferObject& RenderBufferObject::operator=(RenderBufferObject&& other) noexcept
+	{
+		if (this != &other)
+		{
+			RenderBufferObject retired(std::move(other));
+			Swap(retired);
+		}
+		return *this;
+	}
+
+	void RenderBufferObject::Resize(unsigned int width, unsigned int height, unsigned int samples)
+	{
+		if (!width || !height || !samples)
+			throw std::invalid_argument("Renderbuffer dimensions and sample count must be positive");
+		GLint maxSize = 0, maxSamples = 0, previous = 0;
+		glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, &maxSize);
+		glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
+		if (maxSize <= 0 || maxSamples <= 0 || width > static_cast<unsigned int>(maxSize)
+			|| height > static_cast<unsigned int>(maxSize) || samples > static_cast<unsigned int>(maxSamples))
+			throw std::out_of_range("Renderbuffer dimensions or samples exceed context limits");
+		glGetIntegerv(GL_RENDERBUFFER_BINDING, &previous);
+		RenderBufferObject candidate;
+		try
+		{
+			glGenRenderbuffers(1, &candidate.m_ID);
+			if (!candidate.m_ID) throw std::runtime_error("Renderbuffer name allocation failed");
+			glBindRenderbuffer(GL_RENDERBUFFER, candidate.m_ID);
+			if (samples > 1)
+				glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples, GL_DEPTH24_STENCIL8, width, height);
+			else
+				glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+			GLint actualWidth = 0, actualHeight = 0, actualSamples = 0, format = 0;
+			glGetNamedRenderbufferParameteriv(candidate.m_ID, GL_RENDERBUFFER_WIDTH, &actualWidth);
+			glGetNamedRenderbufferParameteriv(candidate.m_ID, GL_RENDERBUFFER_HEIGHT, &actualHeight);
+			glGetNamedRenderbufferParameteriv(candidate.m_ID, GL_RENDERBUFFER_SAMPLES, &actualSamples);
+			glGetNamedRenderbufferParameteriv(candidate.m_ID, GL_RENDERBUFFER_INTERNAL_FORMAT, &format);
+			// Query the fresh allocation: unrelated pending GL errors remain observable.
+			// Implementations may round multisample counts upward.
+			if (actualWidth != static_cast<GLint>(width) || actualHeight != static_cast<GLint>(height)
+				|| format != GL_DEPTH24_STENCIL8 || (samples > 1 ? actualSamples < static_cast<GLint>(samples) : actualSamples != 0))
+				throw std::runtime_error("Renderbuffer storage allocation failed");
+		}
+		catch (...)
+		{
+			glBindRenderbuffer(GL_RENDERBUFFER, previous);
+			throw; // candidate retires any generated name, even during constructor failure.
+		}
+		candidate.m_Width = width;
+		candidate.m_Height = height;
+		candidate.m_Samples = samples;
+		Swap(candidate); // Only a complete allocation replaces the old owner.
+	}
+
 	template<UniformType Type>
 	UniformBufferObject<Type>::UniformBufferObject(unsigned int max_size, unsigned int bind_point)
 		: m_MaxSize(max_size), m_BindingPoint(bind_point)
@@ -721,11 +796,36 @@ namespace GEngine
 		{
 			m_UniformTypeSize = sizeof(Mat4);
 		}
-		glGenBuffers(1, &m_UBO);
-		glBindBuffer(GL_UNIFORM_BUFFER, m_UBO);
-		glBufferData(GL_UNIFORM_BUFFER, m_UniformTypeSize * m_MaxSize, nullptr, GL_STATIC_DRAW);
-		glBindBufferBase(GL_UNIFORM_BUFFER, m_BindingPoint, m_UBO);
-		glBindBuffer(GL_UNIFORM_BUFFER, 0);
+		if (!max_size || !m_UniformTypeSize)
+			throw std::invalid_argument("Uniform buffer element count and type must be valid");
+		if (max_size > static_cast<std::size_t>((std::numeric_limits<GLsizeiptr>::max)()) / m_UniformTypeSize)
+			throw std::length_error("Uniform buffer size exceeds the GL byte-size limit");
+		const auto bytes = static_cast<GLsizeiptr>(max_size) * m_UniformTypeSize;
+		GLint maxBindings = 0, previous = 0;
+		glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &maxBindings);
+		if (maxBindings <= 0 || bind_point >= static_cast<unsigned int>(maxBindings))
+			throw std::out_of_range("Uniform buffer binding point exceeds context limits");
+		glGetIntegerv(GL_UNIFORM_BUFFER_BINDING, &previous);
+		try
+		{
+			glGenBuffers(1, &m_UBO);
+			if (!m_UBO) throw std::runtime_error("Uniform buffer name allocation failed");
+			glBindBuffer(GL_UNIFORM_BUFFER, m_UBO);
+			glBufferData(GL_UNIFORM_BUFFER, bytes, nullptr, GL_STATIC_DRAW);
+			GLint64 allocatedBytes = 0;
+			glGetBufferParameteri64v(GL_UNIFORM_BUFFER, GL_BUFFER_SIZE, &allocatedBytes);
+			if (allocatedBytes != bytes) throw std::runtime_error("Uniform buffer storage allocation failed");
+			// Publish the indexed binding only after storage is known to exist.
+			glBindBufferBase(GL_UNIFORM_BUFFER, m_BindingPoint, m_UBO);
+			glBindBuffer(GL_UNIFORM_BUFFER, 0);
+		}
+		catch (...)
+		{
+			glBindBuffer(GL_UNIFORM_BUFFER, previous);
+			if (m_UBO) glDeleteBuffers(1, &m_UBO);
+			m_UBO = 0;
+			throw; // A failed constructor will not run this class's destructor.
+		}
 	}
 
 	template<UniformType Type>

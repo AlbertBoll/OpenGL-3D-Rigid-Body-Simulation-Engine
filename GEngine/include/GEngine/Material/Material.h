@@ -1,6 +1,7 @@
 #pragma once
 #include "Core/RuntimeAssets.h"
 #include "Assets/Textures/Texture.h"
+#include "Assets/Samplers/Sampler.h"
 
 #include <unordered_map>
 #include <Assets/Shaders/Shader.h>
@@ -95,7 +96,7 @@ namespace GEngine
 		
 	};
 
-	class Material
+	class Material : public Asset::MaterialTextureBindings
 	{
 
 	protected:
@@ -107,7 +108,7 @@ namespace GEngine
 		Asset::Shader* m_Shader{};
 		
 		std::unordered_multimap<unsigned int, std::pair<unsigned int, unsigned int>> m_TextureList; // Legacy screen-target path; Phase 29/35.
-        std::vector<std::pair<Asset::TextureView, std::uint32_t>> m_ImageBindings;
+        std::vector<std::pair<Asset::SampledTextureBinding, std::uint32_t>> m_ImageBindings;
 
 		inline static constexpr RuntimeAssets::Directory base_shader_dir{ "Shaders/" };
 
@@ -189,8 +190,10 @@ namespace GEngine
         friend class SkyBoxMaterial;
         friend class NormalLightTextureMaterial;
         friend class AnimatedMaterial;
-        std::expected<void, Asset::TextureError> SetTextureBinding(const std::string& uniform, const Asset::TextureView&, std::uint32_t unit);
+        std::expected<void, Asset::SamplingError> SetTextureBinding(const std::string& uniform, const Asset::TextureView&, std::uint32_t unit);
     public:
+        std::expected<void, Asset::SamplingError> SetSampledTextureBinding(const std::string& uniform,
+            const Asset::SampledTextureBinding&, std::uint32_t unit) override;
 		void BindTextureUniforms(int TexTarget);
 		void BindTextureUniforms();
 		virtual void UseUniformBufferObject(const std::string& uniformBlockName) {}

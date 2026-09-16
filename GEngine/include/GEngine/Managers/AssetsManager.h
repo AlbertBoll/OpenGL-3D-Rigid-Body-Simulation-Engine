@@ -1,5 +1,6 @@
 #pragma once
 #include "Assets/Textures/Texture.h"
+#include "Assets/Samplers/Sampler.h"
 #include "Assets/Fonts/Font.h"
 #include "Core/RuntimeAssets.h"
 #include "Math/Math.h"
@@ -18,6 +19,11 @@ namespace GEngine::Manager
         static std::expected<Asset::TextureHandle, Asset::TextureError> LoadTexture(const std::string& path,
             const Asset::TextureDesc& desc = {}, const std::string& extension = ".png");
         static std::expected<Asset::TextureView, Asset::TextureError> ResolveTexture(Asset::TextureHandle);
+        static std::expected<Asset::SamplerHandle, Asset::SamplingError> GetSampler(const Asset::SamplerDesc&);
+        static std::expected<Asset::SamplerView, Asset::SamplingError> ResolveSampler(Asset::SamplerHandle);
+        static std::expected<Asset::SampledTextureBinding, Asset::SamplingError> SampleTexture(const Asset::TextureView&);
+        static std::expected<Asset::SampledTextureBinding, Asset::SamplingError> SampleTexture(
+            const Asset::TextureView&, const Asset::SamplerDesc&);
         static std::expected<Asset::TextureHandle, Asset::TextureError> FallbackTexture(const Asset::TextureDesc& = {});
         static std::expected<Asset::Texture*, Asset::TextureError> GetTexture(const std::string& path = {},
             const std::string& uniform = "u_texture", const std::string& extension = ".png", const Asset::TextureDesc& = {});
@@ -39,6 +45,7 @@ namespace GEngine::Manager
         std::expected<Asset::Texture*, Asset::TextureError> Binding(Asset::TextureHandle, const std::string&);
         Asset::AssetPublication& m_Publication;
         Asset::TextureRegistry m_Images;
+        Asset::SamplerCache m_Samplers;
         std::filesystem::path m_ImageRoot;
         using ImageKey = std::tuple<std::string, Asset::TextureDesc, std::string>;
         std::map<ImageKey, Asset::TextureHandle> m_ImageCache;

@@ -38,7 +38,7 @@ namespace GEngine::Manager
         }
     }
     AssetsManager::AssetsManager(AssetPublication& publication, std::filesystem::path root)
-        : m_Publication(publication), m_Images(publication), m_ImageRoot(std::move(root)) {}
+        : m_Publication(publication), m_Images(publication), m_Samplers(publication), m_ImageRoot(std::move(root)) {}
     AssetsManager::~AssetsManager()
     {
         m_Attachments.clear();
@@ -83,6 +83,38 @@ namespace GEngine::Manager
         auto* result = binding.get();
         m_Bindings.emplace(key, std::move(binding));
         return result;
+    }
+    std::expected<SamplerHandle, SamplingError> AssetsManager::GetSampler(const SamplerDesc& desc)
+    {
+        auto manager = Current();
+        if (!manager) return std::unexpected(SamplingError(manager.error()));
+        auto result = (*manager)->m_Samplers.Get(desc);
+        if (!result) return std::unexpected(SamplingError(result.error()));
+        return *result;
+    }
+    std::expected<SamplerView, SamplingError> AssetsManager::ResolveSampler(SamplerHandle handle)
+    {
+        auto manager = Current();
+        if (!manager) return std::unexpected(SamplingError(manager.error()));
+        auto result = (*manager)->m_Samplers.Resolve(handle);
+        if (!result) return std::unexpected(SamplingError(result.error()));
+        return std::move(*result);
+    }
+    std::expected<SampledTextureBinding, SamplingError> AssetsManager::SampleTexture(const TextureView& texture)
+    {
+        auto desc = TextureSamplingDefaults(texture);
+        if (!desc) return std::unexpected(desc.error());
+        return SampleTexture(texture, *desc);
+    }
+    std::expected<SampledTextureBinding, SamplingError> AssetsManager::SampleTexture(
+        const TextureView& texture, const SamplerDesc& desc)
+    {
+        if (!texture) return std::unexpected(SamplingError(TextureError{TextureErrorCode::InvalidView, {}, "Missing texture view"}));
+        auto handle = GetSampler(desc);
+        if (!handle) return std::unexpected(handle.error());
+        auto sampler = ResolveSampler(*handle);
+        if (!sampler) return std::unexpected(sampler.error());
+        return SampledTextureBinding{texture, std::move(*sampler)};
     }
     std::expected<TextureHandle, TextureError> AssetsManager::LoadTexture(const std::string& source,
         const TextureDesc& desc, const std::string& extension)

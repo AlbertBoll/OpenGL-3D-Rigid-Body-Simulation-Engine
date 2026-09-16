@@ -1056,3 +1056,43 @@ The existing default application smoke runner covers all four applications after
 these builds. Known startup framebuffer diagnostics are separated from the focused
 registry GL checks. These are lifetime checks, not image, performance, device-loss,
 physical GPU exhaustion or sanitizer evidence. Toolchain/C++20/static CRT remain.
+
+# Phase 27 sampler validation
+
+Run `python tools/test_sampler.py --configuration Debug --output logs/rendering/phase27/final-v2/Debug`
+and the corresponding `Release` command. The runner builds the six maintained consumers
+with the existing VS2022/v143, C++23 and static CRT settings, then links the real engine
+library. `--no-build` requires an already built matching candidate. Commands, actual
+exits, compiler include dependencies and binary hashes are recorded in `results.json`.
+
+The normal contract is `Assets/Samplers/Sampler.h`: `SamplerDesc`, `GpuSampler`,
+`SamplerCache`, `SampledTextureBinding` and `MaterialTextureBindings`. Consumers can use
+`AssetsManager::GetSampler/ResolveSampler/SampleTexture` without backend headers. A
+binding retains the existing typed TextureHandle and SamplerHandle version leases;
+publish/resolve before submission and release bindings before root/context teardown.
+The concrete legacy Material implements the neutral MaterialTextureBindings interface.
+Materials submit in ascending texture-unit order and replace an existing unit in place.
+
+Equivalent effective descriptions share a sampler. Disabled anisotropy becomes 1;
+ClampToLimit explicitly clamps to the device maximum (or 1 without support), while
+RequireExact returns Unsupported above that maximum. Non-finite values and invalid
+semantic enums return InvalidDescription before publication. Inactive border colors
+are canonicalized. Sampler/cache owner allocations use non-throwing allocation;
+the approved registry retains its standard-container allocation behavior.
+
+The GL probe checks real pixels for repeat/clamp, nearest/linear, depth comparison and
+border sampling, plus cache hits, typed identity, invalid/unsupported policy, injected
+allocation/driver failure rollback, slot exhaustion, move/relocation/destruction,
+worker lease release and deterministic material ordering. Two context/root lifetimes
+check exactly-once deletion; isolated worker destruction and live-lease cache teardown
+must exit 86. Compiler dependency inspection rejects native headers in the normal
+sampler/manager/material-binding contract. Existing startup target diagnostics are
+reported separately; sampler operations must produce no GL errors.
+
+Texture-only adapters explicitly clear the sampler at their unit. The backend-only
+TextureSamplingDefaults adapter reads existing image/attachment policy once during
+material setup, preserving legacy defaults without changing image ownership. Raw
+target allocation, general shader/material migration and the remaining ECS/platform
+surface retain their roadmap ownership. Graphical startup/close integration uses
+`python tools/test_shutdown.py --configuration Debug --no-build --smoke --output <dir>`
+and the corresponding Release command. No benchmark or sanitizer gate is implied.

@@ -149,7 +149,8 @@ namespace GEngine::Asset
                     return std::unexpected(TextureError{TextureErrorCode::Storage, {}, "Driver failed to allocate the mip chain"});
             }
         }
-        // Preserve the existing basic image defaults; independently cached sampler policy is Phase 27.
+        // Legacy texture-only callers retain these defaults. Material sampling
+        // overrides them with independently cached sampler objects.
         glTexParameteri(target, GL_TEXTURE_MIN_FILTER, mip ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
         glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(target, GL_TEXTURE_WRAP_S, faces == 6 ? GL_CLAMP_TO_EDGE : GL_REPEAT);
@@ -238,6 +239,9 @@ namespace GEngine::Asset
             return std::unexpected(TextureError{TextureErrorCode::InvalidUnit, {}, "Texture unit exceeds the context limit"});
         glActiveTexture(GL_TEXTURE0 + unit);
         glBindTexture(Target(view), *name);
+        // A texture-only caller explicitly selects its authored defaults; never
+        // inherit a sampler left on this unit by a preceding material.
+        glBindSampler(unit, 0);
         return {};
     }
     std::expected<void, TextureError> TextureView::Bind(std::uint32_t unit) const

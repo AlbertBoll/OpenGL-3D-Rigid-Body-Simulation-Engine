@@ -2,6 +2,7 @@
 #include <Assets/Shaders/Shader.h>
 #include "Material/Material.h"
 #include "Managers/ShaderManager.h"
+#include "Managers/AssetsManager.h"
 #include <Core/Actor.h>
 
 
@@ -28,13 +29,25 @@ namespace GEngine
 		m_Shader->Bind();
 	}
 
-    std::expected<void, Asset::TextureError> Material::SetTextureBinding(const std::string& uniform,
+    std::expected<void, Asset::SamplingError> Material::SetTextureBinding(const std::string& uniform,
         const Asset::TextureView& view, std::uint32_t unit)
     {
-        auto result = view.Bind(unit);
+        auto binding = AssetsManager::SampleTexture(view);
+        if (!binding) return std::unexpected(binding.error());
+        return SetSampledTextureBinding(uniform, *binding, unit);
+    }
+
+    std::expected<void, Asset::SamplingError> Material::SetSampledTextureBinding(const std::string& uniform,
+        const Asset::SampledTextureBinding& binding, std::uint32_t unit)
+    {
+        auto result = binding.Bind(unit);
         if (!result) return result;
+        // Unit order is stable regardless of descriptor/cache insertion order.
+        auto position = std::lower_bound(m_ImageBindings.begin(), m_ImageBindings.end(), unit,
+            [](const auto& entry, std::uint32_t value) { return entry.second < value; });
+        if (position != m_ImageBindings.end() && position->second == unit) position->first = binding;
+        else m_ImageBindings.insert(position, {binding, unit});
         m_Shader->SetUniform(uniform.c_str(), static_cast<int>(unit));
-        m_ImageBindings.emplace_back(view, unit);
         return {};
     }
 
@@ -46,6 +59,7 @@ namespace GEngine
 
 		for (auto& ele : m_TextureList)
 		{
+			glBindSampler(ele.second.second, 0); // Legacy target bindings retain their authored texture state.
 			m_Shader->BindTextureUniform(ele.second.first, ele.second.second, TexTarget);
 			
 		}
@@ -59,6 +73,7 @@ namespace GEngine
 
 		for (auto& ele : m_TextureList)
 		{
+			glBindSampler(ele.second.second, 0);
 			m_Shader->BindTextureUniform(ele.second.first, ele.second.second, ele.first);
 		}
 	}

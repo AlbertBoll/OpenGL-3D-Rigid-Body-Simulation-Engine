@@ -11,7 +11,9 @@ namespace GEngine::Buffer
 
 	public:
 
-		NONCOPYMOVABLE(VertexBuffer);
+		NONCOPYABLE(VertexBuffer);
+		VertexBuffer(VertexBuffer&& other) noexcept;
+		VertexBuffer& operator=(VertexBuffer&& other) noexcept;
 		// Allocation sizes and upload offsets are bytes; payload sizes come from the span.
 		explicit VertexBuffer(std::size_t capacityBytes);
 		explicit VertexBuffer(std::span<const float> data);

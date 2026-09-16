@@ -26,7 +26,9 @@ namespace GEngine
 	{
 	
 	public:
-		NONCOPYMOVABLE(Mesh);
+		NONCOPYABLE(Mesh);
+		Mesh(Mesh&& other) noexcept;
+		Mesh& operator=(Mesh&& other) noexcept;
 		Mesh();
 		~Mesh();
 

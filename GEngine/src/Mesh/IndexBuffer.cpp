@@ -1,17 +1,17 @@
 #include "gepch.h"
 #include "Mesh/IndexBuffer.h"
+#include <utility>
 
 namespace GEngine::Buffer
 {
 
-	//IndexBuffer::IndexBuffer()
-	//{
-	//	glGenBuffers(1, &m_IndexBufferRef);
-	//	ASSERT(m_IndexBufferRef != 0);
-	//}
+	IndexBuffer::IndexBuffer(IndexBuffer&& other) noexcept
+		: m_IndexBufferRef(std::exchange(other.m_IndexBufferRef, 0)),
+		  m_Data(std::move(other.m_Data))
+	{
+	}
 
-
-	IndexBuffer& IndexBuffer::operator=(IndexBuffer&& other)
+	IndexBuffer& IndexBuffer::operator=(IndexBuffer&& other) noexcept
 	{
 		if (this != &other)
 		{
@@ -20,9 +20,8 @@ namespace GEngine::Buffer
 				glDeleteBuffers(1, &m_IndexBufferRef);
 			}
 
-			m_IndexBufferRef = other.m_IndexBufferRef;
-			other.m_IndexBufferRef = 0;
-			m_Data = other.m_Data;
+			m_IndexBufferRef = std::exchange(other.m_IndexBufferRef, 0);
+			m_Data = std::move(other.m_Data);
 		}
 
 		return *this;

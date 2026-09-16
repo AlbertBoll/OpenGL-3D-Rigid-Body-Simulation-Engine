@@ -2,6 +2,7 @@
 #include "Mesh/VertexBuffer.h"
 #include <limits>
 #include <stdexcept>
+#include <utility>
 
 namespace GEngine::Buffer
 {
@@ -43,9 +44,30 @@ namespace GEngine::Buffer
 	}
 
 
+	VertexBuffer::VertexBuffer(VertexBuffer&& other) noexcept
+		: m_VertexBufferRef(std::exchange(other.m_VertexBufferRef, 0)),
+		  m_CapacityBytes(std::exchange(other.m_CapacityBytes, 0)),
+		  m_BufferLayout(std::move(other.m_BufferLayout))
+	{
+	}
+
+	VertexBuffer& VertexBuffer::operator=(VertexBuffer&& other) noexcept
+	{
+		if (this != &other)
+		{
+			if (m_VertexBufferRef != 0)
+				glDeleteBuffers(1, &m_VertexBufferRef);
+			m_VertexBufferRef = std::exchange(other.m_VertexBufferRef, 0);
+			m_CapacityBytes = std::exchange(other.m_CapacityBytes, 0);
+			m_BufferLayout = std::move(other.m_BufferLayout);
+		}
+		return *this;
+	}
+
 	VertexBuffer::~VertexBuffer()
 	{
-		glDeleteBuffers(1, &m_VertexBufferRef);
+		if (m_VertexBufferRef != 0)
+			glDeleteBuffers(1, &m_VertexBufferRef);
 	}
 
 

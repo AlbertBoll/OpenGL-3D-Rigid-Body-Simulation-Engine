@@ -2,19 +2,91 @@
 #include "gepch.h"
 #include "Core/GLDebug.h"
 #include "Mesh/VertexBuffer.h"
+#include "Mesh/IndexBuffer.h"
+#include "Mesh/Mesh.h"
 #include <array>
 #include <span>
 #include <stdexcept>
+#include <unordered_set>
+#include <utility>
+
+// Geometry uses the legacy templated Attribute name; keep it in its own TU.
+void GeometryOwnership();
 
 namespace
 {
     using GEngine::Buffer::VertexBuffer;
+    using GEngine::Buffer::IndexBuffer;
+    using GEngine::Mesh;
+    template<class T> constexpr bool MoveOwner = !std::is_copy_constructible_v<T>
+        && !std::is_copy_assignable_v<T> && std::is_nothrow_move_constructible_v<T>
+        && std::is_nothrow_move_assignable_v<T>;
+    static_assert(MoveOwner<VertexBuffer> && MoveOwner<IndexBuffer> && MoveOwner<Mesh>);
     static_assert(std::is_constructible_v<VertexBuffer, std::span<const float>>);
     static_assert(!std::is_constructible_v<VertexBuffer, const std::vector<float>&, unsigned int>);
 
     void Require(bool condition, const char* message)
     {
         if (!condition) throw std::runtime_error(message);
+    }
+
+    // Observe every real driver deletion, including duplicate names ignored by GL.
+    struct Ownership
+    {
+        inline static PFNGLGENBUFFERSPROC genBuffers;
+        inline static PFNGLDELETEBUFFERSPROC deleteBuffers;
+        inline static PFNGLGENVERTEXARRAYSPROC genArrays;
+        inline static PFNGLDELETEVERTEXARRAYSPROC deleteArrays;
+        inline static std::unordered_set<GLuint> buffers, arrays;
+        inline static unsigned generated, deleted, deletionCalls;
+        inline static bool valid;
+        inline static SDL_GLContext context;
+        inline static SDL_threadID thread;
+        static void CheckThread()
+        { valid &= SDL_GL_GetCurrentContext() == context && SDL_ThreadID() == thread; }
+        static void Add(std::unordered_set<GLuint>& live, GLsizei n, const GLuint* ids)
+        {
+            CheckThread();
+            for (GLsizei i = 0; i < n; ++i) { valid &= ids[i] != 0 && live.insert(ids[i]).second; ++generated; }
+        }
+        static void Remove(std::unordered_set<GLuint>& live, GLsizei n, const GLuint* ids)
+        {
+            CheckThread(); ++deletionCalls;
+            for (GLsizei i = 0; i < n; ++i) { valid &= ids[i] != 0 && live.erase(ids[i]) == 1; ++deleted; }
+        }
+        static void APIENTRY GenBuffers(GLsizei n, GLuint* ids) { genBuffers(n, ids); Add(buffers, n, ids); }
+        static void APIENTRY DeleteBuffers(GLsizei n, const GLuint* ids) { Remove(buffers, n, ids); deleteBuffers(n, ids); }
+        static void APIENTRY GenArrays(GLsizei n, GLuint* ids) { genArrays(n, ids); Add(arrays, n, ids); }
+        static void APIENTRY DeleteArrays(GLsizei n, const GLuint* ids) { Remove(arrays, n, ids); deleteArrays(n, ids); }
+        Ownership()
+        {
+            buffers.clear(); arrays.clear(); generated = deleted = deletionCalls = 0; valid = true;
+            context = SDL_GL_GetCurrentContext(); thread = SDL_ThreadID();
+            genBuffers = glad_glGenBuffers; deleteBuffers = glad_glDeleteBuffers;
+            genArrays = glad_glGenVertexArrays; deleteArrays = glad_glDeleteVertexArrays;
+            glad_glGenBuffers = GenBuffers; glad_glDeleteBuffers = DeleteBuffers;
+            glad_glGenVertexArrays = GenArrays; glad_glDeleteVertexArrays = DeleteArrays;
+        }
+        ~Ownership()
+        {
+            glad_glGenBuffers = genBuffers; glad_glDeleteBuffers = deleteBuffers;
+            glad_glGenVertexArrays = genArrays; glad_glDeleteVertexArrays = deleteArrays;
+        }
+        void Verify()
+        {
+            Require(valid && buffers.empty() && arrays.empty() && generated == deleted,
+                "Resource leaked, deleted twice/zero, or retired on wrong thread/context");
+            const auto counters = GEngine::RenderCounters::Current();
+            Require(counters.liveNames[0] == 0 && counters.liveNames[1] == 0 && counters.estimatedBufferBytes == 0,
+                "Production resource counters did not return to zero");
+            std::cout << "[PASS] exactly-once resources=" << generated << " retired=" << deleted
+                << " counters=" << GENGINE_RENDER_COUNTERS << '\n';
+        }
+    };
+
+    GLuint Bound(GLenum binding)
+    {
+        GLint id = -1; glGetIntegerv(binding, &id); return static_cast<GLuint>(id);
     }
 
     template<class Exception, class Action>
@@ -110,6 +182,115 @@ namespace
         if (!actual.empty())
             glGetBufferSubData(GL_ARRAY_BUFFER, 0, static_cast<GLsizeiptr>(expected.size_bytes()), actual.data());
         Require(std::equal(actual.begin(), actual.end(), expected.begin(), expected.end()), "GPU buffer contents differ");
+    }
+
+    void VertexResourceMoves()
+    {
+        const std::array payload{ 1.0f, 2.0f, 3.0f };
+        const GEngine::Buffer::BufferLayout layout{
+            {GEngine::Buffer::AttributeType::Vec3f, "position"} };
+        auto source = std::make_unique<VertexBuffer>(payload);
+        source->SetLayout(layout);
+        const auto id = Bound(GL_ARRAY_BUFFER_BINDING);
+        const auto generated = Ownership::generated;
+        VertexBuffer moved(std::move(*source));
+        Require(Ownership::generated == generated, "VBO move allocated a name");
+        source->Bind(); Require(Bound(GL_ARRAY_BUFFER_BINDING) == 0, "Moved VBO retained its ID");
+        Reject<std::out_of_range>([&] { source->SetData(payload); });
+        const auto before = Ownership::deletionCalls;
+        source.reset();
+        Require(Ownership::deletionCalls == before, "Moved-from VBO issued deletion");
+        VertexBuffer destination(payload);
+        const auto replaced = Bound(GL_ARRAY_BUFFER_BINDING);
+        destination = std::move(moved);
+        Require(!glIsBuffer(replaced), "VBO assignment did not retire destination");
+        destination.Bind(); Require(Bound(GL_ARRAY_BUFFER_BINDING) == id, "VBO move changed ID");
+        Require(destination.GetBufferLayout().GetStride() == 3 * sizeof(float)
+            && destination.GetBufferLayout().GetAttributes().at(0).m_Name == "position",
+            "VBO move lost layout");
+        destination = std::move(destination);
+        destination.SetData(payload); CheckContents(destination, payload);
+        std::vector<VertexBuffer> vertices;
+        vertices.reserve(1); vertices.push_back(std::move(destination));
+        vertices.emplace_back(payload); // Forces relocation of a live owner.
+        vertices.front().Bind(); Require(Bound(GL_ARRAY_BUFFER_BINDING) == id, "VBO relocation changed ID");
+        CheckContents(vertices.front(), payload);
+        moved = std::move(destination); // Both empty, no deletion or duplicate ownership.
+        std::cout << "[PASS] VBO construct/assign/self/empty/relocate/layout/capacity/readback\n";
+
+        Mesh vao; vao.Bind(); // Core profile EBO operations require a VAO.
+        const std::vector<unsigned> indices{ 2, 0, 1 };
+        auto indexSource = std::make_unique<IndexBuffer>(indices);
+        const auto ebo = indexSource->GetBufferRef();
+        IndexBuffer indexMoved(std::move(*indexSource));
+        Require(indexSource->GetBufferRef() == 0 && indexMoved.GetBufferRef() == ebo, "EBO move IDs differ");
+        const auto beforeIndex = Ownership::deletionCalls; indexSource.reset();
+        Require(Ownership::deletionCalls == beforeIndex, "Moved-from EBO issued deletion");
+        IndexBuffer indexDestination(indices);
+        const auto oldEbo = indexDestination.GetBufferRef();
+        indexDestination = std::move(indexMoved);
+        Require(!glIsBuffer(oldEbo) && indexMoved.GetBufferRef() == 0, "EBO assignment retained old ownership");
+        indexDestination = std::move(indexDestination);
+        std::vector<IndexBuffer> elements;
+        elements.reserve(1); elements.push_back(std::move(indexDestination));
+        elements.emplace_back(indices);
+        Require(elements.front().GetBufferRef() == ebo, "EBO relocation changed ID");
+        elements.front().LoadIndex(); // Exercises moved CPU payload, not just old GPU storage.
+        std::vector<unsigned> actual(indices.size());
+        glGetBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, indices.size() * sizeof(unsigned), actual.data());
+        Require(actual == indices, "EBO move lost CPU payload");
+        IndexBuffer empty;
+        elements.front() = std::move(empty);
+        Require(elements.front().GetBufferRef() == 0 && !glIsBuffer(ebo), "Empty EBO assignment leaked");
+        std::cout << "[PASS] EBO construct/assign/self/empty/relocate/CPU-and-GPU-payload\n";
+
+        auto meshSource = std::make_unique<Mesh>();
+        meshSource->Bind(); const auto arrayId = Bound(GL_VERTEX_ARRAY_BINDING);
+        auto vertex = std::make_shared<VertexBuffer>(payload); vertex->SetLayout(layout);
+        meshSource->AddVertexBuffer(vertex);
+        auto index = std::make_shared<IndexBuffer>(indices);
+        meshSource->SetIndexBuffer(index);
+        const auto attachedEbo = index->GetBufferRef();
+        vertex->Bind(); const auto attachedVbo = Bound(GL_ARRAY_BUFFER_BINDING);
+        std::weak_ptr<VertexBuffer> vertexLifetime = vertex;
+        std::weak_ptr<IndexBuffer> indexLifetime = index;
+        vertex.reset(); index.reset();
+        Mesh meshMoved(std::move(*meshSource));
+        meshSource->Bind(); Require(Bound(GL_VERTEX_ARRAY_BINDING) == 0, "Moved VAO retained ID");
+        const auto beforeMesh = Ownership::deletionCalls; meshSource.reset();
+        Require(Ownership::deletionCalls == beforeMesh, "Moved-from Mesh issued deletion");
+        Mesh meshDestination; meshDestination.Bind();
+        const auto oldArray = Bound(GL_VERTEX_ARRAY_BINDING);
+        auto oldVertex = std::make_shared<VertexBuffer>(payload); oldVertex->SetLayout(layout);
+        meshDestination.AddVertexBuffer(oldVertex);
+        oldVertex->Bind(); const auto oldVbo = Bound(GL_ARRAY_BUFFER_BINDING);
+        auto oldIndex = std::make_shared<IndexBuffer>(indices);
+        const auto replacedEbo = oldIndex->GetBufferRef(); meshDestination.SetIndexBuffer(oldIndex);
+        oldVertex.reset(); oldIndex.reset();
+        meshDestination = std::move(meshMoved);
+        Require(!glIsVertexArray(oldArray) && !glIsBuffer(oldVbo) && !glIsBuffer(replacedEbo),
+            "Mesh assignment did not retire old VAO and exclusive buffers");
+        meshDestination = std::move(meshDestination);
+        std::vector<Mesh> meshes;
+        meshes.reserve(1); meshes.push_back(std::move(meshDestination)); meshes.emplace_back();
+        meshes.front().Bind();
+        Require(Bound(GL_VERTEX_ARRAY_BINDING) == arrayId && Bound(GL_ELEMENT_ARRAY_BUFFER_BINDING) == attachedEbo,
+            "VAO move/relocation lost ID or EBO association");
+        GLint attributeBuffer = 0;
+        glGetVertexAttribiv(0, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &attributeBuffer);
+        Require(static_cast<GLuint>(attributeBuffer) == attachedVbo && !vertexLifetime.expired() && !indexLifetime.expired(),
+            "VAO move lost vertex association or buffer references");
+        auto second = std::make_shared<VertexBuffer>(payload); second->SetLayout(layout);
+        second->Bind(); const auto secondId = Bound(GL_ARRAY_BUFFER_BINDING);
+        meshes.front().AddVertexBuffer(second);
+        glGetVertexAttribiv(1, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &attributeBuffer);
+        Require(static_cast<GLuint>(attributeBuffer) == secondId, "VAO move lost next attribute slot");
+        meshes.clear();
+        Require(vertexLifetime.expired() && indexLifetime.expired() && !glIsVertexArray(arrayId)
+            && !glIsBuffer(attachedVbo) && !glIsBuffer(attachedEbo) && glIsBuffer(secondId),
+            "Mesh retirement lost exclusive/shared buffer lifetime");
+        meshMoved = std::move(meshDestination); // Empty-to-empty transfer.
+        std::cout << "[PASS] VAO construct/assign/self/empty/relocate/slots/shared-buffer-lifetimes\n";
     }
 
     void BufferUploads()
@@ -216,7 +397,11 @@ int main()
                 Diagnostics diagnostics;
                 glDebugMessageInsert(GL_DEBUG_SOURCE_APPLICATION, GL_DEBUG_TYPE_MARKER, 80001,
                     GL_DEBUG_SEVERITY_LOW, -1, "Phase 08 callback health check");
-                BufferUploads(); // Every production buffer dies before diagnostics/context teardown.
+                Ownership ownership;
+                BufferUploads();
+                VertexResourceMoves();
+                GeometryOwnership();
+                ownership.Verify(); // All owners die before diagnostics/context teardown.
                 diagnostics.Verify();
                 GEngine::RenderCounters::ForgetContext(context.get());
                 std::cout << "[PASS] GL-debug/errors/owner-thread/destruction\n";
@@ -224,6 +409,7 @@ int main()
             Require(SDL_GL_GetCurrentContext() == nullptr && SDL_ThreadID() == owner, "Context teardown failed");
         }
         std::cout << "[PASS] vertex-buffer-upload-safety cycles=2\n";
+        std::cout << "[PASS] vertex-resource-RAII cycles=2\n";
         return 0;
     }
     catch (const std::exception& error)

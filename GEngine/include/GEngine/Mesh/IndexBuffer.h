@@ -10,9 +10,9 @@ namespace GEngine::Buffer
 		NONCOPYABLE(IndexBuffer);
 		IndexBuffer() = default;
 
-		IndexBuffer(IndexBuffer&& other);
+		IndexBuffer(IndexBuffer&& other) noexcept;
 
-		IndexBuffer& operator = (IndexBuffer&& other);
+		IndexBuffer& operator = (IndexBuffer&& other) noexcept;
 
 		IndexBuffer(const std::vector<unsigned int>& data);
 		unsigned int GetBufferRef()const { return m_IndexBufferRef; }

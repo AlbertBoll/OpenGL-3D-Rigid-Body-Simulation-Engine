@@ -65,7 +65,7 @@ namespace GEngine
 	void Geometry::AddIndices(const std::vector<unsigned int>& data)
 	{
 		m_IndexBuffer = IndexBuffer(data);
-		m_Buffers.push_back(m_IndexBuffer.GetBufferRef());
+		// The EBO belongs only to m_IndexBuffer; m_Buffers owns attribute VBOs.
 		m_IndicesCount = (int)data.size();
 		b_UseIndexBuffer = true;
 	}

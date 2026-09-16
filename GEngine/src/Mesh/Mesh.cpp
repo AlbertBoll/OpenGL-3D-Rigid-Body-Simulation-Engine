@@ -3,6 +3,7 @@
 #include <Mesh/IndexBuffer.h>
 #include <Mesh/VertexBuffer.h>
 #include "Mesh/Mesh.h"
+#include <utility>
 
 namespace GEngine//::Buffer
 {
@@ -38,9 +39,32 @@ namespace GEngine//::Buffer
 	}
 
 
+	Mesh::Mesh(Mesh&& other) noexcept
+		: m_VertexArrayRef(std::exchange(other.m_VertexArrayRef, 0)),
+		  m_VertexBufferIndex(std::exchange(other.m_VertexBufferIndex, 0)),
+		  m_VertexBuffers(std::move(other.m_VertexBuffers)),
+		  m_IndexBuffer(std::move(other.m_IndexBuffer))
+	{
+	}
+
+	Mesh& Mesh::operator=(Mesh&& other) noexcept
+	{
+		if (this != &other)
+		{
+			if (m_VertexArrayRef != 0)
+				glDeleteVertexArrays(1, &m_VertexArrayRef);
+			m_VertexArrayRef = std::exchange(other.m_VertexArrayRef, 0);
+			m_VertexBufferIndex = std::exchange(other.m_VertexBufferIndex, 0);
+			m_VertexBuffers = std::move(other.m_VertexBuffers);
+			m_IndexBuffer = std::move(other.m_IndexBuffer);
+		}
+		return *this;
+	}
+
 	Mesh::~Mesh()
 	{
-		glDeleteVertexArrays(1, &m_VertexArrayRef);
+		if (m_VertexArrayRef != 0)
+			glDeleteVertexArrays(1, &m_VertexArrayRef);
 	}
 
 

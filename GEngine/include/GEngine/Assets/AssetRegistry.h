@@ -3,6 +3,7 @@
 #include "Assets/AssetHandle.h"
 #include "Assets/AssetPublication.h"
 #include <algorithm>
+#include <concepts>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -58,7 +59,7 @@ namespace GEngine::Asset
             const Resource* Get() const noexcept { return m_Version ? &m_Version->resource : nullptr; }
             const Resource& operator*() const
             {
-                if (!m_Version) throw std::logic_error("Empty asset lease");
+                AssetDetail::RequireInvariant(bool(m_Version));
                 return m_Version->resource;
             }
             const Resource* operator->() const { return &**this; }
@@ -73,11 +74,12 @@ namespace GEngine::Asset
 
         explicit AssetRegistry(AssetPublication& publication, AssetRegistryLimits limits = {})
             : m_Publication(publication), m_Limits(limits),
-              m_Identity(detail::TakeRegistryIdentity(detail::nextRegistryIdentity)), m_Slots(0), m_Retired(0)
+              m_Identity(AssetDetail::TakeRegistryIdentity(AssetDetail::nextRegistryIdentity)), m_Slots(0), m_Retired(0)
         {
             if (!limits.maxSlots || !limits.maxGeneration || !limits.maxRevision)
-                throw std::invalid_argument("Asset registry limits must be nonzero");
-            m_Publication.Register();
+                m_Identity = std::unexpected(RegistryError::InvalidLimits);
+            if (auto registered = m_Publication.Register()) m_Registered = true;
+            else m_Identity = std::unexpected(registered.error());
         }
         AssetRegistry(const AssetRegistry&) = delete;
         AssetRegistry& operator=(const AssetRegistry&) = delete;
@@ -88,15 +90,18 @@ namespace GEngine::Asset
             if (m_Mutating || !CanClose()) std::terminate();
             m_Mutating = true;
             m_Slots.clear(); m_Retired.clear();
-            m_Publication.Unregister();
+            if (m_Registered) m_Publication.Unregister();
         }
 
         template<class... Args>
-        [[nodiscard]] Handle Create(const AssetPublication::Publication& access, Args&&... args)
+        requires std::constructible_from<Resource, Args...>
+        [[nodiscard]] std::expected<Handle, RegistryError> Create(const AssetPublication::Publication& access, Args&&... args)
         {
+            if (!m_Identity) return std::unexpected(m_Identity.error());
+            if (m_Closed) return std::unexpected(RegistryError::Closed);
             Mutation mutation(*this, access);
             if (m_Free == Handle::NullIndex && m_Slots.size() >= m_Limits.maxSlots)
-                throw std::overflow_error("Asset registry slots exhausted");
+                return std::unexpected(RegistryError::SlotsExhausted);
             auto version = std::make_shared<Version>(1, std::forward<Args>(args)...);
             std::uint32_t index = m_Free;
             if (index == Handle::NullIndex)
@@ -109,35 +114,39 @@ namespace GEngine::Asset
             slot.nextFree = Handle::NullIndex;
             slot.current = std::move(version);
             ++m_Live;
-            return {index, slot.generation, m_Identity};
+            return Handle{index, slot.generation, *m_Identity};
         }
 
-        [[nodiscard]] Lease Acquire(const AssetPublication::FrameAccess& access, Handle handle) const
+        [[nodiscard]] std::expected<Lease, RegistryError> Acquire(const AssetPublication::FrameAccess& access, Handle handle) const
         {
             m_Publication.Require(access);
             const auto* slot = Find(handle);
-            return slot ? Lease(handle, slot->current) : Lease{};
+            if (!slot) return std::unexpected(RegistryError::InvalidHandle);
+            return Lease(handle, slot->current);
         }
 
         template<class... Args>
-        bool Replace(const AssetPublication::Publication& access, Handle handle, Args&&... args)
+        requires std::constructible_from<Resource, Args...>
+        std::expected<void, RegistryError> Replace(const AssetPublication::Publication& access, Handle handle, Args&&... args)
         {
+            if (m_Closed) return std::unexpected(RegistryError::Closed);
             Mutation mutation(*this, access);
             auto* slot = Find(handle);
-            if (!slot) return false;
+            if (!slot) return std::unexpected(RegistryError::InvalidHandle);
             if (slot->current->revision == m_Limits.maxRevision)
-                throw std::overflow_error("Asset revision exhausted; destroy and create a new identity");
+                return std::unexpected(RegistryError::RevisionExhausted);
             auto version = std::make_shared<Version>(slot->current->revision + 1, std::forward<Args>(args)...);
             m_Retired.push_back(slot->current); // Failure leaves the published version intact.
             slot->current = std::move(version);
-            return true;
+            return {};
         }
 
-        bool Destroy(const AssetPublication::Publication& access, Handle handle)
+        std::expected<void, RegistryError> Destroy(const AssetPublication::Publication& access, Handle handle)
         {
+            if (m_Closed) return std::unexpected(RegistryError::Closed);
             Mutation mutation(*this, access);
             auto* slot = Find(handle);
-            if (!slot) return false;
+            if (!slot) return std::unexpected(RegistryError::InvalidHandle);
             m_Retired.push_back(slot->current);
             slot->current.reset();
             --m_Live;
@@ -148,18 +157,19 @@ namespace GEngine::Asset
                 m_Free = handle.index;
             }
             // Exhausted slots stay empty forever; an old generation never revives.
-            return true;
+            return {};
         }
 
         // Register before submitting GPU work that needs explicit storage retention.
         // Multiple submissions may attach independent fences to the same version.
-        void ProtectGpuUse(const AssetPublication::FrameAccess& access, const Lease& lease,
+        std::expected<void, RegistryError> ProtectGpuUse(const AssetPublication::FrameAccess& access, const Lease& lease,
             std::unique_ptr<AssetRetirementFence>&& fence)
         {
             m_Publication.Require(access);
-            if (m_Closed || !lease || lease.Identity().registry != m_Identity || !fence)
-                throw std::invalid_argument("GPU retention requires a lease and fence from this registry");
+            if (m_Closed || !lease || (!m_Identity || lease.Identity().registry != *m_Identity) || !fence)
+                return std::unexpected(RegistryError::InvalidFence);
             lease.m_Version->fences.push_back(std::move(fence));
+            return {};
         }
 
         std::size_t Collect(const AssetPublication::Publication& access)
@@ -175,15 +185,15 @@ namespace GEngine::Asset
         }
 
         // Retry at a later safe point if any CPU lease or GPU fence is still live.
-        bool Close(const AssetPublication::Publication& access)
+        std::expected<void, RegistryError> Close(const AssetPublication::Publication& access)
         {
             m_Publication.Require(access);
-            if (m_Closed) return true;
+            if (m_Closed) return {};
             Mutation mutation(*this, access);
-            if (!CanClose()) return false;
+            if (!CanClose()) return std::unexpected(RegistryError::Busy);
             m_Slots.clear(); m_Retired.clear(); m_Free = Handle::NullIndex; m_Live = 0;
             m_Closed = true;
-            return true;
+            return {};
         }
 
         std::size_t Size() const { m_Publication.RequireOwner(); return m_Live; }
@@ -195,7 +205,7 @@ namespace GEngine::Asset
             Mutation(AssetRegistry& registry, const AssetPublication::Publication& access) : m_Registry(registry)
             {
                 registry.m_Publication.Require(access);
-                if (registry.m_Mutating || registry.m_Closed) throw std::logic_error("Registry is closed or mutating recursively");
+                AssetDetail::RequireInvariant(!registry.m_Mutating && !registry.m_Closed);
                 registry.m_Mutating = true;
             }
             ~Mutation() { m_Registry.m_Mutating = false; }
@@ -205,7 +215,7 @@ namespace GEngine::Asset
 
         Slot* Find(Handle handle)
         {
-            if (!handle || handle.registry != m_Identity || handle.index >= m_Slots.size()) return nullptr;
+            if (!m_Identity || !handle || handle.registry != *m_Identity || handle.index >= m_Slots.size()) return nullptr;
             auto& slot = m_Slots[handle.index];
             return slot.current && slot.generation == handle.generation ? &slot : nullptr;
         }
@@ -225,7 +235,8 @@ namespace GEngine::Asset
 
         AssetPublication& m_Publication;
         const AssetRegistryLimits m_Limits;
-        const std::uint64_t m_Identity;
+        std::expected<std::uint64_t, RegistryError> m_Identity;
+        bool m_Registered = false;
         std::vector<Slot> m_Slots;
         std::vector<std::shared_ptr<Version>> m_Retired;
         std::uint32_t m_Free = Handle::NullIndex;

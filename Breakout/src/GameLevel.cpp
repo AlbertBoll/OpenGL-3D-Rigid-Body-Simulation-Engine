@@ -68,8 +68,12 @@ void GameLevel::Initialize(std::vector<std::vector<unsigned int>> tileData, unsi
     sprite.SpriteColor.Name = "u_spriteColor";
    
 
-    auto blockTex = AssetsManager::GetTexture(ImagePath + "block" + ImageExtension);
-    auto solidBlockTex = AssetsManager::GetTexture(ImagePath + "block_solid" + ImageExtension);
+    auto blockTexResult = AssetsManager::GetTextureOrFallback(ImagePath + "block" + ImageExtension);
+    if (!blockTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", blockTexResult.error().source, blockTexResult.error().message); return; }
+    auto* blockTex = *blockTexResult;
+    auto solidBlockTexResult = AssetsManager::GetTextureOrFallback(ImagePath + "block_solid" + ImageExtension);
+    if (!solidBlockTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", solidBlockTexResult.error().source, solidBlockTexResult.error().message); return; }
+    auto* solidBlockTex = *solidBlockTexResult;
     auto blockMaterial = CreateRefPtr<SpriteMaterial>(blockTex);
     auto blockSolidMaterial = CreateRefPtr<SpriteMaterial>(solidBlockTex);
 

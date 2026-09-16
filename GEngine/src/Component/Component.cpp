@@ -15,28 +15,25 @@ namespace GEngine
 	namespace Component
 	{
 
-		void TexturesComponent::BindTextures(Shader* shader)
-		{
-
-			for (auto& ele : TextureList)
-			{
-				shader->BindTextureUniform(ele.first, ele.second.second, ele.second.first);
-			}
-
-		}
-
-		void TexturesComponent::PreBindTextures(Shader* shader)
-		{
-			shader->Bind();
-			unsigned int i = 0;
-			for (auto& texture : Textures)
-			{
-				auto& str = texture->GetUniformName();
-				TextureList[texture->GetTextureID()] = { texture->GetTextureInfo().m_TextureSpec.m_TexTarget, i };
-				shader->SetUniform(str.c_str(), std::pair<unsigned int, std::pair<unsigned, unsigned>>{texture->GetTextureInfo().m_TextureSpec.m_TexTarget, { texture->GetTextureID(), i++ }});
-			}
-			shader->UnBind();
-		}
+        void TexturesComponent::BindTextures(Shader*)
+        {
+            std::uint32_t unit = 0;
+            for (const auto& texture : Textures)
+                if (auto bound = texture.View().Bind(unit++); !bound)
+                    GENGINE_CORE_ERROR("Texture binding: {}", bound.error().message);
+        }
+        void TexturesComponent::PreBindTextures(Shader* shader)
+        {
+            shader->Bind();
+            std::uint32_t unit = 0;
+            for (const auto& texture : Textures)
+            {
+                shader->SetUniform(texture.GetUniformName().c_str(), static_cast<int>(unit));
+                if (auto bound = texture.View().Bind(unit++); !bound)
+                    GENGINE_CORE_ERROR("Texture binding: {}", bound.error().message);
+            }
+            shader->UnBind();
+        }
 
 		void TexturesComponent::LoadUniforms(Asset::Shader* shader)const
 		{

@@ -94,17 +94,35 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	lightShadowRenderComponent.RenderSettings.DrawStyle = DrawStyle_::TRIANGLES;
 
 	//Load icon
-	Texture* m_IconPlay = AssetsManager::GetTexture("Icons/PlayButton");
-	Texture* m_IconPause = AssetsManager::GetTexture("Icons/PauseButton");
-	Texture* m_IconStep = AssetsManager::GetTexture("Icons/StepButton");
-	Texture* m_IconSimulate = AssetsManager::GetTexture("Icons/SimulateButton");
-	Texture* m_IconStop = AssetsManager::GetTexture("Icons/StopButton");
+	auto m_IconPlayResult = AssetsManager::GetTextureOrFallback("Icons/PlayButton");
+	if (!m_IconPlayResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconPlayResult.error().source, m_IconPlayResult.error().message); m_Running = false; return; }
+	auto* m_IconPlay = *m_IconPlayResult;
+	auto m_IconPauseResult = AssetsManager::GetTextureOrFallback("Icons/PauseButton");
+	if (!m_IconPauseResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconPauseResult.error().source, m_IconPauseResult.error().message); m_Running = false; return; }
+	auto* m_IconPause = *m_IconPauseResult;
+	auto m_IconStepResult = AssetsManager::GetTextureOrFallback("Icons/StepButton");
+	if (!m_IconStepResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconStepResult.error().source, m_IconStepResult.error().message); m_Running = false; return; }
+	auto* m_IconStep = *m_IconStepResult;
+	auto m_IconSimulateResult = AssetsManager::GetTextureOrFallback("Icons/SimulateButton");
+	if (!m_IconSimulateResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconSimulateResult.error().source, m_IconSimulateResult.error().message); m_Running = false; return; }
+	auto* m_IconSimulate = *m_IconSimulateResult;
+	auto m_IconStopResult = AssetsManager::GetTextureOrFallback("Icons/StopButton");
+	if (!m_IconStopResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconStopResult.error().source, m_IconStopResult.error().message); m_Running = false; return; }
+	auto* m_IconStop = *m_IconStopResult;
 
 	//Load Sphere Texture
-	Texture* wood_diffuse = AssetsManager::GetTexture("Sphere/wood_diffuse", "diffuseTexture");
-	Texture* cascade_shadow_depth_map = AssetsManager::GetCascadedFrameBufferTexture(*m_CascadeShadowFrameBuffer, "shadowMap");
-	Texture* point_shadow_depth_map = AssetsManager::GetPointShadowFrameBufferTexture(*m_PointShadowFrameBuffer, "pointShadowDepthMap");
-	Texture* gloss_diffuse = AssetsManager::GetTexture("Sphere/Tiles012_4K-JPG_Color", "diffuseTexture");
+	auto wood_diffuseResult = AssetsManager::GetTextureOrFallback("Sphere/wood_diffuse", "diffuseTexture");
+	if (!wood_diffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", wood_diffuseResult.error().source, wood_diffuseResult.error().message); m_Running = false; return; }
+	auto* wood_diffuse = *wood_diffuseResult;
+	auto cascade_shadow_depth_mapResult = AssetsManager::GetCascadedFrameBufferTexture(*m_CascadeShadowFrameBuffer, "shadowMap");
+	if (!cascade_shadow_depth_mapResult) { GENGINE_CORE_ERROR("Texture {}: {}", cascade_shadow_depth_mapResult.error().source, cascade_shadow_depth_mapResult.error().message); m_Running = false; return; }
+	auto* cascade_shadow_depth_map = *cascade_shadow_depth_mapResult;
+	auto point_shadow_depth_mapResult = AssetsManager::GetPointShadowFrameBufferTexture(*m_PointShadowFrameBuffer, "pointShadowDepthMap");
+	if (!point_shadow_depth_mapResult) { GENGINE_CORE_ERROR("Texture {}: {}", point_shadow_depth_mapResult.error().source, point_shadow_depth_mapResult.error().message); m_Running = false; return; }
+	auto* point_shadow_depth_map = *point_shadow_depth_mapResult;
+	auto gloss_diffuseResult = AssetsManager::GetTextureOrFallback("Sphere/Tiles012_4K-JPG_Color", "diffuseTexture");
+	if (!gloss_diffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", gloss_diffuseResult.error().source, gloss_diffuseResult.error().message); m_Running = false; return; }
+	auto* gloss_diffuse = *gloss_diffuseResult;
 
 	//TexturesComponent sphereTextureComp({ gloss_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });
 	//TexturesComponent boxTextureComp({ wood_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });
@@ -119,18 +137,38 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	Texture* sphere_metallic = AssetsManager::GetTexture("PBR/subtle_black_granite/subtle-black-granite_metallic", "metallicMap");
 	Texture* sphere_roughness = AssetsManager::GetTexture("PBR/subtle_black_granite/subtle-black-granite_roughness", "roughnessMap");
 	Texture* sphere_ao = AssetsManager::GetTexture("PBR/subtle_black_granite/subtle-black-granite_ao", "aoMap");*/
-	Texture* sphere_albedo = AssetsManager::GetTexture("PBR/rustediron/rustediron2_basecolor", "albedoMap");
-	Texture* sphere_normal = AssetsManager::GetTexture("PBR/rustediron/rustediron2_normal", "normalMap");
-	Texture* sphere_metallic = AssetsManager::GetTexture("PBR/rustediron/rustediron2_metallic", "metallicMap");
-	Texture* sphere_roughness = AssetsManager::GetTexture("PBR/rustediron/rustediron2_roughness", "roughnessMap");
-	Texture* sphere_ao = AssetsManager::GetTexture("PBR/subtle_black_granite/subtle-black-granite_ao", "aoMap");
+	auto sphere_albedoResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_basecolor", "albedoMap");
+	if (!sphere_albedoResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_albedoResult.error().source, sphere_albedoResult.error().message); m_Running = false; return; }
+	auto* sphere_albedo = *sphere_albedoResult;
+	auto sphere_normalResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_normal", "normalMap");
+	if (!sphere_normalResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_normalResult.error().source, sphere_normalResult.error().message); m_Running = false; return; }
+	auto* sphere_normal = *sphere_normalResult;
+	auto sphere_metallicResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_metallic", "metallicMap");
+	if (!sphere_metallicResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_metallicResult.error().source, sphere_metallicResult.error().message); m_Running = false; return; }
+	auto* sphere_metallic = *sphere_metallicResult;
+	auto sphere_roughnessResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_roughness", "roughnessMap");
+	if (!sphere_roughnessResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_roughnessResult.error().source, sphere_roughnessResult.error().message); m_Running = false; return; }
+	auto* sphere_roughness = *sphere_roughnessResult;
+	auto sphere_aoResult = AssetsManager::GetTextureOrFallback("PBR/subtle_black_granite/subtle-black-granite_ao", "aoMap");
+	if (!sphere_aoResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_aoResult.error().source, sphere_aoResult.error().message); m_Running = false; return; }
+	auto* sphere_ao = *sphere_aoResult;
 
 	//Load PBR Texture for sphere
-	Texture* floor_albedo = AssetsManager::GetTexture("PBR/base_white_tile/base-white-tile_albedo", "albedoMap");
-	Texture* floor_normal = AssetsManager::GetTexture("PBR/base_white_tile/base-white-tile_normal-dx", "normalMap");
-	Texture* floor_metallic = AssetsManager::GetTexture("PBR/base_white_tile/base-white-tile_metallic", "metallicMap");
-	Texture* floor_roughness = AssetsManager::GetTexture("PBR/base_white_tile/base-white-tile_roughness", "roughnessMap");
-	Texture* floor_ao = AssetsManager::GetTexture("PBR/base_white_tile/base-white-tile_ao", "aoMap");
+	auto floor_albedoResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_albedo", "albedoMap");
+	if (!floor_albedoResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_albedoResult.error().source, floor_albedoResult.error().message); m_Running = false; return; }
+	auto* floor_albedo = *floor_albedoResult;
+	auto floor_normalResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_normal-dx", "normalMap");
+	if (!floor_normalResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_normalResult.error().source, floor_normalResult.error().message); m_Running = false; return; }
+	auto* floor_normal = *floor_normalResult;
+	auto floor_metallicResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_metallic", "metallicMap");
+	if (!floor_metallicResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_metallicResult.error().source, floor_metallicResult.error().message); m_Running = false; return; }
+	auto* floor_metallic = *floor_metallicResult;
+	auto floor_roughnessResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_roughness", "roughnessMap");
+	if (!floor_roughnessResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_roughnessResult.error().source, floor_roughnessResult.error().message); m_Running = false; return; }
+	auto* floor_roughness = *floor_roughnessResult;
+	auto floor_aoResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_ao", "aoMap");
+	if (!floor_aoResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_aoResult.error().source, floor_aoResult.error().message); m_Running = false; return; }
+	auto* floor_ao = *floor_aoResult;
 
 	//TexturesComponent sphereTextureComp({ gloss_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });
 	TexturesComponent sphereTextureComp({ sphere_albedo, sphere_normal, sphere_metallic, sphere_roughness, sphere_ao, point_shadow_depth_map, cascade_shadow_depth_map });
@@ -452,17 +490,14 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	skyBoxRenderComp.RenderSettings.DrawMode = DrawMode_::Arrays;
 	skyBoxRenderComp.RenderSettings.DrawStyle = DrawStyle_::TRIANGLES;
 
-	TextureInfo info;
-	info.m_TextureSpec.m_TexTarget = 0x8513;
-	info.m_TextureSpec.m_MagFilter = 0x2601;
-	info.m_TextureSpec.m_MinFilter = 0x2601;
-	info.m_TextureSpec.m_WrapR = 0x812F;
-	info.m_TextureSpec.m_WrapS = 0x812F;
-	info.m_TextureSpec.m_WrapT = 0x812F;
-	info.b_CubeMap = true;
-	info.b_HDR = false;
-	info.b_GammaCorrection = true;
-	Texture* tex1 = AssetsManager::GetTexture("SkyBox/Day/", "u_skyBoxDay", ".png", info);
+	TextureDesc info;
+    info.kind = TextureKind::Cube;
+    info.colorSpace = TextureColorSpace::Linear; // Preserve the previous cube upload interpretation.
+    info.mips = TextureMipIntent::None;
+    info.orientation = ImageOrientation::TopLeft;
+	auto tex1Result = AssetsManager::GetTextureOrFallback("SkyBox/Day/", "u_skyBoxDay", ".png", info);
+	if (!tex1Result) { GENGINE_CORE_ERROR("Texture {}: {}", tex1Result.error().source, tex1Result.error().message); m_Running = false; return; }
+	auto* tex1 = *tex1Result;
 
 	auto skyBoxTextureComp = TexturesComponent{ {tex1} };
 	skyBoxTextureComp.PreBindTextures(skyBoxShader);
@@ -483,7 +518,9 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	
 	//Load Plane Texture
 	//AssetsManager::GetTexture("Sphere/wood_diffuse", "diffuseTexture");
-	Texture* plane_diffuse = AssetsManager::GetTexture("Wall/wallpaper_albedo", "diffuseTexture");
+	auto plane_diffuseResult = AssetsManager::GetTextureOrFallback("Wall/wallpaper_albedo", "diffuseTexture");
+	if (!plane_diffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", plane_diffuseResult.error().source, plane_diffuseResult.error().message); m_Running = false; return; }
+	auto* plane_diffuse = *plane_diffuseResult;
 	//Texture* plane_metallic = AssetsManager::GetTexture("Wall/wallpaper_metallic", "u_material.specular");
 
 	//TexturesComponent planeTextureComp({ plane_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });//, plane_metallic

@@ -10,7 +10,8 @@ namespace GEngine
     class SkyBoxEntity: public Entity
     {
     private:
-        static RefPtr<Material> GetSkyBoxMaterial(const SkyBoxComponent& comp);
+        static std::expected<RefPtr<Material>, Asset::TextureError> GetSkyBoxMaterial(const SkyBoxComponent& comp);
+        SkyBoxComponent m_Description;
 
 
     public:

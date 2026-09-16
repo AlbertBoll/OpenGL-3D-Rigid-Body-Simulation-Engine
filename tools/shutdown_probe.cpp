@@ -5,6 +5,7 @@
 #include "Windows/SDLWindow.h"
 #include "Windows/ImGuiWindow.h"
 #include "Managers/AssetsManager.h"
+#include "../GEngine/src/Assets/TextureBackend.h"
 #include "Managers/ShapeManager.h"
 #include "Managers/ShaderManager.h"
 #include "Camera/PerspectiveCamera.h"
@@ -31,6 +32,8 @@ namespace
         ++checks;
         if (!value) throw std::runtime_error(message);
     }
+    GLuint TextureName(const Asset::Texture* texture)
+    { return Asset::AssetDetail::TextureBackend::Name(texture->View()).value(); }
     void Observe(bool value, const char* message)
     {
         ++checks;
@@ -73,7 +76,7 @@ namespace
         Check(!BaseApp::GetWindowManager() && !BaseApp::GetInputManager() && !BaseApp::GetEventManager(),
             "Engine kept a freed platform manager");
         int rejected = 0;
-        try { (void)AssetsManager::GetFont("unavailable.ttf"); } catch (const std::logic_error&) { ++rejected; }
+        if (!AssetsManager::GetFont("unavailable.ttf")) ++rejected;
         try { (void)ShaderManager::GetShaderProgram({}); } catch (const std::logic_error&) { ++rejected; }
         try { (void)ShapeManager::GetShape("phase18"); } catch (const std::logic_error&) { ++rejected; }
         Check(rejected == 3, "A manager remained accessible outside ready root lifetime");
@@ -196,14 +199,14 @@ namespace
                 {
                     wrongThreadRejected = std::string_view(error.what()) == "EngineContext access requires its owner thread";
                 }
-                try { (void)AssetsManager::GetTexture("white"); } catch (const std::logic_error&) { ++managerThreadRejections; }
+                // Texture access now uses invariant rejection, covered in an isolated child process.
                 try { (void)ShaderManager::GetShaderProgram({}); } catch (const std::logic_error&) { ++managerThreadRejections; }
                 try { (void)ShapeManager::GetShape("Box"); } catch (const std::logic_error&) { ++managerThreadRejections; }
             });
             worker.join();
             Check(wrongThreadRejected && SDL_GL_GetCurrentContext() == root.MainWindow()->GetContext(),
                 "Worker reached ready rendering services or changed the owning context");
-            Check(managerThreadRejections == 3, "Worker accessed a rendering manager");
+            Check(managerThreadRejections == 2, "Worker accessed a rendering manager");
             bool rejected = false;
             try { root.Initialize({ Properties() }); } catch (const std::logic_error&) { rejected = true; }
             Check(rejected && root.IsReady(), "Repeated initialization replaced live services");
@@ -237,10 +240,10 @@ namespace
             Watch(Kind::Framebuffer, m_CascadeShadowFrameBuffer->GetLightFBO(), 2);
             Watch(Kind::Framebuffer, m_RenderTarget->GetFrameBufferID(), 2);
             ShapeManager::Register("phase18", new CachedGeometry);
-            auto* text = AssetsManager::GetTextTexture("Lifecycle", RuntimeAssets::File("Fonts/OpenSans-Regular.ttf"));
-            Watch(Kind::Texture, text->GetTextureID(), 3, "AssetsManager cached text texture");
-            AssetsManager::GetCascadedFrameBufferTexture(*m_CascadeShadowFrameBuffer);
-            AssetsManager::GetPointShadowFrameBufferTexture(*m_PointShadowFrameBuffer);
+            auto* text = AssetsManager::GetTextTexture("Lifecycle", RuntimeAssets::File("Fonts/OpenSans-Regular.ttf")).value();
+            Watch(Kind::Texture, TextureName(text), 3, "AssetsManager cached text texture");
+            AssetsManager::GetCascadedFrameBufferTexture(*m_CascadeShadowFrameBuffer).value();
+            AssetsManager::GetPointShadowFrameBufferTexture(*m_PointShadowFrameBuffer).value();
             auto* gui = GetSDLWindow()->GetImGuiWindow();
             gui->BeginRender(GetSDLWindow());
             ImGui::TextUnformatted("Phase 18");
@@ -554,12 +557,12 @@ namespace
                 CascadeShadowFrameBuffer cascade(16, 16, 3), otherCascade(16, 16, 3);
                 PointShadowFrameBuffer point(16, 16), otherPoint(16, 16);
                 auto* text = AssetsManager::GetTextTexture("Cache ownership",
-                    RuntimeAssets::File("Fonts/OpenSans-Regular.ttf"));
+                    RuntimeAssets::File("Fonts/OpenSans-Regular.ttf")).value();
                 Check(AssetsManager::GetTextTexture("Cache ownership",
-                    RuntimeAssets::File("Fonts/OpenSans-Regular.ttf")) == text, "Identical text was not cached");
+                    RuntimeAssets::File("Fonts/OpenSans-Regular.ttf")).value() == text, "Identical text was not cached");
                 auto* otherText = AssetsManager::GetTextTexture("Different text",
-                    RuntimeAssets::File("Fonts/OpenSans-Regular.ttf"));
-                Check(otherText != text && otherText->GetTextureID() != text->GetTextureID(),
+                    RuntimeAssets::File("Fonts/OpenSans-Regular.ttf")).value();
+                Check(otherText != text && TextureName(otherText) != TextureName(text),
                     "Different text replaced an existing borrower");
                 const auto imagePath = std::filesystem::path(RuntimeAssets::File("Images/white.png"))
                     .lexically_normal().string();
@@ -570,22 +573,23 @@ namespace
                 otherWindow->second->BeginRender();
                 Check(SDL_GL_GetCurrentContext() != root->MainWindow()->GetContext(), "Secondary context was not activated");
                 const auto uniform = "cycle-" + std::to_string(cycle);
-                auto* image = AssetsManager::GetTexture("white", uniform);
+                auto* image = AssetsManager::GetTexture("white", uniform).value();
                 Check(SDL_GL_GetCurrentContext() == root->MainWindow()->GetContext()
                     && image->GetUniformName() == uniform, "Manager used a foreign context or retained a prior root cache");
-                Check(AssetsManager::GetTexture("white") == image && AssetsManager::GetTexture(imagePath) == image,
+                Check(AssetsManager::GetTexture("white").value()->View().Identity() == image->View().Identity()
+                    && AssetsManager::GetTexture(imagePath).value()->View().Identity() == image->View().Identity(),
                     "Short/absolute image names did not reuse their owner");
-                auto* fallback = AssetsManager::GetTexture("phase20-missing-image");
-                Check(fallback == AssetsManager::GetTexture("phase20-missing-image") && glIsTexture(fallback->GetTextureID()),
+                auto* fallback = AssetsManager::GetTextureOrFallback("phase20-missing-image").value();
+                Check(fallback == AssetsManager::GetTextureOrFallback("phase20-missing-image").value() && glIsTexture(TextureName(fallback)),
                     "Missing ordinary image lost its checkerboard fallback/cache owner");
-                owned = {text->GetTextureID(), otherText->GetTextureID(), image->GetTextureID(), fallback->GetTextureID()};
-                auto* cascadeBorrower = AssetsManager::GetCascadedFrameBufferTexture(cascade);
-                auto* pointBorrower = AssetsManager::GetPointShadowFrameBufferTexture(point);
-                Check(AssetsManager::GetCascadedFrameBufferTexture(otherCascade)->GetTextureID() == otherCascade.GetLightDepthMaps()
-                    && AssetsManager::GetPointShadowFrameBufferTexture(otherPoint)->GetTextureID() == otherPoint.GetDepthCubeMaps(),
+                owned = {TextureName(text), TextureName(otherText), TextureName(image), TextureName(fallback)};
+                auto* cascadeBorrower = AssetsManager::GetCascadedFrameBufferTexture(cascade).value();
+                auto* pointBorrower = AssetsManager::GetPointShadowFrameBufferTexture(point).value();
+                Check(TextureName(AssetsManager::GetCascadedFrameBufferTexture(otherCascade).value()) == otherCascade.GetLightDepthMaps()
+                    && TextureName(AssetsManager::GetPointShadowFrameBufferTexture(otherPoint).value()) == otherPoint.GetDepthCubeMaps(),
                     "Second framebuffer request returned stale cached names");
-                Check(cascadeBorrower->GetTextureID() == cascade.GetLightDepthMaps()
-                    && pointBorrower->GetTextureID() == point.GetDepthCubeMaps(), "New framebuffer request mutated existing borrowers");
+                Check(TextureName(cascadeBorrower) == cascade.GetLightDepthMaps()
+                    && TextureName(pointBorrower) == point.GetDepthCubeMaps(), "New framebuffer request mutated existing borrowers");
                 for (auto name : owned) Watch(Kind::Texture, name, 3);
                 for (auto name : {cascade.GetLightDepthMaps(), point.GetDepthCubeMaps(),
                                  otherCascade.GetLightDepthMaps(), otherPoint.GetDepthCubeMaps()})
@@ -710,24 +714,25 @@ namespace
 
             const auto fontPath = std::filesystem::absolute("phase20-font.ttf");
             std::filesystem::remove(fontPath); // Fixture-owned file in the isolated runtime directory.
-            ExpectFailure([&] { AssetsManager::GetFont(fontPath.string()); }, "Missing font did not fail recoverably");
-            ExpectFailure([&] { AssetsManager::GetFont(fontPath.string()); }, "Failed font was cached");
+            Check(!AssetsManager::GetFont(fontPath.string()), "Missing font did not fail recoverably");
+            Check(!AssetsManager::GetFont(fontPath.string()), "Failed font was cached");
             std::filesystem::copy_file(RuntimeAssets::File("Fonts/OpenSans-Regular.ttf"), fontPath);
-            auto* font = AssetsManager::GetFont(fontPath.string());
-            Check(font && font->GetFontData().size() == 29 && AssetsManager::GetFont(fontPath.string()) == font,
+            auto* font = AssetsManager::GetFont(fontPath.string()).value();
+            Check(font && AssetsManager::GetFont(fontPath.string()).value() == font,
                 "Retry after missing font failed or created stale font state");
-            ExpectFailure([&] { font->LoadFont(fontPath.string()); }, "Loaded font accepted unsafe replacement");
-            ExpectFailure([&] { AssetsManager::GetTextTexture("text", fontPath.string(), 13); },
+            static_assert(!std::is_copy_constructible_v<Asset::Font>); // Loaded fonts expose no replacement/native map API.
+            Check(!AssetsManager::GetTextTexture("text", fontPath.string(), 13),
                 "Unsupported text size did not fail recoverably");
-            ExpectFailure([&] { AssetsManager::GetTextTexture("", fontPath.string()); },
+            Check(!AssetsManager::GetTextTexture("", fontPath.string()),
                 "Failed SDL text surface was published");
-            auto* text = AssetsManager::GetTextTexture("valid text", fontPath.string());
-            Check(glIsTexture(text->GetTextureID()), "Valid text failed after a prior text load failure");
-            Asset::TextureInfo hdr; hdr.b_HDR = true;
-            ExpectFailure([&] { AssetsManager::GetTexture("phase20-missing.hdr", "", "", hdr); },
+            auto* text = AssetsManager::GetTextTexture("valid text", fontPath.string()).value();
+            Check(glIsTexture(TextureName(text)), "Valid text failed after a prior text load failure");
+            Asset::TextureDesc hdr; hdr.format = Asset::TextureFormat::RGB16Float;
+            hdr.colorSpace = Asset::TextureColorSpace::Linear; hdr.mips = Asset::TextureMipIntent::None;
+            Check(!AssetsManager::GetTexture("phase20-missing.hdr", "", "", hdr),
                 "Failed HDR load published an empty resource");
-            auto* fallback = AssetsManager::GetTexture("phase20-missing.hdr");
-            Check(glIsTexture(fallback->GetTextureID()), "Failed image cache entry prevented successful fallback retry");
+            auto* fallback = AssetsManager::GetTextureOrFallback("phase20-missing.hdr").value();
+            Check(glIsTexture(TextureName(fallback)), "Failed image cache entry prevented successful fallback retry");
 
             ShaderObjects shaderObjects;
             // Expected compiler/linker diagnostics are checked as failure results;
@@ -776,9 +781,9 @@ namespace
                 explicit FailingApp(bool shaderFailure)
                 {
                     Initialize(Properties());
-                    AssetsManager::GetTexture("white");
+                    AssetsManager::GetTexture("white").value();
                     if (shaderFailure) ShaderManager::GetShaderProgram({"phase20.vert", "missing.frag"});
-                    else AssetsManager::GetFont("phase20-missing-font.ttf");
+                    else AssetsManager::GetFont("phase20-missing-font.ttf").value();
                 }
             };
             ExpectFailure([&] { FailingApp app(shaderFailure); }, "Asset/shader application initialization unexpectedly succeeded");

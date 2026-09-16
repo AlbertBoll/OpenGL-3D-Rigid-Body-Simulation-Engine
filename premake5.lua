@@ -1,10 +1,11 @@
--- Bundled Premake 5.0.0-beta1 maps C++20 to /std:c++latest for VS2022.
--- Keep the generated projects on the explicit, supported C++20 baseline.
+-- The bundled generator predates C++23. VS2022 v143 exposes its fixed C++23
+-- mode as stdcpp23 (/std:c++23preview); do not select the moving c++latest mode.
+premake.api.addAllowed("cppdialect", "C++23")
 if _ACTION == "vs2022" then
 	require("vstudio")
 	premake.override(premake.vstudio.vc2010, "languageStandard", function(base, cfg)
-		if cfg.cppdialect == "C++20" then
-			premake.vstudio.vc2010.element("LanguageStandard", nil, "stdcpp20")
+		if cfg.cppdialect == "C++23" then
+			premake.vstudio.vc2010.element("LanguageStandard", nil, "stdcpp23")
 		else
 			base(cfg)
 		end
@@ -86,7 +87,7 @@ project "GEngine"
 	location "GEngine"
 	kind "StaticLib"
 	language "C++"
-	cppdialect "C++20"
+	cppdialect "C++23"
 	staticruntime "on"
 
 	targetdir(tdir)
@@ -219,7 +220,7 @@ project "GEngineEditor"
 	location "GEngineEditor"
 	kind "ConsoleApp"
 	language "C++"
-	cppdialect "C++20"
+	cppdialect "C++23"
 	staticruntime "on"
 	links "GEngine"
 
@@ -373,7 +374,7 @@ project "Breakout"
 	location "Breakout"
 	kind "ConsoleApp"
 	language "C++"
-	cppdialect "C++20"
+	cppdialect "C++23"
 	staticruntime "on"
 	links "GEngine"
 
@@ -529,7 +530,7 @@ project "Breakout"
 	location "RayTracing"
 	kind "ConsoleApp"
 	language "C++"
-	cppdialect "C++20"
+	cppdialect "C++23"
 	staticruntime "on"
 	links "GEngine"
 
@@ -690,7 +691,7 @@ project "Breakout"
 	location "RigidBodySimulation"
 	kind "ConsoleApp"
 	language "C++"
-	cppdialect "C++20"
+	cppdialect "C++23"
 	staticruntime "on"
 	links "GEngine"
 
@@ -848,7 +849,7 @@ project "PhysicsBenchmark"
 	location "PhysicsBenchmark"
 	kind "ConsoleApp"
 	language "C++"
-	cppdialect "C++20"
+	cppdialect "C++23"
 	staticruntime "on"
 	links "GEngine"
 
@@ -900,7 +901,7 @@ project "PhysicsTests"
 	location "PhysicsTests"
 	kind "ConsoleApp"
 	language "C++"
-	cppdialect "C++20"
+	cppdialect "C++23"
 	staticruntime "on"
 	links { "GEngine", "glad" }
 
@@ -959,7 +960,7 @@ project "RenderingValidation"
 	location "RenderingValidation"
 	kind "ConsoleApp"
 	language "C++"
-	cppdialect "C++20"
+	cppdialect "C++23"
 	staticruntime "on"
 	targetdir(tdir)
 	objdir(odir)

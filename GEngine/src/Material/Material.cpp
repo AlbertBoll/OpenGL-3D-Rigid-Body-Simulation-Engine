@@ -28,8 +28,22 @@ namespace GEngine
 		m_Shader->Bind();
 	}
 
+    std::expected<void, Asset::TextureError> Material::SetTextureBinding(const std::string& uniform,
+        const Asset::TextureView& view, std::uint32_t unit)
+    {
+        auto result = view.Bind(unit);
+        if (!result) return result;
+        m_Shader->SetUniform(uniform.c_str(), static_cast<int>(unit));
+        m_ImageBindings.emplace_back(view, unit);
+        return {};
+    }
+
 	void Material::BindTextureUniforms(int TexTarget)
 	{
+        for (const auto& [view, unit] : m_ImageBindings)
+            if (auto bound = view.Bind(unit); !bound)
+                GENGINE_CORE_ERROR("Texture binding: {}", bound.error().message);
+
 		for (auto& ele : m_TextureList)
 		{
 			m_Shader->BindTextureUniform(ele.second.first, ele.second.second, TexTarget);
@@ -39,16 +53,21 @@ namespace GEngine
 
 	void Material::BindTextureUniforms()
 	{
+        for (const auto& [view, unit] : m_ImageBindings)
+            if (auto bound = view.Bind(unit); !bound)
+                GENGINE_CORE_ERROR("Texture binding: {}", bound.error().message);
+
 		for (auto& ele : m_TextureList)
 		{
 			m_Shader->BindTextureUniform(ele.second.first, ele.second.second, ele.first);
 		}
 	}
 
-	Material::Material(Material&& other)noexcept
+	Material::Material(Material&& other)
 	{
 		m_RenderSetting = other.m_RenderSetting;
 		m_Shader = std::move(other.m_Shader);
+        m_ImageBindings.swap(other.m_ImageBindings);
 		
 		other.m_Shader = nullptr;
 	}
@@ -57,6 +76,7 @@ namespace GEngine
 		if (this != &other)
 		{
 			m_Shader = other.m_Shader;
+            m_ImageBindings.clear(); m_ImageBindings.swap(other.m_ImageBindings);
 			other.m_Shader = nullptr;
 			m_RenderSetting = other.m_RenderSetting;
 		}

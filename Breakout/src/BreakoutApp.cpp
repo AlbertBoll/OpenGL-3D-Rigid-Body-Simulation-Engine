@@ -197,7 +197,9 @@ namespace GEngine
 		sprite.Velocity = INITIAL_BALL_VELOCITY;
 		sprite.Size = { 2 * BALL_RADIUS, 2 * BALL_RADIUS };
 
-		auto backgroundTex = AssetsManager::GetTexture(ImagePath + "background" + ImageExtension);
+		auto backgroundTexResult = AssetsManager::GetTextureOrFallback(ImagePath + "background" + ImageExtension);
+		if (!backgroundTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", backgroundTexResult.error().source, backgroundTexResult.error().message); m_Running = false; return; }
+		auto* backgroundTex = *backgroundTexResult;
 		auto backgroundMaterial = CreateRefPtr<SpriteMaterial>(backgroundTex);
 		auto spriteGeo = ShapeManager::GetShape("SpriteGeometry");
 		m_Background = new SpriteEntity(spriteGeo, backgroundMaterial);
@@ -209,7 +211,9 @@ namespace GEngine
 		
 
 
-		auto paddleTex = AssetsManager::GetTexture(ImagePath + "paddle" + ImageExtension);
+		auto paddleTexResult = AssetsManager::GetTextureOrFallback(ImagePath + "paddle" + ImageExtension);
+		if (!paddleTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", paddleTexResult.error().source, paddleTexResult.error().message); m_Running = false; return; }
+		auto* paddleTex = *paddleTexResult;
 		auto paddleMaterial = CreateRefPtr<SpriteMaterial>(paddleTex);
 		m_Player = new SpriteEntity(spriteGeo, paddleMaterial);
 		m_Player->SetSpriteComponent(sprite);
@@ -220,7 +224,9 @@ namespace GEngine
 			-BALL_RADIUS * 2.0f);
 
 
-		auto ballTex = AssetsManager::GetTexture(ImagePath + "awesomeface_r" + ImageExtension);
+		auto ballTexResult = AssetsManager::GetTextureOrFallback(ImagePath + "awesomeface_r" + ImageExtension);
+		if (!ballTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", ballTexResult.error().source, ballTexResult.error().message); m_Running = false; return; }
+		auto* ballTex = *ballTexResult;
 		auto ballMaterial = CreateRefPtr<SpriteMaterial>(ballTex);
 		m_Ball = new BallEntity(spriteGeo, ballMaterial);
 		m_Ball->SetParams(ballPos, BALL_RADIUS).SetSpriteComponent(sprite);

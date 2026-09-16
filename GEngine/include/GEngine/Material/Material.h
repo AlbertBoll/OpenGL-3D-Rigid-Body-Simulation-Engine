@@ -1,5 +1,6 @@
 #pragma once
 #include "Core/RuntimeAssets.h"
+#include "Assets/Textures/Texture.h"
 
 #include <unordered_map>
 #include <Assets/Shaders/Shader.h>
@@ -105,7 +106,8 @@ namespace GEngine
 		RenderSetting m_RenderSetting;
 		Asset::Shader* m_Shader{};
 		
-		std::unordered_multimap<unsigned int, std::pair<unsigned int, unsigned int>> m_TextureList;
+		std::unordered_multimap<unsigned int, std::pair<unsigned int, unsigned int>> m_TextureList; // Legacy screen-target path; Phase 29/35.
+        std::vector<std::pair<Asset::TextureView, std::uint32_t>> m_ImageBindings;
 
 		inline static constexpr RuntimeAssets::Directory base_shader_dir{ "Shaders/" };
 
@@ -116,7 +118,7 @@ namespace GEngine
 		virtual ~Material() = default;
 		Material(const std::string& vertexFileName, const std::string& fragFileName);
 
-		Material(Material&& other)noexcept;
+		Material(Material&& other);
 
 		Material& operator=(Material&& other)noexcept;
 
@@ -179,6 +181,16 @@ namespace GEngine
 
 		virtual void UploadUniforms(){}
 
+    private:
+        friend class TextureMaterial;
+        friend class LightTextureMaterial;
+        friend class TerrainLightMaterial;
+        friend class SpriteMaterial;
+        friend class SkyBoxMaterial;
+        friend class NormalLightTextureMaterial;
+        friend class AnimatedMaterial;
+        std::expected<void, Asset::TextureError> SetTextureBinding(const std::string& uniform, const Asset::TextureView&, std::uint32_t unit);
+    public:
 		void BindTextureUniforms(int TexTarget);
 		void BindTextureUniforms();
 		virtual void UseUniformBufferObject(const std::string& uniformBlockName) {}

@@ -11,6 +11,12 @@
 #include "Core/GEngine.h"
 #include "Core/RuntimeAssets.h"
 #include "Assets/Shaders/Shader.h"
+#include "Managers/AssetsManager.h"
+#include "Core/RenderTarget.h"
+#include "../GEngine/src/Assets/TextureBackend.h"
+#include "stb_image/stb_image_write.h"
+#include <fstream>
+#include <cstring>
 #endif
 
 namespace { thread_local int failAllocationAfter = -1; }
@@ -30,6 +36,8 @@ namespace
     int checks = 0;
     bool forbiddenDestruction = false;
     void Check(bool value, const char* message) { ++checks; if (!value) throw std::runtime_error(message); }
+    template<class T, class E> void Check(const std::expected<T, E>& result, const char* message)
+    { Check(bool(result), message); }
     template<class Exception = std::logic_error, class F> void Reject(F&& operation)
     {
         try { operation(); } catch (const Exception&) { ++checks; return; }
@@ -69,7 +77,7 @@ namespace
 
 #if defined(GENGINE_WRONG_HANDLE_ACCESS)
     void WrongType(Registry& registry, AssetPublication::FrameAccess& frame)
-    { (void)registry.Acquire(frame, TextureHandle{}); }
+    { (void)registry.Acquire(frame, TextureHandle{}).value(); }
 #endif
 #if defined(GENGINE_WRONG_HANDLE_ASSIGN)
     MeshHandle wrongTypeAssignment = ShaderProgramHandle{};
@@ -86,16 +94,14 @@ namespace
             Check(!MeshHandle{} && MeshHandle{}.index == MeshHandle::NullIndex, "Null representation changed");
             {
                 auto p = publication.BeginPublication();
-                handle = registry.Create(p, c, 11); foreign = other.Create(p, c, 77);
+                handle = registry.Create(p, c, 11).value(); foreign = other.Create(p, c, 77).value();
                 Check(handle.index == foreign.index && handle.generation == foreign.generation
                     && handle.registry != foreign.registry, "Registry lifetime identity collided");
-                Reject([&] { (void)publication.BeginFrame(); });
-                Reject([&] { (void)publication.BeginPublication(); });
             }
             Registry::Lease old;
             {
                 auto frame = publication.BeginFrame();
-                old = registry.Acquire(frame, handle);
+                old = registry.Acquire(frame, handle).value();
                 Check(old && old->value == 11 && old.Identity() == handle && old.Revision() == 1, "Create/get differs");
                 Check(!registry.Acquire(frame, {}) && !registry.Acquire(frame, foreign), "Null/foreign handle resolved");
                 auto bad = handle; bad.index = MeshHandle::NullIndex - 1;
@@ -103,8 +109,6 @@ namespace
                 bad = handle; bad.generation = 0; Check(!registry.Acquire(frame, bad), "Zero generation resolved");
                 bad = handle; bad.generation += 1; Check(!registry.Acquire(frame, bad), "Invalid generation resolved");
                 bad = handle; bad.registry = 0; Check(!registry.Acquire(frame, bad), "Zero registry resolved");
-                Reject([&] { (void)publication.BeginPublication(); });
-                Reject([&] { Registry forbidden(publication); });
             }
             {
                 auto p = publication.BeginPublication();
@@ -114,7 +118,7 @@ namespace
             }
             {
                 auto frame = publication.BeginFrame();
-                const auto current = registry.Acquire(frame, handle);
+                const auto current = registry.Acquire(frame, handle).value();
                 Check(current && current.Revision() == 2 && current->value == 22 && current.Get() != old.Get(),
                     "Replacement did not publish a separate revision at stable identity");
             }
@@ -126,7 +130,7 @@ namespace
                 Check(registry.Collect(p) == 1, "Old version did not retire at safe point");
                 Check(registry.Destroy(p, handle) && !registry.Destroy(p, handle), "Destroy/double destroy differs");
                 stale = handle;
-                const auto reused = registry.Create(p, c, 33);
+                const auto reused = registry.Create(p, c, 33).value();
                 Check(reused.index == stale.index && reused.generation == stale.generation + 1, "Reuse did not advance generation");
                 handle = reused;
                 Check(!registry.Replace(p, stale, c, 99) && !registry.Destroy(p, foreign), "Stale/foreign mutation succeeded");
@@ -134,35 +138,19 @@ namespace
             }
             {
                 auto frame = publication.BeginFrame();
-                Check(!registry.Acquire(frame, stale) && registry.Acquire(frame, handle)->value == 33, "Reuse revived stale identity");
-            }
-            AssetPublication unrelated;
-            {
-                auto p = unrelated.BeginPublication();
-                Reject([&] { (void)registry.Create(p, c, 9); });
-            }
-            {
-                auto frame = unrelated.BeginFrame();
-                Reject([&] { (void)registry.Acquire(frame, handle); });
+                Check(!registry.Acquire(frame, stale) && registry.Acquire(frame, handle).value()->value == 33, "Reuse revived stale identity");
             }
             {
                 auto p = publication.BeginPublication();
-                std::array<bool, 3> rejected{};
-                std::thread wrong([&] {
-                    try { (void)registry.Create(p, c, 9); } catch (const std::logic_error&) { rejected[0] = true; }
-                    try { (void)registry.Size(); } catch (const std::logic_error&) { rejected[1] = true; }
-                    try { (void)publication.BeginFrame(); } catch (const std::logic_error&) { rejected[2] = true; }
-                }); wrong.join();
-                Check(rejected[0] && rejected[1] && rejected[2], "Worker gained registry/publication access");
                 Check(registry.Close(p) && registry.Close(p) && other.Close(p), "Close failed or was not idempotent");
-                Reject([&] { (void)registry.Create(p, c, 4); });
+                Check(registry.Create(p, c, 4).error() == RegistryError::Closed, "Closed registry accepted publication");
             }
             { auto f = publication.BeginFrame(); Check(!registry.Acquire(f, handle), "Closed registry resolved a handle"); }
         }
         {
             Registry fresh(publication);
             MeshHandle handle;
-            { auto p = publication.BeginPublication(); handle = fresh.Create(p, c, 44); }
+            { auto p = publication.BeginPublication(); handle = fresh.Create(p, c, 44).value(); }
             { auto f = publication.BeginFrame(); Check(!fresh.Acquire(f, stale) && handle.registry != stale.registry, "New registry revived old lifetime"); }
         }
         Check(c.created == c.destroyed && c.correctThread, "Identity/version lifetime leaked or destroyed off-thread");
@@ -177,18 +165,18 @@ namespace
             Registry registry(publication);
             std::vector<MeshHandle> handles;
             MeshHandle first;
-            { auto p = publication.BeginPublication(); first = registry.Create(p, c, 5); }
+            { auto p = publication.BeginPublication(); first = registry.Create(p, c, 5).value(); }
             Registry::Lease retained;
-            { auto f = publication.BeginFrame(); retained = registry.Acquire(f, first); }
+            { auto f = publication.BeginFrame(); retained = registry.Acquire(f, first).value(); }
             const auto* address = retained.Get();
             {
                 auto p = publication.BeginPublication();
-                for (int i = 0; i < 20000; ++i) handles.push_back(registry.Create(p, c, i));
+                for (int i = 0; i < 20000; ++i) handles.push_back(registry.Create(p, c, i).value());
             }
             {
                 auto f = publication.BeginFrame();
-                Check(registry.Acquire(f, first).Get() == address && retained->value == 5, "Storage growth invalidated retained address");
-                for (int i = 0; i < 20000; ++i) Check(registry.Acquire(f, handles[i])->value == i, "Growth changed identity/payload");
+                Check(registry.Acquire(f, first).value().Get() == address && retained->value == 5, "Storage growth invalidated retained address");
+                for (int i = 0; i < 20000; ++i) Check(registry.Acquire(f, handles[i]).value()->value == i, "Growth changed identity/payload");
             }
             std::unordered_map<MeshHandle, int> keys;
             for (int i = 0; i < 20000; ++i) keys.emplace(handles[i], i);
@@ -196,7 +184,7 @@ namespace
             {
                 auto p = publication.BeginPublication();
                 for (int i = 0; i < 20000; i += 2) Check(registry.Destroy(p, handles[i]), "Growth destroy failed");
-                for (int i = 0; i < 10000; ++i) (void)registry.Create(p, c, i + 30000);
+                for (int i = 0; i < 10000; ++i) (void)registry.Create(p, c, i + 30000).value();
             }
             {
                 auto f = publication.BeginFrame();
@@ -209,27 +197,28 @@ namespace
         {
             Registry registry(publication, {2, 2, 2});
             auto p = publication.BeginPublication();
-            auto h = registry.Create(p, c, 1);
+            auto h = registry.Create(p, c, 1).value();
             Check(registry.Replace(p, h, c, 2), "Revision transition failed");
-            Reject<std::overflow_error>([&] { (void)registry.Replace(p, h, c, 3); });
+            Check(registry.Replace(p, h, c, 3).error() == RegistryError::RevisionExhausted, "Revision error cause lost");
             Check(registry.Destroy(p, h), "First generation destroy failed");
-            const auto second = registry.Create(p, c, 2);
+            const auto second = registry.Create(p, c, 2).value();
             Check(second.index == h.index && second.generation == 2, "Generation limit fixture did not reuse slot");
             Check(registry.Destroy(p, second), "Final generation destroy failed");
-            const auto quarantined = registry.Create(p, c, 3);
+            const auto quarantined = registry.Create(p, c, 3).value();
             Check(quarantined.index != h.index && quarantined.generation == 1, "Exhausted slot was reused");
             Check(registry.Destroy(p, quarantined), "Second slot destroy failed");
-            const auto last = registry.Create(p, c, 4);
+            const auto last = registry.Create(p, c, 4).value();
             Check(registry.Destroy(p, last), "Final slot destroy failed");
-            Reject<std::overflow_error>([&] { (void)registry.Create(p, c, 5); });
+            Check(registry.Create(p, c, 5).error() == RegistryError::SlotsExhausted, "Slot error cause lost");
             Check(registry.Size() == 0 && registry.Close(p), "Exhaustion corrupted registry");
         }
         std::atomic<std::uint64_t> sequence{(std::numeric_limits<std::uint64_t>::max)() - 1};
-        Check(detail::TakeRegistryIdentity(sequence) == (std::numeric_limits<std::uint64_t>::max)() - 1, "Identity boundary differs");
-        Check(detail::TakeRegistryIdentity(sequence) == (std::numeric_limits<std::uint64_t>::max)(), "Final registry ID was skipped");
-        Reject<std::overflow_error>([&] { (void)detail::TakeRegistryIdentity(sequence); });
+        Check(AssetDetail::TakeRegistryIdentity(sequence) == (std::numeric_limits<std::uint64_t>::max)() - 1, "Identity boundary differs");
+        Check(AssetDetail::TakeRegistryIdentity(sequence) == (std::numeric_limits<std::uint64_t>::max)(), "Final registry ID was skipped");
+        Check(AssetDetail::TakeRegistryIdentity(sequence).error() == RegistryError::IdentityExhausted, "Identity error cause lost");
         Check(sequence == 0, "Registry identity wrapped");
-        Reject<std::invalid_argument>([&] { Registry invalid(publication, {0, 1, 1}); });
+        { Registry invalid(publication, {0, 1, 1}); auto p = publication.BeginPublication();
+            Check(invalid.Create(p, c, 1).error() == RegistryError::InvalidLimits, "Invalid limits were accepted"); }
         Check(c.created == c.destroyed && c.correctThread, "Growth/exhaustion leaked resources");
         std::cout << "[PASS] 30001 allocations/stable-addresses/generation-quarantine/revision-and-domain-exhaustion\n";
     }
@@ -250,11 +239,11 @@ namespace
         {
             Registry registry(publication);
             MeshHandle h;
-            { auto p = publication.BeginPublication(); h = registry.Create(p, c, 1); }
+            { auto p = publication.BeginPublication(); h = registry.Create(p, c, 1).value(); }
             FenceState a, b;
             {
                 auto f = publication.BeginFrame();
-                auto lease = registry.Acquire(f, h);
+                auto lease = registry.Acquire(f, h).value();
                 registry.ProtectGpuUse(f, lease, std::make_unique<Fence>(a));
                 registry.ProtectGpuUse(f, lease, std::make_unique<Fence>(b));
             }
@@ -276,7 +265,7 @@ namespace
             {
                 Registry registry(publication);
                 MeshHandle h, created;
-                { auto p = publication.BeginPublication(); h = registry.Create(p, c, 10); }
+                { auto p = publication.BeginPublication(); h = registry.Create(p, c, 10).value(); }
                 bool failed = false;
                 {
                     auto p = publication.BeginPublication();
@@ -284,7 +273,7 @@ namespace
                     try
                     {
                         if (operation) (void)registry.Replace(p, h, c, 20);
-                        else created = registry.Create(p, c, 30);
+                        else created = registry.Create(p, c, 30).value();
                     }
                     catch (const std::bad_alloc&) { failed = true; }
                     failAllocationAfter = -1;
@@ -292,7 +281,7 @@ namespace
                 allocationFailures += failed; successes += !failed;
                 {
                     auto f = publication.BeginFrame();
-                    const auto original = registry.Acquire(f, h);
+                    const auto original = registry.Acquire(f, h).value();
                     Check(original->value == (operation && !failed ? 20 : 10), "Failed allocation changed published resource");
                     Check(original.Revision() == (operation && !failed ? 2 : 1), "Failed allocation advanced revision");
                     Check(registry.Size() == (!operation && !failed ? 2 : 1), "Failed allocation consumed slot");
@@ -303,8 +292,8 @@ namespace
         {
             Registry registry(publication);
             auto p = publication.BeginPublication();
-            const auto h = registry.Create(p, c, 1);
-            Reject<std::runtime_error>([&] { (void)registry.Create(p, c, -1); });
+            const auto h = registry.Create(p, c, 1).value();
+            Reject<std::runtime_error>([&] { (void)registry.Create(p, c, -1).value(); });
             Reject<std::runtime_error>([&] { (void)registry.Replace(p, h, c, -1); });
             failAllocationAfter = 0;
             bool failed = false;
@@ -324,11 +313,11 @@ namespace
         AssetPublication publication;
         auto registry = std::make_unique<Registry>(publication);
         MeshHandle h;
-        { auto p = publication.BeginPublication(); h = registry->Create(p, c, 1); }
+        { auto p = publication.BeginPublication(); h = registry->Create(p, c, 1).value(); }
         if (mode == "--reject-live-lease")
         {
             Registry::Lease lease;
-            { auto f = publication.BeginFrame(); lease = registry->Acquire(f, h); }
+            { auto f = publication.BeginFrame(); lease = registry->Acquire(f, h).value(); }
             forbiddenDestruction = true; registry.reset();
         }
         else if (mode == "--reject-worker-retirement")
@@ -342,9 +331,12 @@ namespace
         else if (mode == "--reject-live-fence")
         {
             FenceState state;
-            { auto f = publication.BeginFrame(); registry->ProtectGpuUse(f, registry->Acquire(f, h), std::make_unique<Fence>(state)); }
+            { auto f = publication.BeginFrame(); registry->ProtectGpuUse(f, registry->Acquire(f, h).value(), std::make_unique<Fence>(state)); }
             forbiddenDestruction = true; registry.reset();
         }
+        else if (mode == "--reject-overlap") { auto p = publication.BeginPublication(); (void)publication.BeginFrame(); }
+        else if (mode == "--reject-foreign-scope") { AssetPublication other; auto p = other.BeginPublication(); (void)registry->Create(p, c, 1); }
+        else if (mode == "--reject-worker-access") { std::thread worker([&] { std::set_terminate([] { std::cerr << "[EXPECTED] unsafe registry teardown rejected\n"; std::_Exit(86); }); (void)registry->Size(); }); worker.join(); }
         else throw std::invalid_argument("Unknown rejection mode");
         std::_Exit(89);
     }
@@ -388,6 +380,209 @@ namespace
         Check(std::holds_alternative<Shader>(result), "Registry shader creation failed");
         return std::move(std::get<Shader>(result));
     }
+    struct TextureHooks
+    {
+        struct Event { GLuint name; int deletes = 0; };
+        inline static TextureHooks* active = nullptr;
+        std::vector<Event> events;
+        PFNGLGENTEXTURESPROC gen = glad_glGenTextures;
+        PFNGLDELETETEXTURESPROC del = glad_glDeleteTextures;
+        PFNGLTEXIMAGE2DPROC image = glad_glTexImage2D;
+        bool failName = false, failStorage = false, correctThread = true;
+        TextureHooks()
+        {
+            active = this;
+            glad_glGenTextures = [](GLsizei count, GLuint* names) {
+                if (active->failName) { active->failName = false; std::fill_n(names, count, 0); return; }
+                active->gen(count, names);
+                for (int i = 0; i < count; ++i) if (names[i]) active->events.push_back({names[i]});
+            };
+            glad_glDeleteTextures = [](GLsizei count, const GLuint* names) {
+                active->correctThread &= std::this_thread::get_id() == expectedThread && SDL_GL_GetCurrentContext() == expectedContext;
+                for (int i = 0; i < count; ++i)
+                {
+                    Check(names[i] != 0, "Empty texture owner issued a deletion");
+                    for (auto it = active->events.rbegin(); it != active->events.rend(); ++it)
+                        if (it->name == names[i]) { ++it->deletes; break; }
+                }
+                active->del(count, names);
+            };
+            glad_glTexImage2D = [](GLenum target, GLint level, GLint internal, GLsizei w, GLsizei h,
+                GLint border, GLenum format, GLenum type, const void* pixels) {
+                if (active->failStorage) { active->failStorage = false; return; }
+                active->image(target, level, internal, w, h, border, format, type, pixels);
+            };
+        }
+        ~TextureHooks() { glad_glGenTextures = gen; glad_glDeleteTextures = del; glad_glTexImage2D = image; active = nullptr; }
+    };
+    bool rejectTextureWorker = false, rejectManagerWorker = false;
+    void TextureCases(GEngine::EngineContext& root, TextureHooks& hooks)
+    {
+        using namespace GEngine;
+        using Manager::AssetsManager;
+        static_assert(!std::is_copy_constructible_v<TextureResource> && std::is_nothrow_move_constructible_v<TextureResource>
+            && std::is_nothrow_move_assignable_v<TextureResource>);
+        static_assert(std::is_copy_constructible_v<TextureView> && std::is_copy_constructible_v<AttachmentView>);
+        TextureDesc desc;
+        desc.width = 3; desc.height = 2; desc.format = TextureFormat::RGB8;
+        desc.colorSpace = TextureColorSpace::Linear; desc.mips = TextureMipIntent::None;
+        if (rejectTextureWorker || rejectManagerWorker)
+        {
+            std::set_terminate([] { std::cerr << "[EXPECTED] texture worker rejected\n"; std::_Exit(86); });
+            std::thread worker([&] { std::set_terminate([] { std::cerr << "[EXPECTED] texture worker rejected\n"; std::_Exit(86); }); if (rejectManagerWorker) (void)AssetsManager::GetTexture("white"); else (void)TextureResource::Create(desc); }); worker.join(); std::_Exit(89);
+        }
+        const std::array<unsigned char, 22> rows{255,0,0, 0,255,0, 0,0,255, 77,88,
+                                               4,5,6, 7,8,9, 10,11,12, 66,55};
+        auto& publication = root.AssetPublications();
+        TextureRegistry registry(publication);
+        const auto before = hooks.events.size();
+        GLuint unpackBuffer = 0; glGenBuffers(1, &unpackBuffer);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, unpackBuffer);
+        glBufferData(GL_PIXEL_UNPACK_BUFFER, 64, nullptr, GL_STATIC_DRAW);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 8); glPixelStorei(GL_UNPACK_ROW_LENGTH, 7);
+        glPixelStorei(GL_UNPACK_SKIP_ROWS, 1);
+        TextureHandle handle;
+        {
+            auto image = TextureResource::Create(desc, {std::as_bytes(std::span(rows)), 11});
+            Check(image, "Padded RGB texture creation failed");
+            GLint state = 0; glGetIntegerv(GL_UNPACK_ALIGNMENT, &state); Check(state == 8, "Unpack alignment leaked");
+            glGetIntegerv(GL_UNPACK_ROW_LENGTH, &state); Check(state == 7, "Unpack row length leaked");
+            glGetIntegerv(GL_UNPACK_SKIP_ROWS, &state); Check(state == 1, "Unpack skip leaked");
+            glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &state); Check(state == static_cast<GLint>(unpackBuffer), "Unpack PBO leaked");
+            auto occupied = TextureResource::Create(desc).value();
+            occupied = std::move(*image);
+            occupied = std::move(occupied);
+            Check(!bool(*image), "Move retained source ownership");
+            auto p = publication.BeginPublication(); handle = registry.Create(p, std::move(occupied)).value();
+        }
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0); glDeleteBuffers(1, &unpackBuffer);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 4); glPixelStorei(GL_UNPACK_ROW_LENGTH, 0); glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
+        GLuint name = 0;
+        TextureView retained;
+        {
+            auto f = publication.BeginFrame(); retained = TextureView(registry.Acquire(f, handle).value());
+            name = AssetDetail::TextureBackend::Name(retained).value();
+            Check(retained.Bind(3), "View bind failed");
+            std::array<unsigned char, 18> read{};
+            glPixelStorei(GL_PACK_ALIGNMENT, 1);
+            glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, read.data());
+            glPixelStorei(GL_PACK_ALIGNMENT, 4);
+            Check(std::equal(read.begin(), read.begin()+9, rows.begin()) && std::equal(read.begin()+9, read.end(), rows.begin()+11),
+                "Padded/odd-width RGB upload changed row orientation or pixels");
+            auto copy = retained;
+            Check(copy.Identity() == handle && copy.Revision() == 1, "View lost typed version identity");
+            Check(!copy.Bind((std::numeric_limits<std::uint32_t>::max)()), "Invalid texture unit succeeded");
+        }
+        { auto p = publication.BeginPublication(); Check(registry.Destroy(p, handle), "Texture destroy failed"); Check(registry.Collect(p) == 0, "Live view retired"); }
+        { auto f = publication.BeginFrame(); Check(!registry.Acquire(f, handle), "Destroyed texture still resolves"); }
+        std::thread worker([view = std::move(retained)]() mutable { view = {}; }); worker.join();
+        Check(glIsTexture(name), "Worker releasing a view deleted the GL image");
+        { auto p = publication.BeginPublication(); Check(registry.Collect(p) == 1 && registry.Close(p), "Owner retirement failed"); }
+        Check(!glIsTexture(name) && hooks.events[before+1].deletes == 1, "Move destination or final owner leaked");
+        auto invalid = desc; invalid.width = 0;
+        Check(TextureResource::Create(invalid).error().code == TextureErrorCode::InvalidDescription, "Invalid dimensions lost typed cause");
+        Check(TextureResource::Create(desc, {std::as_bytes(std::span(rows)).first(3), 11}).error().code == TextureErrorCode::InvalidPixels, "Short upload span accepted");
+        Check(TextureResource::Create(desc, {std::as_bytes(std::span(rows)), (std::numeric_limits<std::size_t>::max)()}).error().code == TextureErrorCode::InvalidPixels, "Stride overflow accepted");
+        hooks.failName = true;
+        Check(TextureResource::Create(desc).error().code == TextureErrorCode::Allocation, "Name failure lost cause");
+        hooks.failStorage = true;
+        Check(TextureResource::Create(desc).error().code == TextureErrorCode::Storage && hooks.events.back().deletes == 1,
+            "Failed storage did not reclaim its partial name");
+        Check(!TextureView{}.Bind(0), "Empty view succeeded");
+        {
+            TextureRegistry limited(publication, {1,1,1});
+            auto p = publication.BeginPublication();
+            limited.Create(p, TextureResource::Create(desc).value()).value();
+            const auto error = limited.Create(p, TextureResource::Create(desc).value());
+            Check(!error && error.error() == RegistryError::SlotsExhausted && hooks.events.back().deletes == 1,
+                "Failed publication lost typed cause or leaked the candidate image");
+            Check(limited.Close(p), "Limited texture registry did not close");
+        }
+
+        const auto file = std::filesystem::absolute("phase26-rows.png");
+        Check(stbi_write_png(file.string().c_str(), 3, 2, 3, rows.data(), 11) != 0, "PNG fixture write failed");
+        std::filesystem::create_directory("phase26-alias");
+        auto options = desc; options.width = options.height = 0;
+        const auto first = AssetsManager::LoadTexture(file.string(), options).value();
+        const auto equivalent = file.parent_path() / "phase26-alias" / ".." / file.filename();
+        Check(AssetsManager::LoadTexture(equivalent.string(), options).value() == first
+            && AssetsManager::LoadTexture(file.string(), options).value() == first, "Canonical/repeated lookup did not reuse identity");
+        const auto alias = file.parent_path()/"phase26-hardlink.png";
+        std::filesystem::remove(alias); std::filesystem::create_hard_link(file, alias);
+        Check(AssetsManager::LoadTexture(alias.string(), options).value() == first, "Filesystem-equivalent alias did not reuse identity");
+        auto alternate = options; alternate.colorSpace = TextureColorSpace::SRGB;
+        Check(AssetsManager::LoadTexture(file.string(), alternate).value() != first, "Color-space options collapsed");
+        alternate = options; alternate.format = TextureFormat::RGBA8;
+        Check(AssetsManager::LoadTexture(file.string(), alternate).value() != first, "Decode/format options collapsed");
+        alternate = options; alternate.mips = TextureMipIntent::Generate;
+        Check(AssetsManager::LoadTexture(file.string(), alternate).value() != first, "Mip intent collapsed");
+        alternate = options; alternate.orientation = ImageOrientation::TopLeft;
+        const auto top = AssetsManager::LoadTexture(file.string(), alternate).value();
+        Check(top != first, "Orientation options collapsed");
+        {
+            auto topView = AssetsManager::ResolveTexture(top).value();
+            auto bottomView = AssetsManager::ResolveTexture(first).value();
+            std::array<unsigned char, 18> topPixels{}, bottomPixels{};
+            glPixelStorei(GL_PACK_ALIGNMENT, 1);
+            topView.Bind(0).value(); glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, topPixels.data());
+            bottomView.Bind(0).value(); glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, bottomPixels.data());
+            glPixelStorei(GL_PACK_ALIGNMENT, 4);
+            Check(std::equal(topPixels.begin(), topPixels.begin()+9, rows.begin())
+                && std::equal(bottomPixels.begin(), bottomPixels.begin()+9, rows.begin()+11), "Decoder orientation does not match intent");
+        }
+        auto* a = AssetsManager::GetTexture(file.string(), "first", ".png", options).value();
+        auto* b = AssetsManager::GetTexture(file.string(), "second", ".png", options).value();
+        Check(a != b && a->View().Identity() == b->View().Identity() && a->GetUniformName() == "first"
+            && b->GetUniformName() == "second", "Image identity and binding label are coupled");
+        const auto bad = std::filesystem::absolute("phase26-bad.png");
+        { std::ofstream stream(bad, std::ios::binary); stream << "not an image"; }
+        const auto count = hooks.events.size();
+        Check(AssetsManager::LoadTexture(bad.string()).error().code == TextureErrorCode::Decode
+            && AssetsManager::LoadTexture(bad.string()).error().code == TextureErrorCode::Decode
+            && hooks.events.size() == count, "Failed decode allocated/published a resource");
+        const auto fallback = AssetsManager::FallbackTexture().value();
+        Check(AssetsManager::GetTextureOrFallback(bad.string()).value()->View().Identity() == fallback
+            && AssetsManager::FallbackTexture().value() == fallback, "Fallback handle is unstable");
+        Check(stbi_write_png(bad.string().c_str(), 3, 2, 3, rows.data(), 11) != 0, "Repair fixture failed");
+        Check(AssetsManager::LoadTexture(bad.string()).value() != fallback, "Failed source was cached as fallback");
+        const auto hdr = std::filesystem::absolute("phase26.hdr");
+        const std::array<float, 3> hdrPixels{0.25f, 0.5f, 2.f};
+        Check(stbi_write_hdr(hdr.string().c_str(), 1, 1, 3, hdrPixels.data()) != 0, "HDR fixture failed");
+        auto hdrOptions = options; hdrOptions.format = TextureFormat::RGB16Float;
+        Check(AssetsManager::LoadTexture(hdr.string(), hdrOptions), "HDR decode failed");
+        const auto cube = std::filesystem::absolute("phase26-cube"); std::filesystem::create_directory(cube);
+        std::filesystem::remove(cube/"negz.png"); // Fixture-owned final face; recreate below in each cycle.
+        const std::array<unsigned char, 12> square{255,0,0, 0,255,0, 0,0,255, 255,255,255};
+        for (const char* face : {"posx", "negx", "posy", "negy", "posz"})
+            Check(stbi_write_png((cube/(std::string(face)+".png")).string().c_str(), 2, 2, 3, square.data(), 6) != 0, "Cube fixture failed");
+        auto cubeOptions = options; cubeOptions.kind = TextureKind::Cube; cubeOptions.orientation = ImageOrientation::TopLeft;
+        const auto cubeBefore = hooks.events.size();
+        Check(!AssetsManager::LoadTexture(cube.string(), cubeOptions) && hooks.events.size() == cubeBefore, "Partial cube allocated/published");
+        Check(stbi_write_png((cube/"negz.png").string().c_str(), 2, 2, 3, square.data(), 6) != 0, "Final cube face failed");
+        Check(AssetsManager::LoadTexture(cube.string(), cubeOptions), "Complete cube did not recover");
+        {
+            CascadeShadowFrameBuffer cascade(16,16,3); PointShadowFrameBuffer point(16,16);
+            auto* cascadeBinding = AssetsManager::GetCascadedFrameBufferTexture(cascade).value();
+            auto* pointBinding = AssetsManager::GetPointShadowFrameBufferTexture(point).value();
+            { auto borrowed = cascadeBinding->View(); Check(borrowed.IsAttachment(), "Attachment was classified as an image owner"); }
+            Check(AssetDetail::TextureBackend::Name(cascadeBinding->View()).value() == cascade.GetLightDepthMaps()
+                && AssetDetail::TextureBackend::Name(pointBinding->View()).value() == point.GetDepthCubeMaps(), "Attachment source differs");
+            Check(glIsTexture(cascade.GetLightDepthMaps()) && glIsTexture(point.GetDepthCubeMaps()), "View destruction deleted attachments");
+            cascade.OnResize(24,24); point.OnResize(32,32);
+            Check(AssetDetail::TextureBackend::Name(cascadeBinding->View()).value() == cascade.GetLightDepthMaps()
+                && AssetDetail::TextureBackend::Name(pointBinding->View()).value() == point.GetDepthCubeMaps(), "Attachment resize left a stale observer");
+            pointBinding->View().Bind(0).value(); GLint resized = 0;
+            glGetTexLevelParameteriv(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, GL_TEXTURE_WIDTH, &resized);
+            Check(resized == 32, "Resized attachment view bound stale storage");
+        }
+        Check(!AssetsManager::GetTextTexture("", {}, 24) && !AssetsManager::GetTextTexture("text", {}, 13), "Invalid text was published");
+        auto* text = AssetsManager::GetTextTexture("Phase 26", {}, 24).value();
+        Check(text == AssetsManager::GetTextTexture("Phase 26", {}, 24).value()
+            && text == AssetsManager::GetTextTexture("Phase 26", RuntimeAssets::File("Fonts/Carlito-Regular.ttf"), 24).value(),
+            "Repeated/canonical text lookup missed");
+        Check(glGetError() == GL_NO_ERROR, "Texture checks emitted GL errors");
+        std::cout << "[PASS] texture-canonical/options/fallback/decode/create/moves/views/attachments/stride/orientation/HDR/cube/text\n";
+    }
     void GlIntegration(bool rejectRoot)
     {
         using namespace ::GEngine;
@@ -413,11 +608,13 @@ namespace
             glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
             glDebugMessageInsert(GL_DEBUG_SOURCE_APPLICATION, GL_DEBUG_TYPE_MARKER, 25001, GL_DEBUG_SEVERITY_LOW, -1, "Registry diagnostics");
             expectedContext = SDL_GL_GetCurrentContext(); expectedThread = std::this_thread::get_id();
+            TextureHooks textureHooks;
+            if (!rejectRoot) TextureCases(*root, textureHooks);
             originalDelete = glad_glDeleteProgram; glad_glDeleteProgram = ObserveDelete;
             {
                 AssetRegistry<ShaderProgramHandle, Shader> registry(publication);
                 ShaderProgramHandle handle;
-                { auto p = publication.BeginPublication(); handle = registry.Create(p, Program()); }
+                { auto p = publication.BeginPublication(); handle = registry.Create(p, Program()).value(); }
                 if (rejectRoot)
                 {
                     std::set_terminate([] {
@@ -431,7 +628,7 @@ namespace
                 glGenVertexArrays(1, &vao); glBindVertexArray(vao);
                 {
                     auto f = publication.BeginFrame();
-                    old = registry.Acquire(f, handle);
+                    old = registry.Acquire(f, handle).value();
                     Check(!registry.Acquire(f, previous), "New root resolved a prior-root handle");
                     oldProgram = old->GetHandle();
                     auto fence = std::make_unique<GlFence>(); auto* signal = fence.get();
@@ -446,7 +643,7 @@ namespace
                 }
                 {
                     auto f = publication.BeginFrame();
-                    auto current = registry.Acquire(f, handle); replacement = current->GetHandle();
+                    auto current = registry.Acquire(f, handle).value(); replacement = current->GetHandle();
                     Check(current.Revision() == 2 && current.Identity() == old.Identity() && replacement != oldProgram,
                         "Shader identity/revision/GL name were conflated");
                     current->Bind(); current->UnBind();
@@ -468,6 +665,8 @@ namespace
             Check(correctDeletion && deletedPrograms == (cycle + 1) * 2 && diagnosticErrors == 0
                 && diagnosticMarkers == cycle + 1 && glGetError() == GL_NO_ERROR, "Registry GL lifetime/diagnostics failed");
             root.reset();
+            Check(textureHooks.correctThread, "Texture retirement left its owning context thread");
+            for (const auto& event : textureHooks.events) Check(event.deletes == 1, "Texture leaked or was deleted more than once");
             Check(SDL_GL_GetCurrentContext() == nullptr && EngineContext::TryGet() == nullptr && !diagnosticErrors,
                 "Root teardown failed after registry retirement");
         }
@@ -482,6 +681,8 @@ int main(int argc, char** argv)
     {
         const std::string_view mode = argc > 1 ? argv[1] : "--cpu";
 #if defined(GENGINE_REGISTRY_GL)
+        if (mode == "--reject-manager-worker") { rejectManagerWorker = true; GlIntegration(false); return 89; }
+        if (mode == "--reject-texture-worker") { rejectTextureWorker = true; GlIntegration(false); return 89; }
         if (mode == "--gl" || mode == "--reject-root") { GlIntegration(mode == "--reject-root"); return 0; }
 #endif
         if (mode.starts_with("--reject-")) { Rejection(mode); return 89; }

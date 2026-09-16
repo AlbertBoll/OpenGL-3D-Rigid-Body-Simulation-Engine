@@ -5,6 +5,7 @@
 #include "Managers/WindowManager.h"
 #include "Managers/EventManager.h"
 #include "Assets/AssetPublication.h"
+#include "Assets/Textures/Texture.h"
 #include <thread>
 
 
@@ -84,6 +85,8 @@ namespace GEngine
         void RenderScene(Actor* scene, CameraBase* camera, RenderTarget* target, const RenderParam& parameters);
 
     private:
+        friend class Manager::AssetsManager;
+        std::expected<Manager::AssetsManager*, Asset::TextureError> TryAssets();
         void RequireOwnerThread() const;
         void RequireManagers();
         void Release() noexcept;

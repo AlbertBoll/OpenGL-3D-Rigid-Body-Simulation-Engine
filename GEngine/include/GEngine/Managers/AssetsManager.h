@@ -1,81 +1,52 @@
 #pragma once
+#include "Assets/Textures/Texture.h"
+#include "Assets/Fonts/Font.h"
 #include "Core/RuntimeAssets.h"
-#include <unordered_map>
-#include <memory>
+#include "Math/Math.h"
 #include <map>
 #include <tuple>
-#include <Assets/Textures/Texture.h>
-#include <Assets/Fonts/Font.h>
-#include <Core/RenderTarget.h>
 
-
-
-
-namespace GEngine { class EngineContext; }
-
+namespace GEngine { class EngineContext; class CascadeShadowFrameBuffer; class PointShadowFrameBuffer; }
 namespace GEngine::Manager
 {
-
-	enum class ImageFormat
-	{
-		PNG,
-		JPG,
-		JPEG
-	};
-
-	struct EnumClassHash
-	{
-		template <typename T>
-		std::size_t operator()(T t) const
-		{
-			return static_cast<std::size_t>(t);
-		}
-	};
-
-	enum class FrameBufferMapType
-	{
-		CascadedShadowMap,
-		PointShadowMap
-	};
-
-	class AssetsManager
-	{
-		
-
-		using TextureOwner = std::unique_ptr<Asset::Texture, void(*)(Asset::Texture*)>;
-		using TextKey = std::tuple<std::string, std::string, int, float, float, float, std::string>;
-
-	public:
+    class AssetsManager final
+    {
+    public:
         ~AssetsManager();
-        NONCOPYMOVABLE(AssetsManager);
-        // Returned pointers borrow this EngineContext's lifetime. Only the root
-        // can create/retire the manager; failed loads never publish cache entries.
-		static Asset::Texture* GetTexture(const std::string& texture_name="",
-								   const std::string& uniform_name = "u_texture",
-								   const std::string& extension = ".png", 
-								   const Asset::TextureInfo& info = Asset::TextureInfo{});
-		static Asset::Texture* GetCascadedFrameBufferTexture(const CascadeShadowFrameBuffer& fb, const std::string& uniform_name = "");
-		static Asset::Texture* GetPointShadowFrameBufferTexture(const PointShadowFrameBuffer& fb, const std::string& uniform_name = "");
-		static Asset::Texture* GetTextTexture(const std::string& str,
-									   const std::string& font_file = RuntimeAssets::File("Fonts/Carlito-Regular.ttf"),
-									   int pointSize = 24,
-									   const glm::vec3& font_color = { 0.0f, 0.0f, 1.0f },
-									   const std::string& uniform_name = "");
-
-
-		static Asset::Font* GetFont(const std::string& font_file);
-
-	private:
+        AssetsManager(const AssetsManager&) = delete;
+        AssetsManager& operator=(const AssetsManager&) = delete;
+        static std::expected<Asset::TextureHandle, Asset::TextureError> LoadTexture(const std::string& path,
+            const Asset::TextureDesc& desc = {}, const std::string& extension = ".png");
+        static std::expected<Asset::TextureView, Asset::TextureError> ResolveTexture(Asset::TextureHandle);
+        static std::expected<Asset::TextureHandle, Asset::TextureError> FallbackTexture(const Asset::TextureDesc& = {});
+        static std::expected<Asset::Texture*, Asset::TextureError> GetTexture(const std::string& path = {},
+            const std::string& uniform = "u_texture", const std::string& extension = ".png", const Asset::TextureDesc& = {});
+        // Explicit presentation recovery. Failed sources never enter the image cache.
+        static std::expected<Asset::Texture*, Asset::TextureError> GetTextureOrFallback(const std::string& path = {},
+            const std::string& uniform = "u_texture", const std::string& extension = ".png", const Asset::TextureDesc& = {});
+        static std::expected<Asset::Texture*, Asset::TextureError> GetCascadedFrameBufferTexture(const CascadeShadowFrameBuffer&, const std::string& uniform = {});
+        static std::expected<Asset::Texture*, Asset::TextureError> GetPointShadowFrameBufferTexture(const PointShadowFrameBuffer&, const std::string& uniform = {});
+        static std::expected<Asset::Texture*, Asset::TextureError> GetTextTexture(const std::string& text,
+            const std::string& font = {}, int pointSize = 24,
+            const glm::vec3& color = {0,0,1}, const std::string& uniform = {});
+        static std::expected<Asset::Font*, Asset::TextureError> GetFont(const std::string& path);
+    private:
         friend class ::GEngine::EngineContext;
-        AssetsManager() = default;
-        static AssetsManager& Current();
-        std::unordered_map<std::string, TextureOwner> m_TextureMap;
-        std::map<TextKey, TextureOwner> m_TextTextures;
-        std::unordered_map<std::string, std::unique_ptr<Asset::Font>> m_FontMap;
-        // Each call returns a stable wrapper snapshot. Names are borrowed data,
-        // never cache identities; the framebuffer must outlive its use.
-        std::vector<std::unique_ptr<Asset::Texture>> m_FrameBufferTextures;
-	};
-	
-
+        AssetsManager(Asset::AssetPublication&, std::filesystem::path imageRoot);
+        static std::expected<AssetsManager*, Asset::TextureError> Current();
+        std::expected<Asset::TextureHandle, Asset::TextureError> Publish(Asset::TextureResource image);
+        std::expected<Asset::TextureView, Asset::TextureError> Resolve(Asset::TextureHandle);
+        std::expected<Asset::Texture*, Asset::TextureError> Binding(Asset::TextureHandle, const std::string&);
+        Asset::AssetPublication& m_Publication;
+        Asset::TextureRegistry m_Images;
+        std::filesystem::path m_ImageRoot;
+        using ImageKey = std::tuple<std::string, Asset::TextureDesc, std::string>;
+        std::map<ImageKey, Asset::TextureHandle> m_ImageCache;
+        std::map<Asset::TextureDesc, Asset::TextureHandle> m_Fallbacks;
+        std::map<std::pair<Asset::TextureHandle, std::string>, std::unique_ptr<Asset::Texture>> m_Bindings;
+        std::vector<std::unique_ptr<Asset::Texture>> m_Attachments;
+        using TextKey = std::tuple<std::string, std::string, int, float, float, float>;
+        std::map<TextKey, Asset::TextureHandle> m_TextCache;
+        std::map<std::string, std::unique_ptr<Asset::Font>> m_Fonts;
+    };
 }

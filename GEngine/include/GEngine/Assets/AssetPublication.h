@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <exception>
 #include <limits>
-#include <stdexcept>
+#include "Assets/AssetHandle.h"
 #include <thread>
 
 namespace GEngine::Asset
@@ -59,12 +59,12 @@ namespace GEngine::Asset
         void RequireOwner() const
         {
             if (std::this_thread::get_id() != m_Thread)
-                throw std::logic_error("Asset publication requires its owner thread");
+                AssetDetail::RequireInvariant(false);
         }
         void Begin(Phase phase)
         {
             RequireOwner();
-            if (m_Phase != Phase::Idle) throw std::logic_error("Asset publication and frame access cannot overlap");
+            AssetDetail::RequireInvariant(m_Phase == Phase::Idle);
             m_Phase = phase;
         }
         void End(Phase phase) noexcept
@@ -76,20 +76,21 @@ namespace GEngine::Asset
         {
             RequireOwner();
             if (&access.m_Owner != this || m_Phase != Phase::Publishing)
-                throw std::logic_error("Registry mutation requires its publication safe point");
+                AssetDetail::RequireInvariant(false);
         }
         void Require(const FrameAccess& access) const
         {
             RequireOwner();
             if (&access.m_Owner != this || m_Phase != Phase::Reading)
-                throw std::logic_error("Registry resolution requires its frame access scope");
+                AssetDetail::RequireInvariant(false);
         }
-        void Register()
+        std::expected<void, RegistryError> Register()
         {
             RequireOwner();
-            if (m_Phase == Phase::Reading) throw std::logic_error("Cannot create a registry during extraction/submission");
-            if (m_Registries == (std::numeric_limits<std::size_t>::max)()) throw std::overflow_error("Too many asset registries");
+            AssetDetail::RequireInvariant(m_Phase != Phase::Reading);
+            if (m_Registries == (std::numeric_limits<std::size_t>::max)()) return std::unexpected(RegistryError::RegistryCountExhausted);
             ++m_Registries;
+            return {};
         }
         void RequireRetirement() const noexcept
         {

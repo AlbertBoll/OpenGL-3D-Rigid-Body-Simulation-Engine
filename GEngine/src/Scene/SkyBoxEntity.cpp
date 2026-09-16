@@ -8,20 +8,20 @@ namespace GEngine
 {
     static std::string image_base_dir = "../GEngine/include/GEngine/Assets/Images/SkyBox";
 
-    RefPtr<Material> SkyBoxEntity::GetSkyBoxMaterial(const SkyBoxComponent& comp)
+    std::expected<RefPtr<Material>, Asset::TextureError> SkyBoxEntity::GetSkyBoxMaterial(const SkyBoxComponent& comp)
     {
-        Asset::TextureInfo info;
-        info.m_TextureSpec.m_MagFilter = GL_LINEAR;
-        info.m_TextureSpec.m_MinFilter = GL_LINEAR;
-        info.m_TextureSpec.m_WrapR = GL_CLAMP_TO_EDGE;
-        info.m_TextureSpec.m_WrapS = GL_CLAMP_TO_EDGE;
-        info.m_TextureSpec.m_WrapT = GL_CLAMP_TO_EDGE;
-        info.b_CubeMap = true;
-        info.b_HDR = false;
-        info.b_GammaCorrection = false;
+        Asset::TextureDesc info;
+        info.kind = Asset::TextureKind::Cube;
+        info.colorSpace = Asset::TextureColorSpace::Linear;
+        info.mips = Asset::TextureMipIntent::None;
+        info.orientation = Asset::ImageOrientation::TopLeft;
         //auto tex = Manager::AssetsManager::GetTexture("SkyBox", "u_SkyBoxDay", ".png", info);
-        Asset::Texture* tex1 = Manager::AssetsManager::GetTexture("SkyBox/Day/", "u_SkyBoxDay", ".png", info);
-        Asset::Texture* tex2 = Manager::AssetsManager::GetTexture("SkyBox/Night/", "u_SkyBoxNight", ".png", info);
+        auto tex1Result = Manager::AssetsManager::GetTextureOrFallback("SkyBox/Day/", "u_SkyBoxDay", ".png", info);
+        if (!tex1Result) return std::unexpected(tex1Result.error());
+        auto* tex1 = *tex1Result;
+        auto tex2Result = Manager::AssetsManager::GetTextureOrFallback("SkyBox/Night/", "u_SkyBoxNight", ".png", info);
+        if (!tex2Result) return std::unexpected(tex2Result.error());
+        auto* tex2 = *tex2Result;
         std::vector<Asset::Texture*> texs = { tex1, tex2 };
         auto skyBoxMaterial = CreateRefPtr<SkyBoxMaterial>(texs);
         //auto skyBoxMaterial = CreateRefPtr<SkyBoxMaterial>(*tex1);
@@ -31,12 +31,15 @@ namespace GEngine
 
     SkyBoxEntity::SkyBoxEntity(const SkyBoxComponent& comp, Geometry* geometry, const RefPtr<Material>& material): Entity(geometry, material)
     {
+        m_Description = comp;
         auto material_ = GetSkyBoxMaterial(comp);
-        SetMaterial(material_);
+        if (!material_) { GENGINE_CORE_ERROR("Skybox texture {}: {}", material_.error().source, material_.error().message); return; }
+        SetMaterial(*material_);
     }
 
     void SkyBoxEntity::Render(CameraBase* camera)
     {
+        if (!GetMaterial()) return;
 
         auto view = Mat4(Mat3(camera->GetView()));
 
@@ -68,6 +71,7 @@ namespace GEngine
     SkyBoxComponent& SkyBoxEntity::GetSkyBoxComponent()
     {
         auto material = GetMaterial();
+        if (!material) return m_Description;
         auto skyBox_material = dynamic_cast<SkyBoxMaterial*>(material);
         
         return skyBox_material->GetSkyBoxComponent();

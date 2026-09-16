@@ -1,0 +1,413 @@
+{
+  "baseline": "9c0a5f7918ba1c40857b2d8dd1b4dda41cd6505b",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "Breakout/src/BreakoutApp.cpp",
+    "Breakout/src/GameLevel.cpp",
+    "GEngine/include/GEngine/Assets/AssetHandle.h",
+    "GEngine/include/GEngine/Assets/AssetPublication.h",
+    "GEngine/include/GEngine/Assets/AssetRegistry.h",
+    "GEngine/include/GEngine/Assets/Fonts/Font.h",
+    "GEngine/include/GEngine/Assets/Textures/TextTexture.h",
+    "GEngine/include/GEngine/Assets/Textures/Texture.h",
+    "GEngine/include/GEngine/Component/Component.h",
+    "GEngine/include/GEngine/Component/TexturesComponent.h",
+    "GEngine/include/GEngine/Core/GEngine.h",
+    "GEngine/include/GEngine/Managers/AssetsManager.h",
+    "GEngine/include/GEngine/Material/Material.h",
+    "GEngine/include/GEngine/Scene/SkyBoxEntity.h",
+    "GEngine/include/GEngine/UI/UICore.cpp",
+    "GEngine/include/GEngine/UI/UICore.h",
+    "GEngine/src/Assets/Font.cpp",
+    "GEngine/src/Assets/TextTexture.cpp",
+    "GEngine/src/Assets/Texture.cpp",
+    "GEngine/src/Assets/TextureBackend.h",
+    "GEngine/src/Component/Component.cpp",
+    "GEngine/src/Core/GEngine.cpp",
+    "GEngine/src/Managers/AssetsManager.cpp",
+    "GEngine/src/Material/AnimatedMaterial.cpp",
+    "GEngine/src/Material/LightTextureMaterial.cpp",
+    "GEngine/src/Material/Material.cpp",
+    "GEngine/src/Material/NormalLightTextureMaterial.cpp",
+    "GEngine/src/Material/SkyBoxMaterial.cpp",
+    "GEngine/src/Material/SpriteMaterial.cpp",
+    "GEngine/src/Material/TerrainLightMaterial.cpp",
+    "GEngine/src/Material/TextureMaterial.cpp",
+    "GEngine/src/Scene/SkyBoxEntity.cpp",
+    "GEngineEditor/src/SceneApp.cpp",
+    "RenderingValidation/src/main.cpp",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "premake5.lua",
+    "rendering-checkpoints/phase-26.json",
+    "tools/asset_registry_probe.cpp",
+    "tools/shutdown_probe.cpp",
+    "tools/test_asset_registry.py",
+    "tools/test_cpp23_gate.py",
+    "tools/test_shutdown.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Typed expected results, single registry identity/owner, canonical+option key and explicit stable fallback validated in both configurations.",
+      "finding": "Required registry exhaustion error migration, texture ownership/native leakage, incomplete cache identity and implicit fallback publication",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Existing editor destructor releases that consumer before root cache; exact failed smoke/debugger evidence preserved and corrected Debug native-close smoke passes.",
+      "finding": "Editor off-scene Terrain2 retained material texture leases at root teardown",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "No source drift or production change; preserved failure, verified output stability, refreshed Release provenance and resumed only incomplete steps.",
+      "finding": "Release GL link failed while a concurrent Visual Studio build removed/replaced Release artifacts",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Target allocation belongs to Phases 28-29 and is explicitly excluded by the amendment; existing fixture separates startup from required teardown assertions. Focused Phase 26 image operations pass. No mandatory phase gate waived.",
+      "finding": "Unchanged RenderTarget multisample sampler-state startup diagnostics",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    },
+    {
+      "disposition": "Owners 27-29 targets/samplers, 30 platform, 31-35 mesh/shader/material/UI integration, 42 RigidBodySimulation consumer, 46 root/renderer orchestration, 66 residual exceptions; final 68 has no waiver. Exact source sites and bounded private adapters are in the current review/audit.",
+      "finding": "Unchanged pre-26 root/platform/other-manager exceptions and legacy native material/target/UI/application contracts outside the migrated texture closure",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/phases/PHASE_26_SCOPE_AMENDMENT.md",
+    "docs/rendering/reviews/PHASE_26_REVIEW.md"
+  ],
+  "next_phase": "27",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "166451ce166a1d83327b617a7165dca4f61be21b",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-26/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/166451ce166a1d83327b617a7165dca4f61be21b",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "91e6da0aeea1eab7ec9db6a63e5a6166cafd722fe4be66aa57695ee307606a3e"
+      },
+      "mode": "100644",
+      "validated_blob": "e80b314a6c9512a9c96448983045699b65b70b84",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-26/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/e80b314a6c9512a9c96448983045699b65b70b84"
+    }
+  },
+  "phase": "26",
+  "previous_approved_tag": "render-refactor-phase-25-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngine/include/GEngine/Core/BaseApp.h",
+    "GEngine/include/GEngine/Mesh/IndexBuffer.h",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_26_REVIEW.md",
+  "schema": 2,
+  "summary": "Activate verified C++23 expected/print facilities on the preserved toolchain; publish move-only registry-owned textures with neutral semantic APIs, typed transactional cache failures, stable explicit fallback and retained image/borrowed attachment views. Adapt the affected text/material/ECS/UI/editor consumers within the owner-approved 34 production / 7 test-build file scope.",
+  "validation": [
+    {
+      "check": "Baseline, protected work/index and exact pre-validation source identity",
+      "command": "python logs/rendering/phase26/final-v2/finalize-evidence.py; helper fingerprint commands recorded in editor-revision/fingerprint-commands.json",
+      "evidence": "logs/rendering/phase26/final-v2/completion/preservation.json",
+      "result": "PASS"
+    },
+    {
+      "check": "C++23 standard-library activation and maintained Debug/Release target builds",
+      "command": "python tools/test_cpp23_gate.py --configuration Debug|Release --output <recorded evidence directory>; exact editor target build commands in editor-revision/build/*/results.json",
+      "evidence": "logs/rendering/phase26/final-v2/cpp23/Debug/results.json; logs/rendering/phase26/final-v2/editor-revision/build/Debug/results.json; logs/rendering/phase26/final-v2/concurrent-build/cpp23/Release/results.json",
+      "result": "PASS",
+      "reuse_reason": "Debug gate unchanged except editor-specific corrected build. Release record refreshed only after external build replaced all Release artifacts."
+    },
+    {
+      "check": "Neutral texture/font/text/cache/ECS public header compilation and dependency closure",
+      "command": "Exact standalone MSVC /showIncludes commands recorded in all-texture-headers.json and registry/*/results.json",
+      "evidence": "logs/rendering/phase26/final-v2/all-texture-headers.json",
+      "result": "PASS",
+      "reuse_reason": "All tested headers and compiler inputs unchanged by the editor-only correction/concurrent output rebuild."
+    },
+    {
+      "check": "Typed registry, texture cache/options/fallback, failure cleanup, moves/leases, upload layout, attachment borrow/resize and owner-thread retirement",
+      "command": "python tools/test_asset_registry.py --configuration Debug --no-build --output logs/rendering/phase26/final-v2/registry/Debug; Release runner plus python logs/rendering/phase26/final-v2/registry/resume-release.py",
+      "evidence": "logs/rendering/phase26/final-v2/registry/Debug/results.json; logs/rendering/phase26/final-v2/registry/Release/results.json (11 successful pre-link steps); logs/rendering/phase26/final-v2/registry/Release-resumed/results.json",
+      "result": "PASS",
+      "reuse_reason": "Complete Debug suite retained; successful Release header/CPU controls reused. Only incomplete Release link and runtime resumed after external output race."
+    },
+    {
+      "check": "Shutdown/partial initialization/cache ownership/context-thread regression and isolated misuse",
+      "command": "python tools/test_shutdown.py --configuration Debug|Release --no-build --output logs/rendering/phase26/final-v2/shutdown/<Configuration>",
+      "evidence": "logs/rendering/phase26/final-v2/shutdown/Debug/results.json; logs/rendering/phase26/final-v2/shutdown/Release/results.json",
+      "result": "PASS",
+      "reuse_reason": "Debug complete 26-step report retained; unchanged production library and test inputs. Release runs against refreshed proven library."
+    },
+    {
+      "check": "Four graphical application startup/native-close smokes in Debug and Release",
+      "command": "python tools/test_shutdown.py --configuration Debug|Release --smoke --output logs/rendering/phase26/final-v2/smoke/<Configuration>; python logs/rendering/phase26/final-v2/editor-revision/smoke-editor.py",
+      "evidence": "logs/rendering/phase26/final-v2/completion/preservation.json (eight exact evidence paths and binary identity verification)",
+      "result": "PASS",
+      "reuse_reason": "Three original Debug passes retained; only failed Debug editor retried after its ownership correction. All four Release smokes fresh."
+    },
+    {
+      "check": "No-new-exception, semantic concepts and private native boundary source review",
+      "command": "Changed-line/source scan and targeted call-boundary inspection recorded in source audit; compiler dependency checks above",
+      "evidence": "logs/rendering/phase26/final-v2/editor-revision/source-audit.json; logs/rendering/phase26/final-v2/legacy-target-diagnostics.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Sanitizer/performance/whole-repository physics and exhaustive visual equivalence",
+      "command": "Coverage selection against PHASE_26.md, approved scope amendment and VALIDATION_POLICY.md",
+      "evidence": "docs/rendering/reviews/PHASE_26_REVIEW.md",
+      "reason": "Phase 26 requires selected correctness/build/API/lifetime/graphical coverage; no sanitizer or benchmark/Physics/equivalence gate is specified.",
+      "result": "NOT_APPLICABLE"
+    }
+  ],
+  "validation_input_hashes": {
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "Breakout/src/BreakoutApp.cpp": {
+      "executable": null,
+      "sha256": "c511c1bf689b72d88899424a34ae46b48c736f3e09d40359a96968830485a9b2"
+    },
+    "Breakout/src/GameLevel.cpp": {
+      "executable": null,
+      "sha256": "77553e28783d06698764f3aa3dd5d77b6892517cf4393748628085a9f87e77b0"
+    },
+    "GEngine/include/GEngine/Assets/AssetHandle.h": {
+      "executable": null,
+      "sha256": "0c2e54fe82b781b290628fe1c520ab3cf065570fcfa699d4afd341b3d5c61e1f"
+    },
+    "GEngine/include/GEngine/Assets/AssetPublication.h": {
+      "executable": null,
+      "sha256": "ad8489a717cc51bad2b2ed902b1d743dec67365667948686b1bab3e1d8dce2c3"
+    },
+    "GEngine/include/GEngine/Assets/AssetRegistry.h": {
+      "executable": null,
+      "sha256": "bde98c90dd084af8140ff9ea57047187f660879262b37aa986f75845eb971373"
+    },
+    "GEngine/include/GEngine/Assets/Fonts/Font.h": {
+      "executable": null,
+      "sha256": "0fbb203a1aea676ff844f31aca52b522a9dc80664a9f868c87a57305139dcf62"
+    },
+    "GEngine/include/GEngine/Assets/Textures/TextTexture.h": {
+      "executable": null,
+      "sha256": "fd09234d50f8fa1790e30aca1a4402b9f945514ea80e98ad941934ea1a4b4f6d"
+    },
+    "GEngine/include/GEngine/Assets/Textures/Texture.h": {
+      "executable": null,
+      "sha256": "07ae78a2e14aa21832adaa84d78515b35ce030b6a13ac845baa60e9cc8139c95"
+    },
+    "GEngine/include/GEngine/Component/Component.h": {
+      "executable": null,
+      "sha256": "d284295b76a2b78598779184960911979b66f776f6ae0a3fd04047952c63b31e"
+    },
+    "GEngine/include/GEngine/Component/TexturesComponent.h": {
+      "executable": null,
+      "sha256": "54c6de288a95fba548df50ec73db04b93ccbc39091d56d3c280899ae8f432cd8"
+    },
+    "GEngine/include/GEngine/Core/BaseApp.h": {
+      "executable": null,
+      "sha256": "11607c59bd2df136dfb56a2472a300d693c68df96d9f7018d155f25984b9da0a"
+    },
+    "GEngine/include/GEngine/Core/GEngine.h": {
+      "executable": null,
+      "sha256": "35f8ac8ad000b2a54cb41401db31a68bef364ab539416dc6de88825f3ca5264d"
+    },
+    "GEngine/include/GEngine/Managers/AssetsManager.h": {
+      "executable": null,
+      "sha256": "cc94c21806c9adeed74fda8e481a6c2a3f0f692566f88399e8c6295c0d13e638"
+    },
+    "GEngine/include/GEngine/Material/Material.h": {
+      "executable": null,
+      "sha256": "4b22702e2879ee405df7904fd36abe5ace7904fb6b0baa8f76a0e2173f2dbfb8"
+    },
+    "GEngine/include/GEngine/Mesh/IndexBuffer.h": {
+      "executable": null,
+      "sha256": "2315576b03b599e272960e73d83cc420f19238c2d0b3171b04da0c7975aebb21"
+    },
+    "GEngine/include/GEngine/Scene/SkyBoxEntity.h": {
+      "executable": null,
+      "sha256": "2f41fcd050eefed11e8e60e23f9e3b7b81252989dcfd3b805b3becf5b65d9285"
+    },
+    "GEngine/include/GEngine/UI/UICore.cpp": {
+      "executable": null,
+      "sha256": "085dd144c8373f033dafd013a31eb79b1df9fcd301d4744e35b524eeea090e8f"
+    },
+    "GEngine/include/GEngine/UI/UICore.h": {
+      "executable": null,
+      "sha256": "08809f4ea2e8446ad89bbf5dca780860ce6bed829c89d79ff0d6daba4429b1e9"
+    },
+    "GEngine/src/Assets/Font.cpp": {
+      "executable": null,
+      "sha256": "c82072b32dd03a495e8a5a56a5e4709f953a40eba004b5ecd9af8aa817fb97c4"
+    },
+    "GEngine/src/Assets/TextTexture.cpp": {
+      "executable": null,
+      "sha256": "85e7f5bf5d3f3de30979bac2d826e88d7e52e8ce254a3cfe75719b910c60bb18"
+    },
+    "GEngine/src/Assets/Texture.cpp": {
+      "executable": null,
+      "sha256": "3f2c49a2f23cf6e32c4ffec102feaef869b68776dafd96ba249541a619e33156"
+    },
+    "GEngine/src/Assets/TextureBackend.h": {
+      "executable": null,
+      "sha256": "033b4411def331bcf045c3e4129f069c5adf9de7fdb5faf73f35697795a17934"
+    },
+    "GEngine/src/Component/Component.cpp": {
+      "executable": null,
+      "sha256": "f5662c73f653a170cb6afe63e5d53d8893f8a6ec424298b07697de1b754254e6"
+    },
+    "GEngine/src/Core/GEngine.cpp": {
+      "executable": null,
+      "sha256": "d3443460af72bfb42775785dba2f7c25bba9e011dff50c36f7525c5b8380436c"
+    },
+    "GEngine/src/Managers/AssetsManager.cpp": {
+      "executable": null,
+      "sha256": "51ca2bf2c2cb63725ca1d899cadffac736cbde6f0c5181c2337e309648d72a06"
+    },
+    "GEngine/src/Material/AnimatedMaterial.cpp": {
+      "executable": null,
+      "sha256": "a1ac6450447d7ce8c45f1b964492ca3152bf45fbe8856fe8375f8c1a1d34d707"
+    },
+    "GEngine/src/Material/LightTextureMaterial.cpp": {
+      "executable": null,
+      "sha256": "695e86663d7272dcbded6d4e0d07f88796b81d120c618e7487ee7fc9588f9740"
+    },
+    "GEngine/src/Material/Material.cpp": {
+      "executable": null,
+      "sha256": "879c4560d85dc7cc5a19f51ba25bc265a3c76b501426a066caada426c640ae5f"
+    },
+    "GEngine/src/Material/NormalLightTextureMaterial.cpp": {
+      "executable": null,
+      "sha256": "e96be20ca057beebad5f036da1a1ef67c97491b4c33ab5f5858bed846f33c3b1"
+    },
+    "GEngine/src/Material/SkyBoxMaterial.cpp": {
+      "executable": null,
+      "sha256": "246169e3a8df37f512f34ce995adea39e0567b77a51c5e208f2bfca957d36d61"
+    },
+    "GEngine/src/Material/SpriteMaterial.cpp": {
+      "executable": null,
+      "sha256": "2e881b83c303320cc3211d1a305ec1a1ec72ac72179ede0d77fa13ccc684b130"
+    },
+    "GEngine/src/Material/TerrainLightMaterial.cpp": {
+      "executable": null,
+      "sha256": "fe73169b618a032b89057a3690c162698746c6dde10b8a33a642db6ee4530a0f"
+    },
+    "GEngine/src/Material/TextureMaterial.cpp": {
+      "executable": null,
+      "sha256": "cf9875f5beaa1b74a80608880fb0a57f1a7d4a0386203a6e0bfecf493c1e08bc"
+    },
+    "GEngine/src/Scene/SkyBoxEntity.cpp": {
+      "executable": null,
+      "sha256": "34f3d48030ac71be14ad64f0c9e19a4dc35166d9fba1d53edcc869cf94241f50"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "GEngineEditor/src/SceneApp.cpp": {
+      "executable": null,
+      "sha256": "05b4f583f734dcd6f86d5331517bd67ee422e3eeba1250d45de1398c7b492c76"
+    },
+    "RenderingValidation/src/main.cpp": {
+      "executable": null,
+      "sha256": "4df297c0ea65d65b9541395ba9841a6a98366c313a704721eaf7c67dffee2eda"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "91e6da0aeea1eab7ec9db6a63e5a6166cafd722fe4be66aa57695ee307606a3e"
+    },
+    "external/glad/premake5.lua": {
+      "executable": null,
+      "sha256": "881406fa3a22afd5865e2dd84ab76e29b5b7cb6c2c9e94542be20849f308962c"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052"
+    },
+    "tools/asset_registry_probe.cpp": {
+      "executable": null,
+      "sha256": "4781557320fdb5c0f8b539f561347b341bf6e2698045242e6a2dcb70ca30d589"
+    },
+    "tools/postbuild.py": {
+      "executable": null,
+      "sha256": "bf75c56e292ac2c7b4d22dd079f5e45fc62c05903468a18ddd789e3c9c8bfb56"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/runtime_assets.json": {
+      "executable": null,
+      "sha256": "de0f15f505442f26238e622fef1ca6d3ec794abf0875250b837344f804fce70c"
+    },
+    "tools/shutdown_probe.cpp": {
+      "executable": null,
+      "sha256": "34b4417824ce14a702000a276ad89850d67fab7ad615c2194ceff822bca4a395"
+    },
+    "tools/test_asset_registry.py": {
+      "executable": null,
+      "sha256": "ed8b3bb99417594c4eac800f14eb3db44072830da7e5ba1df663d10000b3c18f"
+    },
+    "tools/test_cpp23_gate.py": {
+      "executable": null,
+      "sha256": "3c3819ac70d280841f0f42a8444d124c26ded6fe8d2745a4ddf56e57a4d79682"
+    },
+    "tools/test_shadow_configuration.py": {
+      "executable": null,
+      "sha256": "43993d9cf9974a99dc10c2ce799830f288d62649ccf97d3a47a2ea162124a71b"
+    },
+    "tools/test_shutdown.py": {
+      "executable": null,
+      "sha256": "1d195192e27df6d5be8616f3138efa453f8c13ff80816e8b8fd2782d39b5dcc1"
+    },
+    "vendor/bin/premake/premake5.exe": {
+      "executable": null,
+      "sha256": "6810a9d0c39d6d8361158da6bce9cb146267ba3405cb9eaea98dd0df36e991e0"
+    }
+  }
+}

@@ -1,106 +1,108 @@
 #pragma once
+
+#include "Assets/AssetRegistry.h"
+#include <cstddef>
+#include <filesystem>
+#include <span>
 #include <string>
+#include <system_error>
 
-//using namespace GEngine;
-//class Window;
-
-struct SDL_Surface;
-
-namespace GEngine
+namespace GEngine::Asset
 {
-	class Window;
+    enum class TextureKind { Image2D, Cube };
+    enum class TextureFormat { R8, RGB8, RGBA8, RGB16Float, RGBA16Float, Depth32Float };
+    enum class TextureColorSpace { Linear, SRGB };
+    enum class TextureMipIntent { None, Generate };
+    enum class ImageOrientation { TopLeft, BottomLeft };
+    enum class TextureUsage { Sampled, Attachment };
+    struct TextureDesc
+    {
+        TextureKind kind = TextureKind::Image2D;
+        TextureFormat format = TextureFormat::RGBA8;
+        TextureColorSpace colorSpace = TextureColorSpace::SRGB;
+        TextureMipIntent mips = TextureMipIntent::Generate;
+        ImageOrientation orientation = ImageOrientation::BottomLeft;
+        TextureUsage usage = TextureUsage::Sampled;
+        int width = 0, height = 0;
+        auto operator<=>(const TextureDesc&) const = default;
+    };
+    enum class TextureErrorCode { InvalidDescription, InvalidPixels, FileSystem, Decode, Allocation,
+        Storage, Registry, ContextUnavailable, InvalidView, InvalidUnit, Font };
+    struct TextureError
+    {
+        TextureErrorCode code;
+        std::string source;
+        std::string message;
+        std::error_code system;
+        RegistryError registry = RegistryError::InvalidHandle;
+    };
+    struct TexturePixels
+    {
+        std::span<const std::byte> bytes;
+        std::size_t rowStride = 0; // 0 means tightly packed; rows have the descriptor's orientation.
+    };
+    namespace AssetDetail { struct TextureBackend; struct AttachmentState; }
 
-	namespace Asset
-	{
+    // Sole GPU image owner. Views and the legacy Texture binding below never own a name.
+    class TextureResource final
+    {
+    public:
+        TextureResource() noexcept;
+        ~TextureResource();
+        TextureResource(const TextureResource&) = delete;
+        TextureResource& operator=(const TextureResource&) = delete;
+        TextureResource(TextureResource&&) noexcept;
+        TextureResource& operator=(TextureResource&&) noexcept;
+        static std::expected<TextureResource, TextureError> Create(const TextureDesc&, TexturePixels = {});
+        static std::expected<TextureResource, TextureError> Load(const std::filesystem::path&,
+            const TextureDesc& = {}, const std::string& cubeExtension = ".png");
+        const TextureDesc& Description() const noexcept { return m_Desc; }
+        explicit operator bool() const noexcept;
+    private:
+        friend struct AssetDetail::TextureBackend;
+        struct Storage;
+        std::unique_ptr<Storage> m_Storage;
+        TextureDesc m_Desc;
+    };
+    using TextureRegistry = AssetRegistry<TextureHandle, TextureResource>;
 
-		enum class TextureTarget
-		{
-			TEXTURE2D,
-			TEXTURE2D_HDR,
-			TEXTURE3D,
-			TEXTURE3D_HDR
-		};
-
-		struct TextureDataFormat
-		{
-			unsigned int m_InternalFormat = 0x8058;
-			unsigned int m_DataFormat = 0x1908;
-			unsigned int m_DataType = 0x1401;
-		};
-
-
-		struct TextureParam
-		{
-			unsigned int m_TexTarget = 0x0DE1;
-			int m_MagFilter = 0x2601;
-			int m_MinFilter = 0x2703;
-			int m_WrapS = 0x2901;
-			int m_WrapT = 0x2901;
-			int m_WrapR = 0x2901;
-
-
-
-		};
-
-		struct TextureInfo
-		{
-			TextureParam m_TextureSpec = {};
-			TextureDataFormat m_TextureFormat{};
-			int m_Width{ 0 };
-			int m_Height{ 0 };
-			int m_Channels{ 4 };
-			bool b_CubeMap{ false };
-			bool b_HDR{ false };
-			bool b_GenerateMipmap{ false };
-			bool b_GammaCorrection{ true };
-
-
-
-		};
-
-		class Texture
-		{
-		public:
-			NONCOPYMOVABLE(Texture);
-			Texture(unsigned int id, const TextureInfo& texInfo, const std::string& uniformName = "");
-			Texture() = default;
-			Texture(const TextureInfo& texInfo, const std::string& uniformName = "");
-			Texture(const std::string& fileName, const std::string& extension = ".png", const TextureInfo& info = TextureInfo{});
-			void LoadTexture(const std::string& fileName);
-
-			void LoadHdrTexture(const std::string& fileName);
-			void LoadCubeMap(const std::string& baseName, const std::string& extension);
-			void LoadHdrCubeMap(const std::string& baseName);
-
-			void SetTextureInfo(const TextureInfo& texInfo) { m_TextureInfo = texInfo; }
-
-			void SetTextureID(unsigned int id) { m_TexID = id; }
-			void Bind() const;
-			std::string& GetUniformName() { return m_TexUniformName; }
-			[[nodiscard]] std::string GetUniformName() const { return m_TexUniformName; }
-			[[nodiscard]] unsigned int GetTextureID()const { return m_TexID; }
-			[[nodiscard]] TextureInfo GetTextureInfo()const { return m_TextureInfo; }
-			TextureInfo& GetTextureInfo(){ return m_TextureInfo; }
-			Texture* SetUniformName(const std::string& name) { m_TexUniformName = name; return this; }
-
-			void CreateFromSurface(SDL_Surface* surface);
-
-			void CreateForRendering(const TextureInfo& texInfo);
-
-			//std::string GetUniformName()const { return m_TexUniformName; }
-
-		private:
-			void WritePixels(Window* focusWindow, const std::string& fileName, int channels);
-			unsigned char* LoadPixels(const std::string& fileName, int& width, int& height, bool flip = true);
-			void DeletePixels(unsigned char*);
-
-		private:
-			TextureInfo m_TextureInfo{};
-			std::string m_TexUniformName;
-			unsigned int m_TexID{};
-
-		};
-
-	}
-
+    // Non-owning attachment observer. Its framebuffer must outlive all uses.
+    // The backend queries the framebuffer at use time, so resize never caches a stale name.
+    class AttachmentView final
+    {
+    public:
+        AttachmentView() = default;
+        explicit operator bool() const noexcept { return bool(m_State); }
+    private:
+        friend struct AssetDetail::TextureBackend;
+        std::shared_ptr<const AssetDetail::AttachmentState> m_State;
+    };
+    class TextureView final
+    {
+    public:
+        TextureView() = default;
+        explicit TextureView(TextureRegistry::Lease lease) : m_Image(std::move(lease)) {}
+        explicit TextureView(AttachmentView attachment) : m_Attachment(std::move(attachment)) {}
+        TextureHandle Identity() const noexcept { return m_Image.Identity(); }
+        std::uint64_t Revision() const noexcept { return m_Image.Revision(); }
+        bool IsAttachment() const noexcept { return bool(m_Attachment); }
+        explicit operator bool() const noexcept { return bool(m_Image) || bool(m_Attachment); }
+        std::expected<void, TextureError> Bind(std::uint32_t unit) const;
+    private:
+        friend struct AssetDetail::TextureBackend;
+        TextureRegistry::Lease m_Image;
+        AttachmentView m_Attachment;
+    };
+    // Compatibility binding descriptor for existing pointer-facing material/UI callers.
+    // Copying a descriptor retains a registry version; it never copies or deletes a GPU image.
+    class Texture final
+    {
+    public:
+        Texture(TextureView view, std::string uniformName) : m_View(std::move(view)), m_Name(std::move(uniformName)) {}
+        const TextureView& View() const noexcept { return m_View; }
+        const std::string& GetUniformName() const noexcept { return m_Name; }
+    private:
+        TextureView m_View;
+        std::string m_Name;
+    };
 }

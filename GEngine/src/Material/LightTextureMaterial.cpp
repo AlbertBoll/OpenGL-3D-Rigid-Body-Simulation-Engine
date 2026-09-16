@@ -20,7 +20,8 @@ namespace GEngine
 		SetRenderSettings(setting);
 
 		UseProgram();
-		SetUniforms<std::pair<GLuint, std::pair<GLuint, GLuint>>>({ {"u_texture", {m_RenderSetting.m_TexTarget, {texture.GetTextureID(), 1}} } });
+		if (auto bound = SetTextureBinding("u_texture", texture.View(), 1); !bound)
+		    GENGINE_CORE_ERROR("Texture binding: {}", bound.error().message);
 
 		UpdateRenderSettings();
 

@@ -6,19 +6,46 @@
 
 #include <array>
 #include <exception>
+#include <expected>
 #include <iostream>
 #include <memory>
 #include <numeric>
+#include <print>
 #include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <version>
+
+static_assert(_MSVC_LANG >= 202302L, "Phase 26 requires the selected C++23 mode");
+static_assert(__cpp_lib_expected >= 202202L, "The selected library must provide std::expected");
+static_assert(__cpp_lib_print >= 202207L, "The selected library must provide std::print/println");
 
 namespace
 {
     // Shared process contract: pass, failure, usage, unavailable prerequisite.
     constexpr int Pass = 0, Failure = 1, Usage = 2, Unavailable = 3;
+
+    int Cpp23Capability()
+    {
+        enum class DecodeError { InvalidImage };
+        const std::expected<int, DecodeError> loaded{23};
+        const std::expected<int, DecodeError> failed{std::unexpected(DecodeError::InvalidImage)};
+        const std::expected<void, DecodeError> complete{};
+        const std::expected<void, DecodeError> rejected{std::unexpected(DecodeError::InvalidImage)};
+        std::expected<std::unique_ptr<int>, DecodeError> owner{std::make_unique<int>(26)};
+        auto moved = std::move(owner);
+        if (!loaded || *loaded != 23 || failed || failed.error() != DecodeError::InvalidImage
+            || !complete || rejected || rejected.error() != DecodeError::InvalidImage
+            || !moved || !*moved || **moved != 26 || *owner)
+            return Failure;
+        std::print("[C++23] expected={} print={} ", __cpp_lib_expected, __cpp_lib_print);
+        std::println("lang={} compiler={} STL={} update={}",
+            _MSVC_LANG, _MSC_FULL_VER, _MSVC_STL_VERSION, _MSVC_STL_UPDATE);
+        std::println("[PASS] cpp23-capability success/failure/void/move-only");
+        return Pass;
+    }
     struct UnavailableError : std::runtime_error { using std::runtime_error::runtime_error; };
 
     void Require(bool condition, std::string_view message)
@@ -327,9 +354,10 @@ int main(int argc, char** argv)
     }
     if (mode == "--help")
     {
-        std::cout << "RenderingValidation [--self-test|--counters|--gl|--gl-debug|--gl-counters|--failure-probe|--exception-probe|--asan-failure-probe]\n";
+        std::cout << "RenderingValidation [--cpp23|--self-test|--counters|--gl|--gl-debug|--gl-counters|--failure-probe|--exception-probe|--asan-failure-probe]\n";
         return Pass;
     }
+    if (mode == "--cpp23") return Cpp23Capability();
     const std::array cpu{ TestCase{"cpu-self-test", &CpuSelfTest} };
     if (mode == "--counters")
     {

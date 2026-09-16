@@ -15,11 +15,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--configuration', choices=['Debug', 'Release'], required=True)
     parser.add_argument('--output', type=Path)
+    parser.add_argument("--no-build", action="store_true", help="Use already-built matching candidate libraries/consumers; still compile and run the focused probes")
     args = parser.parse_args()
     config = args.configuration
     out = (args.output or ROOT / 'logs/rendering/phase25/final' / config).resolve()
     out.mkdir(parents=True, exist_ok=True)
-    report = {'configuration': config, 'steps': []}
+    report = {'configuration': config, 'steps': [], 'build_reused': args.no_build}
     env = {k: v for k, v in os.environ.items() if k.lower() != 'path'}
     env['Path'] = os.environ.get('PATH', os.environ.get('Path', ''))
     env.pop('SDL_VIDEODRIVER', None)
@@ -55,9 +56,22 @@ def main():
         includes = [vc / 'include', *(sdk / 'Include' / sdk_version / part for part in ('ucrt', 'shared', 'um')),
                     ROOT / 'GEngine/include/GEngine']
         libraries = [vc / 'lib/x64', sdk / 'Lib' / sdk_version / 'ucrt/x64', sdk / 'Lib' / sdk_version / 'um/x64']
-        common = [vc / 'bin/Hostx64/x64/cl.exe', '/nologo', '/std:c++20', '/EHsc', '/W4',
+        common = [vc / 'bin/Hostx64/x64/cl.exe', '/nologo', '/std:c++23preview', '/EHsc', '/W4',
                   '/MTd' if config == 'Debug' else '/MT', '/Od' if config == 'Debug' else '/O2',
                   '/DGENGINE_CONFIG_' + config.upper(), *['/I' + str(p) for p in includes]]
+        header_probe = out / 'texture-consumer.cpp'
+        header_probe.write_text('#include "Assets/Textures/Texture.h"\n#include "Managers/AssetsManager.h"\n#include "Component/TexturesComponent.h"\n'
+            '#if defined(GL_TEXTURE_2D) || defined(SDL_MAJOR_VERSION) || defined(GLAD_GL_H_)\n#error Native backend leaked\n#endif\n'
+            'static_assert(!std::is_copy_constructible_v<GEngine::Asset::TextureResource>);\n'
+            'int main() { GEngine::Asset::TextureDesc desc; return desc.width; }\n')
+        if not invoke('texture-consumer-boundary', [*common, '/showIncludes', '/c',
+                      '/I' + str(ROOT / 'GEngine/include/external'), header_probe,
+                      '/Fo' + str(out / 'texture-consumer.obj')], 120):
+            return 1
+        dependencies = (out / 'texture-consumer-boundary.log').read_text(errors='replace').lower().replace('\\', '/')
+        if any(token in dependencies for token in ('/glad/', '/sdl2/', '/opengl/', '/imgui/')):
+            report['reason'] = 'Native dependency leaked into the normal texture consumer probe'
+            return 1
         source = ROOT / 'tools/asset_registry_probe.cpp'
         cpu = out / 'asset-registry-cpu.exe'
         cpu_command = [*common, source, '/Fo' + str(out / 'cpu.obj'), '/Fe' + str(cpu), '/link',
@@ -73,13 +87,13 @@ def main():
                            '/Fo' + str(out / ('wrong-type-' + suffix.lower() + '.obj'))],
                           120, expected='nonzero', marker=diagnostic):
                 return 1
-        for mode in ('--reject-live-lease', '--reject-worker-retirement', '--reject-live-fence'):
+        for mode in ('--reject-live-lease', '--reject-worker-retirement', '--reject-live-fence', '--reject-overlap', '--reject-foreign-scope', '--reject-worker-access'):
             if not invoke(mode[2:], [cpu, mode], expected=86, marker='[EXPECTED] unsafe registry teardown rejected'):
                 return 1
         env.pop('SDL_VIDEODRIVER')
-        if not invoke('generate', [ROOT / 'vendor/bin/premake/premake5.exe', 'vs2022'], 120):
+        if not args.no_build and not invoke('generate', [ROOT / 'vendor/bin/premake/premake5.exe', 'vs2022'], 120):
             return 1
-        if not invoke('build', [msbuild, ROOT / 'GEngine.sln',
+        if not args.no_build and not invoke('build', [msbuild, ROOT / 'GEngine.sln',
                       '/t:GEngineEditor;Breakout;RayTracing;RigidBodySimulation;PhysicsTests;PhysicsBenchmark',
                       '/m:1', '/nr:false', '/nologo', '/v:normal', '/p:Configuration=' + config,
                       '/p:Platform=x64', '/p:VCToolsVersion=' + vc.name, '/p:WindowsTargetPlatformVersion=' + sdk_version,
@@ -107,7 +121,9 @@ def main():
         env['GENGINE_ASSET_ROOT'] = str(ROOT / 'bin' / config / 'assets')
         env['GENGINE_SHADOW_RESOLUTION'] = '32'
         for mode, marker, expected in (('--gl', '[PASS] asset-registry-GL cycles=2', 0),
-                                       ('--reject-root', '[EXPECTED] root rejected live registry', 86)):
+                                       ('--reject-root', '[EXPECTED] root rejected live registry', 86),
+                                       ('--reject-texture-worker', '[EXPECTED] texture worker rejected', 86),
+                                       ('--reject-manager-worker', '[EXPECTED] texture worker rejected', 86)):
             runtime = out / mode[2:]
             runtime.mkdir(exist_ok=True)
             if not invoke(mode[2:], [gl, mode], 180, expected=expected, marker=marker, cwd=runtime):

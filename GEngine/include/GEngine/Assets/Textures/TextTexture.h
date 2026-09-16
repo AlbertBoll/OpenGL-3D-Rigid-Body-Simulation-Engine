@@ -1,19 +1,10 @@
 #pragma once
-#include "Texture.h"
-#include <Math/Math.h>
-
-
-
+#include "Assets/Fonts/Font.h"
 namespace GEngine::Asset
 {
-    using namespace Math;
-
-    class TextTexture : public Texture
+    struct TextTexture
     {
-
-    public:
-        TextTexture(const std::string& text, const std::string& fileName, int pointSize = 24,
-            const Vec3f& color = { 0.0f, 0.0f, 1.0f }
-            );
+        static std::expected<TextureResource, TextureError> Create(const Font& font,
+            const std::string& text, int size, const std::array<float, 3>& color);
     };
 }

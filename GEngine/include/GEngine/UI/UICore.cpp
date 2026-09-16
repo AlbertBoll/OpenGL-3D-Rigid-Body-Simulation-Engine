@@ -1,4 +1,5 @@
 #include "gepch.h"
+#include "../../../src/Assets/TextureBackend.h"
 #include "UICore.h"
 #include <imgui/imgui_internal.h>
 #include "Assets/Textures/Texture.h"
@@ -171,19 +172,22 @@ namespace GEngine
 			}
 		}
 
-		ImTextureID GetTextureID(const Asset::Texture* texture)
-		{
-			return (void*)(uint64_t)texture->GetTextureID();
-		}
+        static ImTextureID GetTextureID(const Asset::Texture* texture)
+        {
+            auto name = Asset::AssetDetail::TextureBackend::Name(texture->View());
+            if (!name) { GENGINE_CORE_ERROR("UI texture: {}", name.error().message); return nullptr; }
+            return reinterpret_cast<ImTextureID>(static_cast<std::uintptr_t>(*name));
+        }
 
 		void Image(const Asset::Texture* image, const ImVec2& size, const ImVec2& uv0, const ImVec2& uv1, const ImVec4& tint_col, const ImVec4& border_col)
 		{
-			ImGui::Image(GetTextureID(image), size, uv0, uv1, tint_col, border_col);
+			if (const auto id = GetTextureID(image)) ImGui::Image(id, size, uv0, uv1, tint_col, border_col);
 		}
 
 		bool ImageButton(const Asset::Texture* image, const ImVec2& size, const ImVec4& tint)
 		{
-			return ImGui::ImageButton(GetTextureID(image), size, ImVec2(0, 0), ImVec2(1, 1), -1, ImVec4(0, 0, 0, 0), tint);
+			const auto id = GetTextureID(image);
+            return id && ImGui::ImageButton(id, size, ImVec2(0, 0), ImVec2(1, 1), -1, ImVec4(0, 0, 0, 0), tint);
 		}
 
 	}

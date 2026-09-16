@@ -18,7 +18,8 @@ namespace GEngine
 		SetRenderSettings(setting);
 
 		UseProgram();
-		SetUniforms<std::pair<unsigned int, std::pair<unsigned int, unsigned int>>>({ {texture.GetUniformName(), {m_RenderSetting.m_TexTarget, {texture.GetTextureID(), 1}} } });
+		if (auto bound = SetTextureBinding(texture.GetUniformName(), texture.View(), 1); !bound)
+		    GENGINE_CORE_ERROR("Texture binding: {}", bound.error().message);
 	}
 
 	SkyBoxMaterial::SkyBoxMaterial(const std::vector<Asset::Texture*>& textures,
@@ -37,7 +38,8 @@ namespace GEngine
 		UseProgram();
 		static int i = 1;
 		for(auto& texture: textures)
-			SetUniforms<std::pair<unsigned int, std::pair<unsigned int, unsigned int>>>({ {(*texture).GetUniformName(), {m_RenderSetting.m_TexTarget, {(*texture).GetTextureID(), i++}}}});
+			if (auto bound = SetTextureBinding(texture->GetUniformName(), texture->View(), i++); !bound)
+			    GENGINE_CORE_ERROR("Texture binding: {}", bound.error().message);
 
 	}
 

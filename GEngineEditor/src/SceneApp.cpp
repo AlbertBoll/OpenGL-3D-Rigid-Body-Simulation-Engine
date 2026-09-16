@@ -42,6 +42,9 @@ SceneApp::~SceneApp()
 {
 	if(m_AudioSystem)
 		m_AudioSystem->Shutdown();
+	// This off-scene terrain retains texture leases and must retire before the root cache.
+	delete m_Terrain2;
+	m_Terrain2 = nullptr;
 	// The scene owns the camera through CameraRig's attachment child.
 	
 }
@@ -102,8 +105,12 @@ void SceneApp::Initialize(const std::initializer_list<WindowProperties>& Windows
 	m_EditorCamera->SetActive(true);
 	
 	//barrel code
-	auto barrelTexNormal = AssetsManager::GetTexture("barrelNormalreflection", "u_normalTexture");
-	auto barrelTexDiffuse = AssetsManager::GetTexture("barrelreflection", "u_diffuseTexture");
+	auto barrelTexNormalResult = AssetsManager::GetTextureOrFallback("barrelNormalreflection", "u_normalTexture");
+	if (!barrelTexNormalResult) { GENGINE_CORE_ERROR("Texture {}: {}", barrelTexNormalResult.error().source, barrelTexNormalResult.error().message); m_Running = false; return; }
+	auto* barrelTexNormal = *barrelTexNormalResult;
+	auto barrelTexDiffuseResult = AssetsManager::GetTextureOrFallback("barrelreflection", "u_diffuseTexture");
+	if (!barrelTexDiffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", barrelTexDiffuseResult.error().source, barrelTexDiffuseResult.error().message); m_Running = false; return; }
+	auto* barrelTexDiffuse = *barrelTexDiffuseResult;
 	auto textures = { barrelTexDiffuse , barrelTexNormal };
 	auto barrelMaterial = CreateRefPtr<NormalLightTextureMaterial>(textures, "normal");
 	auto barrelGeo = ShapeManager::GetModel("barrel");
@@ -243,19 +250,33 @@ void SceneApp::Initialize(const std::initializer_list<WindowProperties>& Windows
 	skyBoxComponent.BlendFactor.Name = "u_BlendFactor";
 	skyBoxComponent.BlendFactor.Data = 0.5f;
 
-	auto terrainBackGroundTex = AssetsManager::GetTexture("grassy3", "u_backgroundTexture");
-	auto terrainRTex = AssetsManager::GetTexture("dirt", "u_rTexture");
-	auto terrainGTex = AssetsManager::GetTexture("pinkFlowers", "u_gTexture");
-	auto terrainBTex = AssetsManager::GetTexture("mossPath256", "u_bTexture");
-	auto terrainBlendMapTex = AssetsManager::GetTexture("blendMap", "u_blendMap");
+	auto terrainBackGroundTexResult = AssetsManager::GetTextureOrFallback("grassy3", "u_backgroundTexture");
+	if (!terrainBackGroundTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", terrainBackGroundTexResult.error().source, terrainBackGroundTexResult.error().message); m_Running = false; return; }
+	auto* terrainBackGroundTex = *terrainBackGroundTexResult;
+	auto terrainRTexResult = AssetsManager::GetTextureOrFallback("dirt", "u_rTexture");
+	if (!terrainRTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", terrainRTexResult.error().source, terrainRTexResult.error().message); m_Running = false; return; }
+	auto* terrainRTex = *terrainRTexResult;
+	auto terrainGTexResult = AssetsManager::GetTextureOrFallback("pinkFlowers", "u_gTexture");
+	if (!terrainGTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", terrainGTexResult.error().source, terrainGTexResult.error().message); m_Running = false; return; }
+	auto* terrainGTex = *terrainGTexResult;
+	auto terrainBTexResult = AssetsManager::GetTextureOrFallback("mossPath256", "u_bTexture");
+	if (!terrainBTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", terrainBTexResult.error().source, terrainBTexResult.error().message); m_Running = false; return; }
+	auto* terrainBTex = *terrainBTexResult;
+	auto terrainBlendMapTexResult = AssetsManager::GetTextureOrFallback("blendMap", "u_blendMap");
+	if (!terrainBlendMapTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", terrainBlendMapTexResult.error().source, terrainBlendMapTexResult.error().message); m_Running = false; return; }
+	auto* terrainBlendMapTex = *terrainBlendMapTexResult;
 	auto terrainMaterial = CreateRefPtr<TerrainLightMaterial>(std::vector{ terrainBackGroundTex, terrainRTex, terrainGTex, terrainBTex, terrainBlendMapTex });
 	terrainMaterial->SetLightComponent(lights).SetFogComponent(fog);
 
 	
 	AnimatedModel* model = new AnimatedModel(RuntimeAssets::File("AnimatedModels/dancing_vampire.dae"));
 
-	auto vampireTexNormal = AssetsManager::GetTexture("Vampire_normal", "u_normalTexture");
-	auto vampireTexDiffuse = AssetsManager::GetTexture("Vampire_diffuse", "u_diffuseTexture");
+	auto vampireTexNormalResult = AssetsManager::GetTextureOrFallback("Vampire_normal", "u_normalTexture");
+	if (!vampireTexNormalResult) { GENGINE_CORE_ERROR("Texture {}: {}", vampireTexNormalResult.error().source, vampireTexNormalResult.error().message); m_Running = false; return; }
+	auto* vampireTexNormal = *vampireTexNormalResult;
+	auto vampireTexDiffuseResult = AssetsManager::GetTextureOrFallback("Vampire_diffuse", "u_diffuseTexture");
+	if (!vampireTexDiffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", vampireTexDiffuseResult.error().source, vampireTexDiffuseResult.error().message); m_Running = false; return; }
+	auto* vampireTexDiffuse = *vampireTexDiffuseResult;
 	auto vampiretextures = { vampireTexDiffuse , vampireTexNormal };
 	auto vampireMaterial = CreateRefPtr<AnimatedMaterial>(vampiretextures, "animated");
 	auto vampireGeo = ShapeManager::GetModels("dancing_vampire")[0];
@@ -323,7 +344,9 @@ void SceneApp::Initialize(const std::initializer_list<WindowProperties>& Windows
 
 
 	auto lampGeo = ShapeManager::GetModel("lamp");
-	auto lampTex = AssetsManager::GetTexture("lamp");
+	auto lampTexResult = AssetsManager::GetTextureOrFallback("lamp");
+	if (!lampTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", lampTexResult.error().source, lampTexResult.error().message); m_Running = false; return; }
+	auto* lampTex = *lampTexResult;
 	auto lampMaterial = CreateRefPtr<LightTextureMaterial>(*lampTex);
 	lampMaterial->SetFogComponent(fog).SetLightComponent(lights).SetTextureComponent(normalTexture);
 	lampMaterial->GetMaterialProperty().HasFakeLighting = true;
@@ -357,12 +380,24 @@ void SceneApp::Initialize(const std::initializer_list<WindowProperties>& Windows
 	auto lowPolyTreeGeo = ShapeManager::GetModel("lowPolyTree");
 	auto pineGeo = ShapeManager::GetModel("pine");
 
-	auto treeTex = AssetsManager::GetTexture("tree");
-	auto grassTex = AssetsManager::GetTexture("grassTexture");
-	auto fernTex = AssetsManager::GetTexture("Multifern");
-	auto flowerTex = AssetsManager::GetTexture("flower");
-	auto lowPolyTreeTex = AssetsManager::GetTexture("MultilowPolyTree");
-	auto pineTex = AssetsManager::GetTexture("pine");
+	auto treeTexResult = AssetsManager::GetTextureOrFallback("tree");
+	if (!treeTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", treeTexResult.error().source, treeTexResult.error().message); m_Running = false; return; }
+	auto* treeTex = *treeTexResult;
+	auto grassTexResult = AssetsManager::GetTextureOrFallback("grassTexture");
+	if (!grassTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", grassTexResult.error().source, grassTexResult.error().message); m_Running = false; return; }
+	auto* grassTex = *grassTexResult;
+	auto fernTexResult = AssetsManager::GetTextureOrFallback("Multifern");
+	if (!fernTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", fernTexResult.error().source, fernTexResult.error().message); m_Running = false; return; }
+	auto* fernTex = *fernTexResult;
+	auto flowerTexResult = AssetsManager::GetTextureOrFallback("flower");
+	if (!flowerTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", flowerTexResult.error().source, flowerTexResult.error().message); m_Running = false; return; }
+	auto* flowerTex = *flowerTexResult;
+	auto lowPolyTreeTexResult = AssetsManager::GetTextureOrFallback("MultilowPolyTree");
+	if (!lowPolyTreeTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", lowPolyTreeTexResult.error().source, lowPolyTreeTexResult.error().message); m_Running = false; return; }
+	auto* lowPolyTreeTex = *lowPolyTreeTexResult;
+	auto pineTexResult = AssetsManager::GetTextureOrFallback("pine");
+	if (!pineTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", pineTexResult.error().source, pineTexResult.error().message); m_Running = false; return; }
+	auto* pineTex = *pineTexResult;
 
 	auto treeMaterial = CreateRefPtr<LightTextureMaterial>(*treeTex);
 	auto grassMaterial = CreateRefPtr<LightTextureMaterial>(*grassTex);
@@ -444,7 +479,9 @@ void SceneApp::Initialize(const std::initializer_list<WindowProperties>& Windows
 	auto DragonGeo = ShapeManager::GetModel("dragon");
 	DragonGeo->ApplyTransform(Matrix::MakeRotationY(-Math::PiOver2), 0);
 	DragonGeo->ApplyTransform(Matrix::MakeRotationY(-Math::PiOver2), 2, true);
-	auto DragonTex = AssetsManager::GetTexture("white");
+	auto DragonTexResult = AssetsManager::GetTextureOrFallback("white");
+	if (!DragonTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", DragonTexResult.error().source, DragonTexResult.error().message); m_Running = false; return; }
+	auto* DragonTex = *DragonTexResult;
 
 	auto DragonMaterial = CreateRefPtr<LightTextureMaterial>(*DragonTex);
 	DragonMaterial->SetFogComponent(fog).SetLightComponent(lights).SetTextureComponent(normalTexture);

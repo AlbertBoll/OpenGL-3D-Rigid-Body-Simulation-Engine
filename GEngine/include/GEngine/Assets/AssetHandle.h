@@ -5,10 +5,23 @@
 #include <cstdint>
 #include <functional>
 #include <limits>
-#include <stdexcept>
+#include <expected>
+#include <cassert>
+#include <exception>
 
 namespace GEngine::Asset
 {
+    enum class RegistryError { IdentityExhausted, InvalidLimits, SlotsExhausted, RevisionExhausted,
+        InvalidHandle, InvalidFence, Busy, Closed, RegistryCountExhausted };
+
+    namespace AssetDetail
+    {
+        inline void RequireInvariant(bool condition) noexcept
+        {
+            if (!condition) std::terminate();
+        }
+    }
+
     // Process-local identity. Neither a GL name nor an address; not a disk ID.
     template<class Tag>
     struct AssetHandle
@@ -38,17 +51,17 @@ namespace GEngine::Asset
     using MaterialTemplateHandle = AssetHandle<MaterialTemplateAssetTag>;
     using MaterialInstanceHandle = AssetHandle<MaterialInstanceAssetTag>;
 
-    namespace detail
+    namespace AssetDetail
     {
         inline std::atomic<std::uint64_t> nextRegistryIdentity{1};
 
         // Zero is a permanent exhausted sentinel. Never wrap or recycle a domain.
-        inline std::uint64_t TakeRegistryIdentity(std::atomic<std::uint64_t>& next)
+        inline std::expected<std::uint64_t, RegistryError> TakeRegistryIdentity(std::atomic<std::uint64_t>& next)
         {
             auto value = next.load(std::memory_order_relaxed);
             for (;;)
             {
-                if (!value) throw std::overflow_error("Asset registry identity space exhausted");
+                if (!value) return std::unexpected(RegistryError::IdentityExhausted);
                 const auto following = value == (std::numeric_limits<std::uint64_t>::max)() ? 0 : value + 1;
                 if (next.compare_exchange_weak(value, following, std::memory_order_relaxed)) return value;
             }

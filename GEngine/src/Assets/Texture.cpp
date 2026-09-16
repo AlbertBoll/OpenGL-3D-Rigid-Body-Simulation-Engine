@@ -1,401 +1,245 @@
 #include "gepch.h"
-#include <Core/Window.h>
-#include "Assets/Textures/Texture.h"
+#include "TextureBackend.h"
+#include "Core/GLContextThread.h"
 #include "stb_image/stb_image.h"
-#include <stb_image/stb_image_write.h>
+#include <array>
+#include <cstring>
+#include <limits>
+#include <new>
 
-
-
-namespace GEngine
+namespace GEngine::Asset
 {
-
-	namespace Asset
-	{
-
-		Texture::Texture(unsigned int id, const TextureInfo& texInfo, const std::string& uniformName) : m_TexID(id), m_TextureInfo(texInfo), m_TexUniformName(uniformName)
-		{
-			
-		}
-		
-
-		Texture::Texture(const TextureInfo& texInfo, const std::string& uniformName) : m_TextureInfo(texInfo), m_TexUniformName(uniformName)
-		{
-			CreateForRendering(m_TextureInfo);
-		}
-
-		Texture::Texture(const std::string& fileName, const std::string& extension, const TextureInfo& info) : m_TextureInfo(info)
-		{
-			if (info.b_CubeMap && info.b_HDR)
-			{
-				LoadHdrCubeMap(fileName);
-			}
-
-			else if (info.b_CubeMap)
-			{
-				LoadCubeMap(fileName, extension);
-			}
-
-			else if (info.b_HDR)
-			{
-				LoadHdrTexture(fileName);
-			}
-
-			else
-				LoadTexture(fileName);
-
-		}
-
-		void Texture::LoadTexture(const std::string& fileName)
-		{
-
-			//stbi_set_flip_vertically_on_load(true);
-			glGenTextures(1, &m_TexID);
-			glBindTexture(GL_TEXTURE_2D, m_TexID);
-
-
-			if (unsigned char* data = Texture::LoadPixels(fileName, m_TextureInfo.m_Width, m_TextureInfo.m_Height); data != nullptr)
-			{
-
-
-
-				int width = m_TextureInfo.m_Width;
-				int height = m_TextureInfo.m_Height;
-				GLenum& internalFormat = m_TextureInfo.m_TextureFormat.m_InternalFormat; //GL_RGBA8;
-				GLenum& dataFormat = m_TextureInfo.m_TextureFormat.m_DataFormat; //GL_RGBA;
-				int channel = m_TextureInfo.m_Channels;
-				bool isGamma = m_TextureInfo.b_GammaCorrection;
-				switch (channel)
-				{
-				case 1:  internalFormat = GL_R8;  dataFormat = GL_RED; break;
-				case 3:  internalFormat = isGamma ? GL_SRGB8 : GL_RGB8; dataFormat = GL_RGB; break;
-				case 4:  internalFormat = isGamma ? GL_SRGB8_ALPHA8 : GL_RGBA8; dataFormat = GL_RGBA; break;
-				default: break;
-				}
-
-				glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, dataFormat, GL_UNSIGNED_BYTE, data);
-				glGenerateMipmap(GL_TEXTURE_2D);
-
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, m_TextureInfo.m_TextureSpec.m_WrapS);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, m_TextureInfo.m_TextureSpec.m_WrapT);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, m_TextureInfo.m_TextureSpec.m_MagFilter);
-
-				//check if hardware support anisotropic filtering
-				if (GLAD_GL_EXT_texture_filter_anisotropic)
-				{
-					GLfloat largest;
-					glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &largest);
-
-					//activate anisotropic filtering
-					glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, largest);
-				}
-
-
-
-				DeletePixels(data);
-
-			}
-
-			//If cannot load file or file doesn't exist
-			else
-			{
-				float pixels[] =
-				{
-					// Black          White          Black          White
-					0.f, 0.f, 0.f,  1.f, 1.f, 1.f,  0.f, 0.f, 0.f,  1.f, 1.f, 1.f,
-
-					// White           Black          White          Black
-					1.f, 1.f, 1.f,  0.f, 0.f, 0.f,  1.f, 1.f, 1.f,  0.f, 0.f, 0.f,
-
-					// Black          White          Black          White
-					0.f, 0.f, 0.f,  1.f, 1.f, 1.f,  0.f, 0.f, 0.f,  1.f, 1.f, 1.f,
-
-					// White           Black          White          Black
-					1.f, 1.f, 1.f,  0.f, 0.f, 0.f,  1.f, 1.f, 1.f,  0.f, 0.f, 0.f
-
-				};
-
-				GENGINE_CORE_WARN("Unable to load texture: {} - set to default checkboard", fileName);
-				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 4, 4, 0, GL_RGB, GL_FLOAT, pixels);
-				//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, m_TextureInfo.m_TextureSpec.m_WrapS);
-				//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, m_TextureInfo.m_TextureSpec.m_WrapT);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-
-			}
-
-			//glBindTexture(GL_TEXTURE_2D, 0);
-		}
-
-
-		void Texture::LoadHdrTexture(const std::string& fileName)
-		{
-			stbi_set_flip_vertically_on_load(true);
-
-			int& width = m_TextureInfo.m_Width;
-			int& height = m_TextureInfo.m_Height;
-			int& channel = m_TextureInfo.m_Channels;
-			int texTarget = m_TextureInfo.m_TextureSpec.m_TexTarget;
-
-			if (float* data = stbi_loadf(fileName.c_str(), &width, &height, &channel, 0); data)
-			{
-				glGenTextures(1, &m_TexID);
-				glBindTexture(texTarget, m_TexID);
-
-				glTexStorage2D(texTarget, 1, GL_RGB16F, width, height);
-				glTexSubImage2D(texTarget, 0, 0, 0, width, height, GL_RGB, GL_FLOAT, data);
-
-				//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, m_Width, m_Height, 0, GL_RGB, GL_FLOAT, data);
-
-				//glGenerateMipmap(GL_TEXTURE_2D);
-
-				//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, m_Width, m_Height, 0, GL_RGB, GL_FLOAT, data); // note how we specify the texture's data value to be float
-
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, m_TextureInfo.m_TextureSpec.m_WrapS);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, m_TextureInfo.m_TextureSpec.m_WrapT);
-
-				//check if hardware support anisotropic filtering
-				if (GLAD_GL_EXT_texture_filter_anisotropic)
-				{
-					GLfloat largest;
-					glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &largest);
-
-					//activate anisotropic filtering
-					glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, largest);
-				}
-
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, m_TextureInfo.m_TextureSpec.m_MinFilter);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, m_TextureInfo.m_TextureSpec.m_MagFilter);
-
-
-				stbi_image_free(data);
-
-			};
-
-		}
-
-
-		void Texture::LoadCubeMap(const std::string& baseName, const std::string& extension)
-		{
-
-			glGenTextures(1, &m_TexID);
-			glBindTexture(GL_TEXTURE_CUBE_MAP, m_TexID);
-
-			const char* suffixes[] = { "posx", "negx", "posy", "negy", "posz", "negz" };
-			//GLint w, h;
-
-			// Load the first one to get width/height
-			std::string texName = baseName + "/" + suffixes[0] + extension;
-			GLubyte* data = Texture::LoadPixels(texName, m_TextureInfo.m_Width, m_TextureInfo.m_Height, false);
-
-
-			int width = m_TextureInfo.m_Width;
-			int height = m_TextureInfo.m_Height;
-			GLenum& internalFormat = m_TextureInfo.m_TextureFormat.m_InternalFormat;
-			GLenum& dataFormat = m_TextureInfo.m_TextureFormat.m_DataFormat;
-			int channel = m_TextureInfo.m_Channels;
-			bool isGamma = m_TextureInfo.b_GammaCorrection;
-
-
-			switch (channel)
-			{
-			case 1:  internalFormat = GL_R8;  dataFormat = GL_RED; break;
-			case 3:  internalFormat = isGamma ? GL_SRGB8 : GL_RGB8; dataFormat = GL_RGB; break;
-			case 4:  internalFormat = isGamma ? GL_SRGB8_ALPHA8 : GL_RGBA8; dataFormat = GL_RGBA; break;
-			default: break;
-			}
-
-			// Allocate immutable storage for the whole cube map texture
-			//glTexStorage2D(GL_TEXTURE_CUBE_MAP, 1, internalFormat, m_TextureInfo.m_Width, m_TextureInfo.m_Height);
-			//glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, 0, 0, m_TextureInfo.m_Width, m_TextureInfo.m_Height, dataFormat, GL_UNSIGNED_BYTE, data);
-
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, GL_RGB, m_TextureInfo.m_Width, m_TextureInfo.m_Height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-
-
-			stbi_image_free(data);
-
-			// Load the other 5 cube-map faces
-			for (int i = 1; i < 6; i++) {
-				texName = baseName + "/" + suffixes[i] + extension;
-				data = Texture::LoadPixels(texName, m_TextureInfo.m_Width, m_TextureInfo.m_Height, false);
-				//glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, 0, 0, m_TextureInfo.m_Width, m_TextureInfo.m_Height, dataFormat, GL_UNSIGNED_BYTE, data);
-				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, m_TextureInfo.m_Width, m_TextureInfo.m_Height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-
-				stbi_image_free(data);
-			}
-
-			glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, m_TextureInfo.m_TextureSpec.m_MagFilter);
-			glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, m_TextureInfo.m_TextureSpec.m_MinFilter);
-
-			//check if hardware support anisotropic filtering
-			if (GLAD_GL_EXT_texture_filter_anisotropic)
-			{
-				GLfloat largest;
-				glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &largest);
-
-				//activate anisotropic filtering
-				glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAX_ANISOTROPY_EXT, largest);
-			}
-
-			glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, m_TextureInfo.m_TextureSpec.m_WrapS);
-			glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, m_TextureInfo.m_TextureSpec.m_WrapT);
-			glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, m_TextureInfo.m_TextureSpec.m_WrapR);
-
-
-		}
-
-		void Texture::LoadHdrCubeMap(const std::string& baseName)
-		{
-
-			glGenTextures(1, &m_TexID);
-			glBindTexture(GL_TEXTURE_CUBE_MAP, m_TexID);
-
-			const char* suffixes[] = { "posx", "negx", "posy", "negy", "posz", "negz" };
-			//GLint w, h;
-
-			// Load the first one to get width/height
-			std::string texName = baseName + "/" + suffixes[0] + ".hdr";
-			float* data = stbi_loadf(texName.c_str(), &m_TextureInfo.m_Width, &m_TextureInfo.m_Height, &m_TextureInfo.m_Channels, 0);
-
-			// Allocate immutable storage for the whole cube map texture
-			glTexStorage2D(GL_TEXTURE_CUBE_MAP, 1, GL_RGB32F, m_TextureInfo.m_Width, m_TextureInfo.m_Height);
-			glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, 0, 0, m_TextureInfo.m_Width, m_TextureInfo.m_Height, GL_RGB, GL_FLOAT, data);
-			stbi_image_free(data);
-
-			// Load the other 5 cube-map faces
-			for (int i = 1; i < 6; i++)
-			{
-				texName = baseName + "/" + suffixes[i] + ".hdr";
-				data = stbi_loadf(texName.c_str(), &m_TextureInfo.m_Width, &m_TextureInfo.m_Height, &m_TextureInfo.m_Channels, 0);
-				glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, 0, 0, m_TextureInfo.m_Width, m_TextureInfo.m_Height, GL_RGB, GL_FLOAT, data);
-				stbi_image_free(data);
-			}
-
-			glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, m_TextureInfo.m_TextureSpec.m_MagFilter);
-			glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, m_TextureInfo.m_TextureSpec.m_MinFilter);
-			glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-			glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-			glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-		}
-
-
-		void Texture::Bind() const
-		{
-			glBindTexture(m_TextureInfo.m_TextureSpec.m_TexTarget, m_TexID);
-		}
-
-
-
-		void Texture::CreateFromSurface(SDL_Surface* surface)
-		{
-			m_TextureInfo.m_Width = surface->w;
-			m_TextureInfo.m_Height = surface->h;
-
-			// Generate a GL texture
-			glGenTextures(1, &m_TexID);
-			glBindTexture(GL_TEXTURE_2D, m_TexID);
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_TextureInfo.m_Width, m_TextureInfo.m_Height, 0, GL_BGRA,
-				GL_UNSIGNED_BYTE, surface->pixels);
-
-			// Use linear filtering
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		}
-
-
-
-		void Texture::CreateForRendering(const TextureInfo& texInfo)
-		{
-			//m_TextureInfo = texInfo;
-			glGenTextures(1, &m_TexID);
-
-			m_TextureInfo.m_TextureSpec.m_TexTarget = m_TextureInfo.b_CubeMap ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
-
-			Bind();
-
-			int dataType = texInfo.b_CubeMap ? GL_FLOAT : GL_UNSIGNED_BYTE;
-
-			// Set the image width/height with null initial data
-			if (!texInfo.b_CubeMap)
-			{
-
-				glTexImage2D(m_TextureInfo.m_TextureSpec.m_TexTarget, 0, texInfo.m_TextureFormat.m_InternalFormat, m_TextureInfo.m_Width, m_TextureInfo.m_Height, 0, texInfo.m_TextureFormat.m_DataFormat,
-					dataType, nullptr);
-
-
-				//check if hardware support anisotropic filtering
-				if (GLAD_GL_EXT_texture_filter_anisotropic)
-				{
-					GLfloat largest;
-					glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &largest);
-
-					//activate anisotropic filtering
-					glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, largest);
-				}
-
-				glTexParameteri(m_TextureInfo.m_TextureSpec.m_TexTarget, GL_TEXTURE_WRAP_S, m_TextureInfo.m_TextureSpec.m_WrapS);
-				glTexParameteri(m_TextureInfo.m_TextureSpec.m_TexTarget, GL_TEXTURE_WRAP_T, m_TextureInfo.m_TextureSpec.m_WrapT);
-				glTexParameteri(m_TextureInfo.m_TextureSpec.m_TexTarget, GL_TEXTURE_MIN_FILTER, m_TextureInfo.m_TextureSpec.m_MinFilter);
-				glTexParameteri(m_TextureInfo.m_TextureSpec.m_TexTarget, GL_TEXTURE_MAG_FILTER, m_TextureInfo.m_TextureSpec.m_MagFilter);
-			}
-
-			else
-			{
-				for (unsigned int i = 0; i < 6; ++i)
-				{
-					//glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
-					glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, m_TextureInfo.m_TextureFormat.m_InternalFormat,
-						m_TextureInfo.m_Width, m_TextureInfo.m_Height, 0, m_TextureInfo.m_TextureFormat.m_DataFormat,
-						dataType, nullptr);
-				}
-
-
-				glTexParameteri(m_TextureInfo.m_TextureSpec.m_TexTarget, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-				glTexParameteri(m_TextureInfo.m_TextureSpec.m_TexTarget, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-				glTexParameteri(m_TextureInfo.m_TextureSpec.m_TexTarget, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-				glTexParameteri(m_TextureInfo.m_TextureSpec.m_TexTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-				glTexParameteri(m_TextureInfo.m_TextureSpec.m_TexTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-				if (texInfo.b_GenerateMipmap)
-					glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
-			}
-
-
-		}
-
-
-		void Texture::WritePixels(Window* focusWindow, const std::string& fileName, int channels)
-		{
-
-			int width = focusWindow->GetScreenWidth();
-			int height = focusWindow->GetScreenHeight();
-
-
-			uint8_t* ptr = (uint8_t*)malloc(width * height * channels);
-			glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, ptr);
-			stbi_write_png(fileName.c_str(), width, height, channels, ptr, 0);
-
-			free(ptr);
-
-		}
-
-
-
-
-		unsigned char* Texture::LoadPixels(const std::string& fileName, int& width, int& height, bool flip)
-		{
-			stbi_set_flip_vertically_on_load(flip);
-			unsigned char* data = stbi_load(fileName.c_str(), &width, &height, &m_TextureInfo.m_Channels, 0);
-
-			return data;
-		}
-
-
-		void Texture::DeletePixels(unsigned char* data)
-		{
-			stbi_image_free(data);
-		}
-	}
-
+    namespace
+    {
+        struct Format { GLint internal; GLenum external, type; std::size_t channels, element; };
+        std::expected<Format, TextureError> Convert(const TextureDesc& d)
+        {
+            const bool srgb = d.colorSpace == TextureColorSpace::SRGB;
+            if ((d.kind != TextureKind::Image2D && d.kind != TextureKind::Cube)
+                || (d.colorSpace != TextureColorSpace::SRGB && d.colorSpace != TextureColorSpace::Linear)
+                || (d.mips != TextureMipIntent::None && d.mips != TextureMipIntent::Generate)
+                || (d.orientation != ImageOrientation::TopLeft && d.orientation != ImageOrientation::BottomLeft)
+                || (d.usage != TextureUsage::Sampled && d.usage != TextureUsage::Attachment))
+                return std::unexpected(TextureError{TextureErrorCode::InvalidDescription, {}, "Invalid texture semantics"});
+            switch (d.format)
+            {
+            case TextureFormat::R8: if (!srgb) return Format{GL_R8, GL_RED, GL_UNSIGNED_BYTE, 1, 1}; break;
+            case TextureFormat::RGB8: return Format{srgb ? GL_SRGB8 : GL_RGB8, GL_RGB, GL_UNSIGNED_BYTE, 3, 1};
+            case TextureFormat::RGBA8: return Format{srgb ? GL_SRGB8_ALPHA8 : GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, 4, 1};
+            case TextureFormat::RGB16Float: if (!srgb) return Format{GL_RGB16F, GL_RGB, GL_FLOAT, 3, 4}; break;
+            case TextureFormat::RGBA16Float: if (!srgb) return Format{GL_RGBA16F, GL_RGBA, GL_FLOAT, 4, 4}; break;
+            case TextureFormat::Depth32Float: if (!srgb) return Format{GL_DEPTH_COMPONENT32F, GL_DEPTH_COMPONENT, GL_FLOAT, 1, 4}; break;
+            }
+            return std::unexpected(TextureError{TextureErrorCode::InvalidDescription, {}, "Unsupported format/color-space combination"});
+        }
+        GLenum Target(TextureKind kind) { return kind == TextureKind::Cube ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D; }
+        struct UploadState
+        {
+            GLenum target;
+            GLint binding = 0, buffer = 0;
+            static constexpr std::array<GLenum, 8> settings{GL_UNPACK_ALIGNMENT, GL_UNPACK_ROW_LENGTH,
+                GL_UNPACK_IMAGE_HEIGHT, GL_UNPACK_SKIP_PIXELS, GL_UNPACK_SKIP_ROWS, GL_UNPACK_SKIP_IMAGES,
+                GL_UNPACK_SWAP_BYTES, GL_UNPACK_LSB_FIRST};
+            std::array<GLint, 8> saved{};
+            explicit UploadState(GLenum value) : target(value)
+            {
+                glGetIntegerv(target == GL_TEXTURE_CUBE_MAP ? GL_TEXTURE_BINDING_CUBE_MAP : GL_TEXTURE_BINDING_2D, &binding);
+                glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &buffer);
+                glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+                for (std::size_t i = 0; i < settings.size(); ++i)
+                {
+                    glGetIntegerv(settings[i], &saved[i]);
+                    glPixelStorei(settings[i], i == 0 ? 1 : 0);
+                }
+            }
+            ~UploadState()
+            {
+                glBindTexture(target, static_cast<GLuint>(binding));
+                glBindBuffer(GL_PIXEL_UNPACK_BUFFER, static_cast<GLuint>(buffer));
+                for (std::size_t i = 0; i < settings.size(); ++i) glPixelStorei(settings[i], saved[i]);
+            }
+        };
+    }
+    struct TextureResource::Storage
+    {
+        GLuint name = 0;
+        GLint unitLimit = 0;
+        Storage() { glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &unitLimit); }
+        SDL_GLContext context = SDL_GL_GetCurrentContext();
+        ~Storage()
+        {
+            if (!name) return;
+            GLContextThread::RequireCurrent("Texture retirement");
+            AssetDetail::RequireInvariant(SDL_GL_GetCurrentContext() == context);
+            glDeleteTextures(1, &name);
+        }
+    };
+    TextureResource::TextureResource() noexcept = default;
+    TextureResource::~TextureResource() = default;
+    TextureResource::TextureResource(TextureResource&&) noexcept = default;
+    TextureResource& TextureResource::operator=(TextureResource&& other) noexcept
+    {
+        if (this != &other) { m_Storage = std::move(other.m_Storage); m_Desc = other.m_Desc; }
+        return *this;
+    }
+    TextureResource::operator bool() const noexcept { return m_Storage && m_Storage->name; }
+
+    std::expected<TextureResource, TextureError> TextureResource::Create(const TextureDesc& desc, TexturePixels pixels)
+    {
+        auto format = Convert(desc);
+        if (!format) return std::unexpected(format.error());
+        if (desc.width <= 0 || desc.height <= 0 || (desc.kind == TextureKind::Cube && desc.width != desc.height))
+            return std::unexpected(TextureError{TextureErrorCode::InvalidDescription, {}, "Invalid image dimensions"});
+        GLContextThread::RequireCurrent("Texture creation");
+        GLint limit = 0;
+        glGetIntegerv(desc.kind == TextureKind::Cube ? GL_MAX_CUBE_MAP_TEXTURE_SIZE : GL_MAX_TEXTURE_SIZE, &limit);
+        if (desc.width > limit || desc.height > limit)
+            return std::unexpected(TextureError{TextureErrorCode::InvalidDescription, {}, "Image exceeds context size limit"});
+        const auto tight = std::size_t(desc.width) * format->channels * format->element;
+        const auto stride = pixels.rowStride ? pixels.rowStride : tight;
+        const std::size_t faces = desc.kind == TextureKind::Cube ? 6 : 1;
+        const auto rows = std::size_t(desc.height) * faces;
+        if (stride < tight || stride > (std::numeric_limits<std::size_t>::max)() / rows
+            || (!pixels.bytes.empty() && pixels.bytes.size() < stride * (rows - 1) + tight))
+            return std::unexpected(TextureError{TextureErrorCode::InvalidPixels, {}, "Pixel span/row stride does not cover the image"});
+        std::vector<std::byte> packed;
+        auto bytes = pixels.bytes;
+        if (!bytes.empty() && stride != tight)
+        {
+            packed.resize(tight * rows);
+            for (std::size_t row = 0; row < rows; ++row)
+                std::memcpy(packed.data() + row * tight, bytes.data() + row * stride, tight);
+            bytes = packed;
+        }
+        TextureResource pending;
+        pending.m_Desc = desc;
+        pending.m_Storage.reset(new (std::nothrow) Storage);
+        if (!pending.m_Storage)
+            return std::unexpected(TextureError{TextureErrorCode::Allocation, {}, "Texture owner allocation failed"});
+        const auto target = Target(desc.kind);
+        UploadState restore(target);
+        glGenTextures(1, &pending.m_Storage->name);
+        if (!pending.m_Storage->name)
+            return std::unexpected(TextureError{TextureErrorCode::Allocation, {}, "Driver did not allocate a texture name"});
+        glBindTexture(target, pending.m_Storage->name);
+        for (std::size_t face = 0; face < faces; ++face)
+        {
+            const auto imageTarget = faces == 6 ? GL_TEXTURE_CUBE_MAP_POSITIVE_X + static_cast<GLenum>(face) : target;
+            const void* data = bytes.empty() ? nullptr : bytes.data() + face * tight * std::size_t(desc.height);
+            glTexImage2D(imageTarget, 0, format->internal, desc.width, desc.height, 0, format->external, format->type, data);
+            GLint width = 0, height = 0;
+            glGetTexLevelParameteriv(imageTarget, 0, GL_TEXTURE_WIDTH, &width);
+            glGetTexLevelParameteriv(imageTarget, 0, GL_TEXTURE_HEIGHT, &height);
+            if (width != desc.width || height != desc.height)
+                return std::unexpected(TextureError{TextureErrorCode::Storage, {}, "Driver failed to allocate complete image storage"});
+        }
+        const bool mip = desc.mips == TextureMipIntent::Generate;
+        if (mip)
+        {
+            glGenerateMipmap(target);
+            int level = 0, side = (std::max)(desc.width, desc.height);
+            while (side > 1) { side /= 2; ++level; }
+            for (std::size_t face = 0; face < faces; ++face)
+            {
+                GLint width = 0, height = 0;
+                const auto imageTarget = faces == 6 ? GL_TEXTURE_CUBE_MAP_POSITIVE_X + static_cast<GLenum>(face) : target;
+                glGetTexLevelParameteriv(imageTarget, level, GL_TEXTURE_WIDTH, &width);
+                glGetTexLevelParameteriv(imageTarget, level, GL_TEXTURE_HEIGHT, &height);
+                if (width != 1 || height != 1)
+                    return std::unexpected(TextureError{TextureErrorCode::Storage, {}, "Driver failed to allocate the mip chain"});
+            }
+        }
+        // Preserve the existing basic image defaults; independently cached sampler policy is Phase 27.
+        glTexParameteri(target, GL_TEXTURE_MIN_FILTER, mip ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
+        glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(target, GL_TEXTURE_WRAP_S, faces == 6 ? GL_CLAMP_TO_EDGE : GL_REPEAT);
+        glTexParameteri(target, GL_TEXTURE_WRAP_T, faces == 6 ? GL_CLAMP_TO_EDGE : GL_REPEAT);
+        if (faces == 6) glTexParameteri(target, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+        if (GLAD_GL_EXT_texture_filter_anisotropic)
+        {
+            GLfloat largest = 1;
+            glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &largest);
+            glTexParameterf(target, GL_TEXTURE_MAX_ANISOTROPY_EXT, largest);
+        }
+        return pending;
+    }
+
+    std::expected<TextureResource, TextureError> TextureResource::Load(const std::filesystem::path& path,
+        const TextureDesc& requested, const std::string& extension)
+    {
+        if (requested.width || requested.height)
+            return std::unexpected(TextureError{TextureErrorCode::InvalidDescription, path.string(), "File loads use decoded dimensions"});
+        auto format = Convert(requested);
+        if (!format) return std::unexpected(format.error());
+        if (requested.format == TextureFormat::Depth32Float)
+            return std::unexpected(TextureError{TextureErrorCode::InvalidDescription, path.string(), "Depth images cannot be decoded as color files"});
+        static constexpr std::array<const char*, 6> suffixes{"posx", "negx", "posy", "negy", "posz", "negz"};
+        const std::size_t faces = requested.kind == TextureKind::Cube ? 6 : 1;
+        TextureDesc desc = requested;
+        std::vector<std::byte> decoded;
+        stbi_set_flip_vertically_on_load_thread(requested.orientation == ImageOrientation::BottomLeft);
+        for (std::size_t face = 0; face < faces; ++face)
+        {
+            const auto source = faces == 6 ? path / (std::string(suffixes[face]) + extension) : path;
+            int width = 0, height = 0, channels = 0;
+            std::unique_ptr<void, decltype(&stbi_image_free)> data(format->element == 4
+                ? static_cast<void*>(stbi_loadf(source.string().c_str(), &width, &height, &channels, static_cast<int>(format->channels)))
+                : static_cast<void*>(stbi_load(source.string().c_str(), &width, &height, &channels, static_cast<int>(format->channels))), stbi_image_free);
+            if (!data)
+                return std::unexpected(TextureError{TextureErrorCode::Decode, source.string(),
+                    stbi_failure_reason() ? stbi_failure_reason() : "Image decoding failed"});
+            if (width <= 0 || height <= 0 || (face && (width != desc.width || height != desc.height)))
+                return std::unexpected(TextureError{TextureErrorCode::Decode, source.string(), "Cube faces must have identical positive dimensions"});
+            desc.width = width; desc.height = height;
+            const auto size = std::size_t(width) * std::size_t(height) * format->channels * format->element;
+            const auto* first = static_cast<const std::byte*>(data.get());
+            decoded.insert(decoded.end(), first, first + size);
+        }
+        auto result = Create(desc, {decoded, 0});
+        if (!result) result.error().source = path.string();
+        return result;
+    }
+
+    AttachmentView AssetDetail::TextureBackend::Borrow(std::function<GLuint()> currentName, GLenum target)
+    {
+        GLContextThread::RequireCurrent("Attachment view creation");
+        AttachmentView result;
+        GLint units = 0; glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &units);
+        result.m_State = std::make_shared<AttachmentState>(AttachmentState{std::move(currentName), target, SDL_GL_GetCurrentContext(), units});
+        return result;
+    }
+    std::expected<GLuint, TextureError> AssetDetail::TextureBackend::Name(const TextureView& view)
+    {
+        GLContextThread::RequireCurrent("Texture view access");
+        if (view.m_Image && view.m_Image->m_Storage)
+        {
+            AssetDetail::RequireInvariant(view.m_Image->m_Storage->context == SDL_GL_GetCurrentContext());
+            return view.m_Image->m_Storage->name;
+        }
+        if (view.m_Attachment)
+        {
+            const auto& state = *view.m_Attachment.m_State;
+            AssetDetail::RequireInvariant(state.context == SDL_GL_GetCurrentContext());
+            if (const auto name = state.currentName()) return name;
+        }
+        return std::unexpected(TextureError{TextureErrorCode::InvalidView, {}, "Texture view has no live image"});
+    }
+    GLenum AssetDetail::TextureBackend::Target(const TextureView& view)
+    {
+        return view.m_Image ? ::GEngine::Asset::Target(view.m_Image->Description().kind)
+            : view.m_Attachment ? view.m_Attachment.m_State->target : GL_TEXTURE_2D;
+    }
+    std::expected<void, TextureError> AssetDetail::TextureBackend::Bind(const TextureView& view, std::uint32_t unit)
+    {
+        auto name = Name(view);
+        if (!name) return std::unexpected(name.error());
+        const auto count = view.m_Image ? view.m_Image->m_Storage->unitLimit : view.m_Attachment.m_State->unitLimit;
+        if (unit >= static_cast<std::uint32_t>(count))
+            return std::unexpected(TextureError{TextureErrorCode::InvalidUnit, {}, "Texture unit exceeds the context limit"});
+        glActiveTexture(GL_TEXTURE0 + unit);
+        glBindTexture(Target(view), *name);
+        return {};
+    }
+    std::expected<void, TextureError> TextureView::Bind(std::uint32_t unit) const
+    { return AssetDetail::TextureBackend::Bind(*this, unit); }
 }

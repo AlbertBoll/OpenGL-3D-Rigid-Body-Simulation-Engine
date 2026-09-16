@@ -66,6 +66,17 @@ namespace GEngine
             throw std::runtime_error("Unable to activate manager owning context");
     }
 
+    std::expected<Manager::AssetsManager*, Asset::TextureError> EngineContext::TryAssets()
+    {
+        Asset::AssetDetail::RequireInvariant(std::this_thread::get_id() == m_OwnerThread);
+        if ((m_State != State::Ready && m_State != State::Initializing) || !m_Assets || !m_MainWindow)
+            return std::unexpected(Asset::TextureError{Asset::TextureErrorCode::ContextUnavailable, {}, "Texture services are unavailable"});
+        if (SDL_GL_GetCurrentContext() != m_MainWindow->GetContext()
+            && SDL_GL_MakeCurrent(m_MainWindow->GetSDLWindow(), m_MainWindow->GetContext()) != 0)
+            return std::unexpected(Asset::TextureError{Asset::TextureErrorCode::ContextUnavailable, {}, SDL_GetError()});
+        return m_Assets.get();
+    }
+
     Manager::AssetsManager& EngineContext::Assets() { RequireManagers(); return *m_Assets; }
     Manager::ShaderManager& EngineContext::Shaders() { RequireManagers(); return *m_Shaders; }
     Manager::ShapeManager& EngineContext::Shapes() { RequireManagers(); return *m_Shapes; }
@@ -87,7 +98,7 @@ namespace GEngine
             m_MainWindow->BeginRender();
             if (SDL_GL_GetCurrentContext() != m_MainWindow->GetContext())
                 throw std::runtime_error("Unable to initialize manager owning context");
-            m_Assets.reset(new Manager::AssetsManager);
+            m_Assets.reset(new Manager::AssetsManager(m_AssetPublication, RuntimeAssets::File("Images")));
             m_Shaders.reset(new Manager::ShaderManager);
             m_Shapes.reset(new Manager::ShapeManager);
             m_Shapes->Initialize();

@@ -1,4 +1,5 @@
 #pragma once
+#include "Component/TexturesComponent.h"
 #include"Math/Math.h"
 #include <string>
 #include <Core/UUID.h>
@@ -473,36 +474,6 @@ namespace GEngine
 
 
 		//class Asset::Texture;
-		struct TexturesComponent
-		{
-			TexturesComponent() = default;
-			
-			TexturesComponent(const std::initializer_list<Asset::Texture*>& texturesList):Textures{texturesList}
-			{
-				GENGINE_CORE_INFO("initializer");
-			}
-
-			TexturesComponent(std::initializer_list<Asset::Texture*>&& texturesList) :Textures{ std::move(texturesList) }
-			{
-				GENGINE_CORE_INFO("move");
-			}
-
-			TexturesComponent(const std::vector<Asset::Texture*>& texturesList) :Textures{ texturesList }
-			{
-				GENGINE_CORE_INFO("vector");
-			}
-			
-			void BindTextures(Asset::Shader* shader);
-
-			void PreBindTextures(Asset::Shader* shader);
-			
-			void LoadUniforms(Asset::Shader* shader)const;
-
-			std::unordered_map<unsigned int, std::pair<unsigned int, unsigned int>> TextureList;
-			std::vector<Asset::Texture*> Textures;
-			Uniform<Vec2f> Tiling{ "u_tiling",  {1.f, 1.f} };
-		};
-
 
 		enum class BodyType { Static = 0, Dynamic, Kinematic };
 

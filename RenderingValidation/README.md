@@ -1207,3 +1207,44 @@ collapse/reopen. Its compiler mode now follows the already approved C++23 baseli
 (and `Release`) retains actual framebuffer/ownership/failure regressions and adapted
 root lifecycle fixtures. Always fingerprint the finalized source and protected
 inputs before the final runs. These commands do not seal or approve a checkpoint.
+
+# Phase 31 CPU mesh data
+
+`python tools/test_mesh_asset.py --configuration Debug --output <directory>`
+(and `Release`) builds the six maintained consumers and links a CPU probe against
+the production GEngine library. The consumer compiles with only engine and standard
+library include roots, without a PCH or backend libraries. Compiler dependency
+traces verify the header boundary. No window or graphics context is created.
+
+`Mesh/MeshAsset.h` defines an immutable, move-only CPU owner, borrowed
+`MeshSourceData` spans and explicit single-stream interleaved layouts. Creation
+copies vertices, indices, attributes and submeshes; caller storage can then expire.
+Returned views expire on owner move/assignment/destruction. Dynamic intent is
+metadata for future uploads. Existing Geometry/import/rendering paths are unchanged.
+
+Semantic slots are fixed: position 0, UV0 1, normal 2, tangent 3, bitangent 4,
+joint indices 5, joint weights 6, entity ID 7, color0 8. Position/normal/bitangent
+are Float32x3, UV0 Float32x2, tangent Float32x3/x4; joint indices accept signed or
+unsigned 8/16/32-bit integer x4, weights Float32x4 or unsigned normalized 8/16-bit
+x4, entity ID Int32x1, color Float32 or unsigned normalized 8/16-bit x3/x4.
+Other combinations, duplicate semantics/slots, overlapping fields and fields
+outside the record are rejected. Optional fields occupy no mandatory bytes.
+Typed helpers constrain records to standard-layout/trivially-copyable types;
+use `sizeof` and `offsetof`, including padding. Scalar/index bytes use host byte
+order; reads do not require alignment. Indices are absent, UInt16 or UInt32.
+
+Submesh ranges address indices for indexed meshes and vertices otherwise, with
+absolute vertex ordinals and explicit material slots. Ranges may overlap or leave
+gaps; order is preserved. Nonempty draw data requires explicit submeshes. Empty
+meshes require a valid position layout and produce empty bounds. AABB and sphere
+cover every vertex, including unreferenced vertices, reject nonfinite positions,
+and use double precision for finite Float32 extremes. The sphere uses the AABB
+midpoint, with radius rounded outward; it is not a minimum enclosing sphere.
+
+The probe checks distinct multi-vertex position/normal/UV layouts, padded/aligned
+records, additional attributes, both index formats, submesh/material ordering,
+payload/range/overflow rejection, bounds, empty meshes, source lifetime, move and
+self-move ownership, worker construction/destruction and injected failure at all
+three allocation steps with zero retained arrays. Expected errors carry an error
+code and the offending ordinal. No performance or GPU behavior is claimed;
+allocation/upload belongs to Phase 32 and importer normalization to Phase 33.

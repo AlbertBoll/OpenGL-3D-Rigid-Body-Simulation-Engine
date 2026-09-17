@@ -1,0 +1,168 @@
+{
+  "baseline": "cba9f80c777a0f794cfc799047e3e8d2ac8927a0",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Mesh/MeshAsset.h",
+    "GEngine/src/Mesh/MeshAsset.cpp",
+    "RenderingValidation/README.md",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-31.json",
+    "tools/mesh_asset_probe.cpp",
+    "tools/test_mesh_asset.py"
+  ],
+  "eligible": true,
+  "findings": [],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_31_REVIEW.md"
+  ],
+  "next_phase": "32",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "470b94914b8f808932fe68a126b972679f997850",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-31/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/470b94914b8f808932fe68a126b972679f997850",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "fedbbd1d7f89a348ea59a98b983adf857887db11fa7a5ae412b9ae39f4d9b73c"
+      },
+      "mode": "100644",
+      "validated_blob": "7d03c6d93ed3114fa4f24b465c46910320e255d6",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-31/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/7d03c6d93ed3114fa4f24b465c46910320e255d6"
+    }
+  },
+  "phase": "31",
+  "previous_approved_tag": "render-refactor-phase-30-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngine/include/GEngine/Mesh/IndexBuffer.h",
+    "GEngine/include/GEngine/Mesh/VertexBuffer.h",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_31_REVIEW.md",
+  "schema": 2,
+  "summary": "Add a context-independent immutable CPU MeshAsset with explicit interleaved layouts, typed validation/allocation failures, UInt16/UInt32 indices, preserved submesh/material slots, and local AABB/sphere bounds. Debug/Release maintained consumer builds and 217 focused CPU checks per configuration pass, including padded records, ownership and allocation cleanup.",
+  "validation": [
+    {
+      "check": "Debug GEngine and six maintained consumer builds",
+      "command": "python tools/test_mesh_asset.py --configuration Debug --output logs/rendering/phase31/final/Debug",
+      "evidence": "logs/rendering/phase31/final/Debug/build.log",
+      "result": "PASS",
+      "reuse_reason": "Build step exited 0 with zero warnings/errors. Subsequent changes only scope C4324 for the intentional padded test fixture and add the runner no-build flag. Production/config input hashes unchanged; initial results.json accurately retains the resolved test-compile failure."
+    },
+    {
+      "check": "Debug CPU behavior, ownership, failure cleanup and consumer/error boundary",
+      "command": "python tools/test_mesh_asset.py --configuration Debug --no-build --output logs/rendering/phase31/final-v2/Debug",
+      "evidence": "logs/rendering/phase31/final-v2/Debug/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Release GEngine/six consumer builds, CPU behavior, ownership, cleanup and consumer/error boundary",
+      "command": "python tools/test_mesh_asset.py --configuration Release --output logs/rendering/phase31/final-v2/Release",
+      "evidence": "logs/rendering/phase31/final-v2/Release/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Source and ownership review; protected pre-existing inputs unchanged",
+      "command": "Inspect MeshAsset.h/.cpp declarations, checked arithmetic, span lifetime, allocations and move operations; compare SHA-256 against preflight and pre-validation inputs",
+      "evidence": "logs/rendering/phase31/source-review.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Governance and affected context locators",
+      "command": "python .codex/tools/validate_rendering_governance.py",
+      "evidence": "logs/rendering/phase31/governance.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    "GEngine/include/GEngine/Mesh/IndexBuffer.h": {
+      "executable": null,
+      "sha256": "2315576b03b599e272960e73d83cc420f19238c2d0b3171b04da0c7975aebb21"
+    },
+    "GEngine/include/GEngine/Mesh/MeshAsset.h": {
+      "executable": null,
+      "sha256": "1d0dd5e38cf6e7bbba2ce68ea3fdeb827d47440bcc78c8d7989f63a11eb23cee"
+    },
+    "GEngine/include/GEngine/Mesh/VertexBuffer.h": {
+      "executable": null,
+      "sha256": "2efd5702a4ab4bfdfa749bfe7f05093293c141870b5eedfec9e90d065f7ed56c"
+    },
+    "GEngine/include/GEngine/gepch.h": {
+      "executable": null,
+      "sha256": "7a4f068dc380fcea534385fe406bbbe4a8f60e2c35dd27cbbb73884c680440df"
+    },
+    "GEngine/src/Mesh/MeshAsset.cpp": {
+      "executable": null,
+      "sha256": "43332cc15e9d498daaf06e962ef7ac89ea7a57e626db14d7a122d054524c1e79"
+    },
+    "GEngine/src/gepch.cpp": {
+      "executable": null,
+      "sha256": "d9e9f76b944a540a5b597e0ec1a2d479ee886427c9cf88deaf1d77c61fe0ba85"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "fedbbd1d7f89a348ea59a98b983adf857887db11fa7a5ae412b9ae39f4d9b73c"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052"
+    },
+    "tools/mesh_asset_probe.cpp": {
+      "executable": null,
+      "sha256": "728556fbd848654ef4c24bdb865811f11f47d6829257cce7e4ac65cd852742f1"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/test_mesh_asset.py": {
+      "executable": null,
+      "sha256": "35ba34848a8dab5da92bec14569ca8bc92f07761ae57ba95ede402e47c89f80d"
+    }
+  }
+}

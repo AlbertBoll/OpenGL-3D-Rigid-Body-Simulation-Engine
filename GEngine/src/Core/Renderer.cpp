@@ -70,7 +70,7 @@ namespace GEngine
 
 		else
 		{
-			glBindFramebuffer(GL_FRAMEBUFFER, target->GetFrameBufferID());
+			target->Bind();
 			glViewport(0, 0, target->GetWidth(), target->GetHeight());
 		}
 
@@ -90,7 +90,7 @@ namespace GEngine
 
 		else
 		{
-			glBindFramebuffer(GL_FRAMEBUFFER, target->GetFrameBufferID());
+			target->Bind();
 			glViewport(0, 0, target->GetWidth(), target->GetHeight());
 		}
 
@@ -109,7 +109,7 @@ namespace GEngine
 
 		else
 		{
-			glBindFramebuffer(GL_FRAMEBUFFER, target->GetFrameBufferID());
+			target->Bind();
 			glViewport(0, 0, target->GetWidth(), target->GetHeight());
 		}
 

@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 #if defined(GENGINE_REGISTRY_GL)
+#include "../GEngine/src/Core/FramebufferBackend.h"
 #include "gepch.h"
 #include "Core/GEngine.h"
 #include "Core/RuntimeAssets.h"
@@ -32,7 +33,7 @@ void operator delete(void* p, std::size_t) noexcept { std::free(p); }
 
 namespace
 {
-    using namespace GEngine::Asset;
+    using namespace ::GEngine::Asset;
     int checks = 0;
     bool forbiddenDestruction = false;
     void Check(bool value, const char* message) { ++checks; if (!value) throw std::runtime_error(message); }
@@ -416,7 +417,7 @@ namespace
         ~TextureHooks() { glad_glGenTextures = gen; glad_glDeleteTextures = del; glad_glTexImage2D = image; active = nullptr; }
     };
     bool rejectTextureWorker = false, rejectManagerWorker = false;
-    void TextureCases(GEngine::EngineContext& root, TextureHooks& hooks)
+    void TextureCases(::GEngine::EngineContext& root, TextureHooks& hooks)
     {
         using namespace GEngine;
         using Manager::AssetsManager;
@@ -561,16 +562,16 @@ namespace
         Check(stbi_write_png((cube/"negz.png").string().c_str(), 2, 2, 3, square.data(), 6) != 0, "Final cube face failed");
         Check(AssetsManager::LoadTexture(cube.string(), cubeOptions), "Complete cube did not recover");
         {
-            CascadeShadowFrameBuffer cascade(16,16,3); PointShadowFrameBuffer point(16,16);
+            auto cascade = ::GEngine::CascadeShadowFrameBuffer::Create(16,16,3).value(); auto point = ::GEngine::PointShadowFrameBuffer::Create(16,16).value();
             auto* cascadeBinding = AssetsManager::GetCascadedFrameBufferTexture(cascade).value();
             auto* pointBinding = AssetsManager::GetPointShadowFrameBufferTexture(point).value();
             { auto borrowed = cascadeBinding->View(); Check(borrowed.IsAttachment(), "Attachment was classified as an image owner"); }
-            Check(AssetDetail::TextureBackend::Name(cascadeBinding->View()).value() == cascade.GetLightDepthMaps()
-                && AssetDetail::TextureBackend::Name(pointBinding->View()).value() == point.GetDepthCubeMaps(), "Attachment source differs");
-            Check(glIsTexture(cascade.GetLightDepthMaps()) && glIsTexture(point.GetDepthCubeMaps()), "View destruction deleted attachments");
-            cascade.OnResize(24,24); point.OnResize(32,32);
-            Check(AssetDetail::TextureBackend::Name(cascadeBinding->View()).value() == cascade.GetLightDepthMaps()
-                && AssetDetail::TextureBackend::Name(pointBinding->View()).value() == point.GetDepthCubeMaps(), "Attachment resize left a stale observer");
+            Check(AssetDetail::TextureBackend::Name(cascadeBinding->View()).value() == ::GEngine::FramebufferDetail::Backend::Depth(cascade.Buffer())
+                && AssetDetail::TextureBackend::Name(pointBinding->View()).value() == ::GEngine::FramebufferDetail::Backend::Depth(point.Buffer()), "Attachment source differs");
+            Check(glIsTexture(::GEngine::FramebufferDetail::Backend::Depth(cascade.Buffer())) && glIsTexture(::GEngine::FramebufferDetail::Backend::Depth(point.Buffer())), "View destruction deleted attachments");
+            Check(cascade.OnResize(24,24).has_value(), "Attachment resize failed"); Check(point.OnResize(32,32).has_value(), "Point attachment resize failed");
+            Check(AssetDetail::TextureBackend::Name(cascadeBinding->View()).value() == ::GEngine::FramebufferDetail::Backend::Depth(cascade.Buffer())
+                && AssetDetail::TextureBackend::Name(pointBinding->View()).value() == ::GEngine::FramebufferDetail::Backend::Depth(point.Buffer()), "Attachment resize left a stale observer");
             pointBinding->View().Bind(0).value(); GLint resized = 0;
             glGetTexLevelParameteriv(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, GL_TEXTURE_WIDTH, &resized);
             Check(resized == 32, "Resized attachment view bound stale storage");

@@ -438,7 +438,7 @@ namespace GEngine
 	
 		if (target)
 		{
-			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, target->GetFrameBufferID());
+			target->Bind(FramebufferBinding::Draw);
 			glViewport(0, 0, target->GetWidth(), target->GetHeight());
 		}
 		else
@@ -512,7 +512,11 @@ namespace GEngine
 			const int y = static_cast<int>(m_WindowHeight - mousePos.y);
 			//m_MousePickFrameBuffer->Bind();
 			
-			int pixel_data = fb.ReadPixel(x, y);
+			auto pixel = fb.ReadPixel(x, y);
+
+			if (!pixel) { ReportFramebufferError("picking read", pixel.error()); return; }
+
+			int pixel_data = *pixel;
 			std::string str = "None";
 			auto entity = pixel_data == -1 ? _Entity() : _Entity((entt::entity)pixel_data, scene);
 			if (entity)
@@ -549,7 +553,9 @@ namespace GEngine
 		{
 			if (BaseApp::GetInputManager()->GetMouseState().isButtonPressed(GEngineMouseCode::GENGINE_BUTTON_LEFT))
 			{
-				int pixel_data = fb.ReadPixel(mouseX, mouseY);
+				auto pixel = fb.ReadPixel(mouseX, mouseY);
+				if (!pixel) { ReportFramebufferError("picking read", pixel.error()); return; }
+				int pixel_data = *pixel;
 				std::string str = "None";
 				auto entity = pixel_data == -1 ? _Entity() : _Entity((entt::entity)pixel_data, scene);
 				if (entity)
@@ -572,12 +578,7 @@ namespace GEngine
 	void RenderSystem::OnMouseClicked(_Scene* scene, const RenderTarget& fb, const Vec2f& min_bound, const Vec2f& max_bound)
 	{
 		
-		fb.BindFrameBuffer(fb.GetFrameBufferID(), GL_READ_FRAMEBUFFER);
-		glReadBuffer(GL_COLOR_ATTACHMENT0);
-		fb.BindFrameBuffer(fb.GetMousePickFrameBufferID(), GL_DRAW_FRAMEBUFFER);
-		glDrawBuffer(GL_COLOR_ATTACHMENT0);
-		glBlitFramebuffer(0, 0, fb.GetWidth(), fb.GetHeight(), 0, 0, fb.GetWidth(), fb.GetHeight(), GL_COLOR_BUFFER_BIT, GL_NEAREST);
-		fb.UnBind();
+
 		auto [mx, my] = ImGui::GetMousePos();
 		Vec2f viewportSize = max_bound - min_bound;
 
@@ -592,7 +593,9 @@ namespace GEngine
 		{
 			if (BaseApp::GetInputManager()->GetMouseState().isButtonPressed(GEngineMouseCode::GENGINE_BUTTON_LEFT))
 			{
-				int pixel_data = fb.ReadPixel(1, mouseX, mouseX);
+				auto pixel = fb.ReadPixel(1, mouseX, mouseY);
+				if (!pixel) { ReportFramebufferError("picking read", pixel.error()); return; }
+				int pixel_data = *pixel;
 				std::string str = "None";
 				auto entity = pixel_data == -1 ? _Entity() : _Entity((entt::entity)pixel_data, scene);
 				/*if (entity)
@@ -610,7 +613,7 @@ namespace GEngine
 		}
 
 
-		fb.BindFrameBuffer(fb.GetFrameBufferID(), GL_FRAMEBUFFER);
+		fb.Bind();
 	}
 
 	
@@ -906,7 +909,8 @@ namespace GEngine
 		fb.Bind();
 		glViewport(0, 0, ViewportExtent(fb.GetResolution().x), ViewportExtent(fb.GetResolution().y));
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		fb.ClearMousePickAttachment(-1); // Clear the color attachment to -1
+		if (auto framebufferResult = fb.ClearMousePickAttachment(-1); !framebufferResult)
+		{ ReportFramebufferError("target update", framebufferResult.error()); return; } // Clear the color attachment to -1
 		//CascadedShadowSceneRender(scene, camera, shadowCascadeLevels);
 		fb.UnBind();
 
@@ -918,7 +922,8 @@ namespace GEngine
 		fb.Bind();
 		glViewport(0, 0, ViewportExtent(fb.GetResolution().x), ViewportExtent(fb.GetResolution().y));
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		fb.ClearAttachment(0, -1); // Clear the color attachment to -1
+		if (auto framebufferResult = fb.ClearAttachment(0, -1); !framebufferResult)
+		{ ReportFramebufferError("target update", framebufferResult.error()); return; } // Clear the color attachment to -1
 		//glDisable(GL_DEPTH_TEST);
 		//glEnable(GL_DEPTH_TEST);
 		MousePickPreRender(scene, camera, mouse_pick_shader);
@@ -936,7 +941,8 @@ namespace GEngine
 		fb.Bind();
 		glViewport(0, 0, ViewportExtent(fb.GetResolution().x), ViewportExtent(fb.GetResolution().y));
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		fb.ClearAttachment(0, -1); // Clear the color attachment to -1
+		if (auto framebufferResult = fb.ClearAttachment(0, -1); !framebufferResult)
+		{ ReportFramebufferError("target update", framebufferResult.error()); return; } // Clear the color attachment to -1
 		//glDisable(GL_DEPTH_TEST);
 		//glEnable(GL_DEPTH_TEST);
 		MousePickPreRender(scene, camera, mouse_pick_shader);
@@ -950,7 +956,7 @@ namespace GEngine
 	void RenderSystem::FinalPassBegin(_EditorCamera& camera, RenderTarget* target)
 	{
 	
-		glBindFramebuffer(GL_FRAMEBUFFER, target->GetFrameBufferID());
+		target->Bind();
 		glViewport(0, 0, target->GetWidth(), target->GetHeight());
 		
 		camera.UpdateView();

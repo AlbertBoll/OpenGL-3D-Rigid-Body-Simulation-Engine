@@ -1,3 +1,4 @@
+#include "../GEngine/src/Core/FramebufferBackend.h"
 // Real production-library ownership checks; invoke through test_uniform_renderbuffer.py.
 #include "gepch.h"
 #include "Core/GLDebug.h"
@@ -22,7 +23,7 @@ namespace
         && !std::is_copy_assignable_v<T> && std::is_nothrow_move_constructible_v<T>
         && std::is_nothrow_move_assignable_v<T>;
     static_assert(UniqueMovable<RenderBufferObject>);
-    static_assert(!std::is_copy_constructible_v<RenderTarget> && !std::is_move_constructible_v<RenderTarget>);
+    static_assert(!std::is_copy_constructible_v<RenderTarget> && std::is_nothrow_move_constructible_v<RenderTarget>);
     GLuint Bound(GLenum what) { GLint name = 0; glGetIntegerv(what, &name); return name; }
 
     // Inject deterministic allocation failures without requesting GPU exhaustion.
@@ -260,47 +261,32 @@ namespace
     void Targets()
     {
         RenderTargetSpecification spec; spec.Width = 17; spec.Height = 19; spec.Samples = 1;
-        // The specification constructor is an existing deferred-initialization path.
-        RenderTarget target(spec); target.GetSamples() = 1; target.OnResize(20, 16);
+        auto target = RenderTarget::Create(spec).value();
+        Check(target.OnResize(20, 16).has_value(), "Target resize failed");
         const auto verify = [&]
         {
-            glBindFramebuffer(GL_FRAMEBUFFER, target.GetFrameBufferID());
-            GLint attached = 0;
+            target.Bind(); GLint attached = 0;
             glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &attached);
-            Check(attached == target.GetRenderBufferID() && glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
-                "RenderTarget lost its RBO attachment");
+            Check(attached == FramebufferDetail::Backend::Renderbuffer(target.Buffer()) && glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE, "Target lost its depth RBO");
         };
         verify();
-        const auto fbo = target.GetFrameBufferID(), color = target.GetColorAttachmentID(), rbo = target.GetRenderBufferID();
+        const auto fbo = FramebufferDetail::Backend::Name(target.Buffer()), color = FramebufferDetail::Backend::Color(target.Buffer()), rbo = FramebufferDetail::Backend::Renderbuffer(target.Buffer());
         for (int operation = 0; operation < 3; ++operation)
         {
             Observer::fault = Observer::Fault::RenderbufferStorage;
-            Reject<std::runtime_error>([&]
-            {
-                if (operation == 0) target.OnResize(28, 24);
-                else if (operation == 1) target.SetSamples(4);
-                else target.RenderSize({28, 24});
-            });
-            Check(target.GetFrameBufferID() == fbo && target.GetColorAttachmentID() == color
-                && target.GetRenderBufferID() == rbo && target.GetWidth() == 20 && target.GetHeight() == 16 && target.GetSamples() == 1,
-                "Failed target replacement destroyed attachments or changed settings");
+            auto result = operation == 0 ? target.OnResize(28,24) : operation == 1 ? target.SetSamples(4) : target.RenderSize({28,24});
+            Check(!result && result.error().code == FramebufferErrorCode::Storage, "Target storage failure was not typed");
+            Check(FramebufferDetail::Backend::Name(target.Buffer()) == fbo && FramebufferDetail::Backend::Color(target.Buffer()) == color
+                && FramebufferDetail::Backend::Renderbuffer(target.Buffer()) == rbo && target.GetWidth() == 20 && target.GetHeight() == 16 && target.GetSamples() == 1, "Failed replacement changed ownership/settings");
             Observer::ErrorObserved(); verify();
         }
-        target.OnResize(28, 24); verify(); Check(!glIsRenderbuffer(rbo), "Target resize leaked old RBO");
-        target.RenderSize({30, 26}); verify();
-        Reject<std::invalid_argument>([&] { target.OnResize(0, 24); });
-        Reject<std::invalid_argument>([&] { target.RenderSize({(std::numeric_limits<float>::quiet_NaN)(), 24}); });
-        Reject<std::invalid_argument>([&] { target.SetSamples(0); });
+        Check(target.OnResize(28,24).has_value(), "Target resize failed"); verify(); Check(!glIsRenderbuffer(rbo), "Old RBO leaked");
+        Check(target.RenderSize({30,26}).has_value(), "RenderSize failed"); verify();
+        Check(!target.OnResize(0,24) && !target.RenderSize({(std::numeric_limits<float>::quiet_NaN)(),24}) && !target.SetSamples(0), "Invalid target input accepted");
         Observer::fault = Observer::Fault::RenderbufferStorage;
         const auto before = RenderCounters::Current().liveNames;
-        Reject<std::runtime_error>([] { RenderTarget failed(12, 12); });
-        Observer::ErrorObserved();
-        Check(RenderCounters::Current().liveNames == before, "Failed target constructor allocated framebuffer/texture resources");
-        {
-            RenderTarget deferred(spec); deferred.GetSamples() = 1;
-            deferred._Invalidate(); const auto previous = deferred.GetRenderBufferID();
-            deferred._Invalidate(); Check(!glIsRenderbuffer(previous), "Specification path leaked replaced RBO");
-        }
+        Check(!RenderTarget::Create(12,12,1), "Failed target creation succeeded"); Observer::ErrorObserved();
+        Check(RenderCounters::Current().liveNames == before, "Failed target creation leaked resources");
         std::cout << "[PASS] RenderTarget RBO attachment/replacement/resize/failure/constructor-unwind\n";
     }
 

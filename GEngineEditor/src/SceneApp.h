@@ -50,8 +50,8 @@ public:
 
 	void Update(Timestep ts) override;
 	
-	void Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)override;
-	void Initialize(const WindowProperties& prop = WindowProperties{}) override;
+	ApplicationInitializationResult Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)override;
+	ApplicationInitializationResult Initialize(const WindowProperties& prop = WindowProperties{}) override;
 
 	Vec2f GetMousePosInViewPort();
 

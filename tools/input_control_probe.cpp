@@ -308,7 +308,7 @@ namespace
             properties.m_MinWidth = properties.m_MinHeight = 32;
             properties.m_IsVsync = false;
             properties.flag = BitFlags<WindowFlags, uint8_t>{ WindowFlags::INVISIBLE };
-            app.Initialize(properties);
+            Require(app.Initialize(properties).has_value(), "Application initialization failed");
             auto* window = app.GetSDLWindow();
             const auto id = window->GetWindowID();
             Require(window->GetSDLWindow() && window->GetContext() && window->GetTitle() == properties.m_Title,
@@ -403,7 +403,7 @@ namespace
             properties.m_MinWidth = properties.m_MinHeight = 32;
             properties.m_IsVsync = false;
             properties.flag = BitFlags<WindowFlags, uint8_t>{WindowFlags::INVISIBLE};
-            app.Initialize(properties);
+            Require(app.Initialize(properties).has_value(), "Application initialization failed");
             SDL_Event event{};
             while (SDL_PollEvent(&event)) {}
             const auto id = app.GetSDLWindow()->GetWindowID();
@@ -597,7 +597,7 @@ namespace
             properties.m_MinWidth = properties.m_MinHeight = 32;
             properties.m_IsVsync = mode == "--pacing-on-cap" || mode == "--pacing-on-unlimited";
             properties.flag = BitFlags<WindowFlags, uint8_t>{WindowFlags::INVISIBLE};
-            app.Initialize(properties);
+            Require(app.Initialize(properties).has_value(), "Application initialization failed");
             const int interval = SDL_GL_GetSwapInterval();
             Require(interval == (properties.m_IsVsync ? 1 : 0), "Requested swap interval is unavailable");
             Require(app.GetManualFrameRateLimit() == 60, "Default fallback cap is not 60 FPS");
@@ -674,7 +674,7 @@ namespace
             properties.m_MinWidth = properties.m_MinHeight = 32;
             properties.m_IsVsync = false;
             properties.flag = BitFlags<WindowFlags, uint8_t>{WindowFlags::INVISIBLE};
-            app.Initialize(properties);
+            Require(app.Initialize(properties).has_value(), "Application initialization failed");
             SDL_Event event{};
             while (SDL_PollEvent(&event)) {}
             PushState(app.GetSDLWindow()->GetWindowID(), SDL_WINDOWEVENT_SHOWN);

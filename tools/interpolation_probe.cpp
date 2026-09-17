@@ -379,7 +379,7 @@ namespace
             properties.m_MinWidth = properties.m_MinHeight = 32;
             properties.m_IsVsync = false;
             properties.flag = BitFlags<WindowFlags, uint8_t>{WindowFlags::INVISIBLE};
-            app.Initialize(properties);
+            Check(app.Initialize(properties).has_value(), "Application initialization failed");
             SDL_Event event{}; while (SDL_PollEvent(&event)) {}
             event.type = SDL_WINDOWEVENT; event.window.windowID = app.GetSDLWindow()->GetWindowID();
             event.window.event = SDL_WINDOWEVENT_SHOWN;

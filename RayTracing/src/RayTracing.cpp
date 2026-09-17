@@ -75,12 +75,12 @@ namespace GEngine
 		
 	}
 
-	void RayTracingAPP::Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)
+	ApplicationInitializationResult RayTracingAPP::Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)
 	{
 		using namespace Camera;
 
 		//Initialize BaseApp , 
-		BaseApp::Initialize(WindowsPropertyList);
+		if (auto initialized = BaseApp::Initialize(WindowsPropertyList); !initialized) return initialized;
 
 		GENGINE_CORE_INFO("Initialize 3D Renderer...");
 		Renderer::Initialize();
@@ -100,11 +100,12 @@ namespace GEngine
 
 		m_Renderer.SetSphereColor(Vec3f{ 1.f, 0.f, 1.f });
 	
+	    return {};
 	}
 
-	void RayTracingAPP::Initialize(const WindowProperties& prop)
+	ApplicationInitializationResult RayTracingAPP::Initialize(const WindowProperties& prop)
 	{
-		Initialize({ prop });
+	    return Initialize(std::initializer_list<WindowProperties>{prop});
 	}
 
 	void RayTracingAPP::ProcessInput(Timestep ts)

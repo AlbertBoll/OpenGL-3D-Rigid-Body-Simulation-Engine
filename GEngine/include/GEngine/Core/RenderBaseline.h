@@ -118,20 +118,17 @@ namespace GEngine::RenderBaseline
             }
             return false;
         }
-        void CaptureScene(const RenderTarget* target)
+        FramebufferResult CaptureScene(const RenderTarget* target)
         {
-            if (!Enabled() || frame != Warmup + Samples || !SDL_getenv("GENGINE_BASELINE_SCENE_TARGET")) return;
+            if (!Enabled() || frame != Warmup + Samples || !SDL_getenv("GENGINE_BASELINE_SCENE_TARGET")) return {};
             if (!target || target->GetWidth() != width || target->GetHeight() != height)
-                throw std::runtime_error("Requested diagnostic scene target has unexpected dimensions");
-            const GLuint texture = target->IsMultiSampled() ? target->GetScreenAttachmentID() : target->GetColorAttachmentID();
+                return std::unexpected(FramebufferError{FramebufferErrorCode::InvalidDescription, "Diagnostic scene target has unexpected dimensions"});
             std::vector<unsigned char> pixels(static_cast<size_t>(width) * height * 4);
-            {
-                PackState pack;
-                glGetTextureImage(texture, 0, GL_RGBA, GL_UNSIGNED_BYTE, static_cast<GLsizei>(pixels.size()), pixels.data());
-            }
-            if (glGetError() != GL_NO_ERROR) throw std::runtime_error("Scene target capture generated a GL error");
+            if (auto read = target->ReadColor(std::as_writable_bytes(std::span(pixels))); !read) return read;
+            // Existing image-file output retains the capture subsystem's legacy contract.
             SaveImage(pixels, width, height, "scene.bmp");
             metadata << "scene_diagnostic=resolved application render target; presentation defect retained\n";
+            return {};
         }
         void Capture(SDL_Window* window)
         {

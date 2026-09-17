@@ -1,0 +1,355 @@
+{
+  "baseline": "33bf50869aca0cace8b5f106826094d03d0d6f89",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "Breakout/include/BreakoutApp.h",
+    "Breakout/src/BreakoutApp.cpp",
+    "GEngine/include/GEngine/Core/BaseApp.h",
+    "GEngine/include/GEngine/Core/FrameBuffer.h",
+    "GEngine/include/GEngine/Core/RenderBaseline.h",
+    "GEngine/include/GEngine/Core/RenderSystem.cpp",
+    "GEngine/include/GEngine/Core/RenderTarget.h",
+    "GEngine/include/GEngine/EntryPoint.h",
+    "GEngine/include/GEngine/UI/FramebufferImage.h",
+    "GEngine/include/GEngine/UI/UICore.cpp",
+    "GEngine/src/Core/BaseApp.cpp",
+    "GEngine/src/Core/FrameBuffer.cpp",
+    "GEngine/src/Core/FramebufferBackend.h",
+    "GEngine/src/Core/RenderTarget.cpp",
+    "GEngine/src/Core/Renderer.cpp",
+    "GEngine/src/Core/Renderer2D.cpp",
+    "GEngine/src/Managers/AssetsManager.cpp",
+    "GEngineEditor/src/SceneApp.cpp",
+    "GEngineEditor/src/SceneApp.h",
+    "RayTracing/include/RayTracing.h",
+    "RayTracing/src/RayTracing.cpp",
+    "RenderingValidation/README.md",
+    "RigidBodySimulation/include/RigidBodySimulation.h",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-28.json",
+    "tools/asset_registry_probe.cpp",
+    "tools/framebuffer_probe.cpp",
+    "tools/input_control_probe.cpp",
+    "tools/interpolation_probe.cpp",
+    "tools/shadow_framebuffer_probe.cpp",
+    "tools/shutdown_probe.cpp",
+    "tools/test_framebuffer.py",
+    "tools/uniform_renderbuffer_probe.cpp"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "One move-only context-bound owner; exact dimensions/targets/formats, attached draw buffers, nearest integer/MS resolve, verified storage/completeness and rollback. Both configurations: 928 GL checks, zero high-severity errors; 103 names created/deleted per cycle.",
+      "finding": "Framebuffer ownership and invalid allocation/resolve operations",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Semantic target/view/UI contracts and typed expected factories/startup results. Neutral header compile/dependency checks pass; no added explicit exception syntax in production.",
+      "finding": "Native framebuffer API and exception-based creation boundaries",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Phase 63 owns the unrelated draw-mode defect, also present in approved Phase 27 smoke evidence. Phase 28 focused target operations have zero high-severity errors. Exact messages and prior log hashes: logs/rendering/phase28/final/diagnostics.json.",
+      "finding": "Pre-existing simulation primitive-mode diagnostics",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    },
+    {
+      "disposition": "Phases 34-35/46 own legacy shader/program binding, also present in approved Phase 27 smoke evidence. It is outside framebuffer allocation/resolve; no Phase 28 gate is waived. Exact messages and prior log hashes: logs/rendering/phase28/final/diagnostics.json.",
+      "finding": "Pre-existing Breakout no-active-program diagnostic",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_28_REVIEW.md"
+  ],
+  "next_phase": "29",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "478225a833a3965e6f9a43494a3207f091b93b28",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-28/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/478225a833a3965e6f9a43494a3207f091b93b28",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "2c6a71eb1333e80d904db43a1852728a7b7ca94f930ffee2b1330d8909f42da3"
+      },
+      "mode": "100644",
+      "validated_blob": "cfed5aec7f99c7dfbed6a2e4c670d88e0ef7787b",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-28/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/cfed5aec7f99c7dfbed6a2e4c670d88e0ef7787b"
+    }
+  },
+  "phase": "28",
+  "previous_approved_tag": "render-refactor-phase-27-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngine/include/GEngine/Mesh/IndexBuffer.h",
+    "GEngine/include/GEngine/Mesh/VertexBuffer.h",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_28_REVIEW.md",
+  "schema": 2,
+  "summary": "Correct framebuffer ownership, allocation, resolve and typed consumer contracts",
+  "validation": [
+    {
+      "check": "Maintained six affected targets and neutral headers / Debug",
+      "command": "python tools/test_framebuffer.py --configuration Debug --output logs/rendering/phase28/final/build-Debug --build-only",
+      "evidence": "logs/rendering/phase28/final/build-Debug/results.json; per-step logs and binary hashes; exit 0",
+      "result": "PASS",
+      "reuse_reason": "Final production/probe inputs are unchanged. Later smoke-only runner and README updates leave the original core runner body byte-identical; snapshots and fingerprint comparison in logs/rendering/phase28/final/smoke-coverage-amendment.json."
+    },
+    {
+      "check": "Neutral header dependencies; real GL pixels, moves, failure rollback, typed startup, affected lifetime/attachment regressions / Debug",
+      "command": "python tools/test_framebuffer.py --configuration Debug --output logs/rendering/phase28/final/Debug --no-build",
+      "evidence": "logs/rendering/phase28/final/Debug/results.json; per-step logs and binary hashes; exit 0",
+      "result": "PASS",
+      "reuse_reason": "Final production/probe inputs are unchanged. Later smoke-only runner and README updates leave the original core runner body byte-identical; snapshots and fingerprint comparison in logs/rendering/phase28/final/smoke-coverage-amendment.json."
+    },
+    {
+      "check": "Four graphical applications startup, responsive SDL windows and native close / Debug",
+      "command": "python tools/test_framebuffer.py --configuration Debug --output logs/rendering/phase28/final/smoke-Debug --no-build --smoke",
+      "evidence": "logs/rendering/phase28/final/smoke-Debug/results.json; per-step logs and binary hashes; exit 0",
+      "result": "PASS",
+      "reuse_reason": "Final binaries and smoke behavior unchanged; recorded logs satisfy the latest unconditional runtime/shadow diagnostics and Debug initialization predicate. See diagnostics.json."
+    },
+    {
+      "check": "Maintained six affected targets and neutral headers / Release",
+      "command": "python tools/test_framebuffer.py --configuration Release --output logs/rendering/phase28/final/build-Release --build-only",
+      "evidence": "logs/rendering/phase28/final/build-Release/results.json; per-step logs and binary hashes; exit 0",
+      "result": "PASS",
+      "reuse_reason": "Final production/probe inputs are unchanged. Later smoke-only runner and README updates leave the original core runner body byte-identical; snapshots and fingerprint comparison in logs/rendering/phase28/final/smoke-coverage-amendment.json."
+    },
+    {
+      "check": "Neutral header dependencies; real GL pixels, moves, failure rollback, typed startup, affected lifetime/attachment regressions / Release",
+      "command": "python tools/test_framebuffer.py --configuration Release --output logs/rendering/phase28/final/Release --no-build",
+      "evidence": "logs/rendering/phase28/final/Release/results.json; per-step logs and binary hashes; exit 0",
+      "result": "PASS",
+      "reuse_reason": "Final production/probe inputs are unchanged. Later smoke-only runner and README updates leave the original core runner body byte-identical; snapshots and fingerprint comparison in logs/rendering/phase28/final/smoke-coverage-amendment.json."
+    },
+    {
+      "check": "Four graphical applications startup, responsive SDL windows and native close / Release",
+      "command": "python tools/test_framebuffer.py --configuration Release --output logs/rendering/phase28/final/smoke-Release-verified --no-build --smoke",
+      "evidence": "logs/rendering/phase28/final/smoke-Release-verified/results.json; per-step logs and binary hashes; exit 0",
+      "result": "PASS"
+    },
+    {
+      "check": "No-new-exception, generic-constraint and consumer API architecture gates",
+      "command": "Inspect phase-owned production diff and public declarations; compare standalone UBO/RBO block against baseline; compile/dependency inspection in both configurations",
+      "evidence": "logs/rendering/phase28/final/architecture-checks.json; build-Debug/framebuffer-consumer-boundary.log and build-Release/framebuffer-consumer-boundary.log under the same evidence root",
+      "result": "PASS"
+    },
+    {
+      "check": "Governance links, skill metadata and phase chain",
+      "command": "python .codex/tools/validate_rendering_governance.py",
+      "evidence": "logs/rendering/phase28/final/governance.log; exit 0",
+      "result": "PASS"
+    },
+    {
+      "check": "Exact validation input/protected/index/baseline identity",
+      "command": "Compare current SHA-256/absent-marker identities with validation-inputs.json and preflight.json; Git baseline and original index comparison",
+      "evidence": "logs/rendering/phase28/final/pre-seal-identity.json; 39 inputs and 47 protected paths unchanged; original index and baseline unchanged",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    "Breakout/include/BreakoutApp.h": {
+      "executable": null,
+      "sha256": "a3a71d1b50456c609582f43be298b802e59028766ed7b07f9156ccbc40be087f"
+    },
+    "Breakout/src/BreakoutApp.cpp": {
+      "executable": null,
+      "sha256": "648f205bf0832340899452a384dc9b991d76c123923f4cd49d8eb0bdee647e37"
+    },
+    "GEngine/include/GEngine/Core/BaseApp.h": {
+      "executable": null,
+      "sha256": "0e388a20ddf2ecafc33c2b3fd9d13c2fde23776b7617cab59cdfbcd892a5169e"
+    },
+    "GEngine/include/GEngine/Core/FrameBuffer.h": {
+      "executable": null,
+      "sha256": "2dd47461fced39f222e7b0936cdfa0cc9b4ef91e8352367b4be88981786d8644"
+    },
+    "GEngine/include/GEngine/Core/RenderBaseline.h": {
+      "executable": null,
+      "sha256": "b3284eb54ed68ebd741f682c0a95cca97ece94f39ed67de1503406dfeb7a4afa"
+    },
+    "GEngine/include/GEngine/Core/RenderSystem.cpp": {
+      "executable": null,
+      "sha256": "91ab8b5755795eefc62aa032d2ac74d9af82989ed70d96f5c414e96c9c0aedae"
+    },
+    "GEngine/include/GEngine/Core/RenderTarget.h": {
+      "executable": null,
+      "sha256": "8951bdff7795f2eca333ad8be656356e247a07b758a7ac312db08062879b6cdf"
+    },
+    "GEngine/include/GEngine/EntryPoint.h": {
+      "executable": null,
+      "sha256": "58b52a0393a838fec68fbeb65f69144c37d142f0ab2853319ed919f2ef6e8de2"
+    },
+    "GEngine/include/GEngine/Mesh/IndexBuffer.h": {
+      "executable": null,
+      "sha256": "2315576b03b599e272960e73d83cc420f19238c2d0b3171b04da0c7975aebb21"
+    },
+    "GEngine/include/GEngine/Mesh/VertexBuffer.h": {
+      "executable": null,
+      "sha256": "2efd5702a4ab4bfdfa749bfe7f05093293c141870b5eedfec9e90d065f7ed56c"
+    },
+    "GEngine/include/GEngine/UI/FramebufferImage.h": {
+      "executable": null,
+      "sha256": "e99d3a6ce9aa82f14cb4b2e1f113db6d6aeeb88256a1da4c4a6eef95b9756eaa"
+    },
+    "GEngine/include/GEngine/UI/UICore.cpp": {
+      "executable": null,
+      "sha256": "d91ccfa31008d6dcdf378e600f044436313841930aba8fb37b041d080d2611a8"
+    },
+    "GEngine/include/GEngine/gepch.h": {
+      "executable": null,
+      "sha256": "7a4f068dc380fcea534385fe406bbbe4a8f60e2c35dd27cbbb73884c680440df"
+    },
+    "GEngine/src/Core/BaseApp.cpp": {
+      "executable": null,
+      "sha256": "f71f9af613d7352aa2775f8c2d499c7ff1007af7d7a7723c07e65515fd607bc1"
+    },
+    "GEngine/src/Core/FrameBuffer.cpp": {
+      "executable": null,
+      "sha256": "ae81eaba89fd8ad6754dba0d90931adb02122573bdecc706040a07e6a5996c20"
+    },
+    "GEngine/src/Core/FramebufferBackend.h": {
+      "executable": null,
+      "sha256": "335fc12c05f60ec12c96a9a17745abfd7d2cc9e930c1df286012750cfafc066f"
+    },
+    "GEngine/src/Core/RenderTarget.cpp": {
+      "executable": null,
+      "sha256": "c0707170a03bd17fa04a16f21d3db81be150ee5f230216c7300b66620ce69521"
+    },
+    "GEngine/src/Core/Renderer.cpp": {
+      "executable": null,
+      "sha256": "8d3aef99432cf9eae466d07504c36e00000c7e8cee445b260a852aa47a150545"
+    },
+    "GEngine/src/Core/Renderer2D.cpp": {
+      "executable": null,
+      "sha256": "0773a3edfc97fbe82764797c9cd81bd13e89124ef31f51471c2741406821b7a0"
+    },
+    "GEngine/src/Managers/AssetsManager.cpp": {
+      "executable": null,
+      "sha256": "9ca6312caf01aa5f3fc349179012359662a5091db27df8638eb85eaf2e9a6ba2"
+    },
+    "GEngineEditor/src/SceneApp.cpp": {
+      "executable": null,
+      "sha256": "29b23b8fd4e0f500756072754fd77065fbaf77365fcbd2fc021a8c6610d50e97"
+    },
+    "GEngineEditor/src/SceneApp.h": {
+      "executable": null,
+      "sha256": "07115a0fe722cdce8b7fe1af31d603de9d235dc57198e8b22c451d5100b0e0c4"
+    },
+    "RayTracing/include/RayTracing.h": {
+      "executable": null,
+      "sha256": "f7216062f5b874a2513095af6378bee6adbebddec81373482927f4210b333dfc"
+    },
+    "RayTracing/src/RayTracing.cpp": {
+      "executable": null,
+      "sha256": "9954263c34f87fcb67f23ed4a67e64dbbf458423bbe077c999609a0b3dc98ef0"
+    },
+    "RenderingValidation/README.md": {
+      "executable": null,
+      "sha256": "1a413a55662b6a2b881a688f342a9bd300ee23d86988fb82e3913139a15b5558"
+    },
+    "RigidBodySimulation/include/RigidBodySimulation.h": {
+      "executable": null,
+      "sha256": "45e5d8404533cd39b9db6419dfbd1fde2106f49030e9d99161cd94206ab5747c"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "2c6a71eb1333e80d904db43a1852728a7b7ca94f930ffee2b1330d8909f42da3"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052"
+    },
+    "tools/asset_registry_probe.cpp": {
+      "executable": null,
+      "sha256": "7e77fcb85143fbd11d79079b12b3e764545c1b5db5fc1d8f7be3b89ffd47cc46"
+    },
+    "tools/framebuffer_probe.cpp": {
+      "executable": null,
+      "sha256": "23f0338931252ecb9fa0d9f63e83c737d24e5fa046210487d8437f4f998ce976"
+    },
+    "tools/input_control_probe.cpp": {
+      "executable": null,
+      "sha256": "849c80a1350257c9787f49c430c133d77243a2ec5841341d1fbffc12fc394e27"
+    },
+    "tools/interpolation_probe.cpp": {
+      "executable": null,
+      "sha256": "bdd480390d638977b9dca4b4c427989a24f5966f612423bb4d7fc4102b448999"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/shadow_framebuffer_probe.cpp": {
+      "executable": null,
+      "sha256": "827b3fb302e8498c0e9e5080145fe0685fb3b8e1503897112ff49167630fc696"
+    },
+    "tools/shutdown_probe.cpp": {
+      "executable": null,
+      "sha256": "29e3d425027fa9a8d3682be7691710ccd80dc8c98e7b7954db1f8ae94de07b92"
+    },
+    "tools/test_framebuffer.py": {
+      "executable": null,
+      "sha256": "a843bd9ca45ac6202a794271b853de96a793f84dc5585c44ce6a6d819b7f4fd3"
+    },
+    "tools/test_shadow_configuration.py": {
+      "executable": null,
+      "sha256": "43993d9cf9974a99dc10c2ce799830f288d62649ccf97d3a47a2ea162124a71b"
+    },
+    "tools/test_shutdown.py": {
+      "executable": null,
+      "sha256": "1d195192e27df6d5be8616f3138efa453f8c13ff80816e8b8fd2782d39b5dcc1"
+    },
+    "tools/uniform_renderbuffer_probe.cpp": {
+      "executable": null,
+      "sha256": "d63d72dc2aa4cd87911b29a740d0136a4a2dc25c74f674c51ec090b4394e1c91"
+    }
+  }
+}

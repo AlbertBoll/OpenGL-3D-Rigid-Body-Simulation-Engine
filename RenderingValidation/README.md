@@ -1096,3 +1096,55 @@ target allocation, general shader/material migration and the remaining ECS/platf
 surface retain their roadmap ownership. Graphical startup/close integration uses
 `python tools/test_shutdown.py --configuration Debug --no-build --smoke --output <dir>`
 and the corresponding Release command. No benchmark or sanitizer gate is implied.
+
+## Phase 28 framebuffer ownership and correctness
+
+Run `python tools/test_framebuffer.py --configuration Debug --output <directory>`
+and the corresponding Release command. The runner builds maintained affected
+consumers, compiles the native-free framebuffer/target/startup-error/UI declarations
+without backend include paths, and links probes to the production GEngine library.
+`--no-build` reuses matching libraries; `--build-only`, `--mode` and `--regression`
+support targeted development checks. A selected mode is not a full phase result.
+
+`FrameBuffer::Create` owns its framebuffer, texture attachments and optional depth
+renderbuffer. Descriptors use engine formats, attachment counts, image/cube/array
+kinds, dimensions, layers and exact sample counts. Unsupported descriptions return
+typed errors. Specialized targets and RenderTarget expose semantic binds, views,
+readback and resolve. Native names are available only in the private backend/probe
+header. Framebuffers are move-only; destruction/replacement require their creating
+context on the owning thread. Moved-from objects are empty and report zero sizes.
+
+Creation and resize allocate complete replacements before retiring existing
+storage. Integer clear/readback validates the requested attachment and coordinates.
+Resolve uses nearest filtering with matching dimensions/formats and a single-sample
+destination. Integer textures use nearest sampling. Readback isolates pixel-pack
+state and PBO bindings; clear and resolve isolate scissor state, and integer clear
+also preserves color write masks and draw selectors. Depth-only targets enable no
+color read/draw buffers. Cube faces are square; cascade resize retains its layers.
+
+Attachment views observe the same owner object across resize. They do not own or
+delete framebuffer storage. That owner object must outlive all uses of its views;
+moving its ownership does not redirect previously issued views to the destination.
+Publish and resolve resources before use, and finish submission before retirement.
+This phase does not introduce a new attachment identity or lifetime registry.
+
+The focused GL probe checks two context lifetimes, rectangular/square targets,
+actual integer texture sampling, MSAA color/integer resolve pixels, depth/cube/array
+targets, views, moves/relocation and exact driver deletion. Fault injection covers
+owner/name/storage/completeness failures and replacement rollback. Separate modes
+check worker and foreign-context deletion before driver forwarding, plus typed
+startup failures at early/late framebuffer-owner and wrapper allocations. Startup
+publishes the target set only after all its allocations succeed.
+
+The runner also executes affected uniform/renderbuffer, shadow, texture-attachment,
+shutdown/move/cache and startup-rollback regressions. Input-control and interpolation
+probes are compile/link checks for the changed initialization result; their unrelated
+scheduler/physics suites are not rerun. Four default application startup/native-close
+checks use `python tools/test_framebuffer.py --configuration Debug --no-build --smoke
+--output <directory>` and its Release equivalent.
+
+The approved C++23/toolset/static-CRT/build/dependency policy is unchanged. Newly
+migrated framebuffer failures use expected results. Existing standalone UBO/RBO
+exception APIs and unrelated platform, file-output, shader/material and application
+contracts retain their documented future-phase ownership. The current Phase 28
+review records actual coverage, exceptions (if any), evidence and seal status.

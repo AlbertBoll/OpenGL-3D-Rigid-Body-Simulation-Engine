@@ -3,6 +3,7 @@
 #include "Core/GLDebug.h"
 #include "Core/RenderBaseline.h"
 #include "Core/RenderTarget.h"
+#include <new>
 #include <Camera/PerspectiveCamera.h>
 #include <Camera/OrthographicCamera.h>
 #include "Windows/SDLWindow.h"
@@ -21,6 +22,13 @@
 
 namespace GEngine
 {
+    void ReportApplicationError(const ApplicationInitializationError& error)
+    {
+        if (const auto* framebuffer = std::get_if<FramebufferError>(&error)) ReportFramebufferError("application startup", *framebuffer);
+        else if (const auto* texture = std::get_if<Asset::TextureError>(&error))
+            GENGINE_CORE_ERROR("Application texture {}: {}", texture->source, texture->message);
+    }
+
     using namespace Manager;
 
     BaseApp::BaseApp()
@@ -44,9 +52,9 @@ namespace GEngine
         m_Initialize = false;
     }
 
-    void BaseApp::Initialize(const WindowProperties& WindowsPropertyList)
+    ApplicationInitializationResult BaseApp::Initialize(const WindowProperties& WindowsPropertyList)
     {
-        Initialize({ WindowsPropertyList });
+        return Initialize(std::initializer_list<WindowProperties>{WindowsPropertyList});
     }
 
     void BaseApp::OnEvent(SDL_Event& e)const
@@ -69,7 +77,7 @@ namespace GEngine
         return m_SDLWindow;
     }
 
-    void BaseApp::Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)
+    ApplicationInitializationResult BaseApp::Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)
     {
 
         using namespace Manager;
@@ -87,7 +95,7 @@ namespace GEngine
                 if (result.ec != std::errc{} || result.ptr != value.data() + value.size()
                     || shadowResolution == 0 || shadowResolution > 8192)
                 {
-                    throw std::runtime_error("GENGINE_SHADOW_RESOLUTION must be an integer from 1 to 8192; unset it for the safe 4096 default.");
+                    return std::unexpected(FramebufferError{FramebufferErrorCode::InvalidDescription, "GENGINE_SHADOW_RESOLUTION must be an integer from 1 to 8192; unset it for the safe 4096 default."});
                 }
             }
             std::cout << "[Shadows] resolution=" << shadowResolution << "x" << shadowResolution
@@ -179,12 +187,33 @@ namespace GEngine
             GetEventManager()->GetEventDispatcher().RegisterEvent(windowState);
             GetInputManager()->SetSDLWindow(m_SDLWindow);
             
-            m_RenderTarget = CreateScopedPtr<RenderTarget>(Vec2f{ m_SDLWindow->GetScreenWidth(), m_SDLWindow->GetScreenHeight() });
-          
-			m_CascadeShadowFrameBuffer = CreateScopedPtr<CascadeShadowFrameBuffer>(shadowResolution, shadowResolution, 5);
-			m_PointShadowFrameBuffer = CreateScopedPtr<PointShadowFrameBuffer>(shadowResolution, shadowResolution);
-			m_MousePickFrameBuffer = CreateScopedPtr<MousePickFrameBuffer>(m_SDLWindow->GetScreenWidth(), m_SDLWindow->GetScreenHeight());
-			m_FinalFrameBuffer = CreateScopedPtr<FinalFrameBuffer>(m_SDLWindow->GetScreenWidth(), m_SDLWindow->GetScreenHeight());
+            const auto width = m_SDLWindow->GetScreenWidth(), height = m_SDLWindow->GetScreenHeight();
+            auto RenderTargetCandidate = RenderTarget::Create(width, height);
+            if (!RenderTargetCandidate) return std::unexpected(RenderTargetCandidate.error());
+            auto CascadeShadowFrameBufferCandidate = CascadeShadowFrameBuffer::Create(shadowResolution, shadowResolution, 5);
+            if (!CascadeShadowFrameBufferCandidate) return std::unexpected(CascadeShadowFrameBufferCandidate.error());
+            auto PointShadowFrameBufferCandidate = PointShadowFrameBuffer::Create(shadowResolution, shadowResolution);
+            if (!PointShadowFrameBufferCandidate) return std::unexpected(PointShadowFrameBufferCandidate.error());
+            auto MousePickFrameBufferCandidate = MousePickFrameBuffer::Create(width, height);
+            if (!MousePickFrameBufferCandidate) return std::unexpected(MousePickFrameBufferCandidate.error());
+            auto FinalFrameBufferCandidate = FinalFrameBuffer::Create(width, height);
+            if (!FinalFrameBufferCandidate) return std::unexpected(FinalFrameBufferCandidate.error());
+            ScopedPtr<RenderTarget> RenderTargetCandidateOwner(new (std::nothrow) RenderTarget(std::move(*RenderTargetCandidate)));
+            if (!RenderTargetCandidateOwner) return std::unexpected(FramebufferError{FramebufferErrorCode::Allocation, "Framebuffer wrapper allocation failed"});
+            ScopedPtr<CascadeShadowFrameBuffer> CascadeShadowFrameBufferCandidateOwner(new (std::nothrow) CascadeShadowFrameBuffer(std::move(*CascadeShadowFrameBufferCandidate)));
+            if (!CascadeShadowFrameBufferCandidateOwner) return std::unexpected(FramebufferError{FramebufferErrorCode::Allocation, "Framebuffer wrapper allocation failed"});
+            ScopedPtr<PointShadowFrameBuffer> PointShadowFrameBufferCandidateOwner(new (std::nothrow) PointShadowFrameBuffer(std::move(*PointShadowFrameBufferCandidate)));
+            if (!PointShadowFrameBufferCandidateOwner) return std::unexpected(FramebufferError{FramebufferErrorCode::Allocation, "Framebuffer wrapper allocation failed"});
+            ScopedPtr<MousePickFrameBuffer> MousePickFrameBufferCandidateOwner(new (std::nothrow) MousePickFrameBuffer(std::move(*MousePickFrameBufferCandidate)));
+            if (!MousePickFrameBufferCandidateOwner) return std::unexpected(FramebufferError{FramebufferErrorCode::Allocation, "Framebuffer wrapper allocation failed"});
+            ScopedPtr<FinalFrameBuffer> FinalFrameBufferCandidateOwner(new (std::nothrow) FinalFrameBuffer(std::move(*FinalFrameBufferCandidate)));
+            if (!FinalFrameBufferCandidateOwner) return std::unexpected(FramebufferError{FramebufferErrorCode::Allocation, "Framebuffer wrapper allocation failed"});
+            m_RenderTarget = std::move(RenderTargetCandidateOwner);
+            m_CascadeShadowFrameBuffer = std::move(CascadeShadowFrameBufferCandidateOwner);
+            m_PointShadowFrameBuffer = std::move(PointShadowFrameBufferCandidateOwner);
+            m_MousePickFrameBuffer = std::move(MousePickFrameBufferCandidateOwner);
+            m_FinalFrameBuffer = std::move(FinalFrameBufferCandidateOwner);
+
 			m_UniformBufferObject = CreateScopedPtr<UniformBufferObject<UniformType::MATRIX_4_4>>(16);
             m_Initialize = true;
 
@@ -192,6 +221,7 @@ namespace GEngine
         }
      
        
+        return {};
     }
 
 
@@ -420,7 +450,8 @@ namespace GEngine
                 }
                 RenderCounters::EndFrame();
 #ifdef GENGINE_RENDER_BASELINE
-                baseline.CaptureScene(m_RenderTarget.get());
+                if (auto captured = baseline.CaptureScene(m_RenderTarget.get()); !captured)
+                { ReportFramebufferError("scene capture", captured.error()); return; }
                 if (baseline.End()) ShutDown();
 #endif
             }
@@ -461,7 +492,8 @@ namespace GEngine
             Renderer::Set(param);
             Renderer::RenderScene(m_Scene.get(), m_PlayerCamera);*/
 
-           if (m_RenderTarget && m_RenderTarget->IsMultiSampled()) m_RenderTarget->BindAndBlitToScreen();
+           if (m_RenderTarget && m_RenderTarget->IsMultiSampled())
+               if (auto resolved = m_RenderTarget->BindAndBlitToScreen(); !resolved) { ReportFramebufferError("resolve", resolved.error()); return; }
 
            if(m_RenderTarget)
                m_RenderTarget->UnBind();

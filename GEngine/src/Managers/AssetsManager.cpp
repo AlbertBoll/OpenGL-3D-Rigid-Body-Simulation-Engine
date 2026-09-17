@@ -209,8 +209,9 @@ namespace GEngine::Manager
     {
         auto manager = Current();
         if (!manager) return std::unexpected(manager.error());
-        auto attachment = AssetDetail::TextureBackend::Borrow([&framebuffer] { return framebuffer.GetLightDepthMaps(); }, GL_TEXTURE_2D_ARRAY);
-        auto binding = std::make_unique<Texture>(TextureView(std::move(attachment)), uniform);
+        auto attachment = framebuffer.DepthView();
+        if (!attachment) return std::unexpected(TextureError{TextureErrorCode::InvalidView, {}, attachment.error().message});
+        auto binding = std::make_unique<Texture>(TextureView(std::move(*attachment)), uniform);
         auto* result = binding.get(); (*manager)->m_Attachments.push_back(std::move(binding)); return result;
     }
     std::expected<Texture*, TextureError> AssetsManager::GetPointShadowFrameBufferTexture(
@@ -218,8 +219,9 @@ namespace GEngine::Manager
     {
         auto manager = Current();
         if (!manager) return std::unexpected(manager.error());
-        auto attachment = AssetDetail::TextureBackend::Borrow([&framebuffer] { return framebuffer.GetDepthCubeMaps(); }, GL_TEXTURE_CUBE_MAP);
-        auto binding = std::make_unique<Texture>(TextureView(std::move(attachment)), uniform);
+        auto attachment = framebuffer.DepthView();
+        if (!attachment) return std::unexpected(TextureError{TextureErrorCode::InvalidView, {}, attachment.error().message});
+        auto binding = std::make_unique<Texture>(TextureView(std::move(*attachment)), uniform);
         auto* result = binding.get(); (*manager)->m_Attachments.push_back(std::move(binding)); return result;
     }
     std::expected<Font*, TextureError> AssetsManager::GetFont(const std::string& source)

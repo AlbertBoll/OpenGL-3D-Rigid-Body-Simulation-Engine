@@ -37,8 +37,9 @@ int main(int argc, char* args[])
 	{
 		// BaseApp owns EngineContext, which outlives all application resources.
 		ScopedPtr<BaseApp> app(CreateApp());
-		app->Initialize({ winProp });
-		app->Run();
+		auto initialized = app->Initialize({ winProp });
+        if (!initialized) { ReportApplicationError(initialized.error()); exitCode = 1; }
+        else app->Run();
 	}
 	catch (const std::exception& error)
 	{

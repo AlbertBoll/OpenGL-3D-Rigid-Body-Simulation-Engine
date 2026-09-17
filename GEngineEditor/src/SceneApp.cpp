@@ -1,3 +1,4 @@
+#include "UI/FramebufferImage.h"
 #include "SceneApp.h"
 #include "Core/RuntimeAssets.h"
 #include <cstdint>
@@ -56,7 +57,8 @@ void SceneApp::Update(Timestep ts)
 	if (m_ViewportSize.x > 0.f && m_ViewportSize.y > 0.f && (m_RenderTarget->GetWidth() != m_ViewportSize.x || m_RenderTarget->GetHeight() != m_ViewportSize.y))
 	{
 		m_EditorCamera->OnResize((int)m_ViewportSize.x, (int)m_ViewportSize.y);
-		m_RenderTarget->OnResize((uint32_t)m_ViewportSize.x, (uint32_t)m_ViewportSize.y);
+		if (auto framebufferResult = m_RenderTarget->OnResize((uint32_t)m_ViewportSize.x, (uint32_t)m_ViewportSize.y); !framebufferResult)
+		{ ReportFramebufferError("target update", framebufferResult.error()); return; }
 	}
 
 	
@@ -76,7 +78,7 @@ void SceneApp::Update(Timestep ts)
 	
 }
 
-void SceneApp::Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)
+ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)
 {
 	using namespace Camera;
 	using namespace Manager;
@@ -84,7 +86,7 @@ void SceneApp::Initialize(const std::initializer_list<WindowProperties>& Windows
 	using namespace SceneObjects;
 
 	//Initialize BaseApp 
-	BaseApp::Initialize(WindowsPropertyList);
+	if (auto initialized = BaseApp::Initialize(WindowsPropertyList); !initialized) return initialized;
 
 	GENGINE_CORE_INFO("Initialize Audio System...");
 	
@@ -106,10 +108,10 @@ void SceneApp::Initialize(const std::initializer_list<WindowProperties>& Windows
 	
 	//barrel code
 	auto barrelTexNormalResult = AssetsManager::GetTextureOrFallback("barrelNormalreflection", "u_normalTexture");
-	if (!barrelTexNormalResult) { GENGINE_CORE_ERROR("Texture {}: {}", barrelTexNormalResult.error().source, barrelTexNormalResult.error().message); m_Running = false; return; }
+	if (!barrelTexNormalResult) { GENGINE_CORE_ERROR("Texture {}: {}", barrelTexNormalResult.error().source, barrelTexNormalResult.error().message); m_Running = false; return std::unexpected(barrelTexNormalResult.error()); }
 	auto* barrelTexNormal = *barrelTexNormalResult;
 	auto barrelTexDiffuseResult = AssetsManager::GetTextureOrFallback("barrelreflection", "u_diffuseTexture");
-	if (!barrelTexDiffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", barrelTexDiffuseResult.error().source, barrelTexDiffuseResult.error().message); m_Running = false; return; }
+	if (!barrelTexDiffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", barrelTexDiffuseResult.error().source, barrelTexDiffuseResult.error().message); m_Running = false; return std::unexpected(barrelTexDiffuseResult.error()); }
 	auto* barrelTexDiffuse = *barrelTexDiffuseResult;
 	auto textures = { barrelTexDiffuse , barrelTexNormal };
 	auto barrelMaterial = CreateRefPtr<NormalLightTextureMaterial>(textures, "normal");
@@ -251,19 +253,19 @@ void SceneApp::Initialize(const std::initializer_list<WindowProperties>& Windows
 	skyBoxComponent.BlendFactor.Data = 0.5f;
 
 	auto terrainBackGroundTexResult = AssetsManager::GetTextureOrFallback("grassy3", "u_backgroundTexture");
-	if (!terrainBackGroundTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", terrainBackGroundTexResult.error().source, terrainBackGroundTexResult.error().message); m_Running = false; return; }
+	if (!terrainBackGroundTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", terrainBackGroundTexResult.error().source, terrainBackGroundTexResult.error().message); m_Running = false; return std::unexpected(terrainBackGroundTexResult.error()); }
 	auto* terrainBackGroundTex = *terrainBackGroundTexResult;
 	auto terrainRTexResult = AssetsManager::GetTextureOrFallback("dirt", "u_rTexture");
-	if (!terrainRTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", terrainRTexResult.error().source, terrainRTexResult.error().message); m_Running = false; return; }
+	if (!terrainRTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", terrainRTexResult.error().source, terrainRTexResult.error().message); m_Running = false; return std::unexpected(terrainRTexResult.error()); }
 	auto* terrainRTex = *terrainRTexResult;
 	auto terrainGTexResult = AssetsManager::GetTextureOrFallback("pinkFlowers", "u_gTexture");
-	if (!terrainGTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", terrainGTexResult.error().source, terrainGTexResult.error().message); m_Running = false; return; }
+	if (!terrainGTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", terrainGTexResult.error().source, terrainGTexResult.error().message); m_Running = false; return std::unexpected(terrainGTexResult.error()); }
 	auto* terrainGTex = *terrainGTexResult;
 	auto terrainBTexResult = AssetsManager::GetTextureOrFallback("mossPath256", "u_bTexture");
-	if (!terrainBTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", terrainBTexResult.error().source, terrainBTexResult.error().message); m_Running = false; return; }
+	if (!terrainBTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", terrainBTexResult.error().source, terrainBTexResult.error().message); m_Running = false; return std::unexpected(terrainBTexResult.error()); }
 	auto* terrainBTex = *terrainBTexResult;
 	auto terrainBlendMapTexResult = AssetsManager::GetTextureOrFallback("blendMap", "u_blendMap");
-	if (!terrainBlendMapTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", terrainBlendMapTexResult.error().source, terrainBlendMapTexResult.error().message); m_Running = false; return; }
+	if (!terrainBlendMapTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", terrainBlendMapTexResult.error().source, terrainBlendMapTexResult.error().message); m_Running = false; return std::unexpected(terrainBlendMapTexResult.error()); }
 	auto* terrainBlendMapTex = *terrainBlendMapTexResult;
 	auto terrainMaterial = CreateRefPtr<TerrainLightMaterial>(std::vector{ terrainBackGroundTex, terrainRTex, terrainGTex, terrainBTex, terrainBlendMapTex });
 	terrainMaterial->SetLightComponent(lights).SetFogComponent(fog);
@@ -272,10 +274,10 @@ void SceneApp::Initialize(const std::initializer_list<WindowProperties>& Windows
 	AnimatedModel* model = new AnimatedModel(RuntimeAssets::File("AnimatedModels/dancing_vampire.dae"));
 
 	auto vampireTexNormalResult = AssetsManager::GetTextureOrFallback("Vampire_normal", "u_normalTexture");
-	if (!vampireTexNormalResult) { GENGINE_CORE_ERROR("Texture {}: {}", vampireTexNormalResult.error().source, vampireTexNormalResult.error().message); m_Running = false; return; }
+	if (!vampireTexNormalResult) { GENGINE_CORE_ERROR("Texture {}: {}", vampireTexNormalResult.error().source, vampireTexNormalResult.error().message); m_Running = false; return std::unexpected(vampireTexNormalResult.error()); }
 	auto* vampireTexNormal = *vampireTexNormalResult;
 	auto vampireTexDiffuseResult = AssetsManager::GetTextureOrFallback("Vampire_diffuse", "u_diffuseTexture");
-	if (!vampireTexDiffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", vampireTexDiffuseResult.error().source, vampireTexDiffuseResult.error().message); m_Running = false; return; }
+	if (!vampireTexDiffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", vampireTexDiffuseResult.error().source, vampireTexDiffuseResult.error().message); m_Running = false; return std::unexpected(vampireTexDiffuseResult.error()); }
 	auto* vampireTexDiffuse = *vampireTexDiffuseResult;
 	auto vampiretextures = { vampireTexDiffuse , vampireTexNormal };
 	auto vampireMaterial = CreateRefPtr<AnimatedMaterial>(vampiretextures, "animated");
@@ -345,7 +347,7 @@ void SceneApp::Initialize(const std::initializer_list<WindowProperties>& Windows
 
 	auto lampGeo = ShapeManager::GetModel("lamp");
 	auto lampTexResult = AssetsManager::GetTextureOrFallback("lamp");
-	if (!lampTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", lampTexResult.error().source, lampTexResult.error().message); m_Running = false; return; }
+	if (!lampTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", lampTexResult.error().source, lampTexResult.error().message); m_Running = false; return std::unexpected(lampTexResult.error()); }
 	auto* lampTex = *lampTexResult;
 	auto lampMaterial = CreateRefPtr<LightTextureMaterial>(*lampTex);
 	lampMaterial->SetFogComponent(fog).SetLightComponent(lights).SetTextureComponent(normalTexture);
@@ -381,22 +383,22 @@ void SceneApp::Initialize(const std::initializer_list<WindowProperties>& Windows
 	auto pineGeo = ShapeManager::GetModel("pine");
 
 	auto treeTexResult = AssetsManager::GetTextureOrFallback("tree");
-	if (!treeTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", treeTexResult.error().source, treeTexResult.error().message); m_Running = false; return; }
+	if (!treeTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", treeTexResult.error().source, treeTexResult.error().message); m_Running = false; return std::unexpected(treeTexResult.error()); }
 	auto* treeTex = *treeTexResult;
 	auto grassTexResult = AssetsManager::GetTextureOrFallback("grassTexture");
-	if (!grassTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", grassTexResult.error().source, grassTexResult.error().message); m_Running = false; return; }
+	if (!grassTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", grassTexResult.error().source, grassTexResult.error().message); m_Running = false; return std::unexpected(grassTexResult.error()); }
 	auto* grassTex = *grassTexResult;
 	auto fernTexResult = AssetsManager::GetTextureOrFallback("Multifern");
-	if (!fernTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", fernTexResult.error().source, fernTexResult.error().message); m_Running = false; return; }
+	if (!fernTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", fernTexResult.error().source, fernTexResult.error().message); m_Running = false; return std::unexpected(fernTexResult.error()); }
 	auto* fernTex = *fernTexResult;
 	auto flowerTexResult = AssetsManager::GetTextureOrFallback("flower");
-	if (!flowerTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", flowerTexResult.error().source, flowerTexResult.error().message); m_Running = false; return; }
+	if (!flowerTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", flowerTexResult.error().source, flowerTexResult.error().message); m_Running = false; return std::unexpected(flowerTexResult.error()); }
 	auto* flowerTex = *flowerTexResult;
 	auto lowPolyTreeTexResult = AssetsManager::GetTextureOrFallback("MultilowPolyTree");
-	if (!lowPolyTreeTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", lowPolyTreeTexResult.error().source, lowPolyTreeTexResult.error().message); m_Running = false; return; }
+	if (!lowPolyTreeTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", lowPolyTreeTexResult.error().source, lowPolyTreeTexResult.error().message); m_Running = false; return std::unexpected(lowPolyTreeTexResult.error()); }
 	auto* lowPolyTreeTex = *lowPolyTreeTexResult;
 	auto pineTexResult = AssetsManager::GetTextureOrFallback("pine");
-	if (!pineTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", pineTexResult.error().source, pineTexResult.error().message); m_Running = false; return; }
+	if (!pineTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", pineTexResult.error().source, pineTexResult.error().message); m_Running = false; return std::unexpected(pineTexResult.error()); }
 	auto* pineTex = *pineTexResult;
 
 	auto treeMaterial = CreateRefPtr<LightTextureMaterial>(*treeTex);
@@ -480,7 +482,7 @@ void SceneApp::Initialize(const std::initializer_list<WindowProperties>& Windows
 	DragonGeo->ApplyTransform(Matrix::MakeRotationY(-Math::PiOver2), 0);
 	DragonGeo->ApplyTransform(Matrix::MakeRotationY(-Math::PiOver2), 2, true);
 	auto DragonTexResult = AssetsManager::GetTextureOrFallback("white");
-	if (!DragonTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", DragonTexResult.error().source, DragonTexResult.error().message); m_Running = false; return; }
+	if (!DragonTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", DragonTexResult.error().source, DragonTexResult.error().message); m_Running = false; return std::unexpected(DragonTexResult.error()); }
 	auto* DragonTex = *DragonTexResult;
 
 	auto DragonMaterial = CreateRefPtr<LightTextureMaterial>(*DragonTex);
@@ -543,19 +545,12 @@ void SceneApp::Initialize(const std::initializer_list<WindowProperties>& Windows
 	m_MusicEvent = m_AudioSystem->PlayEvent("event:/EnteringValley");
 	m_BackgroundMusicEvent = m_AudioSystem->PlayEvent("event:/HyruleFieldMainTheme");
 	
+    return {};
 }
 
-void SceneApp::Initialize(const WindowProperties& prop)
+ApplicationInitializationResult SceneApp::Initialize(const WindowProperties& prop)
 {
-	using namespace Camera;
-	using namespace Manager;
-
-	//Initialize BaseApp 
-	BaseApp::Initialize(prop);
-
-	Initialize({ prop });
-	
-	
+    return Initialize(std::initializer_list<WindowProperties>{prop});
 }
 
 Vec2f SceneApp::GetMousePosInViewPort()
@@ -824,7 +819,8 @@ void SceneApp::ImGuiRender()
 
 		int AntiLevel = (int)std::pow(2, BitSetIndex(m_Aliasing));
 		
-		m_RenderTarget->SetSamples(AntiLevel);
+		if (auto framebufferResult = m_RenderTarget->SetSamples(AntiLevel); !framebufferResult)
+            ReportFramebufferError("sample selection; retaining previous target", framebufferResult.error());
 
 		ImGui::TreePop();
 	}
@@ -931,7 +927,8 @@ void SceneApp::ImGuiRender()
 	{
 		m_ViewportSize = { viewportPanelSize.x, viewportPanelSize.y };
 		m_SceneCamera->OnResize((int)m_ViewportSize.x, (int)m_ViewportSize.y);
-		m_RenderTarget->OnResize( (uint32_t)viewportPanelSize.x, (uint32_t)viewportPanelSize.y );
+		if (auto framebufferResult = m_RenderTarget->OnResize( (uint32_t)viewportPanelSize.x, (uint32_t)viewportPanelSize.y ); !framebufferResult)
+		{ ReportFramebufferError("target update", framebufferResult.error()); return; }
 	}*/
 
 	//GENGINE_WARN()
@@ -952,10 +949,9 @@ void SceneApp::ImGuiRender()
 
 
 
-	if(HasVisibleViewport() && !m_RenderTarget->IsMultiSampled())
-		ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<std::intptr_t>(m_RenderTarget->GetColorAttachmentID())), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
-	else if (HasVisibleViewport())
-		ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<std::intptr_t>(m_RenderTarget->GetScreenAttachmentID())), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
+	if (HasVisibleViewport())
+        if (auto image = UI::FramebufferImage(*m_RenderTarget, m_ViewportSize.x, m_ViewportSize.y); !image)
+            ReportFramebufferError("viewport image", image.error());
 	
 	auto windowSize = ImGui::GetWindowSize();
 	auto minBound = ImGui::GetWindowPos();

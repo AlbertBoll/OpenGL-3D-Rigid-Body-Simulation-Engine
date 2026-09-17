@@ -1,3 +1,4 @@
+#include "../GEngine/src/Core/FramebufferBackend.h"
 // Production-library lifecycle checks; all GL and destruction stay on this thread.
 #include "gepch.h"
 #include "Core/BaseApp.h"
@@ -216,8 +217,8 @@ namespace
             RenderParam parameters;
             parameters.ClearColor = { 0.25f, 0.5f, 0.75f, 1.f };
             root.RenderScene(m_Scene.get(), &camera, m_RenderTarget.get(), parameters);
-            m_RenderTarget->BindAndBlitToScreen();
-            glBindFramebuffer(GL_READ_FRAMEBUFFER, m_RenderTarget->GetScreenFrameBufferID());
+            Check(m_RenderTarget->BindAndBlitToScreen().has_value(), "Target resolve failed");
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, ::GEngine::FramebufferDetail::Backend::Name(m_RenderTarget->Buffer(::GEngine::RenderTargetSurface::Resolved)));
             std::array<unsigned char, 4> pixel{};
             glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.data());
             Check(pixel[0] >= 63 && pixel[0] <= 64 && pixel[1] >= 127 && pixel[1] <= 128
@@ -226,19 +227,19 @@ namespace
             applicationTexture = std::make_unique<TextureOwner>(1);
             m_Scene->Add(new SceneActor);
             Watch(Kind::Buffer, m_UniformBufferObject->GetUBO(), 2, "BaseApp uniform buffer");
-            Watch(Kind::Framebuffer, m_FinalFrameBuffer->GetFBO(), 2, "FinalFrameBuffer framebuffer");
-            Watch(Kind::Texture, m_FinalFrameBuffer->GetColorMap(), 2, "FinalFrameBuffer color texture");
-            Watch(Kind::Texture, m_FinalFrameBuffer->GetMousePickMap(), 2, "FinalFrameBuffer picking texture");
+            Watch(Kind::Framebuffer, ::GEngine::FramebufferDetail::Backend::Name(m_FinalFrameBuffer->Buffer()), 2, "FinalFrameBuffer framebuffer");
+            Watch(Kind::Texture, ::GEngine::FramebufferDetail::Backend::Color(m_FinalFrameBuffer->Buffer()), 2, "FinalFrameBuffer color texture");
+            Watch(Kind::Texture, ::GEngine::FramebufferDetail::Backend::Color(m_FinalFrameBuffer->Buffer(), 1), 2, "FinalFrameBuffer picking texture");
             GLint depth = 0;
-            glBindFramebuffer(GL_FRAMEBUFFER, m_FinalFrameBuffer->GetFBO());
+            glBindFramebuffer(GL_FRAMEBUFFER, ::GEngine::FramebufferDetail::Backend::Name(m_FinalFrameBuffer->Buffer()));
             glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
                 GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &depth);
             Watch(Kind::Texture, static_cast<GLuint>(depth), 2, "FinalFrameBuffer depth texture");
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
-            Watch(Kind::Framebuffer, m_MousePickFrameBuffer->GetLightFBO(), 2);
-            Watch(Kind::Framebuffer, m_PointShadowFrameBuffer->GetDepthMapFBO(), 2);
-            Watch(Kind::Framebuffer, m_CascadeShadowFrameBuffer->GetLightFBO(), 2);
-            Watch(Kind::Framebuffer, m_RenderTarget->GetFrameBufferID(), 2);
+            Watch(Kind::Framebuffer, ::GEngine::FramebufferDetail::Backend::Name(m_MousePickFrameBuffer->Buffer()), 2);
+            Watch(Kind::Framebuffer, ::GEngine::FramebufferDetail::Backend::Name(m_PointShadowFrameBuffer->Buffer()), 2);
+            Watch(Kind::Framebuffer, ::GEngine::FramebufferDetail::Backend::Name(m_CascadeShadowFrameBuffer->Buffer()), 2);
+            Watch(Kind::Framebuffer, ::GEngine::FramebufferDetail::Backend::Name(m_RenderTarget->Buffer()), 2);
             ShapeManager::Register("phase18", new CachedGeometry);
             auto* text = AssetsManager::GetTextTexture("Lifecycle", RuntimeAssets::File("Fonts/OpenSans-Regular.ttf")).value();
             Watch(Kind::Texture, TextureName(text), 3, "AssetsManager cached text texture");
@@ -264,7 +265,7 @@ namespace
             {
                 FailingConstructor()
                 {
-                    Initialize(Properties());
+                    Check(Initialize(Properties()).has_value(), "Application initialization failed");
                     throw std::runtime_error("injected derived constructor failure");
                 }
             };
@@ -280,7 +281,7 @@ namespace
         for (int cycle = 0; cycle < 3; ++cycle)
         {
             auto app = std::make_unique<ProbeApp>();
-            app->Initialize(Properties());
+            Check(app->Initialize(Properties()).has_value(), "Application initialization failed");
             Hooks hooks;
             app->Prepare();
             const auto windowID = app->GetSDLWindow()->GetWindowID();
@@ -368,7 +369,7 @@ namespace
         if (platformBackend)
         {
             FaultAllocator fault;
-            try { app.Initialize({ Properties(), Properties() }); }
+            try { Check(app.Initialize({ Properties(), Properties() }).has_value(), "Application initialization failed"); }
             catch (const std::bad_alloc&) { caught = true; }
             Check(fault.injected, "Second-window SDL-backend allocation failure was not reached");
         }
@@ -376,7 +377,7 @@ namespace
         {
             // RuntimeAssets is deliberately uninitialized: font path resolution throws
             // after SDL/GL/ImGui context creation and before either ImGui backend.
-            try { app.Initialize(Properties()); }
+            try { Check(app.Initialize(Properties()).has_value(), "Application initialization failed"); }
             catch (const std::runtime_error&) { caught = true; }
         }
         Check(caught, "Expected partial ImGui initialization failure");
@@ -394,8 +395,8 @@ namespace
             BaseApp app;
             try
             {
-                if (noWindows) app.Initialize(std::initializer_list<WindowProperties>{});
-                else app.Initialize(Properties());
+                if (noWindows) Check(app.Initialize(std::initializer_list<WindowProperties>{}).has_value(), "Application initialization failed");
+                else Check(app.Initialize(Properties()).has_value(), "Application initialization failed");
             }
             catch (const std::exception& error) { caught = true; std::cout << "[EXPECTED] " << error.what() << '\n'; }
             PlatformGone(); // Rollback is immediate, even while the failed root lives.
@@ -490,11 +491,11 @@ namespace
     }
     std::array<GLuint, 4> FramebufferNames(const FinalFrameBuffer& buffer)
     {
-        glBindFramebuffer(GL_FRAMEBUFFER, buffer.GetFBO());
+        glBindFramebuffer(GL_FRAMEBUFFER, ::GEngine::FramebufferDetail::Backend::Name(buffer.Buffer()));
         GLint depth = 0;
         glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
             GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &depth);
-        return {buffer.GetFBO(), buffer.GetColorMap(), buffer.GetMousePickMap(), static_cast<GLuint>(depth)};
+        return {::GEngine::FramebufferDetail::Backend::Name(buffer.Buffer()), ::GEngine::FramebufferDetail::Backend::Color(buffer.Buffer()), ::GEngine::FramebufferDetail::Backend::Color(buffer.Buffer(), 1), static_cast<GLuint>(depth)};
     }
     void CheckRetired(const std::array<GLuint, 4>& names)
     {
@@ -506,20 +507,20 @@ namespace
         watched.clear(); lastPhase = 0;
         std::array<GLuint, 4> sourceNames{}, replacedNames{};
         {
-            FinalFrameBuffer source(16, 16), target(32, 32);
+            auto source = FinalFrameBuffer::Create(16, 16).value(); auto target = FinalFrameBuffer::Create(32, 32).value();
             sourceNames = FramebufferNames(source); replacedNames = FramebufferNames(target);
             for (const auto& names : {sourceNames, replacedNames})
                 for (size_t i = 0; i < names.size(); ++i) Watch(i ? Kind::Texture : Kind::Framebuffer, names[i], 2);
-            glBindFramebuffer(GL_FRAMEBUFFER, source.GetFBO());
+            glBindFramebuffer(GL_FRAMEBUFFER, ::GEngine::FramebufferDetail::Backend::Name(source.Buffer()));
             const GLfloat green[]{0.f, 1.f, 0.f, 1.f};
             glClearBufferfv(GL_COLOR, 0, green);
             FinalFrameBuffer moved(std::move(source));
-            Check(!source.GetFBO() && !source.GetColorMap() && !source.GetMousePickMap()
+            Check(!::GEngine::FramebufferDetail::Backend::Name(source.Buffer()) && !::GEngine::FramebufferDetail::Backend::Color(source.Buffer()) && !::GEngine::FramebufferDetail::Backend::Color(source.Buffer(), 1)
                 && source.GetResolution() == Vec2f(0), "Framebuffer move constructor left an owning source");
             Check(FramebufferNames(moved) == sourceNames && moved.GetResolution() == Vec2f(16),
                 "Framebuffer move constructor changed attachments or size");
             target = std::move(moved);
-            Check(!moved.GetFBO() && !moved.GetColorMap() && !moved.GetMousePickMap(),
+            Check(!::GEngine::FramebufferDetail::Backend::Name(moved.Buffer()) && !::GEngine::FramebufferDetail::Backend::Color(moved.Buffer()) && !::GEngine::FramebufferDetail::Backend::Color(moved.Buffer(), 1),
                 "Framebuffer move assignment left an owning source");
             CheckRetired(replacedNames);
             Check(FramebufferNames(target) == sourceNames && target.GetResolution() == Vec2f(16),
@@ -531,9 +532,9 @@ namespace
             auto* same = &target; target = std::move(*same);
             Check(FramebufferNames(target) == sourceNames, "Framebuffer self-move lost ownership");
             source = std::move(target);
-            Check(!target.GetFBO() && FramebufferNames(source) == sourceNames, "Moved-from framebuffer could not receive ownership");
+            Check(!::GEngine::FramebufferDetail::Backend::Name(target.Buffer()) && FramebufferNames(source) == sourceNames, "Moved-from framebuffer could not receive ownership");
             source = std::move(moved);
-            Check(!source.GetFBO() && !source.GetColorMap() && !source.GetMousePickMap(),
+            Check(!::GEngine::FramebufferDetail::Backend::Name(source.Buffer()) && !::GEngine::FramebufferDetail::Backend::Color(source.Buffer()) && !::GEngine::FramebufferDetail::Backend::Color(source.Buffer(), 1),
                 "Moving an empty framebuffer retained destination ownership");
             CheckRetired(sourceNames);
         }
@@ -554,8 +555,8 @@ namespace
             StartTeardownDiagnostics();
             std::vector<GLuint> owned;
             {
-                CascadeShadowFrameBuffer cascade(16, 16, 3), otherCascade(16, 16, 3);
-                PointShadowFrameBuffer point(16, 16), otherPoint(16, 16);
+                auto cascade = CascadeShadowFrameBuffer::Create(16, 16, 3).value(); auto otherCascade = CascadeShadowFrameBuffer::Create(16, 16, 3).value();
+                auto point = PointShadowFrameBuffer::Create(16, 16).value(); auto otherPoint = PointShadowFrameBuffer::Create(16, 16).value();
                 auto* text = AssetsManager::GetTextTexture("Cache ownership",
                     RuntimeAssets::File("Fonts/OpenSans-Regular.ttf")).value();
                 Check(AssetsManager::GetTextTexture("Cache ownership",
@@ -585,14 +586,14 @@ namespace
                 owned = {TextureName(text), TextureName(otherText), TextureName(image), TextureName(fallback)};
                 auto* cascadeBorrower = AssetsManager::GetCascadedFrameBufferTexture(cascade).value();
                 auto* pointBorrower = AssetsManager::GetPointShadowFrameBufferTexture(point).value();
-                Check(TextureName(AssetsManager::GetCascadedFrameBufferTexture(otherCascade).value()) == otherCascade.GetLightDepthMaps()
-                    && TextureName(AssetsManager::GetPointShadowFrameBufferTexture(otherPoint).value()) == otherPoint.GetDepthCubeMaps(),
+                Check(TextureName(AssetsManager::GetCascadedFrameBufferTexture(otherCascade).value()) == ::GEngine::FramebufferDetail::Backend::Depth(otherCascade.Buffer())
+                    && TextureName(AssetsManager::GetPointShadowFrameBufferTexture(otherPoint).value()) == ::GEngine::FramebufferDetail::Backend::Depth(otherPoint.Buffer()),
                     "Second framebuffer request returned stale cached names");
-                Check(TextureName(cascadeBorrower) == cascade.GetLightDepthMaps()
-                    && TextureName(pointBorrower) == point.GetDepthCubeMaps(), "New framebuffer request mutated existing borrowers");
+                Check(TextureName(cascadeBorrower) == ::GEngine::FramebufferDetail::Backend::Depth(cascade.Buffer())
+                    && TextureName(pointBorrower) == ::GEngine::FramebufferDetail::Backend::Depth(point.Buffer()), "New framebuffer request mutated existing borrowers");
                 for (auto name : owned) Watch(Kind::Texture, name, 3);
-                for (auto name : {cascade.GetLightDepthMaps(), point.GetDepthCubeMaps(),
-                                 otherCascade.GetLightDepthMaps(), otherPoint.GetDepthCubeMaps()})
+                for (auto name : {::GEngine::FramebufferDetail::Backend::Depth(cascade.Buffer()), ::GEngine::FramebufferDetail::Backend::Depth(point.Buffer()),
+                                 ::GEngine::FramebufferDetail::Backend::Depth(otherCascade.Buffer()), ::GEngine::FramebufferDetail::Backend::Depth(otherPoint.Buffer())})
                 {
                     Check(glIsTexture(name), "A cache wrapper deleted a borrowed texture");
                     Watch(Kind::Texture, name, 1);
@@ -780,7 +781,7 @@ namespace
             {
                 explicit FailingApp(bool shaderFailure)
                 {
-                    Initialize(Properties());
+                    Check(Initialize(Properties()).has_value(), "Application initialization failed");
                     AssetsManager::GetTexture("white").value();
                     if (shaderFailure) ShaderManager::GetShaderProgram({"phase20.vert", "missing.frag"});
                     else AssetsManager::GetFont("phase20-missing-font.ttf").value();
@@ -820,7 +821,7 @@ namespace
             {
                 auto properties = Properties();
                 properties.ImGuiWindowProperties.bViewPortEnabled = true;
-                BaseApp app; app.Initialize(properties);
+                BaseApp app; Check(app.Initialize(properties).has_value(), "Application initialization failed");
                 auto* window = app.GetSDLWindow();
                 Check(GLContextThread::IsCurrentOwner(), "Owner context was not registered");
                 bool workerRejected = false;
@@ -874,7 +875,7 @@ namespace
     void WrongThread(std::string_view mode)
     {
         RuntimeAssets::Initialize("GEngineEditor");
-        auto app = std::make_unique<BaseApp>(); app->Initialize(Properties());
+        auto app = std::make_unique<BaseApp>(); Check(app->Initialize(Properties()).has_value(), "Application initialization failed");
         auto* window = app->GetSDLWindow();
         glad_glGenBuffers = ForbiddenGen;
         glad_glBufferSubData = ForbiddenUpload;

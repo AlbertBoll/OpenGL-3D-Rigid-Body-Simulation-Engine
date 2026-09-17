@@ -14,6 +14,7 @@
 
 namespace GEngine
 {
+    void ReportApplicationError(const ApplicationInitializationError&);
 	//using namespace  Manager;
 	class _Scene;
 
@@ -41,8 +42,8 @@ namespace GEngine
 
 		//CameraBase* GetCamera(){ return m_EditorCamera; }
 
-	    virtual void Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList);
-		virtual void Initialize(const WindowProperties& WindowsPropertyList);
+	    [[nodiscard]] virtual ApplicationInitializationResult Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList);
+		[[nodiscard]] virtual ApplicationInitializationResult Initialize(const WindowProperties& WindowsPropertyList);
 		//void OnResize(int new_width, int new_height) const;
 		//void OnScroll(float new_zoom) const;
 

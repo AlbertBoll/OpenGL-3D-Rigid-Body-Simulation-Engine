@@ -164,13 +164,13 @@ namespace GEngine
 
 
 
-	void BreakoutApp::Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)
+	ApplicationInitializationResult BreakoutApp::Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)
 	{
 		using namespace Camera;
 		using namespace Manager;
 
 		//Initialize BaseApp 
-		BaseApp::Initialize(WindowsPropertyList);
+		if (auto initialized = BaseApp::Initialize(WindowsPropertyList); !initialized) return initialized;
 
 		GENGINE_CORE_INFO("Initialize Audio System...");
 		m_AudioSystem = new Audio::AudioSystem();
@@ -198,7 +198,7 @@ namespace GEngine
 		sprite.Size = { 2 * BALL_RADIUS, 2 * BALL_RADIUS };
 
 		auto backgroundTexResult = AssetsManager::GetTextureOrFallback(ImagePath + "background" + ImageExtension);
-		if (!backgroundTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", backgroundTexResult.error().source, backgroundTexResult.error().message); m_Running = false; return; }
+		if (!backgroundTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", backgroundTexResult.error().source, backgroundTexResult.error().message); m_Running = false; return std::unexpected(backgroundTexResult.error()); }
 		auto* backgroundTex = *backgroundTexResult;
 		auto backgroundMaterial = CreateRefPtr<SpriteMaterial>(backgroundTex);
 		auto spriteGeo = ShapeManager::GetShape("SpriteGeometry");
@@ -212,7 +212,7 @@ namespace GEngine
 
 
 		auto paddleTexResult = AssetsManager::GetTextureOrFallback(ImagePath + "paddle" + ImageExtension);
-		if (!paddleTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", paddleTexResult.error().source, paddleTexResult.error().message); m_Running = false; return; }
+		if (!paddleTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", paddleTexResult.error().source, paddleTexResult.error().message); m_Running = false; return std::unexpected(paddleTexResult.error()); }
 		auto* paddleTex = *paddleTexResult;
 		auto paddleMaterial = CreateRefPtr<SpriteMaterial>(paddleTex);
 		m_Player = new SpriteEntity(spriteGeo, paddleMaterial);
@@ -225,7 +225,7 @@ namespace GEngine
 
 
 		auto ballTexResult = AssetsManager::GetTextureOrFallback(ImagePath + "awesomeface_r" + ImageExtension);
-		if (!ballTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", ballTexResult.error().source, ballTexResult.error().message); m_Running = false; return; }
+		if (!ballTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", ballTexResult.error().source, ballTexResult.error().message); m_Running = false; return std::unexpected(ballTexResult.error()); }
 		auto* ballTex = *ballTexResult;
 		auto ballMaterial = CreateRefPtr<SpriteMaterial>(ballTex);
 		m_Ball = new BallEntity(spriteGeo, ballMaterial);
@@ -262,13 +262,12 @@ namespace GEngine
 
 		m_MusicEvent = m_AudioSystem->PlayEvent("event:/EnteringValley");
 		
+	    return {};
 	}
 
-	void BreakoutApp::Initialize(const WindowProperties& prop)
+	ApplicationInitializationResult BreakoutApp::Initialize(const WindowProperties& prop)
 	{
-		//Initialize BaseApp 
-		BaseApp::Initialize(prop);
-		Initialize({ prop });
+	    return Initialize(std::initializer_list<WindowProperties>{prop});
 	}
 
 	void BreakoutApp::Render()

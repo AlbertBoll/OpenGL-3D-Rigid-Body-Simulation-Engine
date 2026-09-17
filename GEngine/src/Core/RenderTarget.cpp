@@ -1,696 +1,127 @@
 #include "gepch.h"
-#include <utility>
 #include "Core/RenderTarget.h"
-#include <sstream>
-#include <stdexcept>
 #include <cmath>
 #include <limits>
+#include <stdexcept>
+#include <utility>
 
 namespace GEngine
 {
-	static constexpr uint32_t s_MaxFramebufferSize = 8192;
-
-	namespace
-	{
-		void CheckShadowAllocation(const char* kind, unsigned int width, unsigned int height,
-			unsigned int layers, const char* format, unsigned int& framebuffer, unsigned int& texture)
-		{
-			const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-			const GLenum error = glGetError();
-			if (error != GL_NO_ERROR || status != GL_FRAMEBUFFER_COMPLETE || !framebuffer || !texture)
-			{
-				std::ostringstream message;
-				message << "Shadow allocation failed: " << kind << " " << width << "x" << height
-					<< " layers/faces=" << layers << " format=" << format
-					<< " GL error=0x" << std::hex << error << " framebuffer status=0x" << status
-					<< ". Lower GENGINE_SHADOW_RESOLUTION or unset it for the safe 4096 default.";
-				// A failed constructor has no destructor; release partial allocations here.
-				glBindFramebuffer(GL_FRAMEBUFFER, 0);
-				glDeleteFramebuffers(1, &framebuffer);
-				glDeleteTextures(1, &texture);
-				framebuffer = 0;
-				texture = 0;
-				throw std::runtime_error(message.str());
-			}
-			std::cout << "[Shadows] " << kind << " " << width << "x" << height
-				<< " layers/faces=" << layers << " format=" << format << " framebuffer=complete" << std::endl;
-		}
-
-		void CheckShadowEntryErrors()
-		{
-			// Attribute pre-existing errors separately from the allocation below.
-			for (GLenum error = glGetError(); error != GL_NO_ERROR; error = glGetError())
-				std::cerr << "[Shadows] pre-existing GL error before allocation: " << error << std::endl;
-		}
-	}
-
-	namespace Utils {
-
-		static constexpr GLenum TextureTarget(bool multisampled)
-		{
-			return multisampled ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D;
-		}
-
-		static void CreateTextures(bool multisampled, uint32_t* outID, uint32_t count)
-		{
-			glCreateTextures(TextureTarget(multisampled), count, outID);
-		}
-
-		static void BindTexture(bool multisampled, uint32_t id)
-		{
-			glBindTexture(TextureTarget(multisampled), id);
-		}
-
-		static void AttachColorTexture(uint32_t id, int samples, GLenum internalFormat, GLenum format, uint32_t width, uint32_t height, int index)
-		{
-			
-
-			bool multisampled = samples > 1;
-
-			auto textureTarget = TextureTarget(multisampled);
-
-			if (multisampled)
-			{
-				glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, samples, internalFormat, width, height, GL_TRUE);
-			}
-			else
-			{
-				glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, GL_UNSIGNED_BYTE, nullptr);
-			}
-
-			//check if hardware support anisotropic filtering
-			if (GLAD_GL_EXT_texture_filter_anisotropic)
-			{
-				GLfloat largest;
-				glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &largest);
-
-				//activate anisotropic filtering
-				glTexParameterf(textureTarget, GL_TEXTURE_MAX_ANISOTROPY_EXT, largest);
-			}
-
-			glTexParameteri(textureTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameteri(textureTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			glTexParameteri(textureTarget, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-			glTexParameteri(textureTarget, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-			glTexParameteri(textureTarget, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-			
-
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + index, textureTarget, id, 0);
-		}
-
-		static void AttachDepthTexture(uint32_t id, int samples, GLenum format, GLenum attachmentType, uint32_t width, uint32_t height)
-		{
-			bool multisampled = samples > 1;
-
-			auto textureTarget = TextureTarget(multisampled);
-
-			if (multisampled)
-			{
-				glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, samples, format, width, height, GL_TRUE);
-			}
-			else
-			{
-				glTexStorage2D(GL_TEXTURE_2D, 1, format, width, height);
-
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-			}
-
-			glFramebufferTexture2D(GL_FRAMEBUFFER, attachmentType, TextureTarget(multisampled), id, 0);
-		}
-
-		static constexpr bool IsDepthFormat(RenderTargetTextureFormat format)
-		{
-			switch (format)
-			{
-			case RenderTargetTextureFormat::DEPTH24STENCIL8:  return true;
-			}
-
-			return false;
-		}
-
-		static constexpr GLenum FBTextureFormatToGL(RenderTargetTextureFormat format)
-		{
-			switch (format)
-			{
-			case RenderTargetTextureFormat::RGBA8:       return GL_RGBA8;
-			case RenderTargetTextureFormat::RED_INTEGER: return GL_RED_INTEGER;
-			}
-
-			ASSERT(false);
-			return 0;
-		}
-
-	}
-
-
-	RenderTarget::~RenderTarget()
-	{
-		//if (m_Texture) delete m_Texture;
-		if (m_FrameBufferID)
-		{
-			glDeleteFramebuffers(1, &m_FrameBufferID);
-			glDeleteTextures(1, &m_ColorAttachmentID);
-			glDeleteTextures(1, &m_MousePickColorID);
-		}
-
-		if(m_ScreenFrameBufferID)
-		{
-			glDeleteFramebuffers(1, &m_ScreenFrameBufferID);
-			glDeleteTextures(1, &m_ScreenColorAttachmentID);
-		}
-
-		if (m_MousePickFrameBufferID)
-		{
-			glDeleteFramebuffers(1, &m_MousePickFrameBufferID);
-			glDeleteTextures(1, &m_MousePickColorAttachmentID);
-		}
-
-
-		//GENGINE_CORE_INFO("Render Targer destructor was called.");
-
-	}
-
-
-
-
-	RenderTarget::RenderTarget(const RenderTargetSpecification& spec): m_Specification(spec)
-	{
-
-
-
-
-
-	}
-
-
-
-	RenderTarget::RenderTarget(const Math::Vec2f& resolution): m_Width{(int)resolution.x}, m_Height{(int)resolution.y}
-	{
-		Invalidate();
-	}
-
-
-
-	RenderTarget::RenderTarget(int x_res, int y_res):m_Width(x_res), m_Height(y_res)
-	{
-		Invalidate();
-	}
-
-	void RenderTarget::Invalidate()
-	{
-		// RBO failure must leave the existing framebuffer and attachments alive.
-		RenderBufferObject renderBuffer(m_Width, m_Height, m_Samples);
-		RenderCounters::RecordTargetReallocation(m_FrameBufferID != 0);
-		if (m_FrameBufferID)
-		{
-			//delete m_Texture;
-			glDeleteFramebuffers(1, &m_FrameBufferID);
-			glDeleteTextures(1, &m_ColorAttachmentID);
-			//glDeleteTextures(1, &m_MousePickColorID);
-		}
-
-		if (m_ScreenFrameBufferID)
-		{
-			glDeleteFramebuffers(1, &m_ScreenFrameBufferID);
-			glDeleteTextures(1, &m_ScreenColorAttachmentID);
-		}
-
-		/*if (m_MousePickFrameBufferID)
-		{
-			glDeleteFramebuffers(1, &m_MousePickFrameBufferID);
-			glDeleteTextures(1, &m_MousePickColorAttachmentID);
-		}*/
-
-	    //m_Texture = new Asset::Texture(info);
-		
-		bool multisampled = m_Samples > 1;
-		int textureMode = multisampled ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D;
-
-		// Create a frame buffer
-		glGenFramebuffers(1, &m_FrameBufferID);
-		glBindFramebuffer(GL_FRAMEBUFFER, m_FrameBufferID);
-	
-		glGenTextures(1, &m_ColorAttachmentID);
-		glBindTexture(textureMode, m_ColorAttachmentID);
-
-
-		if (multisampled)
-		{
-			glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, m_Samples, GL_RGBA8, m_Width, m_Height, GL_TRUE);
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, m_ColorAttachmentID, 0);
-		}
-
-		else
-		{
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m_Width, m_Height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_ColorAttachmentID, 0);
-		}
-
-		//check if hardware support anisotropic filtering
-		if (GLAD_GL_EXT_texture_filter_anisotropic)
-		{
-			GLfloat largest;
-			glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &largest);
-
-			//activate anisotropic filtering
-			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, largest);
-		}
-
-		glTexParameteri(textureMode, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(textureMode, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(textureMode, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-		glTexParameteri(textureMode, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(textureMode, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-		//glGenTextures(1, &m_MousePickColorID);
-		//glBindTexture(textureMode, m_MousePickColorID);
-
-		//if (multisampled)
-		//{
-		//	glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, m_Samples, GL_R32I, m_Width, m_Height, GL_TRUE);
-		//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D_MULTISAMPLE, m_MousePickColorID, 0);
-		//}
-		//else
-		//{
-		//	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32I, m_Width, m_Width, 0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, nullptr);
-		//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, m_MousePickColorID, 0);	// we only need a mouse color buffer
-		//}
-
-		/*glTexParameteri(textureMode, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(textureMode, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(textureMode, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-		glTexParameteri(textureMode, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(textureMode, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);*/
-		//glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, m_MousePickColorID, 0);	// we only need a mouse color buffer
-
-
-		m_RenderBuffer = std::move(renderBuffer);
-		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_RenderBuffer.GetID());
-
-		GLenum drawBuffers[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
-		glDrawBuffers(2, drawBuffers);
-		
-		//Unbind the frame buffer
-		//glBindRenderbuffer(GL_RENDERBUFFER, 0);
-
-		//Assert the frame buffer created successfully
-		ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE, "Framebuffer status error");
-		UnBind();
-
-		if (multisampled) InvalidatePostProcessing();
-		//if (b_MousePickEnabled) InvalidateMousePickProcessing();
-
-	}
-
-
-	void RenderTarget::_Invalidate()
-	{
-		bool multisampled = m_Samples > 1;
-		RenderBufferObject renderBuffer(m_Specification.Width, m_Specification.Height,
-			multisampled ? m_Specification.Samples : 1);
-		RenderCounters::RecordTargetReallocation(m_FrameBufferID != 0);
-
-		if (m_FrameBufferID)
-		{
-			glDeleteFramebuffers(1, &m_FrameBufferID);
-
-			glDeleteTextures((int)m_ColorAttachments.size(), m_ColorAttachments.data());
-
-			m_ColorAttachments.clear();
-
-		}
-
-		// Create a frame buffer
-		glGenFramebuffers(1, &m_FrameBufferID);
-		glBindFramebuffer(GL_FRAMEBUFFER, m_FrameBufferID);
-
-		// Attachments
-		if (m_ColorAttachmentSpecifications.size())
-		{
-			m_ColorAttachments.resize(m_ColorAttachmentSpecifications.size());
-			Utils::CreateTextures(multisampled, m_ColorAttachments.data(), (uint32_t)m_ColorAttachments.size());
-
-			for (int i = 0; i < m_ColorAttachments.size(); i++)
-			{
-				Utils::BindTexture(multisampled, m_ColorAttachments[i]);
-				switch (m_ColorAttachmentSpecifications[i].TextureFormat)
-				{
-				case RenderTargetTextureFormat::RGBA8:
-					Utils::AttachColorTexture(m_ColorAttachments[i], m_Specification.Samples, GL_RGBA8, GL_RGBA, m_Specification.Width, m_Specification.Height, i);
-					break;
-				case RenderTargetTextureFormat::RED_INTEGER:
-					Utils::AttachColorTexture(m_ColorAttachments[i], m_Specification.Samples, GL_R32I, GL_RED_INTEGER, m_Specification.Width, m_Specification.Height, i);
-					break;
-				}
-			}
-		}
-
-		m_RenderBuffer = std::move(renderBuffer);
-		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_RenderBuffer.GetID());
-		glBindRenderbuffer(GL_RENDERBUFFER, 0);
-
-		//Assert the frame buffer created successfully
-		ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE, "Framebuffer status error");
-		//UnBind();
-
-		if (multisampled) InvalidatePostProcessing();
-
-
-	}
-
-
-	void RenderTarget::InvalidatePostProcessing()
-	{
-		RenderCounters::RecordTargetReallocation(m_ScreenFrameBufferID != 0);
-		if (m_ScreenFrameBufferID)
-		{
-			glDeleteFramebuffers(1, &m_ScreenFrameBufferID);
-			glDeleteTextures(1, &m_ScreenColorAttachmentID);
-		}
-
-		glGenFramebuffers(1, &m_ScreenFrameBufferID);
-		glBindFramebuffer(GL_FRAMEBUFFER, m_ScreenFrameBufferID);
-	
-		glGenTextures(1, &m_ScreenColorAttachmentID);
-		glBindTexture(GL_TEXTURE_2D, m_ScreenColorAttachmentID);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m_Width, m_Height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_ScreenColorAttachmentID, 0);	// we only need a color buffer
-
-		ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE, "Framebuffer status error");
-		UnBind();
-
-	}
-
-	void RenderTarget::InvalidateMousePickProcessing()
-	{
-		RenderCounters::RecordTargetReallocation(m_MousePickFrameBufferID != 0);
-		if (m_MousePickFrameBufferID)
-		{
-			glDeleteFramebuffers(1, &m_MousePickFrameBufferID);
-			glDeleteTextures(1, &m_MousePickColorAttachmentID);
-		}
-
-		glGenFramebuffers(1, &m_MousePickFrameBufferID);
-		glBindFramebuffer(GL_FRAMEBUFFER, m_MousePickColorAttachmentID);
-
-		glGenTextures(1, &m_MousePickColorAttachmentID);
-		glBindTexture(GL_TEXTURE_2D, m_MousePickColorAttachmentID);
-		glTexStorage2D(GL_TEXTURE_2D, 1, GL_R32I, m_Width, m_Width);
-		//glTexImage2D(GL_TEXTURE_2D, 0, GL_R32I, m_Width, m_Width, 0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, nullptr);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_MousePickColorAttachmentID, 0);
-
-		ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE, "Framebuffer status error");
-		UnBind();
-	}
-
-	void RenderTarget::Bind(unsigned int ID) const
-	{
-		glBindFramebuffer(GL_FRAMEBUFFER, ID);
-	}
-
-	//void RenderTarget::BindFrameBuffer() const
-	//{
-	//	glBindFramebuffer(GL_FRAMEBUFFER, m_FrameBufferID);
-	//}
-
-	void RenderTarget::BindFrameBuffer(unsigned int FrameBufferID, unsigned int target) const
-	{
-		glBindFramebuffer(target, FrameBufferID);
-	}
-
-	void RenderTarget::BindRenderBuffer() const
-	{
-		glBindRenderbuffer(GL_RENDERBUFFER, m_RenderBuffer.GetID());
-	}
-
-	void RenderTarget::BindAndBlitToScreen()
-	{
-		//BindFrameBuffer(m_FrameBufferID, GL_READ_FRAMEBUFFER);
-		//BindFrameBuffer(m_ScreenFrameBufferID, GL_DRAW_FRAMEBUFFER);
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, m_FrameBufferID);
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_ScreenFrameBufferID);
-		glBlitFramebuffer(0, 0, m_Width, m_Height, 0, 0, m_Width, m_Height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-	}
-
-	void RenderTarget::BindAndBlitToScreen(int index)
-	{
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, m_FrameBufferID);
-		glReadBuffer(GL_COLOR_ATTACHMENT0);
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_ScreenFrameBufferID);
-		glDrawBuffer(GL_COLOR_ATTACHMENT0);
-		glBlitFramebuffer(0, 0, m_Width, m_Height, 0, 0, m_Width, m_Height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-	}
-
-	int RenderTarget::ReadPixel(uint32_t attachmentIndex, int x, int y)const
-	{
-		//ASSERT(attachmentIndex < m_ColorAttachments.size());
-		//glReadBuffer(GL_COLOR_ATTACHMENT0 + attachmentIndex);
-		glBindFramebuffer(GL_FRAMEBUFFER, m_MousePickFrameBufferID);
-		glReadBuffer(GL_COLOR_ATTACHMENT0);
-		int pixelData;
-		glReadPixels(x, y, 1, 1, GL_RED_INTEGER, GL_INT, &pixelData);
-		//glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		return pixelData;
-
-	}
-
-	void RenderTarget::ClearAttachment(int attachment_index, int value)const
-	{
-		
-		glClearBufferiv(GL_COLOR, attachment_index, &value);
-
-		//glClearTexImage(m_MousePickColorAttachmentID, 0, GL_RED_INTEGER, GL_INT, &value);
-	}
-
-	void RenderTarget::UnBind() const
-	{
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		//glBindRenderbuffer(GL_RENDERBUFFER, 0);
-	}
-	
-	
-	void RenderTarget::RenderSize(const Math::Vec2f& resolution)
-	{
-		if (!std::isfinite(resolution.x) || !std::isfinite(resolution.y)
-			|| resolution.x < 1 || resolution.y < 1
-			|| resolution.x > s_MaxFramebufferSize || resolution.y > s_MaxFramebufferSize)
-			throw std::invalid_argument("RenderTarget resize dimensions are invalid");
-		// Keep attachment ownership coherent instead of resizing an arbitrary bound RBO.
-		OnResize(static_cast<uint32_t>(resolution.x), static_cast<uint32_t>(resolution.y));
-	}
-
-	void RenderTarget::OnResize(uint32_t width, uint32_t height)
-	{
-		if (!width || !height || width > s_MaxFramebufferSize || height > s_MaxFramebufferSize)
-			throw std::invalid_argument("RenderTarget resize dimensions are invalid");
-		const auto oldWidth = m_Width, oldHeight = m_Height;
-		m_Width = width;
-		m_Height = height;
-		try { Invalidate(); }
-		catch (...) { m_Width = oldWidth; m_Height = oldHeight; throw; }
-	}
-
-	void RenderTarget::SetSamples(int samples)
-	{
-		if (samples < 1) throw std::invalid_argument("RenderTarget sample count must be positive");
-		if (static_cast<unsigned int>(samples) == m_Samples) return;
-		const auto oldSamples = m_Samples;
-		m_Samples = samples;
-		try { Invalidate(); }
-		catch (...) { m_Samples = oldSamples; throw; }
-	}
-
-
-	PointShadowFrameBuffer::PointShadowFrameBuffer(unsigned int resolution_x, unsigned int resolution_y) : m_Width(resolution_x), m_Height(resolution_y)
-	{
-		Invalidate();
-	}
-
-	PointShadowFrameBuffer::~PointShadowFrameBuffer()
-	{
-		if (m_DepthMapFBO)
-		{
-			glDeleteFramebuffers(1, &m_DepthMapFBO);
-			glDeleteTextures(1, &m_DepthCubeMaps);
-		}
-
-	}
-
-	void PointShadowFrameBuffer::OnResize(unsigned int width, unsigned int height)
-	{
-		m_Width = width;
-		m_Height = height;
-		Invalidate();
-	}
-
-	Math::Vec2f PointShadowFrameBuffer::GetResolution() const
-	{
-		return { m_Width, m_Height };
-	}
-
-	void PointShadowFrameBuffer::Bind() const
-	{
-		glBindFramebuffer(GL_FRAMEBUFFER, m_DepthMapFBO);
-	}
-
-	void PointShadowFrameBuffer::UnBind() const
-	{
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	}
-
-	void PointShadowFrameBuffer::Invalidate()
-	{
-		CheckShadowEntryErrors();
-		RenderCounters::RecordTargetReallocation(m_DepthMapFBO != 0);
-		if (m_DepthMapFBO)
-		{
-			glDeleteFramebuffers(1, &m_DepthMapFBO);
-			glDeleteTextures(1, &m_DepthCubeMaps);
-		}
-		// Create a frame buffer
-		glGenFramebuffers(1, &m_DepthMapFBO);
-		//glBindFramebuffer(GL_FRAMEBUFFER, m_DepthMapFBO);
-
-		glGenTextures(1, &m_DepthCubeMaps);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, m_DepthCubeMaps);
-
-		for (unsigned int i = 0; i < 6; ++i)
-		{
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_DEPTH_COMPONENT, m_Width, m_Height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-		}
-
-		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
-
-		// attach depth texture as FBO's depth buffer
-		glBindFramebuffer(GL_FRAMEBUFFER, m_DepthMapFBO);
-		glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, m_DepthCubeMaps, 0);
-		glDrawBuffer(GL_NONE);
-		glReadBuffer(GL_NONE);
-		CheckShadowAllocation("point", m_Width, m_Height, 6, "GL_DEPTH_COMPONENT (driver-selected)", m_DepthMapFBO, m_DepthCubeMaps);
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-
-
-	}
-
-	CascadeShadowFrameBuffer::CascadeShadowFrameBuffer(unsigned int resolution_x, unsigned int resolution_y, unsigned int depth) : m_Width(resolution_x), m_Height(resolution_y)
-	{
-		Invalidate(depth);
-	}
-
-	CascadeShadowFrameBuffer::~CascadeShadowFrameBuffer()
-	{
-		if (m_LightFBO)
-		{
-			glDeleteFramebuffers(1, &m_LightFBO);
-			glDeleteTextures(1, &m_LightDepthMaps);
-		}
-	
-	}
-
-	void CascadeShadowFrameBuffer::Invalidate(unsigned int depth)
-	{
-		CheckShadowEntryErrors();
-		RenderCounters::RecordTargetReallocation(m_LightFBO != 0);
-		if (m_LightFBO)
-		{
-			//delete m_Texture;
-			glDeleteFramebuffers(1, &m_LightFBO);
-			glDeleteTextures(1, &m_LightDepthMaps);
-			//glDeleteTextures(1, &m_MousePickMap);
-		}
-
-		// Create a frame buffer
-		glGenFramebuffers(1, &m_LightFBO);
-		glBindFramebuffer(GL_FRAMEBUFFER, m_LightFBO);
-		
-
-		glGenTextures(1, &m_LightDepthMaps);
-		glBindTexture(GL_TEXTURE_2D_ARRAY, m_LightDepthMaps);
-		glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT32F, m_Width, m_Height, depth + 1, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-
-		constexpr float bordercolor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-		glTexParameterfv(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, bordercolor);
-
-		glBindFramebuffer(GL_FRAMEBUFFER, m_LightFBO);
-		glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, m_LightDepthMaps, 0);
-		glDrawBuffer(GL_NONE);
-		glReadBuffer(GL_NONE);
-
-		//glGenTextures(1, &m_MousePickMap);
-		//glBindTexture(GL_TEXTURE_2D, m_MousePickMap);
-
-		//glTexImage2D(GL_TEXTURE_2D, 0, GL_R32I, 1280, 720, 0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, nullptr);
-		//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-		//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		//glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_MousePickMap, 0);	// we only need a color buffer
-		//GLenum buffers[1] = { GL_COLOR_ATTACHMENT0};
-		//glDrawBuffers(1, buffers);
-
-		CheckShadowAllocation("cascade", m_Width, m_Height, depth + 1, "GL_DEPTH_COMPONENT32F", m_LightFBO, m_LightDepthMaps);
-
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-
-	}
-
-	void CascadeShadowFrameBuffer::OnResize(unsigned int width, unsigned int height)
-	{
-		m_Width = width;
-		m_Height = height;
-		Invalidate(5);
-	}
-
-	Math::Vec2f CascadeShadowFrameBuffer::GetResolution() const
-	{
-		return Math::Vec2f{ m_Width, m_Height };
-	}
-
-	int CascadeShadowFrameBuffer::ReadPixel(int x, int y)
-	{
-		glReadBuffer(GL_COLOR_ATTACHMENT0);
-		int pixelData;
-		glReadPixels(x, y, 1, 1, GL_RED_INTEGER, GL_INT, &pixelData);
-		return pixelData;	
-	}
-
-	void CascadeShadowFrameBuffer::Bind() const
-	{
-		glBindFramebuffer(GL_FRAMEBUFFER, m_LightFBO); 
-	}
-
-	void CascadeShadowFrameBuffer::UnBind() const
-	{
-		glBindFramebuffer(GL_FRAMEBUFFER, 0); 
-	}
-	
-
-
+    namespace
+    {
+        FrameBufferSpecification ColorDescription(unsigned w, unsigned h)
+        { FrameBufferSpecification d; d.Width = w; d.Height = h; d.Colors[0] = FramebufferFormat::RGBA8;
+          d.ColorCount = 1; d.Depth = FramebufferFormat::Depth24; return d; }
+        FramebufferError InvalidSize()
+        { return {FramebufferErrorCode::InvalidDescription, "Target dimensions or sample count are invalid"}; }
+    }
+    std::expected<FinalFrameBuffer, FramebufferError> FinalFrameBuffer::Create(unsigned w, unsigned h)
+    {
+        auto d = ColorDescription(w, h); d.Colors[1] = FramebufferFormat::RedInteger; d.ColorCount = 2;
+        auto buffer = FrameBuffer::Create(d); if (!buffer) return std::unexpected(buffer.error());
+        FinalFrameBuffer result; result.m_Buffer = std::move(*buffer); return result;
+    }
+    std::expected<MousePickFrameBuffer, FramebufferError> MousePickFrameBuffer::Create(unsigned w, unsigned h)
+    {
+        auto d = ColorDescription(w, h); d.Colors[0] = FramebufferFormat::RedInteger;
+        auto buffer = FrameBuffer::Create(d); if (!buffer) return std::unexpected(buffer.error());
+        MousePickFrameBuffer result; result.m_Buffer = std::move(*buffer); return result;
+    }
+    std::expected<PointShadowFrameBuffer, FramebufferError> PointShadowFrameBuffer::Create(unsigned w, unsigned h)
+    {
+        FrameBufferSpecification d; d.Width = w; d.Height = h; d.Layers = 6;
+        d.Kind = FramebufferKind::Cube; d.Depth = FramebufferFormat::Depth32Float;
+        auto buffer = FrameBuffer::Create(d); if (!buffer) return std::unexpected(buffer.error());
+        PointShadowFrameBuffer result; result.m_Buffer = std::move(*buffer); return result;
+    }
+    std::expected<CascadeShadowFrameBuffer, FramebufferError> CascadeShadowFrameBuffer::Create(unsigned w, unsigned h, unsigned splits)
+    {
+        if (splits == UINT32_MAX) return std::unexpected(InvalidSize());
+        FrameBufferSpecification d; d.Width = w; d.Height = h; d.Layers = splits + 1;
+        d.Kind = FramebufferKind::Array; d.Depth = FramebufferFormat::Depth32Float;
+        auto buffer = FrameBuffer::Create(d); if (!buffer) return std::unexpected(buffer.error());
+        CascadeShadowFrameBuffer result; result.m_Buffer = std::move(*buffer); return result;
+    }
+    std::expected<RenderTarget, FramebufferError> RenderTarget::Allocate(const FrameBufferSpecification& d)
+    {
+        auto scene = FrameBuffer::Create(d); if (!scene) return std::unexpected(scene.error());
+        RenderTarget result; result.m_Render = std::move(*scene);
+        if (d.Samples > 1 && d.ColorCount)
+        {
+            auto resolved = d; resolved.Samples = 1; resolved.Depth = FramebufferFormat::None; resolved.DepthRenderbuffer = false;
+            auto buffer = FrameBuffer::Create(resolved); if (!buffer) return std::unexpected(buffer.error());
+            result.m_Resolved = std::move(*buffer);
+        }
+        return result;
+    }
+    std::expected<RenderTarget, FramebufferError> RenderTarget::Create(const RenderTargetSpecification& spec)
+    {
+        if (spec.SwapChainTarget) return std::unexpected(FramebufferError{FramebufferErrorCode::Unsupported, "Swap-chain ownership is not a framebuffer descriptor"});
+        FrameBufferSpecification d; d.Width = spec.Width; d.Height = spec.Height; d.Samples = spec.Samples;
+        for (const auto& a : spec.Attachments.Attachments)
+        {
+            if (a.TextureFormat == RenderTargetTextureFormat::Depth)
+            {
+                if (d.Depth != FramebufferFormat::None) return std::unexpected(InvalidSize());
+                d.Depth = FramebufferFormat::Depth24Stencil8; d.DepthRenderbuffer = true;
+            }
+            else if (d.ColorCount < d.Colors.size() && (a.TextureFormat == RenderTargetTextureFormat::RGBA8 || a.TextureFormat == RenderTargetTextureFormat::RED_INTEGER))
+                d.Colors[d.ColorCount++] = a.TextureFormat == RenderTargetTextureFormat::RGBA8 ? FramebufferFormat::RGBA8 : FramebufferFormat::RedInteger;
+            else return std::unexpected(FramebufferError{FramebufferErrorCode::InvalidDescription, "Invalid or excessive target attachment"});
+        }
+        return Allocate(d);
+    }
+    std::expected<RenderTarget, FramebufferError> RenderTarget::Create(int w, int h, unsigned samples)
+    {
+        if (w < 1 || h < 1) return std::unexpected(InvalidSize());
+        auto d = ColorDescription(static_cast<unsigned>(w), static_cast<unsigned>(h));
+        d.Samples = samples; d.Depth = FramebufferFormat::Depth24Stencil8; d.DepthRenderbuffer = true; return Allocate(d);
+    }
+    std::expected<RenderTarget, FramebufferError> RenderTarget::Create(const Math::Vec2f& size)
+    {
+        if (!std::isfinite(size.x) || !std::isfinite(size.y) || size.x < 1 || size.y < 1 || size.x > 8192 || size.y > 8192)
+            return std::unexpected(InvalidSize());
+        return Create(static_cast<int>(size.x), static_cast<int>(size.y));
+    }
+    FramebufferResult RenderTarget::BindAndBlitToScreen() const
+    {
+        if (!m_Render) return std::unexpected(FramebufferError{FramebufferErrorCode::InvalidOperation, "Resolve requires a live render target"});
+        if (m_Resolved) for (unsigned i = 0; i < m_Render.Description().ColorCount; ++i)
+            if (auto result = m_Render.ResolveTo(m_Resolved, i, i); !result) return result;
+        return {};
+    }
+    std::expected<int, FramebufferError> RenderTarget::ReadPixel(std::uint32_t index, int x, int y) const
+    {
+        if (auto result = BindAndBlitToScreen(); !result) return std::unexpected(result.error());
+        return Buffer(RenderTargetSurface::Resolved).ReadInteger(index, x, y);
+    }
+    FramebufferResult RenderTarget::ReadColor(std::span<std::byte> rgba) const
+    {
+        if (auto result = BindAndBlitToScreen(); !result) return result;
+        return Buffer(RenderTargetSurface::Resolved).ReadColor(0, rgba);
+    }
+    FramebufferResult RenderTarget::OnResize(unsigned w, unsigned h)
+    {
+        auto d = m_Render.Description(); d.Width = w; d.Height = h;
+        auto candidate = Allocate(d); if (!candidate) return std::unexpected(candidate.error());
+        RenderCounters::RecordTargetReallocation(bool(m_Render)); *this = std::move(*candidate); return {};
+    }
+    FramebufferResult RenderTarget::RenderSize(const Math::Vec2f& size)
+    {
+        if (!std::isfinite(size.x) || !std::isfinite(size.y) || size.x < 1 || size.y < 1 || size.x > 8192 || size.y > 8192)
+            return std::unexpected(InvalidSize());
+        return OnResize(static_cast<unsigned>(size.x), static_cast<unsigned>(size.y));
+    }
+    FramebufferResult RenderTarget::SetSamples(int samples)
+    {
+        if (samples < 1) return std::unexpected(InvalidSize());
+        if (static_cast<unsigned>(samples) == GetSamples()) return {};
+        auto d = m_Render.Description(); d.Samples = static_cast<unsigned>(samples);
+        auto candidate = Allocate(d); if (!candidate) return std::unexpected(candidate.error());
+        RenderCounters::RecordTargetReallocation(bool(m_Render)); *this = std::move(*candidate); return {};
+    }
+
+    // Unchanged standalone UBO/RBO legacy contracts: residual error-model owner Phase 66.
 	RenderBufferObject::RenderBufferObject(unsigned int width, unsigned int height, unsigned int samples)
 	{
 		Resize(width, height, samples);
@@ -868,251 +299,5 @@ namespace GEngine
 	template class UniformBufferObject<UniformType::MATRIX_4_4>;
 
 
-	MousePickFrameBuffer::MousePickFrameBuffer(unsigned int resolution_x, unsigned int resolution_y)
-	{
-		m_Width = resolution_x;
-		m_Height = resolution_y;
-		Invalidate();
-	}
-
-	MousePickFrameBuffer::~MousePickFrameBuffer()
-	{
-		if(m_MousePickFBO)
-		{
-			glDeleteFramebuffers(1, &m_MousePickFBO);
-			glDeleteTextures(1, &m_MousePickColorMap);
-			glDeleteTextures(1, &m_MousePickDepthMap);
-		}
-	}
-
-	void MousePickFrameBuffer::OnResize(unsigned int width, unsigned int height)
-	{
-		m_Width = width;
-		m_Height = height;
-		Invalidate();
-	}
-
-	Math::Vec2f MousePickFrameBuffer::GetResolution() const
-	{
-		return { static_cast<float>(m_Width), static_cast<float>(m_Height) };
-	}
-
-	int MousePickFrameBuffer::ReadPixel(int x, int y)const
-	{
-		glReadBuffer(GL_COLOR_ATTACHMENT0);
-		int pixelData;
-		glReadPixels(x, y, 1, 1, GL_RED_INTEGER, GL_INT, &pixelData);
-		return pixelData;
-	}
-
-	
-
-	void MousePickFrameBuffer::Bind() const
-	{
-		glBindFramebuffer(GL_FRAMEBUFFER, m_MousePickFBO);
-		//glViewport(0, 0, m_Width, m_Height);
-	}
-
-	void MousePickFrameBuffer::UnBind() const
-	{
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	}
-
-	void MousePickFrameBuffer::ClearAttachment(uint32_t attachmentindex, int value) const
-	{
-		glClearTexImage(m_MousePickColorMap, 0, GL_RED_INTEGER, GL_INT, &value);
-	}
-
-	void MousePickFrameBuffer::Invalidate()
-	{
-		RenderCounters::RecordTargetReallocation(m_MousePickFBO != 0);
-		if (m_MousePickFBO)
-		{
-			//delete m_Texture;
-			glDeleteFramebuffers(1, &m_MousePickFBO);
-			glDeleteTextures(1, &m_MousePickColorMap);
-			glDeleteTextures(1, &m_MousePickDepthMap);
-		}
-
-		// Create a frame buffer
-		glGenFramebuffers(1, &m_MousePickFBO);
-		glBindFramebuffer(GL_FRAMEBUFFER, m_MousePickFBO);
-
-		glGenTextures(1, &m_MousePickColorMap);
-		glBindTexture(GL_TEXTURE_2D, m_MousePickColorMap);
-
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_R32I, m_Width, m_Width, 0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, nullptr);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_MousePickColorMap, 0);	// we only need a color buffer
-		GLenum buffers[1] = { GL_COLOR_ATTACHMENT0};
-		glDrawBuffers(1, buffers);
-
-		glGenTextures(1, &m_MousePickDepthMap);
-		glBindTexture(GL_TEXTURE_2D, m_MousePickDepthMap);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, m_Width, m_Height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_MousePickDepthMap, 0);	// we only need a depth buffer
-
-		int status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-		if (status != GL_FRAMEBUFFER_COMPLETE)
-		{
-			std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!";
-		}
-
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-	}
-
-	FinalFrameBuffer::FinalFrameBuffer(unsigned int resolution_x, unsigned int resolution_y)
-	{
-		m_Width = resolution_x;
-		m_Height = resolution_y;
-		Invalidate();
-
-	}
-
-	FinalFrameBuffer::~FinalFrameBuffer()
-	{
-		Release();
-	}
-
-	void FinalFrameBuffer::Release() noexcept
-	{
-		if (m_FBO) glDeleteFramebuffers(1, &m_FBO);
-		if (m_MousePickMap) glDeleteTextures(1, &m_MousePickMap);
-		if (m_DepthMap) glDeleteTextures(1, &m_DepthMap);
-		if (m_ColorMap) glDeleteTextures(1, &m_ColorMap);
-		m_FBO = m_MousePickMap = m_DepthMap = m_ColorMap = 0;
-	}
-
-	void FinalFrameBuffer::Swap(FinalFrameBuffer& other) noexcept
-	{
-		std::swap(m_FBO, other.m_FBO);
-		std::swap(m_ColorMap, other.m_ColorMap);
-		std::swap(m_MousePickMap, other.m_MousePickMap);
-		std::swap(m_DepthMap, other.m_DepthMap);
-		std::swap(m_Width, other.m_Width);
-		std::swap(m_Height, other.m_Height);
-		std::swap(m_Samples, other.m_Samples);
-	}
-
-	FinalFrameBuffer::FinalFrameBuffer(FinalFrameBuffer&& other) noexcept
-	{
-		Swap(other);
-	}
-
-	FinalFrameBuffer& FinalFrameBuffer::operator=(FinalFrameBuffer&& other) noexcept
-	{
-		if (this != &other)
-		{
-			FinalFrameBuffer retired(std::move(other));
-			Swap(retired);
-		}
-		return *this;
-	}
-
-	void FinalFrameBuffer::OnResize(unsigned int width, unsigned int height)
-	{
-		m_Width = width;
-		m_Height = height;
-		Invalidate();
-	}
-
-	Math::Vec2f FinalFrameBuffer::GetResolution() const
-	{
-		return { m_Width, m_Height };
-	}
-
-	int FinalFrameBuffer::ReadPixel(int x, int y) const
-	{
-		glReadBuffer(GL_COLOR_ATTACHMENT0);
-		int pixelData;
-		glReadPixels(x, y, 1, 1, GL_RED_INTEGER, GL_INT, &pixelData);
-		return pixelData;
-	}
-
-	void FinalFrameBuffer::Bind() const
-	{
-		glBindFramebuffer(GL_FRAMEBUFFER, m_FBO);
-		glViewport(0, 0, m_Width, m_Height);
-	}
-
-	void FinalFrameBuffer::UnBind() const
-	{
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	}
-
-	void FinalFrameBuffer::BindReadFrameBuffer() const
-	{
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, m_FBO);
-	}
-
-	void FinalFrameBuffer::BindDefaultDrawFrameBuffer() const
-	{
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-	}
-
-	void FinalFrameBuffer::ClearMousePickAttachment(int value) const
-	{
-		glClearTexImage(m_MousePickMap, 0, GL_RED_INTEGER, GL_INT, &value);
-	}
-
-	void FinalFrameBuffer::BlitFrameBuffer() const
-	{
-		
-		glBlitFramebuffer(0, 0, m_Width, m_Height, 0, 0, m_Width, m_Height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	}
-
-	void FinalFrameBuffer::Invalidate()
-	{
-		RenderCounters::RecordTargetReallocation(m_FBO != 0);
-		Release();
-
-		// Create a frame buffer
-		glGenFramebuffers(1, &m_FBO);
-		glBindFramebuffer(GL_FRAMEBUFFER, m_FBO);
-
-		glGenTextures(1, &m_ColorMap);
-		glBindTexture(GL_TEXTURE_2D, m_ColorMap);
-
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m_Width, m_Width, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_ColorMap, 0);	// we need a color buffer
-
-		glGenTextures(1, &m_MousePickMap);
-		glBindTexture(GL_TEXTURE_2D, m_MousePickMap);
-
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_R32I, m_Width, m_Width, 0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, nullptr);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, m_MousePickMap, 0);	// we need a mouse pick buffer
-
-		GLenum buffers[2] = { GL_COLOR_ATTACHMENT0,  GL_COLOR_ATTACHMENT1};
-		glDrawBuffers(2, buffers);
-
-		glGenTextures(1, &m_DepthMap);
-		glBindTexture(GL_TEXTURE_2D, m_DepthMap);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, m_Width, m_Height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_DepthMap, 0);	// we only need a depth buffer
-
-		int status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-		if (status != GL_FRAMEBUFFER_COMPLETE)
-		{
-			std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!";
-		}
-
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	}
 
 }

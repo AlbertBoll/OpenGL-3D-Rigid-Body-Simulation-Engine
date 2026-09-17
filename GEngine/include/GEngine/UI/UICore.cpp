@@ -1,6 +1,9 @@
 #include "gepch.h"
 #include "../../../src/Assets/TextureBackend.h"
 #include "UICore.h"
+#include "FramebufferImage.h"
+#include "Core/RenderTarget.h"
+#include <cmath>
 #include <imgui/imgui_internal.h>
 #include "Assets/Textures/Texture.h"
 
@@ -9,6 +12,18 @@ namespace GEngine
 
 	namespace UI
 	{
+
+        FramebufferResult FramebufferImage(const RenderTarget& target, float width, float height)
+        {
+            if (!std::isfinite(width) || !std::isfinite(height) || width <= 0 || height <= 0)
+                return std::unexpected(FramebufferError{FramebufferErrorCode::InvalidDescription, "UI image dimensions must be positive and finite"});
+            auto attachment = target.ColorView();
+            if (!attachment) return std::unexpected(attachment.error());
+            auto name = Asset::AssetDetail::TextureBackend::Name(Asset::TextureView(*attachment));
+            if (!name) return std::unexpected(FramebufferError{FramebufferErrorCode::InvalidView, "UI framebuffer attachment is no longer live"});
+            ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<std::uintptr_t>(*name)), {width, height}, {0, 1}, {1, 0});
+            return {};
+        }
 
 		static int s_UIContextID = 0;
 		static uint32_t s_Counter = 0;

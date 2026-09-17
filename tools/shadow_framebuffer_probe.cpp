@@ -1,3 +1,4 @@
+#include "../GEngine/src/Core/FramebufferBackend.h"
 // Run through test_shadow_configuration.py with the repository's Windows toolchain.
 #include "gepch.h"
 #include "Core/RenderTarget.h"
@@ -22,6 +23,7 @@ namespace
         GLint texture = 0;
         glGetIntegerv(GL_TEXTURE_BINDING_CUBE_MAP, &texture);
         failedTexture = static_cast<GLuint>(texture);
+        GLint framebuffer = 0; glGetIntegerv(GL_FRAMEBUFFER_BINDING, &framebuffer); failedFramebuffer = static_cast<GLuint>(framebuffer);
         injectedError = true;
     }
 
@@ -30,6 +32,7 @@ namespace
         GLint texture = 0;
         glGetIntegerv(GL_TEXTURE_BINDING_2D_ARRAY, &texture);
         failedTexture = static_cast<GLuint>(texture);
+        GLint framebuffer = 0; glGetIntegerv(GL_FRAMEBUFFER_BINDING, &framebuffer); failedFramebuffer = static_cast<GLuint>(framebuffer);
         injectedError = true;
     }
 
@@ -39,7 +42,6 @@ namespace
         {
             GLint framebuffer = 0;
             glGetIntegerv(GL_FRAMEBUFFER_BINDING, &framebuffer);
-            failedFramebuffer = static_cast<GLuint>(framebuffer);
             injectedError = false;
             return GL_OUT_OF_MEMORY;
         }
@@ -64,12 +66,12 @@ namespace
     {
         GLuint cascadeTexture = 0, pointTexture = 0, cascadeFbo = 0, pointFbo = 0;
         {
-            GEngine::CascadeShadowFrameBuffer cascade(resolution, resolution, 5);
-            GEngine::PointShadowFrameBuffer point(resolution, resolution);
-            cascadeTexture = cascade.GetLightDepthMaps();
-            pointTexture = point.GetDepthCubeMaps();
-            cascadeFbo = cascade.GetLightFBO();
-            pointFbo = point.GetDepthMapFBO();
+            auto cascade = ::GEngine::CascadeShadowFrameBuffer::Create(resolution, resolution, 5).value();
+            auto point = ::GEngine::PointShadowFrameBuffer::Create(resolution, resolution).value();
+            cascadeTexture = ::GEngine::FramebufferDetail::Backend::Depth(cascade.Buffer());
+            pointTexture = ::GEngine::FramebufferDetail::Backend::Depth(point.Buffer());
+            cascadeFbo = ::GEngine::FramebufferDetail::Backend::Name(cascade.Buffer());
+            pointFbo = ::GEngine::FramebufferDetail::Backend::Name(point.Buffer());
             cascade.Bind();
             Require(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE, "Cascade incomplete");
             glClear(GL_DEPTH_BUFFER_BIT);
@@ -97,26 +99,19 @@ namespace
             glad_glTexImage3D = FailImage3D;
             glad_glGetError = AllocationError;
         }
-        bool caught = false;
-        try
+        const unsigned int size = injectOom ? 32 : 0;
+        const auto check = [&](const auto& result)
         {
-            const unsigned int size = injectOom ? 8192 : 0;
-            if (point) { GEngine::PointShadowFrameBuffer target(size, size); }
-            else { GEngine::CascadeShadowFrameBuffer target(size, size, 5); }
-        }
-        catch (const std::runtime_error& error)
-        {
-            const std::string message(error.what());
-            caught = message.find("Shadow allocation failed:") != std::string::npos
-                && message.find(point ? "point" : "cascade") != std::string::npos
-                && message.find("GENGINE_SHADOW_RESOLUTION") != std::string::npos
-                && (!injectOom || message.find("GL error=0x505") != std::string::npos);
-            std::cout << "Expected failure: " << message << std::endl;
-        }
+            Require(!result, "Expected shadow creation failure");
+            Require(result.error().code == (injectOom ? ::GEngine::FramebufferErrorCode::Storage : ::GEngine::FramebufferErrorCode::InvalidDescription), "Wrong typed shadow error");
+            std::cout << "Expected failure: " << result.error().message << std::endl;
+        };
+        if (point) check(::GEngine::PointShadowFrameBuffer::Create(size,size));
+        else check(::GEngine::CascadeShadowFrameBuffer::Create(size,size,5));
         glad_glTexImage2D = originalImage2D;
         glad_glTexImage3D = originalImage3D;
+        if (injectOom) Require(glGetError() == GL_OUT_OF_MEMORY, "Synthetic OOM was consumed by production");
         glad_glGetError = originalGetError;
-        Require(caught, "Allocation failure was not actionable");
         if (injectOom)
             Require(failedTexture && failedFramebuffer && !glIsTexture(failedTexture)
                 && !glIsFramebuffer(failedFramebuffer), "Partial allocation leaked");
@@ -139,7 +134,7 @@ int main(int, char**)
     try
     {
         Require(context && gladLoadGLLoader(SDL_GL_GetProcAddress), SDL_GetError());
-        GEngine::Log::Initialize();
+        ::GEngine::Log::Initialize();
         std::cout << "GPU: " << glGetString(GL_RENDERER) << "; GL: " << glGetString(GL_VERSION) << std::endl;
         originalImage2D = glad_glTexImage2D;
         originalImage3D = glad_glTexImage3D;

@@ -1,162 +1,81 @@
 #pragma once
-#include <Assets/Textures/Texture.h>
-#include <Math/Math.h>
-
-
-
+#include "Core/FrameBuffer.h"
+#include "Math/Math.h"
+#include <initializer_list>
+#include <vector>
+#include <variant>
 
 namespace GEngine
 {
-	//using namespace GEngine::Asset;
-	//using namespace GEngine::Math;
-
-	enum class RenderTargetTextureFormat
-	{
-		None = 0,
-		//Color
-		RGBA8,
-		RED_INTEGER,
-
-		DEPTH24STENCIL8,
-
-		//Default
-		Depth = DEPTH24STENCIL8
-	};
-
-	struct RenderTargetTextureSpecification
-	{
-		RenderTargetTextureSpecification() = default;
-		RenderTargetTextureSpecification(RenderTargetTextureFormat format): TextureFormat(format){}
-
-		RenderTargetTextureFormat TextureFormat = RenderTargetTextureFormat::None;
-
-	};
-
-	struct RenderTargetAttachmentSpecification
-	{
-		RenderTargetAttachmentSpecification() = default;
-		RenderTargetAttachmentSpecification(const std::initializer_list<RenderTargetTextureSpecification>& attachments): Attachments(attachments){}
-
-		std::vector<RenderTargetTextureSpecification> Attachments;
-	};
-
-	struct RenderTargetSpecification
-	{
-		uint32_t Width = 0, Height = 0;
-		uint32_t Samples = 4;
-		RenderTargetAttachmentSpecification Attachments;
-
-		bool SwapChainTarget = false;
-	};
-
-	class FinalFrameBuffer
-	{
-	public:
-		FinalFrameBuffer(unsigned int resolution_x, unsigned int resolution_y);
-		// Owning GL context must be current for destruction and replacing a live owner.
-		~FinalFrameBuffer();
-		FinalFrameBuffer(const FinalFrameBuffer&) = delete;
-		FinalFrameBuffer& operator=(const FinalFrameBuffer&) = delete;
-		FinalFrameBuffer(FinalFrameBuffer&& other) noexcept;
-		FinalFrameBuffer& operator=(FinalFrameBuffer&& other) noexcept;
-		unsigned int GetFBO() const { return m_FBO; }
-		unsigned int GetColorMap() const { return m_ColorMap; }
-		unsigned int GetMousePickMap() const { return m_MousePickMap; }
-		void OnResize(unsigned int width, unsigned int height);
-		Math::Vec2f GetResolution()const;
-		int ReadPixel(int x, int y)const;
-		void Bind() const;
-		void UnBind() const;
-		void BindReadFrameBuffer()const;
-		void BindDefaultDrawFrameBuffer() const;
-		void ClearMousePickAttachment(int value)const;
-		void BlitFrameBuffer()const;
-
-	private:
-		void Invalidate();
-		void Release() noexcept;
-		void Swap(FinalFrameBuffer& other) noexcept;
-	private:
-		unsigned int m_FBO{};
-		unsigned int m_ColorMap{};
-		unsigned int m_MousePickMap{};
-		unsigned int m_DepthMap{};
-		unsigned int m_Width{};
-		unsigned int m_Height{};
-		unsigned int m_Samples = 8;
-	};
-
-	class MousePickFrameBuffer
-	{
-	public:
-		MousePickFrameBuffer(unsigned int resolution_x, unsigned int resolution_y);
-		~MousePickFrameBuffer();
-		unsigned int GetLightFBO() const { return m_MousePickFBO; }
-		unsigned int GetMousePickMap() const { return m_MousePickColorMap; }
-		void OnResize(unsigned int width, unsigned int height);
-		Math::Vec2f GetResolution()const;
-		int ReadPixel(int x, int y)const;
-		void Bind() const;
-		void UnBind() const;
-		void ClearAttachment(uint32_t attachmentindex, int value)const;
-	
-	private:
-		void Invalidate();
-	private:
-		unsigned int m_MousePickFBO{};
-		unsigned int m_MousePickColorMap{};
-		unsigned int m_MousePickDepthMap{};
-		unsigned int m_Width{};
-		unsigned int m_Height{};
-	};
-	
-
-	class PointShadowFrameBuffer
-	{
-	public:
-		PointShadowFrameBuffer(unsigned int resolution_x, unsigned int resolution_y);
-		~PointShadowFrameBuffer();
-		unsigned int GetDepthMapFBO() const { return m_DepthMapFBO; }
-		unsigned int GetDepthCubeMaps() const { return m_DepthCubeMaps; }
-		void OnResize(unsigned int width, unsigned int height);
-		Math::Vec2f GetResolution()const;
-		void Bind() const;
-		void UnBind() const;
-
-	private:
-		void Invalidate();
-
-	private:
-		unsigned int m_DepthMapFBO{};
-		unsigned int m_DepthCubeMaps{};
-		unsigned int m_Width{};
-		unsigned int m_Height{};
-	};
-
-	class CascadeShadowFrameBuffer
-	{
-	public:
-		CascadeShadowFrameBuffer(unsigned int resolution_x, unsigned int resolution_y, unsigned int depth);
-		~CascadeShadowFrameBuffer();
-		unsigned int GetLightFBO() const { return m_LightFBO; }
-		unsigned int GetLightDepthMaps() const { return m_LightDepthMaps; }
-		//unsigned int GetMousePickMap() const { return m_MousePickMap; }
-		void OnResize(unsigned int width, unsigned int height);
-		Math::Vec2f GetResolution()const;
-		int ReadPixel(int x, int y);
-		void Bind() const;
-		void UnBind() const;
-		
-	
-	private:
-		void Invalidate(unsigned int depth);
-	private:
-		unsigned int m_LightFBO{};
-		unsigned int m_LightDepthMaps{};
-		//unsigned int m_MousePickMap{};
-		unsigned int m_Width{};
-		unsigned int m_Height{};
-	};
+    // Native-free startup error transport; existing platform arguments stay phase-owned.
+    using ApplicationInitializationError = std::variant<FramebufferError, Asset::TextureError>;
+    using ApplicationInitializationResult = std::expected<void, ApplicationInitializationError>;
+    enum class RenderTargetTextureFormat { None, RGBA8, RED_INTEGER, DEPTH24STENCIL8, Depth = DEPTH24STENCIL8 };
+    struct RenderTargetTextureSpecification
+    {
+        RenderTargetTextureSpecification() = default;
+        RenderTargetTextureSpecification(RenderTargetTextureFormat f) : TextureFormat(f) {}
+        RenderTargetTextureFormat TextureFormat = RenderTargetTextureFormat::None;
+    };
+    struct RenderTargetAttachmentSpecification
+    {
+        RenderTargetAttachmentSpecification() = default;
+        RenderTargetAttachmentSpecification(std::initializer_list<RenderTargetTextureSpecification> a) : Attachments(a) {}
+        std::vector<RenderTargetTextureSpecification> Attachments;
+    };
+    struct RenderTargetSpecification
+    {
+        std::uint32_t Width = 0, Height = 0, Samples = 4;
+        RenderTargetAttachmentSpecification Attachments{RenderTargetTextureFormat::RGBA8, RenderTargetTextureFormat::Depth};
+        bool SwapChainTarget = false;
+    };
+    // Semantic convenience operations over one move-only framebuffer owner.
+    class FramebufferTarget
+    {
+    public:
+        void Bind() const { m_Buffer.Bind(); }
+        void UnBind() const { FrameBuffer::UnBind(); }
+        Math::Vec2f GetResolution() const
+        { return {static_cast<float>(m_Buffer.Description().Width), static_cast<float>(m_Buffer.Description().Height)}; }
+        [[nodiscard]] FramebufferResult OnResize(std::uint32_t w, std::uint32_t h) { return m_Buffer.Resize(w, h); }
+        [[nodiscard]] std::expected<Asset::AttachmentView, FramebufferError> DepthView() const { return m_Buffer.DepthView(); }
+        const FrameBuffer& Buffer() const noexcept { return m_Buffer; }
+        explicit operator bool() const noexcept { return bool(m_Buffer); }
+    protected:
+        FramebufferTarget() = default;
+        ~FramebufferTarget() = default;
+        FramebufferTarget(FramebufferTarget&&) noexcept = default;
+        FramebufferTarget& operator=(FramebufferTarget&&) noexcept = default;
+        FrameBuffer m_Buffer;
+    };
+    class FinalFrameBuffer final : public FramebufferTarget
+    {
+    public:
+        static std::expected<FinalFrameBuffer, FramebufferError> Create(std::uint32_t width, std::uint32_t height);
+        [[nodiscard]] std::expected<int, FramebufferError> ReadPixel(int x, int y) const { return m_Buffer.ReadInteger(1, x, y); }
+        [[nodiscard]] FramebufferResult ClearMousePickAttachment(int value) const { return m_Buffer.ClearInteger(1, value); }
+        void BindReadFrameBuffer() const { m_Buffer.Bind(FramebufferBinding::Read); }
+        void BindDefaultDrawFrameBuffer() const { FrameBuffer::UnBind(FramebufferBinding::Draw); }
+        [[nodiscard]] FramebufferResult BlitFrameBuffer() const { return m_Buffer.Present(); }
+    };
+    class MousePickFrameBuffer final : public FramebufferTarget
+    {
+    public:
+        static std::expected<MousePickFrameBuffer, FramebufferError> Create(std::uint32_t width, std::uint32_t height);
+        [[nodiscard]] std::expected<int, FramebufferError> ReadPixel(int x, int y) const { return m_Buffer.ReadInteger(0, x, y); }
+        [[nodiscard]] FramebufferResult ClearAttachment(std::uint32_t index, int value) const { return m_Buffer.ClearInteger(index, value); }
+    };
+    class PointShadowFrameBuffer final : public FramebufferTarget
+    {
+    public:
+        static std::expected<PointShadowFrameBuffer, FramebufferError> Create(std::uint32_t width, std::uint32_t height);
+    };
+    class CascadeShadowFrameBuffer final : public FramebufferTarget
+    {
+    public:
+        // splitCount boundaries describe splitCount + 1 depth layers.
+        static std::expected<CascadeShadowFrameBuffer, FramebufferError> Create(std::uint32_t width, std::uint32_t height, std::uint32_t splitCount);
+    };
 
 	enum class UniformType
 	{
@@ -214,88 +133,40 @@ namespace GEngine
 		unsigned int m_ID{}, m_Width{}, m_Height{}, m_Samples{};
 	};
 
-	class RenderTarget
-	{
-		
-	public:
-		RenderTarget(const RenderTargetSpecification& spec);
 
-		RenderTarget(const Math::Vec2f& resolution = { 512.f, 512.f });
-		//RenderTarget(const Math::Vec2f& resolution = { 512.f, 512.f }, Asset::Texture* tex = nullptr);
-		RenderTarget(int x_res, int y_res);
-
-		~RenderTarget();
-		
-
-		[[nodiscard]] int GetWidth() const { return m_Width; }
-		[[nodiscard]] int GetHeight() const { return m_Height; }
-		[[nodiscard]] int GetFrameBufferID() const { return m_FrameBufferID; }
-		[[nodiscard]] int GetScreenFrameBufferID() const { return m_ScreenFrameBufferID; }
-		[[nodiscard]] int GetMousePickFrameBufferID() const { return m_MousePickFrameBufferID; }
-		[[nodiscard]] int GetColorAttachmentID() const { return m_ColorAttachmentID; }
-		[[nodiscard]] int GetScreenAttachmentID() const { return m_ScreenColorAttachmentID; }
-		[[nodiscard]] int GetMousePickAttachmentID() const { return m_MousePickColorAttachmentID; }
-		[[nodiscard]] int GetRenderBufferID() const { return m_RenderBuffer.GetID(); }
-		//[[nodiscard]] Asset::Texture* GetTexture() const { return m_Texture; }
-
-		
-
-		void Invalidate();
-
-		void _Invalidate();
-
-		void InvalidatePostProcessing();
-		void InvalidateMousePickProcessing();
-
-		void Bind(unsigned int ID) const;
-
-		void BindFrameBuffer(unsigned int FrameBufferID, unsigned int target)const;
-
-		void BindRenderBuffer()const;
-
-		void BindAndBlitToScreen();
-		void BindAndBlitToScreen(int index);
-
-		void ClearAttachment(int attachment_index, int value)const;
-
-		int ReadPixel(uint32_t attachmentIndex, int x, int y)const;
-		void SetMousePick(bool enable) { b_MousePickEnabled = enable; }
-		
-
-		void UnBind() const;
-
-		void RenderSize(const Math::Vec2f& resolution = { 512, 512 });
-
-		unsigned int& GetSamples() { return m_Samples; }
-		void SetSamples(int new_Sample);
-
-		void OnResize(uint32_t width, uint32_t height);
-
-		bool constexpr IsMultiSampled()const { return m_Samples > 1; }
-
-	private:
-	
-		//Asset::Texture* m_Texture{};
-		int m_Width{};
-		int m_Height{};
-		bool b_MousePickEnabled = true;
-		unsigned int m_Samples = 16;
-		unsigned int m_FrameBufferID{};
-		RenderBufferObject m_RenderBuffer;
-		unsigned int m_ColorAttachmentID{};
-		unsigned int m_MousePickColorID{};
-		unsigned int m_ScreenFrameBufferID{};
-		unsigned int m_ScreenColorAttachmentID{};
-		unsigned int m_MousePickFrameBufferID{};
-		unsigned int m_MousePickColorAttachmentID{};
-
-		std::vector<RenderTargetTextureSpecification> m_ColorAttachmentSpecifications;
-		RenderTargetSpecification m_Specification;
-		std::vector<uint32_t> m_ColorAttachments;
-		//uint32_t m_DepthAttachment = 0;
-	
-	};
-
-
+    enum class RenderTargetSurface { Scene, Resolved };
+    class RenderTarget
+    {
+    public:
+        RenderTarget() = default;
+        RenderTarget(const RenderTarget&) = delete;
+        RenderTarget& operator=(const RenderTarget&) = delete;
+        RenderTarget(RenderTarget&&) noexcept = default;
+        RenderTarget& operator=(RenderTarget&&) noexcept = default;
+        static std::expected<RenderTarget, FramebufferError> Create(const RenderTargetSpecification&);
+        static std::expected<RenderTarget, FramebufferError> Create(int width, int height, unsigned samples = 16);
+        static std::expected<RenderTarget, FramebufferError> Create(const Math::Vec2f& resolution);
+        int GetWidth() const { return static_cast<int>(m_Render.Description().Width); }
+        int GetHeight() const { return static_cast<int>(m_Render.Description().Height); }
+        unsigned GetSamples() const { return m_Render.Description().Samples; }
+        bool IsMultiSampled() const { return GetSamples() > 1; }
+        explicit operator bool() const noexcept { return bool(m_Render); }
+        const FrameBuffer& Buffer(RenderTargetSurface surface = RenderTargetSurface::Scene) const
+        { return surface == RenderTargetSurface::Resolved && m_Resolved ? m_Resolved : m_Render; }
+        void Bind(FramebufferBinding binding = FramebufferBinding::ReadDraw, RenderTargetSurface surface = RenderTargetSurface::Scene) const
+        { Buffer(surface).Bind(binding); }
+        void UnBind() const { FrameBuffer::UnBind(); }
+        [[nodiscard]] FramebufferResult BindAndBlitToScreen() const;
+        [[nodiscard]] FramebufferResult ClearAttachment(std::uint32_t index, int value) const { return m_Render.ClearInteger(index, value); }
+        [[nodiscard]] std::expected<int, FramebufferError> ReadPixel(std::uint32_t index, int x, int y) const;
+        [[nodiscard]] FramebufferResult ReadColor(std::span<std::byte> rgba) const;
+        [[nodiscard]] std::expected<Asset::AttachmentView, FramebufferError> ColorView() const
+        { return Buffer(RenderTargetSurface::Resolved).ColorView(); }
+        [[nodiscard]] FramebufferResult OnResize(std::uint32_t width, std::uint32_t height);
+        [[nodiscard]] FramebufferResult RenderSize(const Math::Vec2f& resolution = {512, 512});
+        [[nodiscard]] FramebufferResult SetSamples(int samples);
+    private:
+        static std::expected<RenderTarget, FramebufferError> Allocate(const FrameBufferSpecification&);
+        FrameBuffer m_Render, m_Resolved;
+    };
 }
-

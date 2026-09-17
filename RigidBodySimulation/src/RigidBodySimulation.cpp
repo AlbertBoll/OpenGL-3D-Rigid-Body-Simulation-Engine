@@ -1,3 +1,4 @@
+#include "UI/FramebufferImage.h"
 #include "RigidBodySimulation.h"
 #include "Core/RuntimeAssets.h"
 #include <cstdint>
@@ -33,12 +34,12 @@ RigidBodySimulationApp::~RigidBodySimulationApp()
 		m_AudioSystem->Shutdown();
 }
 
-void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)
+ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)
 {
 	
 
 	//Initialize BaseApp 
-	BaseApp::Initialize(WindowsPropertyList);
+	if (auto initialized = BaseApp::Initialize(WindowsPropertyList); !initialized) return initialized;
 
 	GENGINE_CORE_INFO("Initialize Audio System...");
 	m_AudioSystem = CreateScopedPtr<Audio::AudioSystem>();
@@ -95,33 +96,33 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 
 	//Load icon
 	auto m_IconPlayResult = AssetsManager::GetTextureOrFallback("Icons/PlayButton");
-	if (!m_IconPlayResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconPlayResult.error().source, m_IconPlayResult.error().message); m_Running = false; return; }
+	if (!m_IconPlayResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconPlayResult.error().source, m_IconPlayResult.error().message); m_Running = false; return std::unexpected(m_IconPlayResult.error()); }
 	auto* m_IconPlay = *m_IconPlayResult;
 	auto m_IconPauseResult = AssetsManager::GetTextureOrFallback("Icons/PauseButton");
-	if (!m_IconPauseResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconPauseResult.error().source, m_IconPauseResult.error().message); m_Running = false; return; }
+	if (!m_IconPauseResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconPauseResult.error().source, m_IconPauseResult.error().message); m_Running = false; return std::unexpected(m_IconPauseResult.error()); }
 	auto* m_IconPause = *m_IconPauseResult;
 	auto m_IconStepResult = AssetsManager::GetTextureOrFallback("Icons/StepButton");
-	if (!m_IconStepResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconStepResult.error().source, m_IconStepResult.error().message); m_Running = false; return; }
+	if (!m_IconStepResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconStepResult.error().source, m_IconStepResult.error().message); m_Running = false; return std::unexpected(m_IconStepResult.error()); }
 	auto* m_IconStep = *m_IconStepResult;
 	auto m_IconSimulateResult = AssetsManager::GetTextureOrFallback("Icons/SimulateButton");
-	if (!m_IconSimulateResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconSimulateResult.error().source, m_IconSimulateResult.error().message); m_Running = false; return; }
+	if (!m_IconSimulateResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconSimulateResult.error().source, m_IconSimulateResult.error().message); m_Running = false; return std::unexpected(m_IconSimulateResult.error()); }
 	auto* m_IconSimulate = *m_IconSimulateResult;
 	auto m_IconStopResult = AssetsManager::GetTextureOrFallback("Icons/StopButton");
-	if (!m_IconStopResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconStopResult.error().source, m_IconStopResult.error().message); m_Running = false; return; }
+	if (!m_IconStopResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconStopResult.error().source, m_IconStopResult.error().message); m_Running = false; return std::unexpected(m_IconStopResult.error()); }
 	auto* m_IconStop = *m_IconStopResult;
 
 	//Load Sphere Texture
 	auto wood_diffuseResult = AssetsManager::GetTextureOrFallback("Sphere/wood_diffuse", "diffuseTexture");
-	if (!wood_diffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", wood_diffuseResult.error().source, wood_diffuseResult.error().message); m_Running = false; return; }
+	if (!wood_diffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", wood_diffuseResult.error().source, wood_diffuseResult.error().message); m_Running = false; return std::unexpected(wood_diffuseResult.error()); }
 	auto* wood_diffuse = *wood_diffuseResult;
 	auto cascade_shadow_depth_mapResult = AssetsManager::GetCascadedFrameBufferTexture(*m_CascadeShadowFrameBuffer, "shadowMap");
-	if (!cascade_shadow_depth_mapResult) { GENGINE_CORE_ERROR("Texture {}: {}", cascade_shadow_depth_mapResult.error().source, cascade_shadow_depth_mapResult.error().message); m_Running = false; return; }
+	if (!cascade_shadow_depth_mapResult) { GENGINE_CORE_ERROR("Texture {}: {}", cascade_shadow_depth_mapResult.error().source, cascade_shadow_depth_mapResult.error().message); m_Running = false; return std::unexpected(cascade_shadow_depth_mapResult.error()); }
 	auto* cascade_shadow_depth_map = *cascade_shadow_depth_mapResult;
 	auto point_shadow_depth_mapResult = AssetsManager::GetPointShadowFrameBufferTexture(*m_PointShadowFrameBuffer, "pointShadowDepthMap");
-	if (!point_shadow_depth_mapResult) { GENGINE_CORE_ERROR("Texture {}: {}", point_shadow_depth_mapResult.error().source, point_shadow_depth_mapResult.error().message); m_Running = false; return; }
+	if (!point_shadow_depth_mapResult) { GENGINE_CORE_ERROR("Texture {}: {}", point_shadow_depth_mapResult.error().source, point_shadow_depth_mapResult.error().message); m_Running = false; return std::unexpected(point_shadow_depth_mapResult.error()); }
 	auto* point_shadow_depth_map = *point_shadow_depth_mapResult;
 	auto gloss_diffuseResult = AssetsManager::GetTextureOrFallback("Sphere/Tiles012_4K-JPG_Color", "diffuseTexture");
-	if (!gloss_diffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", gloss_diffuseResult.error().source, gloss_diffuseResult.error().message); m_Running = false; return; }
+	if (!gloss_diffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", gloss_diffuseResult.error().source, gloss_diffuseResult.error().message); m_Running = false; return std::unexpected(gloss_diffuseResult.error()); }
 	auto* gloss_diffuse = *gloss_diffuseResult;
 
 	//TexturesComponent sphereTextureComp({ gloss_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });
@@ -138,36 +139,36 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	Texture* sphere_roughness = AssetsManager::GetTexture("PBR/subtle_black_granite/subtle-black-granite_roughness", "roughnessMap");
 	Texture* sphere_ao = AssetsManager::GetTexture("PBR/subtle_black_granite/subtle-black-granite_ao", "aoMap");*/
 	auto sphere_albedoResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_basecolor", "albedoMap");
-	if (!sphere_albedoResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_albedoResult.error().source, sphere_albedoResult.error().message); m_Running = false; return; }
+	if (!sphere_albedoResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_albedoResult.error().source, sphere_albedoResult.error().message); m_Running = false; return std::unexpected(sphere_albedoResult.error()); }
 	auto* sphere_albedo = *sphere_albedoResult;
 	auto sphere_normalResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_normal", "normalMap");
-	if (!sphere_normalResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_normalResult.error().source, sphere_normalResult.error().message); m_Running = false; return; }
+	if (!sphere_normalResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_normalResult.error().source, sphere_normalResult.error().message); m_Running = false; return std::unexpected(sphere_normalResult.error()); }
 	auto* sphere_normal = *sphere_normalResult;
 	auto sphere_metallicResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_metallic", "metallicMap");
-	if (!sphere_metallicResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_metallicResult.error().source, sphere_metallicResult.error().message); m_Running = false; return; }
+	if (!sphere_metallicResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_metallicResult.error().source, sphere_metallicResult.error().message); m_Running = false; return std::unexpected(sphere_metallicResult.error()); }
 	auto* sphere_metallic = *sphere_metallicResult;
 	auto sphere_roughnessResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_roughness", "roughnessMap");
-	if (!sphere_roughnessResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_roughnessResult.error().source, sphere_roughnessResult.error().message); m_Running = false; return; }
+	if (!sphere_roughnessResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_roughnessResult.error().source, sphere_roughnessResult.error().message); m_Running = false; return std::unexpected(sphere_roughnessResult.error()); }
 	auto* sphere_roughness = *sphere_roughnessResult;
 	auto sphere_aoResult = AssetsManager::GetTextureOrFallback("PBR/subtle_black_granite/subtle-black-granite_ao", "aoMap");
-	if (!sphere_aoResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_aoResult.error().source, sphere_aoResult.error().message); m_Running = false; return; }
+	if (!sphere_aoResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_aoResult.error().source, sphere_aoResult.error().message); m_Running = false; return std::unexpected(sphere_aoResult.error()); }
 	auto* sphere_ao = *sphere_aoResult;
 
 	//Load PBR Texture for sphere
 	auto floor_albedoResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_albedo", "albedoMap");
-	if (!floor_albedoResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_albedoResult.error().source, floor_albedoResult.error().message); m_Running = false; return; }
+	if (!floor_albedoResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_albedoResult.error().source, floor_albedoResult.error().message); m_Running = false; return std::unexpected(floor_albedoResult.error()); }
 	auto* floor_albedo = *floor_albedoResult;
 	auto floor_normalResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_normal-dx", "normalMap");
-	if (!floor_normalResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_normalResult.error().source, floor_normalResult.error().message); m_Running = false; return; }
+	if (!floor_normalResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_normalResult.error().source, floor_normalResult.error().message); m_Running = false; return std::unexpected(floor_normalResult.error()); }
 	auto* floor_normal = *floor_normalResult;
 	auto floor_metallicResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_metallic", "metallicMap");
-	if (!floor_metallicResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_metallicResult.error().source, floor_metallicResult.error().message); m_Running = false; return; }
+	if (!floor_metallicResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_metallicResult.error().source, floor_metallicResult.error().message); m_Running = false; return std::unexpected(floor_metallicResult.error()); }
 	auto* floor_metallic = *floor_metallicResult;
 	auto floor_roughnessResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_roughness", "roughnessMap");
-	if (!floor_roughnessResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_roughnessResult.error().source, floor_roughnessResult.error().message); m_Running = false; return; }
+	if (!floor_roughnessResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_roughnessResult.error().source, floor_roughnessResult.error().message); m_Running = false; return std::unexpected(floor_roughnessResult.error()); }
 	auto* floor_roughness = *floor_roughnessResult;
 	auto floor_aoResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_ao", "aoMap");
-	if (!floor_aoResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_aoResult.error().source, floor_aoResult.error().message); m_Running = false; return; }
+	if (!floor_aoResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_aoResult.error().source, floor_aoResult.error().message); m_Running = false; return std::unexpected(floor_aoResult.error()); }
 	auto* floor_ao = *floor_aoResult;
 
 	//TexturesComponent sphereTextureComp({ gloss_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });
@@ -496,7 +497,7 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
     info.mips = TextureMipIntent::None;
     info.orientation = ImageOrientation::TopLeft;
 	auto tex1Result = AssetsManager::GetTextureOrFallback("SkyBox/Day/", "u_skyBoxDay", ".png", info);
-	if (!tex1Result) { GENGINE_CORE_ERROR("Texture {}: {}", tex1Result.error().source, tex1Result.error().message); m_Running = false; return; }
+	if (!tex1Result) { GENGINE_CORE_ERROR("Texture {}: {}", tex1Result.error().source, tex1Result.error().message); m_Running = false; return std::unexpected(tex1Result.error()); }
 	auto* tex1 = *tex1Result;
 
 	auto skyBoxTextureComp = TexturesComponent{ {tex1} };
@@ -519,7 +520,7 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	//Load Plane Texture
 	//AssetsManager::GetTexture("Sphere/wood_diffuse", "diffuseTexture");
 	auto plane_diffuseResult = AssetsManager::GetTextureOrFallback("Wall/wallpaper_albedo", "diffuseTexture");
-	if (!plane_diffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", plane_diffuseResult.error().source, plane_diffuseResult.error().message); m_Running = false; return; }
+	if (!plane_diffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", plane_diffuseResult.error().source, plane_diffuseResult.error().message); m_Running = false; return std::unexpected(plane_diffuseResult.error()); }
 	auto* plane_diffuse = *plane_diffuseResult;
 	//Texture* plane_metallic = AssetsManager::GetTexture("Wall/wallpaper_metallic", "u_material.specular");
 
@@ -660,7 +661,9 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 			
 			int x = mouseParam.X;
 			int y = m_SDLWindow->GetScreenHeight() - mouseParam.Y;
-			int pixel_data = m_MousePickFrameBuffer->ReadPixel(x, y);
+			auto pixel = m_MousePickFrameBuffer->ReadPixel(x, y);
+			if (!pixel) { ReportFramebufferError("picking read", pixel.error()); return; }
+			int pixel_data = *pixel;
 			std::cout << "Mouse Clicked at: " << x << ", " << y << std::endl;
 			std::cout << "Pixel Data: " << pixel_data << std::endl;
 			m_MousePickFrameBuffer->UnBind();
@@ -679,7 +682,8 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 					return;
 				m_EditorCamera_.SetViewportSize(static_cast<float>(windowParam.Width), static_cast<float>(windowParam.Height));
 				RenderSystem::SetSurfaceSize(windowParam.Width, windowParam.Height);
-				m_MousePickFrameBuffer->OnResize(windowParam.Width, windowParam.Height);
+				if (auto framebufferResult = m_MousePickFrameBuffer->OnResize(windowParam.Width, windowParam.Height); !framebufferResult)
+				{ ReportFramebufferError("target update", framebufferResult.error()); return; }
 				m_SDLWindow->OnResize(windowParam.Width, windowParam.Height);
 				m_ViewportSize = { windowParam.Width, windowParam.Height };
 			}
@@ -703,14 +707,12 @@ void RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProper
 	GetEventManager()->GetEventDispatcher().RegisterEvent(debugshowEvent);
 	GetEventManager()->GetEventDispatcher().RegisterEvent(viewPortEvent);
 	//GetEventManager()->GetEventDispatcher().RegisterEvent(MouseClickEvent);
+    return {};
 }
 
-void RigidBodySimulationApp::Initialize(const WindowProperties& prop)
+ApplicationInitializationResult RigidBodySimulationApp::Initialize(const WindowProperties& prop)
 {
-	//Initialize BaseApp 
-	BaseApp::Initialize(prop);
-
-	Initialize({ prop });
+    return Initialize(std::initializer_list<WindowProperties>{prop});
 }
 
 void RigidBodySimulationApp::Update(Timestep ts)
@@ -915,7 +917,8 @@ void RigidBodySimulationApp::Render()
 
 
 		if (m_RenderTarget && m_RenderTarget->IsMultiSampled())
-			m_RenderTarget->BindAndBlitToScreen();
+			if (auto framebufferResult = m_RenderTarget->BindAndBlitToScreen(); !framebufferResult)
+			{ ReportFramebufferError("target update", framebufferResult.error()); return; }
 
 		if (m_RenderTarget)
 			m_RenderTarget->UnBind();
@@ -1035,10 +1038,9 @@ void RigidBodySimulationApp::ImGuiRender()
 		//m_RenderTarget->BindAndBlitToScreen(0);
 
 	//ImGui::Image(reinterpret_cast<void*>(m_FinalFrameBuffer->GetColorMap()), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
-	if (HasVisibleViewport() && !m_RenderTarget->IsMultiSampled())
-		ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<std::intptr_t>(m_RenderTarget->GetColorAttachmentID())), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
-	else if (HasVisibleViewport())
-		ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<std::intptr_t>(m_RenderTarget->GetScreenAttachmentID())), { m_ViewportSize.x, m_ViewportSize.y }, { 0,1 }, { 1, 0 });
+	if (HasVisibleViewport())
+        if (auto image = UI::FramebufferImage(*m_RenderTarget, m_ViewportSize.x, m_ViewportSize.y); !image)
+            ReportFramebufferError("viewport image", image.error());
 
 	/*m_MousePickFrameBuffer->Bind();
 	RenderSystem::OnMouseClicked(m_ActiveScene.get(), *m_MousePickFrameBuffer, m_ViewportBounds[0], m_ViewportBounds[1]);
@@ -1170,7 +1172,9 @@ void RigidBodySimulationApp::OnMouseClicked()
 		const int x = static_cast<int>(mousePos.x);
 		const int y = static_cast<int>(m_SDLWindow->GetScreenHeight() - mousePos.y);
 		//m_MousePickFrameBuffer->Bind();
-		int pixel_data = m_MousePickFrameBuffer->ReadPixel(x, y);
+		auto pixel = m_MousePickFrameBuffer->ReadPixel(x, y);
+		if (!pixel) { ReportFramebufferError("picking read", pixel.error()); return; }
+		int pixel_data = *pixel;
 		std::cout << "Mouse Clicked at: " << x << ", " << y << std::endl;
 		//std::cout << "Pixel Data: " << pixel_data << std::endl;
 		//m_MousePickFrameBuffer->UnBind();
@@ -1198,10 +1202,12 @@ void RigidBodySimulationApp::OnViewportResize(int viewport_x, int viewport_y)
 	if (viewport_x == m_SDLWindow->GetScreenWidth() && viewport_y == m_SDLWindow->GetScreenHeight())
 		return;
 	//m_ViewportSize = { viewport_x, viewport_y };
-	m_RenderTarget->OnResize(viewport_x, viewport_y);
+	if (auto framebufferResult = m_RenderTarget->OnResize(viewport_x, viewport_y); !framebufferResult)
+	{ ReportFramebufferError("target update", framebufferResult.error()); return; }
 	m_EditorCamera_.SetViewportSize(static_cast<float>(viewport_x), static_cast<float>(viewport_y));
 	RenderSystem::SetSurfaceSize(viewport_x, viewport_y);
-	m_MousePickFrameBuffer->OnResize(viewport_x, viewport_y);
+	if (auto framebufferResult = m_MousePickFrameBuffer->OnResize(viewport_x, viewport_y); !framebufferResult)
+	{ ReportFramebufferError("target update", framebufferResult.error()); return; }
 	m_SDLWindow->OnResize(viewport_x, viewport_y);
 
 	

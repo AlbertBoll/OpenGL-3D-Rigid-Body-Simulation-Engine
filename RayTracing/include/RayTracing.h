@@ -17,8 +17,8 @@ namespace GEngine
 
 		void Update(Timestep ts) override;
 		void Render()override;
-		void Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)override;
-		void Initialize(const WindowProperties& prop = WindowProperties{}) override;
+		ApplicationInitializationResult Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)override;
+		ApplicationInitializationResult Initialize(const WindowProperties& prop = WindowProperties{}) override;
 		void ProcessInput(Timestep ts) override;
 		void OnUIRender()override;
 

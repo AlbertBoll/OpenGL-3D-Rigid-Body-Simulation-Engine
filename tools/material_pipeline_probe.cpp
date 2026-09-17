@@ -83,7 +83,7 @@ int main()
         Check(material->ParameterBytes() == 20 && material->Parameters()[0].declaration.name == "a_roughness"
             && material->Parameters()[1].byteOffset == 4, "Deterministic parameter layout");
         Check(material->Textures()[0].declaration.name == "albedo" && material->Textures()[2].declaration.name == "normal"
-            && material->Textures()[2].unit == 2, "Stable paired texture/sampler slots");
+            && material->Textures()[2].bindingIndex == 2, "Stable paired texture/sampler slots");
         const auto missing = material->ValidateBindings({});
         Check(!missing && missing.error().code == MaterialDeclarationCode::MissingBinding && missing.error().binding == "normal", "Missing required binding is structured");
         const MaterialTextureAssignment normal[]{ {"normal", image} };

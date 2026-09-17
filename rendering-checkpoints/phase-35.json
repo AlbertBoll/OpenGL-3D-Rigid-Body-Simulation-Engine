@@ -1,0 +1,229 @@
+{
+  "baseline": "99815f3f997652740ff11bf02187b9392bbc25dd",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Material/MaterialBinding.h",
+    "GEngine/include/GEngine/Material/MaterialInstance.h",
+    "GEngine/include/GEngine/Material/MaterialTemplate.h",
+    "GEngine/src/Material/MaterialBinding.cpp",
+    "GEngine/src/Material/MaterialInstance.cpp",
+    "GEngine/src/Material/MaterialTemplate.cpp",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-35.json",
+    "tools/material_instance_probe.cpp",
+    "tools/material_pipeline_probe.cpp",
+    "tools/test_material_instance.py"
+  ],
+  "eligible": true,
+  "findings": [],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_35_REVIEW.md"
+  ],
+  "next_phase": "36",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "0f81cdf0f6a45a6f01d1e838556f771bb59ff4bf",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-35/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/0f81cdf0f6a45a6f01d1e838556f771bb59ff4bf",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "53b5f0dd226eadc4bb2e709d334ceebf3d323202a2bbc31a6869afbb4ec4a0cf"
+      },
+      "mode": "100644",
+      "validated_blob": "ccff44ad87d11803e05a4b019c1541ece7fe16a4",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-35/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/ccff44ad87d11803e05a4b019c1541ece7fe16a4"
+    }
+  },
+  "phase": "35",
+  "previous_approved_tag": "render-refactor-phase-34-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_35_REVIEW.md",
+  "schema": 2,
+  "summary": "CPU material instances with stable effective revisions, shared/unique publication semantics, typed validation, deterministic packed GPU parameters and immutable pre-submission bindings retaining resolved resource versions with explicit fallback diagnostics.",
+  "validation": [
+    {
+      "check": "Debug: maintained consumer builds, CPU material behavior, native-free include closure, GPU-resource preparation/packing/lifetime, template regression",
+      "command": "python tools/test_material_instance.py --configuration Debug --output logs/rendering/phase35/final/Debug",
+      "evidence": "logs/rendering/phase35/final/Debug/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Release: maintained consumer builds, CPU material behavior, native-free include closure, GPU-resource preparation/packing/lifetime, template regression",
+      "command": "python tools/test_material_instance.py --configuration Release --output logs/rendering/phase35/final/Release",
+      "evidence": "logs/rendering/phase35/final/Release/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Changed production error/native/concept source policy and semantic review",
+      "command": "test_material_instance.py architecture gates and targeted current-source inspection",
+      "evidence": "logs/rendering/phase35/architecture-check.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Protected work/index/baseline and unchanged pre-validation identities",
+      "command": "Checkpoint helper Repo.fingerprint/index_identity compared with preflight and validation-inputs.json",
+      "evidence": "logs/rendering/phase35/preservation-check.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Local governance and context links",
+      "command": "python .codex/tools/validate_rendering_governance.py",
+      "evidence": "logs/rendering/phase35/governance-check.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "GEngine/include/GEngine/Assets/AssetHandle.h": {
+      "executable": null,
+      "sha256": "0c2e54fe82b781b290628fe1c520ab3cf065570fcfa699d4afd341b3d5c61e1f"
+    },
+    "GEngine/include/GEngine/Assets/AssetPublication.h": {
+      "executable": null,
+      "sha256": "ad8489a717cc51bad2b2ed902b1d743dec67365667948686b1bab3e1d8dce2c3"
+    },
+    "GEngine/include/GEngine/Assets/AssetRegistry.h": {
+      "executable": null,
+      "sha256": "54e4109ad0b728c67454af19ae09599318054c13918c1df75c191a0ad21e58b5"
+    },
+    "GEngine/include/GEngine/Assets/Samplers/Sampler.h": {
+      "executable": null,
+      "sha256": "e37796b05f4259d53d65b7b63afe93901c70106170da63590d29fa437c77d682"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/Shader.h": {
+      "executable": null,
+      "sha256": "44af7fa32dc5e889fc1e971a73a54200c0c8e23655c1427ad9fc22478ff6b28c"
+    },
+    "GEngine/include/GEngine/Assets/Textures/Texture.h": {
+      "executable": null,
+      "sha256": "07ae78a2e14aa21832adaa84d78515b35ce030b6a13ac845baa60e9cc8139c95"
+    },
+    "GEngine/include/GEngine/Material/MaterialBinding.h": {
+      "executable": null,
+      "sha256": "68f52fde9c73b150de3cc3bda8f6b127e1d6c7fe1f0a05d82427a3ec7f4d5895"
+    },
+    "GEngine/include/GEngine/Material/MaterialInstance.h": {
+      "executable": null,
+      "sha256": "20918ce27f3f1d7ff20992a997e41283e337bca02a0e1bb7defc71b613080c48"
+    },
+    "GEngine/include/GEngine/Material/MaterialTemplate.h": {
+      "executable": null,
+      "sha256": "5edaabc5984f627b12801322b50d50bed5c534324c925072fc96deb1430ca035"
+    },
+    "GEngine/include/GEngine/Material/Pipeline.h": {
+      "executable": null,
+      "sha256": "1a5338955f8b0fd1ac7af01a1a6f032816d53e18b61b002177d081b31b193e0d"
+    },
+    "GEngine/src/Assets/Sampler.cpp": {
+      "executable": null,
+      "sha256": "a9b508abba09d7491cfa3bffbd4caec5511da805615b0f55171b6fbd1f2ebe27"
+    },
+    "GEngine/src/Assets/Shader.cpp": {
+      "executable": null,
+      "sha256": "5e657f427d291cb9b6318572c062e12e2206f90832bbede299ef7992fd78c2dd"
+    },
+    "GEngine/src/Assets/ShaderCompilation.cpp": {
+      "executable": null,
+      "sha256": "131dedde2c9e5715c50fd7de8bf9f635f0f48b0e587362c2ff44f41232b9a30f"
+    },
+    "GEngine/src/Assets/Texture.cpp": {
+      "executable": null,
+      "sha256": "660a73a9383de02499535cace92bba1b48e70aab3a5eb152af94c156d2e3f2aa"
+    },
+    "GEngine/src/Material/MaterialBinding.cpp": {
+      "executable": null,
+      "sha256": "6fb2f40179d1ec3fc50c94cac07e185bdbeeb7cb111c92bc29d2ef887346b2d8"
+    },
+    "GEngine/src/Material/MaterialInstance.cpp": {
+      "executable": null,
+      "sha256": "9366c693097464c91335ad79a5e79cfec4607c19da5e1e41bca14d871a47fd97"
+    },
+    "GEngine/src/Material/MaterialTemplate.cpp": {
+      "executable": null,
+      "sha256": "e7fae7c67929623aa847203ce41e202bb3a68cf71127be213be6054ea315c764"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "53b5f0dd226eadc4bb2e709d334ceebf3d323202a2bbc31a6869afbb4ec4a0cf"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052"
+    },
+    "tools/material_instance_probe.cpp": {
+      "executable": null,
+      "sha256": "0e340966e33ed3ef0ebe1690b49763395f1469509d75fb2283ceb38759dfc1a1"
+    },
+    "tools/material_pipeline_probe.cpp": {
+      "executable": null,
+      "sha256": "5fe9c38509329ff6297b68d7ac9127ad8173eab6b6b11667fdabf2d4c26b8bfb"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/test_material_instance.py": {
+      "executable": null,
+      "sha256": "2129a5f2c7c888827632ebc81be1525f370f3aa764642756220ba834d1f8f0f6"
+    },
+    "tools/test_material_pipeline.py": {
+      "executable": null,
+      "sha256": "7d9320d24be587127ec75d33c0cf134de199ed24545d86e3a0396e2c1883a652"
+    }
+  }
+}

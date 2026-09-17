@@ -101,7 +101,7 @@ namespace GEngine
             auto& slot = key.textures[i];
             if (i && slot.declaration.name == key.textures[i-1].declaration.name)
                 return Failure(MaterialDeclarationCode::DuplicateBinding, slot.declaration.name, "Duplicate texture name");
-            slot.unit = static_cast<std::uint32_t>(i);
+            slot.bindingIndex = static_cast<std::uint32_t>(i);
         }
         return MaterialTemplate(desc.pipeline, std::move(key));
     }

@@ -43,7 +43,7 @@ namespace GEngine
     struct MaterialTextureSlot
     {
         MaterialTextureSlotDecl declaration;
-        std::uint32_t unit;
+        std::uint32_t bindingIndex; // Semantic ordinal in sorted declaration order, never a native texture unit.
         bool operator==(const MaterialTextureSlot&) const = default;
     };
     struct MaterialTextureAssignment { std::string_view name; MaterialTextureValue value; };

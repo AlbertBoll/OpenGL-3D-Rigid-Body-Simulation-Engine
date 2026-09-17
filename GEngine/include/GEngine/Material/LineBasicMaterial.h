@@ -8,8 +8,9 @@ namespace GEngine
 	{
 
 	public:
-		LineBasicMaterial() : BasicMaterial()
+		LineBasicMaterial(Construction& construction) : BasicMaterial(construction)
 		{
+            if (!construction) return;
 			RenderSetting setting;
 			setting.m_PrimitivesSetting.lineSetting.lineType = LineType::Connected;
 			setting.m_PrimitivesSetting.lineSetting.lineWidth = 1.f;

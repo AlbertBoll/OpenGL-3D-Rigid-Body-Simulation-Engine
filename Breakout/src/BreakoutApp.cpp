@@ -202,7 +202,9 @@ namespace GEngine
 		auto backgroundTexResult = AssetsManager::GetTextureOrFallback(ImagePath + "background" + ImageExtension);
 		if (!backgroundTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", backgroundTexResult.error().source, backgroundTexResult.error().message); m_Running = false; return std::unexpected(backgroundTexResult.error()); }
 		auto* backgroundTex = *backgroundTexResult;
-		auto backgroundMaterial = CreateRefPtr<SpriteMaterial>(backgroundTex);
+		auto backgroundMaterialResult = Material::Create<SpriteMaterial>(backgroundTex);
+		if (!backgroundMaterialResult) return std::unexpected(backgroundMaterialResult.error());
+		auto backgroundMaterial = std::move(*backgroundMaterialResult);
 		auto spriteGeo = ShapeManager::GetShape("SpriteGeometry");
 		m_Background = new SpriteEntity(spriteGeo, backgroundMaterial);
 		m_Background->SetSpriteComponent(sprite);
@@ -216,7 +218,9 @@ namespace GEngine
 		auto paddleTexResult = AssetsManager::GetTextureOrFallback(ImagePath + "paddle" + ImageExtension);
 		if (!paddleTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", paddleTexResult.error().source, paddleTexResult.error().message); m_Running = false; return std::unexpected(paddleTexResult.error()); }
 		auto* paddleTex = *paddleTexResult;
-		auto paddleMaterial = CreateRefPtr<SpriteMaterial>(paddleTex);
+		auto paddleMaterialResult = Material::Create<SpriteMaterial>(paddleTex);
+		if (!paddleMaterialResult) return std::unexpected(paddleMaterialResult.error());
+		auto paddleMaterial = std::move(*paddleMaterialResult);
 		m_Player = new SpriteEntity(spriteGeo, paddleMaterial);
 		m_Player->SetSpriteComponent(sprite);
 		m_Player->Set2DTransform(playerPos, PLAYER_SIZE);
@@ -229,19 +233,21 @@ namespace GEngine
 		auto ballTexResult = AssetsManager::GetTextureOrFallback(ImagePath + "awesomeface_r" + ImageExtension);
 		if (!ballTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", ballTexResult.error().source, ballTexResult.error().message); m_Running = false; return std::unexpected(ballTexResult.error()); }
 		auto* ballTex = *ballTexResult;
-		auto ballMaterial = CreateRefPtr<SpriteMaterial>(ballTex);
+		auto ballMaterialResult = Material::Create<SpriteMaterial>(ballTex);
+		if (!ballMaterialResult) return std::unexpected(ballMaterialResult.error());
+		auto ballMaterial = std::move(*ballMaterialResult);
 		m_Ball = new BallEntity(spriteGeo, ballMaterial);
 		m_Ball->SetParams(ballPos, BALL_RADIUS).SetSpriteComponent(sprite);
 		
 		
 		GameLevel one;   
-		one.Load(levelPath + "one" + levelFileExtension, m_Width, m_Height / 2);
+		if (auto loaded = one.Load(levelPath + "one" + levelFileExtension, m_Width, m_Height / 2); !loaded) return loaded;
 		GameLevel two;  
-		two.Load(levelPath + "two" + levelFileExtension, m_Width, m_Height / 2);
+		if (auto loaded = two.Load(levelPath + "two" + levelFileExtension, m_Width, m_Height / 2); !loaded) return loaded;
 		GameLevel three; 
-		three.Load(levelPath + "three" + levelFileExtension, m_Width, m_Height / 2);
+		if (auto loaded = three.Load(levelPath + "three" + levelFileExtension, m_Width, m_Height / 2); !loaded) return loaded;
 		GameLevel four; 
-		four.Load(levelPath + "four" + levelFileExtension, m_Width, m_Height / 2);
+		if (auto loaded = four.Load(levelPath + "four" + levelFileExtension, m_Width, m_Height / 2); !loaded) return loaded;
 
 		m_Levels.push_back(std::move(one));
 		m_Levels.push_back(std::move(two));
@@ -343,10 +349,10 @@ namespace GEngine
 
 	void BreakoutApp::ResetLevel()
 	{
-		if (m_Level == 0) m_Levels[0].Load(levelPath + "one" + levelFileExtension, m_Width, m_Height / 2);
-		else if (m_Level == 1) m_Levels[1].Load(levelPath + "two" + levelFileExtension, m_Width, m_Height / 2);
-		else if (m_Level == 2) m_Levels[2].Load(levelPath + "three" + levelFileExtension, m_Width, m_Height / 2);
-		else if (m_Level == 3) m_Levels[3].Load(levelPath + "four" + levelFileExtension, m_Width, m_Height / 2);
+		if (m_Level == 0) { auto loaded = m_Levels[0].Load(levelPath + "one" + levelFileExtension, m_Width, m_Height / 2); if (!loaded) { ReportApplicationError(loaded.error()); m_Running = false; } }
+		else if (m_Level == 1) { auto loaded = m_Levels[1].Load(levelPath + "two" + levelFileExtension, m_Width, m_Height / 2); if (!loaded) { ReportApplicationError(loaded.error()); m_Running = false; } }
+		else if (m_Level == 2) { auto loaded = m_Levels[2].Load(levelPath + "three" + levelFileExtension, m_Width, m_Height / 2); if (!loaded) { ReportApplicationError(loaded.error()); m_Running = false; } }
+		else if (m_Level == 3) { auto loaded = m_Levels[3].Load(levelPath + "four" + levelFileExtension, m_Width, m_Height / 2); if (!loaded) { ReportApplicationError(loaded.error()); m_Running = false; } }
 	}
 
 

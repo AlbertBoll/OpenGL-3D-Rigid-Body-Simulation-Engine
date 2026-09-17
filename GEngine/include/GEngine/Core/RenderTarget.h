@@ -1,6 +1,7 @@
 #pragma once
 #include "Core/FrameBuffer.h"
 #include "Core/Platform.h"
+#include "Assets/Shaders/Shader.h"
 #include "Math/Math.h"
 #include <initializer_list>
 #include <vector>
@@ -9,7 +10,7 @@
 namespace GEngine
 {
     // Native-free startup error transport; existing platform arguments stay phase-owned.
-    using ApplicationInitializationError = std::variant<FramebufferError, Asset::TextureError, PlatformError>;
+    using ApplicationInitializationError = std::variant<FramebufferError, Asset::TextureError, PlatformError, Asset::ShaderError>;
     using ApplicationInitializationResult = std::expected<void, ApplicationInitializationError>;
     enum class RenderTargetTextureFormat { None, RGBA8, RED_INTEGER, DEPTH24STENCIL8, Depth = DEPTH24STENCIL8 };
     struct RenderTargetTextureSpecification

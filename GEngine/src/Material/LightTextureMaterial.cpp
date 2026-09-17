@@ -7,10 +7,11 @@ static int MaxNumber = 4;
 
 namespace GEngine
 {
-	LightTextureMaterial::LightTextureMaterial(const Asset::Texture& texture,
+	LightTextureMaterial::LightTextureMaterial(Construction& construction, const Asset::Texture& texture,
 		const std::string& vertexFileName, 
-		const std::string& fragFileName): Material(vertexFileName, fragFileName)
+		const std::string& fragFileName): Material(construction, vertexFileName, fragFileName)
 	{
+        if (!construction) return;
 		RenderSetting setting;
 		setting.m_Mode = DrawMode::TRIANGLES;
 		setting.m_RenderMode = RenderMode::Elements;

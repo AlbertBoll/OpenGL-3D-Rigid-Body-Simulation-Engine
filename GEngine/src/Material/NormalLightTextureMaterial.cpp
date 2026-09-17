@@ -6,7 +6,7 @@ namespace GEngine
 {
 	
 
-	//NormalLightTextureMaterial::NormalLightTextureMaterial(const std::vector<Asset::Texture*>& textures, const std::string& vertexFileName, const std::string& fragFileName): Material(vertexFileName, fragFileName)
+	//NormalLightTextureMaterial::NormalLightTextureMaterial(const std::vector<Asset::Texture*>& textures, const std::string& vertexFileName, const std::string& fragFileName): Material(construction, vertexFileName, fragFileName)
 	//{
 	//	RenderSetting setting;
 	//	setting.m_Mode = DrawMode::TRIANGLES;
@@ -28,9 +28,10 @@ namespace GEngine
 	//}
 
 
-	NormalLightTextureMaterial::NormalLightTextureMaterial(const std::vector<Asset::Texture*>& textures, const std::string& shaderName)
-		: Material(base_shader_dir + shaderName + ".vert", base_shader_dir + shaderName + ".frag")
+	NormalLightTextureMaterial::NormalLightTextureMaterial(Construction& construction, const std::vector<Asset::Texture*>& textures, const std::string& shaderName)
+		: Material(construction, "Shaders/" + shaderName + ".vert", "Shaders/" + shaderName + ".frag")
 	{
+        if (!construction) return;
 		RenderSetting setting;
 		setting.m_Mode = DrawMode::TRIANGLES;
 		setting.m_RenderMode = RenderMode::Elements;

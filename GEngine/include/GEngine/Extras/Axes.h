@@ -9,10 +9,12 @@ namespace GEngine
 		
 		
 
-		static RefPtr<Material> BuildMaterial(float line_width = 2.0f);
+		static std::expected<RefPtr<Material>, Asset::ShaderError> BuildMaterial(float line_width = 2.0f);
 
 	public:
-		Axes(float axis_length = 1.0f, float line_width = 2.0f);
+		[[nodiscard]] static std::expected<std::unique_ptr<Axes>, Asset::ShaderError> Create(float axis_length = 1.0f, float line_width = 2.0f);
+    private:
+        Axes(float axis_length, RefPtr<Material> material);
 	};
 
 }

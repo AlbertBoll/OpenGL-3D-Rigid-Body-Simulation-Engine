@@ -1,3 +1,6 @@
+#include "Material/BasicMaterial.h"
+#include "Material/TextureMaterial.h"
+#include "../GEngine/src/Assets/ShaderBackend.h"
 #include "../GEngine/src/Core/FramebufferBackend.h"
 // Production-library lifecycle checks; all GL and destruction stay on this thread.
 #include "gepch.h"
@@ -80,7 +83,7 @@ namespace
             "Engine kept a freed platform manager");
         int rejected = 0;
         if (!AssetsManager::GetFont("unavailable.ttf")) ++rejected;
-        try { (void)ShaderManager::GetShaderProgram({}); } catch (const std::logic_error&) { ++rejected; }
+        if (!ShaderManager::GetShaderProgram({})) ++rejected;
         try { (void)ShapeManager::GetShape("phase18"); } catch (const std::logic_error&) { ++rejected; }
         Check(rejected == 3, "A manager remained accessible outside ready root lifetime");
     }
@@ -201,7 +204,7 @@ namespace
                 // test_viewport.py runs those calls in isolated child processes.
                 wrongThreadRejected = !GLContextThread::IsCurrentOwner();
                 // Texture access now uses invariant rejection, covered in an isolated child process.
-                try { (void)ShaderManager::GetShaderProgram({}); } catch (const std::logic_error&) { ++managerThreadRejections; }
+                if (!ShaderManager::GetShaderProgram({})) ++managerThreadRejections;
                 try { (void)ShapeManager::GetShape("Box"); } catch (const std::logic_error&) { ++managerThreadRejections; }
             });
             worker.join();
@@ -547,7 +550,7 @@ namespace
             Check(root->Initialize({Properties(), Properties()}).has_value(), "Platform initialization failed");
             Check(ShapeManager::GetShape("phase20-retired") == nullptr, "New manager retained a previous map");
             Check(&root->Assets() == &root->Assets() && &root->Shapes() == &root->Shapes()
-                && &root->Shaders() == &root->Shaders(), "Root manager instances changed during their lifetime");
+                && root->Shaders().has_value() && *root->Shaders() == *root->Shaders(), "Root manager instances changed during their lifetime");
             Hooks hooks;
             StartTeardownDiagnostics();
             std::vector<GLuint> owned;
@@ -738,7 +741,8 @@ namespace
             teardown = false;
             auto failsWithoutLeaks = [&](const ShaderManager::Files& files) {
                 const auto first = shaderObjects.objects.size();
-                ExpectFailure([&] { ShaderManager::GetShaderProgram(files); }, "Invalid shader request was cached");
+                auto failed = ShaderManager::GetShaderProgram(files);
+                Check(!failed && !failed.error().log.empty(), "Invalid shader request was cached or lost diagnostics");
                 shaderObjects.RetiredSince(first);
             };
             WriteFixture("phase20.vert", vertex);
@@ -756,13 +760,24 @@ namespace
             failsWithoutLeaks({"phase20.vert", "phase20.frag"});
             shaderObjects.failShader = true;
             failsWithoutLeaks({"phase20.vert", "phase20.frag"});
-            auto* shader = ShaderManager::GetShaderProgram({"phase20.vert", "phase20.frag"});
-            Check(shader->IsLinked() && glIsProgram(shader->GetHandle()), "Valid shader retry after failed initialization failed");
+            auto createdShader = ShaderManager::GetShaderProgram({"phase20.vert", "phase20.frag"});
+            Check(createdShader.has_value(), "Valid shader retry failed");
+            auto* shader = *createdShader;
+            Check(shader->IsLinked() && glIsProgram(::GEngine::Asset::ShaderBackendAccess::Program(*shader)), "Valid shader retry after failed initialization failed");
             Check(ShaderManager::GetShaderProgram({"phase20.vert", "phase20.frag"}) == shader,
                 "Successful shader lookup replaced a live borrower");
+            auto failedMaterial = Material::Create<BasicMaterial>("phase20.vert", "missing.frag");
+            Check(!failedMaterial && failedMaterial.error().code == Asset::ShaderErrorCode::FileRead
+                && failedMaterial.error().source == "missing.frag", "Material factory lost shader cause");
+            auto failedTextured = Material::Create<TextureMaterial>(*fallback, "phase20.vert", "missing.frag");
+            Check(!failedTextured && failedTextured.error().shaderType == Asset::FRAGMENT,
+                "Derived material construction did not propagate shader failure");
+            auto validMaterial = Material::Create<BasicMaterial>("phase20.vert", "phase20.frag");
+            Check(validMaterial.has_value(), "Material retry failed after shader error");
+            validMaterial->reset();
             WriteFixture("other.vert", vertex);
             failsWithoutLeaks({"other.vert", "missing.frag"});
-            Check(shader->IsLinked() && glIsProgram(shader->GetHandle()), "Unrelated load failure retired a valid shader borrower");
+            Check(shader->IsLinked() && glIsProgram(::GEngine::Asset::ShaderBackendAccess::Program(*shader)), "Unrelated load failure retired a valid shader borrower");
             StartTeardownDiagnostics();
             root.reset();
             shaderObjects.RetiredSince(0);
@@ -772,7 +787,7 @@ namespace
             Check(observedFailures == 0 && debugErrors == 0, "Manager failure or shutdown emitted unexpected diagnostics");
             teardown = false;
         }
-        for (bool shaderFailure : {false, true})
+        for (bool shaderFailure : {false})
         {
             struct FailingApp final : BaseApp
             {
@@ -780,14 +795,36 @@ namespace
                 {
                     Check(Initialize(Properties()).has_value(), "Application initialization failed");
                     AssetsManager::GetTexture("white").value();
-                    if (shaderFailure) ShaderManager::GetShaderProgram({"phase20.vert", "missing.frag"});
-                    else AssetsManager::GetFont("phase20-missing-font.ttf").value();
+                    (void)shaderFailure;
+                    AssetsManager::GetFont("phase20-missing-font.ttf").value();
                 }
             };
             ExpectFailure([&] { FailingApp app(shaderFailure); }, "Asset/shader application initialization unexpectedly succeeded");
             Check(!EngineContext::TryGet(), "Asset/shader constructor failure retained the owning root");
             PlatformGone();
         }
+        {
+            struct ShaderFailingApp final : BaseApp
+            {
+                ApplicationInitializationResult Initialize(const std::initializer_list<WindowProperties>& properties) override
+                {
+                    if (auto initialized = BaseApp::Initialize(properties); !initialized) return initialized;
+                    auto material = Material::Create<TextureMaterial>(*AssetsManager::GetTexture("white").value(), "phase20.vert", "missing.frag");
+                    if (!material) return std::unexpected(material.error());
+                    return {};
+                }
+            };
+            auto app = std::make_unique<ShaderFailingApp>();
+            auto initialized = app->Initialize({Properties()});
+            Check(!initialized, "Shader failure did not reach typed application startup");
+            const auto* error = std::get_if<Asset::ShaderError>(&initialized.error());
+            Check(error && error->code == Asset::ShaderErrorCode::FileRead && error->shaderType == Asset::FRAGMENT
+                && error->source == "missing.frag" && !error->log.empty(), "Application error lost shader fields");
+            app.reset();
+            Check(!EngineContext::TryGet(), "Typed shader startup failure retained its root");
+            PlatformGone();
+        }
+
     }
     void ResourceMoves()
     {

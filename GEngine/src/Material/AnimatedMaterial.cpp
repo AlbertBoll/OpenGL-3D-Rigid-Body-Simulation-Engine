@@ -5,9 +5,10 @@
 
 namespace GEngine
 {
-    AnimatedMaterial::AnimatedMaterial(const std::vector<Asset::Texture*>& textures, const std::string& shaderName)
-        : Material(base_shader_dir + shaderName + ".vert", base_shader_dir + shaderName + ".frag")
+    AnimatedMaterial::AnimatedMaterial(Construction& construction, const std::vector<Asset::Texture*>& textures, const std::string& shaderName)
+        : Material(construction, "Shaders/" + shaderName + ".vert", "Shaders/" + shaderName + ".frag")
     {
+        if (!construction) return;
 		RenderSetting setting;
 		setting.m_Mode = DrawMode::TRIANGLES;
 		setting.m_RenderMode = RenderMode::Elements;

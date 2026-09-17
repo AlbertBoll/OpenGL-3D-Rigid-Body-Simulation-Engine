@@ -110,7 +110,9 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	if (!barrelTexDiffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", barrelTexDiffuseResult.error().source, barrelTexDiffuseResult.error().message); m_Running = false; return std::unexpected(barrelTexDiffuseResult.error()); }
 	auto* barrelTexDiffuse = *barrelTexDiffuseResult;
 	auto textures = { barrelTexDiffuse , barrelTexNormal };
-	auto barrelMaterial = CreateRefPtr<NormalLightTextureMaterial>(textures, "normal");
+	auto barrelMaterialResult = Material::Create<NormalLightTextureMaterial>(textures, "normal");
+	if (!barrelMaterialResult) return std::unexpected(barrelMaterialResult.error());
+	auto barrelMaterial = std::move(*barrelMaterialResult);
 	auto barrelGeo = ShapeManager::GetModel("barrel");
 
 	
@@ -263,7 +265,9 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	auto terrainBlendMapTexResult = AssetsManager::GetTextureOrFallback("blendMap", "u_blendMap");
 	if (!terrainBlendMapTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", terrainBlendMapTexResult.error().source, terrainBlendMapTexResult.error().message); m_Running = false; return std::unexpected(terrainBlendMapTexResult.error()); }
 	auto* terrainBlendMapTex = *terrainBlendMapTexResult;
-	auto terrainMaterial = CreateRefPtr<TerrainLightMaterial>(std::vector{ terrainBackGroundTex, terrainRTex, terrainGTex, terrainBTex, terrainBlendMapTex });
+	auto terrainMaterialResult = Material::Create<TerrainLightMaterial>(std::vector{ terrainBackGroundTex, terrainRTex, terrainGTex, terrainBTex, terrainBlendMapTex });
+	if (!terrainMaterialResult) return std::unexpected(terrainMaterialResult.error());
+	auto terrainMaterial = std::move(*terrainMaterialResult);
 	terrainMaterial->SetLightComponent(lights).SetFogComponent(fog);
 
 	
@@ -276,7 +280,9 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	if (!vampireTexDiffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", vampireTexDiffuseResult.error().source, vampireTexDiffuseResult.error().message); m_Running = false; return std::unexpected(vampireTexDiffuseResult.error()); }
 	auto* vampireTexDiffuse = *vampireTexDiffuseResult;
 	auto vampiretextures = { vampireTexDiffuse , vampireTexNormal };
-	auto vampireMaterial = CreateRefPtr<AnimatedMaterial>(vampiretextures, "animated");
+	auto vampireMaterialResult = Material::Create<AnimatedMaterial>(vampiretextures, "animated");
+	if (!vampireMaterialResult) return std::unexpected(vampireMaterialResult.error());
+	auto vampireMaterial = std::move(*vampireMaterialResult);
 	auto vampireGeo = ShapeManager::GetModels("dancing_vampire")[0];
 	
 	m_VampireGroup = new Group<Entity>(vampireGeo, vampireMaterial.get());
@@ -318,7 +324,9 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 
 	/*auto personGeo = ShapeManager::GetModel("person");
 	auto personTex = AssetsManager::GetTexture("mirror_reflect");
-	auto personMaterial = CreateRefPtr<LightTextureMaterial>(*personTex);
+	auto personMaterialResult = Material::Create<LightTextureMaterial>(*personTex);
+	if (!personMaterialResult) return std::unexpected(personMaterialResult.error());
+	auto personMaterial = std::move(*personMaterialResult);
 
 	personMaterial->SetFogComponent(fog).SetLightComponent(lights).SetTextureComponent(normalTexture);
 
@@ -345,7 +353,9 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	auto lampTexResult = AssetsManager::GetTextureOrFallback("lamp");
 	if (!lampTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", lampTexResult.error().source, lampTexResult.error().message); m_Running = false; return std::unexpected(lampTexResult.error()); }
 	auto* lampTex = *lampTexResult;
-	auto lampMaterial = CreateRefPtr<LightTextureMaterial>(*lampTex);
+	auto lampMaterialResult = Material::Create<LightTextureMaterial>(*lampTex);
+	if (!lampMaterialResult) return std::unexpected(lampMaterialResult.error());
+	auto lampMaterial = std::move(*lampMaterialResult);
 	lampMaterial->SetFogComponent(fog).SetLightComponent(lights).SetTextureComponent(normalTexture);
 	lampMaterial->GetMaterialProperty().HasFakeLighting = true;
 	m_LampGroup = new Group<Entity>(lampGeo, lampMaterial.get());
@@ -397,12 +407,26 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	if (!pineTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", pineTexResult.error().source, pineTexResult.error().message); m_Running = false; return std::unexpected(pineTexResult.error()); }
 	auto* pineTex = *pineTexResult;
 
-	auto treeMaterial = CreateRefPtr<LightTextureMaterial>(*treeTex);
-	auto grassMaterial = CreateRefPtr<LightTextureMaterial>(*grassTex);
-	auto fernMaterial = CreateRefPtr<LightTextureMaterial>(*fernTex);
-	auto flowerMaterial = CreateRefPtr<LightTextureMaterial>(*flowerTex);
-	auto lowPolyTreeMaterial = CreateRefPtr<LightTextureMaterial>(*lowPolyTreeTex);
-	auto pineMaterial = CreateRefPtr<LightTextureMaterial>(*pineTex);
+	auto treeMaterialResult = Material::Create<LightTextureMaterial>(*treeTex);
+
+	if (!treeMaterialResult) return std::unexpected(treeMaterialResult.error());
+
+	auto treeMaterial = std::move(*treeMaterialResult);
+	auto grassMaterialResult = Material::Create<LightTextureMaterial>(*grassTex);
+	if (!grassMaterialResult) return std::unexpected(grassMaterialResult.error());
+	auto grassMaterial = std::move(*grassMaterialResult);
+	auto fernMaterialResult = Material::Create<LightTextureMaterial>(*fernTex);
+	if (!fernMaterialResult) return std::unexpected(fernMaterialResult.error());
+	auto fernMaterial = std::move(*fernMaterialResult);
+	auto flowerMaterialResult = Material::Create<LightTextureMaterial>(*flowerTex);
+	if (!flowerMaterialResult) return std::unexpected(flowerMaterialResult.error());
+	auto flowerMaterial = std::move(*flowerMaterialResult);
+	auto lowPolyTreeMaterialResult = Material::Create<LightTextureMaterial>(*lowPolyTreeTex);
+	if (!lowPolyTreeMaterialResult) return std::unexpected(lowPolyTreeMaterialResult.error());
+	auto lowPolyTreeMaterial = std::move(*lowPolyTreeMaterialResult);
+	auto pineMaterialResult = Material::Create<LightTextureMaterial>(*pineTex);
+	if (!pineMaterialResult) return std::unexpected(pineMaterialResult.error());
+	auto pineMaterial = std::move(*pineMaterialResult);
 	pineMaterial->GetMaterialProperty().ShineDamper = 10.f;
 	pineMaterial->GetMaterialProperty().Reflectivity = 0.1f;
 
@@ -481,7 +505,11 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	if (!DragonTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", DragonTexResult.error().source, DragonTexResult.error().message); m_Running = false; return std::unexpected(DragonTexResult.error()); }
 	auto* DragonTex = *DragonTexResult;
 
-	auto DragonMaterial = CreateRefPtr<LightTextureMaterial>(*DragonTex);
+	auto DragonMaterialResult = Material::Create<LightTextureMaterial>(*DragonTex);
+
+	if (!DragonMaterialResult) return std::unexpected(DragonMaterialResult.error());
+
+	auto DragonMaterial = std::move(*DragonMaterialResult);
 	DragonMaterial->SetFogComponent(fog).SetLightComponent(lights).SetTextureComponent(normalTexture);
 	DragonMaterial->GetMaterialProperty().ShineDamper = 10;
 	DragonMaterial->GetMaterialProperty().Reflectivity = 1;
@@ -505,7 +533,9 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 
 	m_Scene->Add(m_CameraRig);
 
-	m_SkyBox = new SkyBoxEntity(skyBoxComponent);
+	auto skyBox = SkyBoxEntity::Create(skyBoxComponent);
+    if (!skyBox) return std::unexpected(skyBox.error());
+    m_SkyBox = skyBox->release();
 	m_SkyBox->SetTag("SkyBox");
 
 	m_Scene->Add(m_SkyBox);

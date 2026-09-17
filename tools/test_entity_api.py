@@ -15,6 +15,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--configuration", choices=["Debug", "Release"], required=True)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--no-build", action="store_true", help="Reuse matching affected-consumer builds")
     args = parser.parse_args()
     config = args.configuration
     out = (args.output or ROOT / "logs/rendering/phase10" / config).resolve()
@@ -52,14 +53,14 @@ def main():
         sdk_version = max((p.name for p in (sdk / "Lib").iterdir()
                            if (p / "um/x64/kernel32.lib").is_file()), key=lambda name: tuple(map(int, name.split("."))))
         report["toolchain"] = {"msbuild": str(msbuild), "msvc": str(vc), "sdk": str(sdk), "sdk_version": sdk_version}
-        if not invoke("generate", [ROOT / "vendor/bin/premake/premake5.exe", "vs2022"], 120):
+        if not args.no_build and not invoke("generate", [ROOT / "vendor/bin/premake/premake5.exe", "vs2022"], 120):
             return 1
         report["compiler_return_guards"] = env["CL"]
         build = [msbuild, ROOT / "GEngine.sln", "/t:GEngineEditor;Breakout;RayTracing;RigidBodySimulation;PhysicsTests;PhysicsBenchmark",
                  "/m:1", "/nr:false", "/nologo", "/v:normal",
                  "/p:Configuration=" + config, "/p:Platform=x64", "/p:VCToolsVersion=" + vc.name,
                  "/p:WindowsTargetPlatformVersion=" + sdk_version, "/bl:" + str(out / "build.binlog")]
-        if not invoke("build", build, 1200):
+        if not args.no_build and not invoke("build", build, 1200):
             return 1
         includes = [vc / "include", *(sdk / "Include" / sdk_version / part for part in ("ucrt", "shared", "um")),
                     ROOT / "GEngine/include", ROOT / "GEngine/include/GEngine", ROOT / "GEngine/include/external",
@@ -68,7 +69,7 @@ def main():
                      sdk / "Lib" / sdk_version / "um/x64",
                      *(ROOT / "external" / part / "lib" for part in ("sdl2", "tbb", "assimp", "fmod"))]
         executable = out / "entity-api-probe.exe"
-        command = [vc / "bin/Hostx64/x64/cl.exe", "/nologo", "/std:c++20", "/EHsc", "/W3",
+        command = [vc / "bin/Hostx64/x64/cl.exe", "/nologo", "/std:c++23preview", "/EHsc", "/W3",
                    "/MTd" if config == "Debug" else "/MT", "/Od" if config == "Debug" else "/O2",
                    "/DSDL_MAIN_HANDLED", "/DGENGINE_PLATFORM_WINDOWS", "/DGENGINE_CONFIG_" + config.upper(),
                    *["/I" + str(p) for p in includes], "/external:W0", "/external:templates-",

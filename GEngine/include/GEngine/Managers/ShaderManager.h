@@ -74,8 +74,11 @@ namespace GEngine::Manager
 
 	public:
         ~ShaderManager();
-        NONCOPYMOVABLE(ShaderManager);
-		static Shader* GetShaderProgram(const Files& shader_file);
+        ShaderManager(const ShaderManager&) = delete;
+        ShaderManager& operator=(const ShaderManager&) = delete;
+        ShaderManager(ShaderManager&&) = delete;
+        ShaderManager& operator=(ShaderManager&&) = delete;
+        [[nodiscard]] static std::expected<Shader*, ShaderError> GetShaderProgram(const Files& shader_file);
 	
 		
 
@@ -83,7 +86,7 @@ namespace GEngine::Manager
 	private:
         friend class ::GEngine::EngineContext;
         ShaderManager() = default;
-        static ShaderManager& Current();
+        static std::expected<ShaderManager*, ShaderError> Current();
 		ShaderHashMap m_ShaderMap;
 	};
 

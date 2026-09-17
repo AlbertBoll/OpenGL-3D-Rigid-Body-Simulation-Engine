@@ -12,7 +12,7 @@ namespace GEngine
     class TerrainLightMaterial: public Material
     {
     public:
-        TerrainLightMaterial(const Asset::Texture& texture,
+        TerrainLightMaterial(Construction& construction, const Asset::Texture& texture,
             const std::string& vertexFileName = base_shader_dir + "terrain.vert",
             const std::string& fragFileName = base_shader_dir + "terrain.frag");
 
@@ -20,7 +20,7 @@ namespace GEngine
 
         void UploadUniforms() override;
 
-        TerrainLightMaterial(std::vector<Asset::Texture*> textures,
+        TerrainLightMaterial(Construction& construction, std::vector<Asset::Texture*> textures,
             const std::string& vertexFileName = base_shader_dir + "terrain.vert",
             const std::string& fragFileName = base_shader_dir + "terrain.frag");
 

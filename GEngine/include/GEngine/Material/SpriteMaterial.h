@@ -13,7 +13,7 @@ namespace GEngine
 	class SpriteMaterial: public Material
 	{
 	public:
-		SpriteMaterial(Asset::Texture* textures, const std::string& shaderName = "sprite");
+		SpriteMaterial(Construction& construction, Asset::Texture* textures, const std::string& shaderName = "sprite");
 
 		void UpdateRenderSettings();
 		

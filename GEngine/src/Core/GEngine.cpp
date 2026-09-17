@@ -76,8 +76,17 @@ namespace GEngine
         return m_Assets.get();
     }
 
+    std::expected<Manager::ShaderManager*, Asset::ShaderError> EngineContext::Shaders()
+    {
+        if (std::this_thread::get_id() != m_OwnerThread)
+            return std::unexpected(Asset::ShaderError{Asset::ShaderErrorCode::WrongThread, {}, {}, "Shader services require the owner thread"});
+        if ((m_State != State::Ready && m_State != State::Initializing) || !m_Shaders || !m_MainWindow)
+            return std::unexpected(Asset::ShaderError{Asset::ShaderErrorCode::ContextUnavailable, {}, {}, "Shader services are unavailable"});
+        if (auto current = m_MainWindow->BeginRender(); !current)
+            return std::unexpected(Asset::ShaderError{Asset::ShaderErrorCode::ContextUnavailable, {}, {}, current.error().message});
+        return m_Shaders.get();
+    }
     Manager::AssetsManager& EngineContext::Assets() { RequireManagers(); return *m_Assets; }
-    Manager::ShaderManager& EngineContext::Shaders() { RequireManagers(); return *m_Shaders; }
     Manager::ShapeManager& EngineContext::Shapes() { RequireManagers(); return *m_Shapes; }
     Asset::AssetPublication& EngineContext::AssetPublications() { RequireManagers(); return m_AssetPublication; }
 

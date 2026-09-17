@@ -13,7 +13,7 @@ namespace GEngine
     class AnimatedMaterial : public Material
     {
     public:
-        AnimatedMaterial(const std::vector<Asset::Texture*>& textures, const std::string& shaderName);
+        AnimatedMaterial(Construction& construction, const std::vector<Asset::Texture*>& textures, const std::string& shaderName);
 
         void UpdateRenderSettings() override;
 

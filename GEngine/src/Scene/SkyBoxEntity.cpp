@@ -8,7 +8,7 @@ namespace GEngine
 {
     static std::string image_base_dir = "../GEngine/include/GEngine/Assets/Images/SkyBox";
 
-    std::expected<RefPtr<Material>, Asset::TextureError> SkyBoxEntity::GetSkyBoxMaterial(const SkyBoxComponent& comp)
+    std::expected<RefPtr<Material>, ApplicationInitializationError> SkyBoxEntity::GetSkyBoxMaterial(const SkyBoxComponent& comp)
     {
         Asset::TextureDesc info;
         info.kind = Asset::TextureKind::Cube;
@@ -23,7 +23,9 @@ namespace GEngine
         if (!tex2Result) return std::unexpected(tex2Result.error());
         auto* tex2 = *tex2Result;
         std::vector<Asset::Texture*> texs = { tex1, tex2 };
-        auto skyBoxMaterial = CreateRefPtr<SkyBoxMaterial>(texs);
+        auto created = Material::Create<SkyBoxMaterial>(texs);
+        if (!created) return std::unexpected(created.error());
+        auto skyBoxMaterial = std::move(*created);
         //auto skyBoxMaterial = CreateRefPtr<SkyBoxMaterial>(*tex1);
         skyBoxMaterial->SetSkyBoxComponent(comp);
         return skyBoxMaterial;
@@ -32,9 +34,14 @@ namespace GEngine
     SkyBoxEntity::SkyBoxEntity(const SkyBoxComponent& comp, Geometry* geometry, const RefPtr<Material>& material): Entity(geometry, material)
     {
         m_Description = comp;
-        auto material_ = GetSkyBoxMaterial(comp);
-        if (!material_) { GENGINE_CORE_ERROR("Skybox texture {}: {}", material_.error().source, material_.error().message); return; }
-        SetMaterial(*material_);
+    }
+
+    std::expected<std::unique_ptr<SkyBoxEntity>, ApplicationInitializationError> SkyBoxEntity::Create(
+        const SkyBoxComponent& comp, Geometry* geometry)
+    {
+        auto material = GetSkyBoxMaterial(comp);
+        if (!material) return std::unexpected(material.error());
+        return std::unique_ptr<SkyBoxEntity>(new SkyBoxEntity(comp, geometry, *material));
     }
 
     void SkyBoxEntity::Render(CameraBase* camera)

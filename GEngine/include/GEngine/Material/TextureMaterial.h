@@ -17,8 +17,8 @@ namespace GEngine
 		
 
 	public:
-		TextureMaterial(const Asset::Texture& texture, const std::string& vertexFileName = RuntimeAssets::File("Shaders/texture.vert"),
-			const std::string& fragFileName =  RuntimeAssets::File("Shaders/texture.frag"));
+		TextureMaterial(Construction& construction, const Asset::Texture& texture, const std::string& vertexFileName = "Shaders/texture.vert",
+			const std::string& fragFileName =  "Shaders/texture.frag");
 
 		void UpdateRenderSettings() override;
 

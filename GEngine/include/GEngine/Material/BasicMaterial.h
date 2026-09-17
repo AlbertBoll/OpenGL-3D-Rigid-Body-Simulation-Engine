@@ -8,9 +8,10 @@ namespace GEngine
     class BasicMaterial: public Material
     {
     public:
-        BasicMaterial(const std::string& vertexFileName = RuntimeAssets::File("Shaders/basic.vert"),
-                        const std::string& fragFileName = RuntimeAssets::File("Shaders/basic.frag")): Material(vertexFileName, fragFileName)
+        BasicMaterial(Construction& construction, const std::string& vertexFileName = "Shaders/basic.vert",
+                        const std::string& fragFileName = "Shaders/basic.frag"): Material(construction, vertexFileName, fragFileName)
         {
+        if (!construction) return;
             //UseProgram();
             //SetUniforms<Vec4f>({ {"uBaseColor", {1.0f, 1.0f, 1.0f, 1.0f}} });
             //SetUniforms<bool>({ {"uUseVertexColor", false} });

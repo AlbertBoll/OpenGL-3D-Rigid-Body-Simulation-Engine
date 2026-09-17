@@ -4,10 +4,11 @@
 
 namespace GEngine
 {
-	TextureMaterial::TextureMaterial(const Asset::Texture& texture, 
+	TextureMaterial::TextureMaterial(Construction& construction, const Asset::Texture& texture,
 									 const std::string& vertexFileName, 
-									 const std::string& fragFileName): Material(vertexFileName, fragFileName)
+									 const std::string& fragFileName): Material(construction, vertexFileName, fragFileName)
 	{
+        if (!construction) return;
 		RenderSetting setting;
 		setting.m_Mode = DrawMode::TRIANGLES;
 		setting.m_RenderMode = RenderMode::Arrays;

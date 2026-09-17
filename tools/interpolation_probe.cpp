@@ -1,3 +1,4 @@
+#include "../GEngine/src/Assets/ShaderBackend.h"
 // Production scene/renderer interpolation checks; run through test_interpolation.py.
 #include "gepch.h"
 #include "Core/BaseApp.h"
@@ -233,23 +234,23 @@ namespace
 
     void BuildShader(Asset::Shader& shader)
     {
-        shader.CompileShader(std::string(R"(#version 460 core
+        Check(shader.CompileShader(std::string(R"(#version 460 core
             layout(location=0) in vec3 position;
             uniform mat4 u_model;
             void main() { gl_Position = u_model * vec4(position, 1); }
-        )"), Asset::VERTEX, "interpolation.vert");
-        shader.CompileShader(std::string(R"(#version 460 core
+        )"), Asset::VERTEX, "interpolation.vert").has_value(), "Fixture stage compilation failed");
+        Check(shader.CompileShader(std::string(R"(#version 460 core
             out vec4 color;
             void main() { color = vec4(1); }
-        )"), Asset::FRAGMENT, "interpolation.frag");
-        shader.Link(); Check(shader.IsLinked(), "Presentation shader failed to link");
+        )"), Asset::FRAGMENT, "interpolation.frag").has_value(), "Fixture stage compilation failed");
+        Check(shader.Link().has_value(), "Fixture shader link failed"); Check(shader.IsLinked(), "Presentation shader failed to link");
     }
     void UniformMatches(Asset::Shader& shader, const Mat4& expected)
     {
         Mat4 actual(0);
-        const auto location = glGetUniformLocation(shader.GetHandle(), "u_model");
+        const auto location = glGetUniformLocation(::GEngine::Asset::ShaderBackendAccess::Program(shader), "u_model");
         Check(location >= 0, "Model uniform missing");
-        glGetUniformfv(shader.GetHandle(), location, glm::value_ptr(actual));
+        glGetUniformfv(::GEngine::Asset::ShaderBackendAccess::Program(shader), location, glm::value_ptr(actual));
         Check(Near(actual, expected), "Render pass submitted a different presentation matrix");
     }
     double PixelCenter()

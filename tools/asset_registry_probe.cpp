@@ -12,6 +12,7 @@
 #include "Core/GEngine.h"
 #include "Core/RuntimeAssets.h"
 #include "Assets/Shaders/Shader.h"
+#include "../GEngine/src/Assets/ShaderBackend.h"
 #include "Managers/AssetsManager.h"
 #include "Core/RenderTarget.h"
 #include "../GEngine/src/Assets/TextureBackend.h"
@@ -378,8 +379,8 @@ namespace
             {VERTEX, "#version 460 core\nvoid main(){vec2 p[3]=vec2[3](vec2(-1,-1),vec2(1,-1),vec2(0,1));gl_Position=vec4(p[gl_VertexID],0,1);}", "registry.vert"},
             {FRAGMENT, "#version 460 core\nout vec4 color;void main(){color=vec4(1,0,0,1);}", "registry.frag"}}};
         auto result = CreateShaderProgram(sources);
-        Check(std::holds_alternative<Shader>(result), "Registry shader creation failed");
-        return std::move(std::get<Shader>(result));
+        Check(result.has_value(), "Registry shader creation failed");
+        return std::move(*result);
     }
     struct TextureHooks
     {
@@ -631,7 +632,7 @@ namespace
                     auto f = publication.BeginFrame();
                     old = registry.Acquire(f, handle).value();
                     Check(!registry.Acquire(f, previous), "New root resolved a prior-root handle");
-                    oldProgram = old->GetHandle();
+                    oldProgram = ::GEngine::Asset::ShaderBackendAccess::Program(*old);
                     auto fence = std::make_unique<GlFence>(); auto* signal = fence.get();
                     registry.ProtectGpuUse(f, old, std::move(fence));
                     old->Bind(); glBindFramebuffer(GL_FRAMEBUFFER, 0); glViewport(0, 0, 64, 64);
@@ -644,7 +645,7 @@ namespace
                 }
                 {
                     auto f = publication.BeginFrame();
-                    auto current = registry.Acquire(f, handle).value(); replacement = current->GetHandle();
+                    auto current = registry.Acquire(f, handle).value(); replacement = ::GEngine::Asset::ShaderBackendAccess::Program(*current);
                     Check(current.Revision() == 2 && current.Identity() == old.Identity() && replacement != oldProgram,
                         "Shader identity/revision/GL name were conflated");
                     current->Bind(); current->UnBind();

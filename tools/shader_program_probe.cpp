@@ -1,3 +1,4 @@
+#include "../GEngine/src/Assets/ShaderBackend.h"
 #include "gepch.h"
 #include "Assets/Shaders/Shader.h"
 #include "Core/GLDebug.h"
@@ -160,14 +161,14 @@ void main(){ outputColor=color; }
 
     Shader Build()
     {
-        auto result = CreateShaderProgram(validSources);
-        Check(std::holds_alternative<Shader>(result), "Valid shader factory failed");
-        return std::move(std::get<Shader>(result));
+        auto result = Shader::Create(ShaderProgramDesc{validSources});
+        Check(result.has_value(), "Valid shader factory failed");
+        return std::move(*result);
     }
     void CheckError(const ShaderCreationResult& result, ShaderCreationCode code,
         std::optional<ShaderType> type = {}, const char* source = "")
     {
-        const auto* error = std::get_if<ShaderCreationError>(&result);
+        const auto* error = result ? nullptr : &result.error();
         Check(error && error->code == code && error->shaderType == type && error->source == source && !error->log.empty(),
             "Creation result lost structured code/stage/source/log");
     }
@@ -175,7 +176,7 @@ void main(){ outputColor=color; }
     {
         {
             const auto before = o.discoveries;
-            auto source = Build(); const auto name = source.GetHandle();
+            auto source = Build(); const auto name = ::GEngine::Asset::ShaderBackendAccess::Program(source);
             Check(source.IsLinked() && o.discoveries == before + 1 && o.shaders.empty(), "Link did not retire stages or duplicated reflection");
             GLint attached = -1; glGetProgramiv(name, GL_ATTACHED_SHADERS, &attached);
             Check(attached == 0, "Linked program retained intermediate shader objects");
@@ -184,14 +185,14 @@ void main(){ outputColor=color; }
             const Math::Vec4f color(0.1f, 0.2f, 0.3f, 0.4f);
             const auto queries = o.lookups;
             source.SetUniform("color", color);
-            const auto location = source.GetUniformLocations().at("color");
+            const auto location = ::GEngine::Asset::ShaderBackendAccess::Uniforms(source).at("color");
             std::array<float, 4> actual{}; glGetUniformfv(name, location, actual.data());
             Check(actual[0] == color.x && actual[3] == color.w && o.lookups == queries, "Active uniform cache/readback differs");
             source.SetUniform("missing_uniform", color); source.SetUniform("missing_uniform", color);
-            Check(o.lookups == queries + 1 && source.GetUniformLocations().at("missing_uniform") == -1,
+            Check(o.lookups == queries + 1 && ::GEngine::Asset::ShaderBackendAccess::Uniforms(source).at("missing_uniform") == -1,
                 "Missing uniform was not cached once as signed -1");
             source.UnBind();
-            Shader destination = Build(); const auto old = destination.GetHandle();
+            Shader destination = Build(); const auto old = ::GEngine::Asset::ShaderBackendAccess::Program(destination);
             bool control = false;
             denyAllocation = true;
             try { void* memory = ::operator new(1); ::operator delete(memory); }
@@ -201,22 +202,24 @@ void main(){ outputColor=color; }
             auto* same = &destination; destination = std::move(*same);
             source.Destroy(); moved.Destroy();
             denyAllocation = false;
-            Check(control && !source.GetHandle() && !source.IsLinked() && !moved.GetHandle()
-                && !glIsProgram(old) && destination.GetHandle() == name, "Allocation-free move contract failed");
-            Check(destination.GetUniformLocations().at("missing_uniform") == -1, "Moved uniform cache lost missing lookup");
+            Check(control && !::GEngine::Asset::ShaderBackendAccess::Program(source) && !source.IsLinked() && !::GEngine::Asset::ShaderBackendAccess::Program(moved)
+                && !glIsProgram(old) && ::GEngine::Asset::ShaderBackendAccess::Program(destination) == name, "Allocation-free move contract failed");
+            Check(::GEngine::Asset::ShaderBackendAccess::Uniforms(destination).at("missing_uniform") == -1, "Moved uniform cache lost missing lookup");
             std::vector<Shader> relocated; relocated.reserve(1); relocated.push_back(std::move(destination)); relocated.push_back(Build());
-            Check(relocated.front().GetHandle() == name, "Container relocation changed program ownership");
-            Reject<ShaderCreationException>([&] { relocated.front().CompileShader(vertex, VERTEX, "replacement.vert"); });
-            Check(relocated.front().GetHandle() == name && relocated.front().IsLinked(), "Rejected mutation damaged linked program");
+            Check(::GEngine::Asset::ShaderBackendAccess::Program(relocated.front()) == name, "Container relocation changed program ownership");
+            const auto rejected = relocated.front().CompileShader(vertex, VERTEX, "replacement.vert");
+            Check(!rejected && rejected.error().code == ShaderCreationCode::InvalidState
+                && rejected.error().shaderType == VERTEX && rejected.error().source == "replacement.vert", "Linked mutation error lost its fields");
+            Check(::GEngine::Asset::ShaderBackendAccess::Program(relocated.front()) == name && relocated.front().IsLinked(), "Rejected mutation damaged linked program");
             relocated.front() = std::move(source);
             Check(!glIsProgram(name) && !relocated.front().IsLinked(), "Empty assignment failed to retire live owner");
             denyAllocation = true; relocated.back().Destroy(); relocated.back().Destroy(); denyAllocation = false;
-            Check(!relocated.back().GetHandle() && !relocated.back().IsLinked(), "Destroy did not reset state");
+            Check(!::GEngine::Asset::ShaderBackendAccess::Program(relocated.back()) && !relocated.back().IsLinked(), "Destroy did not reset state");
         }
         o.Empty();
         {
             Shader partial; partial.CompileShader(vertex, VERTEX, "pending.vert");
-            const auto name = partial.GetHandle();
+            const auto name = ::GEngine::Asset::ShaderBackendAccess::Program(partial);
             denyAllocation = true;
             Shader moved(std::move(partial)); moved.Destroy(); partial.Destroy();
             denyAllocation = false;
@@ -248,13 +251,15 @@ void main(){ outputColor=color; }
         o.failLog = true; Reject<std::bad_alloc>([&] { (void)CreateShaderProgram(badLink); }); o.Empty();
         // Failure is cleaned immediately, even when the incremental builder lives on.
         Shader incremental; incremental.CompileShader(vertex, VERTEX, "pending.vert");
-        Reject<ShaderCreationException>([&] { incremental.CompileShader(invalid, FRAGMENT, "broken.frag"); });
-        Check(!incremental.GetHandle() && !incremental.IsLinked(), "Incremental failure retained partial state"); o.Empty();
+        const auto rejected = incremental.CompileShader(invalid, FRAGMENT, "broken.frag");
+        Check(!rejected && rejected.error().code == ShaderCreationCode::Compile && rejected.error().shaderType == FRAGMENT
+            && rejected.error().source == "broken.frag" && !rejected.error().log.empty(), "Incremental failure lost shader fields");
+        Check(!::GEngine::Asset::ShaderBackendAccess::Program(incremental) && !incremental.IsLinked(), "Incremental failure retained partial state"); o.Empty();
         d.compilingFailure = false;
         o.failReflection = true; Reject<std::bad_alloc>([&] { (void)CreateShaderProgram(validSources); }); o.Empty();
         incremental.CompileShader(vertex, VERTEX, "retry.vert"); incremental.CompileShader(fragment, FRAGMENT, "retry.frag");
         incremental.Link(); incremental.Destroy(); o.Empty();
-        Reject<ShaderCreationException>([&] { incremental.Link(); }); o.Empty();
+        Check(!incremental.Link(), "Empty incremental link was accepted"); o.Empty();
         std::cout << "[PASS] structured compile/link/input/allocation failures, log/reflection unwind and retry\n";
     }
     void Files(Observer& o)
@@ -262,7 +267,7 @@ void main(){ outputColor=color; }
         { std::ofstream file("fixture.vert"); file << vertex; Check(bool(file), "Cannot write vertex fixture"); }
         { std::ofstream file("fixture.frag"); file << fragment; Check(bool(file), "Cannot write fragment fixture"); }
         const std::array<std::string, 2> paths{{"fixture.vert", "fixture.frag"}};
-        { auto result = CreateShaderProgramFromFiles(paths); Check(std::holds_alternative<Shader>(result), "File creation failed"); }
+        { auto result = CreateShaderProgramFromFiles(paths); Check(result.has_value(), "File creation failed"); }
         o.Empty();
         const std::array<std::string, 2> missing{{"fixture.vert", "does-not-exist.frag"}};
         CheckError(CreateShaderProgramFromFiles(missing), ShaderCreationCode::FileRead, FRAGMENT, "does-not-exist.frag"); o.Empty();

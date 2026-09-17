@@ -1,4 +1,5 @@
 #include "gepch.h"
+#include "../Assets/ShaderBackend.h"
 #include <Scene/_Scene.h>
 #include "Physics/PhysicsWorld.h"
 #include <Component/Component.h>
@@ -527,9 +528,9 @@ namespace GEngine
 			return;
 
 		const auto* shader = entity.GetComponent<RenderComponent>().Shader;
-		if (!shader || shader->GetHandle() == 0)
+		if (!shader || Asset::ShaderBackendAccess::Program(*shader) == 0)
 			throw std::invalid_argument("Render-list entity requires a nonzero shader program");
-		const auto program = static_cast<unsigned int>(shader->GetHandle());
+		const auto program = static_cast<unsigned int>(Asset::ShaderBackendAccess::Program(*shader));
 		auto& groups = entity.HasAnyComponents<DirectionalLightComponent, PointLightComponent, SpotLightComponent>()
 			? m_LightEntities : m_GroupEntities;
 		const auto found = groups.find(program);

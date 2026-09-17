@@ -23,10 +23,12 @@ namespace GEngine
 		return geometry;
 	}
 
-	RefPtr<Material> Axes::BuildMaterial(float line_width)
+	std::expected<RefPtr<Material>, Asset::ShaderError> Axes::BuildMaterial(float line_width)
 	{
 		//auto material = new LineBasicMaterial;
-		auto material = CreateRefPtr<LineBasicMaterial>();
+		auto created = Material::Create<LineBasicMaterial>();
+        if (!created) return std::unexpected(created.error());
+        auto material = std::move(*created);
 		material->SetUniforms<bool>({ {"uUseVertexColor", true} });
 		RenderSetting setting;
 		
@@ -36,8 +38,14 @@ namespace GEngine
 		return material;
 	}
 
-	Axes::Axes(float axis_length, float line_width): Entity(BuildGeometry(axis_length), BuildMaterial(line_width))
+	Axes::Axes(float axis_length, RefPtr<Material> material): Entity(BuildGeometry(axis_length), material)
 	{
 
 	}
+    std::expected<std::unique_ptr<Axes>, Asset::ShaderError> Axes::Create(float axis_length, float line_width)
+    {
+        auto material = BuildMaterial(line_width);
+        if (!material) return std::unexpected(material.error());
+        return std::unique_ptr<Axes>(new Axes(axis_length, *material));
+    }
 }

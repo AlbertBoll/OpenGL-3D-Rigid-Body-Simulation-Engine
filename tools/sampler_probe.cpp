@@ -1,3 +1,4 @@
+#include "../GEngine/src/Assets/ShaderBackend.h"
 // Production-library sampler/cache/material checks; run through test_sampler.py.
 #include "gepch.h"
 #include "Assets/Samplers/Sampler.h"
@@ -201,8 +202,8 @@ namespace
             const ShaderSource sources[]{
                 {VERTEX, "#version 460 core\nvoid main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2-1,0,1);}", "sampler-vertex"},
                 {FRAGMENT, "#version 460 core\nuniform sampler2D a;uniform sampler2D b;uniform sampler2DShadow c;uniform vec2 uv;uniform float ref;out vec4 result;void main(){result=vec4(texture(a,uv).r,texture(b,uv).r,texture(c,vec3(.5,.5,ref)),1);}", "sampler-fragment"}};
-            auto program = CreateShaderProgram(sources); Check(std::holds_alternative<Shader>(program), "Sampler fixture shader creation");
-            auto& shader = std::get<Shader>(program); shader.Bind();
+            auto program = CreateShaderProgram(sources); Check(program.has_value(), "Sampler fixture shader creation");
+            auto& shader = *program; shader.Bind();
             TestMaterial material(shader);
             Check(material.SetSampledTextureBinding("c", c, 5), "Shadow material binding");
             Check(material.SetSampledTextureBinding("b", b, 3), "Linear material binding");
@@ -218,8 +219,8 @@ namespace
             glDisable(GL_DEPTH_TEST); glDisable(GL_BLEND); glDisable(GL_CULL_FACE); glDisable(GL_FRAMEBUFFER_SRGB);
             auto draw = [&](float u, float reference)
             {
-                glUniform2f(glGetUniformLocation(shader.GetHandle(), "uv"), u, .5f);
-                glUniform1f(glGetUniformLocation(shader.GetHandle(), "ref"), reference);
+                glUniform2f(glGetUniformLocation(::GEngine::Asset::ShaderBackendAccess::Program(shader), "uv"), u, .5f);
+                glUniform1f(glGetUniformLocation(::GEngine::Asset::ShaderBackendAccess::Program(shader), "ref"), reference);
                 glDrawArrays(GL_TRIANGLES,0,3);
                 std::array<unsigned char,4> result{}; glReadPixels(0,0,1,1,GL_RGBA,GL_UNSIGNED_BYTE,result.data()); return result;
             };

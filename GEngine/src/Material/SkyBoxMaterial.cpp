@@ -4,10 +4,11 @@
 
 namespace GEngine
 {
-	SkyBoxMaterial::SkyBoxMaterial(const Asset::Texture& texture,
+	SkyBoxMaterial::SkyBoxMaterial(Construction& construction, const Asset::Texture& texture,
 		const std::string& vertexFileName, 
-		const std::string& fragFileName): Material(vertexFileName, fragFileName)
+		const std::string& fragFileName): Material(construction, vertexFileName, fragFileName)
 	{
+        if (!construction) return;
 		RenderSetting setting;
 		setting.m_Mode = DrawMode::TRIANGLES;
 		setting.m_RenderMode = RenderMode::Arrays;
@@ -22,10 +23,11 @@ namespace GEngine
 		    GENGINE_CORE_ERROR("Texture binding: {}", bound.error().message);
 	}
 
-	SkyBoxMaterial::SkyBoxMaterial(const std::vector<Asset::Texture*>& textures,
+	SkyBoxMaterial::SkyBoxMaterial(Construction& construction, const std::vector<Asset::Texture*>& textures,
 		const std::string& vertexFileName,
-		const std::string& fragFileName): Material(vertexFileName, fragFileName)
+		const std::string& fragFileName): Material(construction, vertexFileName, fragFileName)
 	{
+        if (!construction) return;
 		RenderSetting setting;
 		setting.m_Mode = DrawMode::TRIANGLES;
 		setting.m_RenderMode = RenderMode::Arrays;

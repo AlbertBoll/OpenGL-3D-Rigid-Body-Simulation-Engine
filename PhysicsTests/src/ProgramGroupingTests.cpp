@@ -1,3 +1,4 @@
+#include "../../GEngine/src/Assets/ShaderBackend.h"
 // CPU-only tests of the real scene paths. Synthetic GL names never reach a GL call.
 #include <GEngine/Scene/_Entity.h>
 #include <GEngine/Assets/Shaders/Shader.h>
@@ -20,17 +21,22 @@ namespace
     };
     struct ProgramNameTag
     {
-        using Type = unsigned int Asset::Shader::*;
+        using Type = std::unique_ptr<Asset::ShaderStorage> Asset::Shader::*;
         friend Type GroupingMember(ProgramNameTag);
     };
-    template struct GroupingMemberAccess<ProgramNameTag, &Asset::Shader::m_ProgramHandle>;
+    template struct GroupingMemberAccess<ProgramNameTag, &Asset::Shader::m_Storage>;
 
     struct TestProgram
     {
         Asset::Shader shader;
         explicit TestProgram(unsigned int name) { Set(name); }
         ~TestProgram() { Set(0); } // Shader owns no real GL object in this fixture.
-        void Set(unsigned int name) { shader.*GroupingMember(ProgramNameTag{}) = name; }
+        void Set(unsigned int name)
+        {
+            auto& storage = shader.*GroupingMember(ProgramNameTag{});
+            if (!storage) storage = std::make_unique<Asset::ShaderStorage>();
+            storage->program = name;
+        }
     };
 
     int checks = 0;

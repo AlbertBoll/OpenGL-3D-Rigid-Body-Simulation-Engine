@@ -1,0 +1,711 @@
+{
+  "baseline": "918d3b16154327300c7bb082464c85ad9f459c8e",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "Breakout/include/GameLevel.h",
+    "Breakout/src/BreakoutApp.cpp",
+    "Breakout/src/GameLevel.cpp",
+    "GEngine/include/GEngine/Assets/Shaders/Shader.h",
+    "GEngine/include/GEngine/Core/GEngine.h",
+    "GEngine/include/GEngine/Core/RenderSystem.cpp",
+    "GEngine/include/GEngine/Core/RenderTarget.h",
+    "GEngine/include/GEngine/Extras/Axes.h",
+    "GEngine/include/GEngine/Extras/Grid.h",
+    "GEngine/include/GEngine/Managers/ShaderManager.h",
+    "GEngine/include/GEngine/Material/AAScreenMaterial.h",
+    "GEngine/include/GEngine/Material/AnimatedMaterial.h",
+    "GEngine/include/GEngine/Material/BasicMaterial.h",
+    "GEngine/include/GEngine/Material/LightTextureMaterial.h",
+    "GEngine/include/GEngine/Material/LineBasicMaterial.h",
+    "GEngine/include/GEngine/Material/Material.h",
+    "GEngine/include/GEngine/Material/MaterialTemplate.h",
+    "GEngine/include/GEngine/Material/NormalLightTextureMaterial.h",
+    "GEngine/include/GEngine/Material/Pipeline.h",
+    "GEngine/include/GEngine/Material/SkyBoxMaterial.h",
+    "GEngine/include/GEngine/Material/SpriteMaterial.h",
+    "GEngine/include/GEngine/Material/TerrainLightMaterial.h",
+    "GEngine/include/GEngine/Material/TextureMaterial.h",
+    "GEngine/include/GEngine/Scene/SkyBoxEntity.h",
+    "GEngine/src/Assets/Shader.cpp",
+    "GEngine/src/Assets/ShaderBackend.h",
+    "GEngine/src/Assets/ShaderCompilation.cpp",
+    "GEngine/src/Core/BaseApp.cpp",
+    "GEngine/src/Core/GEngine.cpp",
+    "GEngine/src/Extras/Axes.cpp",
+    "GEngine/src/Extras/Grid.cpp",
+    "GEngine/src/Managers/ShaderManager.cpp",
+    "GEngine/src/Material/AAScreenMaterial.cpp",
+    "GEngine/src/Material/AnimatedMaterial.cpp",
+    "GEngine/src/Material/LightTextureMaterial.cpp",
+    "GEngine/src/Material/Material.cpp",
+    "GEngine/src/Material/MaterialTemplate.cpp",
+    "GEngine/src/Material/NormalLightTextureMaterial.cpp",
+    "GEngine/src/Material/SkyBoxMaterial.cpp",
+    "GEngine/src/Material/SpriteMaterial.cpp",
+    "GEngine/src/Material/TerrainLightMaterial.cpp",
+    "GEngine/src/Material/TextureMaterial.cpp",
+    "GEngine/src/Scene/SkyBoxEntity.cpp",
+    "GEngine/src/Scene/_Scene.cpp",
+    "GEngineEditor/src/SceneApp.cpp",
+    "PhysicsTests/src/ProgramGroupingTests.cpp",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-34.json",
+    "tools/asset_registry_probe.cpp",
+    "tools/interpolation_probe.cpp",
+    "tools/light_components_probe.cpp",
+    "tools/material_pipeline_probe.cpp",
+    "tools/sampler_probe.cpp",
+    "tools/shader_program_probe.cpp",
+    "tools/shutdown_probe.cpp",
+    "tools/test_entity_api.py",
+    "tools/test_interpolation.py",
+    "tools/test_light_components.py",
+    "tools/test_material_pipeline.py",
+    "tools/test_shader_program.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Expected ShaderError across incremental/factory/manager/root/material/application chain; neutral normal declarations and private native implementation; final shader/manager/header tests pass.",
+      "finding": "Shader recoverable exception/native boundary and required caller transport",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Immutable validated PipelineState and MaterialTemplate use exact canonical keys, alpha-derived depth/blend and deterministic paired slots/defaults; final declaration probes pass.",
+      "finding": "Alpha/render state and material declaration identity",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Separate private ownership and compilation translation units preserve the recorded link/dependency policy; all six Debug/Release targets build.",
+      "finding": "Affected CPU-only Release linkage after shader ownership isolation",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Same diagnostic families recorded in approved Phase 30 and baseline source: helper/shadow primitive compatibility remains Phase 63; concrete material binding/submission remains Phases 35/46. Shared non-shader root/scene/render extent/count exceptions remain Phases 36/46/66. User authorized direct shader/material declaration closure only; no new shader/declaration boundary uses legacy exception transport.",
+      "finding": "Inherited application render diagnostics and unchanged shared-file legacy contracts",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/PHASE_34_SCOPE_AMENDMENT.md",
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_34_REVIEW.md"
+  ],
+  "next_phase": "35",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "0f81cdf0f6a45a6f01d1e838556f771bb59ff4bf",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-34/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/0f81cdf0f6a45a6f01d1e838556f771bb59ff4bf",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "53b5f0dd226eadc4bb2e709d334ceebf3d323202a2bbc31a6869afbb4ec4a0cf"
+      },
+      "mode": "100644",
+      "validated_blob": "ccff44ad87d11803e05a4b019c1541ece7fe16a4",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-34/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/ccff44ad87d11803e05a4b019c1541ece7fe16a4"
+    }
+  },
+  "phase": "34",
+  "previous_approved_tag": "render-refactor-phase-33-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_34_REVIEW.md",
+  "schema": 2,
+  "summary": "Native-free typed shader program ownership and complete required caller propagation, plus immutable alpha-derived pipeline/material declarations, validated in Debug and Release within the explicitly authorized direct dependency closure.",
+  "validation": [
+    {
+      "check": "Debug: Six maintained consumer builds; shader ownership/failure/manager/material caller integration",
+      "command": "python tools/test_shader_program.py --configuration Debug --output logs/rendering/phase34/final-v3/Debug/shader",
+      "evidence": "logs/rendering/phase34/final-v3/Debug/shader/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh final-candidate execution; --no-build uses the matching final consumer/library build only."
+    },
+    {
+      "check": "Debug: Immutable declaration behavior and native-free consumer include closure",
+      "command": "python tools/test_material_pipeline.py --configuration Debug --output logs/rendering/phase34/final-v3/Debug/declarations",
+      "evidence": "logs/rendering/phase34/final-v3/Debug/declarations/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh final-candidate execution; --no-build uses the matching final consumer/library build only."
+    },
+    {
+      "check": "Debug: Sampler binding regressions",
+      "command": "python tools/test_sampler.py --configuration Debug --no-build --output logs/rendering/phase34/final-v3/Debug/sampler",
+      "evidence": "logs/rendering/phase34/final-v3/Debug/sampler/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh final-candidate execution; --no-build uses the matching final consumer/library build only."
+    },
+    {
+      "check": "Debug: Registry/texture/shader owner regressions",
+      "command": "python tools/test_asset_registry.py --configuration Debug --no-build --output logs/rendering/phase34/final-v3/Debug/registry",
+      "evidence": "logs/rendering/phase34/final-v3/Debug/registry/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh final-candidate execution; --no-build uses the matching final consumer/library build only."
+    },
+    {
+      "check": "Debug: Light uniform payload regression",
+      "command": "python tools/test_light_components.py --configuration Debug --no-build --output logs/rendering/phase34/final-v3/Debug/lights",
+      "evidence": "logs/rendering/phase34/final-v3/Debug/lights/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh final-candidate execution; --no-build uses the matching final consumer/library build only."
+    },
+    {
+      "check": "Debug: Program grouping and entity API regression",
+      "command": "python tools/test_entity_api.py --configuration Debug --no-build --output logs/rendering/phase34/final-v3/Debug/grouping",
+      "evidence": "logs/rendering/phase34/final-v3/Debug/grouping/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh final-candidate execution; --no-build uses the matching final consumer/library build only."
+    },
+    {
+      "check": "Debug: Interpolation, suspension and fixed-step scheduling regression",
+      "command": "python tools/test_interpolation.py --configuration Debug --no-build --output logs/rendering/phase34/final-v3/Debug/interpolation",
+      "evidence": "logs/rendering/phase34/final-v3/Debug/interpolation/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh final-candidate execution; --no-build uses the matching final consumer/library build only."
+    },
+    {
+      "check": "Debug: Four graphical applications startup/responsiveness/native-close",
+      "command": "python tools/test_framebuffer.py --configuration Debug --no-build --smoke --output logs/rendering/phase34/final-v3/Debug/current-smoke",
+      "evidence": "logs/rendering/phase34/final-v3/Debug/current-smoke/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh final-candidate execution; --no-build uses the matching final consumer/library build only."
+    },
+    {
+      "check": "Debug: root lifecycle and owner-thread service access",
+      "command": "C:\\dev\\GEngine-rendering\\logs\\rendering\\phase34\\final-v3\\Debug\\shader\\shutdown-probe.exe --lifetimes",
+      "evidence": "logs/rendering/phase34/final-v3/Debug/lifecycle/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh --lifetimes execution using exact final shader runner compiled fixture (binary hash recorded)."
+    },
+    {
+      "check": "Release: Six maintained consumer builds; shader ownership/failure/manager/material caller integration",
+      "command": "python tools/test_shader_program.py --configuration Release --output logs/rendering/phase34/final-v3/Release/shader",
+      "evidence": "logs/rendering/phase34/final-v3/Release/shader/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh final-candidate execution; --no-build uses the matching final consumer/library build only."
+    },
+    {
+      "check": "Release: Immutable declaration behavior and native-free consumer include closure",
+      "command": "python tools/test_material_pipeline.py --configuration Release --output logs/rendering/phase34/final-v3/Release/declarations",
+      "evidence": "logs/rendering/phase34/final-v3/Release/declarations/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh final-candidate execution; --no-build uses the matching final consumer/library build only."
+    },
+    {
+      "check": "Release: Sampler binding regressions",
+      "command": "python tools/test_sampler.py --configuration Release --no-build --output logs/rendering/phase34/final-v3/Release/sampler",
+      "evidence": "logs/rendering/phase34/final-v3/Release/sampler/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh final-candidate execution; --no-build uses the matching final consumer/library build only."
+    },
+    {
+      "check": "Release: Registry/texture/shader owner regressions",
+      "command": "python tools/test_asset_registry.py --configuration Release --no-build --output logs/rendering/phase34/final-v3/Release/registry",
+      "evidence": "logs/rendering/phase34/final-v3/Release/registry/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh final-candidate execution; --no-build uses the matching final consumer/library build only."
+    },
+    {
+      "check": "Release: Light uniform payload regression",
+      "command": "python tools/test_light_components.py --configuration Release --no-build --output logs/rendering/phase34/final-v3/Release/lights",
+      "evidence": "logs/rendering/phase34/final-v3/Release/lights/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh final-candidate execution; --no-build uses the matching final consumer/library build only."
+    },
+    {
+      "check": "Release: Program grouping and entity API regression",
+      "command": "python tools/test_entity_api.py --configuration Release --no-build --output logs/rendering/phase34/final-v3/Release/grouping",
+      "evidence": "logs/rendering/phase34/final-v3/Release/grouping/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh final-candidate execution; --no-build uses the matching final consumer/library build only."
+    },
+    {
+      "check": "Release: Interpolation, suspension and fixed-step scheduling regression",
+      "command": "python tools/test_interpolation.py --configuration Release --no-build --output logs/rendering/phase34/final-v3/Release/interpolation",
+      "evidence": "logs/rendering/phase34/final-v3/Release/interpolation/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh final-candidate execution; --no-build uses the matching final consumer/library build only."
+    },
+    {
+      "check": "Release: Four graphical applications startup/responsiveness/native-close",
+      "command": "python tools/test_framebuffer.py --configuration Release --no-build --smoke --output logs/rendering/phase34/final-v3/Release/current-smoke",
+      "evidence": "logs/rendering/phase34/final-v3/Release/current-smoke/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh final-candidate execution; --no-build uses the matching final consumer/library build only."
+    },
+    {
+      "check": "Release: root lifecycle and owner-thread service access",
+      "command": "C:\\dev\\GEngine-rendering\\logs\\rendering\\phase34\\final-v3\\Release\\shader\\shutdown-probe.exe --lifetimes",
+      "evidence": "logs/rendering/phase34/final-v3/Release/lifecycle/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh --lifetimes execution using exact final shader runner compiled fixture (binary hash recorded)."
+    },
+    {
+      "check": "Changed production exception/concept syntax and normal shader/material/pipeline native declaration inspection",
+      "command": "Inspect added production lines/new files and normal headers; compiler dependency proof is in declaration results",
+      "evidence": "logs/rendering/phase34/architecture-check.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Original protected working tree/index/baseline preservation",
+      "command": "Compare original protected fingerprints and git ls-files --stage -z / -v -z with preflight snapshots",
+      "evidence": "logs/rendering/phase34/preservation-check.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Rendering governance",
+      "command": "python .codex/tools/validate_rendering_governance.py",
+      "evidence": "logs/rendering/phase34/governance-check.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "Breakout/include/GameLevel.h": {
+      "executable": null,
+      "sha256": "bc7b7857093efa604358983b7c91a7b1a895cd2376ba984780ad32dbda75def3"
+    },
+    "Breakout/src/BreakoutApp.cpp": {
+      "executable": null,
+      "sha256": "2f4c131b132c5d6c7397f443b3164118d36565a90b89ac025993bf5dbb2c5c01"
+    },
+    "Breakout/src/GameLevel.cpp": {
+      "executable": null,
+      "sha256": "8f6962bbc5c7493b0b502b2ff31bf6f7a0b0bda539bd74093a161d8b1fda8adf"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/Shader.h": {
+      "executable": null,
+      "sha256": "44af7fa32dc5e889fc1e971a73a54200c0c8e23655c1427ad9fc22478ff6b28c"
+    },
+    "GEngine/include/GEngine/Core/GEngine.h": {
+      "executable": null,
+      "sha256": "6c50badda2654b6a0b5c203355d88ba76caea09c88898d41d820efd1c3969271"
+    },
+    "GEngine/include/GEngine/Core/RenderSystem.cpp": {
+      "executable": null,
+      "sha256": "3e3d9566496cfab6006a698dbc33e05a6013a7c47ee6933883b8c00f9dc5e976"
+    },
+    "GEngine/include/GEngine/Core/RenderTarget.h": {
+      "executable": null,
+      "sha256": "65671bbc5b1b7fe91a9f6f7c0bcdf671eb3a4b7d328d5d1967196b95e30e6e50"
+    },
+    "GEngine/include/GEngine/Extras/Axes.h": {
+      "executable": null,
+      "sha256": "a8a30204d6a82e669c704b9547a9190e59915a2f46879569eff67bb4da8c61b6"
+    },
+    "GEngine/include/GEngine/Extras/Grid.h": {
+      "executable": null,
+      "sha256": "9e117c80816692ff2292c12b2b1860baa2ac737de48dcc70c15a126473af9a48"
+    },
+    "GEngine/include/GEngine/Managers/ShaderManager.h": {
+      "executable": null,
+      "sha256": "c25f98116f98079bedd4b3359588c6b364806b9ca775a05f69c046da746f4ec4"
+    },
+    "GEngine/include/GEngine/Material/AAScreenMaterial.h": {
+      "executable": null,
+      "sha256": "4450b91f8d44c841e5c950567f008275055c0e2c9c8ff3b1007aa80002806322"
+    },
+    "GEngine/include/GEngine/Material/AnimatedMaterial.h": {
+      "executable": null,
+      "sha256": "ed1a9d04a5e3a892b817e80d84228ba05a3e58553f3d2da4fef52af8c8997562"
+    },
+    "GEngine/include/GEngine/Material/BasicMaterial.h": {
+      "executable": null,
+      "sha256": "e1407341fcd5215aeaa640e8ad053864a3335ece0bbbb9e0ffe91e4eda611ed4"
+    },
+    "GEngine/include/GEngine/Material/LightTextureMaterial.h": {
+      "executable": null,
+      "sha256": "cd03607240cebb1d2983e53432edd232196f93aab1200912eb4c0422bbfb04f4"
+    },
+    "GEngine/include/GEngine/Material/LineBasicMaterial.h": {
+      "executable": null,
+      "sha256": "4a56b72cb87afa229f4d4346705e111b04d625e8927b083ea12a3e072a288bb8"
+    },
+    "GEngine/include/GEngine/Material/Material.h": {
+      "executable": null,
+      "sha256": "3ce18a5fc626b3e8a2ab22bbdf3e165b4ca65b58e4840aae4982bd5f48986414"
+    },
+    "GEngine/include/GEngine/Material/MaterialTemplate.h": {
+      "executable": null,
+      "sha256": "d68a51ac08a47873df68de6ac68b4d9a410303a73d80a2b22bf8e2195f12741a"
+    },
+    "GEngine/include/GEngine/Material/NormalLightTextureMaterial.h": {
+      "executable": null,
+      "sha256": "4bdaf6aa7aa1d9bdf1d8a607b29bec853484c54f210477ec59893bb4e7b463ab"
+    },
+    "GEngine/include/GEngine/Material/Pipeline.h": {
+      "executable": null,
+      "sha256": "1a5338955f8b0fd1ac7af01a1a6f032816d53e18b61b002177d081b31b193e0d"
+    },
+    "GEngine/include/GEngine/Material/SkyBoxMaterial.h": {
+      "executable": null,
+      "sha256": "23a4867315ed7f11ff3e25483fbecdc72a795282dee19960be0726d25bdd5369"
+    },
+    "GEngine/include/GEngine/Material/SpriteMaterial.h": {
+      "executable": null,
+      "sha256": "11ee4fb91b936df4d1db7fc06f748d68e6cff438f21c72b3063a9b14ae652e54"
+    },
+    "GEngine/include/GEngine/Material/TerrainLightMaterial.h": {
+      "executable": null,
+      "sha256": "4c2bac345e196f6205d2155a1899d6b8506dd7428181a31af005714bd0fe7105"
+    },
+    "GEngine/include/GEngine/Material/TextureMaterial.h": {
+      "executable": null,
+      "sha256": "1eaa12affd8d1576285ffc449d6ca319085fcf19c80efe1c6aaae514679ca99c"
+    },
+    "GEngine/include/GEngine/Scene/SkyBoxEntity.h": {
+      "executable": null,
+      "sha256": "267a7d1fc48bc1f718bb33fa23685d023eaa6dfc0a4e9278a7d41e68f5083fd1"
+    },
+    "GEngine/src/Assets/Shader.cpp": {
+      "executable": null,
+      "sha256": "5e657f427d291cb9b6318572c062e12e2206f90832bbede299ef7992fd78c2dd"
+    },
+    "GEngine/src/Assets/ShaderBackend.h": {
+      "executable": null,
+      "sha256": "872ecd643f61a85ded49cb966df05552bf2562336d375a8da11bbbeb629f8b64"
+    },
+    "GEngine/src/Assets/ShaderCompilation.cpp": {
+      "executable": null,
+      "sha256": "131dedde2c9e5715c50fd7de8bf9f635f0f48b0e587362c2ff44f41232b9a30f"
+    },
+    "GEngine/src/Core/BaseApp.cpp": {
+      "executable": null,
+      "sha256": "403e57a1fa08f999e2691e7399ea58abf8faca9996f01c3b884928036b31aa51"
+    },
+    "GEngine/src/Core/GEngine.cpp": {
+      "executable": null,
+      "sha256": "0a0b580b4cf18fa51e7d68ddde57fd060b430c10c511bc3768dc914ebfd069d5"
+    },
+    "GEngine/src/Extras/Axes.cpp": {
+      "executable": null,
+      "sha256": "65305168a8054dd0e39f5afb177505a6afcb282d1366dcd7952663c98a655fa3"
+    },
+    "GEngine/src/Extras/Grid.cpp": {
+      "executable": null,
+      "sha256": "240948e8a8667183fc126d21c9e7d6b2e853f074d4cef1815b09dde8b3437489"
+    },
+    "GEngine/src/Managers/ShaderManager.cpp": {
+      "executable": null,
+      "sha256": "857cf9ec66820ef40ccc601d222a6125eb79817eb4bbe3732d8ad5dc4aab3eb9"
+    },
+    "GEngine/src/Material/AAScreenMaterial.cpp": {
+      "executable": null,
+      "sha256": "4b73a46494f196b8057ec5466e75255b1dc1a8f1fcc96035383da2ac9747eb06"
+    },
+    "GEngine/src/Material/AnimatedMaterial.cpp": {
+      "executable": null,
+      "sha256": "2939baffa268eae08828152e9ff17d7a445ba75fad84cd1bf90c63cc4003ba09"
+    },
+    "GEngine/src/Material/LightTextureMaterial.cpp": {
+      "executable": null,
+      "sha256": "92504341e5ae5f0bbbdda3781ffd72b7d1afd4e39cef06d4f4b5bef600ad4280"
+    },
+    "GEngine/src/Material/Material.cpp": {
+      "executable": null,
+      "sha256": "46e4c6fddf4f398cc0640cbf0133ea0673e72c6d985dc6cb48f3fa32a07747a8"
+    },
+    "GEngine/src/Material/MaterialTemplate.cpp": {
+      "executable": null,
+      "sha256": "c0a81bfad936f8aad8b127fdeedf8803cbc94a8a6710a487a5c567d9f1343e12"
+    },
+    "GEngine/src/Material/NormalLightTextureMaterial.cpp": {
+      "executable": null,
+      "sha256": "2cc81b1ab8a506a3ccfc8f56c35c3d4ec8487e3815d40522fe0fa111a8c619e2"
+    },
+    "GEngine/src/Material/SkyBoxMaterial.cpp": {
+      "executable": null,
+      "sha256": "89ad3472dd6097c771d344503edc910977d387d3c118897add0b5d8c9bff3775"
+    },
+    "GEngine/src/Material/SpriteMaterial.cpp": {
+      "executable": null,
+      "sha256": "fe56e2bf814ffcef253e585ee392e4ccd26ec96b436e1400059e120d02c26e2e"
+    },
+    "GEngine/src/Material/TerrainLightMaterial.cpp": {
+      "executable": null,
+      "sha256": "3bfddef9c932d8085b2aa1e118337a076558f487d0fef2d9110f7338e9b2ee21"
+    },
+    "GEngine/src/Material/TextureMaterial.cpp": {
+      "executable": null,
+      "sha256": "41a61223d11690b9cfb150b81f7b6de9bb53694396db45154e87123785bba831"
+    },
+    "GEngine/src/Scene/SkyBoxEntity.cpp": {
+      "executable": null,
+      "sha256": "487bab0384bda807c5db2ea292b2d94045722ec69a02d7af12e30cd786014882"
+    },
+    "GEngine/src/Scene/_Scene.cpp": {
+      "executable": null,
+      "sha256": "cb58e15090a01cf4046a703391926731351208d67bf9613bc3118142e02eab55"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "GEngineEditor/src/SceneApp.cpp": {
+      "executable": null,
+      "sha256": "a32bd42ec3929b8b57dcf011b9533ed2b57a6d1c924c1e8fee36af814d7beb90"
+    },
+    "PhysicsTests/src/ProgramGroupingTests.cpp": {
+      "executable": null,
+      "sha256": "6ad8a6fc5b5e154c39b34b55547f11fa2b367471136a3ad8c74b6a8e2b2c7fe9"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "53b5f0dd226eadc4bb2e709d334ceebf3d323202a2bbc31a6869afbb4ec4a0cf"
+    },
+    "docs/physics/PHASE_06_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_07_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_08_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_09_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_10_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_11_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_12_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_13_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_14_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_15_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_16_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_17_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_18_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_19_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_20_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_21_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_22_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_23_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_24_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_25_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_26_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_27_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_28_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_29_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_30_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_32_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_33_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_34_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_35_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_36_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_37_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_38_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_39_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_OPTIMIZATION.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_REFACTOR.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_00_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_01_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_02_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_03_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_04_REVIEW.md": {
+      "absent": true
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052"
+    },
+    "tools/asset_registry_probe.cpp": {
+      "executable": null,
+      "sha256": "9d21f30a320101b6812fc4bb57a2430aec2435840610ff3f79f57647e57380db"
+    },
+    "tools/interpolation_probe.cpp": {
+      "executable": null,
+      "sha256": "e9bfe5c8f8654caabd5888aa726222ac1d01f9abe7ab219681fe6ca9215ce92e"
+    },
+    "tools/light_components_probe.cpp": {
+      "executable": null,
+      "sha256": "55f01688335c64e7478a4f464ceb9445b3b71993a33a348f224eca7f8881ca16"
+    },
+    "tools/material_pipeline_probe.cpp": {
+      "executable": null,
+      "sha256": "0c90700c15ac00da79a7d9ebd7de84fbcc0f172cc179f8f3a8d43933880b6fb3"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/sampler_probe.cpp": {
+      "executable": null,
+      "sha256": "c35dda80f57bf6252294fed3acfea15ad163f8877ea4dd750929fcecdff6185d"
+    },
+    "tools/shader_program_probe.cpp": {
+      "executable": null,
+      "sha256": "8ea6da2d144b6870a605418fed89a8f489857cd99a4a89184f8cf54fed06921b"
+    },
+    "tools/shutdown_probe.cpp": {
+      "executable": null,
+      "sha256": "618f5c9e13d4a8f12510475ff809ec61bb916d32d6c0ac343e6be707cd01fd90"
+    },
+    "tools/test_asset_registry.py": {
+      "executable": null,
+      "sha256": "ed8b3bb99417594c4eac800f14eb3db44072830da7e5ba1df663d10000b3c18f"
+    },
+    "tools/test_entity_api.py": {
+      "executable": null,
+      "sha256": "d412059e395959bcf80ca768e60718e25aa1a2e340858db6dfba2b10538b679e"
+    },
+    "tools/test_framebuffer.py": {
+      "executable": null,
+      "sha256": "6e772168de65cc46d933cba0f617eb3953d5eb2b4bd12007fa3776b7902782b9"
+    },
+    "tools/test_interpolation.py": {
+      "executable": null,
+      "sha256": "8c2ebdbb079f84ed79efff811ad0e4e060c3eaaf08a992b3693c3d3d2b0c7b41"
+    },
+    "tools/test_light_components.py": {
+      "executable": null,
+      "sha256": "3a13e5a532a86c2a261d0cae2474a6be036f05d1061ead22afca9687c7acc051"
+    },
+    "tools/test_material_pipeline.py": {
+      "executable": null,
+      "sha256": "7d9320d24be587127ec75d33c0cf134de199ed24545d86e3a0396e2c1883a652"
+    },
+    "tools/test_sampler.py": {
+      "executable": null,
+      "sha256": "37a29952ab2c3ad13b036fd0bc8c72305895f33ee793f94705cc9f4e04aaa4ae"
+    },
+    "tools/test_shader_program.py": {
+      "executable": null,
+      "sha256": "88950b61e0be20898cc672b1daeda2dfa53d7e9c8f5d93e5da4eec2b7aa3fd96"
+    },
+    "tools/test_shadow_configuration.py": {
+      "executable": null,
+      "sha256": "43993d9cf9974a99dc10c2ce799830f288d62649ccf97d3a47a2ea162124a71b"
+    },
+    "tools/test_shutdown.py": {
+      "executable": null,
+      "sha256": "1d195192e27df6d5be8616f3138efa453f8c13ff80816e8b8fd2782d39b5dcc1"
+    }
+  }
+}

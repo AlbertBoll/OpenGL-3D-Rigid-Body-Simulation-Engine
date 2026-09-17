@@ -5,9 +5,10 @@ namespace GEngine
 {
 	using namespace Math;
 
-	AAScreenMaterial::AAScreenMaterial(unsigned int screenTextureID, const std::string& vertexFileName,
-		const std::string& fragFileName): Material(vertexFileName, fragFileName)
+	AAScreenMaterial::AAScreenMaterial(Construction& construction, unsigned int screenTextureID, const std::string& vertexFileName,
+		const std::string& fragFileName): Material(construction, vertexFileName, fragFileName)
 	{
+        if (!construction) return;
 		RenderSetting setting;
 	
 		setting.m_Mode = DrawMode::TRIANGLES;

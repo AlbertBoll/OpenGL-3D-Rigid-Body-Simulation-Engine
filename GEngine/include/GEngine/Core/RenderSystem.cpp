@@ -1,4 +1,5 @@
 #include "gepch.h"
+#include "../../../src/Assets/ShaderBackend.h"
 #include "RenderSystem.h"
 #include"Scene/_SCene.h"
 #include "Core/RenderTarget.h"
@@ -178,7 +179,7 @@ namespace GEngine
 				{
 					auto& renderComp = group[0].GetComponent<RenderComponent>();
 					//auto shader = renderComp.Shader;
-					/*auto id = renderComp.Shader->GetHandle();
+					/*auto id = Asset::ShaderBackendAccess::Program(*renderComp.Shader);
 					shader->Bind();*/
 
 					for (auto& entity : group)
@@ -222,7 +223,7 @@ namespace GEngine
 				//auto& texturesComp = group[0].GetComponent<TexturesComponent>();
 				auto& renderComp = group[0].GetComponent<RenderComponent>();
 				auto shader = renderComp.Shader;
-				auto id = renderComp.Shader->GetHandle();
+				auto id = Asset::ShaderBackendAccess::Program(*renderComp.Shader);
 				shader->Bind();
 				shader->SetUniform("u_view", camera.GetViewMatrix());
 				shader->SetUniform("u_projection", camera.GetProjection());
@@ -346,7 +347,7 @@ namespace GEngine
 				//auto& texturesComp = group[0].GetComponent<TexturesComponent>();
 				auto& renderComp = group[0].GetComponent<RenderComponent>();
 				auto shader = renderComp.Shader;
-				auto id = renderComp.Shader->GetHandle();
+				auto id = Asset::ShaderBackendAccess::Program(*renderComp.Shader);
 				shader->Bind();
 				shader->SetUniform("u_view", camera.GetViewMatrix());
 				shader->SetUniform("u_projection", camera.GetProjection());

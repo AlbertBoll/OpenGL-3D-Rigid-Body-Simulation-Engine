@@ -1,3 +1,4 @@
+#include "../GEngine/src/Assets/ShaderBackend.h"
 // Exercise real scene dispatch and driver uniform storage through GEngine.lib.
 #include "gepch.h"
 #include "Core/GLDebug.h"
@@ -26,10 +27,10 @@ namespace
 
     void BuildShader(Asset::Shader& shader)
     {
-        shader.CompileShader(std::string(R"(#version 460 core
+        Require(shader.CompileShader(std::string(R"(#version 460 core
             void main() { gl_Position = vec4(0, 0, 0, 1); }
-        )"), Asset::VERTEX, "phase11.vert");
-        shader.CompileShader(std::string(R"(#version 460 core
+        )"), Asset::VERTEX, "phase11.vert").has_value(), "Fixture stage compilation failed");
+        Require(shader.CompileShader(std::string(R"(#version 460 core
             uniform vec3 dirDirection, dirAmbient, pointPosition, pointAmbient, spotDirection;
             uniform vec3 legacyPosition[2], legacyColor[2], legacyAttenuation[2];
             out vec4 color;
@@ -38,18 +39,18 @@ namespace
                     + legacyPosition[0] + legacyPosition[1] + legacyColor[0] + legacyColor[1]
                     + legacyAttenuation[0] + legacyAttenuation[1], 1);
             }
-        )"), Asset::FRAGMENT, "phase11.frag");
-        shader.Link();
+        )"), Asset::FRAGMENT, "phase11.frag").has_value(), "Fixture stage compilation failed");
+        Require(shader.Link().has_value(), "Fixture shader link failed");
         Require(shader.IsLinked(), "Fixture shader did not link");
         shader.Bind();
     }
 
     void Expect(Asset::Shader& shader, const char* name, const Vec3f& expected)
     {
-        const GLint location = glGetUniformLocation(shader.GetHandle(), name);
+        const GLint location = glGetUniformLocation(::GEngine::Asset::ShaderBackendAccess::Program(shader), name);
         Require(location >= 0, "Fixture uniform was optimized out or misnamed");
         Vec3f actual{};
-        glGetUniformfv(shader.GetHandle(), location, &actual.x);
+        glGetUniformfv(::GEngine::Asset::ShaderBackendAccess::Program(shader), location, &actual.x);
         if (actual != expected) {
             std::cerr << "Uniform mismatch: " << name << '\n';
             Require(false, "Wrong component data reached the driver");

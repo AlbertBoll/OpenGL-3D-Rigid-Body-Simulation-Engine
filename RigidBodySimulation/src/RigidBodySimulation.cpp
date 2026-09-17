@@ -63,9 +63,15 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
 	float cameraFarClip = m_EditorCamera_.GetFarClip();
 	m_ShadowCascadeLevels = {cameraFarClip / 50.f, cameraFarClip / 25.0f, cameraFarClip / 10.0f, cameraFarClip / 2.f,  cameraFarClip};
 
-	auto cascadeShadowMapShader = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping_depth.vert", base_shader_dir + "shadow_mapping_depth.gs", base_shader_dir + "shadow_mapping_depth.frag" });
-	auto cascadedRenderShader = ShaderManager::GetShaderProgram({ base_shader_dir + "pbr_cascade_shadow.vert", base_shader_dir + "pbr_cascade_shadow.frag" });
-	auto pointLightRenderShader = ShaderManager::GetShaderProgram({ base_shader_dir + "pbr_cascade_shadow.vert", base_shader_dir + "point_light_sphere_visual.frag" });
+	auto cascadeShadowMapShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping_depth.vert", base_shader_dir + "shadow_mapping_depth.gs", base_shader_dir + "shadow_mapping_depth.frag" });
+	if (!cascadeShadowMapShaderResult) { return std::unexpected(cascadeShadowMapShaderResult.error()); }
+	auto* cascadeShadowMapShader = *cascadeShadowMapShaderResult;
+	auto cascadedRenderShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "pbr_cascade_shadow.vert", base_shader_dir + "pbr_cascade_shadow.frag" });
+	if (!cascadedRenderShaderResult) { return std::unexpected(cascadedRenderShaderResult.error()); }
+	auto* cascadedRenderShader = *cascadedRenderShaderResult;
+	auto pointLightRenderShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "pbr_cascade_shadow.vert", base_shader_dir + "point_light_sphere_visual.frag" });
+	if (!pointLightRenderShaderResult) { return std::unexpected(pointLightRenderShaderResult.error()); }
+	auto* pointLightRenderShader = *pointLightRenderShaderResult;
 
 	using namespace Shape;
 
@@ -303,7 +309,9 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
 	//	}
 	//}
 	
-	auto DebugBoundingVolumeShader = ShaderManager::GetShaderProgram({ base_shader_dir + "basic.vert", base_shader_dir + "basic.frag" });
+	auto DebugBoundingVolumeShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "basic.vert", base_shader_dir + "basic.frag" });
+	if (!DebugBoundingVolumeShaderResult) { return std::unexpected(DebugBoundingVolumeShaderResult.error()); }
+	auto* DebugBoundingVolumeShader = *DebugBoundingVolumeShaderResult;
 	//auto gridGeo = ShapeManager::GetShape("GridHelper");
 	auto DebugRenderComp = DebugRenderComponent{};
 	DebugRenderComp.Shader = DebugBoundingVolumeShader;
@@ -451,7 +459,9 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
 
 	//Grid Configuration
 	m_GridEntity = m_ActiveScene->CreateEntity("grid");
-	auto basicShader = ShaderManager::GetShaderProgram({ base_shader_dir + "basic.vert", base_shader_dir + "basic.frag" });
+	auto basicShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "basic.vert", base_shader_dir + "basic.frag" });
+	if (!basicShaderResult) { return std::unexpected(basicShaderResult.error()); }
+	auto* basicShader = *basicShaderResult;
 	auto gridGeo = ShapeManager::GetShape("GridHelper");
 	auto basicRenderComp = RenderComponent{};
 	basicRenderComp.Shader = basicShader;
@@ -483,7 +493,9 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
 	//Load SkyBox
 
 	RenderComponent skyBoxRenderComp;
-	auto skyBoxShader = ShaderManager::GetShaderProgram({ base_shader_dir + "skybox_environment.vert", base_shader_dir + "skybox_environment.frag" });
+	auto skyBoxShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "skybox_environment.vert", base_shader_dir + "skybox_environment.frag" });
+	if (!skyBoxShaderResult) { return std::unexpected(skyBoxShaderResult.error()); }
+	auto* skyBoxShader = *skyBoxShaderResult;
 	skyBoxRenderComp.Shader = skyBoxShader;
 	skyBoxRenderComp.RenderSettings.m_PrimitivesSetting.surfaceSetting.lineWidth = 1.f;
 	skyBoxRenderComp.RenderSettings.m_PrimitivesSetting.surfaceSetting.bDoubleSide = true;
@@ -820,11 +832,15 @@ void RigidBodySimulationApp::Render()
 		//RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get(), m_ViewportBounds[0], m_ViewportBounds[1]);
 
 		//point shadow pass
-		auto pointLightShadowShader = ShaderManager::GetShaderProgram({ base_shader_dir + "point_shadows_depth.vert", base_shader_dir + "point_shadows_depth.gs", base_shader_dir + "point_shadows_depth.frag" });
+		auto pointLightShadowShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "point_shadows_depth.vert", base_shader_dir + "point_shadows_depth.gs", base_shader_dir + "point_shadows_depth.frag" });
+		if (!pointLightShadowShaderResult) { Asset::ReportShaderError(pointLightShadowShaderResult.error()); m_Running = false; return; }
+		auto* pointLightShadowShader = *pointLightShadowShaderResult;
 		RenderSystem::PointShadowPass(m_ActiveScene.get(), pointLightShadowShader, *m_PointShadowFrameBuffer, m_LightPos, m_NearPlane, m_FarPlane);
 
 		//cascade shadow pass
-		auto cascadeShadowMapShader = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping_depth.vert", base_shader_dir + "shadow_mapping_depth.gs", base_shader_dir + "shadow_mapping_depth.frag" });
+		auto cascadeShadowMapShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping_depth.vert", base_shader_dir + "shadow_mapping_depth.gs", base_shader_dir + "shadow_mapping_depth.frag" });
+		if (!cascadeShadowMapShaderResult) { Asset::ReportShaderError(cascadeShadowMapShaderResult.error()); m_Running = false; return; }
+		auto* cascadeShadowMapShader = *cascadeShadowMapShaderResult;
 		RenderSystem::CascadedShadowPass(m_ActiveScene.get(), cascadeShadowMapShader, *m_CascadeShadowFrameBuffer);
 
 
@@ -842,7 +858,9 @@ void RigidBodySimulationApp::Render()
 
 
 		//Mouse Pick pass
-		auto mousePickShader = ShaderManager::GetShaderProgram({ base_shader_dir + "mouse_pick.vert", base_shader_dir + "mouse_pick.frag" });
+		auto mousePickShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "mouse_pick.vert", base_shader_dir + "mouse_pick.frag" });
+		if (!mousePickShaderResult) { Asset::ReportShaderError(mousePickShaderResult.error()); m_Running = false; return; }
+		auto* mousePickShader = *mousePickShaderResult;
 		//RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get());
 		RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get(), m_ViewportBounds[0], m_ViewportBounds[1]);
 
@@ -888,7 +906,9 @@ void RigidBodySimulationApp::Render()
 		//}
 
 		//visualize point lights
-		auto visualShader = ShaderManager::GetShaderProgram({ base_shader_dir + "point_light_sphere_visual.vert", base_shader_dir + "point_light_sphere_visual.frag" });
+		auto visualShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "point_light_sphere_visual.vert", base_shader_dir + "point_light_sphere_visual.frag" });
+		if (!visualShaderResult) { Asset::ReportShaderError(visualShaderResult.error()); m_Running = false; return; }
+		auto* visualShader = *visualShaderResult;
 		RenderSystem::PointLightsVisualize(m_ActiveScene.get(), m_EditorCamera_, visualShader);
 
 		////RenderSystem::SceneRender(m_ActiveScene.get(), m_EditorCamera_);

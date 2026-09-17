@@ -71,14 +71,14 @@ namespace GEngine
 	}
 
 
-	Grid::Grid(float size, int divisions, float line_width, 
+	Grid::Grid(RefPtr<Material> material, float size, int divisions, float line_width,
 		const Vec3f& grid_color, 
 		const Vec3f& center_color_x, 
 		const Vec3f& center_color_z): Entity(CreateGeometry(size, divisions, grid_color, center_color_x, center_color_z), nullptr)
 	{
 
 		//auto material = new LineBasicMaterial;
-		auto material = CreateRefPtr<LineBasicMaterial>();
+		// The factory has already completed checked shader/material construction.
 		material->UseProgram();
 		BindVAO();
 		material->SetUniforms<Vec4f>({ {"uBaseColor", Vec4f{1.0f, 1.0f, 1.0f, 1.0f}} });
@@ -92,6 +92,14 @@ namespace GEngine
 		SetMaterial(material);
 
 	}
+
+    std::expected<std::unique_ptr<Grid>, Asset::ShaderError> Grid::Create(float size, int divisions, float line_width,
+        const Vec3f& grid_color, const Vec3f& center_color_x, const Vec3f& center_color_z)
+    {
+        auto material = Material::Create<LineBasicMaterial>();
+        if (!material) return std::unexpected(material.error());
+        return std::unique_ptr<Grid>(new Grid(*material, size, divisions, line_width, grid_color, center_color_x, center_color_z));
+    }
 
 	Grid::~Grid()
 	{

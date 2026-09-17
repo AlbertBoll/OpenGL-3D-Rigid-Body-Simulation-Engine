@@ -1,4 +1,5 @@
 #pragma once
+#include "Assets/Shaders/Shader.h"
 
 #include "Core/Utility.h"
 #include "Managers/InputManager.h"
@@ -78,7 +79,7 @@ namespace GEngine
         Window* MainWindow() const { return m_MainWindow; }
         bool IsReady() const { return m_State == State::Ready; }
         Manager::AssetsManager& Assets();
-        Manager::ShaderManager& Shaders();
+        [[nodiscard]] std::expected<Manager::ShaderManager*, Asset::ShaderError> Shaders();
         Manager::ShapeManager& Shapes();
         Asset::AssetPublication& AssetPublications();
         [[nodiscard]] PlatformResult MakeCurrent();

@@ -4,6 +4,8 @@
 #include "Assets/Samplers/Sampler.h"
 
 #include <unordered_map>
+#include <map>
+#include <concepts>
 #include <Assets/Shaders/Shader.h>
 #include"Component/Component.h"
 
@@ -117,7 +119,26 @@ namespace GEngine
 	public:
 		Material() = default;
 		virtual ~Material() = default;
-		Material(const std::string& vertexFileName, const std::string& fragFileName);
+		// Only Create can originate a construction transaction. Derived constructors
+        // stop on failure; the factory publishes only a complete usable material.
+        class Construction
+        {
+            friend class Material;
+            Construction() = default;
+            Asset::ShaderResult result;
+        public:
+            explicit operator bool() const noexcept { return result.has_value(); }
+        };
+        template<class T, class... Args>
+            requires std::derived_from<T, Material> && std::constructible_from<T, Construction&, Args...>
+        [[nodiscard]] static std::expected<std::shared_ptr<T>, Asset::ShaderError> Create(Args&&... args)
+        {
+            Construction construction;
+            auto candidate = std::make_shared<T>(construction, std::forward<Args>(args)...);
+            if (!construction.result) return std::unexpected(std::move(construction.result.error()));
+            return candidate;
+        }
+        Material(Construction& construction, const std::string& vertexFileName, const std::string& fragFileName);
 
 		Material(Material&& other);
 
@@ -137,10 +158,7 @@ namespace GEngine
 			m_MaterialProp.HasFakeLighting = useFakeLighting;
 		}
 
-		unsigned int GetShaderID()const
-		{
-			return m_Shader->GetHandle();
-		}
+		unsigned int GetShaderID() const;
 
 		bool IsTransparency()const { return m_MaterialProp.HasTransparency; }
 
@@ -223,7 +241,7 @@ namespace GEngine
 		{
 			//if (auto name = m_Shader->GetUniformLocations().find(uniformName); name != m_Shader->GetUniformLocations().end())
 			//{
-				m_Shader->SetUniform(uniformName.c_str(), ele);
+				if (auto uploaded = m_Shader->SetUniform(uniformName.c_str(), ele); !uploaded) Asset::ReportShaderError(uploaded.error());
 				//m_TextureList.emplace(1, 1);
 			//}
 		}
@@ -237,7 +255,7 @@ namespace GEngine
 	
 		//if (auto name = m_Shader->GetUniformLocations().find(uniformName); name != m_Shader->GetUniformLocations().end())
 		//{
-		m_Shader->SetUniform(uniformName.c_str(), uniforms);
+		if (auto uploaded = m_Shader->SetUniform(uniformName.c_str(), uniforms); !uploaded) Asset::ReportShaderError(uploaded.error());
 			
 		//}
 	
@@ -245,18 +263,7 @@ namespace GEngine
 	}
 
 
-	template <>
-	inline void Material::SetUniforms<std::pair<unsigned, std::pair<unsigned, unsigned>>>(
-		const std::map<std::string, std::pair<unsigned, std::pair<unsigned, unsigned>>>& uniforms)
-	{
-		UseProgram();
-		for (auto& ele : uniforms)
-		{
-			m_Shader->SetUniform(ele.first.c_str(), ele.second);
-			m_TextureList.emplace(ele.second);
-		}
-
-	}
-
-
+    template <>
+    void Material::SetUniforms<std::pair<unsigned, std::pair<unsigned, unsigned>>>(
+        const std::map<std::string, std::pair<unsigned, std::pair<unsigned, unsigned>>>& uniforms);
 }

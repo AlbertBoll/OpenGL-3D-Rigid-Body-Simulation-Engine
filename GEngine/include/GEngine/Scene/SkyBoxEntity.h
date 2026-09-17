@@ -1,5 +1,6 @@
 #pragma once
 #include "Core/Entity.h"
+#include "Core/RenderTarget.h"
 #include "Managers/ShapeManager.h"
 
 namespace GEngine
@@ -10,12 +11,16 @@ namespace GEngine
     class SkyBoxEntity: public Entity
     {
     private:
-        static std::expected<RefPtr<Material>, Asset::TextureError> GetSkyBoxMaterial(const SkyBoxComponent& comp);
+        static std::expected<RefPtr<Material>, ApplicationInitializationError> GetSkyBoxMaterial(const SkyBoxComponent& comp);
         SkyBoxComponent m_Description;
 
 
     public:
-        SkyBoxEntity(const SkyBoxComponent& comp, Geometry* geometry = Manager::ShapeManager::GetShape("SkyBox"), const RefPtr<Material>& material = nullptr);
+        [[nodiscard]] static std::expected<std::unique_ptr<SkyBoxEntity>, ApplicationInitializationError> Create(
+            const SkyBoxComponent& comp, Geometry* geometry = Manager::ShapeManager::GetShape("SkyBox"));
+    private:
+        SkyBoxEntity(const SkyBoxComponent& comp, Geometry* geometry, const RefPtr<Material>& material);
+    public:
 
         void Render(CameraBase* camera);
 

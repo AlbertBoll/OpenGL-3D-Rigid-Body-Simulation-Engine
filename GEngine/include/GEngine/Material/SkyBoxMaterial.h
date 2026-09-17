@@ -11,12 +11,12 @@ namespace GEngine
     class SkyBoxMaterial: public Material
     {
     public:
-        SkyBoxMaterial(const Asset::Texture& texture,
+        SkyBoxMaterial(Construction& construction, const Asset::Texture& texture,
             const std::string& vertexFileName = base_shader_dir + "skybox.vert",
             const std::string& fragFileName = base_shader_dir + "skybox.frag");
 
 
-        SkyBoxMaterial(const std::vector<Asset::Texture*>& textures,
+        SkyBoxMaterial(Construction& construction, const std::vector<Asset::Texture*>& textures,
             const std::string& vertexFileName = base_shader_dir + "skybox.vert",
             const std::string& fragFileName = base_shader_dir + "skybox.frag");
 

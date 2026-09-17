@@ -12,13 +12,13 @@ namespace GEngine
     class NormalLightTextureMaterial: public Material
     {
     public:
-     /*   NormalLightTextureMaterial(const std::vector<Asset::Texture*>& textures,
+     /*   NormalLightTextureMaterial( const std::vector<Asset::Texture*>& textures,
             const std::string& vertexFileName = base_shader_dir + "normal.vert",
             const std::string& fragFileName = base_shader_dir + "normal.frag");*/
 
      
 
-        NormalLightTextureMaterial(const std::vector<Asset::Texture*>& textures, const std::string& shaderName);
+        NormalLightTextureMaterial(Construction& construction, const std::vector<Asset::Texture*>& textures, const std::string& shaderName);
 
         void UpdateRenderSettings() override;
 

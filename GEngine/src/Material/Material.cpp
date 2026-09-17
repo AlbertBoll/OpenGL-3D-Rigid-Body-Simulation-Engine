@@ -1,4 +1,5 @@
 #include "gepch.h"
+#include "../Assets/ShaderBackend.h"
 #include <Assets/Shaders/Shader.h>
 #include "Material/Material.h"
 #include "Managers/ShaderManager.h"
@@ -9,9 +10,22 @@
 namespace GEngine
 {
 	using namespace Manager;
-	Material::Material(const std::string& vertexFileName, const std::string& fragFileName)
+	Material::Material(Construction& construction, const std::string& vertexFileName, const std::string& fragFileName)
 	{
-		m_Shader = ShaderManager::GetShaderProgram({ vertexFileName, fragFileName });
+		auto resolve = [](const std::string& file, Asset::ShaderStage stage) -> std::expected<std::string, Asset::ShaderError>
+        {
+            if (!file.starts_with("Shaders/")) return file;
+            auto path = RuntimeAssets::TryFile(file);
+            if (!path) return std::unexpected(Asset::ShaderError{Asset::ShaderErrorCode::FileRead, stage, file, path.error().message});
+            return std::move(*path);
+        };
+        auto vertex = resolve(vertexFileName, Asset::VERTEX);
+        if (!vertex) { construction.result = std::unexpected(std::move(vertex.error())); return; }
+        auto fragment = resolve(fragFileName, Asset::FRAGMENT);
+        if (!fragment) { construction.result = std::unexpected(std::move(fragment.error())); return; }
+        auto shader = ShaderManager::GetShaderProgram({ *vertex, *fragment });
+        if (!shader) { construction.result = std::unexpected(std::move(shader.error())); return; }
+        m_Shader = *shader;
 
 		RenderSetting setting;
 
@@ -21,7 +35,7 @@ namespace GEngine
 
 	unsigned int Material::GetShaderRef() const
 	{
-		return m_Shader->GetHandle();
+		return Asset::ShaderBackendAccess::Program(*m_Shader);
 	}
 
 	void Material::UseProgram() const
@@ -60,7 +74,7 @@ namespace GEngine
 		for (auto& ele : m_TextureList)
 		{
 			glBindSampler(ele.second.second, 0); // Legacy target bindings retain their authored texture state.
-			m_Shader->BindTextureUniform(ele.second.first, ele.second.second, TexTarget);
+			Asset::ShaderBackendAccess::BindTexture(*m_Shader, nullptr, TexTarget, ele.second.first, ele.second.second);
 			
 		}
 	}
@@ -74,7 +88,7 @@ namespace GEngine
 		for (auto& ele : m_TextureList)
 		{
 			glBindSampler(ele.second.second, 0);
-			m_Shader->BindTextureUniform(ele.second.first, ele.second.second, ele.first);
+			Asset::ShaderBackendAccess::BindTexture(*m_Shader, nullptr, ele.first, ele.second.first, ele.second.second);
 		}
 	}
 
@@ -101,4 +115,16 @@ namespace GEngine
 
 
 
+    unsigned int Material::GetShaderID() const { return GetShaderRef(); }
+    template <>
+    void Material::SetUniforms<std::pair<unsigned, std::pair<unsigned, unsigned>>>(
+        const std::map<std::string, std::pair<unsigned, std::pair<unsigned, unsigned>>>& uniforms)
+    {
+        UseProgram();
+        for (const auto& [name, binding] : uniforms)
+        {
+            Asset::ShaderBackendAccess::BindTexture(*m_Shader, name.c_str(), binding.first, binding.second.first, binding.second.second);
+            m_TextureList.emplace(binding);
+        }
+    }
 }

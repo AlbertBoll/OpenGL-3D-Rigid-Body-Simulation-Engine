@@ -4,10 +4,11 @@
 
 namespace GEngine
 {
-	TerrainLightMaterial::TerrainLightMaterial(const Asset::Texture& texture, 
+	TerrainLightMaterial::TerrainLightMaterial(Construction& construction, const Asset::Texture& texture,
 		 const std::string& vertexFileName, const std::string& fragFileName): 
-		Material(vertexFileName, fragFileName)
+		Material(construction, vertexFileName, fragFileName)
 	{
+        if (!construction) return;
 		RenderSetting setting;
 		setting.m_Mode = DrawMode::TRIANGLES;
 		setting.m_RenderMode = RenderMode::Elements;
@@ -70,9 +71,10 @@ namespace GEngine
 
 
 	}
-	TerrainLightMaterial::TerrainLightMaterial(std::vector<Asset::Texture*> textures, const std::string& vertexFileName,
-		const std::string& fragFileName): Material(vertexFileName, fragFileName)
+	TerrainLightMaterial::TerrainLightMaterial(Construction& construction, std::vector<Asset::Texture*> textures, const std::string& vertexFileName,
+		const std::string& fragFileName): Material(construction, vertexFileName, fragFileName)
 	{
+        if (!construction) return;
 		RenderSetting setting;
 		setting.m_Mode = DrawMode::TRIANGLES;
 		setting.m_RenderMode = RenderMode::Elements;

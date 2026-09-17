@@ -29,6 +29,7 @@ namespace GEngine
     {
         if (const auto* framebuffer = std::get_if<FramebufferError>(&error)) ReportFramebufferError("application startup", *framebuffer);
         else if (const auto* platform = std::get_if<PlatformError>(&error)) ReportPlatformError(*platform);
+        else if (const auto* shader = std::get_if<Asset::ShaderError>(&error)) Asset::ReportShaderError(*shader);
         else if (const auto* texture = std::get_if<Asset::TextureError>(&error))
             GENGINE_CORE_ERROR("Application texture {}: {}", texture->source, texture->message);
     }

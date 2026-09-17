@@ -13,7 +13,7 @@
 static constexpr ::GEngine::RuntimeAssets::Directory ImagePath{ "Breakout/images/" };
 static std::string ImageExtension = ".png";
 
-void GameLevel::Load(const std::string& file, unsigned int levelWidth, unsigned int levelHeight)
+ApplicationInitializationResult GameLevel::Load(const std::string& file, unsigned int levelWidth, unsigned int levelHeight)
 {
     // clear old data
     m_Bricks.clear();
@@ -34,8 +34,9 @@ void GameLevel::Load(const std::string& file, unsigned int levelWidth, unsigned 
             tileData.push_back(row);
         }
         if (tileData.size() > 0)
-            Initialize(tileData, levelWidth, levelHeight);
+            return Initialize(tileData, levelWidth, levelHeight);
     }
+    return {};
 }
 
 void GameLevel::Render(CameraBase* camera)
@@ -60,7 +61,7 @@ bool GameLevel::IsCompleted()
 	return true;
 }
 
-void GameLevel::Initialize(std::vector<std::vector<unsigned int>> tileData, unsigned int levelWidth, unsigned int levelHeight)
+ApplicationInitializationResult GameLevel::Initialize(std::vector<std::vector<unsigned int>> tileData, unsigned int levelWidth, unsigned int levelHeight)
 {
     using namespace Manager;
 
@@ -69,13 +70,17 @@ void GameLevel::Initialize(std::vector<std::vector<unsigned int>> tileData, unsi
    
 
     auto blockTexResult = AssetsManager::GetTextureOrFallback(ImagePath + "block" + ImageExtension);
-    if (!blockTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", blockTexResult.error().source, blockTexResult.error().message); return; }
+    if (!blockTexResult) return std::unexpected(blockTexResult.error());
     auto* blockTex = *blockTexResult;
     auto solidBlockTexResult = AssetsManager::GetTextureOrFallback(ImagePath + "block_solid" + ImageExtension);
-    if (!solidBlockTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", solidBlockTexResult.error().source, solidBlockTexResult.error().message); return; }
+    if (!solidBlockTexResult) return std::unexpected(solidBlockTexResult.error());
     auto* solidBlockTex = *solidBlockTexResult;
-    auto blockMaterial = CreateRefPtr<SpriteMaterial>(blockTex);
-    auto blockSolidMaterial = CreateRefPtr<SpriteMaterial>(solidBlockTex);
+    auto blockMaterialResult = Material::Create<SpriteMaterial>(blockTex);
+    if (!blockMaterialResult) return std::unexpected(blockMaterialResult.error());
+    auto blockMaterial = std::move(*blockMaterialResult);
+    auto blockSolidMaterialResult = Material::Create<SpriteMaterial>(solidBlockTex);
+    if (!blockSolidMaterialResult) return std::unexpected(blockSolidMaterialResult.error());
+    auto blockSolidMaterial = std::move(*blockSolidMaterialResult);
 
     auto blockGeo = ShapeManager::GetShape("SpriteGeometry");
 
@@ -137,4 +142,5 @@ void GameLevel::Initialize(std::vector<std::vector<unsigned int>> tileData, unsi
 
         }
     }
+    return {};
 }

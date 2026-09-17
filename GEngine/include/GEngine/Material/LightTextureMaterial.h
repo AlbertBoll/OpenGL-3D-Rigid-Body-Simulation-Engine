@@ -12,7 +12,7 @@ namespace GEngine
     class LightTextureMaterial: public Material
     {
     public:
-        LightTextureMaterial(const Asset::Texture& texture, 
+        LightTextureMaterial(Construction& construction, const Asset::Texture& texture,
             const std::string& vertexFileName = base_shader_dir + "light.vert",
             const std::string& fragFileName = base_shader_dir + "light.frag");
 

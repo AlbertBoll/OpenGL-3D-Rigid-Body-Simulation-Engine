@@ -1,5 +1,6 @@
 #pragma once
 #include"entt/entt.hpp"
+#include "Scene/RenderEcs.h"
 #include <Core/Timestep.h>
 #include <cstdint>
 #include <map>
@@ -61,7 +62,10 @@ namespace GEngine
 		void SetRenderInterpolationEnabled(bool enabled) { m_RenderInterpolationEnabled = enabled; }
 		bool IsRenderInterpolationEnabled() const { return m_RenderInterpolationEnabled; }
 
-		entt::registry& Reg() { return m_Registry; }
+		// Legacy mutable access must finish before the serial extraction boundary.
+		entt::registry& Reg() { m_RenderData.RequireMutable(); return m_Registry; }
+		RenderEcs& RenderData() { return m_RenderData; }
+		const RenderEcs& RenderData() const { return m_RenderData; }
 
 		void OnRuntimeStart();
 		void OnRuntimeStop();
@@ -138,6 +142,7 @@ namespace GEngine
 		bool m_RenderInterpolationEnabled = true;
 		std::uint64_t m_RenderTransformRevision{};
 		entt::registry m_Registry;
+		RenderEcs m_RenderData{m_Registry};
 		uint32_t m_ViewportWidth = 0, m_ViewportHeight = 0;
 		bool m_IsRunning = false;
 		bool m_IsPaused = false;

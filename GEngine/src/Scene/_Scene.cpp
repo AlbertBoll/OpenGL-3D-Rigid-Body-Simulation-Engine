@@ -121,12 +121,14 @@ namespace GEngine
 
 	_Scene::~_Scene()
 	{
+		m_RenderData.RequireMutable();
 		OnPhysics3DStop();
 		delete m_PhysicsSystem;
 	}
 
 	RefPtr<_Scene> _Scene::Copy(RefPtr<_Scene> other)
 	{
+		other->m_RenderData.RequireMutable();
 		RefPtr<_Scene> newScene = CreateRefPtr<_Scene>();
 
 		newScene->m_ViewportWidth = other->m_ViewportWidth;
@@ -161,6 +163,7 @@ namespace GEngine
 
 	void _Scene::Update(Timestep ts)
 	{
+		m_RenderData.RequireMutable();
 		auto* timingWorld = m_PhysicsSystem->GetPhysicsWorld();
 		if (!timingWorld || timingWorld != m_TimingWorld)
 		{
@@ -375,6 +378,7 @@ namespace GEngine
 
 	_Entity _Scene::DuplicateEntity(_Entity entity)
 	{
+		m_RenderData.RequireMutable();
 		if (entity.GetSceneContext() != this || !entity.HasAllComponents<IDComponent>())
 			throw std::invalid_argument("Duplicate requires a live entity in this scene");
 		// Copy name because we're going to modify component data structure
@@ -430,6 +434,7 @@ namespace GEngine
 
 	_Entity _Scene::CreateEntityWithUUID(UUID uuid, const std::string& name)
 	{
+		m_RenderData.RequireMutable();
 		if (uuid == 0 || GetEntityByUUID(uuid))
 			throw std::invalid_argument("Entity UUID must be nonzero and unique in its scene");
 		_Entity entity = { m_Registry.create(), this };
@@ -445,6 +450,7 @@ namespace GEngine
 
 	void _Scene::DestroyEntity(_Entity entity, bool excludeChildren, bool /*first*/)
 	{
+		m_RenderData.RequireMutable();
 		if ((entt::entity)entity == entt::null)
 			return;
 		if (entity.GetSceneContext() != this)

@@ -1,0 +1,243 @@
+{
+  "baseline": "7a4d6fcb16ef91ed65392ca7dbe435adf49aa323",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Component/Component.h",
+    "GEngine/include/GEngine/Component/RenderComponents.h",
+    "GEngine/include/GEngine/Scene/RenderEcs.h",
+    "GEngine/include/GEngine/Scene/_Entity.h",
+    "GEngine/include/GEngine/Scene/_Scene.h",
+    "GEngine/src/Scene/_Scene.cpp",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-36.json",
+    "tools/render_ecs_probe.cpp",
+    "tools/test_render_ecs.py"
+  ],
+  "eligible": true,
+  "findings": [],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_36_REVIEW.md"
+  ],
+  "next_phase": "37",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "0f81cdf0f6a45a6f01d1e838556f771bb59ff4bf",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-36/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/0f81cdf0f6a45a6f01d1e838556f771bb59ff4bf",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "53b5f0dd226eadc4bb2e709d334ceebf3d323202a2bbc31a6869afbb4ec4a0cf"
+      },
+      "mode": "100644",
+      "validated_blob": "ccff44ad87d11803e05a4b019c1541ece7fe16a4",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-36/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/ccff44ad87d11803e05a4b019c1541ece7fe16a4"
+    }
+  },
+  "phase": "36",
+  "previous_approved_tag": "render-refactor-phase-35-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_36_REVIEW.md",
+  "schema": 2,
+  "summary": "Data-only render ECS components in the existing scene registry, typed serial mutation/extraction boundaries and generation-validated signed picking tables.",
+  "validation": [
+    {
+      "check": "Six maintained consumer Debug and Release builds",
+      "command": "Exact MSBuild build step recorded in logs/rendering/phase36/final/Debug/results.json and final-v2/Release/results.json",
+      "evidence": "logs/rendering/phase36/final/Debug/build.log; logs/rendering/phase36/final-v2/Release/build.log",
+      "result": "PASS",
+      "reuse_reason": "Final production/header/build inputs match; subsequent corrections only affect standalone test probe/runner."
+    },
+    {
+      "check": "Debug render ECS components, native-free consumers, serial mutation/identity/picking and entity/grouping regression",
+      "command": "python tools/test_render_ecs.py --configuration Debug --no-build --output logs/rendering/phase36/final-v5/Debug",
+      "evidence": "logs/rendering/phase36/final-v5/Debug/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Release render ECS components, native-free consumers, serial mutation/identity/picking and entity/grouping regression",
+      "command": "python tools/test_render_ecs.py --configuration Release --no-build --output logs/rendering/phase36/final-v5/Release",
+      "evidence": "logs/rendering/phase36/final-v5/Release/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Source error/concept/native policy and manual identity/ownership inspection",
+      "command": "Current changed production inspection and exact baseline exception-token comparison; compiler dependency inspection",
+      "evidence": "logs/rendering/phase36/architecture-check.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Baseline/index/protected work and validation input preservation",
+      "command": "Exact preflight SHA-256/index/baseline comparison and helper pre-validation fingerprints",
+      "evidence": "logs/rendering/phase36/preservation-check.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Local rendering governance and context paths",
+      "command": "python .codex/tools/validate_rendering_governance.py",
+      "evidence": "logs/rendering/phase36/governance-check.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "GEngine/include/GEngine/Assets/AssetHandle.h": {
+      "executable": null,
+      "sha256": "0c2e54fe82b781b290628fe1c520ab3cf065570fcfa699d4afd341b3d5c61e1f"
+    },
+    "GEngine/include/GEngine/Assets/AssetRegistry.h": {
+      "executable": null,
+      "sha256": "54e4109ad0b728c67454af19ae09599318054c13918c1df75c191a0ad21e58b5"
+    },
+    "GEngine/include/GEngine/Component/Component.h": {
+      "executable": null,
+      "sha256": "56515978250fd7f89f35a09fa151e67e9bfb59c95e822710d8c4925b70b232c3"
+    },
+    "GEngine/include/GEngine/Component/RenderComponents.h": {
+      "executable": null,
+      "sha256": "e327dee879f91ee869fd3aa43a91f2b960be6de108adef5a48da70c0ec79075d"
+    },
+    "GEngine/include/GEngine/Core/FrameBuffer.h": {
+      "executable": null,
+      "sha256": "ec12d3e6f3acc3865810c5f28ee5bd026f883485f975dabf15e3404a4d47f2f2"
+    },
+    "GEngine/include/GEngine/Core/RenderTarget.h": {
+      "executable": null,
+      "sha256": "65671bbc5b1b7fe91a9f6f7c0bcdf671eb3a4b7d328d5d1967196b95e30e6e50"
+    },
+    "GEngine/include/GEngine/Material/MaterialInstance.h": {
+      "executable": null,
+      "sha256": "20918ce27f3f1d7ff20992a997e41283e337bca02a0e1bb7defc71b613080c48"
+    },
+    "GEngine/include/GEngine/Mesh/GpuMesh.h": {
+      "executable": null,
+      "sha256": "31bd9ab07a40ae410e9e7cbdf9bb1fc67b2a150c7e2e9df703808157db233f22"
+    },
+    "GEngine/include/GEngine/Scene/RenderEcs.h": {
+      "executable": null,
+      "sha256": "87fdeb871f50b51cb74a8009e393819d0c9d663b5670a9f3b2729622d748f384"
+    },
+    "GEngine/include/GEngine/Scene/_Entity.h": {
+      "executable": null,
+      "sha256": "4ba3507e13d3b0719b75dbc54e2539e1bb0d37d31001de307f29ee6ae405aab5"
+    },
+    "GEngine/include/GEngine/Scene/_Scene.h": {
+      "executable": null,
+      "sha256": "4cc697268a16d693a9c1058dc40d3b95e66a83cf97079fc41a8b68bb3b01bbda"
+    },
+    "GEngine/src/Component/Component.cpp": {
+      "executable": null,
+      "sha256": "f5662c73f653a170cb6afe63e5d53d8893f8a6ec424298b07697de1b754254e6"
+    },
+    "GEngine/src/Core/FrameBuffer.cpp": {
+      "executable": null,
+      "sha256": "368cd8e5bbb2ac472dddeb95991ec7c0552d1b7479d93a8a8afcddd400939464"
+    },
+    "GEngine/src/Core/RenderTarget.cpp": {
+      "executable": null,
+      "sha256": "b1c37f2c47f27ee85dc51cfee7f72f354499ed745858ee540d97b86b54cac5fa"
+    },
+    "GEngine/src/Scene/_Entity.cpp": {
+      "executable": null,
+      "sha256": "6f2fb6ab35e88f41b1f1d63d3c42062d7377942b4333027ea08420afcacf4ba4"
+    },
+    "GEngine/src/Scene/_Scene.cpp": {
+      "executable": null,
+      "sha256": "9ec0d75b2083ad6e1ea43f741977b4486004cf3fbeb7c17fd7abc7c5a252c810"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "PhysicsTests/src/ProgramGroupingTests.cpp": {
+      "executable": null,
+      "sha256": "6ad8a6fc5b5e154c39b34b55547f11fa2b367471136a3ad8c74b6a8e2b2c7fe9"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "53b5f0dd226eadc4bb2e709d334ceebf3d323202a2bbc31a6869afbb4ec4a0cf"
+    },
+    "external/entt/include/entt/entt.hpp": {
+      "executable": null,
+      "sha256": "4308575b5870d8372c2b96482afe38433889245df4d79dcbfcf6f6b8ef9251e4"
+    },
+    "external/glad/premake5.lua": {
+      "executable": null,
+      "sha256": "881406fa3a22afd5865e2dd84ab76e29b5b7cb6c2c9e94542be20849f308962c"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052"
+    },
+    "tools/entity_api_probe.cpp": {
+      "executable": null,
+      "sha256": "43bac5bf0a153fc421593cf7af1ace23611f53ffdddd5c95858571bc4077f453"
+    },
+    "tools/render_ecs_probe.cpp": {
+      "executable": null,
+      "sha256": "7c8c4bd66520796d3e4f52f465787be06c1bc0adb8a9da106812cacd448bf8a9"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/test_entity_api.py": {
+      "executable": null,
+      "sha256": "d412059e395959bcf80ca768e60718e25aa1a2e340858db6dfba2b10538b679e"
+    },
+    "tools/test_render_ecs.py": {
+      "executable": null,
+      "sha256": "6e40a3b67f67c9f3128e9b2369723f8c9830319592fea967ce1e09cf62a396e8"
+    }
+  }
+}

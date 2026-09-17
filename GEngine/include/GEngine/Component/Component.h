@@ -1,4 +1,5 @@
 #pragma once
+#include "Component/RenderComponents.h"
 #include "Component/TexturesComponent.h"
 #include"Math/Math.h"
 #include <string>
@@ -582,7 +583,8 @@ namespace GEngine
 		};
 
 		using AllComponents = ComponentGroup<HelperMaterialComponent, DirectionalLightComponent, PointLightComponent, SpotLightComponent, PreRenderPassComponent, Transform3DComponent, CameraComponent, TexturesComponent, RigidBody3DComponent, RenderComponent, RelationshipComponent,
-			SphereFixture3DComponent, MeshComponent, BoxFixture3DComponent, ConvexFixture3DComponent, MaterialComponent>;
+			SphereFixture3DComponent, MeshComponent, BoxFixture3DComponent, ConvexFixture3DComponent, MaterialComponent,
+			MeshRendererComponent, VisibilityComponent, RenderCameraComponent, RenderLightComponent>;
 
 
 	}

@@ -29,12 +29,14 @@ namespace GEngine
 		template<typename T, typename ... Args>
 		T& AddComponent(Args&&...args)
 		{
+			m_Scene->RenderData().RequireMutable();
 			return m_Scene->m_Registry.emplace<T>(m_EntityHandle, std::forward<Args>(args)...);
 		}
 
 		template<typename T>
 		T& GetComponent()
 		{
+			m_Scene->RenderData().RequireMutable();
 			return m_Scene->m_Registry.get<T>(m_EntityHandle);
 		}
 
@@ -47,18 +49,21 @@ namespace GEngine
 		template<typename ... Component>
 		void RemoveComponents()
 		{
+			m_Scene->RenderData().RequireMutable();
 			(m_Scene->m_Registry.remove<Component>(m_EntityHandle), ...);
 		}
 
 		template<typename Component>
 		void RemoveComponent()
 		{
+			m_Scene->RenderData().RequireMutable();
 			m_Scene->m_Registry.remove<Component>(m_EntityHandle);
 		}
 
 		template<typename T, typename ... Args>
 		T& AddOrReplaceComponent(Args&& ... args)
 		{
+			m_Scene->RenderData().RequireMutable();
 			T& component = m_Scene->m_Registry.emplace_or_replace<T>(m_EntityHandle, std::forward<Args>(args)...);
 			//m_Scene->OnComponentAdded<T>(*this, component);
 			return component;
@@ -116,7 +121,7 @@ namespace GEngine
 		bool IsDescendantOf(_Entity entity) const { return entity.IsAncesterOf(*this); }
 
 
-		Transform3DComponent& Transform() { return m_Scene->m_Registry.get<Transform3DComponent>(m_EntityHandle); }
+		Transform3DComponent& Transform() { m_Scene->RenderData().RequireMutable(); return m_Scene->m_Registry.get<Transform3DComponent>(m_EntityHandle); }
 		Mat4 Transform() const { return GetComponent<Transform3DComponent>().GetTransform(); }
 
 		std::string& Name() { return HasAllComponents<TagComponent>() ? GetComponent<TagComponent>().Name : NoName; }

@@ -1248,3 +1248,53 @@ self-move ownership, worker construction/destruction and injected failure at all
 three allocation steps with zero retained arrays. Expected errors carry an error
 code and the offending ordinal. No performance or GPU behavior is claimed;
 allocation/upload belongs to Phase 32 and importer normalization to Phase 33.
+
+# Phase 32 GPU mesh resource
+
+`python tools/test_gpu_mesh.py --configuration Debug --output <directory>`
+(and `Release`) builds the six maintained consumers, compiles the normal
+`Mesh/GpuMesh.h` surface without backend headers, and runs a real OpenGL fixture
+against the production library. `--no-build` reuses matching builds. It also runs
+the existing vertex-buffer/Geometry ownership and CPU registry regressions.
+
+`GpuMesh::Create` takes a validated `MeshAsset` and retains only layout/submesh/count
+metadata. It owns one interleaved VBO and an optional EBO through the Phase 22
+VertexBuffer/IndexBuffer owners, plus a Mesh-owned VAO. Private empty construction
+bypasses legacy upload/error APIs. Initial upload is one vertex batch and one
+separate index batch. Static/Dynamic selects the driver usage hint, while the
+public update contract enforces immutability for static meshes. Integer attributes
+use the integer pointer path; normalization is applied only when declared.
+Creation verifies device limits, buffer storage and actual VAO state before success.
+
+`VertexRecordUpdate` supplies the exact original layout (including attribute order),
+first vertex, vertex count and complete contiguous records. Partial position edits
+must reconstruct those records and retain other fields. Updates preserve capacity,
+layout and index content. Dynamic zero-count updates are no-ops at offsets through
+vertexCount; static updates always fail. Invalid ranges, byte counts, layout changes
+and nonfinite positions fail before writes. Recreate/replace for layout/capacity
+changes. BufferSubData retains normal driver synchronization; no mapping or custom
+streaming is introduced. GpuMesh does not retain or expose stale CPU bounds; callers
+own updated spatial data separately. Driver failures return structured errors;
+pre-existing GL errors are reported before any new upload/draw is issued.
+
+`PublishMesh` creates the complete resource before publishing the existing typed
+MeshHandle. `MeshRegistry` uses the existing publication/lease/retirement model.
+`UpdateMesh` runs during publication only and rejects updates while CPU leases or
+unfinished GPU fences remain. Successful callbacks advance the version revision;
+failure preserves it. Standard-container allocation behavior in the existing
+wrappers/registry remains unchanged, consistent with the approved shared registry
+policy; new explicit owner/metadata allocations use nothrow results and clean up
+partial resources. A registry and all live resources must retire before context
+teardown. Worker lease release cannot delete GPU owners.
+
+The GL fixture uses transform feedback to check distinct shader-read position,
+normal and UV values across multiple vertices, including a padded record and
+position-only/position-normal layouts. It verifies normalized color and integer
+joint inputs, indexed/non-indexed submesh ranges, full/partial updates, unchanged
+records/fields, static/empty/invalid cases, binding restoration, moves, and source
+payload independence. Injected owner/metadata/name/upload/attribute failures leave
+no published handle or leaked resource. Two context lifetimes check exactly-once
+deletion and no unexpected GL debug errors. Isolated child processes reject worker
+creation/destruction and destruction under another context in both configurations.
+GPU APIs stay private; importer/async loading/application migration remain in their
+assigned phases. No performance gain is claimed.

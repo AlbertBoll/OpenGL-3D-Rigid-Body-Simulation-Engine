@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <span>
 
+namespace GEngine { class GpuMesh; }
+
 namespace GEngine::Buffer
 {
 
@@ -36,6 +38,9 @@ namespace GEngine::Buffer
 
 
 	private:
+		friend class ::GEngine::GpuMesh;
+		// Backend-only empty owner; GpuMesh performs typed creation and upload.
+		VertexBuffer() = default;
 		unsigned int m_VertexBufferRef{};
 		std::size_t m_CapacityBytes{};
 		BufferLayout m_BufferLayout;

@@ -4,6 +4,7 @@
 #include "Assets/AssetPublication.h"
 #include <algorithm>
 #include <concepts>
+#include <functional>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -37,7 +38,7 @@ namespace GEngine::Asset
             template<class... Args>
             explicit Version(std::uint64_t number, Args&&... args)
                 : revision(number), fences(0), resource(std::forward<Args>(args)...) {}
-            const std::uint64_t revision;
+            std::uint64_t revision;
             std::vector<std::unique_ptr<AssetRetirementFence>> fences;
             Resource resource;
         };
@@ -158,6 +159,27 @@ namespace GEngine::Asset
             }
             // Exhausted slots stay empty forever; an old generation never revives.
             return {};
+        }
+
+        // Update only an exclusively owned version at the publication boundary.
+        // The callback must preserve the resource on failure; it cannot escape a
+        // mutable reference. Existing leases/fences keep a version immutable.
+        template<class Error, class Operation>
+        requires std::invocable<Operation, Resource&>
+            && std::same_as<std::invoke_result_t<Operation, Resource&>, std::expected<void, Error>>
+        std::expected<std::expected<void, Error>, RegistryError> Update(
+            const AssetPublication::Publication& access, Handle handle, Operation&& operation)
+        {
+            if (m_Closed) return std::unexpected(RegistryError::Closed);
+            Mutation mutation(*this, access);
+            auto* slot = Find(handle);
+            if (!slot) return std::unexpected(RegistryError::InvalidHandle);
+            if (!Unused(slot->current)) return std::unexpected(RegistryError::Busy);
+            if (slot->current->revision == m_Limits.maxRevision)
+                return std::unexpected(RegistryError::RevisionExhausted);
+            auto result = std::invoke(std::forward<Operation>(operation), slot->current->resource);
+            if (result) ++slot->current->revision;
+            return result;
         }
 
         // Register before submitting GPU work that needs explicit storage retention.

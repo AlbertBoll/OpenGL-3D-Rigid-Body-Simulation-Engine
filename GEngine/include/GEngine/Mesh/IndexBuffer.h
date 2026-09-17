@@ -1,5 +1,7 @@
 #pragma once
 
+namespace GEngine { class GpuMesh; }
+
 namespace GEngine::Buffer
 {
 
@@ -27,6 +29,7 @@ namespace GEngine::Buffer
 		~IndexBuffer();
 
 	private:
+		friend class ::GEngine::GpuMesh;
 		unsigned int m_IndexBufferRef{};
 		std::vector<unsigned int> m_Data;
 

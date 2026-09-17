@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 
 
 using namespace GEngine::Buffer;
@@ -49,6 +50,9 @@ namespace GEngine
 		void Unbind();
 
 	private:
+		friend class GpuMesh;
+		// Backend-only empty owner; legacy public construction is unchanged.
+		explicit Mesh(std::nullptr_t) {}
 		unsigned int m_VertexArrayRef{};
 		unsigned int m_VertexBufferIndex{};
 		std::vector<RefPtr<VertexBuffer>>m_VertexBuffers;

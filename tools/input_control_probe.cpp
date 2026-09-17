@@ -1,6 +1,8 @@
 // Focused production-library tests; run through test_input_control.py.
 #include "gepch.h"
 #include "Core/BaseApp.h"
+#include "Core/Renderer.h"
+#include "Core/Scene.h"
 #include "Core/RuntimeAssets.h"
 #include "Core/Timer.h"
 #include "Scene/_Scene.h"
@@ -169,7 +171,7 @@ namespace
         struct Cleanup { ~Cleanup() { SDL_Quit(); } } cleanup;
         auto input = InputManager::GetScopedInstance();
         input->PrepareForUpdate(); // Also safe before the SDL keyboard pointer is installed.
-        input->Initialize();
+        Require(input->Initialize().has_value(), "Input initialization failed");
         Neutral(input->GetInputState());
         auto& mouse = input->GetMouseState();
         for (int frame = 0; frame < 4; ++frame)
@@ -194,7 +196,7 @@ namespace
         input->Update(); // Relative polling without a window and without new motion.
         Require(mouse.GetDX() == 0 && mouse.GetDY() == 0, "Untouched relative frame is not neutral");
         input->ShutDown();
-        input->Initialize();
+        Require(input->Initialize().has_value(), "Input initialization failed");
         Neutral(input->GetInputState());
         input->ShutDown();
         std::cout << "[PASS] untouched-frames/reset-history/relative-and-absolute/no-window/reinitialize\n";
@@ -279,7 +281,7 @@ namespace
                 return;
             }
             // Exercise the real SDL/ImGui event return and capture paths.
-            auto* gui = GetSDLWindow()->GetImGuiWindow();
+            auto* gui = static_cast<SDLWindow*>(GetWindow())->GetImGuiWindow();
             SDL_Event handled{}; handled.type = SDL_MOUSEMOTION;
             Require(gui->HandleSDLEvent(handled), "ImGui handled-event return is false");
             SDL_Event ignored{}; ignored.type = SDL_USEREVENT;
@@ -309,7 +311,7 @@ namespace
             properties.m_IsVsync = false;
             properties.flag = BitFlags<WindowFlags, uint8_t>{ WindowFlags::INVISIBLE };
             Require(app.Initialize(properties).has_value(), "Application initialization failed");
-            auto* window = app.GetSDLWindow();
+            auto* window = static_cast<SDLWindow*>(app.GetWindow());
             const auto id = window->GetWindowID();
             Require(window->GetSDLWindow() && window->GetContext() && window->GetTitle() == properties.m_Title,
                 "Active window getter return differs");
@@ -318,7 +320,7 @@ namespace
             // Logical visibility events exercise the production state machine while
             // keeping the fixture's native GL window off the user's desktop.
             PushState(id, SDL_WINDOWEVENT_SHOWN);
-            app.OnEvent(event);
+            app.PollEvents();
             auto* resize = new Events<void(WindowResizeParam)>("WindowResize");
             resize->Subscribe([&](WindowResizeParam param) {
                 ++app.resizeEvents;
@@ -406,7 +408,7 @@ namespace
             Require(app.Initialize(properties).has_value(), "Application initialization failed");
             SDL_Event event{};
             while (SDL_PollEvent(&event)) {}
-            const auto id = app.GetSDLWindow()->GetWindowID();
+            const auto id = static_cast<SDLWindow*>(app.GetWindow())->GetWindowID();
             Require(app.IsRenderingSuspended(), "Initially hidden window was treated as renderable");
             const bool restore = mode == "--native-restore";
             const bool show = mode == "--hidden-show";
@@ -417,7 +419,7 @@ namespace
                 PushState(id, SDL_WINDOWEVENT_SHOWN);
                 PushState(id, SDL_WINDOWEVENT_HIDDEN);
                 PushState(id, SDL_WINDOWEVENT_RESTORED);
-                app.OnEvent(event);
+                app.PollEvents();
                 Require(app.IsRenderingSuspended(), "Restore overrode hidden window state");
             }
             if (!hidden)
@@ -428,13 +430,13 @@ namespace
                 PushState(id + 99, SDL_WINDOWEVENT_RESTORED);
                 PushState(id + 99, SDL_WINDOWEVENT_CLOSE);
                 PushState(id, SDL_WINDOWEVENT_SIZE_CHANGED, 96, 64);
-                app.OnEvent(event);
+                app.PollEvents();
                 Require(app.IsRenderingSuspended(), "Resize/foreign-window event overrode minimize");
                 if (resize)
                 {
                     PushState(id, SDL_WINDOWEVENT_SIZE_CHANGED, 0, 64);
                     PushState(id, SDL_WINDOWEVENT_RESTORED);
-                    app.OnEvent(event);
+                    app.PollEvents();
                     Require(app.IsRenderingSuspended(), "Restore overrode zero drawable extent");
                 }
             }
@@ -547,13 +549,13 @@ namespace
         {
             ++renders;
             glClear(GL_COLOR_BUFFER_BIT);
-            GetSDLWindow()->SwapBuffer();
+            static_cast<SDLWindow*>(GetWindow())->SwapBuffer();
             ++swaps;
             if (stallResume && renders == 1)
                 std::this_thread::sleep_for(std::chrono::milliseconds(350));
             if (stallResume && renders == 2)
             {
-                const auto id = GetSDLWindow()->GetWindowID();
+                const auto id = static_cast<SDLWindow*>(GetWindow())->GetWindowID();
                 PushState(id, SDL_WINDOWEVENT_MINIMIZED);
                 events = std::jthread([this, id] {
                     // Only enqueue events here; all context and physics work stays on main.
@@ -608,8 +610,8 @@ namespace
             app.scene.OnRuntimeStart();
             SDL_Event event{};
             while (SDL_PollEvent(&event)) {}
-            PushState(app.GetSDLWindow()->GetWindowID(), SDL_WINDOWEVENT_SHOWN);
-            app.OnEvent(event);
+            PushState(static_cast<SDLWindow*>(app.GetWindow())->GetWindowID(), SDL_WINDOWEVENT_SHOWN);
+            app.PollEvents();
             app.Run();
             if (app.events.joinable()) app.events.join();
             Require(app.updates == app.renders && app.renders == app.swaps
@@ -677,13 +679,14 @@ namespace
             Require(app.Initialize(properties).has_value(), "Application initialization failed");
             SDL_Event event{};
             while (SDL_PollEvent(&event)) {}
-            PushState(app.GetSDLWindow()->GetWindowID(), SDL_WINDOWEVENT_SHOWN);
-            app.OnEvent(event);
+            PushState(static_cast<SDLWindow*>(app.GetWindow())->GetWindowID(), SDL_WINDOWEVENT_SHOWN);
+            app.PollEvents();
             originalImage = glad_glTexImage2D; originalSubImage = glad_glTexSubImage2D;
             glad_glTexImage2D = ImageUpload; glad_glTexSubImage2D = SubImageUpload;
             struct Restore { ~Restore() { glad_glTexImage2D = originalImage; glad_glTexSubImage2D = originalSubImage; } } restore;
             auto frame = [&] {
                 imageUploads = 0;
+                Require(app.ResizeViewportTargets().has_value(), "Viewport targets failed before extraction");
                 app.Update(Timestep(0.0));
                 app.Render();
                 Require(!app.IsRenderingSuspended(), "Empty docked viewport suspended its own UI");

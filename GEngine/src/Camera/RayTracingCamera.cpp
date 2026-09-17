@@ -1,7 +1,7 @@
 #include "gepch.h"
 #include "Camera/RayTracingCamera.h"
 #include "Core/BaseApp.h"
-#include "Windows/SDLWindow.h"
+#include "Core/Window.h"
 
 namespace GEngine
 {

@@ -1,42 +1,19 @@
 #include "gepch.h"
 #include "Core/Window.h"
-
-#ifdef GENGINE_PLATFORM_WINDOWS
-    #include "Windows/SDLWindow.h"  
-
-    class SDLWindowCustomDeleter
-    {
-    public:
-        void operator()(GEngine::SDLWindow* window)const
-        {
-            window->ShutDown();
-            delete window;
-            window = nullptr;
-        }
-
-
-    };
-
-#endif
-
-
+#include "Windows/SDLWindow.h"
+#include <new>
 
 namespace GEngine
 {
-
-
-    ScopedPtr<Window> Window::Create(const WindowProperties& winProp)
+    void ReportPlatformError(const PlatformError& error)
     {
-        #ifdef GENGINE_PLATFORM_WINDOWS
-     
-            return CreateScopedPtr<SDLWindow>();
-
-        #else
-            ASSERT(false, "Didn't support platform other than windows");
-
-        #endif
-
-
+        GENGINE_CORE_ERROR("Platform {}: {}", error.operation, error.message);
     }
-
+    std::expected<ScopedPtr<Window>, PlatformError> Window::Create(const WindowProperties& properties)
+    {
+        ScopedPtr<Window> window(new (std::nothrow) SDLWindow);
+        if (!window) return std::unexpected(PlatformError{PlatformErrorCode::Allocation, "window owner", "Window owner allocation failed"});
+        if (auto result = window->Initialize(properties); !result) return std::unexpected(result.error());
+        return window;
+    }
 }

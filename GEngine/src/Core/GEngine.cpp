@@ -61,8 +61,8 @@ namespace GEngine
             throw std::logic_error("EngineContext managers are not available");
         // Compatibility access may follow a secondary window render. Every cache
         // operation still belongs to the main owning context, including uploads.
-        if (SDL_GL_GetCurrentContext() != m_MainWindow->GetContext()) m_MainWindow->BeginRender();
-        if (SDL_GL_GetCurrentContext() != m_MainWindow->GetContext())
+        if (!m_MainWindow->IsCurrent()) { auto current = m_MainWindow->BeginRender(); if (!current) ReportPlatformError(current.error()); }
+        if (!m_MainWindow->IsCurrent())
             throw std::runtime_error("Unable to activate manager owning context");
     }
 
@@ -71,9 +71,8 @@ namespace GEngine
         Asset::AssetDetail::RequireInvariant(std::this_thread::get_id() == m_OwnerThread);
         if ((m_State != State::Ready && m_State != State::Initializing) || !m_Assets || !m_MainWindow)
             return std::unexpected(Asset::TextureError{Asset::TextureErrorCode::ContextUnavailable, {}, "Texture services are unavailable"});
-        if (SDL_GL_GetCurrentContext() != m_MainWindow->GetContext()
-            && SDL_GL_MakeCurrent(m_MainWindow->GetSDLWindow(), m_MainWindow->GetContext()) != 0)
-            return std::unexpected(Asset::TextureError{Asset::TextureErrorCode::ContextUnavailable, {}, SDL_GetError()});
+        if (auto current = m_MainWindow->BeginRender(); !current)
+            return std::unexpected(Asset::TextureError{Asset::TextureErrorCode::ContextUnavailable, {}, current.error().message});
         return m_Assets.get();
     }
 
@@ -82,49 +81,50 @@ namespace GEngine
     Manager::ShapeManager& EngineContext::Shapes() { RequireManagers(); return *m_Shapes; }
     Asset::AssetPublication& EngineContext::AssetPublications() { RequireManagers(); return m_AssetPublication; }
 
-    void EngineContext::Initialize(const std::initializer_list<WindowProperties>& properties)
+    PlatformResult EngineContext::Initialize(const std::initializer_list<WindowProperties>& properties)
     {
-        RequireOwnerThread();
-        if (m_InitializationAttempted) throw std::logic_error("EngineContext initialization may only be attempted once");
+        GLContextThread::RequireOwner(m_OwnerThread, "platform initialization");
+        if (m_InitializationAttempted) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+            "platform initialization", "Initialization may only be attempted once"});
         m_InitializationAttempted = true;
         m_PlatformStarted = true;
         m_State = State::Initializing;
-        try
+        struct Rollback
         {
-            m_LegacyEngine.Initialize(properties);
-            auto& windows = m_LegacyEngine.GetWindowManager()->GetWindows();
-            m_MainWindow = static_cast<SDLWindow*>(std::min_element(windows.begin(), windows.end(),
-                [](const auto& left, const auto& right) { return left.first < right.first; })->second.get());
-            m_MainWindow->BeginRender();
-            if (SDL_GL_GetCurrentContext() != m_MainWindow->GetContext())
-                throw std::runtime_error("Unable to initialize manager owning context");
-            m_Assets.reset(new Manager::AssetsManager(m_AssetPublication, RuntimeAssets::File("Images")));
-            m_Shaders.reset(new Manager::ShaderManager);
-            m_Shapes.reset(new Manager::ShapeManager);
-            m_Shapes->Initialize();
-            m_State = State::Ready;
-        }
-        catch (...)
-        {
-            Release();
-            m_State = State::Failed;
-            throw;
-        }
+            EngineContext* owner; bool committed = false;
+            ~Rollback() { if (!committed) { owner->Release(); owner->m_State = State::Failed; } }
+        } rollback{this};
+        if (auto initialized = m_LegacyEngine.Initialize(properties); !initialized) return initialized;
+        auto& windows = m_LegacyEngine.GetWindowManager()->GetWindows();
+        m_MainWindow = std::min_element(windows.begin(), windows.end(),
+            [](const auto& left, const auto& right) { return left.first < right.first; })->second.get();
+        if (auto current = m_MainWindow->BeginRender(); !current) return current;
+        auto images = RuntimeAssets::TryFile("Images");
+        if (!images) return std::unexpected(images.error());
+        m_Assets.reset(new Manager::AssetsManager(m_AssetPublication, *images));
+        m_Shaders.reset(new Manager::ShaderManager);
+        m_Shapes.reset(new Manager::ShapeManager);
+        m_Shapes->Initialize();
+        m_State = State::Ready;
+        rollback.committed = true;
+        return {};
     }
 
-    void EngineContext::MakeCurrent()
+    PlatformResult EngineContext::MakeCurrent()
     {
-        RequireOwnerThread();
-        if (!IsReady()) throw std::logic_error("EngineContext rendering services are not initialized");
-        m_MainWindow->BeginRender();
+        GLContextThread::RequireOwner(m_OwnerThread, "activate platform context");
+        if (!IsReady()) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+            "activate platform context", "Rendering services are not initialized"});
+        return m_MainWindow->BeginRender();
     }
 
-    void EngineContext::RenderScene(Actor* scene, CameraBase* camera, RenderTarget* target, const RenderParam& parameters)
+    PlatformResult EngineContext::RenderScene(Actor* scene, CameraBase* camera, RenderTarget* target, const RenderParam& parameters)
     {
-        MakeCurrent();
+        if (auto current = MakeCurrent(); !current) return current;
         Renderer::RenderBegin(camera, target);
         Renderer::Set(parameters);
         Renderer::RenderScene(scene, camera);
+        return {};
     }
 
     void EngineContext::Release() noexcept
@@ -138,8 +138,7 @@ namespace GEngine
             auto& windows = manager->GetWindows();
             auto* window = static_cast<SDLWindow*>(std::min_element(windows.begin(), windows.end(),
                 [](const auto& left, const auto& right) { return left.first < right.first; })->second.get());
-            window->BeginRender();
-            if (SDL_GL_GetCurrentContext() != window->GetContext()) std::terminate();
+            if (auto current = window->BeginRender(); !current) { ReportPlatformError(current.error()); std::terminate(); }
         }
         m_Assets.reset();
         m_Shaders.reset();
@@ -173,10 +172,10 @@ namespace GEngine
 		#endif
 	}
 
-	void GEngine::Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)
+	PlatformResult GEngine::Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)
 	{
 			if (WindowsPropertyList.size() == 0)
-				throw std::invalid_argument("GEngine requires a main window");
+				return std::unexpected(PlatformError{PlatformErrorCode::InvalidState, "platform initialization", "A main window is required"});
 			m_Running = true;
 			// Logging is process-owned; repeated platform lifetimes reuse its loggers.
 			if (!Log::GetCoreLogger()) Log::Initialize();
@@ -194,7 +193,7 @@ namespace GEngine
 			int code = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER);
 
 			if (code != 0)
-				throw std::runtime_error(std::string("SDL initialization failed: ") + SDL_GetError());
+				return std::unexpected(PlatformError{PlatformErrorCode::Initialization, "platform initialization", SDL_GetError()});
 
 			SDL_version version{};
 			SDL_VERSION(&version);
@@ -203,7 +202,7 @@ namespace GEngine
 
 			mode = {};
 			if (SDL_GetDesktopDisplayMode(0, &mode) != 0)
-				throw std::runtime_error(std::string("SDL display query failed: ") + SDL_GetError());
+				return std::unexpected(PlatformError{PlatformErrorCode::Initialization, "display query", SDL_GetError()});
 			GENGINE_CORE_INFO("Display width: {}. Display height: {}. Refresh Rate: {}", mode.w, mode.h, mode.refresh_rate);
 
 			GENGINE_CORE_INFO("Initialize Window Manager...");
@@ -212,18 +211,18 @@ namespace GEngine
 			m_WindowManager = Manager::WindowManager::GetScopedInstance();
 
 		    
-			GetWindowManager()->AddWindows(WindowsPropertyList);
+			if (auto added = GetWindowManager()->AddWindows(WindowsPropertyList); !added) return added;
 			// Shared engine resources belong to the first application's GL context.
 			auto& windows = GetWindowManager()->GetWindows();
-			std::min_element(windows.begin(), windows.end(),
-				[](const auto& left, const auto& right) { return left.first < right.first; })->second->BeginRender();
+			if (auto current = std::min_element(windows.begin(), windows.end(),
+				[](const auto& left, const auto& right) { return left.first < right.first; })->second->BeginRender(); !current) return current;
 			
 
 
 			GENGINE_CORE_INFO("Initialize Input Manager...");
 			
 			m_InputManager = Manager::InputManager::GetScopedInstance();
-			m_InputManager->Initialize();
+			if (auto input = m_InputManager->Initialize(); !input) return input;
 
 			////m_WindowManager->GetInternalWindow(1)->BeginRender();
 
@@ -239,10 +238,11 @@ namespace GEngine
 
 			if (TTF_Init() != 0)
 			{
-				throw std::runtime_error(std::string("SDL_ttf initialization failed: ") + TTF_GetError());
+				return std::unexpected(PlatformError{PlatformErrorCode::Initialization, "font subsystem", TTF_GetError()});
 			}
 			
 			
+            return {};
 	}
 
 

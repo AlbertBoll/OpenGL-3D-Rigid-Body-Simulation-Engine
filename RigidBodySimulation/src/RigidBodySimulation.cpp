@@ -10,7 +10,7 @@
 #include <imgui/imgui.h>
 #include "Assets/Textures/Texture.h"
 #include "Core/RenderSystem.h"
-#include "Windows/SDLWindow.h"
+#include "Core/Window.h"
 #include <Shapes/Box.h>
 #include <Physics/ShapeBox.h>
 #include <Physics/PhysicsWorld.h>
@@ -644,7 +644,7 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
 
 	auto viewPortEvent = new Events<void()>("ViewportChange");
 
-	auto WindowResizeEvent = new Events<void(WindowResizeParam)>("WindowResize");
+
 	auto MouseScrollEvent = new Events<void(MouseScrollWheelParam)>("MouseScrollWheel");
 	//auto MouseClickEvent = new Events<void(MouseButtonParam)>("MouseButtonPress");
 
@@ -660,7 +660,7 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
 			m_MousePickFrameBuffer->Bind();
 			
 			int x = mouseParam.X;
-			int y = m_SDLWindow->GetScreenHeight() - mouseParam.Y;
+			int y = m_Window->GetScreenHeight() - mouseParam.Y;
 			auto pixel = m_MousePickFrameBuffer->ReadPixel(x, y);
 			if (!pixel) { ReportFramebufferError("picking read", pixel.error()); return; }
 			int pixel_data = *pixel;
@@ -669,28 +669,8 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
 			m_MousePickFrameBuffer->UnBind();
 		});*/
 
-	WindowResizeEvent->Subscribe([this](const WindowResizeParam& windowParam)
-		{
-
-			auto& windows = GetWindowManager()->GetWindows();
-			if (auto p = windows.find(windowParam.ID); p != windows.end() && p->second.get() == m_SDLWindow)
-			{
-				if (windowParam.Width <= 0 || windowParam.Height <= 0) return;
-				//m_ActiveScene->OnViewportResize(windowParam.Width, windowParam.Height);
-			
-				if(p->second->GetScreenWidth() == windowParam.Width && p->second->GetScreenHeight() == windowParam.Height)
-					return;
-				m_EditorCamera_.SetViewportSize(static_cast<float>(windowParam.Width), static_cast<float>(windowParam.Height));
-				RenderSystem::SetSurfaceSize(windowParam.Width, windowParam.Height);
-				if (auto framebufferResult = m_MousePickFrameBuffer->OnResize(windowParam.Width, windowParam.Height); !framebufferResult)
-				{ ReportFramebufferError("target update", framebufferResult.error()); return; }
-				m_SDLWindow->OnResize(windowParam.Width, windowParam.Height);
-				m_ViewportSize = { windowParam.Width, windowParam.Height };
-			}
-
-		
-
-		});
+    // Native resize state is consumed by BaseApp. The docked panel exclusively
+    // publishes editor dimensions; native events never resize editor targets.
 
 	MouseScrollEvent->Subscribe([this](const MouseScrollWheelParam& mousescrollParam)
 		{
@@ -700,7 +680,7 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
 		});
 
 
-	GetEventManager()->GetEventDispatcher().RegisterEvent(WindowResizeEvent);
+
 	GetEventManager()->GetEventDispatcher().RegisterEvent(MouseScrollEvent);
 	GetEventManager()->GetEventDispatcher().RegisterEvent(AppPauseEvent);
 	GetEventManager()->GetEventDispatcher().RegisterEvent(AppResumeEvent);
@@ -928,10 +908,10 @@ void RigidBodySimulationApp::Render()
 
 	for (auto& [windowID, window] : windows)
 	{
-		auto window_ = static_cast<SDLWindow*>(window.get());
-		window_->GetImGuiWindow()->BeginRender(window_);
+		auto* window_ = window.get();
+		if (auto ui = window_->BeginUI(); !ui) { ReportPlatformError(ui.error()); ShutDown(); return; }
 		ImGuiRender();
-		window_->GetImGuiWindow()->EndRender(window_);
+		if (auto ui = window_->EndUI(); !ui) { ReportPlatformError(ui.error()); ShutDown(); return; }
 		window_->SwapBuffer();
 	}
 
@@ -1029,7 +1009,14 @@ void RigidBodySimulationApp::ImGuiRender()
 	//GENGINE_INFO("Hovered: {}", ImGui::IsWindowHovered());
 
 	auto viewportPanelSize = ImGui::GetContentRegionAvail();
-	m_ViewportSize = viewportVisible ? Vec2f{ viewportPanelSize.x, viewportPanelSize.y } : Vec2f{};
+	const bool hasArea = viewportVisible && viewportPanelSize.x > 0 && viewportPanelSize.y > 0;
+    auto scale = hasArea ? UI::CurrentViewportFramebufferScale() : std::expected<FramebufferScale, PlatformError>(FramebufferScale{});
+    if (scale)
+    {
+        if (auto sized = SetEditorViewport(hasArea ? EditorViewportLogicalSize{viewportPanelSize.x, viewportPanelSize.y} : EditorViewportLogicalSize{}, *scale); !sized)
+            ReportPlatformError(sized.error());
+    }
+    else ReportPlatformError(scale.error());
 
 	//m_ViewportSize = {1280, 720};
 	//m_ViewportSize = { viewportPanelSize.x, viewportPanelSize.y };
@@ -1167,11 +1154,12 @@ void RigidBodySimulationApp::OnMouseClicked()
 {
 	if (GetInputManager()->GetMouseState().isButtonPressed(GEngineMouseCode::GENGINE_BUTTON_LEFT))
 	{
-		auto mousePos = GetInputManager()->GetMouseState().m_MousePos;
-		// Retain pixel-coordinate truncation at the integer readback boundary.
-		const int x = static_cast<int>(mousePos.x);
-		const int y = static_cast<int>(m_SDLWindow->GetScreenHeight() - mousePos.y);
-		//m_MousePickFrameBuffer->Bind();
+        const auto mouse = ImGui::GetMousePos();
+        const auto& storage = m_MousePickFrameBuffer->Buffer().Description();
+        auto position = ViewportPixelAt(mouse.x - m_ViewportBounds[0].x, mouse.y - m_ViewportBounds[0].y,
+            GetEditorViewportLogicalSize(), {storage.Width, storage.Height});
+        if (!position || !HasVisibleViewport()) return;
+        const int x = position->X, y = position->Y;
 		auto pixel = m_MousePickFrameBuffer->ReadPixel(x, y);
 		if (!pixel) { ReportFramebufferError("picking read", pixel.error()); return; }
 		int pixel_data = *pixel;
@@ -1194,26 +1182,16 @@ void RigidBodySimulationApp::FilledKDTreePoints()
 
 }
 
-void RigidBodySimulationApp::OnViewportResize(int viewport_x, int viewport_y)
+void RigidBodySimulationApp::OnViewportResize(int, int)
 {
-	// A collapsed/empty docked viewport must keep its UI running so it can reopen.
-	if (viewport_x <= 0 || viewport_y <= 0) return;
-
-	if (viewport_x == m_SDLWindow->GetScreenWidth() && viewport_y == m_SDLWindow->GetScreenHeight())
-		return;
-	//m_ViewportSize = { viewport_x, viewport_y };
-	if (auto framebufferResult = m_RenderTarget->OnResize(viewport_x, viewport_y); !framebufferResult)
-	{ ReportFramebufferError("target update", framebufferResult.error()); return; }
-	m_EditorCamera_.SetViewportSize(static_cast<float>(viewport_x), static_cast<float>(viewport_y));
-	RenderSystem::SetSurfaceSize(viewport_x, viewport_y);
-	if (auto framebufferResult = m_MousePickFrameBuffer->OnResize(viewport_x, viewport_y); !framebufferResult)
-	{ ReportFramebufferError("target update", framebufferResult.error()); return; }
-	m_SDLWindow->OnResize(viewport_x, viewport_y);
-
-	
+    // Allocation is coalesced by BaseApp once per frame, before application work.
+    // Use successful target storage, never native-window or fractional panel size.
+    if (!HasVisibleViewport()) return;
+    const auto width = m_RenderTarget->GetWidth(), height = m_RenderTarget->GetHeight();
+    if (!width || !height) return;
+    m_EditorCamera_.SetViewportSize(static_cast<float>(width), static_cast<float>(height));
+    RenderSystem::SetSurfaceSize(width, height);
 }
-
-
 
 
 BaseApp* CreateApp()

@@ -3,12 +3,12 @@
 #include "GEngine.h"
 #include "Timestep.h"
 #include "FrameClock.h"
-#include "Camera/Camera.h"
+
 #include "Managers/EventManager.h"
-#include "Core/Renderer.h"
-#include <Core/Scene.h>
+
+
 #include "Core/RenderTarget.h"
-#include <Camera/EditorCamera.h>
+
 
 
 
@@ -17,6 +17,8 @@ namespace GEngine
     void ReportApplicationError(const ApplicationInitializationError&);
 	//using namespace  Manager;
 	class _Scene;
+    class Scene;
+    class CameraBase;
 
 	class BaseApp
 	{
@@ -38,7 +40,11 @@ namespace GEngine
 	    static Manager::WindowManager* GetWindowManager() { return EngineContext::TryGet() ? GetEngine().GetWindowManager() : nullptr; };
 		static Manager::EventManager* GetEventManager()   { return EngineContext::TryGet() ? GetEngine().GetEventManager() : nullptr; };
 		static Manager::InputManager* GetInputManager()   { return EngineContext::TryGet() ? GetEngine().GetInputManager() : nullptr; };
-		SDLWindow* GetSDLWindow();
+		Window* GetWindow() const { return m_Window; }
+        EditorViewportLogicalSize GetEditorViewportLogicalSize() const { return m_EditorLogicalSize; }
+        EditorViewportPixelSize GetEditorViewportPixelSize() const { return m_EditorPixelSize; }
+        [[nodiscard]] PlatformResult SetEditorViewport(EditorViewportLogicalSize size, FramebufferScale scale);
+        [[nodiscard]] FramebufferResult ResizeViewportTargets();
 
 		//CameraBase* GetCamera(){ return m_EditorCamera; }
 
@@ -55,13 +61,17 @@ namespace GEngine
 		void SetManualFrameRateLimit(uint32_t framesPerSecond) { m_ManualFrameRateLimit = framesPerSecond; }
 		uint32_t GetManualFrameRateLimit() const { return m_ManualFrameRateLimit; }
 		bool IsRenderingSuspended() const { return m_Minimized || m_WindowHidden || m_WindowZeroSize; }
-		bool HasVisibleViewport() const { return m_ViewportSize.x >= 1.f && m_ViewportSize.y >= 1.f; }
+		bool HasVisibleViewport() const
+        {
+            return m_ViewportTargetsReady && m_RenderTarget && bool(*m_RenderTarget) && (!m_UsesEditorViewport
+                || (m_EditorPixelSize.Width && m_EditorPixelSize.Height));
+        }
 		virtual void Render();
 
 		void ShutDown();
 
 
-		void OnEvent(SDL_Event& e)const;
+		void PollEvents() const;
 		virtual void ImGuiRender(){};
 		virtual void OnUIRender() {};
 		
@@ -79,12 +89,16 @@ namespace GEngine
 		ScopedPtr<MousePickFrameBuffer> m_MousePickFrameBuffer{};
 		ScopedPtr<FinalFrameBuffer> m_FinalFrameBuffer{};
 		ScopedPtr<UniformBufferObject<UniformType::MATRIX_4_4>> m_UniformBufferObject{};
-		SDLWindow* m_SDLWindow{};
+		Window* m_Window{};
+        EditorViewportLogicalSize m_EditorLogicalSize{};
+        EditorViewportPixelSize m_EditorPixelSize{};
+        bool m_UsesEditorViewport = false;
+        bool m_ViewportTargetsReady = true;
 
-		Vec4f m_PlaneColor{ 1.0f, 1.0f, 1.0f, 1.0f };
-		Vec2f m_ViewportSize{ 1280, 720 };
+		Math::Vec4f m_PlaneColor{ 1.0f, 1.0f, 1.0f, 1.0f };
+		Math::Vec2f m_ViewportSize{ 1280, 720 };
 
-		Vec2f m_ViewportBounds[2];
+		Math::Vec2f m_ViewportBounds[2];
 
 		FrameTime m_FrameTime{};
 		uint32_t m_ManualFrameRateLimit = 60;

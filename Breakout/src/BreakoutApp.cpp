@@ -10,7 +10,9 @@
 #include "GameObject/BallObject.h"
 #include"Core/Renderer2D.h"
 #include <Core/Log.h>
-#include "Windows/SDLWindow.h"
+#include "Core/Window.h"
+#include "Core/Renderer.h"
+#include "Core/Scene.h"
 #include "Audio/AudioSystem.h"
 #include <fmod/fmod_studio.hpp>
 //using namespace GEngine::BreakoutApp;
@@ -274,7 +276,12 @@ namespace GEngine
 	{
 		auto& windows = GetWindowManager()->GetWindows();
 
-		Renderer2D::RenderBegin(m_EditorCamera);
+        const auto pixels = GetWindow()->GetFramebufferPixelSize();
+        if (!pixels.Width || !pixels.Height) return;
+        static_cast<Camera::OrthographicCamera*>(m_EditorCamera)->SetOrthographic(0.0f,
+            float(m_Height) * float(pixels.Width) / float(pixels.Height), float(m_Height), 0.0f);
+        Renderer2D::SetSurfaceSize(static_cast<int>(pixels.Width), static_cast<int>(pixels.Height));
+        Renderer2D::RenderBegin(m_EditorCamera);
 		Renderer2D::RenderSetup();
 
 		if (m_GameState == GameState::ACTIVE)
@@ -287,7 +294,7 @@ namespace GEngine
 
 		for (auto& [windowID, window] : windows)
 		{
-			auto window_ = static_cast<SDLWindow*>(window.get());
+			auto* window_ = window.get();
 			window_->SwapBuffer();
 		}
 

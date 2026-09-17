@@ -8,7 +8,7 @@
 #include <imgui/imgui_impl_opengl3.h>
 #include <Inputs/KeyCodes.h>
 #include<imguizmo/ImGuizmo.h>
-#include <stdexcept>
+
 
 
 
@@ -16,20 +16,28 @@
 namespace GEngine
 {
 	using namespace Input::Key;
-	void ImGuiWindow_::Initialize(SDLWindow* window, const ImGuiWindowProperties& ImGuiWindowProps)
+	PlatformResult ImGuiWindow_::Initialize(SDLWindow* window, const ImGuiWindowProperties& ImGuiWindowProps)
 	{
 		GLContextThread::RequireCurrent("ImGuiWindow::Initialize");
-		if (m_Context) throw std::logic_error("ImGuiWindow is already initialized");
+		if (m_Context) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState, "initialize UI", "UI is already initialized"});
+        auto bold = RuntimeAssets::TryFile("Fonts/OpenSans-Bold.ttf");
+        auto regular = RuntimeAssets::TryFile("Fonts/OpenSans-Regular.ttf");
+        if (!bold) return std::unexpected(bold.error());
+        if (!regular) return std::unexpected(regular.error());
 		IMGUI_CHECKVERSION();
 		m_Context = ImGui::CreateContext();
+        if (!m_Context) return std::unexpected(PlatformError{PlatformErrorCode::Allocation, "UI context", "UI context allocation failed"});
+        struct Rollback { ImGuiWindow_* owner; bool committed = false; ~Rollback() { if (!committed) owner->ShutDown(); } } rollback{this};
 		ImGui::SetCurrentContext(m_Context);
 		ImGui::StyleColorsDark();
 		ImGuiIO& io = ImGui::GetIO();
 
-		io.Fonts->AddFontFromFileTTF(RuntimeAssets::File("Fonts/OpenSans-Bold.ttf").c_str(), 18.f);
-		io.FontDefault = io.Fonts->AddFontFromFileTTF(RuntimeAssets::File("Fonts/OpenSans-Regular.ttf").c_str(), 18.f);
+		if (!io.Fonts->AddFontFromFileTTF(bold->c_str(), 18.f))
+            return std::unexpected(PlatformError{PlatformErrorCode::UserInterface, "load UI font", *bold});
+		io.FontDefault = io.Fonts->AddFontFromFileTTF(regular->c_str(), 18.f);
 
 
+		if (!io.FontDefault) return std::unexpected(PlatformError{PlatformErrorCode::UserInterface, "load UI font", *regular});
 		io.ConfigWindowsMoveFromTitleBarOnly = ImGuiWindowProps.bMoveFromTitleBarOnly;
 
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
@@ -80,9 +88,11 @@ namespace GEngine
 		io.KeyMap[ImGuiKey_Z] =			  GENGINE_KEY_Z;*/
 
 		if (!ImGui_ImplSDL2_InitForOpenGL(window->GetSDLWindow(), window->GetContext()))
-			throw std::runtime_error("ImGui SDL backend initialization failed");
+			return std::unexpected(PlatformError{PlatformErrorCode::UserInterface, "UI platform backend", "UI platform initialization failed"});
 		if (!ImGui_ImplOpenGL3_Init("#version 430"))
-			throw std::runtime_error("ImGui OpenGL backend initialization failed");
+			return std::unexpected(PlatformError{PlatformErrorCode::UserInterface, "UI graphics backend", "UI graphics initialization failed"});
+        rollback.committed = true;
+        return {};
 	
 	}
 
@@ -122,7 +132,7 @@ namespace GEngine
 		ImGuizmo::BeginFrame();
 	}
 
-	void ImGuiWindow_::EndRender(SDLWindow* window)
+	PlatformResult ImGuiWindow_::EndRender(SDLWindow* window)
 	{
 		GLContextThread::RequireCurrent("ImGuiWindow::EndRender");
 		ImGui::SetCurrentContext(m_Context);
@@ -137,9 +147,10 @@ namespace GEngine
 		{
 			ImGui::UpdatePlatformWindows();
 			ImGui::RenderPlatformWindowsDefault();
-			window->BeginRender();
+			return window->BeginRender();
 		
 		}
+        return {};
 	}
 
 	void ImGuiWindow_::SetDarkThemeColors()
@@ -191,4 +202,20 @@ namespace GEngine
 
 
 	
+}
+
+namespace GEngine::UI
+{
+    std::expected<FramebufferScale, PlatformError> CurrentViewportFramebufferScale()
+    {
+        GLContextThread::RequireCurrent("viewport scale");
+        auto* viewport = ImGui::GetWindowViewport();
+        auto* window = viewport ? static_cast<SDL_Window*>(viewport->PlatformHandle) : nullptr;
+        if (!window) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState, "viewport scale", "Panel backing window is not ready"});
+        int w = 0, h = 0, pw = 0, ph = 0;
+        SDL_GetWindowSize(window, &w, &h); SDL_GL_GetDrawableSize(window, &pw, &ph);
+        if (w <= 0 || h <= 0 || pw <= 0 || ph <= 0)
+            return std::unexpected(PlatformError{PlatformErrorCode::InvalidSize, "viewport scale", "Panel backing window has no drawable area"});
+        return FramebufferScale{float(pw) / float(w), float(ph) / float(h)};
+    }
 }

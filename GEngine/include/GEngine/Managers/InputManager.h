@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Managers/ManagerBase.h"
+#include "Core/Platform.h"
 #include "Math/Math.h"
 #include "Inputs/KeyCodes.h"
 #include <Inputs/MouseCodes.h>
@@ -13,15 +14,14 @@
 #define GENGINE_CONTROLLER_BUTTON_MAX 21
 
 
-union SDL_Event;
-struct _SDL_GameController;
+
 
 using namespace GEngine::Input::Key;
 using namespace GEngine::Input::Mouse;
 using namespace GEngine::Input::Controller;
 namespace GEngine
 {
-	class SDLWindow;
+	class Window;
 }
 
 enum class CursorMode
@@ -158,7 +158,8 @@ namespace GEngine::Manager
 		
 		static ScopedPtr<InputManager> GetScopedInstance();
 
-		void Initialize();
+		[[nodiscard]] PlatformResult Initialize();
+        ~InputManager();
 		void ShutDown();
 
 		// Called right before Events loop
@@ -167,22 +168,21 @@ namespace GEngine::Manager
 		// Called after Events loop
 		void Update();
 
-		// Called to process an event 
-		void ProcessEvent(SDL_Event& event);
+
 
 		const InputState& GetInputState() const { return m_InputState; }
 		InputState& GetInputState(){ return m_InputState; }
 		KeyboardState& GetKeyboardState() { return m_InputState.m_Keyboard; }
 		MouseState& GetMouseState() { return m_InputState.m_Mouse; }
 		ControllerState& GetControllerState() { return m_InputState.m_Controller; }
-		void SetSDLWindow(SDLWindow* window);
+		void SetWindow(Window* window);
 
 
 
-		void SetRelativeMouseMode(bool value);
+		[[nodiscard]] PlatformResult SetRelativeMouseMode(bool value);
 
 	private:
-		InputManager() = default;
+		InputManager();
 		friend class GEngine;
 		float Filter1D(int input);
 		Vector2 Filter2D(int inputX, int inputY);
@@ -190,8 +190,9 @@ namespace GEngine::Manager
 
 	private:
 		InputState m_InputState;
-		_SDL_GameController* m_GameController{};
-		SDLWindow* m_SDLWindow{};
+		struct Backend;
+        ScopedPtr<Backend> m_Backend;
+		Window* m_Window{};
 
 	};
 

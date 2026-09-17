@@ -122,7 +122,8 @@ namespace GEngine
 		//if (keyboard.IsKeyHeld(GENGINE_KEY_R)) Translate(0.f, moveAmount, 0.f);
 		//if (keyboard.IsKeyHeld(GENGINE_KEY_F)) Translate(0.f, -moveAmount, 0.f);
 
-	    if (keyboard.IsKeyPressed(GENGINE_KEY_SPACE)) input->SetRelativeMouseMode(false);
+	    if (keyboard.IsKeyPressed(GENGINE_KEY_SPACE))
+            if (auto mode = input->SetRelativeMouseMode(false); !mode) ReportPlatformError(mode.error());
 		
 		auto& mouseState = BaseApp::GetEngine().GetInputManager()->GetMouseState();
 		

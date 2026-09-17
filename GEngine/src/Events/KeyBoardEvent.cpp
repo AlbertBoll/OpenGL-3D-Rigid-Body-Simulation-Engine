@@ -4,20 +4,20 @@
 
 namespace GEngine::Event
 {
-	void KeyboardEvent::OnKeyPress(SDL_KeyboardEvent& e)
+	void KeyboardEvent::OnKeyPress(Manager::KeyboardParam& e)
 	{
-		GENGINE_CORE_INFO("Key {} was pressed", SDL_GetKeyName(e.keysym.sym));
+		GENGINE_CORE_INFO("Key {} was pressed", SDL_GetKeyName(SDL_GetKeyFromScancode(static_cast<SDL_Scancode>(e.Key))));
 	}
 
 
-	void KeyboardEvent::OnKeyRelease(SDL_KeyboardEvent& e)
+	void KeyboardEvent::OnKeyRelease(Manager::KeyboardParam& e)
 	{
-		GENGINE_CORE_INFO("Key {} was released", SDL_GetKeyName(e.keysym.sym));
+		GENGINE_CORE_INFO("Key {} was released", SDL_GetKeyName(SDL_GetKeyFromScancode(static_cast<SDL_Scancode>(e.Key))));
 	}
 
 
-	void KeyboardEvent::OnKeyRepeat(SDL_KeyboardEvent& e)
+	void KeyboardEvent::OnKeyRepeat(Manager::KeyboardParam& e)
 	{
-		GENGINE_CORE_INFO("Key {} was repeated", SDL_GetKeyName(e.keysym.sym));
+		GENGINE_CORE_INFO("Key {} was repeated", SDL_GetKeyName(SDL_GetKeyFromScancode(static_cast<SDL_Scancode>(e.Key))));
 	}
 }

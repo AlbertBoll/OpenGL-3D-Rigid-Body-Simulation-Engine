@@ -1,5 +1,6 @@
 #pragma once
 #include "Core/FrameBuffer.h"
+#include "Core/Platform.h"
 #include "Math/Math.h"
 #include <initializer_list>
 #include <vector>
@@ -8,7 +9,7 @@
 namespace GEngine
 {
     // Native-free startup error transport; existing platform arguments stay phase-owned.
-    using ApplicationInitializationError = std::variant<FramebufferError, Asset::TextureError>;
+    using ApplicationInitializationError = std::variant<FramebufferError, Asset::TextureError, PlatformError>;
     using ApplicationInitializationResult = std::expected<void, ApplicationInitializationError>;
     enum class RenderTargetTextureFormat { None, RGBA8, RED_INTEGER, DEPTH24STENCIL8, Depth = DEPTH24STENCIL8 };
     struct RenderTargetTextureSpecification
@@ -43,12 +44,23 @@ namespace GEngine
         FrameBufferSpecification Storage;
         RenderTargetUsage Usage = RenderTargetUsage::Attachment | RenderTargetUsage::Sampled
             | RenderTargetUsage::Readback | RenderTargetUsage::Presentation;
+        TargetSizeSource SizeSource = TargetSizeSource::Fixed;
         bool operator==(const RenderTargetDesc&) const = default;
     };
     // Semantic convenience operations over one move-only framebuffer owner.
     class FramebufferTarget
     {
     public:
+        void SetSizeSource(TargetSizeSource source) noexcept { m_SizeSource = source; }
+        TargetSizeSource SizeSource() const noexcept { return m_SizeSource; }
+        [[nodiscard]] FramebufferResult ResizeFrom(NativeFramebufferPixelSize native, EditorViewportPixelSize editor)
+        {
+            if (m_SizeSource == TargetSizeSource::Fixed) return {};
+            if (m_SizeSource != TargetSizeSource::NativeFramebuffer && m_SizeSource != TargetSizeSource::EditorViewport)
+                return std::unexpected(FramebufferError{FramebufferErrorCode::InvalidDescription, "Unknown framebuffer size source"});
+            return m_SizeSource == TargetSizeSource::NativeFramebuffer
+                ? m_Buffer.Resize(native.Width, native.Height) : m_Buffer.Resize(editor.Width, editor.Height);
+        }
         void Bind() const { m_Buffer.Bind(); }
         void UnBind() const { FrameBuffer::UnBind(); }
         Math::Vec2f GetResolution() const
@@ -62,6 +74,7 @@ namespace GEngine
         ~FramebufferTarget() = default;
         FramebufferTarget(FramebufferTarget&&) noexcept = default;
         FramebufferTarget& operator=(FramebufferTarget&&) noexcept = default;
+        TargetSizeSource m_SizeSource = TargetSizeSource::Fixed;
         FrameBuffer m_Buffer;
     };
     class FinalFrameBuffer final : public FramebufferTarget
@@ -168,6 +181,12 @@ namespace GEngine
         // transaction. Zero-size deferral, no-ops and failures do not increment.
         std::uint64_t ReallocationCount() const noexcept { return m_Reallocations; }
         [[nodiscard]] FramebufferResult Reconfigure(const RenderTargetDesc&);
+        [[nodiscard]] FramebufferResult ResizeFrom(NativeFramebufferPixelSize native, EditorViewportPixelSize editor)
+        {
+            if (m_Description.SizeSource == TargetSizeSource::Fixed) return {};
+            return m_Description.SizeSource == TargetSizeSource::NativeFramebuffer
+                ? OnResize(native.Width, native.Height) : OnResize(editor.Width, editor.Height);
+        }
         int GetWidth() const { return static_cast<int>(m_Description.Storage.Width); }
         int GetHeight() const { return static_cast<int>(m_Description.Storage.Height); }
         unsigned GetSamples() const { return m_Description.Storage.Samples; }

@@ -1,6 +1,7 @@
 #include "gepch.h"
 #include "Core/RenderTarget.h"
 #include "Core/BaseApp.h"
+#include "Core/RuntimeAssets.h"
 #include "Windows/SDLWindow.h"
 #include "../GEngine/src/Core/FramebufferBackend.h"
 #include "../GEngine/src/Assets/TextureBackend.h"
@@ -375,7 +376,8 @@ int main(int argc,char** argv)
                 StartupApp app;
                 WindowProperties p; p.m_Width=p.m_Height=64; p.m_MinWidth=p.m_MinHeight=32;
                 p.flag=BitFlags<WindowFlags,uint8_t>{WindowFlags::INVISIBLE};
-                denyOwnerAfter=allocation;
+                // Window owner, UI owner and input backend precede framebuffer ownership.
+                denyOwnerAfter=allocation+3;
                 auto result=app.Initialize(p);
                 Check(!result && std::holds_alternative<FramebufferError>(result.error()),"Startup did not propagate framebuffer failure");
                 Check(std::get<FramebufferError>(result.error()).code==FramebufferErrorCode::Allocation && denyOwnerAfter==-1,"Wrong startup failure or injection not reached");
@@ -391,7 +393,7 @@ int main(int argc,char** argv)
     for(int cycle=0;cycle<2;++cycle)
     {
         auto root=std::make_unique<EngineContext>();WindowProperties p;p.m_Title="Framebuffer validation";
-        p.m_Width=p.m_Height=64;p.m_MinWidth=p.m_MinHeight=32;p.m_IsVsync=false;p.flag=BitFlags<WindowFlags,uint8_t>{WindowFlags::INVISIBLE};root->Initialize({p});
+        p.m_Width=p.m_Height=64;p.m_MinWidth=p.m_MinHeight=32;p.m_IsVsync=false;p.flag=BitFlags<WindowFlags,uint8_t>{WindowFlags::INVISIBLE};Check(root->Initialize({p}),"Platform initialization");
         Check(glGetError()==GL_NO_ERROR,"Context initialization GL errors");
         glEnable(GL_DEBUG_OUTPUT);glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);glDebugMessageCallback(Diagnostic,nullptr);
         std::println("[GL] {} renderer={}",reinterpret_cast<const char*>(glGetString(GL_VERSION)),reinterpret_cast<const char*>(glGetString(GL_RENDERER)));
@@ -403,7 +405,7 @@ int main(int argc,char** argv)
             if(std::string_view(argv[1])=="--reject-worker")
             {std::thread worker([b=std::move(owner)]()mutable{
                 std::set_terminate([]{std::println(stderr,"[EXPECTED] framebuffer ownership invariant");std::_Exit(86);});b={};});worker.join();}
-            else {Check(SDL_GL_CreateContext(root->MainWindow()->GetSDLWindow()),"Second context creation");owner={};}
+            else {Check(SDL_GL_CreateContext(static_cast<SDLWindow*>(root->MainWindow())->GetSDLWindow()),"Second context creation");owner={};}
             return 89;
         }
         {Observer observer;OwnershipAndFailure();PixelsAndTargets();ResizePolicy();}

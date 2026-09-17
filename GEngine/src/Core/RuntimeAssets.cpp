@@ -16,6 +16,25 @@ namespace GEngine::RuntimeAssets
             "staged asset-package directory.");
     }
 
+    std::expected<std::string, PlatformError> TryFile(std::string_view relative)
+    {
+        const std::filesystem::path path(relative);
+        if (root.empty()) return std::unexpected(PlatformError{PlatformErrorCode::ResourcePath,
+            std::string(relative), "Runtime asset root was not initialized"});
+        if (path.empty() || path.is_absolute() || path.has_root_name())
+            return std::unexpected(PlatformError{PlatformErrorCode::ResourcePath,
+                std::string(relative), "Expected a package-relative asset path"});
+        for (const auto& part : path) if (part == "..")
+            return std::unexpected(PlatformError{PlatformErrorCode::ResourcePath,
+                std::string(relative), "Asset path escapes the package"});
+        const auto resolved = (root / path).lexically_normal();
+        std::error_code error;
+        if (!std::filesystem::exists(resolved, error) || error)
+            return std::unexpected(PlatformError{PlatformErrorCode::ResourcePath,
+                resolved.string(), error ? error.message() : "Required platform asset is missing"});
+        return resolved.string();
+    }
+
     std::string File(std::string_view relative)
     {
         const std::filesystem::path path(relative);

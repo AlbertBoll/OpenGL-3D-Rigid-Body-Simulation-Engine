@@ -544,12 +544,11 @@ namespace GEngine
 
 		Vec2f viewportSize = max_bound - min_bound;
 		
-		my = viewportSize.y - my; // Invert Y coordinate for OpenGL
-		int mouseX = static_cast<int>(mx);
-		int mouseY = static_cast<int>(my);
-
-	
-		if (mouseX >= 0 && mouseY >= 0 && mouseX <= (int)viewportSize.x && mouseY <= (int)viewportSize.y)
+        const auto& storage = fb.Buffer().Description();
+        auto position = ViewportPixelAt(mx, my, {viewportSize.x, viewportSize.y}, {storage.Width, storage.Height});
+        const int mouseX = position ? position->X : 0;
+        const int mouseY = position ? position->Y : 0;
+        if (position)
 		{
 			if (BaseApp::GetInputManager()->GetMouseState().isButtonPressed(GEngineMouseCode::GENGINE_BUTTON_LEFT))
 			{
@@ -585,11 +584,11 @@ namespace GEngine
 		mx -= min_bound.x;
 		my -= min_bound.y;
 
-		int mouseX = static_cast<int>(mx);
-		int mouseY = static_cast<int>(viewportSize.y - my);
-
-
-		if (mouseX >= 0 && mouseY >= 0 && mouseX <= (int)viewportSize.x && mouseY <= (int)viewportSize.y)
+        auto position = ViewportPixelAt(mx, my, {viewportSize.x, viewportSize.y},
+            {static_cast<unsigned>(fb.GetWidth()), static_cast<unsigned>(fb.GetHeight())});
+        const int mouseX = position ? position->X : 0;
+        const int mouseY = position ? position->Y : 0;
+        if (position)
 		{
 			if (BaseApp::GetInputManager()->GetMouseState().isButtonPressed(GEngineMouseCode::GENGINE_BUTTON_LEFT))
 			{

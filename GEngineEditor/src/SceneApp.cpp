@@ -10,6 +10,8 @@
 #include "Camera/PerspectiveCamera.h"
 #include "EntryPoint.h"
 #include "Core/Renderer.h"
+#include "Core/Scene.h"
+#include "Camera/EditorCamera.h"
 #include <external/imgui/imgui.h>
 #include <GEngine/Core/Log.h>
 #include <GEngine/Shapes/SmoothSphere.h>
@@ -54,12 +56,6 @@ void SceneApp::Update(Timestep ts)
 {
 
 	m_AnimationSystem->UpdateAnimation(ts);
-	if (m_ViewportSize.x > 0.f && m_ViewportSize.y > 0.f && (m_RenderTarget->GetWidth() != m_ViewportSize.x || m_RenderTarget->GetHeight() != m_ViewportSize.y))
-	{
-		m_EditorCamera->OnResize((int)m_ViewportSize.x, (int)m_ViewportSize.y);
-		if (auto framebufferResult = m_RenderTarget->OnResize((uint32_t)m_ViewportSize.x, (uint32_t)m_ViewportSize.y); !framebufferResult)
-		{ ReportFramebufferError("target update", framebufferResult.error()); return; }
-	}
 
 	
 	if (m_ViewportForcused)
@@ -97,8 +93,8 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	Renderer::Initialize();
 
 
-	auto width = WindowsPropertyList.begin()->m_Width;
-	auto height = WindowsPropertyList.begin()->m_Height;
+	auto width = m_RenderTarget->GetWidth();
+	auto height = m_RenderTarget->GetHeight();
 
 	GENGINE_CORE_INFO("Initialize Perspective Camera...");
 	m_EditorCamera = new PerspectiveCamera(
@@ -917,7 +913,14 @@ void SceneApp::ImGuiRender()
 	//GENGINE_INFO("Hovered: {}", ImGui::IsWindowHovered());
 	
 	auto viewportPanelSize = ImGui::GetContentRegionAvail();
-	m_ViewportSize = viewportVisible ? Vec2f{ viewportPanelSize.x, viewportPanelSize.y } : Vec2f{};
+	const bool hasArea = viewportVisible && viewportPanelSize.x > 0 && viewportPanelSize.y > 0;
+    auto scale = hasArea ? UI::CurrentViewportFramebufferScale() : std::expected<FramebufferScale, PlatformError>(FramebufferScale{});
+    if (scale)
+    {
+        if (auto sized = SetEditorViewport(hasArea ? EditorViewportLogicalSize{viewportPanelSize.x, viewportPanelSize.y} : EditorViewportLogicalSize{}, *scale); !sized)
+            ReportPlatformError(sized.error());
+    }
+    else ReportPlatformError(scale.error());
 
 
 
@@ -949,25 +952,17 @@ void SceneApp::ImGuiRender()
 
 
 
-	if (HasVisibleViewport())
+    const auto imageOrigin = ImGui::GetCursorScreenPos();
+    m_ViewportBounds[0] = {imageOrigin.x, imageOrigin.y};
+    m_ViewportBounds[1] = m_ViewportBounds[0];
+    if (HasVisibleViewport())
+    {
         if (auto image = UI::FramebufferImage(*m_RenderTarget, m_ViewportSize.x, m_ViewportSize.y); !image)
             ReportFramebufferError("viewport image", image.error());
-	
-	auto windowSize = ImGui::GetWindowSize();
-	auto minBound = ImGui::GetWindowPos();
+        else
+            m_ViewportBounds[1] = m_ViewportBounds[0] + m_ViewportSize;
+    }
 
-	//auto viewportOffset = ImGui::GetMousePos();
-	//auto[x, y] = ImGui::GetMousePos();
-	//GENGINE_CORE_INFO("{0}, {1}", x, y);
-
-	minBound.x += viewportOffset.x;
-	minBound.y += viewportOffset.y;
-
-	ImVec2 maxBound = { minBound.x + windowSize.x, minBound.y + windowSize.y };
-
-	m_ViewportBounds[0] = { minBound.x, minBound.y };
-	m_ViewportBounds[1] = { maxBound.x, maxBound.y };
-	
 	//Gizmos
 
 	//auto[mx, my] = ImGui::GetMousePos();

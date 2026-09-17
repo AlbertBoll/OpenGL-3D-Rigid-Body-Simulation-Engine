@@ -1,6 +1,8 @@
+#include "Core/Renderer.h"
+#include "Core/Scene.h"
 #include "RayTracing.h"
 #include "EntryPoint.h"
-#include "Windows/SDLWindow.h"
+#include "Core/Window.h"
 #include <external/imgui/imgui.h>
 #include <Core/Log.h>
 #include "Camera/PerspectiveCamera.h"
@@ -63,10 +65,10 @@ namespace GEngine
 		
 		for (auto& [windowID, window] : windows)
 		{
-			auto window_ = static_cast<SDLWindow*>(window.get());
-			window_->GetImGuiWindow()->BeginRender(window_);
+			auto* window_ = window.get();
+			if (auto ui = window_->BeginUI(); !ui) { ReportPlatformError(ui.error()); ShutDown(); return; }
 			OnUIRender();
-			window_->GetImGuiWindow()->EndRender(window_);
+			if (auto ui = window_->EndUI(); !ui) { ReportPlatformError(ui.error()); ShutDown(); return; }
 			window_->SwapBuffer();
 		}
 
@@ -254,13 +256,20 @@ namespace GEngine
 		const bool viewportVisible = ImGui::Begin("Viewport");
 		const auto extent = ImGui::GetContentRegionAvail();
 		const bool hasArea = viewportVisible && extent.x >= 1.f && extent.y >= 1.f;
-		m_Width = hasArea ? static_cast<uint32_t>(extent.x) : 0;
-		m_Height = hasArea ? static_cast<uint32_t>(extent.y) : 0;
+		auto scale = hasArea ? UI::CurrentViewportFramebufferScale() : std::expected<FramebufferScale, PlatformError>(FramebufferScale{});
+        if (scale)
+        {
+            auto sized = SetEditorViewport(hasArea ? EditorViewportLogicalSize{extent.x, extent.y} : EditorViewportLogicalSize{}, *scale);
+            if (!sized) { ReportPlatformError(sized.error()); ImGui::End(); ImGui::PopStyleVar(); return; }
+        }
+        else { ReportPlatformError(scale.error()); ImGui::End(); ImGui::PopStyleVar(); return; }
+        const auto pixels = GetEditorViewportPixelSize();
+        m_Width = pixels.Width; m_Height = pixels.Height;
 		if (hasArea) GenerateImage();
 
 		auto& image = m_Renderer.GetFinalImage();
 		if(hasArea && m_Renderer.GetFinalImage())
-			ImGui::Image((void*)((uint64_t)image->GetTexID()), { (float)image->GetWidth(), (float)image->GetHeight() }, {0.f, 1.f}, {1.f, 0.f});
+			ImGui::Image((void*)((uint64_t)image->GetTexID()), { extent.x, extent.y }, {0.f, 1.f}, {1.f, 0.f});
 
 		ImGui::End();
 

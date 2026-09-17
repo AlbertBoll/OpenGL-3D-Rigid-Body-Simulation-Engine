@@ -599,7 +599,7 @@ namespace
             properties.m_MinWidth = properties.m_MinHeight = 32;
             properties.m_IsVsync = false;
             properties.flag = BitFlags<WindowFlags, uint8_t>{WindowFlags::INVISIBLE};
-            root->Initialize({properties});
+            Check(root->Initialize({properties}).has_value(), "Platform initialization failed");
             auto& publication = root->AssetPublications();
             std::cout << "[GL] " << glGetString(GL_VERSION) << " renderer=" << glGetString(GL_RENDERER) << '\n';
             int startupErrors = 0; while (glGetError() != GL_NO_ERROR) ++startupErrors;

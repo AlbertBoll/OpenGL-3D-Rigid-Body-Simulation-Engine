@@ -1,4 +1,5 @@
 #pragma once
+#include "Managers/EventManager.h"
 
 
 namespace GEngine::Event
@@ -8,8 +9,8 @@ namespace GEngine::Event
 	{
 
 	public:
-		static void OnWindowClose(SDL_WindowEvent& e);
-		static void OnWindowResize(SDL_WindowEvent& e);
+		static void OnWindowClose(WindowStateEvent& e);
+		static void OnWindowResize(WindowStateEvent& e);
 		static void OnAppQuit();
 
 	};

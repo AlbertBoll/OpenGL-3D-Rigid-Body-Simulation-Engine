@@ -1,0 +1,461 @@
+{
+  "baseline": "526616449dd31ad40afc82aa582b2d882f0da1e5",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "Breakout/src/BreakoutApp.cpp",
+    "GEngine/include/GEngine/Core/BaseApp.h",
+    "GEngine/include/GEngine/Core/GEngine.h",
+    "GEngine/include/GEngine/Core/Platform.h",
+    "GEngine/include/GEngine/Core/RenderSystem.cpp",
+    "GEngine/include/GEngine/Core/RenderTarget.h",
+    "GEngine/include/GEngine/Core/RuntimeAssets.h",
+    "GEngine/include/GEngine/Core/Window.h",
+    "GEngine/include/GEngine/Events/ApplicationEvent.h",
+    "GEngine/include/GEngine/Events/Event.h",
+    "GEngine/include/GEngine/Events/KeyBoardEvent.h",
+    "GEngine/include/GEngine/Events/MouseEvent.h",
+    "GEngine/include/GEngine/Managers/EventManager.h",
+    "GEngine/include/GEngine/Managers/InputManager.h",
+    "GEngine/include/GEngine/Managers/WindowManager.h",
+    "GEngine/include/GEngine/Windows/ImGuiWindow.h",
+    "GEngine/include/GEngine/Windows/SDLWindow.h",
+    "GEngine/src/Camera/RayTracingCamera.cpp",
+    "GEngine/src/Core/BaseApp.cpp",
+    "GEngine/src/Core/GEngine.cpp",
+    "GEngine/src/Core/RenderTarget.cpp",
+    "GEngine/src/Core/Renderer.cpp",
+    "GEngine/src/Core/RuntimeAssets.cpp",
+    "GEngine/src/Core/Window.cpp",
+    "GEngine/src/Events/ApplicationEvent.cpp",
+    "GEngine/src/Events/KeyBoardEvent.cpp",
+    "GEngine/src/Events/MouseEvent.cpp",
+    "GEngine/src/Extras/CameraRig.cpp",
+    "GEngine/src/Managers/EventManager.cpp",
+    "GEngine/src/Managers/InputManager.cpp",
+    "GEngine/src/Managers/WindowManager.cpp",
+    "GEngine/src/Windows/ImGuiWindow.cpp",
+    "GEngine/src/Windows/SDLWindow.cpp",
+    "GEngineEditor/src/SceneApp.cpp",
+    "RayTracing/src/RayTracing.cpp",
+    "RenderingValidation/README.md",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-30.json",
+    "tools/asset_registry_probe.cpp",
+    "tools/framebuffer_probe.cpp",
+    "tools/input_control_probe.cpp",
+    "tools/interpolation_probe.cpp",
+    "tools/sampler_probe.cpp",
+    "tools/shutdown_probe.cpp",
+    "tools/test_input_control.py",
+    "tools/test_viewport.py",
+    "tools/viewport_probe.cpp"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Implemented the three authorized subtasks; current review and final-v3 evidence cover required contracts.",
+      "finding": "Conflated sizes, backend leakage and platform error transport",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Exact messages match approved Phase 29 logs. Future owners remain Phase 63 and Phases 34-35/46; startup/native-close checks pass, and no renderer-diagnostic waiver is inferred.",
+      "finding": "Existing simulation primitive-mode and Breakout no-active-program GL diagnostics",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_30_REVIEW.md",
+    "docs/rendering/reviews/PHASE_30_SCOPE.md"
+  ],
+  "next_phase": "31",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "470b94914b8f808932fe68a126b972679f997850",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-30/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/470b94914b8f808932fe68a126b972679f997850",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "fedbbd1d7f89a348ea59a98b983adf857887db11fa7a5ae412b9ae39f4d9b73c"
+      },
+      "mode": "100644",
+      "validated_blob": "7d03c6d93ed3114fa4f24b465c46910320e255d6",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-30/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/7d03c6d93ed3114fa4f24b465c46910320e255d6"
+    }
+  },
+  "phase": "30",
+  "previous_approved_tag": "render-refactor-phase-29-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngine/include/GEngine/Mesh/IndexBuffer.h",
+    "GEngine/include/GEngine/Mesh/VertexBuffer.h",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_30_REVIEW.md",
+  "schema": 2,
+  "summary": "Separate native logical/framebuffer and editor logical/pixel dimensions, coalesce explicit-source target resizing, and expose native-free semantic platform contracts with typed failures and transactional ownership. Debug/Release builds, focused probes, lifecycle/input regressions and eight milestone smokes validated within the owner-authorized 36-production/10-support scope.",
+  "validation": [
+    {
+      "check": "Debug",
+      "command": "python tools/test_viewport.py --configuration Debug --smoke --output logs/rendering/phase30/final-v3/Debug",
+      "evidence": "logs/rendering/phase30/final-v3/Debug/results.json",
+      "result": "PASS",
+      "reuse_reason": "Final production inputs unchanged. Test-only explicit includes and the shutdown injector adaptation affect only their recorded subsequent runs; see fixture-coverage-update.json and shutdown-coverage-update.json."
+    },
+    {
+      "check": "framebuffer-fixed-Debug",
+      "command": "python tools/test_framebuffer.py --configuration Debug --no-build --output logs/rendering/phase30/final-v3/framebuffer-fixed-Debug",
+      "evidence": "logs/rendering/phase30/final-v3/framebuffer-fixed-Debug/results.json",
+      "result": "PASS",
+      "reuse_reason": "Final production inputs unchanged. Test-only explicit includes and the shutdown injector adaptation affect only their recorded subsequent runs; see fixture-coverage-update.json and shutdown-coverage-update.json."
+    },
+    {
+      "check": "sampler-Debug",
+      "command": "python tools/test_sampler.py --configuration Debug --no-build --output logs/rendering/phase30/final-v3/sampler-Debug",
+      "evidence": "logs/rendering/phase30/final-v3/sampler-Debug/results.json",
+      "result": "PASS",
+      "reuse_reason": "Final production inputs unchanged. Test-only explicit includes and the shutdown injector adaptation affect only their recorded subsequent runs; see fixture-coverage-update.json and shutdown-coverage-update.json."
+    },
+    {
+      "check": "input-Debug",
+      "command": "python tools/test_input_control.py --configuration Debug --event-loop --no-build --output logs/rendering/phase30/final-v3/input-Debug",
+      "evidence": "logs/rendering/phase30/final-v3/input-Debug/results.json",
+      "result": "PASS",
+      "reuse_reason": "Final production inputs unchanged. Test-only explicit includes and the shutdown injector adaptation affect only their recorded subsequent runs; see fixture-coverage-update.json and shutdown-coverage-update.json."
+    },
+    {
+      "check": "Release",
+      "command": "python tools/test_viewport.py --configuration Release --smoke --output logs/rendering/phase30/final-v3/Release",
+      "evidence": "logs/rendering/phase30/final-v3/Release/results.json",
+      "result": "PASS",
+      "reuse_reason": "Final production inputs unchanged. Test-only explicit includes and the shutdown injector adaptation affect only their recorded subsequent runs; see fixture-coverage-update.json and shutdown-coverage-update.json."
+    },
+    {
+      "check": "framebuffer-fixed-Release (successful non-shutdown steps only)",
+      "command": "python tools/test_framebuffer.py --configuration Release --no-build --output logs/rendering/phase30/final-v3/framebuffer-fixed-Release",
+      "evidence": "logs/rendering/phase30/final-v3/framebuffer-fixed-Release/results.json",
+      "result": "PASS",
+      "reuse_reason": "Final production inputs unchanged. Test-only explicit includes and the shutdown injector adaptation affect only their recorded subsequent runs; see fixture-coverage-update.json and shutdown-coverage-update.json.",
+      "selected_steps": [
+        "framebuffer-consumer-boundary",
+        "compile-gl",
+        "gl",
+        "reject-worker",
+        "reject-context",
+        "startup-failure",
+        "compile-input_control_probe",
+        "compile-interpolation_probe",
+        "compile-uniform_renderbuffer_probe",
+        "uniform_renderbuffer_probe",
+        "compile-shadow_framebuffer_probe",
+        "shadow_framebuffer_probe",
+        "compile-asset_registry_probe",
+        "asset_registry_probe-gl"
+      ]
+    },
+    {
+      "check": "sampler-Release",
+      "command": "python tools/test_sampler.py --configuration Release --no-build --output logs/rendering/phase30/final-v3/sampler-Release",
+      "evidence": "logs/rendering/phase30/final-v3/sampler-Release/results.json",
+      "result": "PASS",
+      "reuse_reason": "Final production inputs unchanged. Test-only explicit includes and the shutdown injector adaptation affect only their recorded subsequent runs; see fixture-coverage-update.json and shutdown-coverage-update.json."
+    },
+    {
+      "check": "input-Release",
+      "command": "python tools/test_input_control.py --configuration Release --event-loop --no-build --output logs/rendering/phase30/final-v3/input-Release",
+      "evidence": "logs/rendering/phase30/final-v3/input-Release/results.json",
+      "result": "PASS",
+      "reuse_reason": "Final production inputs unchanged. Test-only explicit includes and the shutdown injector adaptation affect only their recorded subsequent runs; see fixture-coverage-update.json and shutdown-coverage-update.json."
+    },
+    {
+      "check": "Release shutdown final injector",
+      "command": "python tools/test_framebuffer.py --configuration Release --no-build --mode regressions --regression shutdown_probe --output logs/rendering/phase30/final-v3/shutdown-Release",
+      "evidence": "logs/rendering/phase30/final-v3/shutdown-Release/results.json",
+      "result": "PASS",
+      "reuse_reason": "Rerun all seven shutdown cases after adapting second-window identification to transactional window-batch publication."
+    },
+    {
+      "check": "source architecture and protected/index/baseline identity",
+      "command": "python logs/rendering/phase30/audit_candidate.py",
+      "evidence": "logs/rendering/phase30/final-v3/source-and-identity.json",
+      "result": "PASS"
+    },
+    {
+      "check": "local rendering governance",
+      "command": "python .codex/tools/validate_rendering_governance.py",
+      "evidence": "logs/rendering/phase30/final-v3/governance.json",
+      "result": "PASS",
+      "reuse_reason": "Governance inputs and coverage unchanged since the recorded successful run."
+    }
+  ],
+  "validation_input_hashes": {
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "Breakout/src/BreakoutApp.cpp": {
+      "executable": null,
+      "sha256": "84e344320eb8b99887e0367da734923766adb7c6e226a0bd763d49cd93229c69"
+    },
+    "GEngine/include/GEngine/Core/BaseApp.h": {
+      "executable": null,
+      "sha256": "efcfea52171b616b717cbef6088ec21fec706b621e4c7bf2163b710a009fd506"
+    },
+    "GEngine/include/GEngine/Core/GEngine.h": {
+      "executable": null,
+      "sha256": "f0764141aae3a70c107abbb43bf7e6c4a2676ada91204c6176ce94447b30d064"
+    },
+    "GEngine/include/GEngine/Core/Platform.h": {
+      "executable": null,
+      "sha256": "8491e398612e193d671435411e4a5ac4debfe90ce5ef76a2aa49a56b44864594"
+    },
+    "GEngine/include/GEngine/Core/RenderSystem.cpp": {
+      "executable": null,
+      "sha256": "e06e6454ea4dc272f9be77a2f98564453f36fc89e9af89b8c9852b800ed5b26c"
+    },
+    "GEngine/include/GEngine/Core/RenderTarget.h": {
+      "executable": null,
+      "sha256": "41acdc4febf74b7e33fc4f771e004b4a2ee10229e5e37464592efdda488c019d"
+    },
+    "GEngine/include/GEngine/Core/RuntimeAssets.h": {
+      "executable": null,
+      "sha256": "bd808517a8a0b990f0b4abbc4b57deded98dbabb5a7703c6a0b7b91f0a6cc4d4"
+    },
+    "GEngine/include/GEngine/Core/Window.h": {
+      "executable": null,
+      "sha256": "c295e591920b6674f275e73a3bff54d865855051382f7c45ee5bf71814a3e88e"
+    },
+    "GEngine/include/GEngine/Events/ApplicationEvent.h": {
+      "executable": null,
+      "sha256": "bf5235ba86e39b1d7655df2e9405c1dee9e5e46b0de3b8546df384b36858b32c"
+    },
+    "GEngine/include/GEngine/Events/Event.h": {
+      "executable": null,
+      "sha256": "4080d023e48ab0cdaf61fab45c1322e73fcf1c22eb63026a7701182e25b20d51"
+    },
+    "GEngine/include/GEngine/Events/KeyBoardEvent.h": {
+      "executable": null,
+      "sha256": "c1bf920c603a5620181e254e303354fad3b5d53c4c3775f014e34a24d889d116"
+    },
+    "GEngine/include/GEngine/Events/MouseEvent.h": {
+      "executable": null,
+      "sha256": "8fc12dd648f59ebb0489769028177febb889e8b7fdd538c9f456243a709963b0"
+    },
+    "GEngine/include/GEngine/Managers/EventManager.h": {
+      "executable": null,
+      "sha256": "6f38880b5ae97da5cd7695f9382a0a1a78b2c07206e9c2edd68ad5efb582cf2c"
+    },
+    "GEngine/include/GEngine/Managers/InputManager.h": {
+      "executable": null,
+      "sha256": "7b54fdf1fc2b17ebd99ef553350a04c32cddaf628f1b72b5411846775ba0017d"
+    },
+    "GEngine/include/GEngine/Managers/WindowManager.h": {
+      "executable": null,
+      "sha256": "04e586f84e8d060510de4ee0109c2690a1dfa6dd07c8dfadc0593af041dcda86"
+    },
+    "GEngine/include/GEngine/Mesh/IndexBuffer.h": {
+      "executable": null,
+      "sha256": "2315576b03b599e272960e73d83cc420f19238c2d0b3171b04da0c7975aebb21"
+    },
+    "GEngine/include/GEngine/Mesh/VertexBuffer.h": {
+      "executable": null,
+      "sha256": "2efd5702a4ab4bfdfa749bfe7f05093293c141870b5eedfec9e90d065f7ed56c"
+    },
+    "GEngine/include/GEngine/Windows/ImGuiWindow.h": {
+      "executable": null,
+      "sha256": "dae9a9aa2e684159a110f020336b8d406216c3a4b62d8d74f76afefabfd98c4f"
+    },
+    "GEngine/include/GEngine/Windows/SDLWindow.h": {
+      "executable": null,
+      "sha256": "57b4995cde4303a60ea8c97cecd3230d653661ddcdc5bf7c9a1a2d9571a8b530"
+    },
+    "GEngine/include/GEngine/gepch.h": {
+      "executable": null,
+      "sha256": "7a4f068dc380fcea534385fe406bbbe4a8f60e2c35dd27cbbb73884c680440df"
+    },
+    "GEngine/src/Camera/RayTracingCamera.cpp": {
+      "executable": null,
+      "sha256": "1d0a111d0c4e2ae130febd39eb94baba295d6a333f21e119ba5c9a2b0bd534e8"
+    },
+    "GEngine/src/Core/BaseApp.cpp": {
+      "executable": null,
+      "sha256": "96d7fe6bc376f1eb751910823315dc51eb6c4753fa108880c1f3ebd9eb77ba15"
+    },
+    "GEngine/src/Core/GEngine.cpp": {
+      "executable": null,
+      "sha256": "a10d9993bd43c27722ad558a66c70dbf60473b5aa2029b6be3fddccde8a8218c"
+    },
+    "GEngine/src/Core/RenderTarget.cpp": {
+      "executable": null,
+      "sha256": "b1c37f2c47f27ee85dc51cfee7f72f354499ed745858ee540d97b86b54cac5fa"
+    },
+    "GEngine/src/Core/Renderer.cpp": {
+      "executable": null,
+      "sha256": "9438c9b04e55beff7724410217ecd0a8173cbdd453d2b0a1f3266c204b855503"
+    },
+    "GEngine/src/Core/RuntimeAssets.cpp": {
+      "executable": null,
+      "sha256": "b6ee8e3b5eee1d068740dc588c5764382d0a8be3e3dd2f4711d35487e9496c44"
+    },
+    "GEngine/src/Core/Window.cpp": {
+      "executable": null,
+      "sha256": "609dec21610a6362f0f5632bc53d477de01ea28195807b06f43451f608f67003"
+    },
+    "GEngine/src/Events/ApplicationEvent.cpp": {
+      "executable": null,
+      "sha256": "352ac39d6663a40ed83fee6548ff07308271ded8c304cfe52bb900eadc3c1817"
+    },
+    "GEngine/src/Events/KeyBoardEvent.cpp": {
+      "executable": null,
+      "sha256": "1d97e0742381867d784cfe0d32f61720f0aee2ba081f82764af1e3bfce41ecc2"
+    },
+    "GEngine/src/Events/MouseEvent.cpp": {
+      "executable": null,
+      "sha256": "061158c096d4f121e760b88ee91079121983af7092734bc649ffd21dfeb93a16"
+    },
+    "GEngine/src/Extras/CameraRig.cpp": {
+      "executable": null,
+      "sha256": "568c8b024e6a22fd800e55f33c43c5c2ed2a437d58dcb0e520fa7da498a59ccd"
+    },
+    "GEngine/src/Managers/EventManager.cpp": {
+      "executable": null,
+      "sha256": "0c6a5040dcdd2883da4aea5f459a3f8b505cf1420162596bce60608c1b25ff7d"
+    },
+    "GEngine/src/Managers/InputManager.cpp": {
+      "executable": null,
+      "sha256": "d194429275f41f871a77e62e318995145b9965596b1207d85370093cc4b67f45"
+    },
+    "GEngine/src/Managers/WindowManager.cpp": {
+      "executable": null,
+      "sha256": "8b870965f209ccefe897973c96a3e5b4b3eeae458b9a38477f77f6e309e533dc"
+    },
+    "GEngine/src/Windows/ImGuiWindow.cpp": {
+      "executable": null,
+      "sha256": "b00b182587465970f967ffeb8d27fb86073df9dde765d8b8be39c954e5a8d8f1"
+    },
+    "GEngine/src/Windows/SDLWindow.cpp": {
+      "executable": null,
+      "sha256": "474573a7cf551e6b464f4af56d897eca4cb41b0d223deb12d41ae42a4b42a1e0"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "GEngineEditor/src/SceneApp.cpp": {
+      "executable": null,
+      "sha256": "4f4f2e3d511539e4e85382f15871df10a835b2dbbf878a3b6c0fa28cc7a0d9c8"
+    },
+    "RayTracing/src/RayTracing.cpp": {
+      "executable": null,
+      "sha256": "d0eb5ad20de28c3ff60cb01a7630c92dd95c0eed5b0b98815f4fdc1a1f46f5ab"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "fedbbd1d7f89a348ea59a98b983adf857887db11fa7a5ae412b9ae39f4d9b73c"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052"
+    },
+    "tools/asset_registry_probe.cpp": {
+      "executable": null,
+      "sha256": "8d87167ef8240e491f5b518e5392f54f541875846455ab26b0bd4c0f9fcf3cc4"
+    },
+    "tools/framebuffer_probe.cpp": {
+      "executable": null,
+      "sha256": "7988b020c8579eae009ad63dcf9ca0fde7d8ae034df8c00215048249342216ad"
+    },
+    "tools/input_control_probe.cpp": {
+      "executable": null,
+      "sha256": "faa1fdc865e3e316d270a0877e6ab1b565135d739e0b190a4a1ca96be8bf2ec9"
+    },
+    "tools/interpolation_probe.cpp": {
+      "executable": null,
+      "sha256": "87094d78ad804e834ac34b4140a312d962362e3b285acf55f2f0946846e4c51f"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/sampler_probe.cpp": {
+      "executable": null,
+      "sha256": "80bfce0dc7e7b6cdc3b4ce1053318ca5717cef364a40d0c1a50bf5b85c978036"
+    },
+    "tools/shadow_framebuffer_probe.cpp": {
+      "executable": null,
+      "sha256": "87f41c98c767ccb7f609aed716c6b7a63015265e57831588eb33113402cf5e7a"
+    },
+    "tools/shutdown_probe.cpp": {
+      "executable": null,
+      "sha256": "564b38bd6b1032da5090e1441be04e7104e512b2529a82fc572b581fd69cc647"
+    },
+    "tools/test_framebuffer.py": {
+      "executable": null,
+      "sha256": "6e772168de65cc46d933cba0f617eb3953d5eb2b4bd12007fa3776b7902782b9"
+    },
+    "tools/test_input_control.py": {
+      "executable": null,
+      "sha256": "d209a2fa2e41952e8d4ffeb99a24778352907f08c437b75119d1432c3e11e772"
+    },
+    "tools/test_sampler.py": {
+      "executable": null,
+      "sha256": "37a29952ab2c3ad13b036fd0bc8c72305895f33ee793f94705cc9f4e04aaa4ae"
+    },
+    "tools/test_viewport.py": {
+      "executable": null,
+      "sha256": "33fe9ee06359bee9bc6bb5ecb1560a20bf9b420fd2290f78ddccb02f710f36d2"
+    },
+    "tools/uniform_renderbuffer_probe.cpp": {
+      "executable": null,
+      "sha256": "b30c4ca27b658fea6fe437c77f8b76e849c200898e7e42a0ef2ca313b02f8c70"
+    },
+    "tools/viewport_probe.cpp": {
+      "executable": null,
+      "sha256": "d92347382144f36ea9c1d8d038184d83cf7b38f433e720f358708acf4f3d8dd7"
+    }
+  }
+}

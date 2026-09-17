@@ -1,6 +1,8 @@
 // Production scene/renderer interpolation checks; run through test_interpolation.py.
 #include "gepch.h"
 #include "Core/BaseApp.h"
+#include "Core/Renderer.h"
+#include "Core/Scene.h"
 #include "Core/GLDebug.h"
 #include "Core/RenderSystem.h"
 #include "Core/RuntimeAssets.h"
@@ -351,7 +353,7 @@ namespace
             if (renders == 2)
             {
                 beforeSuspend = f.Sample();
-                const auto id = GetSDLWindow()->GetWindowID();
+                const auto id = static_cast<SDLWindow*>(GetWindow())->GetWindowID();
                 SDL_Event event{}; event.type = SDL_WINDOWEVENT;
                 event.window.windowID = id; event.window.event = SDL_WINDOWEVENT_MINIMIZED;
                 Check(SDL_PushEvent(&event) == 1, "Minimize event failed");
@@ -381,9 +383,9 @@ namespace
             properties.flag = BitFlags<WindowFlags, uint8_t>{WindowFlags::INVISIBLE};
             Check(app.Initialize(properties).has_value(), "Application initialization failed");
             SDL_Event event{}; while (SDL_PollEvent(&event)) {}
-            event.type = SDL_WINDOWEVENT; event.window.windowID = app.GetSDLWindow()->GetWindowID();
+            event.type = SDL_WINDOWEVENT; event.window.windowID = static_cast<SDLWindow*>(app.GetWindow())->GetWindowID();
             event.window.event = SDL_WINDOWEVENT_SHOWN;
-            Check(SDL_PushEvent(&event) == 1, "Show event failed"); app.OnEvent(event);
+            Check(SDL_PushEvent(&event) == 1, "Show event failed"); app.PollEvents();
             app.Run(); app.events.join();
             Check(app.queued && app.updates == 3 && app.renders == 3
                 && app.f.scene.GetPhysicsTiming().stepsLastUpdate == 2,

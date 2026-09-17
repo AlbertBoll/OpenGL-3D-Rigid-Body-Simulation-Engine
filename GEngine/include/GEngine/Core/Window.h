@@ -1,7 +1,8 @@
 #pragma once
-#include "Utility.h"
+#include "Core/Utility.h"
+#include "Core/Platform.h"
 #include <string>
-#include"Windows/ImGuiWindow.h"
+
 
 namespace GEngine
 {
@@ -72,26 +73,37 @@ namespace GEngine
 		virtual ~Window(){};
 		uint32_t GetScreenWidth()const { return m_ScreenWidth; }
 		uint32_t GetScreenHeight()const { return m_ScreenHeight; }
-		virtual void Initialize(const WindowProperties& winProp = {}) = 0;
+		[[nodiscard]] virtual PlatformResult Initialize(const WindowProperties& winProp = {}) = 0;
 		virtual void SwapBuffer() = 0;
 		virtual void ShutDown() = 0;
 		virtual void SetTitle(const std::string& title) const = 0;
 		virtual std::string GetTitle() const = 0;
 		virtual uint32_t GetWindowID()const = 0;
 
-		virtual void NullRender() = 0;
-		virtual void BeginRender()  = 0;
+		[[nodiscard]] virtual PlatformResult NullRender() = 0;
+		[[nodiscard]] virtual PlatformResult BeginRender()  = 0;
 		virtual void EndRender(BaseApp* app)  = 0;
-		virtual void OnResize(int new_width, int new_height) = 0;
+		// Only native platform state updates these dimensions; panel sizing never does.
+        virtual void RefreshDimensions() = 0;
+        virtual NativeFramebufferPixelSize GetFramebufferPixelSize() const = 0;
+        NativeWindowLogicalSize GetLogicalSize() const { return {m_ScreenWidth, m_ScreenHeight}; }
+        virtual WindowState GetState() const = 0;
+        virtual bool IsCurrent() const = 0;
+        virtual int GetSwapInterval() const = 0;
+        virtual void SetMouseGrab(bool grabbed) = 0;
+        [[nodiscard]] virtual PlatformResult BeginUI() = 0;
+        [[nodiscard]] virtual PlatformResult EndUI() = 0;
+        virtual bool WantsMouse() const = 0;
+        virtual bool WantsKeyboard() const = 0;
 
 	
-		static ScopedPtr<Window> Create(const WindowProperties& winProp = {});
+		[[nodiscard]] static std::expected<ScopedPtr<Window>, PlatformError> Create(const WindowProperties& winProp = {});
 
 
 		//virtual Window* GetUnderlyingWindow() = 0;
 
 	protected:
-		uint32_t m_ScreenWidth, m_ScreenHeight;
+		uint32_t m_ScreenWidth = 0, m_ScreenHeight = 0;
 		float m_AspectRatio = 16.f / 9.f;
 
 	};

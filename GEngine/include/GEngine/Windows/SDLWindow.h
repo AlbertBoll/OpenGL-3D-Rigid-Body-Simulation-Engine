@@ -1,5 +1,7 @@
 #pragma once
+// Backend-private implementation header. Normal consumers use Core/Window.h.
 #include "Core/Window.h"
+#include "Windows/ImGuiWindow.h"
 #include <thread>
 //#include <Core/Renderer.h>
 
@@ -19,7 +21,7 @@ namespace GEngine
         NONCOPYABLE(SDLWindow);
         virtual ~SDLWindow();
         // Inherited via Window
-        virtual void Initialize(const WindowProperties& winProp = WindowProperties{}) override;
+        [[nodiscard]] virtual PlatformResult Initialize(const WindowProperties& winProp = WindowProperties{}) override;
         virtual void SwapBuffer()override;
         virtual void ShutDown() override; 
         virtual void SetTitle(const std::string& title) const override;
@@ -44,9 +46,9 @@ namespace GEngine
 
     public:
         // Inherited via Window
-        virtual void BeginRender()override;
+        [[nodiscard]] virtual PlatformResult BeginRender()override;
 
-        virtual void NullRender() override;
+        [[nodiscard]] virtual PlatformResult NullRender() override;
 
         virtual void EndRender(BaseApp* app)override;
 
@@ -56,7 +58,18 @@ namespace GEngine
 
 
         // Inherited via Window
-        virtual void OnResize(int new_width, int new_height) override;
+        void RefreshDimensions() override;
+        NativeFramebufferPixelSize GetFramebufferPixelSize() const override { return m_PixelSize; }
+        WindowState GetState() const override;
+        bool IsCurrent() const override;
+        int GetSwapInterval() const override;
+        void SetMouseGrab(bool grabbed) override;
+        [[nodiscard]] PlatformResult BeginUI() override;
+        [[nodiscard]] PlatformResult EndUI() override;
+        bool WantsMouse() const override;
+        bool WantsKeyboard() const override;
+    private:
+        NativeFramebufferPixelSize m_PixelSize{};
 
       
 

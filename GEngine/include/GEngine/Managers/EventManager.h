@@ -2,13 +2,15 @@
 #include "Events/Event.h"
 #include "Managers/ManagerBase.h"
 
-union SDL_Event;
+#include "Core/Platform.h"
+#include "Inputs/KeyCodes.h"
 
 namespace GEngine
 {
 	namespace Manager
 	{
-		struct MouseScrollWheelParam
+        struct KeyboardParam { Input::Key::GEngineKeyCode Key; bool Repeated = false; };
+        struct MouseScrollWheelParam
 		{
 			unsigned int ID;
 			float X;
@@ -59,7 +61,7 @@ namespace GEngine
 			EventManager() = default;
 			static ScopedPtr<EventManager> GetScopedInstance();
 			void Initialize();
-			void OnEvent(SDL_Event& e);
+			void PollEvents();
 			EventDispatcher& GetEventDispatcher() { return m_EventDispatcher; }
 
 		private:

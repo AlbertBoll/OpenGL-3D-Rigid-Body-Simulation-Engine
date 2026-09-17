@@ -7,7 +7,8 @@
 #include <imgui/imgui.h>
 //#include <Core/Renderer.h>
 #include "Core/BaseApp.h"
-#include <stdexcept>
+#include <new>
+#include <limits>
 
 namespace GEngine
 {
@@ -20,36 +21,52 @@ namespace GEngine
 		ShutDown();
 	}
 
-	void SDLWindow::Initialize(const WindowProperties& winProp)
+	PlatformResult SDLWindow::Initialize(const WindowProperties& winProp)
 	{
 		GLContextThread::RequireOwner(m_OwnerThread, "SDLWindow::Initialize");
 		if (m_Window || m_Context || m_ImGuiWindow)
-			throw std::logic_error("SDLWindow is already initialized");
+			return std::unexpected(PlatformError{PlatformErrorCode::InvalidState, "window initialization", "Window is already initialized"});
+        if (!winProp.m_Width || !winProp.m_Height || winProp.m_Width > INT_MAX || winProp.m_Height > INT_MAX
+            || winProp.m_MinWidth > INT_MAX || winProp.m_MinHeight > INT_MAX)
+            return std::unexpected(PlatformError{PlatformErrorCode::InvalidSize, "window initialization", "Invalid native logical extent"});
+        struct Rollback { SDLWindow* owner; bool committed = false; ~Rollback() { if (!committed) owner->ShutDown(); } } rollback{this};
 		uint32_t flag = GetWindowFlag(winProp);
 	
 
 		// Set OpenGL attributes
 		// Use the core OpenGL profile
 		//SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1);
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+        if (SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE) != 0)
+            return std::unexpected(PlatformError{PlatformErrorCode::ContextCreation, "context attributes", SDL_GetError()});
 		// Specify version 4.6
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
+        if (SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4) != 0)
+            return std::unexpected(PlatformError{PlatformErrorCode::ContextCreation, "context attributes", SDL_GetError()});
+        if (SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6) != 0)
+            return std::unexpected(PlatformError{PlatformErrorCode::ContextCreation, "context attributes", SDL_GetError()});
 		GLDebug::ConfigureContext();
 		// Request a color buffer with 8-bits per RGBA channel
-		SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
-		SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
-		SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
-		SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+        if (SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8) != 0)
+            return std::unexpected(PlatformError{PlatformErrorCode::ContextCreation, "context attributes", SDL_GetError()});
+        if (SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8) != 0)
+            return std::unexpected(PlatformError{PlatformErrorCode::ContextCreation, "context attributes", SDL_GetError()});
+        if (SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8) != 0)
+            return std::unexpected(PlatformError{PlatformErrorCode::ContextCreation, "context attributes", SDL_GetError()});
+        if (SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8) != 0)
+            return std::unexpected(PlatformError{PlatformErrorCode::ContextCreation, "context attributes", SDL_GetError()});
 		// Enable double buffering
-		SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-		SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+        if (SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1) != 0)
+            return std::unexpected(PlatformError{PlatformErrorCode::ContextCreation, "context attributes", SDL_GetError()});
+        if (SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8) != 0)
+            return std::unexpected(PlatformError{PlatformErrorCode::ContextCreation, "context attributes", SDL_GetError()});
 
 		// Force OpenGL to use hardware acceleration
-		SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
+        if (SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1) != 0)
+            return std::unexpected(PlatformError{PlatformErrorCode::ContextCreation, "context attributes", SDL_GetError()});
 
-		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
-		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 16);
+        if (SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1) != 0)
+            return std::unexpected(PlatformError{PlatformErrorCode::ContextCreation, "context attributes", SDL_GetError()});
+        if (SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 16) != 0)
+            return std::unexpected(PlatformError{PlatformErrorCode::ContextCreation, "context attributes", SDL_GetError()});
 
 
 		//create SDL window
@@ -61,7 +78,7 @@ namespace GEngine
 		SetWindow(mode.w, mode.h, flag, winProp);
 		
 		if (!m_Window)
-			throw std::runtime_error(std::string("SDL window creation failed: ") + SDL_GetError());
+			return std::unexpected(PlatformError{PlatformErrorCode::WindowCreation, "window creation", SDL_GetError()});
 
 		m_ScreenWidth = winProp.m_Width;
 		m_ScreenHeight = winProp.m_Height;
@@ -72,7 +89,7 @@ namespace GEngine
 
 		m_Context = GLDebug::CreateContext(m_Window);
 		if (!m_Context)
-			throw std::runtime_error(std::string("OpenGL context creation failed: ") + SDL_GetError());
+			return std::unexpected(PlatformError{PlatformErrorCode::ContextCreation, "context creation", SDL_GetError()});
 
 		SDL_SetHintWithPriority(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "1", SDL_HINT_OVERRIDE);
 		//SDL_SetHintWithPriority(SDL_HINT_MOUSE_RELATIVE_SCALING, "1", SDL_HINT_OVERRIDE);
@@ -81,7 +98,7 @@ namespace GEngine
 
 		//Load OpenGL Context
 		if (!success)
-			throw std::runtime_error("OpenGL functions could not be loaded");
+			return std::unexpected(PlatformError{PlatformErrorCode::FunctionLoading, "graphics functions", "Graphics functions could not be loaded"});
 		GLDebug::Initialize();
 		const GLDebug::Group initialization("Window initialization");
 
@@ -104,8 +121,12 @@ namespace GEngine
 			GENGINE_CORE_WARN("Swap interval request failed: {} (actual {})",
 				SDL_GetError(), SDL_GL_GetSwapInterval());
 
-		m_ImGuiWindow = new ImGuiWindow_();
-		m_ImGuiWindow->Initialize(this, winProp.ImGuiWindowProperties);
+		m_ImGuiWindow = new (std::nothrow) ImGuiWindow_();
+        if (!m_ImGuiWindow) return std::unexpected(PlatformError{PlatformErrorCode::Allocation, "UI allocation", "UI owner allocation failed"});
+        if (auto initialized = m_ImGuiWindow->Initialize(this, winProp.ImGuiWindowProperties); !initialized) return initialized;
+        RefreshDimensions();
+        rollback.committed = true;
+        return {};
 		
 
 	}
@@ -143,6 +164,7 @@ namespace GEngine
 		if (m_Context) FreeContext();
 		if (m_Window) SDL_DestroyWindow(m_Window);
 		m_Window = nullptr;
+        m_ScreenWidth = m_ScreenHeight = 0; m_PixelSize = {};
 		if (restorePrevious) SDL_GL_MakeCurrent(previousWindow, previousContext);
 	}
 
@@ -205,7 +227,7 @@ namespace GEngine
 
 	uint32_t SDLWindow::GetWindowFlag(const WindowProperties& winProp)
 	{
-		uint32_t flag = SDL_WINDOW_OPENGL;
+		uint32_t flag = SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI;
 
 
 		if (winProp.flag.IsSet(WindowFlags::INVISIBLE))
@@ -231,20 +253,23 @@ namespace GEngine
 		return flag;
 	}
 
-	void SDLWindow::BeginRender() 
+	PlatformResult SDLWindow::BeginRender()
 	{
 		GLContextThread::RequireOwner(m_OwnerThread, "SDLWindow::BeginRender");
 		if (!m_Context || SDL_GL_MakeCurrent(m_Window, m_Context) != 0)
-			throw std::runtime_error(std::string("Unable to activate window context: ") + SDL_GetError());
+			return std::unexpected(PlatformError{PlatformErrorCode::ContextActivation, "activate window", SDL_GetError()});
 		if (m_ImGuiWindow) ImGui::SetCurrentContext(m_ImGuiWindow->GetContext());
+		return {};
 		//glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 		//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 	}
 
-	void SDLWindow::NullRender() 
+	PlatformResult SDLWindow::NullRender()
 	{
 		GLContextThread::RequireOwner(m_OwnerThread, "SDLWindow::NullRender");
-		SDL_GL_MakeCurrent(nullptr, nullptr);
+		if (SDL_GL_MakeCurrent(nullptr, nullptr) != 0)
+            return std::unexpected(PlatformError{PlatformErrorCode::ContextActivation, "detach context", SDL_GetError()});
+        return {};
 	}
 
 
@@ -263,16 +288,47 @@ namespace GEngine
 	}
 
 
-	void SDLWindow::OnResize(int new_width, int new_height)
-	{
-	
-		m_ScreenWidth = new_width;
-		m_ScreenHeight = new_height;
-		//m_ScreenWidth = ImGui::GetWindowSize().x;
-		//m_ScreenHeight = ImGui::GetWindowSize().y;
-
-		//GENGINE_CORE_INFO("Window with title {} has been resized to ({}, {})", GetTitle(), new_width, new_height);
-	}
+    void SDLWindow::RefreshDimensions()
+    {
+        GLContextThread::RequireOwner(m_OwnerThread, "window dimensions");
+        int w = 0, h = 0, pw = 0, ph = 0;
+        if (m_Window) { SDL_GetWindowSize(m_Window, &w, &h); SDL_GL_GetDrawableSize(m_Window, &pw, &ph); }
+        m_ScreenWidth = static_cast<unsigned>(std::max(0, w));
+        m_ScreenHeight = static_cast<unsigned>(std::max(0, h));
+        m_PixelSize = {static_cast<unsigned>(std::max(0, pw)), static_cast<unsigned>(std::max(0, ph))};
+    }
+    WindowState SDLWindow::GetState() const
+    {
+        GLContextThread::RequireOwner(m_OwnerThread, "window state");
+        const auto flags = m_Window ? SDL_GetWindowFlags(m_Window) : 0;
+        return {(flags & SDL_WINDOW_MINIMIZED) != 0, (flags & SDL_WINDOW_HIDDEN) != 0};
+    }
+    bool SDLWindow::IsCurrent() const { return m_Context && SDL_GL_GetCurrentContext() == m_Context; }
+    int SDLWindow::GetSwapInterval() const
+    {
+        GLContextThread::RequireCurrent("swap interval query");
+        return SDL_GL_GetSwapInterval();
+    }
+    void SDLWindow::SetMouseGrab(bool grabbed)
+    {
+        GLContextThread::RequireOwner(m_OwnerThread, "mouse grab");
+        if (m_Window) SDL_SetWindowGrab(m_Window, grabbed ? SDL_TRUE : SDL_FALSE);
+    }
+    PlatformResult SDLWindow::BeginUI()
+    {
+        if (auto current = BeginRender(); !current) return current;
+        if (!m_ImGuiWindow) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState, "begin UI", "UI is unavailable"});
+        RefreshDimensions();
+        m_ImGuiWindow->BeginRender(this);
+        return {};
+    }
+    PlatformResult SDLWindow::EndUI()
+    {
+        if (!m_ImGuiWindow) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState, "end UI", "UI is unavailable"});
+        return m_ImGuiWindow->EndRender(this);
+    }
+    bool SDLWindow::WantsMouse() const { return m_ImGuiWindow && m_ImGuiWindow->WantCaptureMouse(); }
+    bool SDLWindow::WantsKeyboard() const { return m_ImGuiWindow && m_ImGuiWindow->WantCaptureKeyBoard(); }
 
 	void SDLWindow::FreeContext()
 	{

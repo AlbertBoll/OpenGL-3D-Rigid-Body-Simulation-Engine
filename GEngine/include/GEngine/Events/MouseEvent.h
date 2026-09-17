@@ -1,4 +1,5 @@
 #pragma once
+#include "Managers/EventManager.h"
 
 
 namespace GEngine
@@ -11,10 +12,10 @@ namespace GEngine
 		{
 
 		public:
-			static void OnMouseButtonClick(SDL_MouseButtonEvent& e);
-			static void OnMouseButtonRelease(SDL_MouseButtonEvent& e);
-			static void OnMouseMove(SDL_MouseMotionEvent& e);
-			static void OnMouseWheel(SDL_MouseWheelEvent& e);
+			static void OnMouseButtonClick(Manager::MouseButtonParam& e);
+			static void OnMouseButtonRelease(Manager::MouseButtonParam& e);
+			static void OnMouseMove(Manager::MouseMoveParam& e);
+			static void OnMouseWheel(Manager::MouseScrollWheelParam& e);
 		};
 	}
 

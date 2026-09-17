@@ -2,7 +2,7 @@
 #include "Core/BaseApp.h"
 #include "Core/Renderer.h"
 #include "Core/RenderTarget.h"
-#include "Windows/SDLWindow.h"
+#include "Core/Window.h"
 #include "Camera/PerspectiveCamera.h"
 #include "Camera/OrthographicCamera.h"
 #include <imgui/imgui.h>

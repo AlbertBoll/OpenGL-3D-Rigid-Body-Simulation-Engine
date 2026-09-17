@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Utility.h"
+#include "Core/Utility.h"
 #include "Managers/InputManager.h"
 #include "Managers/WindowManager.h"
 #include "Managers/EventManager.h"
@@ -36,7 +36,7 @@ namespace GEngine
 	private:
 		friend class EngineContext;
 		GEngine() = default;
-		void Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList);
+		[[nodiscard]] PlatformResult Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList);
 		// Only the owning root can initialize or release its platform.
 		void ReleasePlatform();
 		void GetEnvironmentInfo() const;
@@ -51,7 +51,7 @@ namespace GEngine
 
 	};
 
-    class SDLWindow;
+    class Window;
     class Actor;
     class CameraBase;
     class RenderTarget;
@@ -74,15 +74,15 @@ namespace GEngine
         static EngineContext* TryGet() { return s_Current; }
         static EngineContext& Current();
         GEngine& LegacyEngine();
-        void Initialize(const std::initializer_list<WindowProperties>& properties);
-        SDLWindow* MainWindow() const { return m_MainWindow; }
+        [[nodiscard]] PlatformResult Initialize(const std::initializer_list<WindowProperties>& properties);
+        Window* MainWindow() const { return m_MainWindow; }
         bool IsReady() const { return m_State == State::Ready; }
         Manager::AssetsManager& Assets();
         Manager::ShaderManager& Shaders();
         Manager::ShapeManager& Shapes();
         Asset::AssetPublication& AssetPublications();
-        void MakeCurrent();
-        void RenderScene(Actor* scene, CameraBase* camera, RenderTarget* target, const RenderParam& parameters);
+        [[nodiscard]] PlatformResult MakeCurrent();
+        [[nodiscard]] PlatformResult RenderScene(Actor* scene, CameraBase* camera, RenderTarget* target, const RenderParam& parameters);
 
     private:
         friend class Manager::AssetsManager;
@@ -97,7 +97,7 @@ namespace GEngine
         ScopedPtr<Manager::AssetsManager> m_Assets;
         ScopedPtr<Manager::ShaderManager> m_Shaders;
         ScopedPtr<Manager::ShapeManager> m_Shapes;
-        SDLWindow* m_MainWindow = nullptr; // Borrowed from the owned WindowManager.
+        Window* m_MainWindow = nullptr; // Borrowed from the owned WindowManager.
         State m_State = State::Uninitialized;
         bool m_InitializationAttempted = false;
         bool m_PlatformStarted = false;

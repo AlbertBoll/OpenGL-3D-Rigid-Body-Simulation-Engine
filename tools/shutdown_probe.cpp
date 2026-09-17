@@ -2,6 +2,8 @@
 // Production-library lifecycle checks; all GL and destruction stay on this thread.
 #include "gepch.h"
 #include "Core/BaseApp.h"
+#include "Core/Renderer.h"
+#include "Core/Scene.h"
 #include "Core/RuntimeAssets.h"
 #include "Windows/SDLWindow.h"
 #include "Windows/ImGuiWindow.h"
@@ -102,7 +104,7 @@ namespace
                 "Compatibility access constructed a second engine");
             PlatformGone();
             rejected = false;
-            try { root.MakeCurrent(); } catch (const std::logic_error&) { rejected = true; }
+            rejected = !root.MakeCurrent();
             Check(rejected, "Rendering before initialization was accepted");
             rejected = false;
             try { BaseApp second; } catch (const std::logic_error&) { rejected = true; }
@@ -188,35 +190,33 @@ namespace
         void Prepare()
         {
             auto& root = GetEngineContext();
-            Check(root.IsReady() && root.MainWindow() == GetSDLWindow()
+            Check(root.IsReady() && root.MainWindow() == static_cast<SDLWindow*>(GetWindow())
                 && GetWindowManager() && GetInputManager() && GetEventManager() && TTF_WasInit(),
                 "Application resources initialized before rendering/platform services");
-            Check(SDL_GL_GetCurrentContext() == root.MainWindow()->GetContext(), "Main context was not published current");
+            Check(SDL_GL_GetCurrentContext() == static_cast<SDLWindow*>(root.MainWindow())->GetContext(), "Main context was not published current");
             bool wrongThreadRejected = false;
             int managerThreadRejections = 0;
             std::jthread worker([&] {
-                try { root.MakeCurrent(); }
-                catch (const std::logic_error& error)
-                {
-                    wrongThreadRejected = std::string_view(error.what()) == "EngineContext access requires its owner thread";
-                }
+                // Actual owner-thread violations now terminate under invariant policy;
+                // test_viewport.py runs those calls in isolated child processes.
+                wrongThreadRejected = !GLContextThread::IsCurrentOwner();
                 // Texture access now uses invariant rejection, covered in an isolated child process.
                 try { (void)ShaderManager::GetShaderProgram({}); } catch (const std::logic_error&) { ++managerThreadRejections; }
                 try { (void)ShapeManager::GetShape("Box"); } catch (const std::logic_error&) { ++managerThreadRejections; }
             });
             worker.join();
-            Check(wrongThreadRejected && SDL_GL_GetCurrentContext() == root.MainWindow()->GetContext(),
+            Check(wrongThreadRejected && SDL_GL_GetCurrentContext() == static_cast<SDLWindow*>(root.MainWindow())->GetContext(),
                 "Worker reached ready rendering services or changed the owning context");
             Check(managerThreadRejections == 2, "Worker accessed a rendering manager");
             bool rejected = false;
-            try { root.Initialize({ Properties() }); } catch (const std::logic_error&) { rejected = true; }
+            rejected = !root.Initialize({ Properties() });
             Check(rejected && root.IsReady(), "Repeated initialization replaced live services");
             // Exercise the root's submission facade with an empty production scene,
             // including real target binding and pixel output.
             Camera::PerspectiveCamera camera;
             RenderParam parameters;
             parameters.ClearColor = { 0.25f, 0.5f, 0.75f, 1.f };
-            root.RenderScene(m_Scene.get(), &camera, m_RenderTarget.get(), parameters);
+            Check(root.RenderScene(m_Scene.get(), &camera, m_RenderTarget.get(), parameters).has_value(), "Root submission failed");
             Check(m_RenderTarget->BindAndBlitToScreen().has_value(), "Target resolve failed");
             glBindFramebuffer(GL_READ_FRAMEBUFFER, ::GEngine::FramebufferDetail::Backend::Name(m_RenderTarget->Buffer(::GEngine::RenderTargetSurface::Resolved)));
             std::array<unsigned char, 4> pixel{};
@@ -245,10 +245,10 @@ namespace
             Watch(Kind::Texture, TextureName(text), 3, "AssetsManager cached text texture");
             AssetsManager::GetCascadedFrameBufferTexture(*m_CascadeShadowFrameBuffer).value();
             AssetsManager::GetPointShadowFrameBufferTexture(*m_PointShadowFrameBuffer).value();
-            auto* gui = GetSDLWindow()->GetImGuiWindow();
-            gui->BeginRender(GetSDLWindow());
+            auto* gui = static_cast<SDLWindow*>(GetWindow())->GetImGuiWindow();
+            gui->BeginRender(static_cast<SDLWindow*>(GetWindow()));
             ImGui::TextUnformatted("Phase 18");
-            gui->EndRender(GetSDLWindow());
+            gui->EndRender(static_cast<SDLWindow*>(GetWindow()));
             Check(ImGui::GetIO().Fonts->TexID != nullptr, "ImGui font GPU resource was not exercised");
         }
         void ProcessInput(Timestep) override {}
@@ -284,12 +284,12 @@ namespace
             Check(app->Initialize(Properties()).has_value(), "Application initialization failed");
             Hooks hooks;
             app->Prepare();
-            const auto windowID = app->GetSDLWindow()->GetWindowID();
+            const auto windowID = static_cast<SDLWindow*>(app->GetWindow())->GetWindowID();
             StartTeardownDiagnostics();
             if (minimized)
             {
                 SDL_Event event{}; while (SDL_PollEvent(&event)) {}
-                SDL_MinimizeWindow(app->GetSDLWindow()->GetSDLWindow());
+                SDL_MinimizeWindow(static_cast<SDLWindow*>(app->GetWindow())->GetSDLWindow());
                 event.type = SDL_WINDOWEVENT; event.window.windowID = windowID;
                 event.window.event = SDL_WINDOWEVENT_MINIMIZED;
                 Check(SDL_PushEvent(&event) == 1, "Could not queue minimize");
@@ -337,12 +337,15 @@ namespace
     {
         ImGuiMemAllocFunc alloc; ImGuiMemFreeFunc free; void* data;
         bool injected = false;
+        SDL_Window* firstWindow = nullptr;
         static void* Allocate(size_t size, void* user)
         {
             auto& self = *static_cast<FaultAllocator*>(user);
+            auto* currentWindow = SDL_GL_GetCurrentWindow();
+            if (!self.firstWindow) self.firstWindow = currentWindow;
             if (!self.injected && ImGui::GetCurrentContext() && ImGui::GetIO().BackendPlatformUserData
                 && !ImGui::GetIO().BackendRendererUserData
-                && BaseApp::GetWindowManager()->GetNumOfWindows() == 1)
+                && currentWindow && currentWindow != self.firstWindow)
             {
                 self.injected = true;
                 throw std::bad_alloc();
@@ -375,10 +378,9 @@ namespace
         }
         else
         {
-            // RuntimeAssets is deliberately uninitialized: font path resolution throws
-            // after SDL/GL/ImGui context creation and before either ImGui backend.
-            try { Check(app.Initialize(Properties()).has_value(), "Application initialization failed"); }
-            catch (const std::runtime_error&) { caught = true; }
+            // The platform path reports asset-root failure without exception transport.
+            const auto result = app.Initialize(Properties());
+            caught = !result && std::holds_alternative<PlatformError>(result.error());
         }
         Check(caught, "Expected partial ImGui initialization failure");
         Check(!app.GetEngineContext().IsReady() && !app.GetEngineContext().MainWindow(),
@@ -393,19 +395,14 @@ namespace
         bool caught = false;
         {
             BaseApp app;
-            try
-            {
-                if (noWindows) Check(app.Initialize(std::initializer_list<WindowProperties>{}).has_value(), "Application initialization failed");
-                else Check(app.Initialize(Properties()).has_value(), "Application initialization failed");
-            }
-            catch (const std::exception& error) { caught = true; std::cout << "[EXPECTED] " << error.what() << '\n'; }
+            auto result = noWindows ? app.Initialize(std::initializer_list<WindowProperties>{}) : app.Initialize(Properties());
+            caught = !result && std::holds_alternative<PlatformError>(result.error());
             PlatformGone(); // Rollback is immediate, even while the failed root lives.
             Check(!app.GetEngineContext().IsReady(), "Failed platform published services");
             Check(app.GetEngineContext().GetState() == EngineContext::State::Failed,
                 "Failed root did not expose its terminal initialization state");
             bool retryRejected = false;
-            try { app.GetEngineContext().Initialize({ Properties() }); }
-            catch (const std::logic_error&) { retryRejected = true; }
+            retryRejected = !app.GetEngineContext().Initialize({ Properties() });
             Check(retryRejected, "Failed root accepted a second initialization attempt");
         }
         Check(caught, "Expected platform initialization failure");
@@ -417,15 +414,15 @@ namespace
         Log::Initialize(); RuntimeAssets::Initialize("GEngineEditor");
         Check(SDL_Init(SDL_INIT_VIDEO) == 0, SDL_GetError());
         auto manager = WindowManager::GetScopedInstance();
-        manager->AddWindows(Properties());
+        Check(manager->AddWindows(Properties()).has_value(), "Window addition failed");
         auto* first = static_cast<SDLWindow*>(manager->GetWindows().begin()->second.get());
         const auto firstID = first->GetWindowID(); const auto firstContext = first->GetContext();
         const auto firstGui = first->GetImGuiWindow()->GetContext();
-        manager->AddWindows(Properties());
+        Check(manager->AddWindows(Properties()).has_value(), "Window addition failed");
         auto second = std::find_if(manager->GetWindows().begin(), manager->GetWindows().end(),
             [firstID](const auto& entry) { return entry.first != firstID; });
         const auto secondID = second->first;
-        first->BeginRender();
+        Check(first->BeginRender().has_value(), "Context transition failed");
         StartTeardownDiagnostics();
         manager->RemoveWindow(secondID);
         Check(SDL_GL_GetCurrentContext() == firstContext && ImGui::GetCurrentContext() == firstGui,
@@ -433,7 +430,7 @@ namespace
         manager->RemoveWindow(secondID);
         Check(manager->GetNumOfWindows() == 1 && manager->GetWindows().size() == 1, "Repeated removal corrupted window count");
         auto* gui = first->GetImGuiWindow();
-        gui->BeginRender(first); ImGui::TextUnformatted("font upload"); gui->EndRender(first);
+        gui->BeginRender(first); ImGui::TextUnformatted("font upload"); Check(gui->EndRender(first).has_value(), "UI submission failed");
         const auto font = static_cast<GLuint>(reinterpret_cast<uintptr_t>(ImGui::GetIO().Fonts->TexID));
         Check(glIsTexture(font), "ImGui font texture missing");
         gui->ShutDown(); gui->ShutDown();
@@ -547,7 +544,7 @@ namespace
         for (int cycle = 0; cycle < 2; ++cycle)
         {
             auto root = std::make_unique<EngineContext>();
-            root->Initialize({Properties(), Properties()});
+            Check(root->Initialize({Properties(), Properties()}).has_value(), "Platform initialization failed");
             Check(ShapeManager::GetShape("phase20-retired") == nullptr, "New manager retained a previous map");
             Check(&root->Assets() == &root->Assets() && &root->Shapes() == &root->Shapes()
                 && &root->Shaders() == &root->Shaders(), "Root manager instances changed during their lifetime");
@@ -571,11 +568,11 @@ namespace
                 auto otherWindow = std::find_if(windows.begin(), windows.end(), [&](const auto& entry) {
                     return entry.second.get() != root->MainWindow();
                 });
-                otherWindow->second->BeginRender();
-                Check(SDL_GL_GetCurrentContext() != root->MainWindow()->GetContext(), "Secondary context was not activated");
+                Check(otherWindow->second->BeginRender().has_value(), "Context transition failed");
+                Check(SDL_GL_GetCurrentContext() != static_cast<SDLWindow*>(root->MainWindow())->GetContext(), "Secondary context was not activated");
                 const auto uniform = "cycle-" + std::to_string(cycle);
                 auto* image = AssetsManager::GetTexture("white", uniform).value();
-                Check(SDL_GL_GetCurrentContext() == root->MainWindow()->GetContext()
+                Check(SDL_GL_GetCurrentContext() == static_cast<SDLWindow*>(root->MainWindow())->GetContext()
                     && image->GetUniformName() == uniform, "Manager used a foreign context or retained a prior root cache");
                 Check(AssetsManager::GetTexture("white").value()->View().Identity() == image->View().Identity()
                     && AssetsManager::GetTexture(imagePath).value()->View().Identity() == image->View().Identity(),
@@ -685,7 +682,7 @@ namespace
         for (int cycle = 0; cycle < 2; ++cycle)
         {
             auto root = std::make_unique<EngineContext>();
-            root->Initialize({Properties()});
+            Check(root->Initialize({Properties()}).has_value(), "Platform initialization failed");
             Check(root->GetState() == EngineContext::State::Ready, "Initialized manager root is not ready");
             Check(ShapeManager::GetShape("phase20-retired") == nullptr, "New shape manager contains stale state");
             int oldDestroyed = 0, duplicateDestroyed = 0, replacementDestroyed = 0;
@@ -798,7 +795,7 @@ namespace
         Check(SDL_Init(SDL_INIT_VIDEO) == 0, SDL_GetError());
         Check(TTF_Init() == 0, TTF_GetError());
         {
-            SDLWindow window; window.Initialize(Properties());
+            SDLWindow window; Check(window.Initialize(Properties()).has_value(), "Window initialization failed");
             Hooks hooks;
             StartTeardownDiagnostics();
             BufferMoves<UniformType::VEC2F>(); BufferMoves<UniformType::VEC3F>();
@@ -822,15 +819,15 @@ namespace
                 auto properties = Properties();
                 properties.ImGuiWindowProperties.bViewPortEnabled = true;
                 BaseApp app; Check(app.Initialize(properties).has_value(), "Application initialization failed");
-                auto* window = app.GetSDLWindow();
+                auto* window = static_cast<SDLWindow*>(app.GetWindow());
                 Check(GLContextThread::IsCurrentOwner(), "Owner context was not registered");
                 bool workerRejected = false;
                 std::jthread worker([&] { workerRejected = !GLContextThread::IsCurrentOwner(); });
                 worker.join();
                 Check(workerRejected, "Validation-only query allowed a worker without issuing GL");
-                window->NullRender();
+                Check(window->NullRender().has_value(), "Context transition failed");
                 Check(!GLContextThread::IsCurrentOwner(), "Detached context retained permission");
-                window->BeginRender();
+                Check(window->BeginRender().has_value(), "Context transition failed");
                 Check(GLContextThread::IsCurrentOwner(), "Owner could not restore its context");
                 while (glGetError() != GL_NO_ERROR) {} // Existing target initialization diagnostics.
                 {
@@ -852,7 +849,7 @@ namespace
                     ImGui::SetNextWindowPos(ImVec2(main->Pos.x + main->Size.x + 40.f, main->Pos.y));
                     ImGui::SetNextWindowSize(ImVec2(128.f, 96.f));
                     ImGui::Begin("Context owner viewport"); ImGui::TextUnformatted("Owner thread"); ImGui::End();
-                    gui->EndRender(window);
+                    Check(gui->EndRender(window).has_value(), "UI submission failed");
                 }
                 Check(ImGui::GetPlatformIO().Viewports.Size > 1, "ImGui secondary context was not exercised");
                 Check(GLContextThread::IsCurrentOwner(), "ImGui failed to restore the owner context");
@@ -876,7 +873,7 @@ namespace
     {
         RuntimeAssets::Initialize("GEngineEditor");
         auto app = std::make_unique<BaseApp>(); Check(app->Initialize(Properties()).has_value(), "Application initialization failed");
-        auto* window = app->GetSDLWindow();
+        auto* window = static_cast<SDLWindow*>(app->GetWindow());
         glad_glGenBuffers = ForbiddenGen;
         glad_glBufferSubData = ForbiddenUpload;
         glad_glDeleteBuffers = ForbiddenDelete;
@@ -902,7 +899,7 @@ namespace
             else std::_Exit(88);
             std::_Exit(89); // A rejected operation returned instead of terminating.
         };
-        if (mode == "--reject-detached") { window->NullRender(); attempt(); }
+        if (mode == "--reject-detached") { Check(window->NullRender().has_value(), "Detach failed"); attempt(); }
         std::jthread worker(attempt);
         worker.join();
     }

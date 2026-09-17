@@ -1,4 +1,5 @@
 #pragma once
+#include "Managers/EventManager.h"
 
 namespace GEngine::Event
 {
@@ -8,9 +9,9 @@ namespace GEngine::Event
 	{
 
 	public:
-		static void OnKeyPress(SDL_KeyboardEvent& e);
-		static void OnKeyRelease(SDL_KeyboardEvent& e);
-		static void OnKeyRepeat(SDL_KeyboardEvent& e);
+		static void OnKeyPress(Manager::KeyboardParam& e);
+		static void OnKeyRelease(Manager::KeyboardParam& e);
+		static void OnKeyRepeat(Manager::KeyboardParam& e);
 
 	};
 

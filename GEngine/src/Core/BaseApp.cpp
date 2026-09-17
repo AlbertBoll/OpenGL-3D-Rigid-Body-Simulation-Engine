@@ -6,7 +6,9 @@
 #include <new>
 #include <Camera/PerspectiveCamera.h>
 #include <Camera/OrthographicCamera.h>
-#include "Windows/SDLWindow.h"
+#include "Core/Window.h"
+#include "Core/Renderer.h"
+#include "Core/Scene.h"
 #include <imgui/imgui.h>
 #include <Camera/PlayerCamera.h>
 #include "Managers/ShapeManager.h"
@@ -17,6 +19,7 @@
 #include <charconv>
 #include <stdexcept>
 #include <string_view>
+#include <cstdlib>
 
 //#include "Managers/EventManager.h"
 
@@ -25,6 +28,7 @@ namespace GEngine
     void ReportApplicationError(const ApplicationInitializationError& error)
     {
         if (const auto* framebuffer = std::get_if<FramebufferError>(&error)) ReportFramebufferError("application startup", *framebuffer);
+        else if (const auto* platform = std::get_if<PlatformError>(&error)) ReportPlatformError(*platform);
         else if (const auto* texture = std::get_if<Asset::TextureError>(&error))
             GENGINE_CORE_ERROR("Application texture {}: {}", texture->source, texture->message);
     }
@@ -40,7 +44,8 @@ namespace GEngine
     {
         // Derived resources are already gone. The first-declared EngineContext
         // outlives these borrowers and retires shared caches/platform last.
-        if (m_SDLWindow) m_EngineContext.MakeCurrent();
+        if (m_Window)
+            if (auto current = m_EngineContext.MakeCurrent(); !current) { ReportPlatformError(current.error()); std::terminate(); }
         m_Scene.reset();
         m_UniformBufferObject.reset();
         m_FinalFrameBuffer.reset();
@@ -48,7 +53,7 @@ namespace GEngine
         m_PointShadowFrameBuffer.reset();
         m_CascadeShadowFrameBuffer.reset();
         m_RenderTarget.reset();
-        m_SDLWindow = nullptr;
+        m_Window = nullptr;
         m_Initialize = false;
     }
 
@@ -57,9 +62,9 @@ namespace GEngine
         return Initialize(std::initializer_list<WindowProperties>{WindowsPropertyList});
     }
 
-    void BaseApp::OnEvent(SDL_Event& e)const
+    void BaseApp::PollEvents() const
     {
-        GetEventManager()->OnEvent(e);
+        GetEventManager()->PollEvents();
     }
 
     /*void BaseApp::OnResize(int new_width, int new_height) const
@@ -72,9 +77,38 @@ namespace GEngine
 
     }*/
 
-    SDLWindow* BaseApp::GetSDLWindow()
+    PlatformResult BaseApp::SetEditorViewport(EditorViewportLogicalSize logical, FramebufferScale scale)
     {
-        return m_SDLWindow;
+        auto pixels = ToFramebufferPixels(logical, scale);
+        if (!pixels) return std::unexpected(pixels.error());
+        m_EditorLogicalSize = logical;
+        m_EditorPixelSize = *pixels;
+        m_ViewportSize = {logical.Width, logical.Height};
+        m_UsesEditorViewport = true;
+        return {};
+    }
+
+    FramebufferResult BaseApp::ResizeViewportTargets()
+    {
+        if (!m_Window || !m_RenderTarget || !m_MousePickFrameBuffer || !m_FinalFrameBuffer)
+            return std::unexpected(FramebufferError{FramebufferErrorCode::InvalidOperation, "Viewport resizing requires initialized window and targets"});
+        m_Window->RefreshDimensions();
+        const auto native = m_Window->GetFramebufferPixelSize();
+        const auto source = m_UsesEditorViewport ? TargetSizeSource::EditorViewport : TargetSizeSource::NativeFramebuffer;
+        auto desc = m_RenderTarget->Description();
+        desc.SizeSource = source;
+        desc.Storage.Width = m_UsesEditorViewport ? m_EditorPixelSize.Width : native.Width;
+        desc.Storage.Height = m_UsesEditorViewport ? m_EditorPixelSize.Height : native.Height;
+        m_ViewportTargetsReady = false;
+        if (auto resized = m_RenderTarget->Reconfigure(desc); !resized) return resized;
+        m_MousePickFrameBuffer->SetSizeSource(source);
+        if (auto resized = m_MousePickFrameBuffer->ResizeFrom(native, m_EditorPixelSize); !resized) return resized;
+        m_FinalFrameBuffer->SetSizeSource(source);
+        if (auto resized = m_FinalFrameBuffer->ResizeFrom(native, m_EditorPixelSize); !resized) return resized;
+        m_ViewportTargetsReady = true;
+        if (m_UsesEditorViewport && m_EditorCamera && m_RenderTarget->GetWidth() && m_RenderTarget->GetHeight())
+            m_EditorCamera->OnResize(m_RenderTarget->GetWidth(), m_RenderTarget->GetHeight());
+        return {};
     }
 
     ApplicationInitializationResult BaseApp::Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)
@@ -102,8 +136,8 @@ namespace GEngine
                 << " source=" << (configuredShadowResolution ? "GENGINE_SHADOW_RESOLUTION (explicit)" : "safe default")
                 << " estimated depth storage=" << (12ull * shadowResolution * shadowResolution * 4 / (1024 * 1024))
                 << " MiB (six cascade layers + six cube faces, estimated at four bytes/texel)" << std::endl;
-            m_EngineContext.Initialize(WindowsPropertyList);
-            m_SDLWindow = m_EngineContext.MainWindow();
+            if (auto initialized = m_EngineContext.Initialize(WindowsPropertyList); !initialized) return std::unexpected(initialized.error());
+            m_Window = m_EngineContext.MainWindow();
             const GLDebug::Group initialization("Application render resources");
         
             GENGINE_CORE_INFO("Initialize Scene...");
@@ -125,7 +159,7 @@ namespace GEngine
                     auto windows = BaseApp::GetWindowManager();
                     if (auto p = windows->GetWindows().find(windowParam.ID); p != windows->GetWindows().end())
                     {             
-                        if (p->second.get() == m_SDLWindow)
+                        if (p->second.get() == m_Window)
                         {
                             // Keep the main context alive through derived/base destruction.
                             m_Running = false;
@@ -164,30 +198,33 @@ namespace GEngine
             GetEventManager()->GetEventDispatcher().RegisterEvent(AppQuitEvent);
           
 
-            const auto windowFlags = SDL_GetWindowFlags(m_SDLWindow->GetSDLWindow());
-            m_Minimized = (windowFlags & SDL_WINDOW_MINIMIZED) != 0;
-            m_WindowHidden = (windowFlags & SDL_WINDOW_HIDDEN) != 0;
-            auto windowState = new Events<void(SDL_WindowEvent)>("WindowState");
-            windowState->Subscribe([this](SDL_WindowEvent event)
+            const auto state = m_Window->GetState();
+            m_Minimized = state.Minimized;
+            m_WindowHidden = state.Hidden;
+            auto windowState = new Events<void(WindowStateEvent)>("WindowState");
+            windowState->Subscribe([this](WindowStateEvent event)
                 {
-                    if (event.windowID != m_SDLWindow->GetWindowID()) return;
-                    switch (event.event)
+                    if (event.ID != m_Window->GetWindowID()) return;
+                    switch (event.Change)
                     {
-                    case SDL_WINDOWEVENT_MINIMIZED: m_Minimized = true; break;
-                    case SDL_WINDOWEVENT_RESTORED:
-                    case SDL_WINDOWEVENT_MAXIMIZED: m_Minimized = false; break;
-                    case SDL_WINDOWEVENT_HIDDEN: m_WindowHidden = true; break;
-                    case SDL_WINDOWEVENT_SHOWN: m_WindowHidden = false; break;
-                    case SDL_WINDOWEVENT_RESIZED:
-                    case SDL_WINDOWEVENT_SIZE_CHANGED:
-                        m_WindowZeroSize = event.data1 <= 0 || event.data2 <= 0;
+                    case WindowStateChange::Minimized: m_Minimized = true; break;
+                    case WindowStateChange::Restored:
+                    case WindowStateChange::Maximized: m_Minimized = false; break;
+                    case WindowStateChange::Hidden: m_WindowHidden = true; break;
+                    case WindowStateChange::Shown: m_WindowHidden = false; break;
+                    case WindowStateChange::Resized:
+                        m_WindowZeroSize = event.LogicalSize.Width == 0 || event.LogicalSize.Height == 0;
                         break;
+                    default: break;
                     }
                 });
             GetEventManager()->GetEventDispatcher().RegisterEvent(windowState);
-            GetInputManager()->SetSDLWindow(m_SDLWindow);
-            
-            const auto width = m_SDLWindow->GetScreenWidth(), height = m_SDLWindow->GetScreenHeight();
+            GetInputManager()->SetWindow(m_Window);
+            const auto nativePixels = m_Window->GetFramebufferPixelSize();
+            const auto width = nativePixels.Width, height = nativePixels.Height;
+            m_EditorLogicalSize = {float(m_Window->GetScreenWidth()), float(m_Window->GetScreenHeight())};
+            m_EditorPixelSize = {width, height};
+            m_ViewportSize = {m_EditorLogicalSize.Width, m_EditorLogicalSize.Height};
             auto RenderTargetCandidate = RenderTarget::Create(width, height);
             if (!RenderTargetCandidate) return std::unexpected(RenderTargetCandidate.error());
             auto CascadeShadowFrameBufferCandidate = CascadeShadowFrameBuffer::Create(shadowResolution, shadowResolution, 5);
@@ -208,6 +245,11 @@ namespace GEngine
             if (!MousePickFrameBufferCandidateOwner) return std::unexpected(FramebufferError{FramebufferErrorCode::Allocation, "Framebuffer wrapper allocation failed"});
             ScopedPtr<FinalFrameBuffer> FinalFrameBufferCandidateOwner(new (std::nothrow) FinalFrameBuffer(std::move(*FinalFrameBufferCandidate)));
             if (!FinalFrameBufferCandidateOwner) return std::unexpected(FramebufferError{FramebufferErrorCode::Allocation, "Framebuffer wrapper allocation failed"});
+            auto initialDescription = RenderTargetCandidateOwner->Description();
+            initialDescription.SizeSource = TargetSizeSource::NativeFramebuffer;
+            if (auto configured = RenderTargetCandidateOwner->Reconfigure(initialDescription); !configured) return std::unexpected(configured.error());
+            MousePickFrameBufferCandidateOwner->SetSizeSource(TargetSizeSource::NativeFramebuffer);
+            FinalFrameBufferCandidateOwner->SetSizeSource(TargetSizeSource::NativeFramebuffer);
             m_RenderTarget = std::move(RenderTargetCandidateOwner);
             m_CascadeShadowFrameBuffer = std::move(CascadeShadowFrameBufferCandidateOwner);
             m_PointShadowFrameBuffer = std::move(PointShadowFrameBufferCandidateOwner);
@@ -270,12 +312,12 @@ namespace GEngine
         }
 
       
-  /*      if (m_SDLWindow->GetImGuiWindow()->WantCaptureKeyBoard())
+  /*      if (m_Window->GetImGuiWindow()->WantCaptureKeyBoard())
         {
             GENGINE_CORE_INFO("ImGui capture keyboard");
         }
 
-        if (m_SDLWindow->GetImGuiWindow()->WantCaptureMouse())
+        if (m_Window->GetImGuiWindow()->WantCaptureMouse())
         {
             GENGINE_CORE_INFO("ImGui capture mouse");
         }*/
@@ -305,7 +347,7 @@ namespace GEngine
             //mouseState.SetCursorMode(CursorMode::)
         //}
 
-        //if (mouseState.isButtonPressed(GENGINE_BUTTON_RIGHT) && !m_SDLWindow->GetImGuiWindow()->WantCaptureMouse())  //&& !static_cast<SDLWindow*>(GetWindowManager()->GetInternalWindow(1))->GetImGuiWindow()->WantCaptureMouse())//to do)
+        //if (mouseState.isButtonPressed(GENGINE_BUTTON_RIGHT) && !m_Window->GetImGuiWindow()->WantCaptureMouse())  //&& !static_cast<SDLWindow*>(GetWindowManager()->GetInternalWindow(1))->GetImGuiWindow()->WantCaptureMouse())//to do)
        // {
           // std::cout << "right button is pressed" << std::endl;
             //input->SetRelativeMouseMode(true);
@@ -345,7 +387,7 @@ namespace GEngine
         //    }
 
 
-        //    else if (auto& keyboardstate = input->GetKeyboardState(); keyboardstate.IsKeyPressed(GENGINE_KEY_SPACE) && !m_SDLWindow->GetImGuiWindow()->WantCaptureKeyBoard())
+        //    else if (auto& keyboardstate = input->GetKeyboardState(); keyboardstate.IsKeyPressed(GENGINE_KEY_SPACE) && !m_Window->GetImGuiWindow()->WantCaptureKeyBoard())
         //    {
         //        input->SetRelativeMouseMode(false);
         //        //mouseState.SetFirstMouse(true);
@@ -383,12 +425,11 @@ namespace GEngine
                 // Keep restore/close events live without running application controls
                 // or simulation/render work. Retire transient input while suspended.
                 input->PrepareForUpdate();
-                SDL_Event event{};
-                OnEvent(event);
+                PollEvents();
                 input->Update();
                 clock.Reset();
                 m_FrameTime = {};
-                if (m_Running && IsRenderingSuspended()) SDL_Delay(16);
+                if (m_Running && IsRenderingSuspended()) std::this_thread::sleep_for(std::chrono::milliseconds(16));
                 continue;
             }
 
@@ -399,8 +440,8 @@ namespace GEngine
                 // adaptive -1) owns pacing when active; otherwise use the manual cap.
                 // Anchor to measured frame starts, so work/oversleep counts toward
                 // the next interval and a missed deadline creates no pacing backlog.
-                m_SDLWindow->BeginRender();
-                if (SDL_GL_GetSwapInterval() == 0 && m_ManualFrameRateLimit != 0)
+                if (auto current = m_Window->BeginRender(); !current) { ReportPlatformError(current.error()); ShutDown(); break; }
+                if (m_Window->GetSwapInterval() == 0 && m_ManualFrameRateLimit != 0)
                     std::this_thread::sleep_until(clock.LastSample() + Seconds(1.0 / m_ManualFrameRateLimit));
                 m_FrameTime = clock.Tick();
                 const Timestep inputTime(m_FrameTime.renderDelta);
@@ -417,8 +458,7 @@ namespace GEngine
 #ifdef GENGINE_RENDER_BASELINE
                 baseline.Work();
 #endif
-                SDL_Event event{};
-                OnEvent(event);
+                PollEvents();
                 input->Update();
                 if (!m_Running) break;
                 if (IsRenderingSuspended()) continue;
@@ -433,6 +473,7 @@ namespace GEngine
 #ifdef GENGINE_RENDER_BASELINE
                 baseline.UpdatedInput();
 #endif
+                if (auto resized = ResizeViewportTargets(); !resized) ReportFramebufferError("viewport targets", resized.error());
                 //update                              
 #ifdef GENGINE_RENDER_BASELINE
                 Update(baseline.Enabled() ? Timestep(0.0) : updateTime);
@@ -485,7 +526,8 @@ namespace GEngine
       
         if (HasVisibleViewport())
         {
-            m_EngineContext.RenderScene(m_Scene.get(), m_EditorCamera, m_RenderTarget.get(), param);
+            if (auto rendered = m_EngineContext.RenderScene(m_Scene.get(), m_EditorCamera, m_RenderTarget.get(), param); !rendered)
+            { ReportPlatformError(rendered.error()); ShutDown(); return; }
 
             //PlayerCamera
          /*   Renderer::RenderBegin(m_PlayerCamera, m_RenderTarget.get());
@@ -503,10 +545,10 @@ namespace GEngine
 
        for (auto& [windowID, window] : windows)
        {
-           auto window_ = static_cast<SDLWindow*>(window.get());
-           window_->GetImGuiWindow()->BeginRender(window_);
-           //ImGuiRender();
-           window_->GetImGuiWindow()->EndRender(window_);
+           auto* window_ = window.get();
+           if (auto ui = window_->BeginUI(); !ui) { ReportPlatformError(ui.error()); ShutDown(); return; }
+           ImGuiRender();
+           if (auto ui = window_->EndUI(); !ui) { ReportPlatformError(ui.error()); ShutDown(); return; }
            window_->SwapBuffer();
        }
        

@@ -1180,3 +1180,30 @@ exception APIs and unrelated platform, file-output, shader/material and applicat
 contracts retain their documented future-phase ownership. The current Phase 28
 review and current Phase 29 review record actual coverage, exceptions (if any),
 evidence and seal status.
+# Phase 30 viewport / platform boundary
+
+`python tools/test_viewport.py --configuration Debug --output <directory> --smoke`
+(and `Release`) compiles 16 normal platform/window/input/event/application headers
+individually without backend include roots and inspects compiler dependency traces.
+It builds the six maintained consumers with the approved C++23/v143/static-CRT
+configuration and links a focused probe to the production library. `--no-build`
+reuses matching builds; `--rebuild-library` explicitly rebuilds the affected library.
+
+The probe covers separate native logical/framebuffer and editor logical/pixel
+dimensions, actual target aspect, explicit fixed/native/editor size sources,
+fractional and 2x conversion, quantized no-ops, coalesced drag requests, zero/reopen,
+integer picking edges/readback, real ImGui docking/detached native viewport/redocking,
+native visibility events, typed initialization/allocation failures, batch rollback,
+two platform lifetimes and isolated worker rejection. Scale sweeps supply deterministic
+scale inputs to production conversion and real GL storage; docking additionally
+checks the actual backing-window drawable/logical ratio. They do not claim a
+physical mixed-DPI monitor traversal. `--smoke` exercises startup and native close
+of all four graphical applications from disposable working directories.
+
+`python tools/test_input_control.py --configuration Debug --event-loop --no-build --output <directory>`
+(and `Release`) checks the migrated event loop and real simulation/ray viewport
+collapse/reopen. Its compiler mode now follows the already approved C++23 baseline.
+`tools/test_framebuffer.py --configuration Debug --no-build --output <directory>`
+(and `Release`) retains actual framebuffer/ownership/failure regressions and adapted
+root lifecycle fixtures. Always fingerprint the finalized source and protected
+inputs before the final runs. These commands do not seal or approve a checkpoint.

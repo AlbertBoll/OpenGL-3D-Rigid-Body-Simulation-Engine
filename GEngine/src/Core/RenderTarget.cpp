@@ -64,6 +64,9 @@ namespace GEngine
     }
     FramebufferResult RenderTarget::Reconfigure(const RenderTargetDesc& desc)
     {
+        if (desc.SizeSource != TargetSizeSource::Fixed && desc.SizeSource != TargetSizeSource::NativeFramebuffer
+            && desc.SizeSource != TargetSizeSource::EditorViewport)
+            return std::unexpected(FramebufferError{FramebufferErrorCode::InvalidDescription, "Unknown target size source"});
         const auto usage = static_cast<unsigned>(desc.Usage);
         if ((usage & 1u) == 0 || (usage & ~15u) != 0)
             return std::unexpected(FramebufferError{FramebufferErrorCode::InvalidDescription, "Target usage requires attachment intent and known output usages",

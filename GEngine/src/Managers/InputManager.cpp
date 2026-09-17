@@ -3,10 +3,15 @@
 #include "Core/BaseApp.h"
 #include "Managers/WindowManager.h"
 #include "Managers/EventManager.h"
-#include "Windows/SDLWindow.h"
+#include "Core/Window.h"
+#include <new>
 
 namespace GEngine::Manager
 {
+    struct InputManager::Backend { SDL_GameController* Controller = nullptr; };
+    InputManager::InputManager() = default;
+    InputManager::~InputManager() { ShutDown(); }
+
 
 
 
@@ -75,14 +80,14 @@ namespace GEngine::Manager
         switch (mode)
         {
         case CursorMode::NORMAL:
-            input->SetRelativeMouseMode(false);
+            if (auto mode = input->SetRelativeMouseMode(false); !mode) ReportPlatformError(mode.error());
             //SDL_ShowCursor(SDL_ENABLE);
             break;
         case CursorMode::HIDDEN:
-            input->SetRelativeMouseMode(true);
+            if (auto mode = input->SetRelativeMouseMode(true); !mode) ReportPlatformError(mode.error());
             break;
         case CursorMode::LOCKED:
-            input->SetRelativeMouseMode(true);
+            if (auto mode = input->SetRelativeMouseMode(true); !mode) ReportPlatformError(mode.error());
             //SDL_SetWindowGrab
             //SDL_ShowCursor(SDL_DISABLE);
             break;
@@ -136,8 +141,11 @@ namespace GEngine::Manager
         return instance;
     }
 
-    void InputManager::Initialize()
+    PlatformResult InputManager::Initialize()
     {
+        ShutDown();
+        m_Backend.reset(new (std::nothrow) Backend);
+        if (!m_Backend) return std::unexpected(PlatformError{PlatformErrorCode::Allocation, "input backend", "Input backend allocation failed"});
         // Reset every input field, including disconnected controller axes and mode.
         m_InputState = {};
         // Keyboard
@@ -154,24 +162,26 @@ namespace GEngine::Manager
         m_InputState.m_Mouse.m_IsRelative = SDL_GetRelativeMouseMode() == SDL_TRUE;
 
         // Get the connected controller, if it exists
-        m_GameController = SDL_GameControllerOpen(0);
+        m_Backend->Controller = SDL_GameControllerOpen(0);
 
         // Initialize controller state
-        m_InputState.m_Controller.m_IsConnected = (m_GameController != nullptr);
+        m_InputState.m_Controller.m_IsConnected = (m_Backend->Controller != nullptr);
 
         memset(m_InputState.m_Controller.m_CurrentButtons, 0,
             GENGINE_CONTROLLER_BUTTON_MAX);
         memset(m_InputState.m_Controller.m_PreviousButtons, 0,
             GENGINE_CONTROLLER_BUTTON_MAX);
+        return {};
     }
 
 
     void InputManager::ShutDown()
     {
-        if (m_GameController) SDL_GameControllerClose(m_GameController);
-        m_GameController = nullptr;
+        if (m_Backend && m_Backend->Controller) SDL_GameControllerClose(m_Backend->Controller);
+        m_Backend.reset();
+        m_Window = nullptr;
+        m_InputState = {};
     }
-
 
     void InputManager::PrepareForUpdate()
     {
@@ -213,9 +223,9 @@ namespace GEngine::Manager
                 SDL_GetRelativeMouseState(&x, &y);
             m_InputState.m_Mouse.m_XRel = x;
             m_InputState.m_Mouse.m_YRel = y;
-            if (m_SDLWindow && m_SDLWindow->GetSDLWindow())
+            if (m_Window)
             {
-                SDL_SetWindowGrab(m_SDLWindow->GetSDLWindow(), SDL_TRUE);
+                m_Window->SetMouseGrab(true);
             }
                 
         }
@@ -227,9 +237,9 @@ namespace GEngine::Manager
             m_InputState.m_Mouse.m_MousePos.x = static_cast<float>(x);
             m_InputState.m_Mouse.m_MousePos.y = static_cast<float>(y);
 
-            if (m_SDLWindow && m_SDLWindow->GetSDLWindow())
+            if (m_Window)
             {
-                SDL_SetWindowGrab(m_SDLWindow->GetSDLWindow(), SDL_FALSE);
+                m_Window->SetMouseGrab(false);
             }
 
          }
@@ -246,28 +256,28 @@ namespace GEngine::Manager
             for (int i = 0; i < GENGINE_CONTROLLER_BUTTON_MAX; i++)
             {
                 m_InputState.m_Controller.m_CurrentButtons[i] =
-                    SDL_GameControllerGetButton(m_GameController,
+                    SDL_GameControllerGetButton(m_Backend->Controller,
                         static_cast<SDL_GameControllerButton>(i));
             }
 
             // Triggers
             m_InputState.m_Controller.m_LeftTrigger =
-                Filter1D(SDL_GameControllerGetAxis(m_GameController,
+                Filter1D(SDL_GameControllerGetAxis(m_Backend->Controller,
                     SDL_CONTROLLER_AXIS_TRIGGERLEFT));
             m_InputState.m_Controller.m_RightTrigger =
-                Filter1D(SDL_GameControllerGetAxis(m_GameController,
+                Filter1D(SDL_GameControllerGetAxis(m_Backend->Controller,
                     SDL_CONTROLLER_AXIS_TRIGGERRIGHT));
 
             // Sticks
-            x = SDL_GameControllerGetAxis(m_GameController,
+            x = SDL_GameControllerGetAxis(m_Backend->Controller,
                 SDL_CONTROLLER_AXIS_LEFTX);
-            y = -SDL_GameControllerGetAxis(m_GameController,
+            y = -SDL_GameControllerGetAxis(m_Backend->Controller,
                 SDL_CONTROLLER_AXIS_LEFTY);
             m_InputState.m_Controller.m_LeftStick = Filter2D(x, y);
 
-            x = SDL_GameControllerGetAxis(m_GameController,
+            x = SDL_GameControllerGetAxis(m_Backend->Controller,
                 SDL_CONTROLLER_AXIS_RIGHTX);
-            y = -SDL_GameControllerGetAxis(m_GameController,
+            y = -SDL_GameControllerGetAxis(m_Backend->Controller,
                 SDL_CONTROLLER_AXIS_RIGHTY);
             m_InputState.m_Controller.m_RightStick = Filter2D(x, y);
 
@@ -276,26 +286,15 @@ namespace GEngine::Manager
 
     }
 
-    void InputManager::ProcessEvent(SDL_Event& event)
+    void InputManager::SetWindow(Window* window) { m_Window = window; }
+
+    PlatformResult InputManager::SetRelativeMouseMode(bool value)
     {
-
-        //Event::EventManager::OnUpdate(event);
-    }
-
-
-    void InputManager::SetSDLWindow(SDLWindow* window)
-    {
-        m_SDLWindow = window;
-    }
-
-    void InputManager::SetRelativeMouseMode(bool value)
-    {
-        const SDL_bool set = value ? SDL_TRUE : SDL_FALSE;
-        SDL_SetRelativeMouseMode(set);
-
+        if (SDL_SetRelativeMouseMode(value ? SDL_TRUE : SDL_FALSE) != 0)
+            return std::unexpected(PlatformError{PlatformErrorCode::InputMode, "relative mouse mode", SDL_GetError()});
         m_InputState.m_Mouse.m_IsRelative = value;
+        return {};
     }
-
 
     float InputManager::Filter1D(int input)
     {

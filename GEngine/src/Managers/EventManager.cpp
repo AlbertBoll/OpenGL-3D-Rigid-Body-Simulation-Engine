@@ -165,13 +165,15 @@ namespace GEngine::Manager
 
 
 
-	void EventManager::OnEvent(SDL_Event& e)
+	void EventManager::PollEvents()
 	{
 
-		auto window = static_cast<SDLWindow*>(BaseApp::GetWindowManager()->GetInternalWindow(1));
+		auto* root = EngineContext::TryGet();
+        auto* window = root ? static_cast<SDLWindow*>(root->MainWindow()) : nullptr;
+        SDL_Event e{};
 		while (SDL_PollEvent(&e))
 		{
-			if (BaseApp::GetWindowManager()->GetNumOfWindows() != 0)
+			if (window && window->GetImGuiWindow())
 				window->GetImGuiWindow()->HandleSDLEvent(e);
 
 			switch (e.type)
@@ -242,7 +244,32 @@ namespace GEngine::Manager
 			case SDL_WINDOWEVENT:
 			{
 				// Preserve the actual SDL state event; resizing and visibility are independent.
-				m_EventDispatcher.DispatchEvent("WindowState", SDL_WindowEvent(e.window));
+				auto& windows = BaseApp::GetWindowManager()->GetWindows();
+                auto found = windows.find(e.window.windowID);
+                WindowStateChange change = WindowStateChange::Other;
+                switch (e.window.event)
+                {
+                case SDL_WINDOWEVENT_MINIMIZED: change = WindowStateChange::Minimized; break;
+                case SDL_WINDOWEVENT_RESTORED: change = WindowStateChange::Restored; break;
+                case SDL_WINDOWEVENT_MAXIMIZED: change = WindowStateChange::Maximized; break;
+                case SDL_WINDOWEVENT_HIDDEN: change = WindowStateChange::Hidden; break;
+                case SDL_WINDOWEVENT_SHOWN: change = WindowStateChange::Shown; break;
+                case SDL_WINDOWEVENT_RESIZED:
+                case SDL_WINDOWEVENT_SIZE_CHANGED: change = WindowStateChange::Resized; break;
+                case SDL_WINDOWEVENT_DISPLAY_CHANGED: change = WindowStateChange::DisplayChanged; break;
+                }
+                NativeWindowLogicalSize logical{};
+                NativeFramebufferPixelSize pixels{};
+                if (found != windows.end())
+                {
+                    found->second->RefreshDimensions();
+                    logical = found->second->GetLogicalSize(); pixels = found->second->GetFramebufferPixelSize();
+                }
+                // Preserve zero-size notifications for suspension even on platforms
+                // that retain their last nonzero drawable while minimized.
+                if (change == WindowStateChange::Resized && (e.window.data1 <= 0 || e.window.data2 <= 0))
+                    logical = {};
+                m_EventDispatcher.DispatchEvent("WindowState", WindowStateEvent{e.window.windowID, change, logical, pixels});
 
 				if (e.window.event == SDL_WINDOWEVENT_CLOSE)
 				{

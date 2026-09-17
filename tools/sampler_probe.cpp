@@ -2,6 +2,7 @@
 #include "gepch.h"
 #include "Assets/Samplers/Sampler.h"
 #include "Core/GEngine.h"
+#include "Core/RuntimeAssets.h"
 #include "Core/GLContextThread.h"
 #include "Managers/AssetsManager.h"
 #include "Material/Material.h"
@@ -252,7 +253,7 @@ int main(int argc, char** argv)
         properties.m_Title = "Sampler validation"; properties.m_Width = properties.m_Height = 64;
         properties.m_MinWidth = properties.m_MinHeight = 32; properties.m_IsVsync = false;
         properties.flag = BitFlags<WindowFlags,uint8_t>{WindowFlags::INVISIBLE};
-        root->Initialize({properties});
+        Check(root->Initialize({properties}).has_value(), "Platform initialization failed");
         int startup = 0; while(glGetError()!=GL_NO_ERROR) ++startup;
         std::println("[GL] {} renderer={} legacy-startup-errors={}", reinterpret_cast<const char*>(glGetString(GL_VERSION)), reinterpret_cast<const char*>(glGetString(GL_RENDERER)), startup);
         Observer observer;

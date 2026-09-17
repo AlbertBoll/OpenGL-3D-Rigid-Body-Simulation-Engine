@@ -140,7 +140,7 @@ namespace
         for(unsigned which=0;which<10;++which)
         {
             auto bad=d;
-            if(which==0)bad.Width=0;if(which==1)bad.Height=UINT32_MAX;if(which==2)bad.Samples=0;
+            if(which==0)bad.Width=8193;if(which==1)bad.Height=UINT32_MAX;if(which==2)bad.Samples=0;
             if(which==3)bad.ColorCount=5;if(which==4)bad.Colors[0]=Format::Depth24;
             if(which==5)bad.Kind=static_cast<FramebufferKind>(99);if(which==6)bad.Layers=0;
             if(which==7)bad.Depth=static_cast<Format>(99);if(which==8)bad.Samples=3;
@@ -208,12 +208,161 @@ namespace
         Check(target.ColorView()&&target.Buffer().Description().Width==31,"Single-sample target transition");
         std::println("[PASS] square/rectangular integer sampling, MS color/integer resolve, depth-only, cube and cascade targets");
     }
+    void ResizePolicy()
+    {
+        using Usage = RenderTargetUsage;
+        using Surface = RenderTargetSurface;
+        const auto textureName = [](const Asset::AttachmentView& view)
+        { return Asset::AssetDetail::TextureBackend::Name(Asset::TextureView(view)); };
+        auto d = RenderTargetDesc{Description(0, 29, 4)};
+        const auto beforeDeferred = Observer::created;
+        auto target = RenderTarget::Create(d).value();
+        Check(!target && target.Description() == d && Observer::created == beforeDeferred, "Zero width allocated storage or lost description");
+        Check(target.OnResize(13, 0) && !target && target.GetWidth() == 13 && target.GetHeight() == 0, "Zero height was not deferred");
+        Check(!target.ColorView() && !target.ReadPixel(1, 0, 0) && !target.BindAndBlitToScreen(), "Deferred target exposed usable output");
+        Check(target.OnResize(13, 29) && target.ReallocationCount() == 0, "First allocation counted as reallocation");
+        Dimensions(target.Buffer()); Dimensions(target.Buffer(Surface::Resolved));
+        auto view = target.ColorView().value();
+        const auto scene = FB::Name(target.Buffer()), output = FB::Name(target.Buffer(Surface::Resolved));
+        const auto names = Observer::live;
+        const auto generated = Observer::created;
+        const auto counter = RenderCounters::Current().frame.targetReallocations;
+        Check(target.ClearAttachment(1, 417), "Initialize resize policy pixels");
+        for (unsigned i = 0; i < 10; ++i)
+            Check(target.OnResize(13, 29) && target.SetSamples(4) && target.Reconfigure(target.Description()), "Same-description operation failed");
+        Check(Observer::created == generated && Observer::live == names && target.ReallocationCount() == 0
+            && FB::Name(target.Buffer()) == scene && FB::Name(target.Buffer(Surface::Resolved)) == output
+            && target.ReadPixel(1, 12, 28).value() == 417, "Same-size recreation changed names, content or counters");
+        if constexpr (RenderCounters::Enabled)
+            Check(RenderCounters::Current().frame.targetReallocations == counter, "No-op incremented frame reallocation counter");
+
+        // A sample-only change replaces scene attachments, retaining resolve storage.
+        Check(target.SetSamples(8), "Supported sample variant failed");
+        Check(FB::Name(target.Buffer()) != scene && FB::Name(target.Buffer(Surface::Resolved)) == output
+            && target.ReallocationCount() == 1 && textureName(view).value() == FB::Color(target.Buffer(Surface::Resolved)), "Sample change recreated independent resolve storage");
+        auto next = target.Description(); next.Storage.Depth = Format::Depth32Float;
+        const auto color0 = FB::Color(target.Buffer()), color1 = FB::Color(target.Buffer(), 1), depth = FB::Depth(target.Buffer());
+        Check(target.ClearAttachment(1, 731) && target.Reconfigure(next), "Depth-only reconfiguration failed");
+        Check(FB::Color(target.Buffer()) == color0 && FB::Color(target.Buffer(), 1) == color1
+            && FB::Depth(target.Buffer()) != depth && FB::Name(target.Buffer(Surface::Resolved)) == output
+            && target.ReadPixel(1, 12, 28).value() == 731, "Depth change replaced colors or resolve output");
+        Check(target.ReallocationCount() == 2, "Depth transaction count");
+
+        // Retained names must remain owned by the original until both preparations succeed.
+        auto formatChange = target.Description(); formatChange.Storage.Colors[0] = Format::RedInteger;
+        const auto stableDescription = target.Description();
+        const auto stableScene = FB::Name(target.Buffer()), stableOutput = FB::Name(target.Buffer(Surface::Resolved));
+        const auto stableNames = Observer::live;
+        denyOwnerAfter = 1;
+        auto failed = target.Reconfigure(formatChange);
+        Check(!failed && failed.error().code == FramebufferErrorCode::Allocation && denyOwnerAfter == -1,
+            "Resolve-side allocation failure was not propagated");
+        Check(target.Description() == stableDescription && Observer::live == stableNames
+            && FB::Name(target.Buffer()) == stableScene && FB::Name(target.Buffer(Surface::Resolved)) == stableOutput
+            && target.ReallocationCount() == 2 && target.ReadPixel(1, 12, 28).value() == 731, "Second preparation failure changed target, pixels, ownership or count");
+        for (auto fault : {Fault::Texture, Fault::ImageMS, Fault::Completeness})
+        {
+            Observer::fault = fault; failed = target.Reconfigure(formatChange);
+            Check(!failed && Observer::fault == Fault::None && Observer::live == stableNames
+                && target.Description() == stableDescription && target.ReallocationCount() == 2,
+                "Partly borrowed replacement did not roll back");
+        }
+        const auto retainedDepth = FB::Depth(target.Buffer());
+        const auto retainedOutput1 = FB::Color(target.Buffer(Surface::Resolved), 1);
+        Check(target.Reconfigure(formatChange), "Format change failed");
+        Check(FB::Color(target.Buffer()) != color0 && FB::Color(target.Buffer(), 1) == color1
+            && FB::Depth(target.Buffer()) == retainedDepth && FB::Color(target.Buffer(Surface::Resolved), 1) == retainedOutput1
+            && target.ReadPixel(1, 12, 28).value() == 731 && !textureName(view), "Format change replaced independent attachments or exposed stale view");
+        Check(target.ClearAttachment(0, 219) && target.ReadPixel(0, 12, 28).value() == 219, "New integer format did not resolve/read correctly");
+        Check(target.ReallocationCount() == 3, "Format transaction count");
+
+        // Invalid descriptions never allocate or alter the last successful descriptor.
+        const auto valid = target.Description();
+        for (unsigned variant = 0; variant < 9; ++variant)
+        {
+            auto bad = valid;
+            if (variant == 0) bad.Storage.Samples = 0;
+            if (variant == 1) bad.Storage.Width = 8193;
+            if (variant == 2) bad.Storage.Colors[0] = Format::Depth24;
+            if (variant == 3) bad.Storage.ColorCount = 5;
+            if (variant == 4) bad.Storage.Depth = static_cast<Format>(99);
+            if (variant == 5) bad.Usage = static_cast<Usage>(0);
+            if (variant == 6) bad.Usage = static_cast<Usage>(17);
+            if (variant == 7) bad.Storage.Samples = 3;
+            if (variant == 8) { bad.Storage.Width = 0; bad.Storage.Samples = 0; }
+            const auto allocations = Observer::created;
+            auto rejected = target.Reconfigure(bad);
+            Check(!rejected && target.Description() == valid && target.ReallocationCount() == 3
+                && Observer::created == allocations, "Invalid descriptor changed target or allocated storage");
+        }
+        Check(!target.RenderSize({-1, 2}) && !target.SetSamples(0), "Invalid resize/sample accepted");
+        Check(target.OnResize(31, 7) && target.ReallocationCount() == 4, "Extent change count");
+        Dimensions(target.Buffer()); Dimensions(target.Buffer(Surface::Resolved));
+        auto integerView = target.ColorView().value();
+        Check(target.OnResize(0, 7) && !target && !textureName(integerView) && target.ReallocationCount() == 4, "Zero extent did not retire storage or incremented count");
+        const auto zeroNames = Observer::live;
+        Check(target.OnResize(0, 0) && target.SetSamples(4) && Observer::live == zeroNames, "Deferred descriptor change allocated");
+        denyOwnerAfter = 1;
+        failed = target.OnResize(17, 19);
+        Check(!failed && !target && target.GetWidth() == 0 && target.GetHeight() == 0
+            && Observer::live == zeroNames && target.ReallocationCount() == 4, "Failed resume lost deferred description");
+        Check(target.OnResize(17, 19) && target.ReallocationCount() == 5 && textureName(integerView), "Deferred resume count/view");
+        if constexpr (RenderCounters::Enabled)
+            Check(RenderCounters::Current().frame.targetReallocations == counter + 5, "Frame reallocation count differs from successful transactions");
+        auto moved = std::move(target);
+        Check(!target && target.GetWidth() == 0 && target.ReallocationCount() == 0 && moved.ReallocationCount() == 5, "Move did not transfer target policy/counters");
+        moved = std::move(moved); Check(moved.ReallocationCount() == 5, "Self move changed target policy");
+
+        // Attachment-only usage needs no resolve owner; output usage changes only that dependency.
+        auto usageDesc = RenderTargetDesc{Description(13, 29, 4), Usage::Attachment};
+        auto attachment = RenderTarget::Create(usageDesc).value();
+        const auto attachmentName = FB::Name(attachment.Buffer());
+        Check(FB::Name(attachment.Buffer(Surface::Resolved)) == attachmentName && !attachment.ColorView()
+            && !attachment.ReadPixel(1, 0, 0), "Attachment-only target allocated/exposed output");
+        usageDesc.Usage = Usage::Attachment | Usage::Sampled;
+        Check(attachment.Reconfigure(usageDesc) && attachment.ColorView() && attachment.ReallocationCount() == 1
+            && FB::Name(attachment.Buffer()) == attachmentName && FB::Name(attachment.Buffer(Surface::Resolved)) != attachmentName, "Usage change replaced scene storage");
+        const auto sampledOutput = FB::Name(attachment.Buffer(Surface::Resolved));
+        usageDesc.Usage = usageDesc.Usage | Usage::Readback;
+        Check(attachment.Reconfigure(usageDesc) && attachment.ReallocationCount() == 1
+            && FB::Name(attachment.Buffer(Surface::Resolved)) == sampledOutput, "Metadata-only usage change allocated");
+        usageDesc.Usage = Usage::Attachment;
+        Check(attachment.Reconfigure(usageDesc) && FB::Name(attachment.Buffer()) == attachmentName
+            && !glIsFramebuffer(sampledOutput) && attachment.ReallocationCount() == 1, "Unused resolve storage not retired");
+
+        auto single = FrameBuffer::Create(Description()).value();
+        const auto singleName = FB::Name(single), singleColor = FB::Color(single), singleDepth = FB::Depth(single);
+        Check(single.Resize(13, 29) && FB::Name(single) == singleName && single.ReallocationCount() == 0, "Single framebuffer same-size recreated");
+        auto singleDesc = single.Description(); singleDesc.DepthRenderbuffer = true;
+        Check(single.Reconfigure(singleDesc) && FB::Color(single) == singleColor && !glIsTexture(singleDepth)
+            && FB::Renderbuffer(single) && single.ReallocationCount() == 1, "Depth texture/renderbuffer change replaced color");
+        auto singleView = single.ColorView().value();
+        singleDesc.Samples = 4;
+        Check(single.Reconfigure(singleDesc) && !textureName(singleView), "Sample transition exposed incompatible old view");
+        singleDesc.Samples = 1;
+        Check(single.Reconfigure(singleDesc) && textureName(singleView), "Single-sample view did not recover");
+        Check(single.Resize(0, 29) && !single && single.Resize(13, 29) && single.ReallocationCount() == 4, "Single framebuffer zero/nonzero policy");
+
+        auto cascade = CascadeShadowFrameBuffer::Create(0, 0, 2).value();
+        Check(!cascade && cascade.OnResize(11, 17) && cascade.Buffer().Description().Layers == 3, "Deferred cascade lost layers");
+        auto point = PointShadowFrameBuffer::Create(0, 0).value();
+        Check(!point && !point.OnResize(11, 17) && !point && point.OnResize(17, 17), "Deferred cube shape validation");
+        Dimensions(cascade.Buffer()); Dimensions(point.Buffer());
+        std::println("[PASS] target descriptors, zero transitions, no-ops, dependent attachments, usage, transaction rollback and reallocation counts");
+    }
     void APIENTRY ForbiddenDelete(GLsizei,const GLuint*){std::_Exit(87);}
 }
 int main(int argc,char** argv)
 {
     using namespace GEngine;
     RuntimeAssets::Initialize("GEngineEditor");
+    {
+        auto deferred = RenderTarget::Create(RenderTargetDesc{Description(0, 0, 4)});
+        Check(deferred && !*deferred, "Zero extent required a context or failed to defer");
+        auto failed = deferred->OnResize(13, 29);
+        Check(!failed && failed.error().code == FramebufferErrorCode::ContextUnavailable && !*deferred,
+            "Allocation without context did not preserve deferred target");
+    }
     if (argc > 1 && std::string_view(argv[1]) == "--startup-failure")
     {
         struct StartupApp final : BaseApp
@@ -257,7 +406,7 @@ int main(int argc,char** argv)
             else {Check(SDL_GL_CreateContext(root->MainWindow()->GetSDLWindow()),"Second context creation");owner={};}
             return 89;
         }
-        {Observer observer;OwnershipAndFailure();PixelsAndTargets();}
+        {Observer observer;OwnershipAndFailure();PixelsAndTargets();ResizePolicy();}
         Check(glGetError()==GL_NO_ERROR&&errors==0,"Framebuffer operations generated GL errors");root.reset();
         Check(!SDL_GL_GetCurrentContext(),"Context remained after retirement");
     }

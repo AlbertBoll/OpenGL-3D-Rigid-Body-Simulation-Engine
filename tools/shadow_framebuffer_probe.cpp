@@ -99,7 +99,7 @@ namespace
             glad_glTexImage3D = FailImage3D;
             glad_glGetError = AllocationError;
         }
-        const unsigned int size = injectOom ? 32 : 0;
+        const unsigned int size = injectOom ? 32 : 8193;
         const auto check = [&](const auto& result)
         {
             Require(!result, "Expected shadow creation failure");

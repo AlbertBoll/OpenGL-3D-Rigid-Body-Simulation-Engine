@@ -28,6 +28,7 @@ namespace GEngine
         std::uint32_t ColorCount = 0;
         FramebufferFormat Depth = FramebufferFormat::None;
         bool DepthRenderbuffer = false;
+        bool operator==(const FrameBufferSpecification&) const = default;
     };
     namespace FramebufferDetail { struct Backend; }
     // Owns the framebuffer and storage. Views observe this object's current
@@ -48,6 +49,10 @@ namespace GEngine
         void Bind(FramebufferBinding = FramebufferBinding::ReadDraw) const;
         static void UnBind(FramebufferBinding = FramebufferBinding::ReadDraw);
         [[nodiscard]] FramebufferResult Resize(std::uint32_t width, std::uint32_t height);
+        // Zero extent retains the description, with no allocated storage. Equal
+        // descriptions are no-ops; changed attachments are replaced transactionally.
+        [[nodiscard]] FramebufferResult Reconfigure(const FrameBufferSpecification&);
+        std::uint64_t ReallocationCount() const noexcept { return m_Reallocations; }
         [[nodiscard]] FramebufferResult ResolveTo(const FrameBuffer& destination,
             std::uint32_t sourceAttachment = 0, std::uint32_t destinationAttachment = 0) const;
         [[nodiscard]] FramebufferResult Present() const;
@@ -58,8 +63,16 @@ namespace GEngine
         [[nodiscard]] std::expected<Asset::AttachmentView, FramebufferError> DepthView() const;
     private:
         friend struct FramebufferDetail::Backend;
+        friend class RenderTarget;
+        static FramebufferResult ValidateDescription(const FrameBufferSpecification&);
+        void RequireOwner() const;
+        std::expected<FrameBuffer, FramebufferError> Prepare(const FrameBufferSpecification&) const;
+        void Commit(FrameBuffer&&) noexcept;
         struct Storage;
         std::unique_ptr<Storage> m_Storage;
+        FrameBufferSpecification m_Description{0, 0, 0, 0};
+        std::uint64_t m_Reallocations = 0;
+        bool m_HasAllocated = false;
     };
     void ReportFramebufferError(const char* operation, const FramebufferError&);
 }

@@ -282,7 +282,7 @@ namespace
         }
         Check(target.OnResize(28,24).has_value(), "Target resize failed"); verify(); Check(!glIsRenderbuffer(rbo), "Old RBO leaked");
         Check(target.RenderSize({30,26}).has_value(), "RenderSize failed"); verify();
-        Check(!target.OnResize(0,24) && !target.RenderSize({(std::numeric_limits<float>::quiet_NaN)(),24}) && !target.SetSamples(0), "Invalid target input accepted");
+        Check(!target.OnResize(8193,24) && !target.RenderSize({(std::numeric_limits<float>::quiet_NaN)(),24}) && !target.SetSamples(0), "Invalid target input accepted");
         Observer::fault = Observer::Fault::RenderbufferStorage;
         const auto before = RenderCounters::Current().liveNames;
         Check(!RenderTarget::Create(12,12,1), "Failed target creation succeeded"); Observer::ErrorObserved();

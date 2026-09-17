@@ -29,6 +29,22 @@ namespace GEngine
         RenderTargetAttachmentSpecification Attachments{RenderTargetTextureFormat::RGBA8, RenderTargetTextureFormat::Depth};
         bool SwapChainTarget = false;
     };
+    enum class RenderTargetUsage : std::uint8_t
+    {
+        Attachment = 1, Sampled = 2, Readback = 4, Presentation = 8
+    };
+    constexpr RenderTargetUsage operator|(RenderTargetUsage a, RenderTargetUsage b) noexcept
+    { return static_cast<RenderTargetUsage>(static_cast<unsigned>(a) | static_cast<unsigned>(b)); }
+    // All described attachments are owned. Storage supplies extent, samples,
+    // formats, layers and texture/depth-storage intent. Output usage determines
+    // whether multisampled colors need single-sample resolve storage.
+    struct RenderTargetDesc
+    {
+        FrameBufferSpecification Storage;
+        RenderTargetUsage Usage = RenderTargetUsage::Attachment | RenderTargetUsage::Sampled
+            | RenderTargetUsage::Readback | RenderTargetUsage::Presentation;
+        bool operator==(const RenderTargetDesc&) const = default;
+    };
     // Semantic convenience operations over one move-only framebuffer owner.
     class FramebufferTarget
     {
@@ -141,14 +157,20 @@ namespace GEngine
         RenderTarget() = default;
         RenderTarget(const RenderTarget&) = delete;
         RenderTarget& operator=(const RenderTarget&) = delete;
-        RenderTarget(RenderTarget&&) noexcept = default;
-        RenderTarget& operator=(RenderTarget&&) noexcept = default;
+        RenderTarget(RenderTarget&&) noexcept;
+        RenderTarget& operator=(RenderTarget&&) noexcept;
         static std::expected<RenderTarget, FramebufferError> Create(const RenderTargetSpecification&);
         static std::expected<RenderTarget, FramebufferError> Create(int width, int height, unsigned samples = 16);
         static std::expected<RenderTarget, FramebufferError> Create(const Math::Vec2f& resolution);
-        int GetWidth() const { return static_cast<int>(m_Render.Description().Width); }
-        int GetHeight() const { return static_cast<int>(m_Render.Description().Height); }
-        unsigned GetSamples() const { return m_Render.Description().Samples; }
+        static std::expected<RenderTarget, FramebufferError> Create(const RenderTargetDesc&);
+        const RenderTargetDesc& Description() const noexcept { return m_Description; }
+        // Successful storage replacements after initial allocation, once per
+        // transaction. Zero-size deferral, no-ops and failures do not increment.
+        std::uint64_t ReallocationCount() const noexcept { return m_Reallocations; }
+        [[nodiscard]] FramebufferResult Reconfigure(const RenderTargetDesc&);
+        int GetWidth() const { return static_cast<int>(m_Description.Storage.Width); }
+        int GetHeight() const { return static_cast<int>(m_Description.Storage.Height); }
+        unsigned GetSamples() const { return m_Description.Storage.Samples; }
         bool IsMultiSampled() const { return GetSamples() > 1; }
         explicit operator bool() const noexcept { return bool(m_Render); }
         const FrameBuffer& Buffer(RenderTargetSurface surface = RenderTargetSurface::Scene) const
@@ -160,13 +182,15 @@ namespace GEngine
         [[nodiscard]] FramebufferResult ClearAttachment(std::uint32_t index, int value) const { return m_Render.ClearInteger(index, value); }
         [[nodiscard]] std::expected<int, FramebufferError> ReadPixel(std::uint32_t index, int x, int y) const;
         [[nodiscard]] FramebufferResult ReadColor(std::span<std::byte> rgba) const;
-        [[nodiscard]] std::expected<Asset::AttachmentView, FramebufferError> ColorView() const
-        { return Buffer(RenderTargetSurface::Resolved).ColorView(); }
+        [[nodiscard]] std::expected<Asset::AttachmentView, FramebufferError> ColorView() const;
         [[nodiscard]] FramebufferResult OnResize(std::uint32_t width, std::uint32_t height);
         [[nodiscard]] FramebufferResult RenderSize(const Math::Vec2f& resolution = {512, 512});
         [[nodiscard]] FramebufferResult SetSamples(int samples);
     private:
-        static std::expected<RenderTarget, FramebufferError> Allocate(const FrameBufferSpecification&);
+        bool Allows(RenderTargetUsage usage) const noexcept;
         FrameBuffer m_Render, m_Resolved;
+        RenderTargetDesc m_Description;
+        std::uint64_t m_Reallocations = 0;
+        bool m_HasAllocated = false;
     };
 }

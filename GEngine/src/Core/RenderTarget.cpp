@@ -42,17 +42,61 @@ namespace GEngine
         auto buffer = FrameBuffer::Create(d); if (!buffer) return std::unexpected(buffer.error());
         CascadeShadowFrameBuffer result; result.m_Buffer = std::move(*buffer); return result;
     }
-    std::expected<RenderTarget, FramebufferError> RenderTarget::Allocate(const FrameBufferSpecification& d)
+    bool RenderTarget::Allows(RenderTargetUsage usage) const noexcept
+    { return (static_cast<unsigned>(m_Description.Usage) & static_cast<unsigned>(usage)) != 0; }
+    RenderTarget::RenderTarget(RenderTarget&& other) noexcept { *this = std::move(other); }
+    RenderTarget& RenderTarget::operator=(RenderTarget&& other) noexcept
     {
-        auto scene = FrameBuffer::Create(d); if (!scene) return std::unexpected(scene.error());
-        RenderTarget result; result.m_Render = std::move(*scene);
-        if (d.Samples > 1 && d.ColorCount)
+        if (this != &other)
         {
-            auto resolved = d; resolved.Samples = 1; resolved.Depth = FramebufferFormat::None; resolved.DepthRenderbuffer = false;
-            auto buffer = FrameBuffer::Create(resolved); if (!buffer) return std::unexpected(buffer.error());
-            result.m_Resolved = std::move(*buffer);
+            m_Render = std::move(other.m_Render); m_Resolved = std::move(other.m_Resolved);
+            m_Description = std::exchange(other.m_Description, RenderTargetDesc{});
+            m_Reallocations = std::exchange(other.m_Reallocations, 0);
+            m_HasAllocated = std::exchange(other.m_HasAllocated, false);
         }
+        return *this;
+    }
+    std::expected<RenderTarget, FramebufferError> RenderTarget::Create(const RenderTargetDesc& desc)
+    {
+        RenderTarget result;
+        if (auto configured = result.Reconfigure(desc); !configured) return std::unexpected(configured.error());
         return result;
+    }
+    FramebufferResult RenderTarget::Reconfigure(const RenderTargetDesc& desc)
+    {
+        const auto usage = static_cast<unsigned>(desc.Usage);
+        if ((usage & 1u) == 0 || (usage & ~15u) != 0)
+            return std::unexpected(FramebufferError{FramebufferErrorCode::InvalidDescription, "Target usage requires attachment intent and known output usages",
+                desc.Storage.Width, desc.Storage.Height, desc.Storage.Samples});
+        if (auto valid = FrameBuffer::ValidateDescription(desc.Storage); !valid) return valid;
+        m_Render.RequireOwner(); m_Resolved.RequireOwner();
+        auto resolved = FrameBufferSpecification{0, 0, 0, 0};
+        if (desc.Storage.Samples > 1 && desc.Storage.ColorCount && (usage & ~1u))
+        {
+            resolved = desc.Storage; resolved.Samples = 1;
+            resolved.Depth = FramebufferFormat::None; resolved.DepthRenderbuffer = false;
+        }
+        const bool sceneChanged = desc.Storage != m_Render.Description();
+        const bool resolveChanged = resolved != m_Resolved.Description();
+        FrameBuffer scene, output;
+        if (sceneChanged)
+        {
+            auto candidate = m_Render.Prepare(desc.Storage); if (!candidate) return std::unexpected(candidate.error());
+            scene = std::move(*candidate);
+        }
+        if (resolveChanged && resolved.Samples)
+        {
+            auto candidate = m_Resolved.Prepare(resolved); if (!candidate) return std::unexpected(candidate.error());
+            output = std::move(*candidate);
+        }
+        // Both preparations succeeded. Borrowed attachments transfer only now;
+        // neither owner nor its observers change on any earlier failure.
+        const bool replacing = (bool(scene) || bool(output)) && m_HasAllocated;
+        if (sceneChanged) m_Render.Commit(std::move(scene));
+        if (resolveChanged) m_Resolved.Commit(std::move(output));
+        m_Description = desc; m_HasAllocated = m_HasAllocated || bool(m_Render);
+        m_Reallocations += replacing; RenderCounters::RecordTargetReallocation(replacing);
+        return {};
     }
     std::expected<RenderTarget, FramebufferError> RenderTarget::Create(const RenderTargetSpecification& spec)
     {
@@ -69,17 +113,17 @@ namespace GEngine
                 d.Colors[d.ColorCount++] = a.TextureFormat == RenderTargetTextureFormat::RGBA8 ? FramebufferFormat::RGBA8 : FramebufferFormat::RedInteger;
             else return std::unexpected(FramebufferError{FramebufferErrorCode::InvalidDescription, "Invalid or excessive target attachment"});
         }
-        return Allocate(d);
+        return Create(RenderTargetDesc{d});
     }
     std::expected<RenderTarget, FramebufferError> RenderTarget::Create(int w, int h, unsigned samples)
     {
-        if (w < 1 || h < 1) return std::unexpected(InvalidSize());
+        if (w < 0 || h < 0) return std::unexpected(InvalidSize());
         auto d = ColorDescription(static_cast<unsigned>(w), static_cast<unsigned>(h));
-        d.Samples = samples; d.Depth = FramebufferFormat::Depth24Stencil8; d.DepthRenderbuffer = true; return Allocate(d);
+        d.Samples = samples; d.Depth = FramebufferFormat::Depth24Stencil8; d.DepthRenderbuffer = true; return Create(RenderTargetDesc{d});
     }
     std::expected<RenderTarget, FramebufferError> RenderTarget::Create(const Math::Vec2f& size)
     {
-        if (!std::isfinite(size.x) || !std::isfinite(size.y) || size.x < 1 || size.y < 1 || size.x > 8192 || size.y > 8192)
+        if (!std::isfinite(size.x) || !std::isfinite(size.y) || size.x < 0 || size.y < 0 || size.x > 8192 || size.y > 8192)
             return std::unexpected(InvalidSize());
         return Create(static_cast<int>(size.x), static_cast<int>(size.y));
     }
@@ -92,33 +136,40 @@ namespace GEngine
     }
     std::expected<int, FramebufferError> RenderTarget::ReadPixel(std::uint32_t index, int x, int y) const
     {
+        if (!Allows(RenderTargetUsage::Readback))
+            return std::unexpected(FramebufferError{FramebufferErrorCode::InvalidOperation, "Target was not described for readback"});
         if (auto result = BindAndBlitToScreen(); !result) return std::unexpected(result.error());
         return Buffer(RenderTargetSurface::Resolved).ReadInteger(index, x, y);
     }
     FramebufferResult RenderTarget::ReadColor(std::span<std::byte> rgba) const
     {
+        if (!Allows(RenderTargetUsage::Readback))
+            return std::unexpected(FramebufferError{FramebufferErrorCode::InvalidOperation, "Target was not described for readback"});
         if (auto result = BindAndBlitToScreen(); !result) return result;
         return Buffer(RenderTargetSurface::Resolved).ReadColor(0, rgba);
     }
+    std::expected<Asset::AttachmentView, FramebufferError> RenderTarget::ColorView() const
+    {
+        if (!Allows(RenderTargetUsage::Sampled))
+            return std::unexpected(FramebufferError{FramebufferErrorCode::InvalidView, "Target was not described for sampling"});
+        return Buffer(RenderTargetSurface::Resolved).ColorView();
+    }
     FramebufferResult RenderTarget::OnResize(unsigned w, unsigned h)
     {
-        auto d = m_Render.Description(); d.Width = w; d.Height = h;
-        auto candidate = Allocate(d); if (!candidate) return std::unexpected(candidate.error());
-        RenderCounters::RecordTargetReallocation(bool(m_Render)); *this = std::move(*candidate); return {};
+        auto desc = m_Description; desc.Storage.Width = w; desc.Storage.Height = h;
+        return Reconfigure(desc);
     }
     FramebufferResult RenderTarget::RenderSize(const Math::Vec2f& size)
     {
-        if (!std::isfinite(size.x) || !std::isfinite(size.y) || size.x < 1 || size.y < 1 || size.x > 8192 || size.y > 8192)
+        if (!std::isfinite(size.x) || !std::isfinite(size.y) || size.x < 0 || size.y < 0 || size.x > 8192 || size.y > 8192)
             return std::unexpected(InvalidSize());
         return OnResize(static_cast<unsigned>(size.x), static_cast<unsigned>(size.y));
     }
     FramebufferResult RenderTarget::SetSamples(int samples)
     {
         if (samples < 1) return std::unexpected(InvalidSize());
-        if (static_cast<unsigned>(samples) == GetSamples()) return {};
-        auto d = m_Render.Description(); d.Samples = static_cast<unsigned>(samples);
-        auto candidate = Allocate(d); if (!candidate) return std::unexpected(candidate.error());
-        RenderCounters::RecordTargetReallocation(bool(m_Render)); *this = std::move(*candidate); return {};
+        auto desc = m_Description; desc.Storage.Samples = static_cast<unsigned>(samples);
+        return Reconfigure(desc);
     }
 
     // Unchanged standalone UBO/RBO legacy contracts: residual error-model owner Phase 66.

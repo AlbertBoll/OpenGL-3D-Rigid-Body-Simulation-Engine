@@ -97,6 +97,10 @@ namespace GEngine
         FrameBufferSpecification desc;
         GLuint name = 0, depth = 0, renderbuffer = 0;
         std::array<GLuint, 4> colors{};
+        // Prepared replacements borrow unchanged names until Commit transfers
+        // ownership. Failure only destroys newly allocated storage.
+        std::array<bool, 4> borrowedColors{};
+        bool borrowedDepth = false;
         SDL_GLContext context = SDL_GL_GetCurrentContext();
         void Require() const
         {
@@ -107,30 +111,43 @@ namespace GEngine
         {
             Require();
             if (name) glDeleteFramebuffers(1, &name);
-            for (const auto color : colors) if (color) glDeleteTextures(1, &color);
-            if (depth) glDeleteTextures(1, &depth);
-            if (renderbuffer) glDeleteRenderbuffers(1, &renderbuffer);
+            for (unsigned i = 0; i < colors.size(); ++i)
+                if (colors[i] && !borrowedColors[i]) glDeleteTextures(1, &colors[i]);
+            if (depth && !borrowedDepth) glDeleteTextures(1, &depth);
+            if (renderbuffer && !borrowedDepth) glDeleteRenderbuffers(1, &renderbuffer);
         }
     };
     FrameBuffer::FrameBuffer() noexcept = default;
     FrameBuffer::~FrameBuffer() = default;
-    FrameBuffer::FrameBuffer(FrameBuffer&&) noexcept = default;
+    FrameBuffer::FrameBuffer(FrameBuffer&& other) noexcept { *this = std::move(other); }
     FrameBuffer& FrameBuffer::operator=(FrameBuffer&& other) noexcept
-    { if (this != &other) m_Storage = std::move(other.m_Storage); return *this; }
+    {
+        if (this != &other)
+        {
+            m_Storage = std::move(other.m_Storage);
+            m_Description = std::exchange(other.m_Description, FrameBufferSpecification{0, 0, 0, 0});
+            m_Reallocations = std::exchange(other.m_Reallocations, 0);
+            m_HasAllocated = std::exchange(other.m_HasAllocated, false);
+        }
+        return *this;
+    }
     FrameBuffer::operator bool() const noexcept { return m_Storage && m_Storage->name; }
+    void FrameBuffer::RequireOwner() const { if (m_Storage) m_Storage->Require(); }
     const FrameBufferSpecification& FrameBuffer::Description() const noexcept
-    { static const FrameBufferSpecification empty{0, 0, 0, 0}; return m_Storage ? m_Storage->desc : empty; }
+    { return m_Description; }
     void ReportFramebufferError(const char* operation, const FramebufferError& e)
     { GENGINE_CORE_ERROR("Framebuffer {}: {} (code={}, {}x{}, samples={})", operation,
         e.message, static_cast<int>(e.code), e.width, e.height, e.samples); }
 
     std::expected<FrameBuffer, FramebufferError> FrameBuffer::Create(const FrameBufferSpecification& d)
+    { return FrameBuffer{}.Prepare(d); }
+    FramebufferResult FrameBuffer::ValidateDescription(const FrameBufferSpecification& d)
     {
-        if (!d.Width || !d.Height || !d.Samples || !d.Layers || d.Width > 8192 || d.Height > 8192
+        if (!d.Samples || !d.Layers || d.Width > 8192 || d.Height > 8192
             || d.Samples > 64 || d.ColorCount > d.Colors.size()
             || (d.Kind != FramebufferKind::Image2D && d.Kind != FramebufferKind::Cube && d.Kind != FramebufferKind::Array)
             || (d.Kind != FramebufferKind::Image2D && (d.ColorCount || d.Samples != 1 || d.DepthRenderbuffer))
-            || (d.Kind == FramebufferKind::Cube && (d.Width != d.Height || d.Layers != 6))
+            || (d.Kind == FramebufferKind::Cube && ((d.Width && d.Height && d.Width != d.Height) || d.Layers != 6))
             || (d.Kind == FramebufferKind::Image2D && d.Layers != 1)
             || (d.Depth != Format::None && d.Depth != Format::Depth24 && d.Depth != Format::Depth24Stencil8 && d.Depth != Format::Depth32Float)
             || (d.DepthRenderbuffer && d.Depth == Format::None) || (!d.ColorCount && d.Depth == Format::None))
@@ -138,6 +155,14 @@ namespace GEngine
         for (std::uint32_t i = 0; i < d.Colors.size(); ++i)
             if (i < d.ColorCount ? d.Colors[i] != Format::RGBA8 && d.Colors[i] != Format::RedInteger : d.Colors[i] != Format::None)
                 return std::unexpected(Error(FramebufferErrorCode::InvalidDescription, "Invalid color attachment layout", d));
+        return {};
+    }
+    std::expected<FrameBuffer, FramebufferError> FrameBuffer::Prepare(const FrameBufferSpecification& d) const
+    {
+        if (auto valid = ValidateDescription(d); !valid) return std::unexpected(valid.error());
+        if (m_Storage) m_Storage->Require();
+        FrameBuffer result; result.m_Description = d;
+        if (!d.Width || !d.Height) return result;
         if (!GLContextThread::IsCurrentOwner())
             return std::unexpected(Error(FramebufferErrorCode::ContextUnavailable, "Framebuffer creation requires a current owning context", d));
         GLint limit = 0, layers = 0, draws = 0, colors = 0, rboLimit = 0;
@@ -156,10 +181,12 @@ namespace GEngine
             return std::unexpected(Error(FramebufferErrorCode::Unsupported, "Unsupported depth sample count", d));
         const auto target = Target(d);
         Bindings restore(target);
-        FrameBuffer result;
         result.m_Storage.reset(new (std::nothrow) Storage);
         if (!result.m_Storage) return std::unexpected(Error(FramebufferErrorCode::Allocation, "Framebuffer owner allocation failed", d));
         auto& s = *result.m_Storage; s.desc = d;
+        const auto& previous = Description();
+        const bool sameShape = m_Storage && d.Width == previous.Width && d.Height == previous.Height
+            && d.Samples == previous.Samples && d.Kind == previous.Kind && d.Layers == previous.Layers;
         glGenFramebuffers(1, &s.name);
         if (!s.name) return std::unexpected(Error(FramebufferErrorCode::Allocation, "Framebuffer name allocation failed", d));
         glBindFramebuffer(GL_FRAMEBUFFER, s.name);
@@ -204,11 +231,24 @@ namespace GEngine
             glFramebufferTexture(GL_FRAMEBUFFER, attachment, name, 0); return {};
         };
         for (std::uint32_t i = 0; i < d.ColorCount; ++i)
-            if (auto a = texture(s.colors[i], d.Colors[i], GL_COLOR_ATTACHMENT0 + i); !a) return std::unexpected(a.error());
+        {
+            if (sameShape && d.Colors[i] == previous.Colors[i])
+            {
+                s.colors[i] = m_Storage->colors[i]; s.borrowedColors[i] = true;
+                glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, s.colors[i], 0);
+            }
+            else if (auto a = texture(s.colors[i], d.Colors[i], GL_COLOR_ATTACHMENT0 + i); !a) return std::unexpected(a.error());
+        }
         if (d.Depth != Format::None)
         {
             const auto point = d.Depth == Format::Depth24Stencil8 ? GL_DEPTH_STENCIL_ATTACHMENT : GL_DEPTH_ATTACHMENT;
-            if (d.DepthRenderbuffer)
+            if (sameShape && d.Depth == previous.Depth && d.DepthRenderbuffer == previous.DepthRenderbuffer)
+            {
+                s.depth = m_Storage->depth; s.renderbuffer = m_Storage->renderbuffer; s.borrowedDepth = true;
+                if (d.DepthRenderbuffer) glFramebufferRenderbuffer(GL_FRAMEBUFFER, point, GL_RENDERBUFFER, s.renderbuffer);
+                else glFramebufferTexture(GL_FRAMEBUFFER, point, s.depth, 0);
+            }
+            else if (d.DepthRenderbuffer)
             {
                 glGenRenderbuffers(1, &s.renderbuffer);
                 if (!s.renderbuffer) return std::unexpected(Error(FramebufferErrorCode::Allocation, "Renderbuffer name allocation failed", d));
@@ -236,6 +276,7 @@ namespace GEngine
             GENGINE_CORE_ERROR("Framebuffer completeness failed: status={}, {}x{}, samples={}, layers={}", status, d.Width, d.Height, d.Samples, d.Layers);
             return std::unexpected(Error(FramebufferErrorCode::Incomplete, "Framebuffer attachment configuration is incomplete", d));
         }
+        result.m_HasAllocated = true;
         return result;
     }
     void FrameBuffer::Bind(FramebufferBinding b) const
@@ -248,9 +289,30 @@ namespace GEngine
     FramebufferResult FrameBuffer::Resize(std::uint32_t width, std::uint32_t height)
     {
         auto desc = Description(); desc.Width = width; desc.Height = height;
+        return Reconfigure(desc);
+    }
+    FramebufferResult FrameBuffer::Reconfigure(const FrameBufferSpecification& desc)
+    {
+        if (auto valid = ValidateDescription(desc); !valid) return valid;
         if (m_Storage) m_Storage->Require();
-        auto candidate = Create(desc); if (!candidate) return std::unexpected(candidate.error());
-        RenderCounters::RecordTargetReallocation(bool(*this)); *this = std::move(*candidate); return {};
+        if (desc == Description()) return {};
+        auto candidate = Prepare(desc); if (!candidate) return std::unexpected(candidate.error());
+        const bool replacing = bool(*candidate) && m_HasAllocated;
+        Commit(std::move(*candidate)); RenderCounters::RecordTargetReallocation(replacing); return {};
+    }
+    void FrameBuffer::Commit(FrameBuffer&& candidate) noexcept
+    {
+        if (candidate.m_Storage)
+        {
+            auto& s = *candidate.m_Storage;
+            for (unsigned i = 0; i < s.colors.size(); ++i)
+                if (s.borrowedColors[i]) { m_Storage->colors[i] = 0; s.borrowedColors[i] = false; }
+            if (s.borrowedDepth)
+            { m_Storage->depth = m_Storage->renderbuffer = 0; s.borrowedDepth = false; }
+        }
+        const auto count = m_Reallocations + (bool(candidate) && m_HasAllocated);
+        const bool allocated = m_HasAllocated || bool(candidate);
+        *this = std::move(candidate); m_Reallocations = count; m_HasAllocated = allocated;
     }
     FramebufferResult FrameBuffer::ResolveTo(const FrameBuffer& destination, std::uint32_t source, std::uint32_t target) const
     {
@@ -320,7 +382,12 @@ namespace GEngine
         if (!*this || i >= d.ColorCount || d.Samples != 1)
             return std::unexpected(Error(FramebufferErrorCode::InvalidView, "Sampled color view requires a single-sample color attachment", d));
         m_Storage->Require();
-        return Asset::AssetDetail::TextureBackend::Borrow([this, i] { return m_Storage ? m_Storage->colors[i] : 0; }, Target(d));
+        return Asset::AssetDetail::TextureBackend::Borrow([this, i, kind = d.Kind, format = d.Colors[i]]
+        {
+            const auto& current = Description();
+            return m_Storage && current.Kind == kind && current.Samples == 1 && current.Colors[i] == format
+                ? m_Storage->colors[i] : 0;
+        }, Target(d));
     }
     std::expected<Asset::AttachmentView, FramebufferError> FrameBuffer::DepthView() const
     {
@@ -328,7 +395,12 @@ namespace GEngine
         if (!*this || !m_Storage->depth || d.Samples != 1)
             return std::unexpected(Error(FramebufferErrorCode::InvalidView, "Sampled depth view requires a single-sample depth texture", d));
         m_Storage->Require();
-        return Asset::AssetDetail::TextureBackend::Borrow([this] { return m_Storage ? m_Storage->depth : 0; }, Target(d));
+        return Asset::AssetDetail::TextureBackend::Borrow([this, kind = d.Kind, format = d.Depth]
+        {
+            const auto& current = Description();
+            return m_Storage && current.Kind == kind && current.Samples == 1 && current.Depth == format
+                ? m_Storage->depth : 0;
+        }, Target(d));
     }
     GLuint FramebufferDetail::Backend::Name(const FrameBuffer& b) { return b.m_Storage ? b.m_Storage->name : 0; }
     GLuint FramebufferDetail::Backend::Color(const FrameBuffer& b, std::uint32_t i) { return b.m_Storage && i < 4 ? b.m_Storage->colors[i] : 0; }

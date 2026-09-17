@@ -1097,7 +1097,7 @@ surface retain their roadmap ownership. Graphical startup/close integration uses
 `python tools/test_shutdown.py --configuration Debug --no-build --smoke --output <dir>`
 and the corresponding Release command. No benchmark or sanitizer gate is implied.
 
-## Phase 28 framebuffer ownership and correctness
+## Phase 28/29 framebuffer ownership, description and resize
 
 Run `python tools/test_framebuffer.py --configuration Debug --output <directory>`
 and the corresponding Release command. The runner builds maintained affected
@@ -1114,7 +1114,7 @@ readback and resolve. Native names are available only in the private backend/pro
 header. Framebuffers are move-only; destruction/replacement require their creating
 context on the owning thread. Moved-from objects are empty and report zero sizes.
 
-Creation and resize allocate complete replacements before retiring existing
+Creation and resize prepare complete replacements before retiring changed
 storage. Integer clear/readback validates the requested attachment and coordinates.
 Resolve uses nearest filtering with matching dimensions/formats and a single-sample
 destination. Integer textures use nearest sampling. Readback isolates pixel-pack
@@ -1128,9 +1128,40 @@ moving its ownership does not redirect previously issued views to the destinatio
 Publish and resolve resources before use, and finish submission before retirement.
 This phase does not introduce a new attachment identity or lifetime registry.
 
+Phase 29 adds the fixed-size, native-free `RenderTargetDesc`: `Storage` describes
+extent, exact samples, formats, attachment slots, depth texture/renderbuffer intent,
+kind and layers; `Usage` declares attachment, sampled, readback and presentation
+intent. All storage is owned. The legacy specification and size overloads adapt to
+the same implementation. Attachment-only targets omit resolve storage; multisample
+color output usages require it. Sampling/readback methods enforce their usage.
+This is allocation/output policy, not a render graph or pass load/store API.
+
+A zero width or height is a successful deferred description with no GPU storage
+and a false target readiness conversion. Structural validation still applies;
+hardware limits/sample support are checked on the next nonzero allocation. Passing
+zero to an allocated target releases its storage. Bind requires a ready target;
+views/readback return typed errors while deferred. Equal descriptions preserve
+names and pixels. Resize replaces size-dependent attachments; format/depth changes
+retain unrelated attachments, and a sample-only change retains compatible resolve
+storage. Scene and resolve replacements publish together or roll back together.
+Retained attachments keep their contents; newly allocated attachments require the
+caller's normal clear/render before use. No implicit load or clear is introduced.
+
+`ReallocationCount()` counts successful transactions that allocate replacement
+storage after the first live allocation, including resumption after zero extent.
+It is available in both configurations; the existing Debug frame counter records
+the same transactions. Initial allocation, zero-size release/deferral, metadata-only
+changes, repeated size/samples and failed preparation do not count. Moves transfer
+the accumulated count. A format/sample/kind change can invalidate an old view;
+observers never return a name with an incompatible cached sampling target/format.
+Reacquire views when changing output surface or attachment interpretation. Compatible
+views recover across zero/nonzero transitions on the same owner object.
+
 The focused GL probe checks two context lifetimes, rectangular/square targets,
 actual integer texture sampling, MSAA color/integer resolve pixels, depth/cube/array
-targets, views, moves/relocation and exact driver deletion. Fault injection covers
+targets, views, moves/relocation and exact driver deletion. Phase 29 adds zero/nonzero
+transitions, repeated same size, usage/format/sample variants, dependent attachment
+preservation and exact reallocation counters. Fault injection covers
 owner/name/storage/completeness failures and replacement rollback. Separate modes
 check worker and foreign-context deletion before driver forwarding, plus typed
 startup failures at early/late framebuffer-owner and wrapper allocations. Startup
@@ -1147,4 +1178,5 @@ The approved C++23/toolset/static-CRT/build/dependency policy is unchanged. Newl
 migrated framebuffer failures use expected results. Existing standalone UBO/RBO
 exception APIs and unrelated platform, file-output, shader/material and application
 contracts retain their documented future-phase ownership. The current Phase 28
-review records actual coverage, exceptions (if any), evidence and seal status.
+review and current Phase 29 review record actual coverage, exceptions (if any),
+evidence and seal status.

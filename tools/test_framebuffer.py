@@ -215,6 +215,9 @@ def main():
             'static_assert(!std::is_copy_constructible_v<GEngine::FrameBuffer>);\n'
             'static_assert(std::is_nothrow_move_constructible_v<GEngine::FrameBuffer>);\n'
             'static_assert(std::is_same_v<decltype(GEngine::FrameBuffer::Create({})), std::expected<GEngine::FrameBuffer, GEngine::FramebufferError>>);\n'
+            'static_assert(std::is_trivially_copyable_v<GEngine::RenderTargetDesc>);\n'
+            'static_assert(std::is_same_v<decltype(GEngine::RenderTarget::Create(GEngine::RenderTargetDesc{})), std::expected<GEngine::RenderTarget, GEngine::FramebufferError>>);\n'
+            'auto reconfigure(GEngine::RenderTarget& t, GEngine::RenderTargetDesc d) { d.Usage = GEngine::RenderTargetUsage::Attachment | GEngine::RenderTargetUsage::Sampled; return t.Reconfigure(d); }\n'
             'auto consume(const GEngine::RenderTarget& t) { return t.ColorView(); }\n'
             'GEngine::ApplicationInitializationResult startupFailure() { return std::unexpected(GEngine::FramebufferError{GEngine::FramebufferErrorCode::Allocation, "failure"}); }\n')
         if not invoke('framebuffer-consumer-boundary', [*common, '/showIncludes', '/c',

@@ -1,11 +1,18 @@
 #pragma once
 
 #include "Renderer/RenderFrame.h"
-#include "Scene/_Scene.h"
+#include "Renderer/RenderTasks.h"
 #include <variant>
 
 namespace GEngine
 {
+    struct RenderExtractionConfig
+    {
+        // Serial remains the measured default. 1 exercises the frozen task path
+        // on the owner; 2..MaxWorkers opt into bounded parallel extraction.
+        RenderTaskConfig tasks;
+        std::size_t parallelThreshold = 4096; // Frozen entity count; 0 forces comparison.
+    };
     struct RenderExtractionStats
     {
         std::size_t sceneEntities{}, candidates{}, disabled{}, draws{};
@@ -16,16 +23,22 @@ namespace GEngine
         // frameStorage counts only the new frame arrays, not preparation/cache/packet
         // allocations. Allocator-level validation reports the complete call separately.
         double preparationMicroseconds{}, extractionMicroseconds{};
+        RenderTaskStats tasks;
+        bool thresholdFallback{};
     };
     using RenderExtractionCause = std::variant<TransformError, RenderEcsError,
-        Asset::RegistryError, MaterialBindingError, FrameError>;
+        Asset::RegistryError, MaterialBindingError, FrameError, RenderWorkError>;
     struct RenderExtractionError
     {
         EntityRenderId entity; // Invalid for a scene-wide error; TransformError retains UUID context.
         RenderExtractionCause cause;
     };
 
-    // Owner-thread serial stage. Finish authoring and asset publication first; the
+    // Owner-thread entry point. Configured tasks read copied frozen inputs and write
+    // lane-owned output; the owner joins, merges in source order and finalizes once.
+    // No mutable ECS/manager/registry access or GL occurs on workers. Serial is the
+    // default; the optional task path preserves frame order and retained versions.
+    // Finish authoring and asset publication first; the
     // supplied FrameAccess must cover this entire call and CPU submission. It blocks
     // publication/replacement, so preparation and emission see the same ready versions.
     // This entry point creates its own snapshot: a prior-frame snapshot cannot enter.
@@ -55,5 +68,6 @@ namespace GEngine
     // Retain the returned frame through submission and its registries through retirement.
     [[nodiscard]] std::expected<RenderFrame, RenderExtractionError> ExtractRenderFrame(
         _Scene&, const RenderStateResources&, RenderExtractionStats&,
-        std::span<const FrameCamera> cameras = {}, std::span<const FrameDebugLine> debugLines = {});
+        std::span<const FrameCamera> cameras = {}, std::span<const FrameDebugLine> debugLines = {},
+        RenderExtractionConfig = {});
 }

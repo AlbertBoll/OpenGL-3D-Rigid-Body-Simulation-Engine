@@ -1,4 +1,5 @@
 #include "Renderer/RenderExtraction.h"
+#include "Renderer/RenderVisibility.h"
 #include <type_traits>
 
 using namespace GEngine;
@@ -43,6 +44,10 @@ LightUpload ConsumeLights(const RenderFrame& frame)
 #include <glad/glad.h>
 #include <sdl2/SDL.h>
 #include <cstdlib>
+#include <algorithm>
+#include <atomic>
+#include <bit>
+#include <chrono>
 #include <limits>
 #include <new>
 #include <numbers>
@@ -51,9 +56,9 @@ LightUpload ConsumeLights(const RenderFrame& frame)
 
 namespace Allocations
 {
-    bool active{};
-    std::size_t count{}, bytes{};
-    int failArray = -1, arrays{};
+    std::atomic<bool> active{};
+    std::atomic<std::size_t> count{}, bytes{};
+    std::atomic<int> failArray{-1}, arrays{};
 }
 void* operator new(std::size_t bytes)
 {
@@ -74,12 +79,19 @@ void operator delete[](void* p, const std::nothrow_t&) noexcept { ::operator del
 
 namespace
 {
+    RenderExtractionConfig selectedConfig;
     int checks{};
     const char* lastCheck = "startup";
     template<class T> void Check(const T& value, const char* message)
     {
         lastCheck = message; ++checks;
         if (!static_cast<bool>(value)) { std::println(stderr, "[FAIL] {}", message); std::exit(1); }
+    }
+    bool AllocationFailure(const RenderExtractionError& error)
+    {
+        if (const auto* frame=std::get_if<FrameError>(&error.cause)) return frame->code==FrameErrorCode::AllocationFailed;
+        if (const auto* work=std::get_if<RenderWorkError>(&error.cause)) return work->code==RenderWorkCode::Allocation;
+        return false;
     }
     struct Vertex { float x,y,z; };
     MeshAsset MeshSource(float scale = 1)
@@ -151,7 +163,7 @@ namespace
             std::span<const FrameCamera> cameras = {}, std::span<const FrameDebugLine> lines = {})
         {
             auto access = publication.BeginFrame();
-            return ExtractRenderFrame(scene, {access, meshes, materials, {programs,textures,samplers}, {}}, stats, cameras, lines);
+            return ExtractRenderFrame(scene, {access, meshes, materials, {programs,textures,samplers}, {}}, stats, cameras, lines, selectedConfig);
         }
     };
     void Basic(SDL_Window* window, SDL_GLContext context)
@@ -233,7 +245,7 @@ namespace
                 "Frozen emission uses exactly two frame arrays without growth");
             std::println("[METRIC] items={} preparation_us={:.3f} extraction_us={:.3f} frame_allocations={} total_call_allocations={} total_requested_bytes={}",
                 stats.draws, stats.preparationMicroseconds, stats.extractionMicroseconds,
-                stats.frameStorage.storageAllocations, Allocations::count, Allocations::bytes);
+                stats.frameStorage.storageAllocations, Allocations::count.load(), Allocations::bytes.load());
         }
         Check(SDL_GL_MakeCurrent(window, context) == 0, "Restore many-entity context");
     }
@@ -270,7 +282,7 @@ namespace
         {
             Allocations::arrays = 0; Allocations::failArray = failure; Allocations::active = true;
             result = f.Extract(stats, {&camera,1}, {&line,1}); Allocations::active = false;
-            Check(!result && std::get<FrameError>(result.error().cause).code == FrameErrorCode::AllocationFailed,
+            Check(!result && AllocationFailure(result.error()),
                 "Frame array allocation failure propagates without a partial frame");
             Check(f.scene.RenderData().Replace(id, intent), "Failure releases extraction freeze");
         }
@@ -335,7 +347,7 @@ namespace
         {
             Allocations::arrays = 0; Allocations::failArray = failure; Allocations::active = true;
             auto failed = f.Extract(stats); Allocations::active = false;
-            Check(!failed && std::get<FrameError>(failed.error().cause).code == FrameErrorCode::AllocationFailed,
+            Check(!failed && AllocationFailure(failed.error()),
                 "Light extraction allocation failure returns no partial frame");
             Check(f.scene.RenderData().Replace(spotId, intent), "Light allocation failure releases ECS freeze");
         }
@@ -495,9 +507,208 @@ namespace
         auto invalidCapacity = RenderFrameBuilder::Create(capacity);
         Check(!invalidCapacity && invalidCapacity.error().code == FrameErrorCode::LightLimitExceeded, "Builder enforces combined capacity maximum");
     }
+    struct ContentHash
+    {
+        std::uint64_t value = 14695981039346656037ull;
+        void Number(std::uint64_t n) { for (int i=0;i<8;++i) { value ^= (n >> (i*8)) & 255; value *= 1099511628211ull; } }
+        void Float(float n) { Number(std::bit_cast<std::uint32_t>(n)); }
+        void Vector(glm::vec3 v) { Float(v.x); Float(v.y); Float(v.z); }
+        void Matrix(const glm::mat4& m) { for (int c=0;c<4;++c) for (int r=0;r<4;++r) Float(m[c][r]); }
+        template<class Tag> void Handle(AssetHandle<Tag> h) { Number(h.index); Number(h.generation); Number(h.registry); }
+    };
+    std::uint64_t Checksum(const RenderFrame& frame)
+    {
+        ContentHash h;
+        h.Number(frame.LightRevision()); h.Number(frame.Cameras().size());
+        for (const auto& c:frame.Cameras())
+        {
+            h.Handle(c.entity); h.Matrix(c.view); h.Matrix(c.projection); h.Vector(c.worldPosition);
+            h.Number(c.viewportX); h.Number(c.viewportY); h.Number(c.viewportWidth); h.Number(c.viewportHeight); h.Number(c.visibleLayers);
+        }
+        h.Number(frame.Draws().size());
+        for (const auto& d:frame.Draws())
+        {
+            h.Handle(d.entity); h.Handle(d.mesh); h.Handle(d.pipeline); h.Handle(d.material); h.Matrix(d.worldTransform);
+            h.Number(d.submesh.firstElement); h.Number(d.submesh.elementCount); h.Number(d.submesh.materialSlot);
+            h.Number(d.sortKey); h.Number(d.resources); h.Number(d.layers); h.Number(d.castShadows); h.Number(d.receiveShadows); h.Number(d.pickable);
+        }
+        h.Number(frame.Resources().size());
+        for (const auto& r:frame.Resources())
+        {
+            h.Handle(r.Mesh().Identity()); h.Number(r.Mesh().Revision());
+            const auto& m=r.Material(); h.Handle(m.Instance()); h.Number(m.PublicationRevision()); h.Number(m.Revision());
+            h.Handle(m.Program().Identity()); h.Number(m.Program().Revision());
+            h.Number(m.PackedWords().size()); for (auto w:m.PackedWords()) h.Number(w);
+            h.Number(m.Parameters().size()); for (auto p:m.Parameters()) { h.Number(static_cast<unsigned>(p.type)); h.Number(p.wordOffset); h.Number(p.wordCount); }
+            h.Number(m.Textures().size()); for (const auto& t:m.Textures())
+            { h.Handle(t.texture.Identity()); h.Number(t.texture.Revision()); h.Handle(t.sampler.Identity()); h.Number(t.sampler.Revision()); }
+            h.Number(m.Fallbacks().size());
+        }
+        h.Number(frame.DebugLines().size());
+        for (const auto& d:frame.DebugLines())
+        { h.Vector(d.start); h.Vector(d.end); h.Vector(glm::vec3(d.color)); h.Float(d.color.a); h.Handle(d.entity); h.Number(static_cast<unsigned>(d.depth)); }
+        auto common=[&](const auto& l) { h.Handle(l.entity); h.Number(l.revision); h.Vector(l.color); h.Float(l.intensity); h.Number(l.shadows.castShadows); };
+        h.Number(frame.DirectionalLights().size()); for (const auto& l:frame.DirectionalLights()) { common(l); h.Vector(l.direction); }
+        h.Number(frame.PointLights().size()); for (const auto& l:frame.PointLights()) { common(l); h.Vector(l.position); h.Float(l.range); }
+        h.Number(frame.SpotLights().size()); for (const auto& l:frame.SpotLights())
+        { common(l); h.Vector(l.position); h.Vector(l.direction); h.Float(l.range); h.Float(l.innerConeRadians); h.Float(l.outerConeRadians); }
+        return h.value;
+    }
+    EntityRenderId Populate(Fixture& f, std::size_t count)
+    {
+        EntityRenderId camera;
+        for (std::size_t i=count;i>0;--i)
+        {
+            auto [entity,id]=f.Entity(i,static_cast<std::uint32_t>(i%2)); camera=id;
+            entity.Transform().Translation={float(i%13)*.1f,float(i%7)*.1f,0};
+            Check(f.scene.RenderData().Add(id,VisibilityComponent{i%7!=0,static_cast<std::uint32_t>(i%5)}),"Mixed visibility");
+            auto mesh=f.scene.RenderData().Get<MeshRendererComponent>(id).value();
+            mesh.pickable=i%3!=0; mesh.receiveShadows=i%4!=0;
+            Check(f.scene.RenderData().Replace(id,mesh),"Mixed draw flags");
+            if (i%11==0) Check(f.scene.RenderData().Remove<MeshRendererComponent>(id),"Non-mesh input");
+            if (i<=30)
+            {
+                RenderLightComponent light; light.kind=static_cast<RenderLightKind>(i%3);
+                light.intensity=i%6==0?0:float(i); light.range=float(i+1); light.castShadows=i%2==0;
+                Check(f.scene.RenderData().Add(id,light),"Mixed light input");
+            }
+        }
+        return camera;
+    }
+    void Parallel(SDL_Window* window, SDL_GLContext context)
+    {
+        Fixture f; RenderExtractionStats stats;
+        for (unsigned workers:{1u,2u,8u,64u})
+        {
+            selectedConfig={{workers},0}; auto empty=f.Extract(stats);
+            Check(empty && empty->Draws().empty() && stats.tasks.lanes==0,"Empty optional extraction");
+        }
+        const auto id=Populate(f,257);
+        auto child=f.scene.GetEntityByUUID(UUID(2)); auto parent=f.scene.GetEntityByUUID(UUID(1));
+        Check(child.SetParent(parent),"Parallel hierarchy");
+        FrameCamera camera; camera.entity=id; camera.viewportWidth=320; camera.viewportHeight=200;
+        FrameDebugLine line; line.entity=id; line.end={1,2,3};
+        Check(SDL_GL_MakeCurrent(window,nullptr)==0,"All extraction lanes run without a current GL context");
+        selectedConfig={}; auto serial=f.Extract(stats,{&camera,1},{&line,1}); Check(serial,"Serial parity reference");
+        const auto checksum=Checksum(*serial); const auto serialStats=stats;
+        for (int repeat=0;repeat<120;++repeat)
+        {
+            const unsigned workers=std::array{1u,2u,3u,8u,64u}[repeat%5];
+            selectedConfig={{workers},0};
+            auto frame=f.Extract(stats,{&camera,1},{&line,1});
+            Check(frame && Checksum(*frame)==checksum,"All semantic content and source order equal across lanes/stress");
+            Check(stats.tasks.lanes==workers && stats.tasks.executionThreads==workers && !stats.tasks.serialFallback
+                && stats.candidates==serialStats.candidates && stats.disabled==serialStats.disabled
+                && stats.lightCandidates==serialStats.lightCandidates && stats.nonContributingLights==serialStats.nonContributingLights,
+                "Lane and behavior accounting matches serial");
+        }
+        for (std::size_t threshold:{256u,257u,258u,4096u})
+        {
+            selectedConfig={{8},threshold}; auto frame=f.Extract(stats,{&camera,1},{&line,1});
+            Check(frame && Checksum(*frame)==checksum && stats.thresholdFallback==(threshold>257)
+                && stats.tasks.executionThreads==(threshold>257?1:8),"Threshold boundary preserves content");
+        }
+        selectedConfig={{65},0}; auto invalid=f.Extract(stats);
+        Check(!invalid && std::get<RenderWorkError>(invalid.error().cause).code==RenderWorkCode::InvalidWorkers,"Invalid extraction configuration");
+        selectedConfig={{8},0};
+        Allocations::arrays=0; Allocations::active=true;
+        auto measured=f.Extract(stats,{&camera,1},{&line,1}); Allocations::active=false;
+        Check(measured,"Measure optional array sites"); const int arrays=Allocations::arrays;
+        for (int failure=0;failure<arrays;++failure)
+        {
+            Allocations::arrays=0; Allocations::failArray=failure; Allocations::active=true;
+            auto failed=f.Extract(stats,{&camera,1},{&line,1}); Allocations::active=false;
+            Check(!failed,"Every snapshot/lane/frame array failure returns no partial frame");
+            const auto* work=std::get_if<RenderWorkError>(&failed.error().cause);
+            const auto* frame=std::get_if<FrameError>(&failed.error().cause);
+            Check((work && work->code==RenderWorkCode::Allocation) || (frame && frame->code==FrameErrorCode::AllocationFailed),"Typed allocation cause");
+            Check(!f.scene.RenderData().IsExtracting() && f.publication.CanPublish(),"Failure releases all freezes and pins");
+        }
+        Allocations::failArray=-1;
+        // A later validation error must outrank an earlier emission error, exactly
+        // as in the original two-pass serial extractor, regardless of lane layout.
+        auto light=f.scene.RenderData().Get<RenderLightComponent>(id).value(); light.range=0;
+        Check(f.scene.RenderData().Replace(id,light),"Early invalid light range");
+        auto badEntity=f.scene.GetEntityByUUID(UUID(256)); auto badId=f.scene.RenderData().Identify(badEntity).value();
+        auto mesh=f.scene.RenderData().Get<MeshRendererComponent>(badId).value(); mesh.submesh=99;
+        Check(f.scene.RenderData().Replace(badId,mesh),"Later invalid submesh");
+        for (unsigned workers:{0u,1u,2u,8u,64u})
+        {
+            selectedConfig={{workers},0}; auto failed=f.Extract(stats);
+            Check(!failed && failed.error().entity==badId && std::get<FrameError>(failed.error().cause).code==FrameErrorCode::InvalidSubmesh,
+                "Deterministic two-pass failure precedence");
+        }
+        Check(SDL_GL_MakeCurrent(window,context)==0,"Restore parallel fixture context");
+        selectedConfig={};
+    }
+    void Benchmark(SDL_Window* window, SDL_GLContext context)
+    {
+        using Clock=std::chrono::steady_clock;
+        for (std::size_t size:{32u,1024u,8192u})
+        {
+            Fixture f; const auto id=Populate(f,size);
+            FrameCamera camera; camera.entity=id; camera.viewportWidth=640; camera.viewportHeight=480;
+            RenderExtractionStats stats; selectedConfig={};
+            auto reference=f.Extract(stats,{&camera,1}); Check(reference,"Benchmark reference"); const auto checksum=Checksum(*reference);
+            Check(SDL_GL_MakeCurrent(window,nullptr)==0,"Frozen CPU workload has no GL context");
+            for (int series=0;series<3;++series)
+                for (int sample=-4;sample<21;++sample)
+                    for (int slot=0;slot<4;++slot)
+                    {
+                        const unsigned workers=std::array{0u,1u,2u,8u}[(slot+(std::max)(sample,0)+series)%4];
+                        selectedConfig={{workers},0};
+                        Allocations::count=Allocations::bytes=0; Allocations::arrays=0; Allocations::active=true;
+                        const auto start=Clock::now();
+                        auto frame=f.Extract(stats,{&camera,1});
+                        const auto extractionEnd=Clock::now();
+                        const auto extractionAllocations=Allocations::count.load();
+                        auto visibility=frame?RenderVisibility::Build(*frame):std::expected<RenderVisibility,VisibilityError>(std::unexpected(VisibilityError{}));
+                        const auto end=Clock::now(); Allocations::active=false;
+                        Check(frame && visibility && Checksum(*frame)==checksum,"Benchmark checksum/order");
+                        Check(workers==0 || (!stats.tasks.serialFallback && stats.tasks.executionThreads==workers),"Benchmark actual worker count");
+                        if (sample>=0) std::println("[SAMPLE] scene={} series={} sample={} workers={} preparation_us={:.3f} extraction_us={:.3f} call_us={:.3f} frame_cpu_us={:.3f} extraction_allocations={} frame_allocations={} requested_bytes={} checksum={}",
+                            size,series,sample,workers,stats.preparationMicroseconds,stats.extractionMicroseconds,
+                            std::chrono::duration<double,std::micro>(extractionEnd-start).count(),std::chrono::duration<double,std::micro>(end-start).count(),
+                            extractionAllocations,Allocations::count.load(),Allocations::bytes.load(),checksum);
+                    }
+            Check(SDL_GL_MakeCurrent(window,context)==0,"Restore benchmark context");
+        }
+        selectedConfig={};
+    }
+    void MergeContract()
+    {
+        Fixture f; f.Entity(1); f.Entity(2);
+        auto access=f.publication.BeginFrame();
+        auto frame=RenderTaskFrame::Prepare(f.scene,{access,f.meshes,f.materials,{f.programs,f.textures,f.samplers},{}}).value();
+        auto builder=RenderFrameBuilder::Create({0,2,0,2}).value();
+        const auto* words=frame->Inputs()[0].state.material->PackedWords().data();
+        struct MergeAttempt { RenderTaskFrame& frame; RenderFrameBuilder& builder; bool rejected{}; } attempt{*frame,builder};
+        auto running=+[](const RenderTaskRange&,void* user) noexcept -> std::expected<void,RenderWorkError> {
+            auto& attempt=*static_cast<MergeAttempt*>(user);
+            auto result=attempt.frame.TransferResources(attempt.builder,0);
+            attempt.rejected=!result && result.error().code==RenderWorkCode::FrameActive;
+            return {};
+        };
+        RenderTaskScratch scratch;
+        Check(frame->Run({1},{&scratch,1},running,&attempt) && attempt.rejected,"No transfer inside a running owner callback");
+        Check(!frame->TransferResources(builder,2),"Merge rejects invalid input");
+        auto noCapacity=RenderFrameBuilder::Create().value();
+        auto failed=frame->TransferResources(noCapacity,0);
+        Check(!failed && std::get<FrameError>(failed.error().cause).code==FrameErrorCode::CapacityExceeded
+            && frame->Inputs()[0].state.material->PackedWords().data()==words,"Rejected builder transfer retains packet for owner retry");
+        Check(frame->TransferResources(builder,0).value()==0,"Owner transfer after join");
+        Check(!frame->TransferResources(builder,0),"Prepared packet transfers once");
+        auto noWork=+[](const RenderTaskRange&,void*) noexcept -> std::expected<void,RenderWorkError> { return {}; };
+        auto rerun=frame->Run({1},{&scratch,1},noWork,nullptr);
+        Check(!rerun && rerun.error().code==RenderWorkCode::FrameActive,"No tasks may read consumed merge input");
+        auto merged=std::move(builder).Finalize().value();
+        Check(merged.Resources()[0].Material().PackedWords().data()==words,"Merge moves prepared buffers without copying");
+    }
     void Retention(SDL_Window* window, SDL_GLContext context)
     {
         Fixture f; auto [entity, id] = f.Entity(1); RenderExtractionStats stats;
+        if (selectedConfig.tasks.workers)
+            for (unsigned i=2;i<10;++i) { auto extra=f.Entity(i).second; Check(f.scene.RenderData().Add(extra,VisibilityComponent{false}),"Retained parallel input"); }
         Check(SDL_GL_MakeCurrent(window, nullptr) == 0, "Detach retention context");
         auto old = f.Extract(stats); Check(old, "Extract retained frame");
         const auto* packet = old->Resources()[0].Material().PackedWords().data();
@@ -534,7 +745,7 @@ namespace
                 && f.textures.Collect(p) == 1 && f.samplers.Collect(p) == 1, "Owner retires old GPU resources after frame release"); }
     }
 }
-int main()
+int main(int argc, char** argv)
 {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     std::set_terminate([] { std::println(stderr, "[FAIL] unexpected termination after: {}", lastCheck); std::_Exit(70); });
@@ -545,6 +756,10 @@ int main()
     Check(window, "Hidden window"); auto context = SDL_GL_CreateContext(window); Check(context, "Context");
     Check(gladLoadGLLoader(SDL_GL_GetProcAddress), "GL loader");
     Basic(window,context); Many(window,context); Failures(); Lights(window,context); LightValidation(); LightLimitsAndBuilder(); Retention(window,context);
+    Parallel(window,context); MergeContract();
+    for (unsigned workers:{1u,2u,8u}) { selectedConfig={{workers},0}; Failures(); Lights(window,context); LightValidation(); LightLimitsAndBuilder(); Retention(window,context); }
+    selectedConfig={};
+    if (argc>1 && std::string_view(argv[1])=="--benchmark") Benchmark(window,context);
     Check(glGetError() == GL_NO_ERROR, "No GL errors");
     SDL_GL_DeleteContext(context); SDL_DestroyWindow(window); SDL_Quit();
     std::println("[PASS] render-extraction checks={}", checks);

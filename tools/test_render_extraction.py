@@ -1,4 +1,4 @@
-"""Build serial extraction and validate typed lights, deterministic frames and retained versions."""
+"""Validate serial/parallel extraction, deterministic frames and retained versions; measure optional adoption."""
 import argparse
 import hashlib
 import json
@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 import subprocess
 import sys
+import statistics
 import winreg
 
 from rendering_validation import ROOT, toolchain
@@ -17,11 +18,22 @@ def main():
     parser.add_argument("--configuration", choices=["Debug", "Release"], required=True)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--no-build", action="store_true", help="Reuse matching affected-consumer builds")
+    parser.add_argument("--benchmark", action="store_true", help="Three matched Release series, serial/1/2/8 workers")
     args = parser.parse_args()
     config = args.configuration
-    out = (args.output or ROOT / "logs/rendering/phase41/final" / config).resolve()
+    out = (args.output or ROOT / "logs/rendering/phase45/final" / config).resolve()
     out.mkdir(parents=True, exist_ok=True)
     report = {"configuration": config, "steps": []}
+    if args.benchmark and config != "Release":
+        parser.error("Adoption measurements use Release")
+    # Declared before running any timed comparison; no post-hoc workload/tolerance tuning.
+    report["measurement_policy"] = {"scenes": [32, 1024, 8192], "workers": [0, 1, 2, 8],
+        "series": 3, "warmup_per_mode_series": 4, "samples_per_mode_series": 21,
+        "noise_percent": 5, "required_extraction_gain_percent": 10, "max_frame_regression_percent": 5,
+        "frame_cpu_scope": "complete extraction call plus RenderVisibility::Build; no Physics, GL submission or GPU",
+        "ordering": "rotate modes for each sample; identical frozen scene and camera",
+        "fallback": "serial default unless a parallel mode meets the gate in all three medium/large series"}
+    (out / "measurement-policy.json").write_text(json.dumps(report["measurement_policy"], indent=2) + "\n")
     env = {k: v for k, v in os.environ.items() if k.lower() != "path"}
     env["Path"] = os.environ.get("PATH", os.environ.get("Path", ""))
     env.pop("SDL_VIDEODRIVER", None)
@@ -85,6 +97,7 @@ def main():
             return 1
         report["consumer_boundary"] = "PASS"
         for rel in ("GEngine/include/GEngine/Renderer/RenderExtraction.h", "GEngine/src/Renderer/RenderExtraction.cpp",
+                    "GEngine/include/GEngine/Renderer/RenderTasks.h", "GEngine/src/Renderer/RenderTasks.cpp",
                     "GEngine/include/GEngine/Renderer/RenderFrame.h", "GEngine/src/Renderer/RenderFrame.cpp",
                     "GEngine/include/GEngine/Scene/RenderState.h", "GEngine/src/Scene/RenderState.cpp"):
             source = re.sub(r"//[^\n]*|/\*.*?\*/", "", (ROOT / rel).read_text(), flags=re.S)
@@ -113,8 +126,44 @@ def main():
         report["inputs"] = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in
                             (executable, ROOT / "bin" / config / "GEngine/GEngine.lib", sdl)}
         env["Path"] = str(sdl.parent) + os.pathsep + env["Path"]
-        passed = invoke("render-extraction", [executable], cwd=out,
+        passed = invoke("render-extraction", [executable, *(["--benchmark"] if args.benchmark else [])], timeout=600, cwd=out,
                         marker="[PASS] render-extraction ")
+        if passed and args.benchmark:
+            samples = []
+            for line in (out / "render-extraction.log").read_text().splitlines():
+                if line.startswith("[SAMPLE] "):
+                    samples.append({key: float(value) if "." in value else int(value)
+                                    for key, value in (field.split("=") for field in line.split()[1:])})
+            if len(samples) != 3 * 3 * 21 * 4:
+                report["reason"] = "Incomplete matched measurements"
+                passed = False
+                return 1
+            summary = []
+            for size in (32, 1024, 8192):
+                for series in range(3):
+                    for workers in (0, 1, 2, 8):
+                        group = [s for s in samples if (s["scene"], s["series"], s["workers"]) == (size, series, workers)]
+                        row = {"scene": size, "series": series, "workers": workers}
+                        for metric in ("preparation_us", "extraction_us", "call_us", "frame_cpu_us", "extraction_allocations", "frame_allocations", "requested_bytes"):
+                            values = sorted(s[metric] for s in group)
+                            row[metric] = {"median": statistics.median(values), "p95": values[19]}
+                        summary.append(row)
+            qualifies = []
+            for workers in (2, 8):
+                good = True
+                for size in (1024, 8192):
+                    for series in range(3):
+                        serial = next(r for r in summary if (r["scene"], r["series"], r["workers"]) == (size, series, 0))
+                        candidate = next(r for r in summary if (r["scene"], r["series"], r["workers"]) == (size, series, workers))
+                        good &= candidate["extraction_us"]["median"] <= serial["extraction_us"]["median"] * .90
+                        good &= all(candidate["frame_cpu_us"][stat] <= serial["frame_cpu_us"][stat] * 1.05 for stat in ("median", "p95"))
+                if good:
+                    qualifies.append(workers)
+            benchmark = {"policy": report["measurement_policy"], "samples": samples, "summary": summary,
+                         "qualifying_parallel_modes": qualifies,
+                         "decision": "Review qualifying mode" if qualifies else "Keep serial default; optional bounded path only"}
+            (out / "benchmark.json").write_text(json.dumps(benchmark, indent=2) + "\n")
+            report["benchmark"] = {"result": "PASS", "samples": len(samples), "decision": benchmark["decision"]}
         return 0 if passed else 1
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         report["reason"] = str(error)

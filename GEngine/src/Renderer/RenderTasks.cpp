@@ -95,7 +95,7 @@ namespace GEngine
         RenderTaskConfig config, std::span<const RenderTaskScratch> scratch, RenderTaskFunction callback, void* user)
     {
         Owner(m_Owner);
-        if (m_Running) return Error(RenderWorkCode::FrameActive);
+        if (m_Running || m_Merging) return Error(RenderWorkCode::FrameActive);
         if (config.workers > MaxWorkers) return Error(RenderWorkCode::InvalidWorkers, config.workers);
         if (!callback) return Error(RenderWorkCode::InvalidCallback);
         const auto lanes = LaneCount(config);
@@ -148,6 +148,21 @@ namespace GEngine
             if (batch.errors[i]) { auto failure = *batch.errors[i]; failure.boundary = i; return std::unexpected(failure); }
         if (m_Cancelled.load(std::memory_order_relaxed)) return Error(RenderWorkCode::Cancelled);
         return stats;
+    }
+
+    std::expected<std::size_t, RenderWorkError> RenderTaskFrame::TransferResources(
+        RenderFrameBuilder& builder, std::size_t input)
+    {
+        Owner(m_Owner);
+        if (m_Running) return Error(RenderWorkCode::FrameActive);
+        if (input >= m_Count) return Error(RenderWorkCode::InvalidInput, input);
+        auto& entry = m_Entities[input].state;
+        if (!entry.mesh || !entry.material) return Error(RenderWorkCode::InvalidInput, input);
+        m_Merging = true;
+        auto added = builder.AddResources(entry.mesh, std::move(*entry.material));
+        if (!added) return std::unexpected(RenderWorkError{RenderWorkCode::InvalidInput, input, added.error()});
+        entry.material.reset();
+        return *added;
     }
 
     std::expected<std::unique_ptr<RenderMutationQueue>, RenderWorkError> RenderMutationQueue::Create(std::size_t capacity)

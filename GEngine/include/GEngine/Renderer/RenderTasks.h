@@ -89,6 +89,11 @@ namespace GEngine
         std::size_t LaneCount(RenderTaskConfig) const noexcept;
         [[nodiscard]] std::expected<RenderTaskStats, RenderWorkError> Run(
             RenderTaskConfig, std::span<const RenderTaskScratch>, RenderTaskFunction, void* user);
+        // Owner-only merge after Run has joined. Transfers an exact prepared packet
+        // without copying its buffers. Starting a merge permanently disables Run;
+        // successful transfer consumes this input's packet, including on later failure.
+        [[nodiscard]] std::expected<std::size_t, RenderWorkError> TransferResources(
+            RenderFrameBuilder&, std::size_t input);
     private:
         RenderTaskFrame() = default;
         const std::thread::id m_Owner = std::this_thread::get_id();
@@ -100,6 +105,7 @@ namespace GEngine
         RenderTargetRevision m_Target;
         std::atomic<bool> m_Cancelled{false};
         bool m_Running{};
+        bool m_Merging{};
     };
 
     // Owns CPU-only command payload. Apply executes on the render owner under its

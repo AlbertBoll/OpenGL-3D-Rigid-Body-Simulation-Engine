@@ -26,13 +26,13 @@ using namespace ::GEngine::Asset;
 #define activate_boxes_stacking 0
 #endif
 #ifndef activate_sphere_lattice
-#define activate_sphere_lattice 1
+#define activate_sphere_lattice 0
 #endif
 #ifndef activate_sphere_diamond
 #define activate_sphere_diamond 0
 #endif
 #ifndef activate_sphere_boxes_stacking
-#define activate_sphere_boxes_stacking 0
+#define activate_sphere_boxes_stacking 1
 #endif
 
 
@@ -567,6 +567,11 @@ void RigidBodySimulationApp::Render()
                     if constexpr (std::is_enum_v<T>) Log::GetCoreLogger()->error("Frame extraction entity={}/{}/{} cause-domain={} code={}", frame.error().entity.index,frame.error().entity.generation,frame.error().entity.registry,frame.error().cause.index(),int(cause));
                     else if constexpr (std::same_as<T, MaterialBindingError>) Log::GetCoreLogger()->error("Frame material code={} binding={} message={} registry={} fallback-cause={}",int(cause.code),cause.binding,cause.message,int(cause.registry),cause.cause?int(*cause.cause):-1);
                     else if constexpr (std::same_as<T, FrameError>) Log::GetCoreLogger()->error("Frame code={} section={} element={}",int(cause.code),int(cause.section),cause.element);
+                    else if constexpr (std::same_as<T, RenderWorkError>) {
+                        Log::GetCoreLogger()->error("Frame task code={} element={} boundary={} cause-domain={}",int(cause.code),cause.element,cause.boundary,cause.cause.index());
+                        if (const auto* system=std::get_if<std::error_code>(&cause.cause))
+                            Log::GetCoreLogger()->error("Frame task system category={} code={} message={}",system->category().name(),system->value(),system->message());
+                    }
                     else Log::GetCoreLogger()->error("Frame transform code={} entity={} parent={}",int(cause.code),static_cast<uint64_t>(cause.entity),static_cast<uint64_t>(cause.parent));
                 }, frame.error().cause);
                 m_Running=false; return;

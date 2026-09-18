@@ -1581,3 +1581,41 @@ Tests cover zero/one/many lanes, exact range coverage, disjoint scratch, typed f
 pre-start/mid-batch cancellation, publication pin lifetime, queue cutoff/order/failure,
 next-frame resource/value visibility, allocation rollback, serial launch fallback,
 worker registry rejection and completed task teardown before the root disappears.
+
+## Phase 45 optional parallel extraction
+
+`ExtractRenderFrame` accepts a trailing `RenderExtractionConfig`. Its default uses
+the serial extractor; workers=1 runs the frozen task algorithm on the owner, and
+workers=2..64 partitions immutable snapshots into contiguous lane-owned output.
+The owner merges in source order after joining, transfers prepared material buffers
+without copies, and finalizes once. `TransferResources` disables further task runs
+on that snapshot. Below 4,096 frozen entities, configured parallel work uses one
+lane; threshold=0 forces comparison. Thread-launch fallback remains explicit in
+statistics. No live ECS/manager/registry or GL work runs on workers.
+
+Run `python tools/test_render_extraction.py --configuration Debug --output
+logs/rendering/phase45/final/Debug` and the corresponding Release command with
+`--benchmark`. The runner builds maintained consumers, compiles the native-free
+public closure, checks the error model, and tests content/order, threshold edges,
+120 repeated 1/2/3/8/64-worker frames, allocation rollback, merge ownership and
+resource retirement. Existing task/freeze and submission probes cover integration.
+
+The predeclared Release adoption gate uses 32/1,024/8,192-entity frozen workloads,
+serial/1/2/8 workers, four warmups and 21 samples per mode in each of three series.
+Mode order rotates. Noise tolerance is 5%; adoption requires at least 10% lower
+median extraction time and at most 5% frame-CPU median/p95 regression in every
+medium/large series. Frame CPU here means the complete extraction call plus
+visibility construction, excluding Physics, GL submission and GPU time. Timings,
+complete-call replaceable C++ allocation counts and semantic checksums are reported
+separately. Allocation counts exclude CRT/OS thread-internal malloc/storage.
+Without a qualifying mode, serial remains default; the optional bounded path
+provides a tested deterministic extraction/merge implementation for later measured
+task integration. It is not a speedup claim or a retained worker pool.
+
+The sealed Phase 45 evidence also includes `logs/rendering/phase45/run_full_frame.py`
+and its fingerprinted probe/checksum source. It measures complete extraction plus
+actual `FrameSubmission::Submit` on 32/1,024/8,192-entity frozen scenes, with the same
+serial/1/2/8-worker, warmup, rotation and sampling policy. Color and picking use
+64x64 targets and shared box/PBR resources; Physics, swap/vsync and explicit GPU
+completion waits are outside the timed CPU interval. The review reports these
+submission-inclusive numbers separately from extraction-plus-visibility timing.

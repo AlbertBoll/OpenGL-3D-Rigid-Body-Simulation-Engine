@@ -1,4 +1,4 @@
-"""Build the frame schema and validate immutable storage and retained resource versions."""
+"""Validate immutable frames, retained resource versions, frusta and explicit pass lists."""
 import argparse
 import hashlib
 import json
@@ -19,7 +19,7 @@ def main():
     parser.add_argument("--no-build", action="store_true", help="Reuse matching affected-consumer builds")
     args = parser.parse_args()
     config = args.configuration
-    out = (args.output or ROOT / "logs/rendering/phase39/final" / config).resolve()
+    out = (args.output or ROOT / "logs/rendering/phase43/final" / config).resolve()
     out.mkdir(parents=True, exist_ok=True)
     report = {"configuration": config, "steps": []}
     env = {k: v for k, v in os.environ.items() if k.lower() != "path"}
@@ -100,7 +100,21 @@ def main():
                           *["/I" + str(p) for p in native_free], source,
                           "/Fo" + str(out / (name + ".obj"))], expected_failure=True):
                 return 1
-        for rel in ("GEngine/include/GEngine/Renderer/RenderFrame.h", "GEngine/src/Renderer/RenderFrame.cpp"):
+        for name, statement in {
+            "visibility-mutation": "lists.Main()[0] = 1;",
+            "visibility-copy": "auto copy = lists;",
+            "visibility-temporary": "auto view = std::move(lists).Shadows();",
+        }.items():
+            source = out / (name + ".cpp")
+            source.write_text('#include "Renderer/RenderVisibility.h"\nvoid Invalid(GEngine::RenderVisibility& lists) { '
+                              + statement + ' }\n')
+            if not invoke(name, [vc / "bin/Hostx64/x64/cl.exe", "/nologo", "/std:c++23preview",
+                          "/EHsc", "/c", "/MTd" if config == "Debug" else "/MT",
+                          *["/I" + str(p) for p in native_free], source,
+                          "/Fo" + str(out / (name + ".obj"))], expected_failure=True):
+                return 1
+        for rel in ("GEngine/include/GEngine/Renderer/RenderFrame.h", "GEngine/src/Renderer/RenderFrame.cpp",
+                    "GEngine/include/GEngine/Renderer/RenderVisibility.h", "GEngine/src/Renderer/RenderVisibility.cpp"):
             source = re.sub(r"//[^\n]*|/\*.*?\*/", "", (ROOT / rel).read_text(), flags=re.S)
             if re.search(r"\b(throw|try|catch|enable_if|exception_ptr)\b", source):
                 report["reason"] = "New exception/SFINAE boundary: " + rel

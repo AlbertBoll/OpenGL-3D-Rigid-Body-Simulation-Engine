@@ -1483,3 +1483,39 @@ Tests cover empty/individual/mixed/multiple lights, type-correct dispatch, hiera
 and extreme directions, range/cone/color/intensity failures, contribution, exact
 maximum/overflow, revisions, all light allocation failures, frame moves, immutable
 worker reads and typed consumption without ECS access.
+
+## Visibility and pass lists (Phase 43)
+
+`python tools/test_render_frame.py --configuration Debug` (or `Release`) builds
+the maintained consumers and validates the frame plus `RenderVisibility` against
+the actual GEngine library. `--no-build` requires matching build evidence.
+
+`RenderVisibility::Build(frame, cameraIndex, conservativeDraws)` is a CPU-only
+stage after extraction. It returns immutable, move-only draw-index lists for
+Main, Opaque, Masked, Transparent, Shadows and Picking. Keep the originating
+frame alive and use its retained resources when consuming those indices. Every
+list preserves source order; this stage neither sorts nor submits. General
+renderer integration remains Phase 46. The existing Phase 42 submitter is unchanged.
+
+World AABBs derive from the frame's retained mesh and presentation transform.
+Frustum planes use the engine's column-vector, minus-one-to-one clip-depth
+convention. Invalid/empty/unavailable bounds, degenerate frusta and numerical
+uncertainty conservatively retain geometry. Known zero-element submeshes do no
+pass work. Shader output that is not bounded by that transformed mesh, including
+camera-relative sky and vertex deformation, must be named in the optional sorted,
+unique `conservativeDraws` index list; these entries still obey camera layers.
+
+Main intersects camera layers and frustum; the three alpha lists partition Main
+using the retained pipeline policy. Picking additionally requires `pickable`.
+Shadows includes every nonempty draw whose builder-resolved `castShadows` is true,
+independent of camera frustum/layers, including zero main-layer masks. Disabled
+actors are already absent after extraction. `receiveShadows` never controls pass
+membership. Per-light/cascade shadow culling remains Phase 59.
+
+Counters obey `tested = visible + culled` and
+`inputDraws = emptyDraws + layerRejected + tested`; conservative fallbacks count
+within visible. Lists use one checked allocation of at most six indices per draw,
+with typed camera/override/allocation errors and no partially returned result.
+Empty frames with a camera allocate nothing. Native-free compilation, mutation
+rejection, six-plane/aspect/pose tests, pass flags/classification, allocation denial,
+move lifetime and context-free worker use after resource replacement are covered.

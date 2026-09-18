@@ -1370,13 +1370,13 @@ must preserve equal-key order and transparent compositing requirements. Frame mo
 replacement and destruction invalidate borrowed views. No temporary-owner views,
 mutable storage, live ECS references or picking-pixel conversions are exposed.
 
-Empty zero-capacity frames allocate nothing; other builders allocate at most four
+Empty zero-capacity frames allocate nothing; other builders allocate at most seven
 arrays. Append and finalization do not allocate/grow frame storage. Storage()
 reports used/capacity bytes as sizeof(record) times counts and array allocation
 count, excluding allocator overhead and existing prepared/resource backing buffers.
 The fixture checks these figures, injects failure at each allocation, and validates
 rollback, moves, capacity/invalid-data errors, retained versions and worker release.
-Serial scene extraction is described below; light extraction remains Phase 41.
+Serial scene and typed light extraction are described below.
 
 ## Serial render extraction (Phase 40)
 
@@ -1401,7 +1401,7 @@ ready resource versions, then freezes ECS reads and emits one draw per enabled
 MeshRendererComponent in deterministic parent-before-child/UUID source order.
 The component chooses one submesh/material pairing; use separate entities for
 multiple pairings of one mesh. Disabled components emit nothing. Zero layer masks
-are preserved for the later visibility stage. No culling, sorting, light extraction,
+are preserved for the later visibility stage. No culling, sorting,
 simulation update or legacy application draw-loop migration is performed here.
 Camera/debug values retain caller order and are copied into frame-owned storage.
 
@@ -1428,3 +1428,58 @@ workload. These are observations of the serial baseline, not a performance claim
 It verifies empty/one/many, both selected submeshes, stable repeated output,
 hierarchy transforms, flags, structured failures, all four frame allocation failures,
 context-detached extraction, retained replacements/removals and worker release.
+
+## Typed light extraction (Phase 41)
+
+The same `tools/test_render_extraction.py` commands now cover typed light extraction
+and write to `logs/rendering/phase41/final/{Debug,Release}` by default. The serial
+`ConsumeLights(const RenderFrame&)` proof consumer compiles in the native-free
+header probe and reads immutable values after all source ECS lights are destroyed.
+The existing frame and render-state probes provide focused regression coverage.
+
+`RenderLightComponent` is the sole migrated light source. Scene preparation reads
+it once alongside presentation transforms and revisions; extraction maps its kind
+to `DirectionalLightData`, `PointLightData` or `SpotLightData`. Legacy uniform light
+components/lists remain with the Phase 42/46 consumers and are never a second frame
+source. No legacy lighting equation, uniform upload, or shadow algorithm changes.
+
+Component presence publishes the light. There is no separate enable flag: zero
+intensity is filtered, positive intensity contributes, and negative intensity is
+invalid. Actor visibility/layers and mesh presence do not enable or disable lights.
+Color is finite nonnegative linear RGB; intensity is a finite unitless authored
+multiplier, with no photometric conversion. Black color remains valid authored
+intent. The preparation contract rejects nonfinite authored fields or transforms
+even for zero intensity. Finite noncontributing lights need no valid range/cone.
+
+Positions use the presentation world translation. Direction is transformed local
+minus-Z, robustly normalized with double precision; reflection/scale affect the
+axis, and a collapsed axis fails with `InvalidLightDirection`. Point lights need
+no direction. Range is positive world distance, independent of entity scale.
+Spot cones are half-angles from that axis in radians, satisfying
+`0 <= inner <= outer < pi`. Equal angles, including zero, mean a hard edge and
+remain exact; consumers must not divide by the zero cone interval. Invalid ranges
+or cones return typed errors without clamping. All contributing light types share
+`MaxFrameLights = 256`, a CPU frame limit independent of a future shader capacity.
+Overflow fails the complete frame at the first excess entity; no light is silently
+dropped. Each typed collection keeps deterministic hierarchy/UUID source order.
+
+Each light carries entity identity, a revision, color/intensity and shadow-casting
+intent; position/range and direction/cones appear only on applicable types. Shadow
+targets, bias, filters and algorithms remain renderer-owned. Entity revisions track
+pose, kind, color, intensity, range, cones and shadow intent. `LightRevision()` also
+tracks contribution/component/entity removal, including an empty resulting frame.
+Compare revisions within one scene lifetime and entity identities within that scene.
+Unchanged effective authoring remains stable; revisions may conservatively advance
+for authored changes that normalize to the same direction. A failed extraction may
+advance preparation caches, as in Phase 40, but never publishes a partial frame.
+
+Three additional exact-capacity arrays own compact values and expose only const
+spans. They contain no ECS borrows or whole components. Builder appends validate
+their values, and moves/finalization preserve the existing frame lifetime contract.
+The maintained x64 frame owner is bounded to 176 bytes for seven array owners,
+their used/capacity counters and the aggregate light revision; light records are
+bounded to 64/72/88 bytes for directional/point/spot in the compile probe.
+Tests cover empty/individual/mixed/multiple lights, type-correct dispatch, hierarchy
+and extreme directions, range/cone/color/intensity failures, contribution, exact
+maximum/overflow, revisions, all light allocation failures, frame moves, immutable
+worker reads and typed consumption without ECS access.

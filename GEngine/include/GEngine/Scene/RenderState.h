@@ -63,6 +63,9 @@ namespace GEngine
         Math::Mat4 world{1.f}; // Presentation world, including interpolated ancestors.
         WorldBounds bounds;
         RenderRevisions revisions;
+        // Authoring snapshot, read once alongside revision evaluation. Never published
+        // as a whole component in RenderFrame; extraction validates typed light values.
+        std::optional<Component::RenderLightComponent> light;
         MeshView mesh;
         std::optional<PreparedMaterialBinding> material;
         std::optional<Asset::RegistryError> meshError;

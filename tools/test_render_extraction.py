@@ -1,4 +1,4 @@
-"""Build serial extraction and validate deterministic ECS frames and retained resource versions."""
+"""Build serial extraction and validate typed lights, deterministic frames and retained versions."""
 import argparse
 import hashlib
 import json
@@ -19,7 +19,7 @@ def main():
     parser.add_argument("--no-build", action="store_true", help="Reuse matching affected-consumer builds")
     args = parser.parse_args()
     config = args.configuration
-    out = (args.output or ROOT / "logs/rendering/phase40/final" / config).resolve()
+    out = (args.output or ROOT / "logs/rendering/phase41/final" / config).resolve()
     out.mkdir(parents=True, exist_ok=True)
     report = {"configuration": config, "steps": []}
     env = {k: v for k, v in os.environ.items() if k.lower() != "path"}
@@ -84,7 +84,9 @@ def main():
             report["reason"] = "Concrete backend declaration leaked into the extraction consumer"
             return 1
         report["consumer_boundary"] = "PASS"
-        for rel in ("GEngine/include/GEngine/Renderer/RenderExtraction.h", "GEngine/src/Renderer/RenderExtraction.cpp"):
+        for rel in ("GEngine/include/GEngine/Renderer/RenderExtraction.h", "GEngine/src/Renderer/RenderExtraction.cpp",
+                    "GEngine/include/GEngine/Renderer/RenderFrame.h", "GEngine/src/Renderer/RenderFrame.cpp",
+                    "GEngine/include/GEngine/Scene/RenderState.h", "GEngine/src/Scene/RenderState.cpp"):
             source = re.sub(r"//[^\n]*|/\*.*?\*/", "", (ROOT / rel).read_text(), flags=re.S)
             if re.search(r"\b(throw|try|catch|enable_if|exception_ptr)\b", source):
                 report["reason"] = "New exception/SFINAE boundary: " + rel

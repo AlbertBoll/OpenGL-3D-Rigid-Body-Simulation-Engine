@@ -1,0 +1,236 @@
+{
+  "baseline": "92d5cb2360bb20965766e5a9b5c5d7043e393196",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Renderer/RenderExtraction.h",
+    "GEngine/include/GEngine/Renderer/RenderFrame.h",
+    "GEngine/include/GEngine/Scene/RenderState.h",
+    "GEngine/src/Renderer/RenderExtraction.cpp",
+    "GEngine/src/Renderer/RenderFrame.cpp",
+    "GEngine/src/Scene/RenderState.cpp",
+    "RenderingValidation/README.md",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-41.json",
+    "tools/render_extraction_probe.cpp",
+    "tools/render_frame_probe.cpp",
+    "tools/test_render_extraction.py"
+  ],
+  "eligible": true,
+  "findings": [],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_41_REVIEW.md"
+  ],
+  "next_phase": "42",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "0f81cdf0f6a45a6f01d1e838556f771bb59ff4bf",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-41/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/0f81cdf0f6a45a6f01d1e838556f771bb59ff4bf",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "53b5f0dd226eadc4bb2e709d334ceebf3d323202a2bbc31a6869afbb4ec4a0cf"
+      },
+      "mode": "100644",
+      "validated_blob": "ccff44ad87d11803e05a4b019c1541ece7fe16a4",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-41/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/ccff44ad87d11803e05a4b019c1541ece7fe16a4"
+    }
+  },
+  "phase": "41",
+  "previous_approved_tag": "render-refactor-phase-40-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_41_REVIEW.md",
+  "schema": 2,
+  "summary": "Extract directional, point and spot lights once from native-free ECS authoring into immutable RenderFrame values with explicit world-space/cone/contribution semantics, typed failures, bounded counts, shadow intent and revisions; prove serial consumption without ECS re-query.",
+  "validation": [
+    {
+      "check": "Debug: maintained affected builds, native-free consumer, typed error/source gates and 1299 extraction checks",
+      "command": "python tools/test_render_extraction.py --configuration Debug --output logs/rendering/phase41/final/Debug",
+      "evidence": "logs/rendering/phase41/final/Debug/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh production/extraction candidate. Later edits only corrected size assertions in a separate frame regression probe and documentation; production/extraction input identity unchanged."
+    },
+    {
+      "check": "Debug: frame immutability, ownership, 73 runtime checks and six negative compile controls",
+      "command": "python tools/test_render_frame.py --configuration Debug --no-build --output logs/rendering/phase41/final/frame-Debug-final",
+      "evidence": "logs/rendering/phase41/final/frame-Debug-final/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh probe; reuse maintained build for identical production inputs."
+    },
+    {
+      "check": "Debug: presentation state/revisions, 4186 checks",
+      "command": "python tools/test_render_state.py --configuration Debug --no-build --output logs/rendering/phase41/final/state-Debug",
+      "evidence": "logs/rendering/phase41/final/state-Debug/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh probe; reuse maintained build for identical production inputs."
+    },
+    {
+      "check": "Release: maintained affected builds, native-free consumer, typed error/source gates and 1299 extraction checks",
+      "command": "python tools/test_render_extraction.py --configuration Release --output logs/rendering/phase41/final/Release",
+      "evidence": "logs/rendering/phase41/final/Release/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh production/extraction candidate. Later edits only corrected size assertions in a separate frame regression probe and documentation; production/extraction input identity unchanged."
+    },
+    {
+      "check": "Release: frame immutability, ownership, 73 runtime checks and six negative compile controls",
+      "command": "python tools/test_render_frame.py --configuration Release --no-build --output logs/rendering/phase41/final/frame-Release",
+      "evidence": "logs/rendering/phase41/final/frame-Release/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh probe; reuse maintained build for identical production inputs."
+    },
+    {
+      "check": "Release: presentation state/revisions, 4186 checks",
+      "command": "python tools/test_render_state.py --configuration Release --no-build --output logs/rendering/phase41/final/state-Release",
+      "evidence": "logs/rendering/phase41/final/state-Release/results.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh probe; reuse maintained build for identical production inputs."
+    },
+    {
+      "check": "Typed light semantics, single source, native isolation, no new exceptions and bounded scope",
+      "command": "Targeted review of six changed production files and compiled native-free dependency closure",
+      "evidence": "logs/rendering/phase41/source-review.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Canonical owner source, 45 protected paths, index and baseline unchanged; 20 final fingerprints match",
+      "command": "Compare preflight protected/index/HEAD/owner records and helper pre-validation fingerprints",
+      "evidence": "logs/rendering/phase41/preservation-check.json; logs/rendering/phase41/validation-identity-check.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Local governance/context references",
+      "command": "python .codex/tools/validate_rendering_governance.py",
+      "evidence": "logs/rendering/phase41/governance-check.log",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    "GEngine/include/GEngine/Component/RenderComponents.h": {
+      "executable": null,
+      "sha256": "ce2406fd76223b4cb0cb5d2cb20ca58e18c7b67aa0871683596a1f1d33cdce5f"
+    },
+    "GEngine/include/GEngine/Renderer/RenderExtraction.h": {
+      "executable": null,
+      "sha256": "412847f8174171640cc1fdb7d9f96eba8adbe55fd1123d838f9801a906f6d371"
+    },
+    "GEngine/include/GEngine/Renderer/RenderFrame.h": {
+      "executable": null,
+      "sha256": "b1916d1daed8b61de054e72d92ee45187829d9a4926baf9baef56c73ecf25809"
+    },
+    "GEngine/include/GEngine/Scene/RenderEcs.h": {
+      "executable": null,
+      "sha256": "87fdeb871f50b51cb74a8009e393819d0c9d663b5670a9f3b2729622d748f384"
+    },
+    "GEngine/include/GEngine/Scene/RenderState.h": {
+      "executable": null,
+      "sha256": "d0d6e6dc8dc81906c37154cc2236b5ec9b9cb0d5e70927a027da9b181acbacaf"
+    },
+    "GEngine/include/GEngine/Scene/_Scene.h": {
+      "executable": null,
+      "sha256": "e80bc8ed3a13ac745204cc79095833e47267aab30310bbfa754d0f8368259504"
+    },
+    "GEngine/src/Material/MaterialBinding.cpp": {
+      "executable": null,
+      "sha256": "6fb2f40179d1ec3fc50c94cac07e185bdbeeb7cb111c92bc29d2ef887346b2d8"
+    },
+    "GEngine/src/Renderer/RenderExtraction.cpp": {
+      "executable": null,
+      "sha256": "0c668dfe10114e925e5a6fc5df5c75e2b6d33b5d5403ea28e635bade7ae985b9"
+    },
+    "GEngine/src/Renderer/RenderFrame.cpp": {
+      "executable": null,
+      "sha256": "60340ba676cf711b65e53b65221cfbb1c34b13ef84b423e2d16f2e22be7f5e2c"
+    },
+    "GEngine/src/Scene/RenderState.cpp": {
+      "executable": null,
+      "sha256": "9aa51ba41f826509708cf55275b3d522b16c68bc0259b192a12e68d6f8a8a1c9"
+    },
+    "GEngine/src/Scene/_Scene.cpp": {
+      "executable": null,
+      "sha256": "7156a49d8282c2c31f73dcf153c766af59d51df459ed13e7efd36e7d282ef66a"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "53b5f0dd226eadc4bb2e709d334ceebf3d323202a2bbc31a6869afbb4ec4a0cf"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052"
+    },
+    "tools/render_extraction_probe.cpp": {
+      "executable": null,
+      "sha256": "ae5b597a2d06e803569d0cb6b22aa7e3aa0d69e277e54453e70bee25e4e2e693"
+    },
+    "tools/render_frame_probe.cpp": {
+      "executable": null,
+      "sha256": "023bde847e385e2416afb62988713d6c95f2a7f9127100e60c616c6e5f36b8e8"
+    },
+    "tools/render_state_probe.cpp": {
+      "executable": null,
+      "sha256": "22279f5f171826a89d99d5b0aaa4c414628b34b6a03f0e3e627fb234c30ac402"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/test_render_extraction.py": {
+      "executable": null,
+      "sha256": "d8b8942bb50fb2fad2ff4564254f579d77bd28646ade23d7780f0011712fcd17"
+    },
+    "tools/test_render_frame.py": {
+      "executable": null,
+      "sha256": "af0a4b1a14e7df199b17b374afd4cba5f4884a3d3dc4a541f08eb1142c1ac92d"
+    },
+    "tools/test_render_state.py": {
+      "executable": null,
+      "sha256": "31d2a782b0677fcbdd8a727ced01e302ce58578224f18e118500bbea3133e662"
+    }
+  }
+}

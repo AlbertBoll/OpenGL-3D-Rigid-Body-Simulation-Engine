@@ -141,7 +141,7 @@ namespace GEngine
 				|| !std::all_of(cache.light->color.begin(), cache.light->color.end(), [](float v) { return std::isfinite(v); }))))
 				return std::unexpected(TransformError{TransformErrorCode::NonFiniteRenderData, uuid});
 			EntityRenderState entry;
-			entry.entity = world.entity; entry.world = cache.world;
+			entry.entity = world.entity; entry.world = cache.world; entry.light = cache.light;
 			if (cache.mesh)
 			{
 				auto mesh = resources.meshes.Acquire(resources.access, cache.mesh->mesh);

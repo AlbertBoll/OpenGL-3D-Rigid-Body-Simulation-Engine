@@ -3,6 +3,7 @@
 #include <cmath>
 #include <limits>
 #include <new>
+#include <numbers>
 #include <utility>
 
 namespace GEngine
@@ -23,10 +24,20 @@ namespace GEngine
         }
         bool Finite(const glm::vec3& value) noexcept
         { return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z); }
+        bool LightValues(EntityRenderId entity, std::uint64_t revision, const glm::vec3& color, float intensity) noexcept
+        {
+            return entity && revision && Finite(color) && color.x >= 0 && color.y >= 0 && color.z >= 0
+                && std::isfinite(intensity) && intensity > 0;
+        }
+        bool UnitDirection(const glm::vec3& direction) noexcept
+        { return Finite(direction) && std::abs(glm::dot(direction, direction) - 1.f) <= 1.e-5f; }
+        bool Range(float range) noexcept { return std::isfinite(range) && range > 0; }
         std::size_t Bytes(FrameCapacity count) noexcept
         {
             return count.cameras * sizeof(FrameCamera) + count.draws * sizeof(DrawItem)
-                + count.debugLines * sizeof(FrameDebugLine) + count.resources * sizeof(FrameResources);
+                + count.debugLines * sizeof(FrameDebugLine) + count.resources * sizeof(FrameResources)
+                + count.directionalLights * sizeof(DirectionalLightData) + count.pointLights * sizeof(PointLightData)
+                + count.spotLights * sizeof(SpotLightData);
         }
     }
 
@@ -35,6 +46,8 @@ namespace GEngine
         using std::swap;
         swap(m_Cameras, other.m_Cameras); swap(m_Draws, other.m_Draws);
         swap(m_Debug, other.m_Debug); swap(m_Resources, other.m_Resources);
+        swap(m_Directional, other.m_Directional); swap(m_Point, other.m_Point); swap(m_Spot, other.m_Spot);
+        swap(m_LightRevision, other.m_LightRevision);
         swap(m_Size, other.m_Size); swap(m_Capacity, other.m_Capacity);
     }
     RenderFrame::RenderFrame(RenderFrame&& other) noexcept { Swap(other); }
@@ -46,7 +59,7 @@ namespace GEngine
     FrameStorageAccounting RenderFrame::Storage() const noexcept
     {
         return {Bytes(m_Size), Bytes(m_Capacity), std::size_t(bool(m_Cameras))
-            + bool(m_Draws) + bool(m_Debug) + bool(m_Resources)};
+            + bool(m_Draws) + bool(m_Debug) + bool(m_Resources) + bool(m_Directional) + bool(m_Point) + bool(m_Spot)};
     }
     RenderFrameBuilder::RenderFrameBuilder(RenderFrameBuilder&& other) noexcept
         : m_Frame(std::move(other.m_Frame)), m_Finalized(std::exchange(other.m_Finalized, true)) {}
@@ -59,13 +72,19 @@ namespace GEngine
         }
         return *this;
     }
-    std::expected<RenderFrameBuilder, FrameError> RenderFrameBuilder::Create(FrameCapacity capacity) noexcept
+    std::expected<RenderFrameBuilder, FrameError> RenderFrameBuilder::Create(FrameCapacity capacity, std::uint64_t lightRevision) noexcept
     {
-        const std::size_t counts[]{capacity.cameras, capacity.draws, capacity.debugLines, capacity.resources};
-        const std::size_t widths[]{sizeof(FrameCamera), sizeof(DrawItem), sizeof(FrameDebugLine), sizeof(FrameResources)};
-        const Section sections[]{Section::Cameras, Section::Draws, Section::DebugLines, Section::Resources};
+        if (capacity.directionalLights > MaxFrameLights || capacity.pointLights > MaxFrameLights - capacity.directionalLights
+            || capacity.spotLights > MaxFrameLights - capacity.directionalLights - capacity.pointLights)
+            return Error(Code::LightLimitExceeded, Section::Lights, MaxFrameLights);
+        const std::size_t counts[]{capacity.cameras, capacity.draws, capacity.debugLines, capacity.resources,
+            capacity.directionalLights, capacity.pointLights, capacity.spotLights};
+        const std::size_t widths[]{sizeof(FrameCamera), sizeof(DrawItem), sizeof(FrameDebugLine), sizeof(FrameResources),
+            sizeof(DirectionalLightData), sizeof(PointLightData), sizeof(SpotLightData)};
+        const Section sections[]{Section::Cameras, Section::Draws, Section::DebugLines, Section::Resources,
+            Section::DirectionalLights, Section::PointLights, Section::SpotLights};
         auto remaining = static_cast<std::size_t>((std::numeric_limits<std::ptrdiff_t>::max)());
-        for (std::size_t i = 0; i < 4; ++i)
+        for (std::size_t i = 0; i < std::size(counts); ++i)
         {
             if (counts[i] > remaining / widths[i]) return Error(Code::CapacityOverflow, sections[i], counts[i]);
             remaining -= counts[i] * widths[i];
@@ -92,8 +111,65 @@ namespace GEngine
             frame.m_Resources.reset(new (std::nothrow) FrameResources[capacity.resources]);
             if (!frame.m_Resources) return Error(Code::AllocationFailed, Section::Resources, capacity.resources);
         }
+        if (capacity.directionalLights)
+        {
+            frame.m_Directional.reset(new (std::nothrow) DirectionalLightData[capacity.directionalLights]);
+            if (!frame.m_Directional) return Error(Code::AllocationFailed, Section::DirectionalLights, capacity.directionalLights);
+        }
+        if (capacity.pointLights)
+        {
+            frame.m_Point.reset(new (std::nothrow) PointLightData[capacity.pointLights]);
+            if (!frame.m_Point) return Error(Code::AllocationFailed, Section::PointLights, capacity.pointLights);
+        }
+        if (capacity.spotLights)
+        {
+            frame.m_Spot.reset(new (std::nothrow) SpotLightData[capacity.spotLights]);
+            if (!frame.m_Spot) return Error(Code::AllocationFailed, Section::SpotLights, capacity.spotLights);
+        }
         frame.m_Capacity = capacity;
+        frame.m_LightRevision = lightRevision;
         return builder;
+    }
+    std::expected<void, FrameError> RenderFrameBuilder::AddLight(const DirectionalLightData& light) noexcept
+    {
+        const auto index = m_Frame.m_Size.directionalLights;
+        if (m_Finalized) return Error(Code::Finalized, Section::DirectionalLights);
+        if (index == m_Frame.m_Capacity.directionalLights) return Error(Code::CapacityExceeded, Section::DirectionalLights, index);
+        if (!LightValues(light.entity, light.revision, light.color, light.intensity))
+            return Error(Code::InvalidLight, Section::DirectionalLights, index);
+        if (!UnitDirection(light.direction)) return Error(Code::InvalidLightDirection, Section::DirectionalLights, index);
+        m_Frame.m_Directional[index] = light;
+        ++m_Frame.m_Size.directionalLights;
+        return {};
+    }
+    std::expected<void, FrameError> RenderFrameBuilder::AddLight(const PointLightData& light) noexcept
+    {
+        const auto index = m_Frame.m_Size.pointLights;
+        if (m_Finalized) return Error(Code::Finalized, Section::PointLights);
+        if (index == m_Frame.m_Capacity.pointLights) return Error(Code::CapacityExceeded, Section::PointLights, index);
+        if (!LightValues(light.entity, light.revision, light.color, light.intensity) || !Finite(light.position))
+            return Error(Code::InvalidLight, Section::PointLights, index);
+        if (!Range(light.range)) return Error(Code::InvalidLightRange, Section::PointLights, index);
+        m_Frame.m_Point[index] = light;
+        ++m_Frame.m_Size.pointLights;
+        return {};
+    }
+    std::expected<void, FrameError> RenderFrameBuilder::AddLight(const SpotLightData& light) noexcept
+    {
+        const auto index = m_Frame.m_Size.spotLights;
+        if (m_Finalized) return Error(Code::Finalized, Section::SpotLights);
+        if (index == m_Frame.m_Capacity.spotLights) return Error(Code::CapacityExceeded, Section::SpotLights, index);
+        if (!LightValues(light.entity, light.revision, light.color, light.intensity) || !Finite(light.position))
+            return Error(Code::InvalidLight, Section::SpotLights, index);
+        if (!UnitDirection(light.direction)) return Error(Code::InvalidLightDirection, Section::SpotLights, index);
+        if (!Range(light.range)) return Error(Code::InvalidLightRange, Section::SpotLights, index);
+        if (!std::isfinite(light.innerConeRadians) || !std::isfinite(light.outerConeRadians)
+            || light.innerConeRadians < 0 || light.innerConeRadians > light.outerConeRadians
+            || light.outerConeRadians >= std::numbers::pi_v<float>)
+            return Error(Code::InvalidLightCone, Section::SpotLights, index);
+        m_Frame.m_Spot[index] = light;
+        ++m_Frame.m_Size.spotLights;
+        return {};
     }
     std::expected<void, FrameError> RenderFrameBuilder::AddCamera(const FrameCamera& camera) noexcept
     {

@@ -9,6 +9,33 @@ static_assert(std::same_as<decltype(ExtractRenderFrame(std::declval<_Scene&>(),
     std::expected<RenderFrame, RenderExtractionError>>);
 static_assert(!std::is_copy_constructible_v<RenderFrame>);
 static_assert(!std::is_copy_constructible_v<GpuMesh>);
+static_assert(std::is_trivially_copyable_v<DirectionalLightData> && std::is_trivially_copyable_v<PointLightData>
+    && std::is_trivially_copyable_v<SpotLightData>);
+static_assert(std::same_as<decltype(std::declval<const RenderFrame&>().SpotLights()), std::span<const SpotLightData>>);
+static_assert(std::same_as<decltype(std::declval<RenderFrame&>().DirectionalLights()), std::span<const DirectionalLightData>>);
+static_assert(std::same_as<decltype(std::declval<RenderFrame&>().PointLights()), std::span<const PointLightData>>);
+
+// Minimal serial submission fixture: only a frame enters, so authoritative ECS
+// lookup is impossible. This copies typed upload values, without a lighting equation.
+struct LightUpload
+{
+    std::size_t directional{}, point{}, spot{};
+    glm::vec3 directionalColor{}, pointPosition{}, spotDirection{};
+    float pointRange{}, spotInner{}, spotOuter{}, intensity{};
+    bool shadow{};
+};
+LightUpload ConsumeLights(const RenderFrame& frame)
+{
+    LightUpload packet{frame.DirectionalLights().size(), frame.PointLights().size(), frame.SpotLights().size()};
+    for (const auto& light : frame.DirectionalLights()) packet.directionalColor = light.color;
+    for (const auto& light : frame.PointLights()) { packet.pointPosition = light.position; packet.pointRange = light.range; }
+    for (const auto& light : frame.SpotLights())
+    {
+        packet.spotDirection = light.direction; packet.spotInner = light.innerConeRadians;
+        packet.spotOuter = light.outerConeRadians; packet.intensity = light.intensity; packet.shadow = light.shadows.castShadows;
+    }
+    return packet;
+}
 
 #ifndef EXTRACTION_SCHEMA_ONLY
 #include "Scene/_Entity.h"
@@ -18,6 +45,7 @@ static_assert(!std::is_copy_constructible_v<GpuMesh>);
 #include <cstdlib>
 #include <limits>
 #include <new>
+#include <numbers>
 #include <print>
 #include <thread>
 
@@ -109,6 +137,14 @@ namespace
             auto entity = scene.CreateEntityWithUUID(UUID(uuid));
             auto id = scene.RenderData().Identify(entity).value();
             Check(scene.RenderData().Add(id, MeshRendererComponent{mesh, material, submesh}), "Author mesh intent");
+            return {entity, id};
+        }
+        std::pair<_Entity, EntityRenderId> Light(std::uint64_t uuid, RenderLightKind kind)
+        {
+            auto entity = scene.CreateEntityWithUUID(UUID(uuid));
+            auto id = scene.RenderData().Identify(entity).value();
+            RenderLightComponent intent; intent.kind = kind;
+            Check(scene.RenderData().Add(id, intent), "Author typed light intent without mesh");
             return {entity, id};
         }
         std::expected<RenderFrame, RenderExtractionError> Extract(RenderExtractionStats& stats,
@@ -245,6 +281,220 @@ namespace
         Check(!result && std::get<MaterialBindingError>(result.error().cause).code == MaterialBindingCode::InvalidTexture,
             "Stale texture dependency fails with binding diagnostic");
     }
+    void Lights(SDL_Window* window, SDL_GLContext context)
+    {
+        Fixture f; RenderExtractionStats stats;
+        Check(SDL_GL_MakeCurrent(window, nullptr) == 0, "Detach context for typed light extraction");
+        auto empty = f.Extract(stats);
+        Check(empty && empty->DirectionalLights().empty() && empty->PointLights().empty() && empty->SpotLights().empty()
+            && empty->LightRevision() == 0 && stats.lightCandidates == 0, "Zero lights");
+        auto [spot, spotId] = f.Light(30, RenderLightKind::Spot);
+        auto intent = f.scene.RenderData().Get<RenderLightComponent>(spotId).value();
+        for (auto kind : {RenderLightKind::Directional, RenderLightKind::Point, RenderLightKind::Spot})
+        {
+            intent.kind = kind;
+            Check(f.scene.RenderData().Replace(spotId, intent), "Change individual type");
+            auto one = f.Extract(stats); Check(one, "Individual light extracts");
+            Check(one->DirectionalLights().size() == std::size_t(kind == RenderLightKind::Directional)
+                && one->PointLights().size() == std::size_t(kind == RenderLightKind::Point)
+                && one->SpotLights().size() == std::size_t(kind == RenderLightKind::Spot), "Phase 11 type-correct dispatch");
+        }
+        intent.color = {.2f,.4f,.6f}; intent.intensity = 3; intent.range = 23;
+        intent.innerConeRadians = .2f; intent.outerConeRadians = .8f; intent.castShadows = true;
+        Check(f.scene.RenderData().Replace(spotId, intent), "Distinct spot intent");
+        // Legacy uniform components cannot override the migrated source or impose their old priority.
+        spot.AddComponent<DirectionalLightComponent>(); spot.AddComponent<PointLightComponent>(); spot.AddComponent<SpotLightComponent>();
+        auto [point, pointId] = f.Light(20, RenderLightKind::Point);
+        auto [directional, directionalId] = f.Light(10, RenderLightKind::Directional);
+        directional.Transform().Translation = {5,6,7};
+        directional.Transform().SetRotation(glm::angleAxis(std::numbers::pi_v<float> / 2, glm::vec3(0,1,0)));
+        directional.Transform().Scale = {2,3,-4};
+        point.Transform().Translation = {1,2,3}; spot.Transform().Translation = {1,0,0};
+        Check(spot.SetParent(directional), "Light pose follows presentation hierarchy");
+        Check(f.scene.RenderData().Add(spotId, VisibilityComponent{false,0}), "Actor invisibility does not disable light");
+        auto mixed = f.Extract(stats); Check(mixed, "Mixed typed lights");
+        const auto& s = mixed->SpotLights()[0]; const auto& d = mixed->DirectionalLights()[0];
+        Check(mixed->DirectionalLights().size() == 1 && mixed->PointLights().size() == 1 && mixed->SpotLights().size() == 1
+            && mixed->Draws().empty() && stats.lightCandidates == 3, "Mixed light-only entities ignore legacy uniform records");
+        Check(glm::length(d.direction - glm::vec3(1,0,0)) < 1.e-5f && glm::length(s.direction - d.direction) < 1.e-5f
+            && glm::length(s.position - glm::vec3(5,6,5)) < 1.e-5f && s.range == 23,
+            "Normalized reflected/rotated world direction, hierarchical position, unscaled world range");
+        Check(s.color == glm::vec3(.2f,.4f,.6f) && s.intensity == 3 && s.innerConeRadians == .2f
+            && s.outerConeRadians == .8f && s.shadows.castShadows && s.entity == spotId && s.revision,
+            "Spot values, shadow intent and revision are compact frame data");
+        Check(stats.frameStorage.storageAllocations == 3 && stats.frameStorage.usedBytes ==
+            sizeof(DirectionalLightData) + sizeof(PointLightData) + sizeof(SpotLightData), "Exact typed light array accounting");
+        auto repeat = f.Extract(stats);
+        Check(repeat && repeat->LightRevision() == mixed->LightRevision() && repeat->SpotLights()[0].revision == s.revision,
+            "No-op light revision stable");
+        Check(f.scene.RenderData().Replace(spotId, VisibilityComponent{true,7}), "Change only actor visibility");
+        repeat = f.Extract(stats);
+        Check(repeat && repeat->LightRevision() == mixed->LightRevision() && repeat->SpotLights()[0].revision == s.revision,
+            "Actor visibility is independent of light contribution/revision");
+        for (int failure = 0; failure < 3; ++failure)
+        {
+            Allocations::arrays = 0; Allocations::failArray = failure; Allocations::active = true;
+            auto failed = f.Extract(stats); Allocations::active = false;
+            Check(!failed && std::get<FrameError>(failed.error().cause).code == FrameErrorCode::AllocationFailed,
+                "Light extraction allocation failure returns no partial frame");
+            Check(f.scene.RenderData().Replace(spotId, intent), "Light allocation failure releases ECS freeze");
+        }
+        Allocations::failArray = -1;
+        auto revision = s.revision; auto aggregate = mixed->LightRevision();
+        auto changed = [&] {
+            auto next = f.Extract(stats); Check(next, "Changed light extraction");
+            Check(next->SpotLights()[0].revision > revision && next->LightRevision() > aggregate, "Light and aggregate revisions advance");
+            revision = next->SpotLights()[0].revision; aggregate = next->LightRevision();
+        };
+        spot.Transform().Translation.x += 1; changed();
+        spot.Transform().SetRotation(glm::angleAxis(.2f,glm::vec3(1,0,0))); changed();
+        for (int field = 0; field < 6; ++field)
+        {
+            if (field == 0) intent.color[0] += .1f;
+            if (field == 1) intent.intensity += 1;
+            if (field == 2) intent.range += 1;
+            if (field == 3) intent.innerConeRadians += .1f;
+            if (field == 4) intent.outerConeRadians += .1f;
+            if (field == 5) intent.castShadows = false;
+            Check(f.scene.RenderData().Replace(spotId, intent), "Edit renderer-relevant light intent"); changed();
+        }
+        intent.intensity = 0; Check(f.scene.RenderData().Replace(spotId, intent), "Zero intensity contribution");
+        auto off = f.Extract(stats);
+        Check(off && off->SpotLights().empty() && stats.nonContributingLights == 1 && off->LightRevision() > aggregate,
+            "Zero intensity filtered once with contribution revision");
+        intent.intensity = 1; Check(f.scene.RenderData().Replace(spotId, intent), "Restore contribution"); changed();
+        Check(f.scene.RenderData().Remove<RenderLightComponent>(spotId), "Remove migrated light intent");
+        auto removed = f.Extract(stats);
+        Check(removed && removed->SpotLights().empty() && removed->LightRevision() > aggregate,
+            "Legacy light components alone do not become a second extraction source");
+        f.scene.DestroyEntity(spot); f.scene.DestroyEntity(point); f.scene.DestroyEntity(directional);
+        auto gone = f.Extract(stats); Check(gone && gone->LightRevision() > removed->LightRevision()
+            && gone->DirectionalLights().empty() && gone->PointLights().empty(), "Entity removal visible in empty-frame revision");
+        const auto packet = ConsumeLights(*mixed);
+        Check(packet.directional == 1 && packet.point == 1 && packet.spot == 1 && packet.pointPosition == glm::vec3(1,2,3)
+            && packet.pointRange == 10 && packet.spotInner == .2f && packet.spotOuter == .8f && packet.intensity == 3 && packet.shadow,
+            "Serial consumer reads original typed payload after all ECS lights are destroyed");
+        std::thread reader([frame = std::move(*mixed)] {
+            Check(ConsumeLights(frame).intensity == 3, "Immutable light values survive worker read/destruction without GL");
+        }); reader.join();
+        Check(SDL_GL_MakeCurrent(window, context) == 0, "Restore context after typed light extraction");
+    }
+    void LightValidation()
+    {
+        Fixture f; RenderExtractionStats stats;
+        auto [entity, id] = f.Light(1, RenderLightKind::Spot);
+        RenderLightComponent valid; valid.kind = RenderLightKind::Spot;
+        const float nan = std::numeric_limits<float>::quiet_NaN(), infinity = std::numeric_limits<float>::infinity();
+        auto fail = [&](RenderLightComponent intent, FrameErrorCode code, bool preparation = false) {
+            Check(f.scene.RenderData().Replace(id, intent), "Author invalid light");
+            auto result = f.Extract(stats); Check(!result, "Invalid light fails entire extraction");
+            if (preparation)
+                Check(std::get<TransformError>(result.error().cause).code == TransformErrorCode::NonFiniteRenderData,
+                    "Preparation preserves typed nonfinite diagnostic");
+            else Check(result.error().entity == id && std::get<FrameError>(result.error().cause).code == code,
+                "Light error retains entity and precise typed cause");
+            Check(f.scene.RenderData().Replace(id, valid), "Failure releases mutation boundary");
+        };
+        for (float range : {0.f,-1.f,nan,infinity})
+        {
+            auto bad = valid; bad.range = range; fail(bad, FrameErrorCode::InvalidLightRange, !std::isfinite(range));
+            bad.kind = RenderLightKind::Point; fail(bad, FrameErrorCode::InvalidLightRange, !std::isfinite(range));
+        }
+        for (const auto cone : {glm::vec2(-.1f,.6f),glm::vec2(.7f,.6f),glm::vec2(0,std::numbers::pi_v<float>),
+            glm::vec2(nan,.6f),glm::vec2(.4f,infinity)})
+        {
+            auto bad = valid; bad.innerConeRadians = cone.x; bad.outerConeRadians = cone.y;
+            fail(bad,FrameErrorCode::InvalidLightCone,!std::isfinite(cone.x) || !std::isfinite(cone.y));
+        }
+        for (float value : {-.1f,nan,infinity})
+        {
+            auto bad = valid; bad.intensity = value; fail(bad,FrameErrorCode::InvalidLight,!std::isfinite(value));
+            bad = valid; bad.color[1] = value; fail(bad,FrameErrorCode::InvalidLight,!std::isfinite(value));
+        }
+        auto bad = valid; bad.kind = static_cast<RenderLightKind>(99); fail(bad,FrameErrorCode::InvalidLight);
+        for (float cone : {0.f,.5f})
+        {
+            auto edge = valid; edge.innerConeRadians = edge.outerConeRadians = cone;
+            Check(f.scene.RenderData().Replace(id, edge), "Hard-edge cone intent");
+            auto frame = f.Extract(stats); Check(frame && frame->SpotLights()[0].innerConeRadians == cone
+                && frame->SpotLights()[0].outerConeRadians == cone, "Equal cones including zero preserved as hard edge");
+        }
+        Check(f.scene.RenderData().Replace(id,valid), "Restore valid spot");
+        for (auto kind : {RenderLightKind::Directional,RenderLightKind::Spot})
+        {
+            valid.kind = kind; Check(f.scene.RenderData().Replace(id,valid), "Direction-bearing kind");
+            entity.Transform().Scale.z = 0;
+            auto zero = f.Extract(stats); Check(!zero && std::get<FrameError>(zero.error().cause).code == FrameErrorCode::InvalidLightDirection,
+                "Collapsed direction is a typed error");
+            for (float scale : {1.e-30f,1.e30f,-2.f})
+            {
+                entity.Transform().Scale.z = scale;
+                auto frame = f.Extract(stats); Check(frame, "Extreme finite direction normalized without float square overflow");
+                const auto direction = kind == RenderLightKind::Directional ? frame->DirectionalLights()[0].direction : frame->SpotLights()[0].direction;
+                Check(direction == glm::vec3(0,0,scale < 0 ? 1 : -1), "Direction sign and unit length preserved");
+            }
+            entity.Transform().Scale.z = infinity;
+            auto nonfinite = f.Extract(stats); Check(!nonfinite && std::holds_alternative<TransformError>(nonfinite.error().cause),
+                "Nonfinite direction source rejected by presentation validation");
+        }
+        entity.Transform().Scale.z = 1;
+        valid.kind = RenderLightKind::Point; Check(f.scene.RenderData().Replace(id,valid), "Point needs no direction");
+        entity.Transform().Scale = {0,0,0}; Check(f.Extract(stats), "Point position valid under zero scale");
+        valid.intensity = 0; valid.range = 0; valid.innerConeRadians = 2; valid.outerConeRadians = 1;
+        Check(f.scene.RenderData().Replace(id,valid), "Noncontributing light needs no range or cone");
+        auto off = f.Extract(stats); Check(off && off->PointLights().empty(), "Finite noncontributing intent skipped deterministically");
+    }
+    void LightLimitsAndBuilder()
+    {
+        Fixture f; RenderExtractionStats stats;
+        std::array<EntityRenderId, MaxFrameLights> sourceIds;
+        for (std::size_t i = MaxFrameLights; i > 0; --i) sourceIds[i-1] = f.Light(i, RenderLightKind::Point).second;
+        auto full = f.Extract(stats); Check(full && full->PointLights().size() == MaxFrameLights, "Exact supported maximum");
+        auto again = f.Extract(stats); Check(again, "Repeat maximum");
+        for (std::size_t i = 0; i < MaxFrameLights; ++i)
+            Check(full->PointLights()[i].entity == again->PointLights()[i].entity
+                && full->PointLights()[i].entity == sourceIds[i], "Multiple same-type lights retain deterministic order");
+        auto [extra, extraId] = f.Light(MaxFrameLights+1, RenderLightKind::Spot);
+        auto overflow = f.Extract(stats); Check(!overflow && overflow.error().entity == extraId
+            && std::get<FrameError>(overflow.error().cause).code == FrameErrorCode::LightLimitExceeded, "Mixed-type overflow fails without truncation");
+        auto intent = f.scene.RenderData().Get<RenderLightComponent>(extraId).value(); intent.intensity = 0;
+        Check(f.scene.RenderData().Replace(extraId,intent), "Disable overflow light by contribution");
+        Check(f.Extract(stats), "Noncontributing lights do not consume limit");
+        FrameCapacity capacity; capacity.directionalLights = capacity.pointLights = capacity.spotLights = 1;
+        for (int failure = 0; failure < 3; ++failure)
+        {
+            Allocations::arrays = 0; Allocations::failArray = failure; Allocations::active = true;
+            auto builder = RenderFrameBuilder::Create(capacity); Allocations::active = false;
+            Check(!builder && builder.error().code == FrameErrorCode::AllocationFailed, "Each typed light array allocation rolls back");
+        }
+        Allocations::failArray = -1;
+        auto builder = RenderFrameBuilder::Create(capacity).value();
+        DirectionalLightData d; d.entity = extraId; d.revision = 1;
+        d.direction = {0,0,0}; Check(!builder.AddLight(d), "Direct builder rejects zero direction");
+        d.direction = {std::numeric_limits<float>::quiet_NaN(),0,0}; Check(!builder.AddLight(d), "Direct builder rejects nonfinite direction");
+        d.direction = {0,0,-2}; Check(!builder.AddLight(d), "Direct builder rejects nonunit direction");
+        d.direction = {0,0,-1}; Check(builder.AddLight(d), "Valid directional append after rejection");
+        Check(!builder.AddLight(d), "Typed section capacity enforced");
+        PointLightData p; p.entity = extraId; p.revision = 1;
+        p.position.x = std::numeric_limits<float>::infinity(); Check(!builder.AddLight(p), "Builder rejects nonfinite position");
+        p.position.x = 0; p.range = 0; Check(!builder.AddLight(p), "Builder rejects nonpositive range");
+        p.range = 10; p.color.x = -1; Check(!builder.AddLight(p), "Builder rejects negative color");
+        p.color.x = 1; p.intensity = 0; Check(!builder.AddLight(p), "Builder accepts only contributing intensity");
+        p.intensity = 1; Check(builder.AddLight(p), "Point builder append");
+        SpotLightData s; s.entity = extraId; s.revision = 1;
+        s.outerConeRadians = std::numeric_limits<float>::quiet_NaN(); Check(!builder.AddLight(s), "Builder rejects nonfinite cone");
+        s.outerConeRadians = .2f; Check(!builder.AddLight(s), "Builder rejects reversed cone");
+        s.outerConeRadians = .6f; Check(builder.AddLight(s), "Spot builder append");
+        auto frame = std::move(builder).Finalize().value();
+        Check(!builder.AddLight(d) && !builder.AddLight(p) && !builder.AddLight(s), "All appends rejected after publication");
+        auto moved = std::move(frame);
+        Check(frame.DirectionalLights().empty() && frame.PointLights().empty() && frame.SpotLights().empty()
+            && moved.DirectionalLights().size() == 1 && moved.PointLights().size() == 1 && moved.SpotLights().size() == 1,
+            "All typed light owners participate in frame moves");
+        capacity.directionalLights = MaxFrameLights;
+        auto invalidCapacity = RenderFrameBuilder::Create(capacity);
+        Check(!invalidCapacity && invalidCapacity.error().code == FrameErrorCode::LightLimitExceeded, "Builder enforces combined capacity maximum");
+    }
     void Retention(SDL_Window* window, SDL_GLContext context)
     {
         Fixture f; auto [entity, id] = f.Entity(1); RenderExtractionStats stats;
@@ -294,7 +544,7 @@ int main()
     auto* window = SDL_CreateWindow("Serial extraction validation",0,0,32,32,SDL_WINDOW_OPENGL|SDL_WINDOW_HIDDEN);
     Check(window, "Hidden window"); auto context = SDL_GL_CreateContext(window); Check(context, "Context");
     Check(gladLoadGLLoader(SDL_GL_GetProcAddress), "GL loader");
-    Basic(window,context); Many(window,context); Failures(); Retention(window,context);
+    Basic(window,context); Many(window,context); Failures(); Lights(window,context); LightValidation(); LightLimitsAndBuilder(); Retention(window,context);
     Check(glGetError() == GL_NO_ERROR, "No GL errors");
     SDL_GL_DeleteContext(context); SDL_DestroyWindow(window); SDL_Quit();
     std::println("[PASS] render-extraction checks={}", checks);

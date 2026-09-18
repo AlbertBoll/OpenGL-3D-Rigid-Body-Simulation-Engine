@@ -23,7 +23,10 @@ static_assert(std::same_as<decltype(std::declval<const FrameResources&>().Materi
 static_assert(std::is_trivially_copyable_v<DrawItem> && std::is_trivially_copyable_v<FrameCamera>
     && std::is_trivially_copyable_v<FrameDebugLine>);
 static_assert(sizeof(DrawItem) <= 224 && sizeof(FrameCamera) <= 192 && sizeof(FrameDebugLine) <= 80);
-static_assert(sizeof(RenderFrame) <= 128 && sizeof(FrameResources) <= 256);
+// Seven array owners, two seven-section count records and the aggregate light
+// revision fit in 176 bytes on the maintained x64 target (formerly four arrays).
+static_assert(sizeof(RenderFrame) <= 176 && sizeof(FrameResources) <= 256);
+static_assert(sizeof(DirectionalLightData) <= 64 && sizeof(PointLightData) <= 72 && sizeof(SpotLightData) <= 88);
 
 #ifndef FRAME_SCHEMA_ONLY
 #include "Core/GLContextThread.h"

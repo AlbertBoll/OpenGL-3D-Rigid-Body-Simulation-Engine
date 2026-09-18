@@ -1337,3 +1337,43 @@ updates conservatively union old/new extents without retaining the CPU vertex
 payload. Replacement restores tight bounds. An attempted driver update retains that
 safe union even when the driver reports failure. No physics collision bounds,
 equations, fixed-step timing, legacy submission or culling algorithm is changed.
+
+
+## RenderFrame schema (Phase 39)
+
+Run `python tools/test_render_frame.py --configuration Debug` and `Release` for
+maintained-consumer builds, native-free header compilation, negative immutability
+compilation and the focused frame fixture. `--no-build` is only for matching builds.
+
+`Renderer/RenderFrame.h` defines camera/draw/debug presentation values and reuses
+`EntityRenderId` and the existing typed resource handles. Create a builder with
+`FrameCapacity`, append cameras/debug lines, transfer ready mesh/material versions
+with `AddResources(meshLease, std::move(preparedMaterial))`, then append
+`FrameDrawDesc` values referring to that table entry and a mesh submesh ordinal.
+Call `std::move(builder).Finalize()` to receive a move-only frame with const views.
+Failures use `FrameError` and do not append partial records or consume a rejected
+packet. A moved-from/finalized builder rejects further appends/finalization.
+
+The frame retains original mesh, material, template, pipeline, program, texture and
+sampler versions through submission. Prepare after publication. One resource table
+entry can serve many draws. Existing prepared buffers transfer without copying;
+mesh vertex/index payloads and texture pixels never enter frame storage. Registries
+must outlive frames; GPU owners retire on the context thread before teardown.
+Frame readers can run concurrently while ownership stays stationary; worker frame
+release drops leases without destroying GPU owners. Camera matrices are already
+computed presentation values; the submission owner selects and retains its target.
+
+The baseline ordering policy is append order for cameras, draws and debug lines,
+including transparent draws. Producers must append in a stable source order.
+`sortKey` is advisory; Finalize does not sort/batch or interpret it. Later sorting
+must preserve equal-key order and transparent compositing requirements. Frame moves,
+replacement and destruction invalidate borrowed views. No temporary-owner views,
+mutable storage, live ECS references or picking-pixel conversions are exposed.
+
+Empty zero-capacity frames allocate nothing; other builders allocate at most four
+arrays. Append and finalization do not allocate/grow frame storage. Storage()
+reports used/capacity bytes as sizeof(record) times counts and array allocation
+count, excluding allocator overhead and existing prepared/resource backing buffers.
+The fixture checks these figures, injects failure at each allocation, and validates
+rollback, moves, capacity/invalid-data errors, retained versions and worker release.
+Scene extraction remains Phase 40; light extraction remains Phase 41.

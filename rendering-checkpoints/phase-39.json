@@ -1,0 +1,228 @@
+{
+  "baseline": "fae4008527eaccf69ef41d641102d6f8e57bb96b",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Renderer/RenderFrame.h",
+    "GEngine/src/Renderer/RenderFrame.cpp",
+    "RenderingValidation/README.md",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-39.json",
+    "tools/render_frame_probe.cpp",
+    "tools/test_render_frame.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Include Core/GLContextThread.h only in the backend fixture branch so standalone transitions use registered engine wrappers. Final-v3 Debug/Release pass; native-free schema-only branch remains clean.",
+      "finding": "Initial standalone fixture created an unregistered GL context, triggering the existing context-thread assertion and timeout.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Use the valid transparent template declaration, intersect emitted draw shadow intent with template permission, and check transparent depth/shadow agreement. Final-v3 Debug/Release pass. Prior attempt outcomes remain in final/ and final-v2/.",
+      "finding": "Transparent test template requested forbidden opaque shadow/depth passes; draw shadow intent also needed to respect retained template policy.",
+      "status": "RESOLVED"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_39_REVIEW.md"
+  ],
+  "next_phase": "40",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "0f81cdf0f6a45a6f01d1e838556f771bb59ff4bf",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-39/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/0f81cdf0f6a45a6f01d1e838556f771bb59ff4bf",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "53b5f0dd226eadc4bb2e709d334ceebf3d323202a2bbc31a6869afbb4ec4a0cf"
+      },
+      "mode": "100644",
+      "validated_blob": "ccff44ad87d11803e05a4b019c1541ece7fe16a4",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-39/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/ccff44ad87d11803e05a4b019c1541ece7fe16a4"
+    }
+  },
+  "phase": "39",
+  "previous_approved_tag": "render-refactor-phase-38-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_39_REVIEW.md",
+  "schema": 2,
+  "summary": "Define a native-free, move-only immutable RenderFrame with camera/draw/debug values, stable append ordering, typed fixed-capacity builder/finalization errors and exact retained mesh/material dependency versions without heavy asset copies. Extraction and application migration remain outside this phase.",
+  "validation": [
+    {
+      "check": "Debug: six maintained consumers, native-free API/immutability, empty frame, storage/allocation rollback, deterministic order and resource lifetime",
+      "command": "python tools/test_render_frame.py --configuration Debug --output logs/rendering/phase39/final-v3/Debug",
+      "evidence": "logs/rendering/phase39/final-v3/Debug/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Release: six maintained consumers, native-free API/immutability, empty frame, storage/allocation rollback, deterministic order and resource lifetime",
+      "command": "python tools/test_render_frame.py --configuration Release --output logs/rendering/phase39/final-v3/Release",
+      "evidence": "logs/rendering/phase39/final-v3/Release/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Post-26 architecture: native-free compiled dependency closure and no new explicit exception/SFINAE transport",
+      "command": "tools/test_render_frame.py final-v3 Debug/Release: frame-consumer-boundary /showIncludes plus production source gate and declaration inspection",
+      "evidence": "logs/rendering/phase39/final-v3/Debug/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Preserve all 45 pre-existing dirty paths, index entries, baseline and canonical owner content; final validation input identity",
+      "command": "Python preflight comparison of SHA-256/absence, git ls-files --stage -v -z and git rev-parse HEAD; compare all pre-validation fingerprints",
+      "evidence": "logs/rendering/phase39/preservation-check.json; logs/rendering/phase39/validation-identity-check.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Affected governance/context references",
+      "command": "python .codex/tools/validate_rendering_governance.py",
+      "evidence": "logs/rendering/phase39/governance-check.log",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "GEngine/include/GEngine/Assets/AssetHandle.h": {
+      "executable": null,
+      "sha256": "0c2e54fe82b781b290628fe1c520ab3cf065570fcfa699d4afd341b3d5c61e1f"
+    },
+    "GEngine/include/GEngine/Assets/AssetPublication.h": {
+      "executable": null,
+      "sha256": "ad8489a717cc51bad2b2ed902b1d743dec67365667948686b1bab3e1d8dce2c3"
+    },
+    "GEngine/include/GEngine/Assets/AssetRegistry.h": {
+      "executable": null,
+      "sha256": "54e4109ad0b728c67454af19ae09599318054c13918c1df75c191a0ad21e58b5"
+    },
+    "GEngine/include/GEngine/Component/RenderComponents.h": {
+      "executable": null,
+      "sha256": "ce2406fd76223b4cb0cb5d2cb20ca58e18c7b67aa0871683596a1f1d33cdce5f"
+    },
+    "GEngine/include/GEngine/Core/GLContextThread.h": {
+      "executable": null,
+      "sha256": "d2b6c8c92f9e8c1f92508aba51a4a20963778115e727a285b1ebed0aeaca9873"
+    },
+    "GEngine/include/GEngine/Material/MaterialBinding.h": {
+      "executable": null,
+      "sha256": "68f52fde9c73b150de3cc3bda8f6b127e1d6c7fe1f0a05d82427a3ec7f4d5895"
+    },
+    "GEngine/include/GEngine/Material/MaterialInstance.h": {
+      "executable": null,
+      "sha256": "20918ce27f3f1d7ff20992a997e41283e337bca02a0e1bb7defc71b613080c48"
+    },
+    "GEngine/include/GEngine/Material/MaterialTemplate.h": {
+      "executable": null,
+      "sha256": "5edaabc5984f627b12801322b50d50bed5c534324c925072fc96deb1430ca035"
+    },
+    "GEngine/include/GEngine/Material/Pipeline.h": {
+      "executable": null,
+      "sha256": "1a5338955f8b0fd1ac7af01a1a6f032816d53e18b61b002177d081b31b193e0d"
+    },
+    "GEngine/include/GEngine/Mesh/GpuMesh.h": {
+      "executable": null,
+      "sha256": "70293e8871f6ed6bbfa2e38820e90a46a852b2435823f05042e3fee38fc7a874"
+    },
+    "GEngine/include/GEngine/Mesh/MeshAsset.h": {
+      "executable": null,
+      "sha256": "1d0dd5e38cf6e7bbba2ce68ea3fdeb827d47440bcc78c8d7989f63a11eb23cee"
+    },
+    "GEngine/include/GEngine/Renderer/RenderFrame.h": {
+      "executable": null,
+      "sha256": "80fc331d056dd143f18d04a3025c85eb840e260c32e6fdae92972e3b6dfb2830"
+    },
+    "GEngine/src/Material/MaterialBinding.cpp": {
+      "executable": null,
+      "sha256": "6fb2f40179d1ec3fc50c94cac07e185bdbeeb7cb111c92bc29d2ef887346b2d8"
+    },
+    "GEngine/src/Material/MaterialInstance.cpp": {
+      "executable": null,
+      "sha256": "9366c693097464c91335ad79a5e79cfec4607c19da5e1e41bca14d871a47fd97"
+    },
+    "GEngine/src/Material/MaterialTemplate.cpp": {
+      "executable": null,
+      "sha256": "e7fae7c67929623aa847203ce41e202bb3a68cf71127be213be6054ea315c764"
+    },
+    "GEngine/src/Mesh/GpuMesh.cpp": {
+      "executable": null,
+      "sha256": "781a8088e841805533bb4c50319b0503d336cb1ec0916946f868bee4e21d9eb7"
+    },
+    "GEngine/src/Renderer/RenderFrame.cpp": {
+      "executable": null,
+      "sha256": "49d86d56f05fa2fa0b11092ad38696f0656cc00a8d82df253127cf0c69e252c6"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "53b5f0dd226eadc4bb2e709d334ceebf3d323202a2bbc31a6869afbb4ec4a0cf"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052"
+    },
+    "tools/render_frame_probe.cpp": {
+      "executable": null,
+      "sha256": "12f6c8f57c953fbdc6c73a7c096ef365d90f7e297738bc760c2ac032b64690bd"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/test_render_frame.py": {
+      "executable": null,
+      "sha256": "af0a4b1a14e7df199b17b374afd4cba5f4884a3d3dc4a541f08eb1142c1ac92d"
+    }
+  }
+}

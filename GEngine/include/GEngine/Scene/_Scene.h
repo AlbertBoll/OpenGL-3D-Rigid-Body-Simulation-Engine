@@ -9,6 +9,29 @@
 
 namespace GEngine
 {
+	enum class TransformErrorCode
+	{
+		InvalidEntity, ForeignEntity, InvalidParent, Cycle, MissingTransform,
+		NonFiniteTransform, InvalidRotation, IdentityExhausted
+	};
+	struct TransformError
+	{
+		TransformErrorCode code;
+		UUID entity{0};
+		UUID parent{0};
+	};
+	struct WorldTransform
+	{
+		EntityRenderId entity;
+		Mat4 matrix{1.0f};
+		std::uint64_t revision{};
+	};
+	struct WorldTransformUpdate
+	{
+		// Value snapshot in deterministic parent-before-child order. No registry borrows.
+		std::vector<WorldTransform> transforms;
+		std::size_t recomputed{};
+	};
 	class _Entity;
 	class PhysicsWorld;
 	class PhysicsSystem;
@@ -48,8 +71,14 @@ namespace GEngine
 		const PhysicsTiming& GetPhysicsTiming() const { return m_PhysicsTiming; }
 		void Update(Timestep ts);
 
-		// ECS transforms are world-space, including children. Parent links organize
-		// entities; they do not multiply TRS matrices or rescale physics bodies.
+		// Call after authoring/physics and before serial render extraction. Ordinary
+		// Transform3DComponent TRS is local; entities with RigidBody3DComponent are
+		// explicit world-space anchors, preserving the existing physics bridge.
+		// Reparent/detach retains authored TRS. Failure publishes no partial snapshot.
+		std::expected<WorldTransformUpdate, TransformError> UpdateWorldTransforms();
+
+		// Legacy submission/interpolation adapter (application adoption 42, renderer 46).
+		// Its authored matrices retain the pre-hierarchy world-space interpretation.
 		struct RenderTransform
 		{
 			Mat4 matrix{1.0f};
@@ -58,7 +87,7 @@ namespace GEngine
 		};
 		double GetRenderInterpolationAlpha() const;
 		RenderTransform GetRenderTransform(const _Entity& entity);
-		void ResetRenderInterpolation(const _Entity& entity);
+		std::expected<void, TransformError> ResetRenderInterpolation(const _Entity& entity);
 		void SetRenderInterpolationEnabled(bool enabled) { m_RenderInterpolationEnabled = enabled; }
 		bool IsRenderInterpolationEnabled() const { return m_RenderInterpolationEnabled; }
 

@@ -168,7 +168,7 @@ namespace
         // Recursive deletion crosses mesh/light groups and retires both memberships.
         auto child = Add(*scene, &other.shader, "child");
         child.AddComponent<PointLightComponent>();
-        child.SetParent(duplicateMesh);
+        Require(child.SetParent(duplicateMesh).has_value(), "Grouping hierarchy setup failed");
         scene->PushToRenderList(child);
         scene->DestroyEntity(duplicateMesh);
         Require(scene->GetGroupEntities().at(12345) == std::vector<_Entity>({ mesh })

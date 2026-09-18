@@ -25,53 +25,64 @@ namespace GEngine
 
 	}
 
-	void _Entity::SetParent(_Entity parent)
+	std::expected<void, TransformError> _Entity::SetParent(_Entity parent)
 	{
 		if (!HasAllComponents<IDComponent>())
-			throw std::invalid_argument("Parenting requires a live scene entity");
+			return std::unexpected(TransformError{TransformErrorCode::InvalidEntity});
+		const auto id = GetUUID();
 		const bool detach = parent.m_EntityHandle == entt::null;
-		if (!detach && (parent.m_Scene != m_Scene || !parent.HasAllComponents<IDComponent>()))
-			throw std::invalid_argument("Parent must be a live entity in the same scene");
+		if (!detach && parent.m_Scene != m_Scene)
+			return std::unexpected(TransformError{TransformErrorCode::ForeignEntity, id});
+		if (!detach && !parent.HasAllComponents<IDComponent>())
+			return std::unexpected(TransformError{TransformErrorCode::InvalidParent, id});
 
 		// Validate the complete parent chain before changing either side of the link.
 		std::unordered_set<UUID> visited;
 		for (auto ancestor = detach ? _Entity{} : parent; ancestor;)
 		{
 			if (ancestor == *this || !visited.insert(ancestor.GetUUID()).second)
-				throw std::invalid_argument("Entity parenting cannot create or join a cycle");
+				return std::unexpected(TransformError{TransformErrorCode::Cycle, id, parent.GetUUID()});
 			const auto next = ancestor.GetParentUUID();
 			ancestor = ancestor.GetParent();
 			if (next != 0 && !ancestor)
-				throw std::invalid_argument("Parent chain contains an invalid entity");
+				return std::unexpected(TransformError{TransformErrorCode::InvalidParent, id, next});
 		}
 
 		const UUID parentId = detach ? UUID(0) : parent.GetUUID();
-		if (GetParentUUID() == parentId)
-			return;
-		const auto id = GetUUID();
+		EntityRenderId parentIdentity{};
+		if (!detach)
+		{
+			auto identity = m_Scene->RenderData().Identify(parent.m_EntityHandle);
+			if (!identity) return std::unexpected(TransformError{TransformErrorCode::IdentityExhausted, id, parentId});
+			parentIdentity = *identity;
+		}
+		if (GetParentUUID() == parentId && (detach || GetParent() == parent)) return {};
 		auto currentParent = GetParent();
 		(void)m_Scene->Reg().get_or_emplace<RelationshipComponent>(m_EntityHandle);
 		if (!detach)
 		{
-			auto& children = parent.Children();
+			auto& children = m_Scene->Reg().get_or_emplace<RelationshipComponent>(parent.m_EntityHandle).Children;
 			if (std::find(children.begin(), children.end(), id) == children.end())
 				children.push_back(id);
 		}
 		if (currentParent)
-			std::erase(currentParent.Children(), id);
+			if (auto* link = m_Scene->Reg().try_get<RelationshipComponent>(currentParent.m_EntityHandle))
+				std::erase(link->Children, id);
 		// Component insertion can relocate storage: reacquire after parent.Children().
-		GetComponent<RelationshipComponent>().ParentHandle = parentId;
-		m_Scene->ResetRenderInterpolation(*this);
+		auto& relationship = GetComponent<RelationshipComponent>();
+		relationship.ParentHandle = parentId;
+		relationship.ParentIdentity = parentIdentity;
+		return m_Scene->ResetRenderInterpolation(*this);
 	}
 
-	void _Entity::SetParentUUID(UUID parent)
+	std::expected<void, TransformError> _Entity::SetParentUUID(UUID parent)
 	{
-		if (!*this)
-			throw std::invalid_argument("Parenting requires a live scene entity");
+		if (!HasAllComponents<IDComponent>())
+			return std::unexpected(TransformError{TransformErrorCode::InvalidEntity});
 		auto resolved = m_Scene->GetEntityByUUID(parent);
 		if (parent != 0 && !resolved)
-			throw std::invalid_argument("Parent UUID is not a live scene entity");
-		SetParent(resolved);
+			return std::unexpected(TransformError{TransformErrorCode::InvalidParent, GetUUID(), parent});
+		return SetParent(resolved);
 	}
 
 	std::vector<UUID>& _Entity::Children()
@@ -96,7 +107,7 @@ namespace GEngine
 		if (std::find(children.begin(), children.end(), child.GetUUID()) == children.end())
 			return false;
 		if (child.GetParentUUID() == GetUUID())
-			child.SetParent({});
+			(void)child.SetParent({}); // Validated live child, null parent: cannot fail.
 		else
 			std::erase(children, child.GetUUID());
 		return true;

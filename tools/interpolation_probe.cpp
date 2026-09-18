@@ -115,10 +115,10 @@ namespace
         parent.Transform().SetTranslation(Vec3f(100, 200, 300));
         parent.Transform().Scale = Vec3f(2, 4, 7);
         parent.Transform().SetRotation(Vec3f(.4f, .6f, .8f));
-        rotation.entity.SetParent(parent);
+        Check(rotation.entity.SetParent(parent).has_value(), "Reparent was rejected");
         Check(Near(rotation.Sample().matrix, rotation.entity.Transform().GetTransform()),
             "Reparenting composed parent scale/rotation into existing world-space physics");
-        rotation.entity.SetParent({});
+        Check(rotation.entity.SetParent({}).has_value(), "Detach was rejected");
         Check(Near(rotation.Sample().matrix, rotation.entity.Transform().GetTransform()), "Detach retained old interpolation history");
 
         MovingScene paused;

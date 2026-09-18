@@ -135,6 +135,8 @@ namespace GEngine
 
 		struct Transform3DComponent
 		{
+			// Hierarchy authoring: local TRS, except world-space rigid-body anchors.
+			// Cached world matrices are scene runtime data, never written into this TRS.
 			Vec3f Translation{ 0.0f, 0.0f, 0.0f };
 			Vec3f EulerRotation{ 0.0f, 0.0f, 0.0f };
 			Vec3f Scale{ 1.0f, 1.0f, 1.0f };
@@ -372,6 +374,8 @@ namespace GEngine
 		struct RelationshipComponent
 		{
 			UUID ParentHandle = 0;
+			// Runtime lifetime stamp; scene copies rebind it in the destination domain.
+			EntityRenderId ParentIdentity{};
 			std::vector<UUID> Children;
 
 			RelationshipComponent() = default;

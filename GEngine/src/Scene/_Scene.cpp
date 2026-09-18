@@ -17,6 +17,7 @@
 #include <limits>
 #include <stdexcept>
 #include <utility>
+#include <unordered_set>
 
 namespace GEngine
 {
@@ -24,6 +25,24 @@ namespace GEngine
 
 	namespace
 	{
+		struct CachedWorldTransform
+		{
+			Vec3f translation{}, scale{1.0f};
+			Quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+			Mat4 local{1.0f}, world{1.0f};
+			EntityRenderId parent{};
+			std::uint64_t parentRevision{}, revision{};
+			bool worldAnchor{};
+		};
+
+		bool FiniteMatrix(const Mat4& matrix)
+		{
+			for (int column = 0; column != 4; ++column)
+				for (int row = 0; row != 4; ++row)
+					if (!std::isfinite(matrix[column][row])) return false;
+			return true;
+		}
+
 		// Runtime-only bridge state: not copied with authoring components or serialized.
 		struct RuntimePhysicsPose
 		{
@@ -150,6 +169,24 @@ namespace GEngine
 
 		// Copy components (except IDComponent and TagComponent)
 		CopyComponent(AllComponents{}, dstSceneRegistry, srcSceneRegistry, enttMap);
+		// UUID authoring links copy, but runtime lifetime stamps belong to one scene.
+		for (auto e : dstSceneRegistry.view<RelationshipComponent>())
+		{
+			auto& link = dstSceneRegistry.get<RelationshipComponent>(e);
+			const auto sourceParent = other->m_RenderData.Resolve(link.ParentIdentity);
+			const bool validSource = sourceParent && srcSceneRegistry.all_of<IDComponent>(*sourceParent)
+				&& srcSceneRegistry.get<IDComponent>(*sourceParent).ID == link.ParentHandle;
+			link.ParentIdentity = {};
+			const auto parent = enttMap.find(link.ParentHandle);
+			if (validSource && parent != enttMap.end())
+			{
+				auto identity = newScene->m_RenderData.Identify(parent->second);
+				// Identity exhaustion leaves the authoring copy intact. Evaluation first
+				// identifies every member and reports IdentityExhausted before any world
+				// snapshot can be published; it never treats an unbound link as a root.
+				if (identity) link.ParentIdentity = *identity;
+			}
+		}
 		auto RenderView = dstSceneRegistry.view<RenderComponent>();
 		for (auto e : RenderView)
 		{
@@ -301,16 +338,134 @@ namespace GEngine
 		return sampled;
 	}
 
-	void _Scene::ResetRenderInterpolation(const _Entity& entity)
+	std::expected<void, TransformError> _Scene::ResetRenderInterpolation(const _Entity& entity)
 	{
 		if (entity.GetSceneContext() != this || !entity)
-			throw std::invalid_argument("Interpolation reset requires a live entity in this scene");
+			return std::unexpected(TransformError{TransformErrorCode::InvalidEntity});
 		const auto handle = static_cast<entt::entity>(entity);
 		auto* pose = m_Registry.try_get<RuntimePhysicsPose>(handle);
 		const auto* rigidBody = m_Registry.try_get<RigidBody3DComponent>(handle);
 		const auto* transform = m_Registry.try_get<Transform3DComponent>(handle);
 		if (pose && rigidBody && transform && ValidPhysicsPose(m_PhysicsSystem->GetPhysicsWorld(), *rigidBody, *pose))
 			ResetPhysicsHistory(*pose, *transform, *rigidBody->RuntimeBody, entity.GetParentUUID());
+		return {};
+	}
+
+	std::expected<WorldTransformUpdate, TransformError> _Scene::UpdateWorldTransforms()
+	{
+		m_RenderData.RequireMutable();
+		struct Node
+		{
+			entt::entity handle;
+			UUID uuid;
+			EntityRenderId identity{}, parentIdentity{};
+			std::size_t parent = SIZE_MAX;
+		};
+		std::vector<Node> nodes;
+		for (auto e : m_Registry.view<IDComponent>())
+			nodes.push_back({e, m_Registry.get<IDComponent>(e).ID});
+		std::sort(nodes.begin(), nodes.end(), [](const Node& a, const Node& b) { return a.uuid < b.uuid; });
+		std::unordered_map<entt::entity, std::size_t> indices;
+		for (std::size_t i = 0; i != nodes.size(); ++i)
+		{
+			auto& node = nodes[i];
+			if (node.uuid == 0 || (i && node.uuid == nodes[i - 1].uuid))
+				return std::unexpected(TransformError{TransformErrorCode::InvalidEntity, node.uuid});
+			if (!m_Registry.all_of<Transform3DComponent>(node.handle))
+				return std::unexpected(TransformError{TransformErrorCode::MissingTransform, node.uuid});
+			auto identity = m_RenderData.Identify(node.handle);
+			if (!identity) return std::unexpected(TransformError{TransformErrorCode::IdentityExhausted, node.uuid});
+			node.identity = *identity;
+			indices.emplace(node.handle, i);
+		}
+		for (auto& node : nodes)
+		{
+			const auto* link = m_Registry.try_get<RelationshipComponent>(node.handle);
+			if (!link || link->ParentHandle == 0) continue;
+			auto parent = m_RenderData.Resolve(link->ParentIdentity);
+			if (!parent || !indices.contains(*parent)
+				|| nodes[indices.at(*parent)].uuid != link->ParentHandle)
+				return std::unexpected(TransformError{TransformErrorCode::InvalidParent, node.uuid, link->ParentHandle});
+			node.parent = indices.at(*parent);
+			node.parentIdentity = link->ParentIdentity;
+		}
+
+		// Iterative tri-color traversal: depth does not consume the C++ call stack.
+		// UUID-sorted starting points make both traversal and first-error selection stable.
+		std::vector<unsigned char> state(nodes.size());
+		std::vector<std::size_t> order, chain;
+		order.reserve(nodes.size());
+		for (std::size_t start = 0; start != nodes.size(); ++start)
+		{
+			if (state[start] == 2) continue;
+			chain.clear();
+			auto cursor = start;
+			while (cursor != SIZE_MAX && state[cursor] == 0)
+			{
+				state[cursor] = 1;
+				chain.push_back(cursor);
+				cursor = nodes[cursor].parent;
+			}
+			if (cursor != SIZE_MAX && state[cursor] == 1)
+				return std::unexpected(TransformError{TransformErrorCode::Cycle, nodes[cursor].uuid,
+					nodes[nodes[cursor].parent].uuid});
+			for (auto it = chain.rbegin(); it != chain.rend(); ++it)
+			{
+				state[*it] = 2;
+				order.push_back(*it);
+			}
+		}
+
+		WorldTransformUpdate result;
+		result.transforms.reserve(nodes.size());
+		std::vector<CachedWorldTransform> candidate(nodes.size());
+		for (auto index : order)
+		{
+			const auto& node = nodes[index];
+			const auto& local = m_Registry.get<Transform3DComponent>(node.handle);
+			auto& cache = candidate[index];
+			if (const auto* previous = m_Registry.try_get<CachedWorldTransform>(node.handle)) cache = *previous;
+			const bool localChanged = !cache.revision || cache.translation != local.Translation
+				|| cache.rotation != local.QuatRotation || cache.scale != local.Scale;
+			if (localChanged)
+			{
+				const auto lengthSquared = glm::dot(local.QuatRotation, local.QuatRotation);
+				if (!std::isfinite(lengthSquared) || lengthSquared <= 0.0f)
+					return std::unexpected(TransformError{TransformErrorCode::InvalidRotation, node.uuid});
+				cache.local = glm::translate(Mat4(1.0f), local.Translation)
+					* glm::toMat4(glm::normalize(local.QuatRotation)) * glm::scale(Mat4(1.0f), local.Scale);
+				if (!FiniteMatrix(cache.local))
+					return std::unexpected(TransformError{TransformErrorCode::NonFiniteTransform, node.uuid});
+				cache.translation = local.Translation;
+				cache.rotation = local.QuatRotation;
+				cache.scale = local.Scale;
+			}
+			const bool anchor = m_Registry.all_of<RigidBody3DComponent>(node.handle);
+			const bool compose = node.parent != SIZE_MAX && !anchor;
+			const auto parentRevision = compose ? candidate[node.parent].revision : 0;
+			if (localChanged || cache.parent != node.parentIdentity || cache.parentRevision != parentRevision
+				|| cache.worldAnchor != anchor)
+			{
+				const Mat4 world = compose ? candidate[node.parent].world * cache.local : cache.local;
+				if (!FiniteMatrix(world))
+					return std::unexpected(TransformError{TransformErrorCode::NonFiniteTransform, node.uuid});
+				++result.recomputed;
+				if (!cache.revision || cache.world != world)
+				{
+					Asset::AssetDetail::RequireInvariant(cache.revision != UINT64_MAX);
+					++cache.revision;
+					cache.world = world;
+				}
+				cache.parent = node.parentIdentity;
+				cache.parentRevision = parentRevision;
+				cache.worldAnchor = anchor;
+			}
+			result.transforms.push_back({node.identity, cache.world, cache.revision});
+		}
+		// Publish caches only after the whole graph, including composed matrices, is valid.
+		for (std::size_t i = 0; i != nodes.size(); ++i)
+			m_Registry.emplace_or_replace<CachedWorldTransform>(nodes[i].handle, candidate[i]);
+		return result;
 	}
 
 	void _Scene::SetPaused(bool paused)
@@ -319,7 +474,7 @@ namespace GEngine
 		m_IsPaused = paused;
 		// Pause/resume snaps to current state; resuming without a tick cannot rewind.
 		for (auto e : m_Registry.view<RuntimePhysicsPose>())
-			ResetRenderInterpolation(_Entity(e, this));
+			(void)ResetRenderInterpolation(_Entity(e, this)); // Live member of this scene.
 	}
 
 	void _Scene::OnRuntimeStart()
@@ -388,7 +543,9 @@ namespace GEngine
 		// A single-entity duplicate is a sibling; its source's children are not copied.
 		if (newEntity.HasAllComponents<RelationshipComponent>())
 			newEntity.GetComponent<RelationshipComponent>() = RelationshipComponent{};
-		newEntity.SetParent(entity.GetParent());
+		// Legacy duplication requires a valid source graph; the fresh entity cannot
+		// appear in its ancestor chain and its parent already has a runtime identity.
+		(void)newEntity.SetParent(entity.GetParent());
 		PushToRenderList(newEntity);
 		return newEntity;
 	}
@@ -460,39 +617,44 @@ namespace GEngine
 		if (!entity.HasAllComponents<IDComponent>())
 			throw std::invalid_argument("Destroy requires a scene entity with an ID");
 
-		const auto id = entity.GetUUID();
-		// Copy UUIDs before registry removals move components. Links do not own entities;
-		// only this explicit scene operation requests recursive destruction.
-		const auto children = std::as_const(entity).Children();
-		entity.SetParent({});
-		for (const auto childId : children)
+		// Detach while parents are still alive, then retire descendants before parents.
+		// The explicit worklist also makes destruction safe for very deep hierarchies.
+		std::vector<_Entity> pending{entity}, retiring;
+		std::unordered_set<entt::entity> visited;
+		while (!pending.empty())
 		{
-			auto child = GetEntityByUUID(childId);
-			if (child && child.GetParentUUID() == id)
+			auto current = pending.back();
+			pending.pop_back();
+			if (!visited.insert(static_cast<entt::entity>(current)).second) continue;
+			const auto children = std::as_const(current).Children();
+			(void)current.SetParent({}); // Live ID and null parent: cannot fail.
+			for (const auto childId : children)
 			{
-				if (excludeChildren)
-					child.SetParent({});
-				else
-					DestroyEntity(child, false, false);
+				auto child = GetEntityByUUID(childId);
+				if (child && child.GetParent() == current)
+				{
+					if (excludeChildren)
+						(void)child.SetParent({});
+					else
+						pending.push_back(child);
+				}
 			}
+			retiring.push_back(current);
 		}
-
-		// Remove recorded memberships even if the shader was replaced or removed.
-		RemoveFromRenderLists(entity);
-
-		//remove its corresponding rigid body if exists
-		if (entity.HasAllComponents<RigidBody3DComponent>())
+		for (auto it = retiring.rbegin(); it != retiring.rend(); ++it)
 		{
-			auto rigid_body = entity.GetComponent<RigidBody3DComponent>().RuntimeBody;
-			
-			auto physics_world = m_PhysicsSystem->GetPhysicsWorld();
-			if (physics_world && rigid_body)
-				physics_world->RemoveRigidBody3D(rigid_body);
-
+			const auto current = *it;
+			const auto id = current.GetUUID();
+			RemoveFromRenderLists(current);
+			if (current.HasAllComponents<RigidBody3DComponent>())
+			{
+				auto* body = current.GetComponent<RigidBody3DComponent>().RuntimeBody;
+				auto* world = m_PhysicsSystem->GetPhysicsWorld();
+				if (world && body) world->RemoveRigidBody3D(body);
+			}
+			m_Registry.destroy(static_cast<entt::entity>(current));
+			m_EntityMap.erase(id);
 		}
-
-		m_Registry.destroy((entt::entity)entity);
-		m_EntityMap.erase(id);
 
 	}
 

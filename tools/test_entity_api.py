@@ -1,4 +1,4 @@
-"""Build ECS consumers and run the production entity API regression on Windows."""
+"""Build ECS consumers and validate entity lifetime and the transform hierarchy on Windows."""
 import argparse
 import hashlib
 import json
@@ -53,6 +53,9 @@ def main():
         sdk_version = max((p.name for p in (sdk / "Lib").iterdir()
                            if (p / "um/x64/kernel32.lib").is_file()), key=lambda name: tuple(map(int, name.split("."))))
         report["toolchain"] = {"msbuild": str(msbuild), "msvc": str(vc), "sdk": str(sdk), "sdk_version": sdk_version}
+        if vc.name != "14.44.35207" or sdk_version != "10.0.26100.0":
+            report["reason"] = "Recorded compiler/SDK unavailable; toolchain migration is not authorized"
+            return 1
         if not args.no_build and not invoke("generate", [ROOT / "vendor/bin/premake/premake5.exe", "vs2022"], 120):
             return 1
         report["compiler_return_guards"] = env["CL"]
@@ -68,6 +71,23 @@ def main():
         libraries = [vc / "lib/x64", sdk / "Lib" / sdk_version / "ucrt/x64",
                      sdk / "Lib" / sdk_version / "um/x64",
                      *(ROOT / "external" / part / "lib" for part in ("sdl2", "tbb", "assimp", "fmod"))]
+        consumer = out / "hierarchy-consumer.cpp"
+        consumer.write_text('#include <Scene/_Entity.h>\n'
+                            'std::expected<GEngine::WorldTransformUpdate, GEngine::TransformError> '
+                            'Evaluate(GEngine::_Scene& scene) { return scene.UpdateWorldTransforms(); }\n'
+                            'std::expected<void, GEngine::TransformError> '
+                            'Parent(GEngine::_Entity child, GEngine::_Entity parent) { return child.SetParent(parent); }\n')
+        native_free = [path for path in includes if not any(part in path.parts for part in ("sdl2", "glad", "assimp", "tbb"))]
+        if not invoke("hierarchy-consumer-boundary", [vc / "bin/Hostx64/x64/cl.exe", "/nologo", "/std:c++23preview",
+                      "/EHsc", "/W3", "/MTd" if config == "Debug" else "/MT", "/c", "/showIncludes",
+                      "/D_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING",
+                      *["/I" + str(p) for p in native_free], consumer, "/Fo" + str(out / "hierarchy-consumer.obj")], 120):
+            return 1
+        dependencies = (out / "hierarchy-consumer-boundary.log").read_text(errors="replace").lower().replace("\\", "/")
+        if any(token in dependencies for token in ("/glad/", "/sdl2/", "/opengl/", "/imgui/", "/assimp/", "/gepch.h", "backend.h")):
+            report["reason"] = "Concrete backend declaration leaked into the transform consumer"
+            return 1
+        report["consumer_boundary"] = "PASS"
         executable = out / "entity-api-probe.exe"
         command = [vc / "bin/Hostx64/x64/cl.exe", "/nologo", "/std:c++23preview", "/EHsc", "/W3",
                    "/MTd" if config == "Debug" else "/MT", "/Od" if config == "Debug" else "/O2",

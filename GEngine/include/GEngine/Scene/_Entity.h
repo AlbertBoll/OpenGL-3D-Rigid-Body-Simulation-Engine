@@ -95,12 +95,18 @@ namespace GEngine
 
 		_Entity GetParent() const
 		{
-			return *this ? m_Scene->GetEntityByUUID(GetParentUUID()) : _Entity{};
+			if (!HasAllComponents<RelationshipComponent>()) return {};
+			const auto& link = GetComponent<RelationshipComponent>();
+			auto parent = m_Scene->RenderData().Resolve(link.ParentIdentity);
+			if (!parent) return {};
+			_Entity result(*parent, m_Scene);
+			return result.HasAllComponents<IDComponent>() && result.GetUUID() == link.ParentHandle ? result : _Entity{};
 		}
 
-		// Null detaches; invalid/cross-scene parents and cycles throw before relinking.
-		void SetParent(_Entity parent);
-		void SetParentUUID(UUID parent);
+		// Null detaches. Retains authored TRS; validates the full parent chain before
+		// relinking. Typed failures leave both sides unchanged.
+		std::expected<void, TransformError> SetParent(_Entity parent);
+		std::expected<void, TransformError> SetParentUUID(UUID parent);
 
 		UUID GetParentUUID() const
 		{ 

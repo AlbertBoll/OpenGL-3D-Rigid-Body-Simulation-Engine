@@ -1298,3 +1298,42 @@ deletion and no unexpected GL debug errors. Isolated child processes reject work
 creation/destruction and destruction under another context in both configurations.
 GPU APIs stay private; importer/async loading/application migration remain in their
 assigned phases. No performance gain is claimed.
+
+
+## Phase 38: presentation bounds and revision sources
+
+`python tools/test_render_state.py --configuration Debug|Release --output <directory>`
+builds the six maintained consumers, checks the native-free scene header closure,
+and runs the bounds/resource/interpolation fixture over two hidden GL lifetimes.
+Use `--no-build` only with matching binaries. The phase review records the selected
+hierarchy, interpolation and GPU mesh regressions and actual final evidence.
+
+After authoring/physics and asset publication, open `AssetPublication::FrameAccess`
+and call `_Scene::UpdateRenderState(resources)` before `RenderData().BeginExtraction()`.
+The result contains presentation world matrices, conservative bounds, typed resource
+resolution diagnostics, per-entity revisions and aggregate scene revisions. It is
+an invalidation snapshot, not the future finalized draw frame. Mesh and prepared
+material leases retain exact versions; retain the separately resolved target owner
+through submission. Old entity IDs still require normal generation/lifetime checks.
+
+Revision sources are effective presentation matrices (including tickless alpha and
+ancestor motion), mesh identity/publication/submesh/flags, material identity and
+published/authored/template/program/texture/sampler versions, light/camera component
+values and poses, and target identity/publication/description/storage revision.
+`CaptureRenderTargetRevision` copies the latter from a resolved target with its
+caller-supplied typed registry identity/version. Target no-op resize leaves storage
+revision unchanged. A deliberate resource publication creates a new version even
+when bytes are equal; publishers skip replacement on no-op authoring (for example,
+when `MaterialInstance::Revision()` is unchanged). Visibility edits and entity or
+component removal also invalidate the aggregate scene. No-op observed state does
+not advance counters. Counters are scoped to a scene lifetime and category.
+
+`WorldBounds::CanCull()` is true only for valid bounds. Invalid or unavailable bounds
+must remain conservatively visible; Empty means a known empty mesh. Affine interval
+bounds cover non-uniform/negative scale, rotation and hierarchy shear, with outward
+rounding. The sphere encloses the world AABB. Bounds cover uploaded mesh positions,
+not arbitrary shader displacement. GPU owners retain local bounds; partial dynamic
+updates conservatively union old/new extents without retaining the CPU vertex
+payload. Replacement restores tight bounds. An attempted driver update retains that
+safe union even when the driver reports failure. No physics collision bounds,
+equations, fixed-step timing, legacy submission or culling algorithm is changed.

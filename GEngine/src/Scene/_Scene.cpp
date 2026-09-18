@@ -35,6 +35,7 @@ namespace GEngine
 			bool worldAnchor{};
 		};
 
+
 		bool FiniteMatrix(const Mat4& matrix)
 		{
 			for (int column = 0; column != 4; ++column)
@@ -297,7 +298,22 @@ namespace GEngine
 		if (entity.GetSceneContext() != this || !entity.HasAllComponents<Transform3DComponent>())
 			throw std::invalid_argument("Render transform requires a live entity in this scene");
 		const auto handle = static_cast<entt::entity>(entity);
-		const auto& transform = entity.GetComponent<Transform3DComponent>();
+		const auto matrix = SampleRenderMatrix(handle);
+		auto& sampled = m_Registry.get_or_emplace<RenderTransform>(handle);
+		if (sampled.revision == 0 || sampled.matrix != matrix)
+		{
+			sampled.matrix = matrix;
+			sampled.revision = ++m_RenderTransformRevision;
+		}
+		sampled.simulationRevision = m_PhysicsTiming.totalSteps;
+		return sampled;
+	}
+
+	Mat4 _Scene::SampleRenderMatrix(entt::entity handle) const
+	{
+		const auto& transform = m_Registry.get<Transform3DComponent>(handle);
+		const auto* link = m_Registry.try_get<RelationshipComponent>(handle);
+		const UUID parent = link ? link->ParentHandle : UUID{0};
 		Vec3f translation = transform.Translation;
 		Quat rotation = transform.QuatRotation;
 		const auto* pose = m_Registry.try_get<RuntimePhysicsPose>(handle);
@@ -314,7 +330,7 @@ namespace GEngine
 				translation = body->m_Position;
 				rotation = body->m_Orientation;
 				if (m_RenderInterpolationEnabled && !m_IsPaused && transform.Scale == pose->scale
-					&& entity.GetParentUUID() == pose->parent && translation == pose->currentTranslation
+					&& parent == pose->parent && translation == pose->currentTranslation
 					&& rotation == pose->currentRotation)
 				{
 					const float alpha = static_cast<float>(GetRenderInterpolationAlpha());
@@ -326,16 +342,8 @@ namespace GEngine
 		}
 		// Scale is authored, not integrated. A scale edit snaps history; preserving
 		// T*R*S directly supports non-uniform/negative scale without matrix decomposition.
-		const Mat4 matrix = glm::translate(Mat4(1.0f), translation) * glm::toMat4(rotation)
+		return glm::translate(Mat4(1.0f), translation) * glm::toMat4(glm::normalize(rotation))
 			* glm::scale(Mat4(1.0f), transform.Scale);
-		auto& sampled = m_Registry.get_or_emplace<RenderTransform>(handle);
-		if (sampled.revision == 0 || sampled.matrix != matrix)
-		{
-			sampled.matrix = matrix;
-			sampled.revision = ++m_RenderTransformRevision;
-		}
-		sampled.simulationRevision = m_PhysicsTiming.totalSteps;
-		return sampled;
 	}
 
 	std::expected<void, TransformError> _Scene::ResetRenderInterpolation(const _Entity& entity)
@@ -467,6 +475,7 @@ namespace GEngine
 			m_Registry.emplace_or_replace<CachedWorldTransform>(nodes[i].handle, candidate[i]);
 		return result;
 	}
+
 
 	void _Scene::SetPaused(bool paused)
 	{

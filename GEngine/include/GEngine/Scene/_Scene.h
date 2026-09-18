@@ -1,6 +1,7 @@
 #pragma once
 #include"entt/entt.hpp"
 #include "Scene/RenderEcs.h"
+#include "Scene/RenderState.h"
 #include <Core/Timestep.h>
 #include <cstdint>
 #include <map>
@@ -12,7 +13,7 @@ namespace GEngine
 	enum class TransformErrorCode
 	{
 		InvalidEntity, ForeignEntity, InvalidParent, Cycle, MissingTransform,
-		NonFiniteTransform, InvalidRotation, IdentityExhausted
+		NonFiniteTransform, InvalidRotation, IdentityExhausted, NonFiniteRenderData
 	};
 	struct TransformError
 	{
@@ -76,6 +77,12 @@ namespace GEngine
 		// explicit world-space anchors, preserving the existing physics bridge.
 		// Reparent/detach retains authored TRS. Failure publishes no partial snapshot.
 		std::expected<WorldTransformUpdate, TransformError> UpdateWorldTransforms();
+
+		// After resource publication and authoring, before BeginExtraction. Resolves
+		// ready versions, samples presentation, and reports effective invalidation.
+		// Invalid/missing bounds stay visible with a diagnostic; malformed hierarchy
+		// or presentation fails transactionally without publishing render revisions.
+		std::expected<SceneRenderState, TransformError> UpdateRenderState(const RenderStateResources&);
 
 		// Legacy submission/interpolation adapter (application adoption 42, renderer 46).
 		// Its authored matrices retain the pre-hierarchy world-space interpretation.
@@ -160,6 +167,7 @@ namespace GEngine
 
 	private:
 		void RemoveFromRenderLists(const _Entity& entity);
+		Mat4 SampleRenderMatrix(entt::entity entity) const;
 
 		template<typename T>
 		void OnComponentAdded(_Entity entity, T& component);

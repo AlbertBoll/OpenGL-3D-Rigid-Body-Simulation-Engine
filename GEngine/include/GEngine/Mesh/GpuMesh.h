@@ -49,6 +49,7 @@ namespace GEngine
         MeshIndexFormat IndexFormat() const noexcept;
         MeshUpdateIntent UpdateIntent() const noexcept;
         std::uint32_t MaterialSlotCount() const noexcept;
+        LocalBounds Bounds() const noexcept;
 
         // Static rejects all updates, including empty ones. Dynamic empty updates
         // at a valid offset are no-ops. Layout/order and allocation capacity never

@@ -74,6 +74,7 @@ namespace GEngine
         std::uint32_t materialSlots = 0;
         MeshIndexFormat indexFormat = MeshIndexFormat::None;
         MeshUpdateIntent intent = MeshUpdateIntent::Static;
+        LocalBounds bounds;
         void RequireContext() const
         {
             GLContextThread::RequireCurrent("GpuMesh operation/retirement");
@@ -97,6 +98,7 @@ namespace GEngine
     MeshIndexFormat GpuMesh::IndexFormat() const noexcept { return m_Storage ? m_Storage->indexFormat : MeshIndexFormat::None; }
     MeshUpdateIntent GpuMesh::UpdateIntent() const noexcept { return m_Storage ? m_Storage->intent : MeshUpdateIntent::Static; }
     std::uint32_t GpuMesh::MaterialSlotCount() const noexcept { return m_Storage ? m_Storage->materialSlots : 0; }
+    LocalBounds GpuMesh::Bounds() const noexcept { return m_Storage ? m_Storage->bounds : LocalBounds{}; }
 
     std::expected<GpuMesh, GpuMeshError> GpuMesh::Create(const MeshAsset& source)
     {
@@ -133,6 +135,7 @@ namespace GEngine
         s.attributeCount = layout.attributes.size(); s.stride = layout.strideBytes;
         s.vertices = source.VertexCount(); s.indices = source.IndexCount();
         s.indexFormat = source.IndexFormat(); s.intent = source.UpdateIntent();
+        s.bounds = source.Bounds();
         Bindings previous;
         glGenVertexArrays(1, &s.vao.m_VertexArrayRef);
         if (!s.vao.m_VertexArrayRef) return Error(Code::Allocation, "Driver did not allocate a vertex array");
@@ -196,17 +199,37 @@ namespace GEngine
         const auto bytes = update.vertexCount * s.stride, offset = update.firstVertex * s.stride;
         if (update.records.size() != bytes) return Error(Code::PayloadMismatch, "Update must contain complete vertex records");
         std::size_t positionOffset = 0;
+        auto bounds = s.bounds;
         for (const auto& a : Layout().attributes) if (a.semantic == VertexSemantic::Position) positionOffset = a.offsetBytes;
         for (std::size_t i = 0; i < update.vertexCount; ++i)
         {
             float position[3]; std::memcpy(position, update.records.data() + i * s.stride + positionOffset, sizeof(position));
             for (float value : position) if (!std::isfinite(value)) return Error(Code::NonFinitePosition, "Nonfinite updated position", i);
+            // Retain a conservative union across partial updates without retaining
+            // the heavy CPU vertex payload. Recreation restores tight mesh bounds.
+            for (int axis = 0; axis != 3; ++axis)
+            {
+                bounds.minimum[axis] = (std::min)(bounds.minimum[axis], double(position[axis]));
+                bounds.maximum[axis] = (std::max)(bounds.maximum[axis], double(position[axis]));
+            }
         }
         if (!bytes) return {};
         if (DriverFailed("before vertex update")) return Error(Code::Driver, "Pre-existing driver error; no mesh update issued");
         Bindings previous;
         glBindBuffer(GL_ARRAY_BUFFER, s.vertex.m_VertexBufferRef);
         glBufferSubData(GL_ARRAY_BUFFER, static_cast<GLintptr>(offset), static_cast<GLsizeiptr>(bytes), update.records.data());
+        std::array<double, 3> extent;
+        const double infinity = std::numeric_limits<double>::infinity();
+        for (int axis = 0; axis != 3; ++axis)
+        {
+            bounds.sphereCenter[axis] = (bounds.minimum[axis] + bounds.maximum[axis]) * .5;
+            extent[axis] = std::nextafter((std::max)(bounds.maximum[axis] - bounds.sphereCenter[axis],
+                bounds.sphereCenter[axis] - bounds.minimum[axis]), infinity);
+        }
+        bounds.sphereRadius = std::nextafter(std::hypot(extent[0], extent[1], extent[2]), infinity);
+        // An issued update may have modified storage even if the driver reports
+        // failure. The union is safe for both old and attempted content.
+        s.bounds = bounds;
         if (DriverFailed("vertex update")) return Error(Code::Driver, "Driver rejected vertex update");
         return {};
     }

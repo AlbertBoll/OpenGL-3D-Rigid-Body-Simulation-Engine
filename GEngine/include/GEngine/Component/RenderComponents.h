@@ -24,12 +24,14 @@ namespace GEngine
             bool castShadows = true;
             bool receiveShadows = true;
             bool pickable = true;
+            bool operator==(const MeshRendererComponent&) const = default;
         };
 
         struct VisibilityComponent
         {
             bool enabled = true;
             std::uint32_t layers = ~std::uint32_t{0};
+            bool operator==(const VisibilityComponent&) const = default;
         };
 
         enum class CameraProjection { Perspective, Orthographic };
@@ -44,6 +46,7 @@ namespace GEngine
             float farPlane = 1000.f;
             std::uint32_t visibleLayers = ~std::uint32_t{0};
             bool primary = true;
+            bool operator==(const RenderCameraComponent&) const = default;
         };
 
         enum class RenderLightKind { Directional, Point, Spot };
@@ -58,6 +61,7 @@ namespace GEngine
             float innerConeRadians = 0.4f;
             float outerConeRadians = 0.6f;
             bool castShadows = false;
+            bool operator==(const RenderLightComponent&) const = default;
         };
 
         template<class T>

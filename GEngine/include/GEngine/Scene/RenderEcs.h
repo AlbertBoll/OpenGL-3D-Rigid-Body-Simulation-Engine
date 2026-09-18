@@ -79,6 +79,8 @@ namespace GEngine
             Asset::AssetDetail::RequireInvariant(!m_Extracting);
         }
 
+        bool IsExtracting() const { RequireOwner(); return m_Extracting; }
+
         class ExtractionScope
         {
         public:

@@ -1,0 +1,194 @@
+{
+  "baseline": "5e6f16c3afeeada252d9bf9dc7671f674c916141",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Assets/AssetPublication.h",
+    "GEngine/include/GEngine/Renderer/RenderTasks.h",
+    "GEngine/include/GEngine/Scene/RenderEcs.h",
+    "GEngine/include/GEngine/Scene/_Scene.h",
+    "GEngine/src/Renderer/RenderTasks.cpp",
+    "GEngine/src/Scene/_Scene.cpp",
+    "RenderingValidation/README.md",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-44.json",
+    "tools/render_tasks_probe.cpp",
+    "tools/test_render_tasks.py"
+  ],
+  "eligible": true,
+  "findings": [],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_44_REVIEW.md"
+  ],
+  "next_phase": "45",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "1f2249cc423dd966597dc6b5cbf3e7468bf813f3",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-44/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/1f2249cc423dd966597dc6b5cbf3e7468bf813f3",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "3094c32c23fd3a25182348b247b085bab0dbb6a1f18a2cb7d69f4fc9a6d233a5"
+      },
+      "mode": "100644",
+      "validated_blob": "dcd56395f0593fba1b135c7e0a4911bee637406a",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-44/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/dcd56395f0593fba1b135c7e0a4911bee637406a"
+    }
+  },
+  "phase": "44",
+  "previous_approved_tag": "render-refactor-phase-43-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_44_REVIEW.md",
+  "schema": 2,
+  "summary": "Executable rendering task/freeze contract: immutable retained inputs, pinned publication, bounded synchronous worker batches with cancellation/explicit serial fallback, and queued owner safe-point mutations.",
+  "validation": [
+    {
+      "check": "Debug affected-consumer build (MSBuild step only; final production inputs unchanged)",
+      "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\" C:\\dev\\GEngine-rendering\\GEngine.sln /t:GEngineEditor;Breakout;RayTracing;RigidBodySimulation;PhysicsTests;PhysicsBenchmark /m:1 /nr:false /nologo /v:normal /p:Configuration=Debug /p:Platform=x64 /p:VCToolsVersion=14.44.35207 /p:WindowsTargetPlatformVersion=10.0.26100.0 /bl:C:\\dev\\GEngine-rendering\\logs\\rendering\\phase44\\final\\Debug\\build.binlog",
+      "evidence": "logs/rendering/phase44/final/Debug/results.json (build step exit 0) and build.log",
+      "result": "PASS",
+      "reuse_reason": "Only the test fixture changed after this build; all production/build fingerprints match the final candidate."
+    },
+    {
+      "check": "Debug tasks",
+      "command": "python tools/test_render_tasks.py --configuration Debug --no-build --output logs/rendering/phase44/final-v3/Debug",
+      "evidence": "logs/rendering/phase44/final-v3/Debug/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Release tasks",
+      "command": "python tools/test_render_tasks.py --configuration Release --output logs/rendering/phase44/final-v2/Release",
+      "evidence": "logs/rendering/phase44/final-v2/Release/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Debug extraction regression",
+      "command": "python tools/test_render_extraction.py --configuration Debug --no-build --output logs/rendering/phase44/final-v2/regression-extraction-Debug",
+      "evidence": "logs/rendering/phase44/final-v2/regression-extraction-Debug/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Debug submission regression",
+      "command": "python tools/test_frame_submission.py --configuration Debug --no-build --output logs/rendering/phase44/final-v2/regression-submission-Debug",
+      "evidence": "logs/rendering/phase44/final-v2/regression-submission-Debug/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Release extraction regression",
+      "command": "python tools/test_render_extraction.py --configuration Release --no-build --output logs/rendering/phase44/final-v3/regression-extraction-Release",
+      "evidence": "logs/rendering/phase44/final-v3/regression-extraction-Release/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Release submission regression",
+      "command": "python tools/test_frame_submission.py --configuration Release --no-build --output logs/rendering/phase44/final-v3/regression-submission-Release",
+      "evidence": "logs/rendering/phase44/final-v3/regression-submission-Release/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "governance/cache links",
+      "command": "python .codex/tools/validate_rendering_governance.py",
+      "evidence": "logs/rendering/phase44/governance.log",
+      "result": "PASS"
+    },
+    {
+      "check": "protected work/index, production identity, whitespace and targeted source audit",
+      "command": "python logs/rendering/phase44/prepare_review.py",
+      "evidence": "logs/rendering/phase44/final-v3/preseal-audit.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "GEngine/include/GEngine/Assets/AssetPublication.h": {
+      "executable": null,
+      "sha256": "76555c4f8319a5d82cb2b0ef4e2f8b14856391c5bea6871305f43719edd4b415"
+    },
+    "GEngine/include/GEngine/Renderer/RenderTasks.h": {
+      "executable": null,
+      "sha256": "177b8db992f1b9ef695a928e9e55ed757b8233a3db1fdc71f332331200e7d465"
+    },
+    "GEngine/include/GEngine/Scene/RenderEcs.h": {
+      "executable": null,
+      "sha256": "edb9fe00afd69538c350a0303a58ad15924ae638708f03a2e0f2a6ae6a1f39e9"
+    },
+    "GEngine/include/GEngine/Scene/_Scene.h": {
+      "executable": null,
+      "sha256": "1692d0850f67ae94bfc9e6c30f70e62acf63bcfbfdf89637276171a8e8ba6edb"
+    },
+    "GEngine/src/Renderer/RenderTasks.cpp": {
+      "executable": null,
+      "sha256": "827fe7e2e894bd1d3fb97747a577dbccfe38490f3fe67a538b5a3b14dd89530a"
+    },
+    "GEngine/src/Scene/_Scene.cpp": {
+      "executable": null,
+      "sha256": "52c11f8181747ef5eeeddfb2aa52ac19e69f8ad70d9d1a68d9b4588c7d6c9f96"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "3094c32c23fd3a25182348b247b085bab0dbb6a1f18a2cb7d69f4fc9a6d233a5"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052"
+    },
+    "tools/render_tasks_probe.cpp": {
+      "executable": null,
+      "sha256": "41fe191a0027bc0d827795fd01307946f483b418353210366fc51e1b84622241"
+    },
+    "tools/test_render_tasks.py": {
+      "executable": null,
+      "sha256": "57e35b81628bc35d34a20c4977189874e296e5f44256e5b6c90fa47fb5d7a6cf"
+    }
+  }
+}

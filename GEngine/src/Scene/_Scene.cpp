@@ -295,6 +295,7 @@ namespace GEngine
 
 	_Scene::RenderTransform _Scene::GetRenderTransform(const _Entity& entity)
 	{
+		m_RenderData.RequireMutable();
 		if (entity.GetSceneContext() != this || !entity.HasAllComponents<Transform3DComponent>())
 			throw std::invalid_argument("Render transform requires a live entity in this scene");
 		const auto handle = static_cast<entt::entity>(entity);
@@ -348,6 +349,7 @@ namespace GEngine
 
 	std::expected<void, TransformError> _Scene::ResetRenderInterpolation(const _Entity& entity)
 	{
+		m_RenderData.RequireMutable();
 		if (entity.GetSceneContext() != this || !entity)
 			return std::unexpected(TransformError{TransformErrorCode::InvalidEntity});
 		const auto handle = static_cast<entt::entity>(entity);
@@ -479,6 +481,7 @@ namespace GEngine
 
 	void _Scene::SetPaused(bool paused)
 	{
+		m_RenderData.RequireMutable();
 		if (m_IsPaused == paused) return;
 		m_IsPaused = paused;
 		// Pause/resume snaps to current state; resuming without a tick cannot rewind.
@@ -488,6 +491,7 @@ namespace GEngine
 
 	void _Scene::OnRuntimeStart()
 	{
+		m_RenderData.RequireMutable();
 		m_IsRunning = true;
 
 		OnPhysics3DStart();
@@ -495,6 +499,7 @@ namespace GEngine
 
 	void _Scene::OnRuntimeStop()
 	{
+		m_RenderData.RequireMutable();
 		m_IsRunning = false;
 		OnPhysics3DStop();
 	}
@@ -521,6 +526,7 @@ namespace GEngine
 
 	void _Scene::OnViewportResize(uint32_t width, uint32_t height)
 	{
+		m_RenderData.RequireMutable();
 		if (m_ViewportWidth == width && m_ViewportHeight == height)
 			return;
 
@@ -699,6 +705,7 @@ namespace GEngine
 
 	void _Scene::PushToRenderList(_Entity entity)
 	{
+		m_RenderData.RequireMutable();
 		if (entity.GetSceneContext() != this || !m_Registry.valid(entity))
 			throw std::invalid_argument("Render-list entity does not belong to this scene");
 		if (!entity.HasAllComponents<RenderComponent>())
@@ -722,6 +729,7 @@ namespace GEngine
 
 	void _Scene::Step(int frames)
 	{
+		m_RenderData.RequireMutable();
 		m_StepFrames = frames;
 	}
 

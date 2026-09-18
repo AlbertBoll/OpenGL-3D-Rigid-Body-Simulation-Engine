@@ -1519,3 +1519,65 @@ with typed camera/override/allocation errors and no partially returned result.
 Empty frames with a camera allocate nothing. Native-free compilation, mutation
 rejection, six-plane/aspect/pose tests, pass flags/classification, allocation denial,
 move lifetime and context-free worker use after resource replacement are covered.
+
+## Task and freeze contract (Phase 44)
+
+`python tools/test_render_tasks.py --configuration Debug` (or `Release`) builds the
+maintained consumers and validates the executable worker/safe-point contract.
+`--no-build` requires matching builds. The probe uses real retained mesh/material
+versions and two hidden EngineContext lifetimes, isolated freeze-violation children,
+and a separate build of the same task implementation that injects CRT thread-launch
+failures. No test hook is added to the production API.
+
+The application owns this sequence until Phase 46 orchestration:
+
+1. Finish authoring/physics and release all mutable ECS borrows from earlier work.
+2. Drain `RenderMutationQueue` on the context owner while publication is idle.
+   Commands own CPU payloads; Apply receives the publication token for completed
+   uploads, registry replacement/destruction and ECS structural/value changes.
+3. Hold `AssetPublication::FrameAccess`, then call `RenderTaskFrame::Prepare`.
+   Preparation resolves presentation/lazy caches before freezing ECS and copies
+   mesh, visibility, camera and light values with exact retained resource versions.
+4. Run CPU callbacks over const frozen inputs with disjoint lane scratch/output.
+   Merge in logical lane order only after a successful Run. Discard partial output
+   on failure/cancellation. The publication interval continues through CPU submission.
+5. Release the task frame, submission leases and FrameAccess before the next drain.
+   Stop/join queue producers, cancel pending CPU payloads, and retire resource owners
+   before EngineContext/context teardown.
+
+The maintained Windows rendering task mechanism is a bounded synchronous batch of
+joinable CRT threads. Zero/one configured workers run on the owner serially; at most
+64 logical lanes cover contiguous source ranges. Every launched thread is joined on
+every Run exit. Logical lanes, not OS thread IDs, select scratch and merge order.
+No worker accesses a live ECS registry, manager, asset registry or GL. This adds no
+parallel extraction algorithm, asynchronous loader, retained thread pool, or second
+physics scheduler. Existing CPU ray-tracing TBB scheduling is an unchanged separate
+consumer, outside this rendering extraction boundary.
+
+`RequestCancel` is cooperative and may be called from another thread while the
+frame is alive. Callbacks are noexcept and return typed `RenderWorkError`; they must
+poll cancellation for long work and must not spawn detached tasks. The owner cannot
+destroy a running synchronous frame. Read pins reject ending FrameAccess before a
+prepared task frame dies; existing root/registry guards reject premature teardown.
+Thread-creation failure releases and joins gated threads before any callback starts.
+The configured serial fallback returns an explicit flag and system diagnostic;
+disabling it returns a typed launch error. Failures retain callback cause/element and
+record the failing lane/drain ordinal separately. Per-batch thread creation is a
+correctness-first contract; no performance claim or automatic hardware tuning is made.
+
+The fixed-capacity mutation queue is FIFO in serialized enqueue order. Enqueue is
+thread-safe and consumes a command only on success. Drain processes exactly the
+entry batch: later arrivals remain for the next frame. A failed Apply consumes the
+successful prefix and failed command, preserves the untouched suffix, and returns
+its diagnostic without retry. Each command owns its transactional cleanup. Payload
+destruction is CPU-only; CancelPending destroys the entry batch outside the queue
+lock. Producers must be stopped/joined before queue destruction.
+
+Scene mutation guards cover structural edits, mutable views/component access,
+interpolation settings, physics controls, viewport changes and lazy transform/cache
+evaluation. Pre-existing mutable borrows cannot cross the freeze interval. Workers
+receive copied snapshots, so they never rely on borrowed EnTT values or lazy caches.
+Tests cover zero/one/many lanes, exact range coverage, disjoint scratch, typed failures,
+pre-start/mid-batch cancellation, publication pin lifetime, queue cutoff/order/failure,
+next-frame resource/value visibility, allocation rollback, serial launch fallback,
+worker registry rejection and completed task teardown before the root disappears.

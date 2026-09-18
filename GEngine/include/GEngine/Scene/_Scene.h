@@ -95,7 +95,7 @@ namespace GEngine
 		double GetRenderInterpolationAlpha() const;
 		RenderTransform GetRenderTransform(const _Entity& entity);
 		std::expected<void, TransformError> ResetRenderInterpolation(const _Entity& entity);
-		void SetRenderInterpolationEnabled(bool enabled) { m_RenderInterpolationEnabled = enabled; }
+		void SetRenderInterpolationEnabled(bool enabled) { m_RenderData.RequireMutable(); m_RenderInterpolationEnabled = enabled; }
 		bool IsRenderInterpolationEnabled() const { return m_RenderInterpolationEnabled; }
 
 		// Legacy mutable access must finish before the serial extraction boundary.
@@ -139,21 +139,24 @@ namespace GEngine
 		template<typename... Components>
 		auto GetAllEntitiesWith()
 		{
+			m_RenderData.RequireMutable();
 			return m_Registry.view<Components...>();
 		}
 
 		template<typename IncludeComponent, typename ... ExcludeComponents>
 		auto GetAllEntitiesWithExclude()
 		{
+			m_RenderData.RequireMutable();
 			return m_Registry.view<IncludeComponent>(entt::exclude<ExcludeComponents...>);
 		}
 
-		auto& GetGroupEntities() { return m_GroupEntities; }
-		auto& GetLightEntities() { return m_LightEntities; }
+		auto& GetGroupEntities() { m_RenderData.RequireMutable(); return m_GroupEntities; }
+		auto& GetLightEntities() { m_RenderData.RequireMutable(); return m_LightEntities; }
 		
 		template<typename...Components>
 		auto& View()
 		{
+			m_RenderData.RequireMutable();
 			return m_Registry.view<Components...>();
 		}
 
@@ -162,6 +165,7 @@ namespace GEngine
 
 		PhysicsSystem* GetPhysicsSystem()
 		{
+			m_RenderData.RequireMutable();
 			return m_PhysicsSystem;
 		}
 

@@ -1376,4 +1376,55 @@ reports used/capacity bytes as sizeof(record) times counts and array allocation
 count, excluding allocator overhead and existing prepared/resource backing buffers.
 The fixture checks these figures, injects failure at each allocation, and validates
 rollback, moves, capacity/invalid-data errors, retained versions and worker release.
-Scene extraction remains Phase 40; light extraction remains Phase 41.
+Serial scene extraction is described below; light extraction remains Phase 41.
+
+## Serial render extraction (Phase 40)
+
+Run `python tools/test_render_extraction.py --configuration Debug` and `Release`
+for maintained-consumer builds, native-free public-header compilation and the
+focused hidden-context fixture. `--no-build` requires matching consumer binaries.
+
+After authoring/physics and the application-owned publication safe point, keep one
+`AssetPublication::FrameAccess` alive across extraction and CPU submission:
+
+```cpp
+auto access = publication.BeginFrame();
+RenderExtractionStats stats;
+auto frame = ExtractRenderFrame(scene,
+    {access, meshes, materials, {programs, textures, samplers}, targetRevision},
+    stats, cameras, debugLines);
+// Handle frame.error() or retain *frame through submission.
+```
+
+The call evaluates the existing presentation/bounds/revision snapshot, resolves
+ready resource versions, then freezes ECS reads and emits one draw per enabled
+MeshRendererComponent in deterministic parent-before-child/UUID source order.
+The component chooses one submesh/material pairing; use separate entities for
+multiple pairings of one mesh. Disabled components emit nothing. Zero layer masks
+are preserved for the later visibility stage. No culling, sorting, light extraction,
+simulation update or legacy application draw-loop migration is performed here.
+Camera/debug values retain caller order and are copied into frame-owned storage.
+
+An enabled stale/null/foreign mesh, stale material/dependency, invalid submesh or
+frame input fails the whole result with entity context and a typed error variant.
+Scene transform failures retain their original UUID-bearing TransformError.
+Disabled resources need not resolve. Failures release the ECS freeze and temporary
+leases; callers receive no partial frame. Existing scene preparation caches may
+advance even when later frame construction fails. No fallback resource is implicit.
+
+All resolution and emission use the same FrameAccess, preventing replacement or
+publication during extraction. The API accepts no old snapshot. Mesh leases and
+prepared packets move/share their exact owners without copying heavy assets;
+the finalized frame retains all resource versions through submission. Keep target
+owners separately, as required by the existing target-revision contract. Worker
+frame release only drops CPU storage/leases; the owning context retires GPU resources.
+
+Stats report scene entities, candidates, disabled candidates, emitted draws,
+preparation/extraction microseconds and exact frame-array allocations/bytes.
+Preparation uses the existing scene caches and material packet allocations, which
+are excluded from frameStorage. The fixture additionally records replaceable
+allocation calls/requested bytes across the complete call on a warmed 128-entity
+workload. These are observations of the serial baseline, not a performance claim.
+It verifies empty/one/many, both selected submeshes, stable repeated output,
+hierarchy transforms, flags, structured failures, all four frame allocation failures,
+context-detached extraction, retained replacements/removals and worker release.

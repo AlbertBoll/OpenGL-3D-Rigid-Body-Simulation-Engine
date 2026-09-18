@@ -29,6 +29,14 @@ uniform float farPlane;
 uniform vec3 pointlightColor;
 uniform vec3 directionallightColor;
 
+// Phase 42 frame consumer. False by default preserves legacy callers. The
+// existing BRDF/shadow equations are unchanged for contributing frame lights.
+uniform bool frameLights;
+uniform bool frameDirectional;
+uniform bool framePoint;
+uniform bool frameDirectionalShadows;
+uniform bool framePointShadows;
+
 uniform float pointShadowfarPlane;
 uniform bool shadows;
 
@@ -293,10 +301,12 @@ void main()
     vec3 ambient = vec3(0.05) * albedo * ao;
 
      // calculate shadow
-    float point_light_shadow = ShadowCalculation(fs_in.FragPos);
-    float cascade_shadow = CascadeShadowCalculation(fs_in.FragPos); 
+    float point_light_shadow = (!frameLights || (framePoint && framePointShadows)) ? ShadowCalculation(fs_in.FragPos) : 0.0;
+    float cascade_shadow = (!frameLights || (frameDirectional && frameDirectionalShadows)) ? CascadeShadowCalculation(fs_in.FragPos) : 0.0;
     
-    vec3 color = ambient + (1 - point_light_shadow) * point_light_Lo + (1 - cascade_shadow) * directional_light_Lo;
+    vec3 color = ambient;
+    if (!frameLights || framePoint) color += (1 - point_light_shadow) * point_light_Lo;
+    if (!frameLights || frameDirectional) color += (1 - cascade_shadow) * directional_light_Lo;
     //vec3 color = ambient + point_light_Lo ;//+ directional_light_Lo;
     // HDR tonemapping
     //color = color / (color + vec3(1.0));

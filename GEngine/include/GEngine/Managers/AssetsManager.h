@@ -4,6 +4,7 @@
 #include "Assets/Fonts/Font.h"
 #include "Core/RuntimeAssets.h"
 #include "Math/Math.h"
+#include "Material/MaterialBinding.h"
 #include <map>
 #include <tuple>
 
@@ -21,6 +22,9 @@ namespace GEngine::Manager
         static std::expected<Asset::TextureView, Asset::TextureError> ResolveTexture(Asset::TextureHandle);
         static std::expected<Asset::SamplerHandle, Asset::SamplingError> GetSampler(const Asset::SamplerDesc&);
         static std::expected<Asset::SamplerView, Asset::SamplingError> ResolveSampler(Asset::SamplerHandle);
+        // Borrow stable root-owned registries before extraction. Their acquisitions
+        // use the same caller-held frame scope as mesh/material resolution.
+        static std::expected<MaterialBindingResources, Asset::TextureError> FrameBindings(const ShaderProgramRegistry&);
         static std::expected<Asset::SampledTextureBinding, Asset::SamplingError> SampleTexture(const Asset::TextureView&);
         static std::expected<Asset::SampledTextureBinding, Asset::SamplingError> SampleTexture(
             const Asset::TextureView&, const Asset::SamplerDesc&);

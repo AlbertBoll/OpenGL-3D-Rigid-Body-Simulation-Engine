@@ -3,227 +3,208 @@
 #include "Core/RuntimeAssets.h"
 #include <cstdint>
 #include "EntryPoint.h"
-#include "Managers/ShapeManager.h"
+#include "Renderer/RenderExtraction.h"
 #include "Managers/AssetsManager.h"
-#include "Managers/ShaderManager.h"
+#include <glm/gtx/quaternion.hpp>
+#include <format>
 #include <Core/Log.h>
 #include <imgui/imgui.h>
 #include "Assets/Textures/Texture.h"
-#include "Core/RenderSystem.h"
+
 #include "Core/Window.h"
-#include <Shapes/Box.h>
+
 #include <Physics/ShapeBox.h>
 #include <Physics/PhysicsWorld.h>
 #include <Physics/GJK.h>
-#include <Shapes/Sphere.h>
-#include <Shapes/Cylinder.h>
+
+
 
 using namespace GEngine;
+using namespace ::GEngine::Asset;
 
+#ifndef activate_boxes_stacking
 #define activate_boxes_stacking 0
+#endif
+#ifndef activate_sphere_lattice
 #define activate_sphere_lattice 1
+#endif
+#ifndef activate_sphere_diamond
 #define activate_sphere_diamond 0
+#endif
+#ifndef activate_sphere_boxes_stacking
 #define activate_sphere_boxes_stacking 0
+#endif
 
-static constexpr RuntimeAssets::Directory base_shader_dir{ "Shaders/" };
+
 
 
 RigidBodySimulationApp::~RigidBodySimulationApp()
 {
 	if (m_AudioSystem)
 		m_AudioSystem->Shutdown();
+    if (m_FrameResources) {
+        if (auto current = GetEngineContext().MakeCurrent(); !current) { ReportPlatformError(current.error()); std::terminate(); }
+        m_ActiveScene.reset(); m_EditorScene.reset();
+        m_FrameSubmission.reset(); m_FrameResources.reset();
+    }
 }
 
 ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)
 {
-	
+    if (auto initialized = BaseApp::Initialize(WindowsPropertyList); !initialized) return initialized;
+    m_AudioSystem = CreateScopedPtr<Audio::AudioSystem>();
+    m_AudioSystem->Initialize();
+    auto failure = [](const SceneResourceError& error) -> ApplicationInitializationResult {
+        Log::GetCoreLogger()->error("{}", DescribeSceneResourceError(error));
+        return std::unexpected(PlatformError{PlatformErrorCode::Initialization, "scene resources", DescribeSceneResourceError(error)});
+    };
+    auto resources = SceneRenderResources::Create(GetEngineContext());
+    if (!resources) return failure(resources.error());
+    m_FrameResources = std::move(*resources);
+    auto submission = FrameSubmission::Create();
+    if (!submission) {
+        Log::GetCoreLogger()->error("{}", DescribeSubmissionError(submission.error()));
+        return std::unexpected(PlatformError{PlatformErrorCode::Initialization, "frame submission", DescribeSubmissionError(submission.error())});
+    }
+    m_FrameSubmission.emplace(std::move(*submission));
+    m_FarPlane = 100;
+    m_EditorScene = CreateRefPtr<_Scene>();
+    m_ActiveScene = m_EditorScene;
+    m_EditorCamera_ = _EditorCamera(45.0f, 1280.f, 720.f, 0.1f, 1000.f);
+    float cameraFarClip = m_EditorCamera_.GetFarClip();
+    m_ShadowCascadeLevels = {cameraFarClip / 50.f, cameraFarClip / 25.f, cameraFarClip / 10.f, cameraFarClip / 2.f, cameraFarClip};
+    m_FrameCameraEntity = m_ActiveScene->CreateEntity("Editor frame camera");
+    m_FrameCameraEntity.AddOrReplaceComponent<RenderCameraComponent>();
+    auto sphereMeshResult = m_FrameResources->PublishShape("Sphere");
+    if (!sphereMeshResult) return failure(sphereMeshResult.error());
+    auto smoothSphereGeo = *sphereMeshResult;
+    auto diamondMeshResult = m_FrameResources->PublishShape("Diamond");
+    if (!diamondMeshResult) return failure(diamondMeshResult.error());
+    auto DiamondGeo = *diamondMeshResult;
+    auto boxMeshResult = m_FrameResources->PublishShape("Box");
+    if (!boxMeshResult) return failure(boxMeshResult.error());
+    auto boxMesh = *boxMeshResult;
+    auto renderable = [&]( _Entity entity, Asset::MeshHandle mesh, Asset::MaterialInstanceHandle material,
+                           std::string_view physicsShape = {}) -> ApplicationInitializationResult {
+        entity.AddOrReplaceComponent<MeshRendererComponent>(MeshRendererComponent{mesh, material});
+        if (!physicsShape.empty()) {
+            auto attached = m_FrameResources->AttachPhysicsShape(entity, physicsShape);
+            if (!attached) return failure(attached.error());
+        }
+        return {};
+    };
 
-	//Initialize BaseApp 
-	if (auto initialized = BaseApp::Initialize(WindowsPropertyList); !initialized) return initialized;
-
-	GENGINE_CORE_INFO("Initialize Audio System...");
-	m_AudioSystem = CreateScopedPtr<Audio::AudioSystem>();
-	m_AudioSystem->Initialize();
-
-	GENGINE_CORE_INFO("Initialize Render System...");
-	RenderSystem::Initialize();
-
-	m_FarPlane = 100;
-	m_DebugKDTreeVisualizer = CreateScopedPtr<DebugKDTreeVisualizer>();
-	//m_DebugBoundingBoxComp = CreateRefPtr<DebugAABBBoundingBoxComponent>();
-	//m_DebugBoundingBoxComp->bVisible = true;
-
-	//m_ObjectsPoints.reserve(100);
-	//m_KDTreePoints.reserve(2000);
-
-	//initialize scene and camera
-	m_EditorScene = CreateRefPtr<_Scene>();
-	m_ActiveScene = m_EditorScene;
-	m_EditorCamera_ = _EditorCamera(45.0f, 1280.f, 720.f, 0.1f, 1000.f);
-	float cameraFarClip = m_EditorCamera_.GetFarClip();
-	m_ShadowCascadeLevels = {cameraFarClip / 50.f, cameraFarClip / 25.0f, cameraFarClip / 10.0f, cameraFarClip / 2.f,  cameraFarClip};
-
-	auto cascadeShadowMapShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping_depth.vert", base_shader_dir + "shadow_mapping_depth.gs", base_shader_dir + "shadow_mapping_depth.frag" });
-	if (!cascadeShadowMapShaderResult) { return std::unexpected(cascadeShadowMapShaderResult.error()); }
-	auto* cascadeShadowMapShader = *cascadeShadowMapShaderResult;
-	auto cascadedRenderShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "pbr_cascade_shadow.vert", base_shader_dir + "pbr_cascade_shadow.frag" });
-	if (!cascadedRenderShaderResult) { return std::unexpected(cascadedRenderShaderResult.error()); }
-	auto* cascadedRenderShader = *cascadedRenderShaderResult;
-	auto pointLightRenderShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "pbr_cascade_shadow.vert", base_shader_dir + "point_light_sphere_visual.frag" });
-	if (!pointLightRenderShaderResult) { return std::unexpected(pointLightRenderShaderResult.error()); }
-	auto* pointLightRenderShader = *pointLightRenderShaderResult;
-
-	using namespace Shape;
-
-	auto pointLightGeo = ShapeManager::GetShape("PointLightHelper");
-	auto smoothSphereGeo = ShapeManager::GetShape("Sphere");
-	auto DiamondGeo = ShapeManager::GetShape("Diamond");
-
-	auto lightShadowPreRenderComponent = PreRenderPassComponent{};
-	lightShadowPreRenderComponent.Shader = cascadeShadowMapShader;
-
-
-	auto pointLightRenderComponent = RenderComponent{};
-	pointLightRenderComponent.Shader = pointLightRenderShader;
-	pointLightRenderComponent.RenderSettings.m_PrimitivesSetting.surfaceSetting = {};
-	pointLightRenderComponent.RenderSettings.m_PrimitivesSetting.surfaceSetting.bDoubleSide = false;
-	pointLightRenderComponent.RenderSettings.DrawMode = pointLightGeo->IsUsingIndexBuffer() ? DrawMode_::Elements : DrawMode_::Arrays;
-	//lightRenderComponent.RenderSettings.DrawStyle = DrawStyle_::TRIANGLE_STRIP;
-	pointLightRenderComponent.RenderSettings.DrawStyle = DrawStyle_::TRIANGLES;
-
-
-	auto lightShadowRenderComponent = RenderComponent{};
-	lightShadowRenderComponent.Shader = cascadedRenderShader;
-	lightShadowRenderComponent.RenderSettings.m_PrimitivesSetting.surfaceSetting = {};
-	lightShadowRenderComponent.RenderSettings.m_PrimitivesSetting.surfaceSetting.bDoubleSide = false;
-	lightShadowRenderComponent.RenderSettings.DrawMode = smoothSphereGeo->IsUsingIndexBuffer() ? DrawMode_::Elements : DrawMode_::Arrays;
-	//lightRenderComponent.RenderSettings.DrawStyle = DrawStyle_::TRIANGLE_STRIP;
-	lightShadowRenderComponent.RenderSettings.DrawStyle = DrawStyle_::TRIANGLES;
-
-	//Load icon
 	auto m_IconPlayResult = AssetsManager::GetTextureOrFallback("Icons/PlayButton");
-	if (!m_IconPlayResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconPlayResult.error().source, m_IconPlayResult.error().message); m_Running = false; return std::unexpected(m_IconPlayResult.error()); }
+	if (!m_IconPlayResult) { Log::GetCoreLogger()->error("Texture {}: {}", m_IconPlayResult.error().source, m_IconPlayResult.error().message); m_Running = false; return std::unexpected(m_IconPlayResult.error()); }
 	auto* m_IconPlay = *m_IconPlayResult;
 	auto m_IconPauseResult = AssetsManager::GetTextureOrFallback("Icons/PauseButton");
-	if (!m_IconPauseResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconPauseResult.error().source, m_IconPauseResult.error().message); m_Running = false; return std::unexpected(m_IconPauseResult.error()); }
+	if (!m_IconPauseResult) { Log::GetCoreLogger()->error("Texture {}: {}", m_IconPauseResult.error().source, m_IconPauseResult.error().message); m_Running = false; return std::unexpected(m_IconPauseResult.error()); }
 	auto* m_IconPause = *m_IconPauseResult;
 	auto m_IconStepResult = AssetsManager::GetTextureOrFallback("Icons/StepButton");
-	if (!m_IconStepResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconStepResult.error().source, m_IconStepResult.error().message); m_Running = false; return std::unexpected(m_IconStepResult.error()); }
+	if (!m_IconStepResult) { Log::GetCoreLogger()->error("Texture {}: {}", m_IconStepResult.error().source, m_IconStepResult.error().message); m_Running = false; return std::unexpected(m_IconStepResult.error()); }
 	auto* m_IconStep = *m_IconStepResult;
 	auto m_IconSimulateResult = AssetsManager::GetTextureOrFallback("Icons/SimulateButton");
-	if (!m_IconSimulateResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconSimulateResult.error().source, m_IconSimulateResult.error().message); m_Running = false; return std::unexpected(m_IconSimulateResult.error()); }
+	if (!m_IconSimulateResult) { Log::GetCoreLogger()->error("Texture {}: {}", m_IconSimulateResult.error().source, m_IconSimulateResult.error().message); m_Running = false; return std::unexpected(m_IconSimulateResult.error()); }
 	auto* m_IconSimulate = *m_IconSimulateResult;
 	auto m_IconStopResult = AssetsManager::GetTextureOrFallback("Icons/StopButton");
-	if (!m_IconStopResult) { GENGINE_CORE_ERROR("Texture {}: {}", m_IconStopResult.error().source, m_IconStopResult.error().message); m_Running = false; return std::unexpected(m_IconStopResult.error()); }
+	if (!m_IconStopResult) { Log::GetCoreLogger()->error("Texture {}: {}", m_IconStopResult.error().source, m_IconStopResult.error().message); m_Running = false; return std::unexpected(m_IconStopResult.error()); }
 	auto* m_IconStop = *m_IconStopResult;
 
-	//Load Sphere Texture
-	auto wood_diffuseResult = AssetsManager::GetTextureOrFallback("Sphere/wood_diffuse", "diffuseTexture");
-	if (!wood_diffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", wood_diffuseResult.error().source, wood_diffuseResult.error().message); m_Running = false; return std::unexpected(wood_diffuseResult.error()); }
-	auto* wood_diffuse = *wood_diffuseResult;
-	auto cascade_shadow_depth_mapResult = AssetsManager::GetCascadedFrameBufferTexture(*m_CascadeShadowFrameBuffer, "shadowMap");
-	if (!cascade_shadow_depth_mapResult) { GENGINE_CORE_ERROR("Texture {}: {}", cascade_shadow_depth_mapResult.error().source, cascade_shadow_depth_mapResult.error().message); m_Running = false; return std::unexpected(cascade_shadow_depth_mapResult.error()); }
-	auto* cascade_shadow_depth_map = *cascade_shadow_depth_mapResult;
-	auto point_shadow_depth_mapResult = AssetsManager::GetPointShadowFrameBufferTexture(*m_PointShadowFrameBuffer, "pointShadowDepthMap");
-	if (!point_shadow_depth_mapResult) { GENGINE_CORE_ERROR("Texture {}: {}", point_shadow_depth_mapResult.error().source, point_shadow_depth_mapResult.error().message); m_Running = false; return std::unexpected(point_shadow_depth_mapResult.error()); }
-	auto* point_shadow_depth_map = *point_shadow_depth_mapResult;
-	auto gloss_diffuseResult = AssetsManager::GetTextureOrFallback("Sphere/Tiles012_4K-JPG_Color", "diffuseTexture");
-	if (!gloss_diffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", gloss_diffuseResult.error().source, gloss_diffuseResult.error().message); m_Running = false; return std::unexpected(gloss_diffuseResult.error()); }
-	auto* gloss_diffuse = *gloss_diffuseResult;
 
-	//TexturesComponent sphereTextureComp({ gloss_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });
-	//TexturesComponent boxTextureComp({ wood_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });
-	////TexturesComponent sphereTextureComp({ wood_diffuse,  wood_metallic});
-	//sphereTextureComp.PreBindTextures(cascadedRenderShader);
-	//boxTextureComp.PreBindTextures(cascadedRenderShader);
-
-
-	//Load PBR Texture for sphere
-	/*Texture* sphere_albedo = AssetsManager::GetTexture("PBR/subtle_black_granite/subtle-black-granite_albedo", "albedoMap");
-	Texture* sphere_normal = AssetsManager::GetTexture("PBR/subtle_black_granite/subtle-black-granite_normal-dx", "normalMap");
-	Texture* sphere_metallic = AssetsManager::GetTexture("PBR/subtle_black_granite/subtle-black-granite_metallic", "metallicMap");
-	Texture* sphere_roughness = AssetsManager::GetTexture("PBR/subtle_black_granite/subtle-black-granite_roughness", "roughnessMap");
-	Texture* sphere_ao = AssetsManager::GetTexture("PBR/subtle_black_granite/subtle-black-granite_ao", "aoMap");*/
-	auto sphere_albedoResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_basecolor", "albedoMap");
-	if (!sphere_albedoResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_albedoResult.error().source, sphere_albedoResult.error().message); m_Running = false; return std::unexpected(sphere_albedoResult.error()); }
+auto sphere_albedoResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_basecolor", "albedoMap");
+	if (!sphere_albedoResult) { Log::GetCoreLogger()->error("Texture {}: {}", sphere_albedoResult.error().source, sphere_albedoResult.error().message); m_Running = false; return std::unexpected(sphere_albedoResult.error()); }
 	auto* sphere_albedo = *sphere_albedoResult;
 	auto sphere_normalResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_normal", "normalMap");
-	if (!sphere_normalResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_normalResult.error().source, sphere_normalResult.error().message); m_Running = false; return std::unexpected(sphere_normalResult.error()); }
+	if (!sphere_normalResult) { Log::GetCoreLogger()->error("Texture {}: {}", sphere_normalResult.error().source, sphere_normalResult.error().message); m_Running = false; return std::unexpected(sphere_normalResult.error()); }
 	auto* sphere_normal = *sphere_normalResult;
 	auto sphere_metallicResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_metallic", "metallicMap");
-	if (!sphere_metallicResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_metallicResult.error().source, sphere_metallicResult.error().message); m_Running = false; return std::unexpected(sphere_metallicResult.error()); }
+	if (!sphere_metallicResult) { Log::GetCoreLogger()->error("Texture {}: {}", sphere_metallicResult.error().source, sphere_metallicResult.error().message); m_Running = false; return std::unexpected(sphere_metallicResult.error()); }
 	auto* sphere_metallic = *sphere_metallicResult;
 	auto sphere_roughnessResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_roughness", "roughnessMap");
-	if (!sphere_roughnessResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_roughnessResult.error().source, sphere_roughnessResult.error().message); m_Running = false; return std::unexpected(sphere_roughnessResult.error()); }
+	if (!sphere_roughnessResult) { Log::GetCoreLogger()->error("Texture {}: {}", sphere_roughnessResult.error().source, sphere_roughnessResult.error().message); m_Running = false; return std::unexpected(sphere_roughnessResult.error()); }
 	auto* sphere_roughness = *sphere_roughnessResult;
 	auto sphere_aoResult = AssetsManager::GetTextureOrFallback("PBR/subtle_black_granite/subtle-black-granite_ao", "aoMap");
-	if (!sphere_aoResult) { GENGINE_CORE_ERROR("Texture {}: {}", sphere_aoResult.error().source, sphere_aoResult.error().message); m_Running = false; return std::unexpected(sphere_aoResult.error()); }
+	if (!sphere_aoResult) { Log::GetCoreLogger()->error("Texture {}: {}", sphere_aoResult.error().source, sphere_aoResult.error().message); m_Running = false; return std::unexpected(sphere_aoResult.error()); }
 	auto* sphere_ao = *sphere_aoResult;
 
-	//Load PBR Texture for sphere
+
 	auto floor_albedoResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_albedo", "albedoMap");
-	if (!floor_albedoResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_albedoResult.error().source, floor_albedoResult.error().message); m_Running = false; return std::unexpected(floor_albedoResult.error()); }
+	if (!floor_albedoResult) { Log::GetCoreLogger()->error("Texture {}: {}", floor_albedoResult.error().source, floor_albedoResult.error().message); m_Running = false; return std::unexpected(floor_albedoResult.error()); }
 	auto* floor_albedo = *floor_albedoResult;
 	auto floor_normalResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_normal-dx", "normalMap");
-	if (!floor_normalResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_normalResult.error().source, floor_normalResult.error().message); m_Running = false; return std::unexpected(floor_normalResult.error()); }
+	if (!floor_normalResult) { Log::GetCoreLogger()->error("Texture {}: {}", floor_normalResult.error().source, floor_normalResult.error().message); m_Running = false; return std::unexpected(floor_normalResult.error()); }
 	auto* floor_normal = *floor_normalResult;
 	auto floor_metallicResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_metallic", "metallicMap");
-	if (!floor_metallicResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_metallicResult.error().source, floor_metallicResult.error().message); m_Running = false; return std::unexpected(floor_metallicResult.error()); }
+	if (!floor_metallicResult) { Log::GetCoreLogger()->error("Texture {}: {}", floor_metallicResult.error().source, floor_metallicResult.error().message); m_Running = false; return std::unexpected(floor_metallicResult.error()); }
 	auto* floor_metallic = *floor_metallicResult;
 	auto floor_roughnessResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_roughness", "roughnessMap");
-	if (!floor_roughnessResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_roughnessResult.error().source, floor_roughnessResult.error().message); m_Running = false; return std::unexpected(floor_roughnessResult.error()); }
+	if (!floor_roughnessResult) { Log::GetCoreLogger()->error("Texture {}: {}", floor_roughnessResult.error().source, floor_roughnessResult.error().message); m_Running = false; return std::unexpected(floor_roughnessResult.error()); }
 	auto* floor_roughness = *floor_roughnessResult;
 	auto floor_aoResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_ao", "aoMap");
-	if (!floor_aoResult) { GENGINE_CORE_ERROR("Texture {}: {}", floor_aoResult.error().source, floor_aoResult.error().message); m_Running = false; return std::unexpected(floor_aoResult.error()); }
+	if (!floor_aoResult) { Log::GetCoreLogger()->error("Texture {}: {}", floor_aoResult.error().source, floor_aoResult.error().message); m_Running = false; return std::unexpected(floor_aoResult.error()); }
 	auto* floor_ao = *floor_aoResult;
 
-	//TexturesComponent sphereTextureComp({ gloss_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });
-	TexturesComponent sphereTextureComp({ sphere_albedo, sphere_normal, sphere_metallic, sphere_roughness, sphere_ao, point_shadow_depth_map, cascade_shadow_depth_map });
-	TexturesComponent boxTextureComp({ wood_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });
-	//TexturesComponent sphereTextureComp({ wood_diffuse,  wood_metallic});
-	sphereTextureComp.PreBindTextures(cascadedRenderShader);
-	boxTextureComp.PreBindTextures(cascadedRenderShader);
-
-
-	//Load ambient light
-	auto ambientLightEntity = m_ActiveScene->CreateEntity("ambient_light");
-	m_PointLightEntity = m_ActiveScene->CreateEntity("point_light");
 	
-
-	DirectionalLightComponent dirLightComp;
-	m_LightDirection = glm::normalize(Vec3f{ 20.f, 50.0f, 20.f });
-	m_LightPos = Vec3f{ 0.f, 15.f, -10.f };
-
-	PointLightComponent pointLightComp;
-	pointLightComp.position = { "lightPos", m_LightPos };
-	pointLightComp.ambient = { "pointlightColor", {0.8f, 0.2f, 0.1f} };
-	//pointLightComp.ambient = { "pointlightColor", {1.f, 1.f, 1.f} };
-	//pointLightComp.ambient = { "pointlightColor", {0.5f, 0.5f, 0.5f} };
-
-
-	dirLightComp.direction = { "lightDir", m_LightDirection };
-	dirLightComp.ambient = { "directionallightColor", {0.7f, 0.7f, 0.7f} };
-	/*dirLightComp.diffuse = {"u_dirLight.diffuse", {0.4f, 0.4f, 0.4f}};
-	dirLightComp.specular = { "u_dirLight.specular", {0.2f, 0.2f, 0.2f} };*/
-	ambientLightEntity.AddOrReplaceComponent<DirectionalLightComponent>(dirLightComp);
-	ambientLightEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
-
-	m_PointLightEntity.AddOrReplaceComponent<PointLightComponent>(pointLightComp);
-	m_PointLightEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
-	m_PointLightEntity.AddOrReplaceComponent<Transform3DComponent>(m_LightPos);
-	//pointLightEntity.AddOrReplaceComponent<RenderComponent>(pointLightRenderComponent);
-	m_PointLightEntity.AddOrReplaceComponent<MeshComponent>(pointLightGeo);
-	m_ActiveScene->PushToRenderList(ambientLightEntity);
-	m_ActiveScene->PushToRenderList(m_PointLightEntity);
-
-
-	MaterialComponent matComp;
-	matComp.Metalness = { "metalness", Vec3f(0.8f)};
-
-
-
-
-	RigidBody3DComponent rigidBodyComp;
+    auto material = [&](SceneMaterialKind kind, std::initializer_list<Asset::Texture*> images,
+                        std::span<const MaterialParameterDecl> parameters, bool doubleSided = false, float width = 1.f)
+        -> std::expected<Asset::MaterialInstanceHandle, SceneResourceError> {
+        std::vector<MaterialTextureAssignment> bindings;
+        for (auto* texture : images) {
+            auto sampled = AssetsManager::SampleTexture(texture->View());
+            if (!sampled) return std::visit([](const auto& cause) -> std::expected<Asset::MaterialInstanceHandle, SceneResourceError> {
+                return std::unexpected(SceneResourceError{"material sampling", cause});
+            }, sampled.error().cause);
+            bindings.push_back({texture->GetUniformName(), {sampled->TextureIdentity(), sampled->SamplerIdentity()}});
+        }
+        return m_FrameResources->PublishMaterial({kind, parameters, bindings, doubleSided, width});
+    };
+    const MaterialParameterDecl sphereParameters[]{
+        {"metalness", MaterialParameterType::Float3, std::array<float,3>{.8f,.8f,.8f}},
+        {"u_tiling", MaterialParameterType::Float2, std::array<float,2>{1,1}}};
+    auto sphereMaterialResult = material(SceneMaterialKind::Lit, {sphere_albedo,sphere_normal,sphere_metallic,sphere_roughness,sphere_ao}, sphereParameters);
+    if (!sphereMaterialResult) return failure(sphereMaterialResult.error());
+    auto sphereMaterial = *sphereMaterialResult;
+    const MaterialParameterDecl floorParameters[]{
+        {"metalness", MaterialParameterType::Float3, std::array<float,3>{.08f,.08f,.08f}},
+        {"u_tiling", MaterialParameterType::Float2, std::array<float,2>{2,2}}};
+    auto floorMaterialResult = material(SceneMaterialKind::Lit, {floor_albedo,floor_normal,floor_metallic,floor_roughness,floor_ao}, floorParameters);
+    if (!floorMaterialResult) return failure(floorMaterialResult.error());
+    auto floorMaterial = *floorMaterialResult;
+    const MaterialParameterDecl wallParameters[]{
+        {"metalness", MaterialParameterType::Float3, std::array<float,3>{.08f,.08f,.08f}},
+        {"u_tiling", MaterialParameterType::Float2, std::array<float,2>{2,.2f}}};
+    auto wallMaterialResult = material(SceneMaterialKind::Lit, {floor_albedo,floor_normal,floor_metallic,floor_roughness,floor_ao}, wallParameters);
+    if (!wallMaterialResult) return failure(wallMaterialResult.error());
+    auto wallMaterial = *wallMaterialResult;
+    auto woodResult = AssetsManager::GetTextureOrFallback("Sphere/wood_diffuse", "albedoMap");
+    if (!woodResult) return std::unexpected(woodResult.error());
+    const MaterialParameterDecl boxParameters[]{
+        {"metalness", MaterialParameterType::Float3, std::array<float,3>{.08f,.08f,.08f}},
+        {"u_tiling", MaterialParameterType::Float2, std::array<float,2>{1,1}}};
+    // The old box path retained the floor's PBR channels between draws. Make the
+    // steady authored combination explicit so frame ordering cannot alter it.
+    auto boxMaterialResult = material(SceneMaterialKind::Lit, {*woodResult,floor_normal,floor_metallic,floor_roughness,floor_ao}, boxParameters);
+    if (!boxMaterialResult) return failure(boxMaterialResult.error());
+    auto boxMaterial = *boxMaterialResult;
+    auto ambientLightEntity = m_ActiveScene->CreateEntity("ambient_light");
+    m_PointLightEntity = m_ActiveScene->CreateEntity("point_light");
+    m_LightDirection = glm::normalize(Vec3f{20,50,20});
+    m_LightPos = {0,15,-10};
+    RenderLightComponent direction;
+    direction.color = {.7f,.7f,.7f}; direction.castShadows = true;
+    ambientLightEntity.AddOrReplaceComponent<RenderLightComponent>(direction);
+    auto& lightTransform = ambientLightEntity.GetComponent<Transform3DComponent>();
+    lightTransform.QuatRotation = glm::rotation(Vec3f{0,0,-1}, -m_LightDirection);
+    RenderLightComponent point;
+    point.kind = RenderLightKind::Point; point.color = {.8f,.2f,.1f}; point.range = m_FarPlane; point.castShadows = true;
+    m_PointLightEntity.AddOrReplaceComponent<RenderLightComponent>(point);
+    m_PointLightEntity.AddOrReplaceComponent<Transform3DComponent>(m_LightPos);
+    auto pointMesh = m_FrameResources->PublishShape("PointLightHelper");
+    if (!pointMesh) return failure(pointMesh.error());
+    auto pointMaterial = material(SceneMaterialKind::PointLight, {}, {});
+    if (!pointMaterial) return failure(pointMaterial.error());
+    m_PointLightEntity.AddOrReplaceComponent<MeshRendererComponent>(MeshRendererComponent{*pointMesh,*pointMaterial,0,false,false,true});
+RigidBody3DComponent rigidBodyComp;
 	rigidBodyComp.Type = BodyType::Dynamic;
 
 	SphereFixture3DComponent sphereFixtureComp;
@@ -232,25 +213,18 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
 	sphereFixtureComp.Property.m_Elasticity = 0.5f;
 	sphereFixtureComp.Property.m_Friction = 0.5f;
 	sphereFixtureComp.Property.m_InvMass = 1.f;
-	
-	//
+
 	#if activate_sphere_diamond
 	sphereFixtureComp.Property.m_LinearVelocity = { -80.f, 0.f, 0.f };
 	_Entity woodSphereEntity = m_ActiveScene->CreateEntity("wood_sphere_0");
-	//smoothSphereGeo->AddEntityID(int((entt::entity)woodSphereEntity));
-	woodSphereEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
-	woodSphereEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
+
 	woodSphereEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 30.f, 5.0f, 0.f });
-	//sphereFixtureComp.Radius *= woodSphereEntity.GetComponent<Transform3DComponent>().Scale.x;
+
 	sphereFixtureComp.Property.m_Position = woodSphereEntity.GetComponent<Transform3DComponent>().Translation;
 	sphereFixtureComp.Property.m_Orientation = woodSphereEntity.GetComponent<Transform3DComponent>().QuatRotation;
 	woodSphereEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
 	woodSphereEntity.AddOrReplaceComponent<SphereFixture3DComponent>(sphereFixtureComp);
-	woodSphereEntity.AddOrReplaceComponent<TexturesComponent>(sphereTextureComp);
-	woodSphereEntity.AddOrReplaceComponent<MeshComponent>(smoothSphereGeo);
-	//woodSphereEntity.AddOrReplaceComponent<DirectionalLightComponent>(dirLightComp);
-	woodSphereEntity.AddOrReplaceComponent<MaterialComponent>(matComp);
-	m_ActiveScene->PushToRenderList(woodSphereEntity);
+	if (auto authored = renderable(woodSphereEntity, smoothSphereGeo, sphereMaterial, ""); !authored) return authored;
 
 
 	ConvexFixture3DComponent convexFixtureComp;
@@ -261,74 +235,20 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
 	convexFixtureComp.Property.m_AngularVelocity = { 5.f, 0.f, 5.f };
 	convexFixtureComp.Property.m_LinearVelocity = { 80.f, 0.f, 0.f };
 	_Entity DiamondEntity = m_ActiveScene->CreateEntity("Diamond");
-	DiamondEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
-	DiamondEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
 	DiamondEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ -30, 5.f, 0 });
-	//sphereFixtureComp.Radius *= woodSphereEntity.GetComponent<Transform3DComponent>().Scale.x;
+
 	convexFixtureComp.Property.m_Position = DiamondEntity.GetComponent<Transform3DComponent>().Translation;
 	convexFixtureComp.Property.m_Orientation = DiamondEntity.GetComponent<Transform3DComponent>().QuatRotation;
 	DiamondEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
 	DiamondEntity.AddOrReplaceComponent<ConvexFixture3DComponent>(convexFixtureComp);
-	DiamondEntity.AddOrReplaceComponent<TexturesComponent>(sphereTextureComp);
-	DiamondEntity.AddOrReplaceComponent<MeshComponent>(DiamondGeo);
-	//woodSphereEntity.AddOrReplaceComponent<DirectionalLightComponent>(dirLightComp);
-	DiamondEntity.AddOrReplaceComponent<MaterialComponent>(matComp);
-	m_ActiveScene->PushToRenderList(DiamondEntity);
-	#endif
-
-	//int count = 0;
-	//int offset = 2;
-	//for (int z = 1; z < 4; z++)
-	//{
-	//	for (int x = 0; x < 4; x++)
-	//	{
-	//		for (int y = 0; y < 4; y++)
-	//		{
-	//			float yy = float(z - 1) * sphereFixtureComp.Radius * 2.f;
-	//			float xx = float(x - 1) * sphereFixtureComp.Radius * 2.f;
-	//			float zz = float(y - 1) * sphereFixtureComp.Radius * 2.f;
-	//			_Entity DiamondEntity = m_ActiveScene->CreateEntity("Diamond_" + std::to_string(count));
-
-	//			//DiamondGeo->AddEntityID(int((entt::entity)DiamondEntity));
-	//			//DiamondGeo->AddAttributes(std::vector<Vec1i>(DiamondGeo->GetVerticesCount(), DiamondEntity));
-	//			DiamondEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
-	//			DiamondEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
-	//			DiamondEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ xx, 20.f + yy, zz });
-	//			//sphereFixtureComp.Radius *= woodSphereEntity.GetComponent<Transform3DComponent>().Scale.x;
-	//			convexFixtureComp.Property.m_Position = DiamondEntity.GetComponent<Transform3DComponent>().Translation;
-	//			convexFixtureComp.Property.m_Orientation = DiamondEntity.GetComponent<Transform3DComponent>().QuatRotation;
-	//			DiamondEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
-	//			DiamondEntity.AddOrReplaceComponent<ConvexFixture3DComponent>(convexFixtureComp);
-	//			DiamondEntity.AddOrReplaceComponent<TexturesComponent>(sphereTextureComp);
-	//			DiamondEntity.AddOrReplaceComponent<MeshComponent>(DiamondGeo);
-	//			//woodSphereEntity.AddOrReplaceComponent<DirectionalLightComponent>(dirLightComp);
-	//			DiamondEntity.AddOrReplaceComponent<MaterialComponent>(matComp);
-	//			m_ActiveScene->PushToRenderList(DiamondEntity);
-	//			count++;
-	//		}
-	//	}
-	//}
+	if (auto authored = renderable(DiamondEntity, DiamondGeo, sphereMaterial, "Diamond"); !authored) return authored;
 	
-	auto DebugBoundingVolumeShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "basic.vert", base_shader_dir + "basic.frag" });
-	if (!DebugBoundingVolumeShaderResult) { return std::unexpected(DebugBoundingVolumeShaderResult.error()); }
-	auto* DebugBoundingVolumeShader = *DebugBoundingVolumeShaderResult;
-	//auto gridGeo = ShapeManager::GetShape("GridHelper");
-	auto DebugRenderComp = DebugRenderComponent{};
-	DebugRenderComp.Shader = DebugBoundingVolumeShader;
-	DebugRenderComp.RenderSettings.m_PrimitivesSetting.lineSetting.lineType = LineType_::Segments;
-	DebugRenderComp.RenderSettings.m_PrimitivesSetting.lineSetting.lineWidth = 1.f;
-	DebugRenderComp.RenderSettings.DrawStyle = DrawStyle_::LINES;
-	DebugRenderComp.RenderSettings.DrawMode = DrawMode_::Arrays;
-
-	AABBBoundingBoxComponent aabbComponent;
-	aabbComponent.bVisible = true;
-
-	//RefPtr<DebugAABBBoundingBoxComponent> debugBoundingBoxComp = CreateRefPtr<DebugAABBBoundingBoxComponent>();
+	#endif
 
 	#if activate_sphere_lattice
 	sphereFixtureComp.Property.m_LinearVelocity = { 0.f, 0.f, 0.f };
 	static int i = 0;
-	//load dynamic sphere body
+
 	for (int z = 1; z < 6; z++)
 	{
 		for (int x = 0; x < 6; x++)
@@ -339,49 +259,26 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
 				float xx = float(x - 1) * sphereFixtureComp.Radius * 2.f;
 				float zz = float(y - 1) * sphereFixtureComp.Radius * 2.f;
 				_Entity woodSphereEntity = m_ActiveScene->CreateEntity("wood_sphere" + std::to_string(i++));
-				woodSphereEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
-				woodSphereEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
 				woodSphereEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ xx, 10.f + yy, zz });
-				//sphereFixtureComp.Radius *= woodSphereEntity.GetComponent<Transform3DComponent>().Scale.x;
+
 				sphereFixtureComp.Property.m_Position = woodSphereEntity.GetComponent<Transform3DComponent>().Translation;
 				sphereFixtureComp.Property.m_Orientation = woodSphereEntity.GetComponent<Transform3DComponent>().QuatRotation;
 				woodSphereEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
 				woodSphereEntity.AddOrReplaceComponent<SphereFixture3DComponent>(sphereFixtureComp);
-				woodSphereEntity.AddOrReplaceComponent<TexturesComponent>(sphereTextureComp);
-				woodSphereEntity.AddOrReplaceComponent<MeshComponent>(smoothSphereGeo);
-				//woodSphereEntity.AddOrReplaceComponent<DirectionalLightComponent>(dirLightComp);
-				woodSphereEntity.AddOrReplaceComponent<MaterialComponent>(matComp);
-				woodSphereEntity.AddOrReplaceComponent<AABBBoundingBoxComponent>(aabbComponent);
-				woodSphereEntity.AddOrReplaceComponent<DebugRenderComponent>(DebugRenderComp);
-				woodSphereEntity.AddOrReplaceComponent<DebugAABBBoundingBoxMeshComponent>();
-				//woodSphereEntity.AddOrReplaceComponent<RefPtr<DebugAABBBoundingBoxComponent>>(debugBoundingBoxComp);
-				m_ActiveScene->PushToRenderList(woodSphereEntity);
+				if (auto authored = renderable(woodSphereEntity, smoothSphereGeo, sphereMaterial, ""); !authored) return authored;
+
+
 			}
 		}
 	}
 	#endif
 
-	//load dynamic box body
-	//auto box = ShapeManager::_GetShape<Shape::Box>("wood box", 2.f, 2.f, 2.f);
-	auto box = ShapeManager::GetShape("Box");		
+	const auto box = boxMesh;
 	BoxFixture3DComponent boxFixtureComp;
 	boxFixtureComp.Property.m_InvMass = 1.f;
 	boxFixtureComp.Property.m_Friction = 0.5f;
 	boxFixtureComp.Property.m_Elasticity = 0.5f;
-	//_Entity woodBoxEntity = m_ActiveScene->CreateEntity("wood_box");
-	////box->AddEntityID(int((entt::entity)woodBoxEntity));
-	////box->AddAttributes(std::vector<Vec1i>(box->GetVerticesCount(), woodBoxEntity));
-	//woodBoxEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
-	//woodBoxEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
-	//woodBoxEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ -30.f , 10.f, 0.f });
-	////woodBoxEntity.GetComponent<Transform3DComponent>().SetRotation({ Math::Pi / 4.f, 0.f, 0.f });
-	//boxFixtureComp.Property.m_Position = woodBoxEntity.GetComponent<Transform3DComponent>().Translation;
-	//boxFixtureComp.Property.m_Orientation = woodBoxEntity.GetComponent<Transform3DComponent>().QuatRotation;
-	//woodBoxEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
-	//woodBoxEntity.AddOrReplaceComponent<BoxFixture3DComponent>(boxFixtureComp);
-	//woodBoxEntity.AddOrReplaceComponent<TexturesComponent>(boxTextureComp);
-	//woodBoxEntity.AddOrReplaceComponent<MeshComponent>(box);
-	
+
 	#if activate_boxes_stacking
 	float offset = 2.f;
 
@@ -389,25 +286,20 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
 	{
 		for (int x = 0; x < 4; x++)
 		{
-			//float x = i % 2 == 0 ? -0.7f : 0.7f;
+
 			_Entity woodBoxEntity = m_ActiveScene->CreateEntity("wood_box");
 
-			woodBoxEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
-			woodBoxEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
 			woodBoxEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ x * (offset+0.01f), 1.5f + y * offset, 0.f }, Vec3f{0.f}, Vec3f{2.f});
-			//woodBoxEntity.GetComponent<Transform3DComponent>().SetRotation({ Math::Pi / 4.f, 0.f, 0.f });
+
 			boxFixtureComp.Property.m_Position = woodBoxEntity.GetComponent<Transform3DComponent>().Translation;
 			boxFixtureComp.Property.m_Orientation = woodBoxEntity.GetComponent<Transform3DComponent>().QuatRotation;
 			woodBoxEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
 			woodBoxEntity.AddOrReplaceComponent<BoxFixture3DComponent>(boxFixtureComp);
-			woodBoxEntity.AddOrReplaceComponent<TexturesComponent>(boxTextureComp);
-			woodBoxEntity.AddOrReplaceComponent<MeshComponent>(box);
-			m_ActiveScene->PushToRenderList(woodBoxEntity);
+			if (auto authored = renderable(woodBoxEntity, box, boxMaterial, "Box"); !authored) return authored;
 
 		}
 	}
 	#endif
-
 
 	#if activate_sphere_boxes_stacking
 	float offset = 2.f;
@@ -416,249 +308,120 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
 	{
 		for (int x = 0; x < 4; x++)
 		{
-			//float x = i % 2 == 0 ? -0.7f : 0.7f;
+
 			_Entity woodBoxEntity = m_ActiveScene->CreateEntity("wood_box");
 
-			woodBoxEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
-			woodBoxEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
 			woodBoxEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ x * (offset + 0.01f), 1.5f + y * offset, 0.f }, Vec3f{ 0.f }, Vec3f{ 2.f });
-			//woodBoxEntity.GetComponent<Transform3DComponent>().SetRotation({ Math::Pi / 4.f, 0.f, 0.f });
+
 			boxFixtureComp.Property.m_Position = woodBoxEntity.GetComponent<Transform3DComponent>().Translation;
 			boxFixtureComp.Property.m_Orientation = woodBoxEntity.GetComponent<Transform3DComponent>().QuatRotation;
 			woodBoxEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
 			woodBoxEntity.AddOrReplaceComponent<BoxFixture3DComponent>(boxFixtureComp);
-			woodBoxEntity.AddOrReplaceComponent<TexturesComponent>(boxTextureComp);
-			woodBoxEntity.AddOrReplaceComponent<MeshComponent>(box);
-			m_ActiveScene->PushToRenderList(woodBoxEntity);
+			if (auto authored = renderable(woodBoxEntity, box, boxMaterial, "Box"); !authored) return authored;
 
 		}
 	}
 
 	sphereFixtureComp.Property.m_LinearVelocity = { 0.f, 0.f, 40.f };
 	_Entity woodSphereEntity = m_ActiveScene->CreateEntity("wood_sphere_0");
-	//smoothSphereGeo->AddEntityID(int((entt::entity)woodSphereEntity));
-	woodSphereEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
-	woodSphereEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
+
 	woodSphereEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 3.5f, 5.0f, -20.f });
-	//sphereFixtureComp.Radius *= woodSphereEntity.GetComponent<Transform3DComponent>().Scale.x;
+
 	sphereFixtureComp.Property.m_Position = woodSphereEntity.GetComponent<Transform3DComponent>().Translation;
 	sphereFixtureComp.Property.m_Orientation = woodSphereEntity.GetComponent<Transform3DComponent>().QuatRotation;
 	woodSphereEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
 	woodSphereEntity.AddOrReplaceComponent<SphereFixture3DComponent>(sphereFixtureComp);
-	woodSphereEntity.AddOrReplaceComponent<TexturesComponent>(sphereTextureComp);
-	woodSphereEntity.AddOrReplaceComponent<MeshComponent>(smoothSphereGeo);
-	//woodSphereEntity.AddOrReplaceComponent<DirectionalLightComponent>(dirLightComp);
-	woodSphereEntity.AddOrReplaceComponent<MaterialComponent>(matComp);
-	m_ActiveScene->PushToRenderList(woodSphereEntity);
+	if (auto authored = renderable(woodSphereEntity, smoothSphereGeo, sphereMaterial, ""); !authored) return authored;
+	
 	#endif
 
-
-	//m_ActiveScene->PushToRenderList(woodBoxEntity);
-	//m_ActiveScene->PushToRenderList(DiamondEntity);
-	//m_ActiveScene->PushToRenderList(woodSphereEntity);
-
-	//Grid Configuration
-	m_GridEntity = m_ActiveScene->CreateEntity("grid");
-	auto basicShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "basic.vert", base_shader_dir + "basic.frag" });
-	if (!basicShaderResult) { return std::unexpected(basicShaderResult.error()); }
-	auto* basicShader = *basicShaderResult;
-	auto gridGeo = ShapeManager::GetShape("GridHelper");
-	auto basicRenderComp = RenderComponent{};
-	basicRenderComp.Shader = basicShader;
-	basicRenderComp.RenderSettings.m_PrimitivesSetting.lineSetting.lineType = LineType_::Segments;
-	basicRenderComp.RenderSettings.m_PrimitivesSetting.lineSetting.lineWidth = 1.f;
-	basicRenderComp.RenderSettings.DrawStyle = DrawStyle_::LINES;
-	basicRenderComp.RenderSettings.DrawMode = DrawMode_::Arrays;
 	
-	m_GridEntity.AddOrReplaceComponent<RenderComponent>(basicRenderComp);
-	m_GridEntity.AddOrReplaceComponent<HelperMaterialComponent>();
-	m_GridEntity.AddOrReplaceComponent<MeshComponent>(gridGeo);
-	auto& transform = m_GridEntity.GetComponent<Transform3DComponent>();
-	transform.SetRotation({ Math::Pi / 2.f, 0.f, 0.f });
+    const MaterialParameterDecl helperParameters[]{
+        {"u_baseColor", MaterialParameterType::Float4, std::array<float,4>{1,1,1,1}},
+        {"u_useVertexColor", MaterialParameterType::Boolean, true}};
+    auto gridMesh = m_FrameResources->PublishShape("GridHelper");
+    if (!gridMesh) return failure(gridMesh.error());
+    auto gridMaterial = material(SceneMaterialKind::Helper, {}, helperParameters, true);
+    if (!gridMaterial) return failure(gridMaterial.error());
+    m_GridEntity = m_ActiveScene->CreateEntity("grid");
+    m_GridEntity.AddOrReplaceComponent<MeshRendererComponent>(MeshRendererComponent{*gridMesh,*gridMaterial,0,false,false,true});
+    m_GridEntity.AddOrReplaceComponent<VisibilityComponent>(VisibilityComponent{false});
+    m_GridEntity.GetComponent<Transform3DComponent>().SetRotation({Math::Pi/2.f,0,0});
+    auto axisMesh = m_FrameResources->PublishShape("AxisHelper");
+    if (!axisMesh) return failure(axisMesh.error());
+    auto axisMaterial = material(SceneMaterialKind::Helper, {}, helperParameters, true, 3.f);
+    if (!axisMaterial) return failure(axisMaterial.error());
+    m_AxisEntity = m_ActiveScene->CreateEntity("axis");
+    m_AxisEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{0,1,0});
+    m_AxisEntity.AddOrReplaceComponent<MeshRendererComponent>(MeshRendererComponent{*axisMesh,*axisMaterial,0,false,false,true});
+    TextureDesc info;
+    info.kind = TextureKind::Cube; info.colorSpace = TextureColorSpace::Linear;
+    info.mips = TextureMipIntent::None; info.orientation = ImageOrientation::TopLeft;
+    auto skyTexture = AssetsManager::GetTextureOrFallback("SkyBox/Day/", "u_skyBoxDay", ".png", info);
+    if (!skyTexture) return std::unexpected(skyTexture.error());
+    auto skyMesh = m_FrameResources->PublishShape("SkyBox");
+    if (!skyMesh) return failure(skyMesh.error());
+    auto skyMaterial = material(SceneMaterialKind::Sky, {*skyTexture}, {}, true);
+    if (!skyMaterial) return failure(skyMaterial.error());
+    m_SkyBoxEntity = m_ActiveScene->CreateEntity("Environment_SkyBox");
+    m_SkyBoxEntity.AddOrReplaceComponent<MeshRendererComponent>(MeshRendererComponent{*skyMesh,*skyMaterial,0,false,false,false});
+rigidBodyComp.Type = BodyType::Static;
 
-	//Axis Configuration
-	m_AxisEntity = m_ActiveScene->CreateEntity("axis");
-	auto axisGeo = ShapeManager::GetShape("AxisHelper");
-	basicRenderComp.RenderSettings.m_PrimitivesSetting.lineSetting.lineWidth = 3.f;
-	m_AxisEntity.AddOrReplaceComponent<RenderComponent>(basicRenderComp);
-	m_AxisEntity.AddOrReplaceComponent<HelperMaterialComponent>();
-	m_AxisEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 0.f, 1.f, 0.f });
-	m_AxisEntity.AddOrReplaceComponent<MeshComponent>(axisGeo);
-
-	m_ActiveScene->PushToRenderList(m_AxisEntity);
-	//m_ActiveScene->PushToRenderList(m_GridEntity, m_AxisEntity);
-
-
-
-	//Load SkyBox
-
-	RenderComponent skyBoxRenderComp;
-	auto skyBoxShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "skybox_environment.vert", base_shader_dir + "skybox_environment.frag" });
-	if (!skyBoxShaderResult) { return std::unexpected(skyBoxShaderResult.error()); }
-	auto* skyBoxShader = *skyBoxShaderResult;
-	skyBoxRenderComp.Shader = skyBoxShader;
-	skyBoxRenderComp.RenderSettings.m_PrimitivesSetting.surfaceSetting.lineWidth = 1.f;
-	skyBoxRenderComp.RenderSettings.m_PrimitivesSetting.surfaceSetting.bDoubleSide = true;
-	skyBoxRenderComp.RenderSettings.m_PrimitivesSetting.surfaceSetting.bWireFrame = false;
-	skyBoxRenderComp.RenderSettings.DrawMode = DrawMode_::Arrays;
-	skyBoxRenderComp.RenderSettings.DrawStyle = DrawStyle_::TRIANGLES;
-
-	TextureDesc info;
-    info.kind = TextureKind::Cube;
-    info.colorSpace = TextureColorSpace::Linear; // Preserve the previous cube upload interpretation.
-    info.mips = TextureMipIntent::None;
-    info.orientation = ImageOrientation::TopLeft;
-	auto tex1Result = AssetsManager::GetTextureOrFallback("SkyBox/Day/", "u_skyBoxDay", ".png", info);
-	if (!tex1Result) { GENGINE_CORE_ERROR("Texture {}: {}", tex1Result.error().source, tex1Result.error().message); m_Running = false; return std::unexpected(tex1Result.error()); }
-	auto* tex1 = *tex1Result;
-
-	auto skyBoxTextureComp = TexturesComponent{ {tex1} };
-	skyBoxTextureComp.PreBindTextures(skyBoxShader);
-
-	m_SkyBoxEntity = m_ActiveScene->CreateEntity("Environment_SkyBox");
-	m_SkyBoxEntity.AddOrReplaceComponent<TexturesComponent>(std::vector{ tex1 });
-
-
-	
-	m_SkyBoxEntity.AddOrReplaceComponent<RenderComponent>(skyBoxShader);
-
-	auto skyBoxGeo = ShapeManager::GetShape("SkyBox");
-	m_SkyBoxEntity.AddOrReplaceComponent<MeshComponent>(skyBoxGeo);
-
-
-	
-	
-	
-	//Load Plane Texture
-	//AssetsManager::GetTexture("Sphere/wood_diffuse", "diffuseTexture");
-	auto plane_diffuseResult = AssetsManager::GetTextureOrFallback("Wall/wallpaper_albedo", "diffuseTexture");
-	if (!plane_diffuseResult) { GENGINE_CORE_ERROR("Texture {}: {}", plane_diffuseResult.error().source, plane_diffuseResult.error().message); m_Running = false; return std::unexpected(plane_diffuseResult.error()); }
-	auto* plane_diffuse = *plane_diffuseResult;
-	//Texture* plane_metallic = AssetsManager::GetTexture("Wall/wallpaper_metallic", "u_material.specular");
-
-	//TexturesComponent planeTextureComp({ plane_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });//, plane_metallic
-	TexturesComponent planeTextureComp({ floor_albedo, floor_normal, floor_metallic, floor_roughness, floor_ao, point_shadow_depth_map, cascade_shadow_depth_map });//, plane_metallic
-	planeTextureComp.Tiling = { "u_tiling", {2.f, 2.f} };
-
-	//TexturesComponent planeTextureComp_({ plane_diffuse, point_shadow_depth_map, cascade_shadow_depth_map });//, plane_metallic
-	TexturesComponent planeTextureComp_({ floor_albedo, floor_normal, floor_metallic, floor_roughness, floor_ao, point_shadow_depth_map, cascade_shadow_depth_map });//, plane_metallic
-	planeTextureComp_.Tiling = { "u_tiling", {2.f, 0.2f} };
-
-
-	planeTextureComp.PreBindTextures(cascadedRenderShader);
-	planeTextureComp_.PreBindTextures(cascadedRenderShader);
-
-	rigidBodyComp.Type = BodyType::Static;
-
-	//Load Plane
 	_Entity planeEntity = m_ActiveScene->CreateEntity("wood_plane");
-	auto planeGeo = ShapeManager::GetShape("Box");
+	const auto planeGeo = boxMesh;
 	BoxFixture3DComponent planeFixtureComp;
 	planeFixtureComp.Property.m_InvMass = 0.f;
 	planeFixtureComp.Property.m_Friction = 0.5f;
 	planeFixtureComp.Property.m_Elasticity = 0.5f;
-	matComp.Metalness = { "metalness", Vec3f(0.08f) };
-	planeEntity.AddOrReplaceComponent<MeshComponent>(planeGeo);
-	planeEntity.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
-	planeEntity.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
-	planeEntity.AddOrReplaceComponent<TexturesComponent>(planeTextureComp);
+	if (auto authored = renderable(planeEntity, planeGeo, floorMaterial, "Box"); !authored) return authored;
 	planeEntity.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
 	planeEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{}, Vec3f{}, Vec3f{100, 1, 100});
 	planeFixtureComp.Property.m_Position = planeEntity.GetComponent<Transform3DComponent>().Translation;
 	planeFixtureComp.Property.m_Orientation = planeEntity.GetComponent<Transform3DComponent>().QuatRotation;
 	planeEntity.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
-	planeEntity.AddOrReplaceComponent<MaterialComponent>(matComp);
-	m_ActiveScene->PushToRenderList(planeEntity);
-	
-	
+
 	_Entity wallEntity_1 = m_ActiveScene->CreateEntity("wall_entity_1");
-	wallEntity_1.AddOrReplaceComponent<MeshComponent>(planeGeo);
-	wallEntity_1.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
-	wallEntity_1.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
+	if (auto authored = renderable(wallEntity_1, planeGeo, wallMaterial, "Box"); !authored) return authored;
 	wallEntity_1.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
 	wallEntity_1.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ -49.5f, 4.5f, 0.f }, Vec3f{0, glm::pi<float>() / 2.0f, 0}, Vec3f{100, 10, 1});
 	planeFixtureComp.Property.m_Position = wallEntity_1.GetComponent<Transform3DComponent>().Translation;
 	planeFixtureComp.Property.m_Orientation = wallEntity_1.GetComponent<Transform3DComponent>().QuatRotation;
 	wallEntity_1.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
-	wallEntity_1.AddOrReplaceComponent<TexturesComponent>(planeTextureComp_);
-	wallEntity_1.AddOrReplaceComponent<MaterialComponent>(matComp);
-	m_ActiveScene->PushToRenderList(wallEntity_1);
-
 
 	_Entity wallEntity_2 = m_ActiveScene->CreateEntity("wall_entity_2");
-	wallEntity_2.AddOrReplaceComponent<MeshComponent>(planeGeo);
-	wallEntity_2.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
-	wallEntity_2.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
+	if (auto authored = renderable(wallEntity_2, planeGeo, wallMaterial, "Box"); !authored) return authored;
 	wallEntity_2.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
 	wallEntity_2.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 49.5f, 4.5f, 0.f }, Vec3f{ 0, glm::pi<float>() / 2.0f, 0 }, Vec3f{ 100, 10, 1});
 	planeFixtureComp.Property.m_Position = wallEntity_2.GetComponent<Transform3DComponent>().Translation;
 	planeFixtureComp.Property.m_Orientation = wallEntity_2.GetComponent<Transform3DComponent>().QuatRotation;
 	wallEntity_2.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
-	wallEntity_2.AddOrReplaceComponent<TexturesComponent>(planeTextureComp_);
-	wallEntity_2.AddOrReplaceComponent<MaterialComponent>(matComp);
-	m_ActiveScene->PushToRenderList(wallEntity_2);
-
 
 	_Entity wallEntity_3 = m_ActiveScene->CreateEntity("wall_entity_3");
-	wallEntity_3.AddOrReplaceComponent<MeshComponent>(planeGeo);
-	wallEntity_3.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
-	wallEntity_3.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
+	if (auto authored = renderable(wallEntity_3, planeGeo, wallMaterial, "Box"); !authored) return authored;
 	wallEntity_3.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
 	wallEntity_3.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 0.f, 4.5f, 49.5f }, Vec3f{}, Vec3f{ 100, 10, 1 });
 	planeFixtureComp.Property.m_Position = wallEntity_3.GetComponent<Transform3DComponent>().Translation;
 	planeFixtureComp.Property.m_Orientation = wallEntity_3.GetComponent<Transform3DComponent>().QuatRotation;
 	wallEntity_3.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
-	wallEntity_3.AddOrReplaceComponent<TexturesComponent>(planeTextureComp_);
-	wallEntity_3.AddOrReplaceComponent<MaterialComponent>(matComp);
-	m_ActiveScene->PushToRenderList(wallEntity_3);
-
 
 	_Entity wallEntity_4 = m_ActiveScene->CreateEntity("wall_entity_4");
-	wallEntity_4.AddOrReplaceComponent<MeshComponent>(planeGeo);
-	wallEntity_4.AddOrReplaceComponent<PreRenderPassComponent>(lightShadowPreRenderComponent);
-	wallEntity_4.AddOrReplaceComponent<RenderComponent>(lightShadowRenderComponent);
+	if (auto authored = renderable(wallEntity_4, planeGeo, wallMaterial, "Box"); !authored) return authored;
 	wallEntity_4.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
 	wallEntity_4.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 0.f, 4.5f, -49.5f }, Vec3f{}, Vec3f{ 100, 10, 1 });
 	planeFixtureComp.Property.m_Position = wallEntity_4.GetComponent<Transform3DComponent>().Translation;
 	planeFixtureComp.Property.m_Orientation = wallEntity_4.GetComponent<Transform3DComponent>().QuatRotation;
 	wallEntity_4.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
-	wallEntity_4.AddOrReplaceComponent<TexturesComponent>(planeTextureComp_);
-	wallEntity_4.AddOrReplaceComponent<MaterialComponent>(matComp);
-	m_ActiveScene->PushToRenderList(wallEntity_4);
-	
-	
-
-	m_ActiveScene->OnRuntimeStart();
-
-	//m_ActiveScene->
-	//LightComponent ambient_light;
-	//ambient_light.Color = { "u_lightColor[0]", Vec3f{0.3f, 0.3f, 0.3f} };
-	//ambient_light.Attenuation = { "u_lightAttuentation[0]", Vec3f{1.f, 0.f, 0.f} };
-	//ambientLightEntity.AddComponent<LightComponent>(ambient_light);
-	//ambientLightEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 0.f, 1000.f, -7000.f });
 
 
-	////Load Directional Light
-	//auto directionalLightEntity = m_ActiveScene->CreateEntity("directional_light");
-	//LightComponent directional_light;
-	//directional_light.Color = { "u_lightColor[1]", Vec3f{0.3f, 0.3f, 0.3f} };
-	//ambient_light.Attenuation = { "u_lightAttuentation[0]", Vec3f{1.f, 0.f, 0.f} };
-	//ambientLightEntity.AddComponent<LightComponent>(ambient_light);
+    m_ActiveScene->OnRuntimeStart();
 
-
-
-
-
-	//rigister window resize event and mouse click, scroll event
 	auto AppPauseEvent = new Events<void()>("AppPause");
 	auto AppResumeEvent = new Events<void()>("AppResume");
 	auto debugshowEvent = new Events<void()>("DebugShow");
 
 	auto viewPortEvent = new Events<void()>("ViewportChange");
 
-
 	auto MouseScrollEvent = new Events<void(MouseScrollWheelParam)>("MouseScrollWheel");
-	//auto MouseClickEvent = new Events<void(MouseButtonParam)>("MouseButtonPress");
 
 	AppPauseEvent->Subscribe([this]() { m_IsPause = true; });
 	AppResumeEvent->Subscribe([this]() { m_IsPause = false; });
@@ -667,22 +430,6 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
 		{
 			m_EditorCamera_.OnViewportViewDirectionChange();
 		});
-	/*MouseClickEvent->Subscribe([this](const MouseButtonParam& mouseParam)
-		{
-			m_MousePickFrameBuffer->Bind();
-			
-			int x = mouseParam.X;
-			int y = m_Window->GetScreenHeight() - mouseParam.Y;
-			auto pixel = m_MousePickFrameBuffer->ReadPixel(x, y);
-			if (!pixel) { ReportFramebufferError("picking read", pixel.error()); return; }
-			int pixel_data = *pixel;
-			std::cout << "Mouse Clicked at: " << x << ", " << y << std::endl;
-			std::cout << "Pixel Data: " << pixel_data << std::endl;
-			m_MousePickFrameBuffer->UnBind();
-		});*/
-
-    // Native resize state is consumed by BaseApp. The docked panel exclusively
-    // publishes editor dimensions; native events never resize editor targets.
 
 	MouseScrollEvent->Subscribe([this](const MouseScrollWheelParam& mousescrollParam)
 		{
@@ -691,14 +438,12 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
 			
 		});
 
-
-
 	GetEventManager()->GetEventDispatcher().RegisterEvent(MouseScrollEvent);
 	GetEventManager()->GetEventDispatcher().RegisterEvent(AppPauseEvent);
 	GetEventManager()->GetEventDispatcher().RegisterEvent(AppResumeEvent);
 	GetEventManager()->GetEventDispatcher().RegisterEvent(debugshowEvent);
 	GetEventManager()->GetEventDispatcher().RegisterEvent(viewPortEvent);
-	//GetEventManager()->GetEventDispatcher().RegisterEvent(MouseClickEvent);
+
     return {};
 }
 
@@ -803,141 +548,48 @@ void RigidBodySimulationApp::Update(Timestep ts)
 
 void RigidBodySimulationApp::Render()
 {
-
-	static int i = 0;
-	RenderSystem::GetRenderStats().m_ArrayDrawCall = 0;
-	RenderSystem::GetRenderStats().m_ElementsDrawCall = 0;
-	auto& windows = GetWindowManager()->GetWindows();
-
-	if (HasVisibleViewport())
-	{
-		RenderParam_ param;
-		//m_MousePickFrameBuffer.get()->Bind();
-		param.ClearColor = { 0.1f, 0.1f, 0.1f, 1.f };
-		param.bEnableDepthTest = true;
-		param.bClearColorBit = true;
-		param.bClearDepthBit = true;
-		param.bClearStencilBit = true;
-
-		//UBO SetUp
-		RenderSystem::SetupUBO(*m_UniformBufferObject, m_EditorCamera_, m_LightDirection, m_ShadowCascadeLevels);
-
-		RenderSystem::Set(param);
-		//begin render
-		//RenderSystem::BeginRender(m_EditorCamera_);
-
-		//Mouse Pick pass
-		//auto mousePickShader = ShaderManager::GetShaderProgram({ base_shader_dir + "mouse_pick.vert", base_shader_dir + "mouse_pick.frag" });
-		//RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get());
-		//RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get(), m_ViewportBounds[0], m_ViewportBounds[1]);
-
-		//point shadow pass
-		auto pointLightShadowShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "point_shadows_depth.vert", base_shader_dir + "point_shadows_depth.gs", base_shader_dir + "point_shadows_depth.frag" });
-		if (!pointLightShadowShaderResult) { Asset::ReportShaderError(pointLightShadowShaderResult.error()); m_Running = false; return; }
-		auto* pointLightShadowShader = *pointLightShadowShaderResult;
-		RenderSystem::PointShadowPass(m_ActiveScene.get(), pointLightShadowShader, *m_PointShadowFrameBuffer, m_LightPos, m_NearPlane, m_FarPlane);
-
-		//cascade shadow pass
-		auto cascadeShadowMapShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping_depth.vert", base_shader_dir + "shadow_mapping_depth.gs", base_shader_dir + "shadow_mapping_depth.frag" });
-		if (!cascadeShadowMapShaderResult) { Asset::ReportShaderError(cascadeShadowMapShaderResult.error()); m_Running = false; return; }
-		auto* cascadeShadowMapShader = *cascadeShadowMapShaderResult;
-		RenderSystem::CascadedShadowPass(m_ActiveScene.get(), cascadeShadowMapShader, *m_CascadeShadowFrameBuffer);
-
-
-
-
-
-		// scene render to frame buffer
-		//auto cascadeSceneShader = ShaderManager::GetShaderProgram({ base_shader_dir + "shadow_mapping.vert", base_shader_dir + "shadow_mapping.frag" });
-		/*RenderSystem::CascadedShadowScenePass(m_ActiveScene.get(), m_EditorCamera_, cascadeSceneShader,  m_ShadowCascadeLevels, *m_FinalFrameBuffer);
-		m_FinalFrameBuffer->BindReadFrameBuffer();
-		m_FinalFrameBuffer->BindDefaultDrawFrameBuffer();
-		m_FinalFrameBuffer->BlitFrameBuffer();*/
-		//m_FinalFrameBuffer->UnBind();
-
-
-
-		//Mouse Pick pass
-		auto mousePickShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "mouse_pick.vert", base_shader_dir + "mouse_pick.frag" });
-		if (!mousePickShaderResult) { Asset::ReportShaderError(mousePickShaderResult.error()); m_Running = false; return; }
-		auto* mousePickShader = *mousePickShaderResult;
-		//RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get());
-		RenderSystem::MousePickPass(m_ActiveScene.get(), m_EditorCamera_, mousePickShader, *m_MousePickFrameBuffer.get(), m_ViewportBounds[0], m_ViewportBounds[1]);
-
-		//start final render
-		//m_FinalFrameBuffer->Bind();
-		RenderSystem::BeginFinalRender(m_EditorCamera_, m_RenderTarget.get());
-
-		//RenderSystem::BeginRender(m_EditorCamera_);
-
-		//m_RenderTarget->ClearAttachment(1, -1);
-		RenderSystem::CascadedShadowSceneRender(m_ActiveScene.get(), m_EditorCamera_, m_ShadowCascadeLevels, m_FarPlane);
-
-		//RenderSystem::OnMouseClicked(m_ActiveScene.get(), *m_RenderTarget, m_ViewportBounds[0], m_ViewportBounds[1]);
-
-		//visualize debug bounding boxes
-		//if (m_IsShowDebugBoundingBox)
-		//{
-			//auto debugBoundingBoxShader = ShaderManager::GetShaderProgram({ base_shader_dir + "basic.vert", base_shader_dir + "basic.frag" });
-			//RenderSystem::VisualizeDebugBoundingVolume(m_ActiveScene.get(), m_EditorCamera_, debugBoundingBoxShader, *m_DebugBoundingBoxComp.get());
-			//RenderSystem::VisualizeDebugBoundingVolume(m_ActiveScene.get(), m_EditorCamera_);
-		//}
-
-		//visualize kdtree
-		//if(!m_IsShowKDTree)
-		//{
-		//
-		//	for (auto& e : m_ActiveScene->GetAllEntitiesWith<Transform3DComponent, RigidBody3DComponent>())
-		//	{
-		//		_Entity entity{ e, m_ActiveScene.get() };
-		//		auto& transform = entity.GetComponent<Transform3DComponent>();
-		//		m_ObjectsPoints.push_back(transform.Translation);
-
-		//	}
-		//	//auto debugShader = ShaderManager::GetShaderProgram({ base_shader_dir + "basic.vert", base_shader_dir + "basic.frag" });
-
-		//	////FilledKDTreePoints();
-		//	//m_KDTree.ConstructKDTree(m_ObjectsPoints);
-		//	//m_KDTree.CollectBoxes(m_KDTreePoints);
-		//	//RenderSystem::KDTreeVisualize(m_ActiveScene.get(), m_EditorCamera_, debugShader, m_KDTreePoints, *m_DebugKDTreeVisualizer);
-		//	m_ObjectsPoints.clear();
-		//	m_KDTreePoints.clear();
-		//	m_KDTree.ClearNode();
-		//}
-
-		//visualize point lights
-		auto visualShaderResult = ShaderManager::GetShaderProgram({ base_shader_dir + "point_light_sphere_visual.vert", base_shader_dir + "point_light_sphere_visual.frag" });
-		if (!visualShaderResult) { Asset::ReportShaderError(visualShaderResult.error()); m_Running = false; return; }
-		auto* visualShader = *visualShaderResult;
-		RenderSystem::PointLightsVisualize(m_ActiveScene.get(), m_EditorCamera_, visualShader);
-
-		////RenderSystem::SceneRender(m_ActiveScene.get(), m_EditorCamera_);
-		RenderSystem::SkyBoxRender(m_SkyBoxEntity, m_EditorCamera_);
-		//m_FinalFrameBuffer->UnBind();
-
-
-		if (m_RenderTarget && m_RenderTarget->IsMultiSampled())
-			if (auto framebufferResult = m_RenderTarget->BindAndBlitToScreen(); !framebufferResult)
-			{ ReportFramebufferError("target update", framebufferResult.error()); return; }
-
-		if (m_RenderTarget)
-			m_RenderTarget->UnBind();
-
-
-	}
-
-	for (auto& [windowID, window] : windows)
-	{
-		auto* window_ = window.get();
-		if (auto ui = window_->BeginUI(); !ui) { ReportPlatformError(ui.error()); ShutDown(); return; }
-		ImGuiRender();
-		if (auto ui = window_->EndUI(); !ui) { ReportPlatformError(ui.error()); ShutDown(); return; }
-		window_->SwapBuffer();
-	}
-
-
+    if (HasVisibleViewport())
+    {
+        m_EditorCamera_.UpdateView();
+        auto cameraId = m_ActiveScene->RenderData().Identify(m_FrameCameraEntity);
+        if (!cameraId) { Log::GetCoreLogger()->error("Frame camera identity: {}", int(cameraId.error())); m_Running=false; return; }
+        const FrameCamera camera{*cameraId, m_EditorCamera_.GetViewMatrix(), m_EditorCamera_.GetProjection(),
+            m_EditorCamera_.GetPosition(), 0, 0, static_cast<unsigned>(m_RenderTarget->GetWidth()), static_cast<unsigned>(m_RenderTarget->GetHeight())};
+        {
+            auto access = m_FrameResources->Publication().BeginFrame();
+            RenderExtractionStats extraction;
+            auto frame = ExtractRenderFrame(*m_ActiveScene, m_FrameResources->ForFrame(access), extraction, {&camera,1});
+            if (!frame) {
+                Log::GetCoreLogger()->error("Frame extraction entity={}/{}/{} cause-domain={}", frame.error().entity.index,
+                    frame.error().entity.generation, frame.error().entity.registry, frame.error().cause.index());
+                std::visit([&](const auto& cause) {
+                    using T=std::decay_t<decltype(cause)>;
+                    if constexpr (std::is_enum_v<T>) Log::GetCoreLogger()->error("Frame extraction entity={}/{}/{} cause-domain={} code={}", frame.error().entity.index,frame.error().entity.generation,frame.error().entity.registry,frame.error().cause.index(),int(cause));
+                    else if constexpr (std::same_as<T, MaterialBindingError>) Log::GetCoreLogger()->error("Frame material code={} binding={} message={} registry={} fallback-cause={}",int(cause.code),cause.binding,cause.message,int(cause.registry),cause.cause?int(*cause.cause):-1);
+                    else if constexpr (std::same_as<T, FrameError>) Log::GetCoreLogger()->error("Frame code={} section={} element={}",int(cause.code),int(cause.section),cause.element);
+                    else Log::GetCoreLogger()->error("Frame transform code={} entity={} parent={}",int(cause.code),static_cast<uint64_t>(cause.entity),static_cast<uint64_t>(cause.parent));
+                }, frame.error().cause);
+                m_Running=false; return;
+            }
+            FrameSubmissionDesc desc{*m_RenderTarget,*m_MousePickFrameBuffer,*m_PointShadowFrameBuffer,*m_CascadeShadowFrameBuffer,
+                m_FrameResources->Pipelines(),m_ShadowCascadeLevels,m_EditorCamera_.GetFOV(),m_EditorCamera_.GetAspectRatio(),
+                m_EditorCamera_.GetNearClip(),m_EditorCamera_.GetFarClip(),m_NearPlane,m_FarPlane};
+            auto submitted = m_FrameSubmission->Submit(*frame,desc,m_PickTable);
+            if (!submitted) { Log::GetCoreLogger()->error("{}",DescribeSubmissionError(submitted.error())); m_Running=false; return; }
+        }
+        OnMouseClicked();
+        if (m_RenderTarget->IsMultiSampled())
+            if (auto result=m_RenderTarget->BindAndBlitToScreen(); !result) { ReportFramebufferError("target resolve",result.error()); m_Running=false; return; }
+        m_RenderTarget->UnBind();
+    }
+    for (auto& [windowID, window] : GetWindowManager()->GetWindows())
+    {
+        if (auto ui=window->BeginUI(); !ui) { ReportPlatformError(ui.error()); ShutDown(); return; }
+        ImGuiRender();
+        if (auto ui=window->EndUI(); !ui) { ReportPlatformError(ui.error()); ShutDown(); return; }
+        window->SwapBuffer();
+    }
 }
-
 
 void RigidBodySimulationApp::ImGuiRender()
 {
@@ -1182,8 +834,15 @@ void RigidBodySimulationApp::OnMouseClicked()
         const int x = position->X, y = position->Y;
 		auto pixel = m_MousePickFrameBuffer->ReadPixel(x, y);
 		if (!pixel) { ReportFramebufferError("picking read", pixel.error()); return; }
-		int pixel_data = *pixel;
-		std::cout << "Mouse Clicked at: " << x << ", " << y << std::endl;
+		m_HoveredEntity = {};
+        if (*pixel != EntityPickTable::InvalidPixel) {
+            auto id = m_ActiveScene->RenderData().ResolvePick(m_PickTable,*pixel);
+            if (!id) { Log::GetCoreLogger()->warn("Stale/invalid picking result: {}",int(id.error())); return; }
+            auto entity = m_ActiveScene->RenderData().Resolve(*id);
+            if (!entity) { Log::GetCoreLogger()->warn("Picking entity: {}",int(entity.error())); return; }
+            m_HoveredEntity = _Entity{*entity,m_ActiveScene.get()};
+        }
+        GENGINE_CORE_INFO("Mouse Position: {}, {}; Entity {} has been clicked",x,y,m_HoveredEntity?m_HoveredEntity.GetName():"None");
 		//std::cout << "Pixel Data: " << pixel_data << std::endl;
 		//m_MousePickFrameBuffer->UnBind();
 	}
@@ -1210,7 +869,7 @@ void RigidBodySimulationApp::OnViewportResize(int, int)
     const auto width = m_RenderTarget->GetWidth(), height = m_RenderTarget->GetHeight();
     if (!width || !height) return;
     m_EditorCamera_.SetViewportSize(static_cast<float>(width), static_cast<float>(height));
-    RenderSystem::SetSurfaceSize(width, height);
+
 }
 
 

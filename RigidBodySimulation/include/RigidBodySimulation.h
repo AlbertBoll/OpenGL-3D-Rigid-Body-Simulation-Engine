@@ -7,6 +7,7 @@
 #include "Audio/AudioSystem.h"
 #include "Physics/PhysicsSystem.h"
 #include <SpatialPartition/KDTree.h>
+#include "Renderer/FrameSubmission.h"
 
 namespace GEngine
 {
@@ -43,6 +44,11 @@ private:
 
 
 private:
+	// Scenes release presentation-cache leases before the resource publisher.
+	std::unique_ptr<SceneRenderResources> m_FrameResources;
+	std::optional<FrameSubmission> m_FrameSubmission;
+	EntityPickTable m_PickTable;
+	_Entity m_FrameCameraEntity;
 	_Entity m_Sphere;
 	_Entity m_HoveredEntity;
 	_Entity m_GridEntity;

@@ -72,6 +72,9 @@ namespace GEngine::Asset
         std::expected<SamplerHandle, SamplerError> Get(const SamplerDesc&);
         std::expected<SamplerView, SamplerError> Resolve(SamplerHandle) const;
         std::size_t Size() const { return m_Registry.Size(); }
+        // Resolution with the caller's existing FrameAccess is performed by the
+        // material preparer. This accessor never begins a nested read scope.
+        const SamplerRegistry& FrameRegistry() const noexcept { return m_Registry; }
     private:
         struct Entry;
         AssetPublication& m_Publication;

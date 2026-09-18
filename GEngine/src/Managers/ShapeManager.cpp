@@ -2,6 +2,7 @@
 #include "Core/RuntimeAssets.h"
 #include "Managers/ShapeManager.h"
 #include "Core/GEngine.h"
+#include "Scene/_Entity.h"
 #include <stdexcept>
 #include <Shapes/Box.h>
 #include <Shapes/Circle.h>
@@ -65,7 +66,7 @@ namespace GEngine
 			RegisterShape(AxisHelper);
 			RegisterShape(Diamond);
 			RegisterShape(PointLightHelper);
-			RegisterShape(AABBBoundingBox);
+			ShapeManager::__Register<Shape::AABBBoundingBox>("AABBBoundingBox");
 			RegisterShape(KDTreeVisualizer);
 			//_RegisterShape(SmoothSphere, EnvironmentSphere, 1000.f);
 			//_RegisterShape(SmoothSphere, FloorSphere, 80.f);
@@ -75,6 +76,26 @@ namespace GEngine
 
         ShapeManager& ShapeManager::Current() { return EngineContext::Current().Shapes(); }
         ShapeManager::~ShapeManager() = default;
+
+        std::expected<MeshAsset, SceneResourceError> ShapeManager::ExportMesh(std::string_view name) const
+        {
+            const auto found = m_Shapes.find(std::string(name));
+            if (found == m_Shapes.end())
+                return std::unexpected(SceneResourceError{std::string(name), SceneResourceCode::MissingShape});
+            auto mesh = found->second->ExportCpuMesh();
+            if (!mesh) return std::unexpected(SceneResourceError{std::string(name), mesh.error()});
+            return std::move(*mesh);
+        }
+
+        std::expected<void, SceneResourceError> ShapeManager::AttachPhysicsShape(_Entity& entity, std::string_view name) const
+        {
+            if (!entity) return std::unexpected(SceneResourceError{"physics authoring", SceneResourceCode::InvalidEntity});
+            const auto found = m_Shapes.find(std::string(name));
+            if (found == m_Shapes.end())
+                return std::unexpected(SceneResourceError{std::string(name), SceneResourceCode::MissingShape});
+            entity.AddOrReplaceComponent<Component::MeshComponent>(found->second.get());
+            return {};
+        }
 
         bool ShapeManager::Owns(const Geometry* shape) const
         {

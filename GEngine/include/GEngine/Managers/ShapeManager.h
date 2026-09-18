@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 #include <Geometry/Geometry.h>
+#include "Renderer/SceneRenderResources.h"
 
 #define RegisterShape(class_name) Manager::ShapeManager::__Register<class_name>(#class_name);
 #define _RegisterShape(class_name, key_name, ...) Manager::ShapeManager::__Register<class_name>(#key_name, __VA_ARGS__);
@@ -27,6 +28,8 @@ namespace GEngine
             // Removes lookup only; old borrowers survive until root shutdown.
             static void UnRegister(const std::string& shape_name);
             static Geometry* GetShape(const std::string& shape_name);
+            [[nodiscard]] std::expected<MeshAsset, SceneResourceError> ExportMesh(std::string_view name) const;
+            [[nodiscard]] std::expected<void, SceneResourceError> AttachPhysicsShape(_Entity&, std::string_view name) const;
             static Geometry* GetModel(const std::string& modelName);
             static const std::vector<Geometry*>& GetModels(const std::string& modelName);
 

@@ -9,6 +9,12 @@
 
 namespace GEngine::Manager
 {
+    std::expected<MaterialBindingResources, Asset::TextureError> AssetsManager::FrameBindings(const ShaderProgramRegistry& programs)
+    {
+        auto manager = Current();
+        if (!manager) return std::unexpected(manager.error());
+        return MaterialBindingResources{programs, (*manager)->m_Images, (*manager)->m_Samplers.FrameRegistry()};
+    }
     using namespace Asset;
     namespace
     {

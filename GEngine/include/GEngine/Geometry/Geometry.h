@@ -1,4 +1,5 @@
 #pragma once
+#include "Mesh/MeshAsset.h"
 #include <Mesh/IndexBuffer.h>
 #include <Mesh/Attribute.h>
 #include <unordered_map>
@@ -63,6 +64,10 @@ namespace GEngine
 		int GetVerticesCount()const { return m_VertexCount; }
 		bool IsUsingIndexBuffer()const { return b_UseIndexBuffer; }
 		void CountVertices();
+        // Bounded export of the legacy position/color/UV/normal authoring layout
+        // into fixed engine semantic slots. Legacy native APIs stay in this header;
+        // normal application consumers use SceneRenderResources instead.
+        [[nodiscard]] std::expected<MeshAsset, MeshError> ExportCpuMesh() const;
 		unsigned int GetVAO()const { return m_Vao; }
 		void BindVAO()const;
 		void UnBindVAO()const;

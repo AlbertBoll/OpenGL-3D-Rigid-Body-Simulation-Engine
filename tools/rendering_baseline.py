@@ -94,12 +94,12 @@ def image_region(path):
     return pixels
 
 
-def summarize(out, repeats):
+def summarize(out, repeats, applications=APPS):
     report = dict(protocol='phase13-frozen-v1', repeats=repeats, warmup_frames=120, samples_per_run=240,
                   noise_policy='Run median spread >10% is NOISY; use exact workload counters as fallback. No speedup claim.',
                   common_reference='Phase 65 compares common metrics to Phase 13; Phase 48 establishes later per-pass metrics.',
                   applications={})
-    for app in APPS:
+    for app in applications:
         runs = [samples(out / app / str(index)) for index in range(repeats)]
         hardware = [{k: v for k, v in meta.items() if k.startswith('GL')} for _, meta in runs]
         if any(item != hardware[0] for item in hardware):
@@ -137,6 +137,8 @@ def main():
     parser.add_argument('--configuration', choices=['Debug', 'Release'], default='Release')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--repeats', type=int, default=3)
+    parser.add_argument('--apps', nargs='+', choices=APPS, default=list(APPS),
+                        help='Capture only the affected applications; defaults to the original complete suite')
     args = parser.parse_args()
     if args.repeats < 2:
         parser.error('At least two repeated processes are required')
@@ -150,7 +152,7 @@ def main():
                 '/m:1', '/nr:false', '/nologo', '/v:normal', '/p:Configuration=' + args.configuration,
                 '/p:Platform=x64', '/p:VCToolsVersion=' + vc.name, '/bl:' + str(out / 'build.binlog')], out, 'build', env)
     elif args.mode == 'run':
-        for app in APPS:
+        for app in args.apps:
             executable = ROOT / 'bin' / args.configuration / app / (app + '.exe')
             for index in range(args.repeats):
                 directory = out / app / str(index)
@@ -168,9 +170,9 @@ def main():
                 child = dict(env, **inputs['environment'])
                 invoke([executable], directory, 'application', child, cwd=directory, timeout=300)
                 samples(directory)
-        summarize(out, args.repeats)
+        summarize(out, args.repeats, args.apps)
     elif args.mode == 'verify':
-        summarize(out, args.repeats)
+        summarize(out, args.repeats, args.apps)
     else:
         exe = ROOT / 'bin' / args.configuration / 'PhysicsBenchmark/PhysicsBenchmark.exe'
         for index in range(args.repeats):

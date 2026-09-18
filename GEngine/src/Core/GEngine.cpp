@@ -90,6 +90,17 @@ namespace GEngine
     Manager::ShapeManager& EngineContext::Shapes() { RequireManagers(); return *m_Shapes; }
     Asset::AssetPublication& EngineContext::AssetPublications() { RequireManagers(); return m_AssetPublication; }
 
+    std::expected<SceneResourceServices, PlatformError> EngineContext::SceneServices()
+    {
+        Asset::AssetDetail::RequireInvariant(std::this_thread::get_id() == m_OwnerThread);
+        if (m_State != State::Ready || !m_MainWindow || !m_Shapes || !m_Assets)
+            return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+                "scene resources", "Scene resources require the initialized owner context"});
+        if (auto current = m_MainWindow->BeginRender(); !current)
+            return std::unexpected(current.error());
+        return SceneResourceServices{m_AssetPublication, *m_Shapes};
+    }
+
     PlatformResult EngineContext::Initialize(const std::initializer_list<WindowProperties>& properties)
     {
         GLContextThread::RequireOwner(m_OwnerThread, "platform initialization");

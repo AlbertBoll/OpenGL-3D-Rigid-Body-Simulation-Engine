@@ -1,4 +1,5 @@
 #pragma once
+#include <span>
 
 namespace GEngine { class GpuMesh; }
 
@@ -22,6 +23,9 @@ namespace GEngine::Buffer
 		void AddIndexData(const std::vector<unsigned int>& data);
 
 		void LoadIndex();
+
+        // Semantic CPU export; no GPU readback or buffer-name access.
+        std::span<const unsigned int> Indices() const noexcept { return m_Data; }
 
 		void Bind();
 		void Unbind();

@@ -16,6 +16,11 @@ namespace GEngine
 {
 
     namespace Manager { class AssetsManager; class ShaderManager; class ShapeManager; }
+    struct SceneResourceServices
+    {
+        Asset::AssetPublication& publication;
+        Manager::ShapeManager& shapes;
+    };
 
 		  
 	class GEngine
@@ -82,6 +87,7 @@ namespace GEngine
         [[nodiscard]] std::expected<Manager::ShaderManager*, Asset::ShaderError> Shaders();
         Manager::ShapeManager& Shapes();
         Asset::AssetPublication& AssetPublications();
+        [[nodiscard]] std::expected<SceneResourceServices, PlatformError> SceneServices();
         [[nodiscard]] PlatformResult MakeCurrent();
         [[nodiscard]] PlatformResult RenderScene(Actor* scene, CameraBase* camera, RenderTarget* target, const RenderParam& parameters);
 

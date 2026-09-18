@@ -1,8 +1,63 @@
 #include "gepch.h"
 #include "Geometry/Geometry.h"
+#include <new>
+#include <cstddef>
 
 namespace GEngine
 {
+    std::expected<MeshAsset, MeshError> Geometry::ExportCpuMesh() const
+    {
+        struct Vertex { Vec3f position{}, color{}; Vec2f uv{}; Vec3f normal{}; };
+        const auto position = m_Attributes.find(0);
+        if (position == m_Attributes.end() || !std::holds_alternative<Attribute<Vec3f>>(position->second))
+            return std::unexpected(MeshError{MeshErrorCode::MissingPosition});
+        const auto& positions = std::get<Attribute<Vec3f>>(position->second).m_Data;
+        if (positions.size() > (std::numeric_limits<std::size_t>::max)() / sizeof(Vertex))
+            return std::unexpected(MeshError{MeshErrorCode::SizeOverflow, positions.size()});
+        std::unique_ptr<Vertex[]> vertices(new (std::nothrow) Vertex[positions.size()]);
+        if (!vertices && !positions.empty())
+            return std::unexpected(MeshError{MeshErrorCode::AllocationFailed, positions.size()});
+        std::array<VertexAttribute, 4> attributes{};
+        std::size_t count = 0;
+        for (const auto& [slot, attribute] : m_Attributes)
+            if (slot >= 4) return std::unexpected(MeshError{MeshErrorCode::UnsupportedAttribute, slot});
+        for (unsigned slot = 0; slot != 4; ++slot)
+        {
+            const auto found = m_Attributes.find(slot);
+            if (found == m_Attributes.end()) continue;
+            const bool valid = slot == 2 ? std::holds_alternative<Attribute<Vec2f>>(found->second)
+                                         : std::holds_alternative<Attribute<Vec3f>>(found->second);
+            if (!valid) return std::unexpected(MeshError{MeshErrorCode::UnsupportedAttribute, slot});
+            const auto size = std::visit([](const auto& a) { return a.m_Data.size(); }, found->second);
+            // Helpers author empty UV/normal arrays. They mean an absent optional
+            // semantic, not vertex records or dynamic GPU scratch storage.
+            if (slot != 0 && size == 0) continue;
+            if (size != positions.size())
+                return std::unexpected(MeshError{MeshErrorCode::VertexPayloadMismatch, slot});
+            const VertexSemantic semantics[]{VertexSemantic::Position, VertexSemantic::Color0,
+                VertexSemantic::TexCoord0, VertexSemantic::Normal};
+            const std::size_t offsets[]{offsetof(Vertex, position), offsetof(Vertex, color),
+                offsetof(Vertex, uv), offsetof(Vertex, normal)};
+            attributes[count++] = {semantics[slot], AttributeSlot(semantics[slot]), VertexScalarFormat::Float32,
+                static_cast<std::uint8_t>(slot == 2 ? 2 : 3), VertexInterpretation::Floating, offsets[slot]};
+            for (std::size_t i = 0; i < positions.size(); ++i)
+            {
+                if (slot == 0) vertices[i].position = positions[i];
+                else if (slot == 1) vertices[i].color = std::get<Attribute<Vec3f>>(found->second).m_Data[i];
+                else if (slot == 2) vertices[i].uv = std::get<Attribute<Vec2f>>(found->second).m_Data[i];
+                else vertices[i].normal = std::get<Attribute<Vec3f>>(found->second).m_Data[i];
+            }
+        }
+        auto source = MeshSourceData::FromVertices<Vertex>({vertices.get(), positions.size()}, {attributes.data(), count});
+        const auto indices = m_IndexBuffer.Indices();
+        static_assert(sizeof(unsigned int) == sizeof(std::uint32_t));
+        source.indexFormat = b_UseIndexBuffer ? MeshIndexFormat::UInt32 : MeshIndexFormat::None;
+        source.indices = b_UseIndexBuffer ? std::as_bytes(indices) : std::span<const std::byte>{};
+        source.indexCount = b_UseIndexBuffer ? indices.size() : 0;
+        const SubmeshRange range{0, b_UseIndexBuffer ? indices.size() : positions.size(), 0};
+        source.submeshes = {&range, 1};
+        return MeshAsset::Create(source);
+    }
 	Geometry::Geometry()
 	{
 		glGenVertexArrays(1, &m_Vao);

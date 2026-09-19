@@ -82,6 +82,16 @@ namespace GEngine
             return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources,ScheduleCode::FrameActive});
         active=true;
         struct EndFrame { bool& active; ~EndFrame() { active=false; } } end{active};
+        auto& timings=context.window.Timings();
+        if(auto begun=timings.BeginFrame();!begun)
+            return std::unexpected(ScheduleError{FrameStage::BeginFrame,PlatformError{PlatformErrorCode::Initialization,"pass timing",std::format("timing code={}",int(begun.error()))}});
+        // End CPU reporting on every return. Query scopes end on their own
+        // creating context before callbacks can switch windows.
+        struct EndTimings {
+            Manager::WindowManager& windows;
+            ~EndTimings() {for(auto& [id,window]:windows.GetWindows()) window->Timings().EndFrame();}
+        } endTimings{context.windows};
+        PassTiming::Activation timingActivation(timings);
         ScheduledFrameStats stats;
         stats.trace.Stage(FrameStage::BeginFrame);
         stats.trace.Stage(FrameStage::UpdateFrameResources);
@@ -108,19 +118,23 @@ namespace GEngine
         }
         else if (context.visible && context.legacyScene.invoke)
         {
+            PassTiming::Scope timing(timings,RenderPass::LegacyScene,TimingCounts::EngineCalls);
             stats.trace.Pass(DescribeBoundary(RenderPass::LegacyScene,context));
             if(auto legacy=context.legacyScene(); !legacy) { ExternalState(); return std::unexpected(legacy.error()); }
             ExternalState();
+            timing.Complete();
         }
         if (context.visible && scene && scene->targets.pickingEnabled)
             if (auto picked=scene->pickingReadback(); !picked) return std::unexpected(picked.error());
         if (context.visible && context.color)
         {
+            PassTiming::Scope timing(timings,RenderPass::Resolve);
             stats.trace.Pass(DescribeBoundary(RenderPass::Resolve,context));
             if(context.color->IsMultiSampled())
                 if(auto result=context.color->BindAndBlitToScreen(); !result)
                     return std::unexpected(ScheduleError{FrameStage::Pass,result.error()});
             context.color->UnBind();
+            timing.Complete();
         }
         // The entire scene is finished before entering any external UI backend.
         // Window IDs give deterministic traversal of the legacy unordered owner map.
@@ -136,6 +150,12 @@ namespace GEngine
             for(auto* window=nextWindow(0);window;window=nextWindow(window->GetWindowID()))
             {
                 if(auto current=window->BeginRender(); !current) return std::unexpected(ScheduleError{FrameStage::Pass,current.error()});
+                if(window!=&context.window) if(auto begun=window->Timings().BeginFrame();!begun)
+                    return std::unexpected(ScheduleError{FrameStage::Pass,PlatformError{PlatformErrorCode::Initialization,"secondary timing",std::format("timing code={}",int(begun.error()))}});
+                // ImGui can switch to its own viewport contexts. This aggregate
+                // measures CPU work only; its independent draw loader is not
+                // covered by the engine's submission counters.
+                PassTiming::Scope timing(window->Timings(),RenderPass::EditorUI,TimingCounts::Unavailable,false);
                 ExternalState();
                 const auto size=window->GetFramebufferPixelSize(); glViewport(0,0,size.Width,size.Height);
                 if(auto ui=window->BeginUI(); !ui) return std::unexpected(ScheduleError{FrameStage::Pass,ui.error()});
@@ -143,13 +163,19 @@ namespace GEngine
                 auto finished=window->EndUI(); // Balance a successful begin even if authoring fails.
                 if(!authored) return std::unexpected(authored.error());
                 if(!finished) return std::unexpected(ScheduleError{FrameStage::Pass,finished.error()});
+                timing.Complete();
             }
         }
         stats.trace.Pass(DescribeBoundary(RenderPass::Present,context));
         for(auto* window=nextWindow(0);window;window=nextWindow(window->GetWindowID()))
         {
             if(auto current=window->BeginRender(); !current) return std::unexpected(ScheduleError{FrameStage::Pass,current.error()});
+            if(window!=&context.window && !window->Timings().Active())
+                if(auto begun=window->Timings().BeginFrame();!begun)
+                    return std::unexpected(ScheduleError{FrameStage::Pass,PlatformError{PlatformErrorCode::Initialization,"secondary timing",std::format("timing code={}",int(begun.error()))}});
+            PassTiming::Scope timing(window->Timings(),RenderPass::Present,TimingCounts::Explicit,false);
             window->SwapBuffer();
+            timing.Complete();
         }
         if(auto current=context.window.BeginRender(); !current) return std::unexpected(ScheduleError{FrameStage::Pass,current.error()});
         return stats;

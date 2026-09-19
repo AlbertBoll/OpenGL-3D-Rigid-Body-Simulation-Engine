@@ -11,6 +11,9 @@ import winreg
 import ctypes
 from ctypes import wintypes
 import time
+import csv
+import statistics
+from rendering_baseline import LAYOUT, APPS, samples, quantiles, image_region
 
 from rendering_validation import ROOT, toolchain
 
@@ -113,8 +116,11 @@ def main():
     parser.add_argument("--no-build", action="store_true", help="Reuse matching affected-consumer builds")
     parser.add_argument("--smoke", action="store_true", help="All four graphical applications: responsiveness and native shutdown")
     parser.add_argument("--scene-variants", action="store_true", help="Compile and smoke each authored rigid-body scene")
+    parser.add_argument("--timing-baseline", action="store_true", help="Release: capture the secondary Phase 48 per-pass reference")
     args = parser.parse_args()
     config = args.configuration
+    if args.timing_baseline and (config != "Release" or args.no_build):
+        parser.error("Timing capture requires a fresh Release measurement build")
     out = (args.output or ROOT / "logs/rendering/phase47/final" / config).resolve()
     out.mkdir(parents=True, exist_ok=True)
     report = {"configuration": config, "steps": []}
@@ -153,10 +159,11 @@ def main():
         if vc.name != "14.44.35207" or sdk_version != "10.0.26100.0":
             report["reason"] = "Recorded compiler/SDK unavailable; toolchain migration is not authorized"
             return 1
-        if not args.no_build and not invoke("generate", [ROOT / "vendor/bin/premake/premake5.exe", "vs2022"], 120):
+        if not args.no_build and not invoke("generate", [ROOT / "vendor/bin/premake/premake5.exe", *(["--render-baseline"] if args.timing_baseline else []), "vs2022"], 120):
             return 1
         report["compiler_return_guards"] = env["CL"]
-        build = [msbuild, ROOT / "GEngine.sln", "/t:GEngineEditor;Breakout;RayTracing;RigidBodySimulation;PhysicsTests;PhysicsBenchmark",
+        targets = "GEngineEditor;Breakout;RayTracing;RigidBodySimulation;" + ("PhysicsBenchmark;RenderingValidation" if args.timing_baseline else "PhysicsTests;PhysicsBenchmark")
+        build = [msbuild, ROOT / "GEngine.sln", "/t:" + targets,
                  "/m:1", "/nr:false", "/nologo", "/v:normal",
                  "/p:Configuration=" + config, "/p:Platform=x64", "/p:VCToolsVersion=" + vc.name,
                  "/p:WindowsTargetPlatformVersion=" + sdk_version, "/bl:" + str(out / "build.binlog")]
@@ -192,6 +199,8 @@ def main():
             report["reason"] = "Concrete backend leaked into the normal application translation unit"
             return 1
         for rel in ("GEngine/include/GEngine/Renderer/FrameSubmission.h", "GEngine/src/Renderer/FrameSubmission.cpp",
+                    "GEngine/include/GEngine/Renderer/PassTiming.h", "GEngine/src/Renderer/PassTiming.cpp",
+                    "GEngine/include/GEngine/Core/Window.h", "GEngine/src/Windows/SDLWindow.cpp",
                     "GEngine/include/GEngine/Core/FrameBuffer.h", "GEngine/src/Core/FrameBuffer.cpp",
                     "GEngine/include/GEngine/Renderer/SceneRenderResources.h", "GEngine/src/Renderer/SceneRenderResources.cpp",
                     "RigidBodySimulation/src/RigidBodySimulation.cpp",
@@ -218,6 +227,7 @@ def main():
 
         executable = out / "frame-submission-probe.exe"
         command = [vc / "bin/Hostx64/x64/cl.exe", "/nologo", "/std:c++23preview", "/EHsc", "/W3",
+                   *(["/DGENGINE_RENDER_COUNTERS=1", "/DGE_ENABLE_PHYSICS_PROFILING"] if args.timing_baseline else []),
                    "/MTd" if config == "Debug" else "/MT", "/Od" if config == "Debug" else "/O2",
                    "/DSDL_MAIN_HANDLED", "/DGENGINE_PLATFORM_WINDOWS", "/DGENGINE_CONFIG_" + config.upper(),
                    *["/I" + str(p) for p in includes], "/external:W0", "/external:templates-",
@@ -238,9 +248,13 @@ def main():
         env["Path"] = str(sdl.parent) + os.pathsep + env["Path"]
         env["GENGINE_ASSET_ROOT"] = str(ROOT / "bin" / config / "assets")
         env["GENGINE_SHADOW_RESOLUTION"] = "256"
+        env["GENGINE_PASS_TIMING"] = "1"
         passed = invoke("frame-submission", [executable], cwd=out,
                         marker="[PASS] pass-invalidation unchanged/revisions/targets/deferred/multiple/failure")
         if not passed:
+            return 1
+        if "[PASS] pass-timing delayed/unavailable/reuse/no-block/labels/move/context/retirement" not in (out / "frame-submission.log").read_text(errors="replace"):
+            passed = False
             return 1
         if args.scene_variants:
             flags = ("activate_sphere_lattice", "activate_boxes_stacking", "activate_sphere_diamond", "activate_sphere_boxes_stacking")
@@ -274,6 +288,113 @@ def main():
                 if record["result"] != "PASS":
                     passed = False
                     return 1
+        if args.timing_baseline:
+            reference = {"schema": 1, "phase": "48", "protocol": "phase48-per-pass-v1",
+                "common_reference": "rendering-checkpoints/phase-13-baseline.json",
+                "configuration": "Release --render-baseline; C++23; /MT; opt-in pass timing",
+                "toolchain": report["toolchain"], "repeats": 3, "warmup_frames": 120, "samples_per_run": 240,
+                "settings": {"window": [1280, 720], "vsync": 0, "shadow_resolution": 4096,
+                             "workload": "default startup scene, fixed camera/layout, zero update delta, no injected input"},
+                "noise_policy": "Run median spread >10% is NOISY; exact submitted counts are the fallback; no speedup claim.",
+                "coverage": "GPU spans cover submitted scene passes and resolve. UI may switch contexts and presentation is CPU-only. Legacy scene item counts and external UI counts are unknown. Query results missing at shutdown remain abandoned, never zero. Cached/unrequested passes are absent, never timed as zero.",
+                "applications": {}}
+            for app in (*APPS, "SubmissionFixture"):
+                runs = []
+                fixture = app == "SubmissionFixture"
+                app_exe = executable if fixture else ROOT / "bin" / config / app / (app + ".exe")
+                for repeat in range(3):
+                    directory = out / "baseline" / app / str(repeat)
+                    directory.mkdir(parents=True, exist_ok=True)
+                    if (directory / "frames.csv").exists():
+                        raise ValueError("Preserve existing capture; choose a new output directory")
+                    (directory / "imgui.ini").write_text(LAYOUT)
+                    child_env = dict(env, GENGINE_BASELINE_OUTPUT=str(directory), GENGINE_PASS_TIMING_OUTPUT=str(directory),
+                                     GENGINE_SHADOW_RESOLUTION="4096")
+                    if fixture:
+                        child_env.pop("GENGINE_BASELINE_OUTPUT")
+                        child_env.pop("GENGINE_PASS_TIMING_OUTPUT")
+                        child_env["GENGINE_SHADOW_RESOLUTION"] = "256"
+                        child_env["GENGINE_TIMING_FIXTURE"] = str(directory / "passes-fixture.csv")
+                    inputs = {"binary_sha256": hashlib.sha256(app_exe.read_bytes()).hexdigest(),
+                              "layout_sha256": hashlib.sha256(LAYOUT.encode()).hexdigest(),
+                              "runtime_dlls": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in app_exe.parent.glob("*.dll")}}
+                    if not invoke(f"baseline-{app}-{repeat}", [app_exe], 300, directory, child_env):
+                        passed = False
+                        return 1
+                    if fixture:
+                        fixture_log = (out / f"baseline-{app}-{repeat}.log").read_text(errors="replace")
+                        if "[PASS] timing-fixture" not in fixture_log:
+                            raise ValueError("Missing active-pass fixture")
+                        match = re.search(r"Image comparison: renderer=(.*?) vendor=(.*?) version=(.*?);", fixture_log)
+                        if not match:
+                            raise ValueError("Missing fixture hardware identity")
+                        metadata = {"GL_RENDERER": match[1], "GL_VENDOR": match[2], "GL_VERSION": match[3],
+                                    "color": "64x64 RGBA8 linear; single sample", "shadows": "256x256; five cascade layers; six point faces",
+                                    "camera": "eye=(0,2,8), target=(0,0,0), FOV=45, aspect=1, near=.1, far=20",
+                                    "workload": "one box, directional and point lights; frozen; explicit invalidation each iteration; no simulation; four drain frames"}
+                    else:
+                        frames, metadata = samples(directory)
+                        metadata["targets"] = (directory / "targets.txt").read_text()
+                        # This old field describes the unchanged Phase 13 harness,
+                        # not the separate per-pass stream established here.
+                        metadata.pop("GPU_time", None)
+                    paths = list(directory.glob("passes-*.csv"))
+                    if len(paths) != 1:
+                        raise ValueError("Matched single-window baseline expected one timing stream")
+                    with paths[0].open(newline="") as file:
+                        all_passes = list(csv.DictReader(file))
+                    rows = [r for r in all_passes if 121 <= int(r["frame"]) <= 360]
+                    if not rows or any(r["completed"] != "1" for r in rows):
+                        raise ValueError("Missing or failed baseline pass")
+                    if any(r["gpu_status"] == "available" and (not r["gpu_ns"] or int(r["collected_frame"])-int(r["frame"]) < 2) for r in rows):
+                        raise ValueError("Invalid GPU result association")
+                    if any(r["gpu_status"] in ("pending", "unsupported", "pool-exhausted") for r in rows):
+                        raise ValueError("Maintained GPU baseline did not provide usable query coverage")
+                    evidence = [paths[0], out / f"baseline-{app}-{repeat}.log"] if fixture else [paths[0], directory / "frames.csv", directory / "runtime.txt", directory / "targets.txt", directory / "diagnostic.bmp"]
+                    inputs["evidence"] = {str(p.relative_to(ROOT)).replace("\\", "/"): hashlib.sha256(p.read_bytes()).hexdigest() for p in evidence}
+                    runs.append((rows, metadata, inputs))
+                hardware = [{k: v for k, v in meta.items() if k.startswith("GL")} for _, meta, _ in runs]
+                if any(h != hardware[0] for h in hardware):
+                    raise ValueError("GPU/driver changed between repeats")
+                fractions = None
+                if not fixture:
+                    image_name = "diagnostic.bmp"
+                    images = [image_region(out / "baseline" / app / str(i) / image_name) for i in range(3)]
+                    fractions = [sum(a != b for a, b in zip(images[0], img))/len(img) for img in images]
+                    if max(fractions) > .005:
+                        raise ValueError("Frozen diagnostic scene differs by more than 0.5%")
+                labels = sorted({r["pass"] for rows, _, _ in runs for r in rows})
+                metrics = {}
+                for label in labels:
+                    groups = [[r for r in rows if r["pass"] == label] for rows, _, _ in runs]
+                    if any(len(g) != 240 or len({r["frame"] for r in g}) != 240 for g in groups):
+                        raise ValueError("Incomplete per-pass CPU sample sequence: " + app + "/" + label)
+                    signatures = {(r["items"], r["draws"], r["items_known"], r["draws_known"]) for g in groups for r in g}
+                    if len(signatures) != 1:
+                        raise ValueError("Submitted workload changed across samples: " + app + "/" + label)
+                    signature = next(iter(signatures))
+                    metric = {"submitted_items": int(signature[0]) if signature[2] == "1" else None,
+                              "submitted_draws": int(signature[1]) if signature[3] == "1" else None,
+                              "gpu_status_counts": {s: sum(r["gpu_status"] == s for g in groups for r in g)
+                                                    for s in sorted({r["gpu_status"] for g in groups for r in g})}}
+                    for key in ("cpu_ns", "gpu_ns"):
+                        values = [[int(r[key]) for r in g if r[key]] for g in groups]
+                        if not any(values):
+                            metric[key] = None
+                            continue
+                        if any(len(v) < 230 for v in values):
+                            raise ValueError("Insufficient usable GPU timing coverage")
+                        medians = [statistics.median(v) for v in values]
+                        center = statistics.median(medians)
+                        spread = (max(medians)-min(medians))/center if center else 0
+                        metric[key] = {**quantiles([v for values_run in values for v in values_run]),
+                                       "run_medians": medians, "run_median_spread": spread,
+                                       "quality": "NOISY" if spread > .10 else "STABLE"}
+                    metrics[label] = metric
+                reference["applications"][app] = {"passes": metrics, "runtime": runs[0][1], "hardware": hardware[0],
+                    "changed_pixel_fractions": fractions, "inputs": [inputs for _, _, inputs in runs]}
+            (out / "phase-48-baseline.json").write_text(json.dumps(reference, indent=2) + "\n")
+            report["timing_baseline"] = str(out / "phase-48-baseline.json")
         return 0 if passed else 1
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         passed = False

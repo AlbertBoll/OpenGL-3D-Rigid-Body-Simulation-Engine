@@ -1,6 +1,7 @@
 #pragma once
 #include "Core/Utility.h"
 #include "Core/Platform.h"
+#include "Renderer/PassTiming.h"
 #include <string>
 
 
@@ -71,6 +72,7 @@ namespace GEngine
 	public:
 
 		virtual ~Window(){};
+        PassTiming& Timings() noexcept { return m_PassTiming; }
 		uint32_t GetScreenWidth()const { return m_ScreenWidth; }
 		uint32_t GetScreenHeight()const { return m_ScreenHeight; }
 		[[nodiscard]] virtual PlatformResult Initialize(const WindowProperties& winProp = {}) = 0;
@@ -103,6 +105,7 @@ namespace GEngine
 		//virtual Window* GetUnderlyingWindow() = 0;
 
 	protected:
+        PassTiming m_PassTiming;
 		uint32_t m_ScreenWidth = 0, m_ScreenHeight = 0;
 		float m_AspectRatio = 16.f / 9.f;
 

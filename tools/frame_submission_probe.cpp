@@ -1,11 +1,14 @@
 #include "Renderer/FrameSubmission.h"
 #include "Renderer/RenderExtraction.h"
 #include "Renderer/FrameScheduler.h"
+#include "Renderer/PassTiming.h"
 #include <type_traits>
 using namespace GEngine;
 using namespace GEngine::Asset;
 using namespace GEngine::Component;
 static_assert(!std::is_copy_constructible_v<FrameSubmission>);
+static_assert(!std::is_copy_constructible_v<PassTiming>);
+static_assert(std::is_nothrow_move_constructible_v<PassTiming>);
 static_assert(!std::is_copy_constructible_v<RenderFrame>);
 static_assert(std::same_as<decltype(std::declval<const RenderFrame&>().Draws()),std::span<const DrawItem>>);
 
@@ -26,6 +29,7 @@ static_assert(std::same_as<decltype(std::declval<const RenderFrame&>().Draws()),
 #include <thread>
 #include <fstream>
 #include <imgui/imgui.h>
+#include <set>
 
 namespace
 {
@@ -43,6 +47,113 @@ namespace
             if constexpr (std::same_as<E,ScheduleError>) std::println(stderr,"{}",DescribeScheduleError(value.error()));
         }
         Check(value,message);return std::move(*value);
+    }
+    auto realAvailable=glad_glGetQueryObjectiv;
+    auto realResult=glad_glGetQueryObjectui64v;
+    auto realStamp=glad_glQueryCounter;
+    auto realDelete=glad_glDeleteQueries;
+    auto realGenerate=glad_glGenQueries;
+    unsigned generateCalls{};
+    unsigned availabilityCalls{},resultCalls{},stampCalls{},deletedQueries{};
+    bool ready=false;
+    std::set<GLuint> issued;
+    void APIENTRY Available(GLuint,GLenum key,GLint* value)
+    { Check(key==GL_QUERY_RESULT_AVAILABLE,"availability-only collection");++availabilityCalls;*value=ready; }
+    void APIENTRY Result(GLuint query,GLenum key,GLuint64* value)
+    { Check(ready && key==GL_QUERY_RESULT,"no unavailable result fetch");++resultCalls;*value=100+query; }
+    void APIENTRY Stamp(GLuint query,GLenum key)
+    { ++stampCalls;issued.insert(query);realStamp(query,key); }
+    void APIENTRY Delete(GLsizei count,const GLuint* names)
+    { deletedQueries+=count;realDelete(count,names); }
+    void APIENTRY FailedGenerate(GLsizei count,GLuint* names)
+    { if(++generateCalls==2) std::fill_n(names,count,0u);else realGenerate(count,names); }
+    void TimingTests(EngineContext& root)
+    {
+        realAvailable=glad_glGetQueryObjectiv;realResult=glad_glGetQueryObjectui64v;
+        realStamp=glad_glQueryCounter;realDelete=glad_glDeleteQueries;
+        realGenerate=glad_glGenQueries;
+        glad_glGetQueryObjectiv=Available;glad_glGetQueryObjectui64v=Result;
+        glad_glQueryCounter=Stamp;glad_glDeleteQueries=Delete;
+        {
+            PassTiming timing;
+            Check(timing.Initialize(true),"timing initialize");
+            for(unsigned frame=0;frame<9;++frame) {
+                Check(timing.BeginFrame(),"timing frame");
+                for(unsigned pass=0;pass<8;++pass) {
+                    PassTiming::Scope measure(timing,static_cast<RenderPass>(pass));
+                    PassTiming::Submitted(3,2);measure.Complete();
+                }
+                Check(timing.Current().size()==8,"fixed pass labels");
+                for(unsigned pass=0;pass<8;++pass) {
+                    const auto& s=timing.Current()[pass];
+                    Check(s.pass==static_cast<RenderPass>(pass) && PassLabel(s.pass)!="unknown","semantic pass label");
+                    Check(s.submittedItems==3 && s.submittedDraws==2 && s.completed,"exact counts and scope completion");
+                    Check(s.gpu==(frame==8?GpuTiming::PoolExhausted:GpuTiming::Pending) && !s.gpuNanoseconds,"missing GPU is explicit");
+                }
+                timing.EndFrame();
+                if(frame<2) Check(availabilityCalls==0 && resultCalls==0,"no same-frame or next-frame fetch");
+            }
+            Check(availabilityCalls>0 && resultCalls==0 && issued.size()==128,"unavailable queries retained without reuse or fetch");
+            ready=true;
+            Check(timing.BeginFrame(),"collect delayed samples");
+            Check(timing.Collected().size()==64 && resultCalls==128,"all available delayed queries collected");
+            for(const auto& s:timing.Collected())
+                Check(s.gpu==GpuTiming::Available && s.gpuNanoseconds && s.collectedFrame-s.frame>=2 && s.submittedDraws==2,"delayed association preserves frame/pass/counts");
+            { PassTiming::Scope measure(timing,RenderPass::Opaque); measure.Complete(); }
+            Check(issued.size()==128,"collected query storage is reused");
+            timing.EndFrame();
+            bool rejected=false;
+            std::thread worker([&] {auto begun=timing.BeginFrame();rejected=!begun && begun.error()==TimingError::Context;});
+            worker.join();Check(rejected,"worker timing rejected before GL");
+            PassTiming moved=std::move(timing);Check(!timing.Enabled() && moved.Enabled(),"move transfers query owner");
+            Check(moved.BeginFrame(),"moved owner frame");
+            {PassTiming::Scope incomplete(moved,RenderPass::Debug);}
+            Check(!moved.Current()[0].completed,"failed scope reported incomplete");
+            moved.EndFrame();moved.Reset();moved.Reset();
+            Check(deletedQueries==128,"all pending queries deleted exactly once");
+        }
+        glad_glGetQueryObjectiv=realAvailable;glad_glGetQueryObjectui64v=realResult;
+        {
+            glad_glGenQueries=FailedGenerate;
+            PassTiming failed;auto result=failed.Initialize(true);
+            Check(!result && result.error()==TimingError::Driver && deletedQueries==130,"partial query allocation cleans up transactionally");
+            glad_glGenQueries=realGenerate;
+        }
+        glad_glQueryCounter=nullptr;
+        {
+            PassTiming disabled;Check(disabled.Initialize(false) && disabled.BeginFrame(),"disabled timing requires no query API");
+            {PassTiming::Scope measure(disabled,RenderPass::Opaque);measure.Complete();}
+            disabled.EndFrame();Check(disabled.Current().empty(),"disabled timing emits no samples");
+            PassTiming unsupported;Check(unsupported.Initialize(true),"unsupported is reportable");
+            Check(unsupported.BeginFrame(),"unsupported CPU frame");
+            {PassTiming::Scope measure(unsupported,RenderPass::Opaque);measure.Complete();}
+            Check(unsupported.Current()[0].gpu==GpuTiming::Unsupported && !unsupported.Current()[0].gpuNanoseconds,"unsupported retains CPU sample");
+            unsupported.EndFrame();
+        }
+        glad_glQueryCounter=realStamp;glad_glDeleteQueries=realDelete;
+        {
+            PassTiming actual;Check(actual.Initialize(true),"real driver timing");Check(actual.BeginFrame(),"real first frame");
+            {PassTiming::Scope measure(actual,RenderPass::Opaque);glClear(GL_COLOR_BUFFER_BIT);measure.Complete();}
+            actual.EndFrame();glFinish(); // Fixture only: production never waits.
+            Check(actual.BeginFrame(),"real next frame");Check(actual.Collected().empty(),"real delay enforced even when ready");actual.EndFrame();
+            Check(actual.BeginFrame(),"real delayed frame");Check(actual.Collected().size()==1 && actual.Collected()[0].gpuNanoseconds.has_value(),"real driver GPU evidence");actual.EndFrame();
+            WindowProperties properties;properties.m_Width=properties.m_Height=64;properties.m_MinWidth=properties.m_MinHeight=64;
+            properties.flag={WindowFlags::INVISIBLE};properties.m_IsVsync=false;
+            Check(actual.BeginFrame(),"CPU context-switch frame");
+            ScopedPtr<Window> secondary;
+            {
+                PassTiming::Scope cpu(actual,RenderPass::EditorUI,TimingCounts::Unavailable,false);
+                secondary=Take(Window::Create(properties),"secondary timing context");
+                // Simulate UI returning a context-activation error. Scope cleanup
+                // must retain CPU evidence without issuing GL on another context.
+            }
+            Check(!actual.Current()[0].completed && actual.Current()[0].gpu==GpuTiming::NotMeasured,"CPU-only error scope survives context switch");
+            actual.EndFrame();
+            auto foreign=actual.BeginFrame();Check(!foreign && foreign.error()==TimingError::Context,"foreign context cannot collect queries");
+            secondary.reset();Check(root.MainWindow()->BeginRender(),"restore original timing context");
+        }
+        Check(glGetError()==GL_NO_ERROR,"timing leaves driver error-free");
+        std::println("[PASS] pass-timing delayed/unavailable/reuse/no-block/labels/move/context/retirement");
     }
     FrameCamera Camera(_Scene& scene)
     {
@@ -133,6 +244,27 @@ namespace
             }
             return result;
         };
+        if(const auto* output=SDL_getenv("GENGINE_TIMING_FIXTURE")) {
+            // A separate frozen fixture keeps shadow/picking work active even
+            // when the default application legitimately caches those images.
+            PassTiming timing;Check(timing.Initialize(true,output),"fixture timing capture");
+            auto measured=Take(FrameSubmission::Create(),"fixture submitter");
+            for(unsigned iteration=0;iteration<364;++iteration) {
+                Check(timing.BeginFrame(),"fixture frame");
+                {
+                    PassTiming::Activation active(timing);
+                    measured.InvalidatePassContents();
+                    auto access=resources.Publication().BeginFrame();
+                    auto frame=Take(Extract(scene,resources,access,camera),"fixture frozen extraction");
+                    auto result=Take(measured.Submit(frame,targets,picks),"fixture submission");
+                    Check(result.shadowDraws==2 && result.pickDraws==1 && result.colorDraws==1,"fixture exact workload");
+                }
+                timing.EndFrame();
+                root.MainWindow()->SwapBuffer(); // Normal submission progress, never a query wait.
+            }
+            Check(timing.OutputHealthy(),"fixture output healthy");
+            std::println("[PASS] timing-fixture 120 warmup / 240 samples / 4 drain frames; 64x64 color, 256 shadows, one box, directional+point, fixed camera; forced invalidation");
+        }
         expect(PassDirtyReason::InitialContent,7);
         const auto color=Pixels(desc.color);
         const auto firstPixel=Take(picking.ReadPixel(32,32),"cached initial pixel");
@@ -726,6 +858,18 @@ namespace
             auto bulb=scheduledScene.CreateEntity("scheduled point");bulb.AddComponent<RenderLightComponent>(pointLight);
             bulb.GetComponent<Transform3DComponent>().Translation={0,3,2};
             auto shadowed=Take(FrameScheduler::Render(context,&input),"masked directional and point passes");
+            if(root.MainWindow()->Timings().Enabled()) {
+                const auto timings=root.MainWindow()->Timings().Current();
+                std::size_t shadowCount{},colorCount{},pickCount{};
+                for(const auto& timing:timings) {
+                    Check(timing.completed && PassLabel(timing.pass)!="unknown","scheduled pass timing labels and success");
+                    if(timing.pass==RenderPass::DirectionalShadow || timing.pass==RenderPass::PointShadow) shadowCount+=timing.submittedDraws;
+                    if(timing.pass==RenderPass::Picking) pickCount+=timing.submittedDraws;
+                    if(timing.pass==RenderPass::Opaque || timing.pass==RenderPass::Masked || timing.pass==RenderPass::Transparent) colorCount+=timing.submittedDraws;
+                }
+                Check(shadowCount==shadowed.submission.shadowDraws && colorCount==shadowed.submission.colorDraws
+                    && pickCount==shadowed.submission.pickDraws,"pass timing counts match actual production submission");
+            }
             Check(shadowed.trace.events[4].pass==RenderPass::DirectionalShadow && shadowed.trace.events[5].pass==RenderPass::PointShadow,"directional precedes point shadow");
             std::vector<float> depth(256*256*cascadeTarget.Buffer().Description().Layers);
             Check(TextureView(Take(cascadeTarget.DepthView(),"cascade view")).Bind(0),"cascade readback bind");
@@ -843,6 +987,7 @@ int main()
     properties.flag={WindowFlags::INVISIBLE};properties.m_Width=properties.m_Height=64;
     properties.m_MinWidth=properties.m_MinHeight=64;properties.m_IsVsync=false;
     Check(root.Initialize({properties}),"owner root initialization");
+    TimingTests(root);
     Run(root);
     std::println("[PASS] frame-submission-retirement");
 }

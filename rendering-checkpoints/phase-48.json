@@ -1,0 +1,184 @@
+{
+  "baseline": "1334e52f300925fb432311b08e26304276254a21",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Core/Window.h",
+    "GEngine/include/GEngine/Renderer/PassTiming.h",
+    "GEngine/src/Renderer/FrameScheduler.cpp",
+    "GEngine/src/Renderer/FrameSubmission.cpp",
+    "GEngine/src/Renderer/PassTiming.cpp",
+    "GEngine/src/Windows/SDLWindow.cpp",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-48-baseline.json",
+    "rendering-checkpoints/phase-48.json",
+    "tools/frame_submission_probe.cpp",
+    "tools/test_frame_submission.py"
+  ],
+  "eligible": true,
+  "findings": [],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_48_REVIEW.md"
+  ],
+  "next_phase": "49",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "8ad99b93ce969596b45aff15f34ea4c2ec8bcd77",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-48/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/8ad99b93ce969596b45aff15f34ea4c2ec8bcd77",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "191e33e0e575181c0d877c579d829e965014a93f2eeae718b92958e1e764362b"
+      },
+      "mode": "100644",
+      "validated_blob": "6c19377e35b50b5995c5f7fb84620a7d15dc9e22",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-48/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/6c19377e35b50b5995c5f7fb84620a7d15dc9e22"
+    }
+  },
+  "phase": "48",
+  "previous_approved_tag": "render-refactor-phase-47-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_48_REVIEW.md",
+  "schema": 2,
+  "summary": "Opt-in per-pass CPU/count telemetry and context-owned timestamp pools with delayed availability-only GPU collection; validated secondary application and active-pass baselines preserve explicit missing results.",
+  "validation": [
+    {
+      "check": "Debug maintained builds and four application smokes",
+      "command": "python tools/test_frame_submission.py --configuration Debug --smoke --output logs/rendering/phase48/final-v2/Debug",
+      "evidence": "logs/rendering/phase48/final-v2/Debug/results.json",
+      "result": "PASS",
+      "reuse_reason": "Only the optional fixture and capture runner changed after final-v2 Debug build/smokes; final-v3 recompiles headers/probe and reruns checks against the identical production library. The final runner-only correction changes only measurement target selection and the untimed diagnostic source; ordinary Debug/Release execution paths are unchanged."
+    },
+    {
+      "check": "Debug current timing/submission probe, native-free consumer boundaries and source-policy gates",
+      "command": "python tools/test_frame_submission.py --configuration Debug --no-build --output logs/rendering/phase48/final-v3/Debug",
+      "evidence": "logs/rendering/phase48/final-v3/Debug/results.json",
+      "result": "PASS",
+      "reuse_reason": "Subsequent runner-only correction changes only measurement target selection and the untimed diagnostic source, not this no-build Debug path or probe/production inputs."
+    },
+    {
+      "check": "Ordinary Release maintained builds, probes, architecture gates and four application smokes",
+      "command": "python tools/test_frame_submission.py --configuration Release --smoke --output logs/rendering/phase48/final/Release",
+      "evidence": "logs/rendering/phase48/final/Release/results.json",
+      "result": "PASS",
+      "reuse_reason": "Final runner-only correction changes only measurement target selection and the untimed diagnostic source; ordinary Release build/probe/smoke behavior and all production/probe inputs are unchanged."
+    },
+    {
+      "check": "Measurement Release validation and repeated per-pass secondary baseline",
+      "command": "python tools/test_frame_submission.py --configuration Release --timing-baseline --output logs/rendering/phase48/measurement-v3/Release",
+      "evidence": "logs/rendering/phase48/measurement-v3/Release/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Protected work/index, final input identities, unchanged Phase 13 and matched hardware/evidence hashes",
+      "command": "python logs/rendering/phase48/prepare-checkpoint.py",
+      "evidence": "logs/rendering/phase48/scope-check.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "GEngine/include/GEngine/Core/Window.h": {
+      "executable": null,
+      "sha256": "d205bee212616ed06cba86554a8689d3a7c0a7de9d6ffce376f85c772507f69d"
+    },
+    "GEngine/include/GEngine/Renderer/PassTiming.h": {
+      "executable": null,
+      "sha256": "c2b34e4f36ae4f3654ec5ac7eb28b862a529be54091a6647491945a0420ff964"
+    },
+    "GEngine/src/Renderer/FrameScheduler.cpp": {
+      "executable": null,
+      "sha256": "b6d36e5256965a7b9603d212e35146294cebc8ecceee2d4eda590301b90fec27"
+    },
+    "GEngine/src/Renderer/FrameSubmission.cpp": {
+      "executable": null,
+      "sha256": "61f1f244befa1b9e393ef930dda5d2a60eae40390fad92739a0e1e222b79cb2c"
+    },
+    "GEngine/src/Renderer/PassTiming.cpp": {
+      "executable": null,
+      "sha256": "51949bede3cd8110f7d59478e11a3c6042133a5bccc395d778cddd4f89e76af3"
+    },
+    "GEngine/src/Windows/SDLWindow.cpp": {
+      "executable": null,
+      "sha256": "8d56076476657480e55ea7bf6c46932bd25a98518f1f857f55afaeb355a44ca6"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "191e33e0e575181c0d877c579d829e965014a93f2eeae718b92958e1e764362b"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052"
+    },
+    "tools/frame_submission_probe.cpp": {
+      "executable": null,
+      "sha256": "46ae420f13b02dda2818ef0df1e62dc537a82547ffa950694f4c51aa7b7558de"
+    },
+    "tools/rendering_baseline.py": {
+      "executable": null,
+      "sha256": "9a07b35398d63a2ba3a54519ee309351ad18050daad301aff1ac1ed5a8866301"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/test_frame_submission.py": {
+      "executable": null,
+      "sha256": "11de4ac76962f1cfc295d40c5837e50c7502db1ef9780bbc23ec90be7de67893"
+    }
+  }
+}

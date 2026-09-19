@@ -1,5 +1,6 @@
 #include "gepch.h"
 #include "Renderer/FrameSubmission.h"
+#include "Renderer/PassTiming.h"
 #include "Core/RenderTarget.h"
 #include "Core/RuntimeAssets.h"
 #include "Core/GLContextThread.h"
@@ -324,6 +325,7 @@ void main() {
             if(primitive==MeshPrimitive::Lines) glLineWidth(draw.role->lineWidth);
             auto result = draw.resources->Mesh()->DrawSubmesh(draw.submesh, primitive);
             if (!result) return std::unexpected(SubmissionError{"mesh submission",result.error()});
+            PassTiming::Submitted(1,1);
             return {};
         }
     }
@@ -596,6 +598,7 @@ void main() {
         if(directionalShadow) glBindBufferBase(GL_UNIFORM_BUFFER,0,storage.matrices);
         if(stats.decisions[0].executed)
         {
+            PassTiming::Scope timing(RenderPass::DirectionalShadow);
             storage.cascade.Bind(); desc.cascadeShadow.Bind(); begin(RenderPass::DirectionalShadow);
             glBindBufferBase(GL_UNIFORM_BUFFER,0,storage.matrices);
             std::array<glm::mat4,5> matrices;
@@ -603,18 +606,22 @@ void main() {
             for(std::size_t i=0;i<matrices.size();++i) {matrices[i]=LightMatrix(camera,desc,lightDirection,previous,desc.cascadeSplits[i]);previous=desc.cascadeSplits[i];}
             glNamedBufferSubData(storage.matrices,0,sizeof(matrices),matrices.data());
             if(auto result=shadowDraws(storage.cascade);!result) return std::unexpected(result.error());
+            timing.Complete();
         }
         if(stats.decisions[1].executed)
         {
+            PassTiming::Scope timing(RenderPass::PointShadow);
             storage.point.Bind(); desc.pointShadow.Bind(); begin(RenderPass::PointShadow);
             const auto& size=desc.pointShadow.Buffer().Description();
             const auto matrices=PointMatrices(position,desc.pointNear,pointFar,float(size.Width)/size.Height);
             for(std::size_t i=0;i<matrices.size();++i) Uniform(storage.point,std::format("shadowMatrices[{}]",i).c_str(),matrices[i]);
             Uniform(storage.point,"lightPos",position); Uniform(storage.point,"far_plane",pointFar);
             if(auto result=shadowDraws(storage.point);!result) return std::unexpected(result.error());
+            timing.Complete();
         }
         if(stats.decisions[2].executed)
         {
+            PassTiming::Scope timing(RenderPass::Picking);
             storage.pick.Bind(); desc.picking.Bind(); begin(RenderPass::Picking);
             RenderCounters::RecordPass(RenderCounters::Pass::Picking);
             if(auto result=desc.picking.ClearAttachment(0,-1);!result) return std::unexpected(SubmissionError{"clear picking",result.error()});
@@ -626,6 +633,7 @@ void main() {
                 if(auto result=Draw(draws[index],storage.pick);!result) return std::unexpected(result.error());
                 ++stats.pickDraws;
             }
+            timing.Complete();
         }
         const auto colorDraw=[&](std::size_t index,RenderPass pass)->std::expected<void,SubmissionError> {
             const auto& prepared=draws[index]; const auto kind=prepared.role->kind;
@@ -684,10 +692,12 @@ void main() {
         desc.color.Bind();
         for(auto pass:{RenderPass::Opaque,RenderPass::Masked,RenderPass::Skybox,RenderPass::Transparent,RenderPass::Debug})
         {
+            PassTiming::Scope timing(pass);
             begin(pass);
             auto indices=pass==RenderPass::Opaque?visibility->Opaque():pass==RenderPass::Masked?visibility->Masked():
                 pass==RenderPass::Transparent?std::span<const std::size_t>(transparent.get(),visibility->Transparent().size()):visibility->Main();
             for(auto index:indices) if(auto result=colorDraw(index,pass);!result) return std::unexpected(result.error());
+            timing.Complete();
         }
         glDepthFunc(GL_LESS); glDepthMask(GL_TRUE); glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE); glDisable(GL_BLEND);
         if(const auto error=glGetError();error!=GL_NO_ERROR)

@@ -1,0 +1,1289 @@
+{
+  "schema": 1,
+  "phase": "48",
+  "protocol": "phase48-per-pass-v1",
+  "common_reference": "rendering-checkpoints/phase-13-baseline.json",
+  "configuration": "Release --render-baseline; C++23; /MT; opt-in pass timing",
+  "toolchain": {
+    "msbuild": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe",
+    "msvc": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207",
+    "sdk": "C:\\Program Files (x86)\\Windows Kits\\10",
+    "sdk_version": "10.0.26100.0"
+  },
+  "repeats": 3,
+  "warmup_frames": 120,
+  "samples_per_run": 240,
+  "settings": {
+    "window": [
+      1280,
+      720
+    ],
+    "vsync": 0,
+    "shadow_resolution": 4096,
+    "workload": "default startup scene, fixed camera/layout, zero update delta, no injected input"
+  },
+  "noise_policy": "Run median spread >10% is NOISY; exact submitted counts are the fallback; no speedup claim.",
+  "coverage": "GPU spans cover submitted scene passes and resolve. UI may switch contexts and presentation is CPU-only. Legacy scene item counts and external UI counts are unknown. Query results missing at shutdown remain abandoned, never zero. Cached/unrequested passes are absent, never timed as zero.",
+  "applications": {
+    "GEngineEditor": {
+      "passes": {
+        "editor-ui": {
+          "submitted_items": null,
+          "submitted_draws": null,
+          "gpu_status_counts": {
+            "not-measured": 720
+          },
+          "cpu_ns": {
+            "median": 603700.0,
+            "p95": 959500,
+            "p99": 1299200,
+            "minimum": 187900,
+            "maximum": 7622400,
+            "run_medians": [
+              613500.0,
+              547350.0,
+              614650.0
+            ],
+            "run_median_spread": 0.10969845150774246,
+            "quality": "NOISY"
+          },
+          "gpu_ns": null
+        },
+        "legacy-scene": {
+          "submitted_items": null,
+          "submitted_draws": 342,
+          "gpu_status_counts": {
+            "abandoned": 3,
+            "available": 717
+          },
+          "cpu_ns": {
+            "median": 507150.0,
+            "p95": 706300,
+            "p99": 811300,
+            "minimum": 257300,
+            "maximum": 1303400,
+            "run_medians": [
+              535850.0,
+              479000.0,
+              497000.0
+            ],
+            "run_median_spread": 0.11438631790744466,
+            "quality": "NOISY"
+          },
+          "gpu_ns": {
+            "median": 331776,
+            "p95": 863232,
+            "p99": 1631232,
+            "minimum": 212992,
+            "maximum": 17672192,
+            "run_medians": [
+              329728,
+              330752,
+              336896
+            ],
+            "run_median_spread": 0.021671826625386997,
+            "quality": "STABLE"
+          }
+        },
+        "present": {
+          "submitted_items": 0,
+          "submitted_draws": 0,
+          "gpu_status_counts": {
+            "not-measured": 720
+          },
+          "cpu_ns": {
+            "median": 87250.0,
+            "p95": 6456400,
+            "p99": 11226500,
+            "minimum": 38400,
+            "maximum": 12918900,
+            "run_medians": [
+              88600.0,
+              81400.0,
+              92200.0
+            ],
+            "run_median_spread": 0.12189616252821671,
+            "quality": "NOISY"
+          },
+          "gpu_ns": null
+        },
+        "resolve": {
+          "submitted_items": 0,
+          "submitted_draws": 0,
+          "gpu_status_counts": {
+            "abandoned": 3,
+            "available": 717
+          },
+          "cpu_ns": {
+            "median": 333550.0,
+            "p95": 685600,
+            "p99": 1014900,
+            "minimum": 44300,
+            "maximum": 1433300,
+            "run_medians": [
+              323950.0,
+              326200.0,
+              354550.0
+            ],
+            "run_median_spread": 0.09380748007357449,
+            "quality": "STABLE"
+          },
+          "gpu_ns": {
+            "median": 324608,
+            "p95": 8019968,
+            "p99": 13462528,
+            "minimum": 35840,
+            "maximum": 22979584,
+            "run_medians": [
+              439296,
+              157696,
+              339968
+            ],
+            "run_median_spread": 0.8283132530120482,
+            "quality": "NOISY"
+          }
+        }
+      },
+      "runtime": {
+        "protocol": "phase13-frozen-v1",
+        "width": "1280",
+        "height": "720",
+        "vsync": "0",
+        "warmup": "120",
+        "samples": "240",
+        "GL_VENDOR": "NVIDIA Corporation",
+        "GL_RENDERER": "NVIDIA GeForce RTX 3070 Laptop GPU/PCIe/SSE2",
+        "GL_VERSION": "4.6.0 NVIDIA 552.44",
+        "GLSL": "4.60 NVIDIA",
+        "startup_ns": "27056356100",
+        "color": "raw default-framebuffer RGBA8; no added color conversion",
+        "physics": "frozen zero-delta update; measured step count must be zero",
+        "default_samples": "16",
+        "framebuffer_srgb_enabled": "0",
+        "completed_samples": "240",
+        "targets": "framebuffer=1 attachment=36064 type=5890 width=880 height=636 depth_or_layers=1 samples=8 internal_format=32856\nframebuffer=1 attachment=36096 type=36161 width=880 height=636 depth_or_layers=1 samples=8 internal_format=35056\nframebuffer=2 attachment=36064 type=5890 width=880 height=636 depth_or_layers=1 samples=0 internal_format=33333\nframebuffer=2 attachment=36096 type=5890 width=880 height=636 depth_or_layers=1 samples=0 internal_format=33190\nframebuffer=3 attachment=36096 type=5890 width=4096 height=4096 depth_or_layers=6 samples=0 internal_format=36012\nframebuffer=4 attachment=36096 type=5890 width=4096 height=4096 depth_or_layers=1 samples=0 internal_format=36012\nframebuffer=5 attachment=36064 type=5890 width=880 height=636 depth_or_layers=1 samples=0 internal_format=32856\nframebuffer=5 attachment=36096 type=5890 width=880 height=636 depth_or_layers=1 samples=0 internal_format=33190\nframebuffer=8 attachment=36064 type=5890 width=880 height=636 depth_or_layers=1 samples=0 internal_format=32856\n"
+      },
+      "hardware": {
+        "GL_VENDOR": "NVIDIA Corporation",
+        "GL_RENDERER": "NVIDIA GeForce RTX 3070 Laptop GPU/PCIe/SSE2",
+        "GL_VERSION": "4.6.0 NVIDIA 552.44",
+        "GLSL": "4.60 NVIDIA"
+      },
+      "changed_pixel_fractions": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "inputs": [
+        {
+          "binary_sha256": "1b47dbb6c9f3e1f521cc1fb5071e3c4203413f96fb4f29a3946cba194ad58caa",
+          "layout_sha256": "4cb6d40606316760bce925a3e7290869f98c4a69779cf46424b65172af008941",
+          "runtime_dlls": {
+            "assimp-vc140-mt.dll": "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b",
+            "assimp-vc143-mt.dll": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+            "assimp-vc143-mtd.dll": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+            "assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+            "fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+            "fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+            "fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+            "fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+            "libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+            "SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+            "SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+            "zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b"
+          },
+          "evidence": {
+            "logs/rendering/phase48/measurement-v3/Release/baseline/GEngineEditor/0/passes-1.csv": "b8d9c2b5192288b20056a76f6e69dafc76e920390d4bef2760d1adf0b2fcec28",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/GEngineEditor/0/frames.csv": "566a779e34212b0bc3b651cd9f8fdf741cc418b4be076bb2c3ea689867826c02",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/GEngineEditor/0/runtime.txt": "3cbb949d4bc4050a68d5f141c3319a73c7ec2177b6e8d314593554b2fd056743",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/GEngineEditor/0/targets.txt": "03e87e637531f60621a973ec7da9d7e38f9440f3b04b270d28a91e493cca7045",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/GEngineEditor/0/diagnostic.bmp": "b14455d4b694903b1111022c484788b70c56b490f342b856cd36b6a6a73d4000"
+          }
+        },
+        {
+          "binary_sha256": "1b47dbb6c9f3e1f521cc1fb5071e3c4203413f96fb4f29a3946cba194ad58caa",
+          "layout_sha256": "4cb6d40606316760bce925a3e7290869f98c4a69779cf46424b65172af008941",
+          "runtime_dlls": {
+            "assimp-vc140-mt.dll": "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b",
+            "assimp-vc143-mt.dll": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+            "assimp-vc143-mtd.dll": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+            "assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+            "fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+            "fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+            "fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+            "fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+            "libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+            "SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+            "SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+            "zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b"
+          },
+          "evidence": {
+            "logs/rendering/phase48/measurement-v3/Release/baseline/GEngineEditor/1/passes-1.csv": "b908a22c9eacad36130f3a92e7cabf8b33511e96778e5b7a379d37c76bf5e0cb",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/GEngineEditor/1/frames.csv": "c0d047266eaed7babff382419ac6501ad5351dde6e69a1fbf6e774f0c0071433",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/GEngineEditor/1/runtime.txt": "fb57bb578aaaa7fd714cf4453525c7f4902605b14af69ca7456f109d37f6150c",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/GEngineEditor/1/targets.txt": "03e87e637531f60621a973ec7da9d7e38f9440f3b04b270d28a91e493cca7045",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/GEngineEditor/1/diagnostic.bmp": "b14455d4b694903b1111022c484788b70c56b490f342b856cd36b6a6a73d4000"
+          }
+        },
+        {
+          "binary_sha256": "1b47dbb6c9f3e1f521cc1fb5071e3c4203413f96fb4f29a3946cba194ad58caa",
+          "layout_sha256": "4cb6d40606316760bce925a3e7290869f98c4a69779cf46424b65172af008941",
+          "runtime_dlls": {
+            "assimp-vc140-mt.dll": "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b",
+            "assimp-vc143-mt.dll": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+            "assimp-vc143-mtd.dll": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+            "assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+            "fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+            "fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+            "fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+            "fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+            "libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+            "SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+            "SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+            "zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b"
+          },
+          "evidence": {
+            "logs/rendering/phase48/measurement-v3/Release/baseline/GEngineEditor/2/passes-1.csv": "51ce615a9d01aaec149d13e81bc09f5a620cb35c7ce6045dbd81692437f371c1",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/GEngineEditor/2/frames.csv": "dae2534dafcb284201084e756bf4884454cc0f9f7f9bfa16505a465eb69f6934",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/GEngineEditor/2/runtime.txt": "a42810b366afec9e30980a5b72940386422b84de76c8049f4636876a0263e330",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/GEngineEditor/2/targets.txt": "03e87e637531f60621a973ec7da9d7e38f9440f3b04b270d28a91e493cca7045",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/GEngineEditor/2/diagnostic.bmp": "b14455d4b694903b1111022c484788b70c56b490f342b856cd36b6a6a73d4000"
+          }
+        }
+      ]
+    },
+    "RigidBodySimulation": {
+      "passes": {
+        "debug": {
+          "submitted_items": 2,
+          "submitted_draws": 2,
+          "gpu_status_counts": {
+            "abandoned": 3,
+            "available": 717
+          },
+          "cpu_ns": {
+            "median": 31950.0,
+            "p95": 48300,
+            "p99": 63200,
+            "minimum": 16900,
+            "maximum": 102800,
+            "run_medians": [
+              30800.0,
+              32150.0,
+              32300.0
+            ],
+            "run_median_spread": 0.04665629860031104,
+            "quality": "STABLE"
+          },
+          "gpu_ns": {
+            "median": 1024,
+            "p95": 2048,
+            "p99": 2048,
+            "minimum": 0,
+            "maximum": 3072,
+            "run_medians": [
+              1024,
+              1024,
+              1024
+            ],
+            "run_median_spread": 0.0,
+            "quality": "STABLE"
+          }
+        },
+        "editor-ui": {
+          "submitted_items": null,
+          "submitted_draws": null,
+          "gpu_status_counts": {
+            "not-measured": 720
+          },
+          "cpu_ns": {
+            "median": 232350.0,
+            "p95": 374500,
+            "p99": 551200,
+            "minimum": 109100,
+            "maximum": 685700,
+            "run_medians": [
+              227100.0,
+              236650.0,
+              233450.0
+            ],
+            "run_median_spread": 0.04090811736988648,
+            "quality": "STABLE"
+          },
+          "gpu_ns": null
+        },
+        "masked": {
+          "submitted_items": 0,
+          "submitted_draws": 0,
+          "gpu_status_counts": {
+            "abandoned": 3,
+            "available": 717
+          },
+          "cpu_ns": {
+            "median": 4600.0,
+            "p95": 12500,
+            "p99": 25600,
+            "minimum": 1600,
+            "maximum": 135900,
+            "run_medians": [
+              4750.0,
+              4250.0,
+              4800.0
+            ],
+            "run_median_spread": 0.11578947368421053,
+            "quality": "NOISY"
+          },
+          "gpu_ns": {
+            "median": 1024,
+            "p95": 2048,
+            "p99": 2048,
+            "minimum": 0,
+            "maximum": 3072,
+            "run_medians": [
+              1024,
+              1024,
+              1024
+            ],
+            "run_median_spread": 0.0,
+            "quality": "STABLE"
+          }
+        },
+        "opaque": {
+          "submitted_items": 184,
+          "submitted_draws": 184,
+          "gpu_status_counts": {
+            "abandoned": 3,
+            "available": 717
+          },
+          "cpu_ns": {
+            "median": 1748400.0,
+            "p95": 2163600,
+            "p99": 2874500,
+            "minimum": 1405900,
+            "maximum": 4267500,
+            "run_medians": [
+              1765600.0,
+              1728000.0,
+              1746000.0
+            ],
+            "run_median_spread": 0.021534936998854524,
+            "quality": "STABLE"
+          },
+          "gpu_ns": {
+            "median": 2834432,
+            "p95": 8548352,
+            "p99": 9759744,
+            "minimum": 2148352,
+            "maximum": 10851328,
+            "run_medians": [
+              2895872,
+              2867200,
+              2685952
+            ],
+            "run_median_spread": 0.07321428571428572,
+            "quality": "STABLE"
+          }
+        },
+        "present": {
+          "submitted_items": 0,
+          "submitted_draws": 0,
+          "gpu_status_counts": {
+            "not-measured": 720
+          },
+          "cpu_ns": {
+            "median": 1752600.0,
+            "p95": 9311600,
+            "p99": 14446800,
+            "minimum": 601600,
+            "maximum": 17135500,
+            "run_medians": [
+              1728950.0,
+              1810400.0,
+              1722650.0
+            ],
+            "run_median_spread": 0.05075334740738598,
+            "quality": "STABLE"
+          },
+          "gpu_ns": null
+        },
+        "resolve": {
+          "submitted_items": 0,
+          "submitted_draws": 0,
+          "gpu_status_counts": {
+            "abandoned": 3,
+            "available": 717
+          },
+          "cpu_ns": {
+            "median": 309300.0,
+            "p95": 516700,
+            "p99": 630400,
+            "minimum": 77600,
+            "maximum": 894300,
+            "run_medians": [
+              309300.0,
+              310400.0,
+              305400.0
+            ],
+            "run_median_spread": 0.016165535079211122,
+            "quality": "STABLE"
+          },
+          "gpu_ns": {
+            "median": 62464,
+            "p95": 4189184,
+            "p99": 9483264,
+            "minimum": 47104,
+            "maximum": 14306304,
+            "run_medians": [
+              62464,
+              62464,
+              63488
+            ],
+            "run_median_spread": 0.01639344262295082,
+            "quality": "STABLE"
+          }
+        },
+        "skybox": {
+          "submitted_items": 1,
+          "submitted_draws": 1,
+          "gpu_status_counts": {
+            "abandoned": 3,
+            "available": 717
+          },
+          "cpu_ns": {
+            "median": 23700.0,
+            "p95": 39500,
+            "p99": 53300,
+            "minimum": 11600,
+            "maximum": 60300,
+            "run_medians": [
+              23900.0,
+              23400.0,
+              24000.0
+            ],
+            "run_median_spread": 0.02510460251046025,
+            "quality": "STABLE"
+          },
+          "gpu_ns": {
+            "median": 1024,
+            "p95": 2048,
+            "p99": 2048,
+            "minimum": 0,
+            "maximum": 3072,
+            "run_medians": [
+              1024,
+              1024,
+              1024
+            ],
+            "run_median_spread": 0.0,
+            "quality": "STABLE"
+          }
+        },
+        "transparent": {
+          "submitted_items": 0,
+          "submitted_draws": 0,
+          "gpu_status_counts": {
+            "abandoned": 3,
+            "available": 717
+          },
+          "cpu_ns": {
+            "median": 900.0,
+            "p95": 1500,
+            "p99": 1900,
+            "minimum": 700,
+            "maximum": 3700,
+            "run_medians": [
+              800.0,
+              900.0,
+              900.0
+            ],
+            "run_median_spread": 0.1111111111111111,
+            "quality": "NOISY"
+          },
+          "gpu_ns": {
+            "median": 1024,
+            "p95": 2048,
+            "p99": 2048,
+            "minimum": 0,
+            "maximum": 3072,
+            "run_medians": [
+              1024,
+              1024,
+              1024
+            ],
+            "run_median_spread": 0.0,
+            "quality": "STABLE"
+          }
+        }
+      },
+      "runtime": {
+        "protocol": "phase13-frozen-v1",
+        "width": "1280",
+        "height": "720",
+        "vsync": "0",
+        "warmup": "120",
+        "samples": "240",
+        "GL_VENDOR": "NVIDIA Corporation",
+        "GL_RENDERER": "NVIDIA GeForce RTX 3070 Laptop GPU/PCIe/SSE2",
+        "GL_VERSION": "4.6.0 NVIDIA 552.44",
+        "GLSL": "4.60 NVIDIA",
+        "startup_ns": "4489626500",
+        "color": "raw default-framebuffer RGBA8; no added color conversion",
+        "physics": "frozen zero-delta update; measured step count must be zero",
+        "default_samples": "16",
+        "framebuffer_srgb_enabled": "0",
+        "completed_samples": "240",
+        "targets": "framebuffer=1 attachment=36064 type=5890 width=880 height=636 depth_or_layers=1 samples=0 internal_format=33333\nframebuffer=1 attachment=36096 type=5890 width=880 height=636 depth_or_layers=1 samples=0 internal_format=33190\nframebuffer=2 attachment=36064 type=5890 width=880 height=636 depth_or_layers=1 samples=0 internal_format=32856\nframebuffer=2 attachment=36096 type=5890 width=880 height=636 depth_or_layers=1 samples=0 internal_format=33190\nframebuffer=3 attachment=36096 type=5890 width=4096 height=4096 depth_or_layers=6 samples=0 internal_format=36012\nframebuffer=4 attachment=36096 type=5890 width=4096 height=4096 depth_or_layers=1 samples=0 internal_format=36012\nframebuffer=7 attachment=36064 type=5890 width=880 height=636 depth_or_layers=1 samples=16 internal_format=32856\nframebuffer=7 attachment=36096 type=36161 width=880 height=636 depth_or_layers=1 samples=16 internal_format=35056\nframebuffer=8 attachment=36064 type=5890 width=880 height=636 depth_or_layers=1 samples=0 internal_format=32856\n"
+      },
+      "hardware": {
+        "GL_VENDOR": "NVIDIA Corporation",
+        "GL_RENDERER": "NVIDIA GeForce RTX 3070 Laptop GPU/PCIe/SSE2",
+        "GL_VERSION": "4.6.0 NVIDIA 552.44",
+        "GLSL": "4.60 NVIDIA"
+      },
+      "changed_pixel_fractions": [
+        0.0,
+        2.9239766081871346e-05,
+        0.0002882205513784461
+      ],
+      "inputs": [
+        {
+          "binary_sha256": "7709cca64f86796993e4428229ed0e90b6b4d023ddf653ed2cf9a8b804d8862f",
+          "layout_sha256": "4cb6d40606316760bce925a3e7290869f98c4a69779cf46424b65172af008941",
+          "runtime_dlls": {
+            "assimp-vc143-mt.dll": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+            "assimp-vc143-mtd.dll": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+            "assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+            "fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+            "fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+            "fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+            "fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+            "libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+            "SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+            "SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+            "zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b"
+          },
+          "evidence": {
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RigidBodySimulation/0/passes-1.csv": "95e02520567b9d3fb743634eeefc0d1819344a4ef6b406bea8017a15d4971d4f",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RigidBodySimulation/0/frames.csv": "7b828cad8a0a15305f131001f7d786bce889fa26edf3be643e56994ad1ec4bdf",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RigidBodySimulation/0/runtime.txt": "6a2417a2aa11dd69c7ec8b57c1667a94701f6a8fbfa15817b9fe6f8e933d4116",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RigidBodySimulation/0/targets.txt": "164655c123fee37b00741adb3e1a2165113dcde64945a7b115186a70176a2b1d",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RigidBodySimulation/0/diagnostic.bmp": "361190a24836ae92dc698ff5d6d4dc4e14e3247ac755f2ecbe4cdd55696296d5"
+          }
+        },
+        {
+          "binary_sha256": "7709cca64f86796993e4428229ed0e90b6b4d023ddf653ed2cf9a8b804d8862f",
+          "layout_sha256": "4cb6d40606316760bce925a3e7290869f98c4a69779cf46424b65172af008941",
+          "runtime_dlls": {
+            "assimp-vc143-mt.dll": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+            "assimp-vc143-mtd.dll": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+            "assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+            "fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+            "fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+            "fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+            "fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+            "libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+            "SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+            "SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+            "zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b"
+          },
+          "evidence": {
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RigidBodySimulation/1/passes-1.csv": "c04e7f4335ad842172f7c73269993a11790b0ba4b13d5f98c5fbdeb2d84ba121",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RigidBodySimulation/1/frames.csv": "4a94158e90292feb2ff3edbb782c33cfc3328792e33cdd8bfa75b035412d679e",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RigidBodySimulation/1/runtime.txt": "ea73da5a34ff45be33ce67a382732df3d3cb2903789b7cba401f043d0d175b96",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RigidBodySimulation/1/targets.txt": "164655c123fee37b00741adb3e1a2165113dcde64945a7b115186a70176a2b1d",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RigidBodySimulation/1/diagnostic.bmp": "087a9a487e0ba03ae6a4c3ad0be7ad21dba4c798ce5e9b883c2b3fbfd119c220"
+          }
+        },
+        {
+          "binary_sha256": "7709cca64f86796993e4428229ed0e90b6b4d023ddf653ed2cf9a8b804d8862f",
+          "layout_sha256": "4cb6d40606316760bce925a3e7290869f98c4a69779cf46424b65172af008941",
+          "runtime_dlls": {
+            "assimp-vc143-mt.dll": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+            "assimp-vc143-mtd.dll": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+            "assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+            "fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+            "fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+            "fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+            "fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+            "libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+            "SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+            "SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+            "zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b"
+          },
+          "evidence": {
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RigidBodySimulation/2/passes-1.csv": "ae78e934534bbcc75197465a5804872b065b952412222f439a5a6a47ca3bb5cc",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RigidBodySimulation/2/frames.csv": "8bf0e6ebefe508c3679b9740114bd76fe21409dd9bee441191dc9fce4bfb4ef5",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RigidBodySimulation/2/runtime.txt": "18885aae01a0eb2998f5240a99154fc6fd8bb510babf78c207961dc1410018d9",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RigidBodySimulation/2/targets.txt": "164655c123fee37b00741adb3e1a2165113dcde64945a7b115186a70176a2b1d",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RigidBodySimulation/2/diagnostic.bmp": "8b220172424d3ceb29e9a41f7a3ef051ba18e42b05e53d49776ecec4184a3dc3"
+          }
+        }
+      ]
+    },
+    "Breakout": {
+      "passes": {
+        "legacy-scene": {
+          "submitted_items": null,
+          "submitted_draws": 109,
+          "gpu_status_counts": {
+            "abandoned": 3,
+            "available": 717
+          },
+          "cpu_ns": {
+            "median": 202900.0,
+            "p95": 513500,
+            "p99": 617900,
+            "minimum": 108300,
+            "maximum": 1401500,
+            "run_medians": [
+              187100.0,
+              217450.0,
+              210250.0
+            ],
+            "run_median_spread": 0.14435196195005945,
+            "quality": "NOISY"
+          },
+          "gpu_ns": {
+            "median": 155648,
+            "p95": 406528,
+            "p99": 418816,
+            "minimum": 87040,
+            "maximum": 15230976,
+            "run_medians": [
+              143360,
+              159744,
+              152576
+            ],
+            "run_median_spread": 0.10738255033557047,
+            "quality": "NOISY"
+          }
+        },
+        "present": {
+          "submitted_items": 0,
+          "submitted_draws": 0,
+          "gpu_status_counts": {
+            "not-measured": 720
+          },
+          "cpu_ns": {
+            "median": 98000.0,
+            "p95": 6428800,
+            "p99": 10444400,
+            "minimum": 37600,
+            "maximum": 21380000,
+            "run_medians": [
+              95650.0,
+              96750.0,
+              103300.0
+            ],
+            "run_median_spread": 0.07906976744186046,
+            "quality": "STABLE"
+          },
+          "gpu_ns": null
+        }
+      },
+      "runtime": {
+        "protocol": "phase13-frozen-v1",
+        "width": "1280",
+        "height": "720",
+        "vsync": "0",
+        "warmup": "120",
+        "samples": "240",
+        "GL_VENDOR": "NVIDIA Corporation",
+        "GL_RENDERER": "NVIDIA GeForce RTX 3070 Laptop GPU/PCIe/SSE2",
+        "GL_VERSION": "4.6.0 NVIDIA 552.44",
+        "GLSL": "4.60 NVIDIA",
+        "startup_ns": "2736075100",
+        "color": "raw default-framebuffer RGBA8; no added color conversion",
+        "physics": "frozen zero-delta update; measured step count must be zero",
+        "default_samples": "16",
+        "framebuffer_srgb_enabled": "0",
+        "pre_capture_gl_error": "1282",
+        "completed_samples": "240",
+        "targets": "framebuffer=1 attachment=36064 type=5890 width=1280 height=720 depth_or_layers=1 samples=16 internal_format=32856\nframebuffer=1 attachment=36096 type=36161 width=1280 height=720 depth_or_layers=1 samples=16 internal_format=35056\nframebuffer=2 attachment=36064 type=5890 width=1280 height=720 depth_or_layers=1 samples=0 internal_format=32856\nframebuffer=3 attachment=36096 type=5890 width=4096 height=4096 depth_or_layers=6 samples=0 internal_format=36012\nframebuffer=4 attachment=36096 type=5890 width=4096 height=4096 depth_or_layers=1 samples=0 internal_format=36012\nframebuffer=5 attachment=36064 type=5890 width=1280 height=720 depth_or_layers=1 samples=0 internal_format=33333\nframebuffer=5 attachment=36096 type=5890 width=1280 height=720 depth_or_layers=1 samples=0 internal_format=33190\nframebuffer=6 attachment=36064 type=5890 width=1280 height=720 depth_or_layers=1 samples=0 internal_format=32856\nframebuffer=6 attachment=36096 type=5890 width=1280 height=720 depth_or_layers=1 samples=0 internal_format=33190\n"
+      },
+      "hardware": {
+        "GL_VENDOR": "NVIDIA Corporation",
+        "GL_RENDERER": "NVIDIA GeForce RTX 3070 Laptop GPU/PCIe/SSE2",
+        "GL_VERSION": "4.6.0 NVIDIA 552.44",
+        "GLSL": "4.60 NVIDIA"
+      },
+      "changed_pixel_fractions": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "inputs": [
+        {
+          "binary_sha256": "dcd08e428d785fe97d6651252631db55e300db5164889e00e0cdacb568188b86",
+          "layout_sha256": "4cb6d40606316760bce925a3e7290869f98c4a69779cf46424b65172af008941",
+          "runtime_dlls": {
+            "assimp-vc143-mt.dll": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+            "assimp-vc143-mtd.dll": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+            "assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+            "fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+            "fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+            "fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+            "fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+            "libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+            "SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+            "SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+            "zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b"
+          },
+          "evidence": {
+            "logs/rendering/phase48/measurement-v3/Release/baseline/Breakout/0/passes-1.csv": "8e6ca957616c30b6692561893406e748b68f58dee08b351b56f7e558cad14295",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/Breakout/0/frames.csv": "c7de7db773ef7563b2b9a8a3c6f6f53948b103c33249cf4237b0463fef86534a",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/Breakout/0/runtime.txt": "8a5bdacb85566591d7fe5a225cbcd2538478e6d3047c73b69aeeae97c1e9d06e",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/Breakout/0/targets.txt": "ad55d6783d1fa01ea8eb3d2c77774a0d5f9cea44d050b22c253792f9018a1801",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/Breakout/0/diagnostic.bmp": "c93f8085d56516400d53c09c5b2aeba44f5edf8f7a8c41d4f26f1790a1401e1c"
+          }
+        },
+        {
+          "binary_sha256": "dcd08e428d785fe97d6651252631db55e300db5164889e00e0cdacb568188b86",
+          "layout_sha256": "4cb6d40606316760bce925a3e7290869f98c4a69779cf46424b65172af008941",
+          "runtime_dlls": {
+            "assimp-vc143-mt.dll": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+            "assimp-vc143-mtd.dll": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+            "assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+            "fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+            "fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+            "fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+            "fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+            "libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+            "SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+            "SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+            "zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b"
+          },
+          "evidence": {
+            "logs/rendering/phase48/measurement-v3/Release/baseline/Breakout/1/passes-1.csv": "d44c900f1d64940b4424bad88da1ab8e5b5f5f7a8291d8c0846c14a297ecf9aa",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/Breakout/1/frames.csv": "045a125b956891059bf30624180a048b8376e66e4a07903349a7a2b1dadfcf67",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/Breakout/1/runtime.txt": "c3a0c056d2466ea55e6c623d93db22abe353e8a647f19455bf4964fa533e8f39",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/Breakout/1/targets.txt": "ad55d6783d1fa01ea8eb3d2c77774a0d5f9cea44d050b22c253792f9018a1801",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/Breakout/1/diagnostic.bmp": "c93f8085d56516400d53c09c5b2aeba44f5edf8f7a8c41d4f26f1790a1401e1c"
+          }
+        },
+        {
+          "binary_sha256": "dcd08e428d785fe97d6651252631db55e300db5164889e00e0cdacb568188b86",
+          "layout_sha256": "4cb6d40606316760bce925a3e7290869f98c4a69779cf46424b65172af008941",
+          "runtime_dlls": {
+            "assimp-vc143-mt.dll": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+            "assimp-vc143-mtd.dll": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+            "assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+            "fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+            "fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+            "fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+            "fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+            "libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+            "SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+            "SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+            "zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b"
+          },
+          "evidence": {
+            "logs/rendering/phase48/measurement-v3/Release/baseline/Breakout/2/passes-1.csv": "695b8945701775071dca20f28b13d382db8a929e44aa1963f74b7b27e4c4ce45",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/Breakout/2/frames.csv": "9ea9a3bfa5b370be488d7f74bc6706082c546d54fa32a57f97a4f138942e1355",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/Breakout/2/runtime.txt": "a99146157517ef26369b87792f3767145435c240e6c6b981c4b23c69933bd752",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/Breakout/2/targets.txt": "ad55d6783d1fa01ea8eb3d2c77774a0d5f9cea44d050b22c253792f9018a1801",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/Breakout/2/diagnostic.bmp": "c93f8085d56516400d53c09c5b2aeba44f5edf8f7a8c41d4f26f1790a1401e1c"
+          }
+        }
+      ]
+    },
+    "RayTracing": {
+      "passes": {
+        "editor-ui": {
+          "submitted_items": null,
+          "submitted_draws": null,
+          "gpu_status_counts": {
+            "not-measured": 720
+          },
+          "cpu_ns": {
+            "median": 8609750.0,
+            "p95": 11264300,
+            "p99": 12507000,
+            "minimum": 5889900,
+            "maximum": 13093300,
+            "run_medians": [
+              8557500.0,
+              8614300.0,
+              8641100.0
+            ],
+            "run_median_spread": 0.00970479319271444,
+            "quality": "STABLE"
+          },
+          "gpu_ns": null
+        },
+        "present": {
+          "submitted_items": 0,
+          "submitted_draws": 0,
+          "gpu_status_counts": {
+            "not-measured": 720
+          },
+          "cpu_ns": {
+            "median": 93150.0,
+            "p95": 5652500,
+            "p99": 9899200,
+            "minimum": 39200,
+            "maximum": 11951900,
+            "run_medians": [
+              93500.0,
+              93850.0,
+              91950.0
+            ],
+            "run_median_spread": 0.020320855614973262,
+            "quality": "STABLE"
+          },
+          "gpu_ns": null
+        }
+      },
+      "runtime": {
+        "protocol": "phase13-frozen-v1",
+        "width": "1280",
+        "height": "720",
+        "vsync": "0",
+        "warmup": "120",
+        "samples": "240",
+        "GL_VENDOR": "NVIDIA Corporation",
+        "GL_RENDERER": "NVIDIA GeForce RTX 3070 Laptop GPU/PCIe/SSE2",
+        "GL_VERSION": "4.6.0 NVIDIA 552.44",
+        "GLSL": "4.60 NVIDIA",
+        "startup_ns": "2274777800",
+        "color": "raw default-framebuffer RGBA8; no added color conversion",
+        "physics": "frozen zero-delta update; measured step count must be zero",
+        "default_samples": "16",
+        "framebuffer_srgb_enabled": "0",
+        "completed_samples": "240",
+        "targets": "framebuffer=1 attachment=36064 type=5890 width=880 height=636 depth_or_layers=1 samples=0 internal_format=33333\nframebuffer=1 attachment=36096 type=5890 width=880 height=636 depth_or_layers=1 samples=0 internal_format=33190\nframebuffer=2 attachment=36064 type=5890 width=880 height=636 depth_or_layers=1 samples=0 internal_format=32856\nframebuffer=2 attachment=36096 type=5890 width=880 height=636 depth_or_layers=1 samples=0 internal_format=33190\nframebuffer=3 attachment=36096 type=5890 width=4096 height=4096 depth_or_layers=6 samples=0 internal_format=36012\nframebuffer=4 attachment=36096 type=5890 width=4096 height=4096 depth_or_layers=1 samples=0 internal_format=36012\nframebuffer=7 attachment=36064 type=5890 width=880 height=636 depth_or_layers=1 samples=16 internal_format=32856\nframebuffer=7 attachment=36096 type=36161 width=880 height=636 depth_or_layers=1 samples=16 internal_format=35056\nframebuffer=8 attachment=36064 type=5890 width=880 height=636 depth_or_layers=1 samples=0 internal_format=32856\n"
+      },
+      "hardware": {
+        "GL_VENDOR": "NVIDIA Corporation",
+        "GL_RENDERER": "NVIDIA GeForce RTX 3070 Laptop GPU/PCIe/SSE2",
+        "GL_VERSION": "4.6.0 NVIDIA 552.44",
+        "GLSL": "4.60 NVIDIA"
+      },
+      "changed_pixel_fractions": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "inputs": [
+        {
+          "binary_sha256": "f572fe5d586a8a2ee1dd57d30e8ce05873f595791eaa6d3c546b0c89fead4cc9",
+          "layout_sha256": "4cb6d40606316760bce925a3e7290869f98c4a69779cf46424b65172af008941",
+          "runtime_dlls": {
+            "assimp-vc143-mt.dll": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+            "assimp-vc143-mtd.dll": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+            "assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+            "fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+            "fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+            "fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+            "fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+            "libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+            "SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+            "SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+            "zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b"
+          },
+          "evidence": {
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RayTracing/0/passes-1.csv": "a576b0b5dbea3bf937b776a28a4563f2744f1fda18b733176fce7e380aff854b",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RayTracing/0/frames.csv": "0afe83f97f12af2dea79af4bb6fa4ed0e8bcf42ec17ae976f53740f27cfe6975",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RayTracing/0/runtime.txt": "e4e8f66a56197c6df39bcef802edc4c2802e626f24958949b96e9a81fce11e2b",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RayTracing/0/targets.txt": "164655c123fee37b00741adb3e1a2165113dcde64945a7b115186a70176a2b1d",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RayTracing/0/diagnostic.bmp": "d29e2db052bb31c21b9f239c8fb598f674f2412f959bfce28f6705b36feb9db8"
+          }
+        },
+        {
+          "binary_sha256": "f572fe5d586a8a2ee1dd57d30e8ce05873f595791eaa6d3c546b0c89fead4cc9",
+          "layout_sha256": "4cb6d40606316760bce925a3e7290869f98c4a69779cf46424b65172af008941",
+          "runtime_dlls": {
+            "assimp-vc143-mt.dll": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+            "assimp-vc143-mtd.dll": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+            "assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+            "fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+            "fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+            "fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+            "fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+            "libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+            "SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+            "SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+            "zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b"
+          },
+          "evidence": {
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RayTracing/1/passes-1.csv": "6265f0af1a66d3939b968dcc599993707287e1751b8514108e253a65c6e4e673",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RayTracing/1/frames.csv": "bf2bafd90f59116b042e0dbe15dfb11e84ab8651d79a49f3b723363c1059efc2",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RayTracing/1/runtime.txt": "e8699f4742f54b8898b097df8c7052d4b0b05a67209977316603a503463c31c3",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RayTracing/1/targets.txt": "164655c123fee37b00741adb3e1a2165113dcde64945a7b115186a70176a2b1d",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RayTracing/1/diagnostic.bmp": "d38e015db765fcb1bd983a380e112dfe90be8df6139ae3b69f4ffb415eb9e981"
+          }
+        },
+        {
+          "binary_sha256": "f572fe5d586a8a2ee1dd57d30e8ce05873f595791eaa6d3c546b0c89fead4cc9",
+          "layout_sha256": "4cb6d40606316760bce925a3e7290869f98c4a69779cf46424b65172af008941",
+          "runtime_dlls": {
+            "assimp-vc143-mt.dll": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b",
+            "assimp-vc143-mtd.dll": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1",
+            "assimp.dll": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4",
+            "fmod64.dll": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1",
+            "fmodL64.dll": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94",
+            "fmodstudio64.dll": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5",
+            "fmodstudioL64.dll": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737",
+            "libfreetype-6.dll": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80",
+            "SDL2.dll": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9",
+            "SDL2_ttf.dll": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c",
+            "zlib1.dll": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b"
+          },
+          "evidence": {
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RayTracing/2/passes-1.csv": "d76d06706e2e62697b774c3fa1b6c6ad5c35c3692cb1afabfc658e3bb2d46ce1",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RayTracing/2/frames.csv": "660a14a519baa664b057fd440df5043a4f6c2871a98e80ebe8348e778addb582",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RayTracing/2/runtime.txt": "06af7e0c263cf7ba7d2a49e61044b4656fae239110e1d37b7e229c348e08c251",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RayTracing/2/targets.txt": "164655c123fee37b00741adb3e1a2165113dcde64945a7b115186a70176a2b1d",
+            "logs/rendering/phase48/measurement-v3/Release/baseline/RayTracing/2/diagnostic.bmp": "a220e8087d2c97bfcfbeaa3115d9f18fb8023d68fa8561870acb97cb799fb42c"
+          }
+        }
+      ]
+    },
+    "SubmissionFixture": {
+      "passes": {
+        "debug": {
+          "submitted_items": 0,
+          "submitted_draws": 0,
+          "gpu_status_counts": {
+            "available": 720
+          },
+          "cpu_ns": {
+            "median": 500.0,
+            "p95": 600,
+            "p99": 800,
+            "minimum": 400,
+            "maximum": 3100,
+            "run_medians": [
+              500.0,
+              500.0,
+              500.0
+            ],
+            "run_median_spread": 0.0,
+            "quality": "STABLE"
+          },
+          "gpu_ns": {
+            "median": 1024.0,
+            "p95": 1024,
+            "p99": 2048,
+            "minimum": 0,
+            "maximum": 2048,
+            "run_medians": [
+              1024.0,
+              1024.0,
+              1024.0
+            ],
+            "run_median_spread": 0.0,
+            "quality": "STABLE"
+          }
+        },
+        "directional-shadow": {
+          "submitted_items": 1,
+          "submitted_draws": 1,
+          "gpu_status_counts": {
+            "available": 720
+          },
+          "cpu_ns": {
+            "median": 38700.0,
+            "p95": 182300,
+            "p99": 303300,
+            "minimum": 32800,
+            "maximum": 356900,
+            "run_medians": [
+              39450.0,
+              39700.0,
+              36800.0
+            ],
+            "run_median_spread": 0.07351077313054499,
+            "quality": "STABLE"
+          },
+          "gpu_ns": {
+            "median": 12288.0,
+            "p95": 14336,
+            "p99": 21504,
+            "minimum": 9216,
+            "maximum": 24576,
+            "run_medians": [
+              12288.0,
+              12288.0,
+              12288.0
+            ],
+            "run_median_spread": 0.0,
+            "quality": "STABLE"
+          }
+        },
+        "masked": {
+          "submitted_items": 0,
+          "submitted_draws": 0,
+          "gpu_status_counts": {
+            "available": 720
+          },
+          "cpu_ns": {
+            "median": 1100.0,
+            "p95": 1300,
+            "p99": 1900,
+            "minimum": 900,
+            "maximum": 16900,
+            "run_medians": [
+              1100.0,
+              1000.0,
+              1050.0
+            ],
+            "run_median_spread": 0.09523809523809523,
+            "quality": "STABLE"
+          },
+          "gpu_ns": {
+            "median": 1024.0,
+            "p95": 1024,
+            "p99": 2048,
+            "minimum": 0,
+            "maximum": 2048,
+            "run_medians": [
+              1024.0,
+              1024.0,
+              1024.0
+            ],
+            "run_median_spread": 0.0,
+            "quality": "STABLE"
+          }
+        },
+        "opaque": {
+          "submitted_items": 1,
+          "submitted_draws": 1,
+          "gpu_status_counts": {
+            "available": 720
+          },
+          "cpu_ns": {
+            "median": 23450.0,
+            "p95": 64500,
+            "p99": 92100,
+            "minimum": 17600,
+            "maximum": 196100,
+            "run_medians": [
+              23650.0,
+              24200.0,
+              22300.0
+            ],
+            "run_median_spread": 0.080338266384778,
+            "quality": "STABLE"
+          },
+          "gpu_ns": {
+            "median": 17408.0,
+            "p95": 20480,
+            "p99": 22528,
+            "minimum": 11264,
+            "maximum": 25600,
+            "run_medians": [
+              18432.0,
+              18432.0,
+              17408.0
+            ],
+            "run_median_spread": 0.05555555555555555,
+            "quality": "STABLE"
+          }
+        },
+        "picking": {
+          "submitted_items": 1,
+          "submitted_draws": 1,
+          "gpu_status_counts": {
+            "available": 720
+          },
+          "cpu_ns": {
+            "median": 21000.0,
+            "p95": 59000,
+            "p99": 74400,
+            "minimum": 16500,
+            "maximum": 110700,
+            "run_medians": [
+              20950.0,
+              21950.0,
+              20100.0
+            ],
+            "run_median_spread": 0.0883054892601432,
+            "quality": "STABLE"
+          },
+          "gpu_ns": {
+            "median": 9216.0,
+            "p95": 10240,
+            "p99": 11264,
+            "minimum": 7168,
+            "maximum": 13312,
+            "run_medians": [
+              9216.0,
+              9216.0,
+              9216.0
+            ],
+            "run_median_spread": 0.0,
+            "quality": "STABLE"
+          }
+        },
+        "point-shadow": {
+          "submitted_items": 1,
+          "submitted_draws": 1,
+          "gpu_status_counts": {
+            "available": 720
+          },
+          "cpu_ns": {
+            "median": 19600.0,
+            "p95": 60600,
+            "p99": 80700,
+            "minimum": 15700,
+            "maximum": 130300,
+            "run_medians": [
+              19950.0,
+              20100.0,
+              18900.0
+            ],
+            "run_median_spread": 0.06015037593984962,
+            "quality": "STABLE"
+          },
+          "gpu_ns": {
+            "median": 16384.0,
+            "p95": 19456,
+            "p99": 20480,
+            "minimum": 9216,
+            "maximum": 25600,
+            "run_medians": [
+              16384.0,
+              16384.0,
+              16384.0
+            ],
+            "run_median_spread": 0.0,
+            "quality": "STABLE"
+          }
+        },
+        "skybox": {
+          "submitted_items": 0,
+          "submitted_draws": 0,
+          "gpu_status_counts": {
+            "available": 720
+          },
+          "cpu_ns": {
+            "median": 600.0,
+            "p95": 800,
+            "p99": 1000,
+            "minimum": 500,
+            "maximum": 1900,
+            "run_medians": [
+              600.0,
+              600.0,
+              600.0
+            ],
+            "run_median_spread": 0.0,
+            "quality": "STABLE"
+          },
+          "gpu_ns": {
+            "median": 1024.0,
+            "p95": 1024,
+            "p99": 2048,
+            "minimum": 0,
+            "maximum": 2048,
+            "run_medians": [
+              1024.0,
+              1024.0,
+              1024.0
+            ],
+            "run_median_spread": 0.0,
+            "quality": "STABLE"
+          }
+        },
+        "transparent": {
+          "submitted_items": 0,
+          "submitted_draws": 0,
+          "gpu_status_counts": {
+            "available": 720
+          },
+          "cpu_ns": {
+            "median": 500.0,
+            "p95": 600,
+            "p99": 800,
+            "minimum": 400,
+            "maximum": 1100,
+            "run_medians": [
+              500.0,
+              500.0,
+              500.0
+            ],
+            "run_median_spread": 0.0,
+            "quality": "STABLE"
+          },
+          "gpu_ns": {
+            "median": 1024.0,
+            "p95": 1024,
+            "p99": 2048,
+            "minimum": 0,
+            "maximum": 2048,
+            "run_medians": [
+              1024.0,
+              1024.0,
+              1024.0
+            ],
+            "run_median_spread": 0.0,
+            "quality": "STABLE"
+          }
+        }
+      },
+      "runtime": {
+        "GL_RENDERER": "NVIDIA GeForce RTX 3070 Laptop GPU/PCIe/SSE2",
+        "GL_VENDOR": "NVIDIA Corporation",
+        "GL_VERSION": "4.6.0 NVIDIA 552.44",
+        "color": "64x64 RGBA8 linear; single sample",
+        "shadows": "256x256; five cascade layers; six point faces",
+        "camera": "eye=(0,2,8), target=(0,0,0), FOV=45, aspect=1, near=.1, far=20",
+        "workload": "one box, directional and point lights; frozen; explicit invalidation each iteration; no simulation; four drain frames"
+      },
+      "hardware": {
+        "GL_RENDERER": "NVIDIA GeForce RTX 3070 Laptop GPU/PCIe/SSE2",
+        "GL_VENDOR": "NVIDIA Corporation",
+        "GL_VERSION": "4.6.0 NVIDIA 552.44"
+      },
+      "changed_pixel_fractions": null,
+      "inputs": [
+        {
+          "binary_sha256": "64737875012d2a522d5107a19d1091b426a37b39b8db4cd345c7f4a84451282c",
+          "layout_sha256": "4cb6d40606316760bce925a3e7290869f98c4a69779cf46424b65172af008941",
+          "runtime_dlls": {},
+          "evidence": {
+            "logs/rendering/phase48/measurement-v3/Release/baseline/SubmissionFixture/0/passes-fixture.csv": "00b148474abcdd8de6c7c88a1545c834acba7772b6d7e96c708a6ed0a657196f",
+            "logs/rendering/phase48/measurement-v3/Release/baseline-SubmissionFixture-0.log": "2222d750a51cf79770486a6994748e0ff79716e00ee6bed478a04c1da010a203"
+          }
+        },
+        {
+          "binary_sha256": "64737875012d2a522d5107a19d1091b426a37b39b8db4cd345c7f4a84451282c",
+          "layout_sha256": "4cb6d40606316760bce925a3e7290869f98c4a69779cf46424b65172af008941",
+          "runtime_dlls": {},
+          "evidence": {
+            "logs/rendering/phase48/measurement-v3/Release/baseline/SubmissionFixture/1/passes-fixture.csv": "599bdaacc74f2f7fe52b72dfd1093e51050f3335d656de5e97dcd2ae1cf86257",
+            "logs/rendering/phase48/measurement-v3/Release/baseline-SubmissionFixture-1.log": "c26358489330050fcba75694c83673dfb3e890b4bfd6104454571945cdd17f98"
+          }
+        },
+        {
+          "binary_sha256": "64737875012d2a522d5107a19d1091b426a37b39b8db4cd345c7f4a84451282c",
+          "layout_sha256": "4cb6d40606316760bce925a3e7290869f98c4a69779cf46424b65172af008941",
+          "runtime_dlls": {},
+          "evidence": {
+            "logs/rendering/phase48/measurement-v3/Release/baseline/SubmissionFixture/2/passes-fixture.csv": "89093838e83eb1a9d8d24a0d3bee519111377754e22809586f7e926028040001",
+            "logs/rendering/phase48/measurement-v3/Release/baseline-SubmissionFixture-2.log": "3f2c249f785dc34a1d55b642f4eb3234317ec8fbcbaf0c26527fbb764075cc25"
+          }
+        }
+      ]
+    }
+  },
+  "host": {
+    "cpu": "AMD Ryzen 9 5900HX with Radeon Graphics",
+    "logical_processors": 16,
+    "os": "Windows-10-10.0.19045-SP0"
+  },
+  "source_baseline_head": "1334e52f300925fb432311b08e26304276254a21",
+  "image_comparison": {
+    "output": "1280x720 presented diagnostic, raw RGBA8, no added color conversion",
+    "region": [
+      400,
+      80,
+      1240,
+      650
+    ],
+    "maximum_changed_pixel_fraction": 0.005,
+    "camera": "Frozen default startup camera/layout, identified by the source baseline plus Phase 48 sealed inputs; fixture camera is numeric in its runtime metadata.",
+    "scope": "Repeated processes on the recorded GPU/driver; diagnostic stability only, no cross-GPU or final visual golden."
+  }
+}

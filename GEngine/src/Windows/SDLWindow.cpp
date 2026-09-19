@@ -9,6 +9,7 @@
 #include "Core/BaseApp.h"
 #include <new>
 #include <limits>
+#include <format>
 
 namespace GEngine
 {
@@ -100,6 +101,11 @@ namespace GEngine
 		if (!success)
 			return std::unexpected(PlatformError{PlatformErrorCode::FunctionLoading, "graphics functions", "Graphics functions could not be loaded"});
 		GLDebug::Initialize();
+        const char* timingOutput=SDL_getenv("GENGINE_PASS_TIMING_OUTPUT");
+        const bool timingEnabled=timingOutput || SDL_getenv("GENGINE_PASS_TIMING");
+        const auto timingPath=timingOutput?std::format("{}/passes-{}.csv",timingOutput,SDL_GetWindowID(m_Window)):std::string{};
+        if(auto timing=m_PassTiming.Initialize(timingEnabled,timingOutput?timingPath.c_str():nullptr);!timing)
+            return std::unexpected(PlatformError{PlatformErrorCode::Initialization,"pass timing",std::format("timing code={}",int(timing.error()))});
 		const GLDebug::Group initialization("Window initialization");
 
 		//winProp::SetCornFlowerBlue();
@@ -161,6 +167,7 @@ namespace GEngine
 			delete m_ImGuiWindow;
 		}
 		m_ImGuiWindow = nullptr;
+		m_PassTiming.Reset();
 		if (m_Context) FreeContext();
 		if (m_Window) SDL_DestroyWindow(m_Window);
 		m_Window = nullptr;

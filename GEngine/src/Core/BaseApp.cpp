@@ -1,4 +1,5 @@
 #include "gepch.h"
+#include "Renderer/FrameScheduler.h"
 #include "Core/BaseApp.h"
 #include "Core/GLDebug.h"
 #include "Core/RenderBaseline.h"
@@ -508,67 +509,22 @@ namespace GEngine
 
     void BaseApp::Render()
     {
-        static int i = 0;
-        Renderer::GetRenderStats().m_ArrayDrawCall = 0;
-        Renderer::GetRenderStats().m_ElementsDrawCall = 0;
-        auto& windows = GetWindowManager()->GetWindows();
-
-        RenderParam param;
-        param.ClearColor = { 0.1f, 0.1f, 0.1f, 1.f };
-        param.bEnableDepthTest = true;
-        param.bClearColorBit = true;
-        param.bClearDepthBit = true;
-        param.bClearStencilBit = false;
-
-        //Renderer::RenderBegin(m_SceneCamera, true, true, m_RenderTarget.get());
-        //Renderer::Clear();
-
-        //Editor Camera
-      
-        if (HasVisibleViewport())
-        {
-            if (auto rendered = m_EngineContext.RenderScene(m_Scene.get(), m_EditorCamera, m_RenderTarget.get(), param); !rendered)
-            { ReportPlatformError(rendered.error()); ShutDown(); return; }
-
-            //PlayerCamera
-         /*   Renderer::RenderBegin(m_PlayerCamera, m_RenderTarget.get());
-            Renderer::Set(param);
-            Renderer::RenderScene(m_Scene.get(), m_PlayerCamera);*/
-
-           if (m_RenderTarget && m_RenderTarget->IsMultiSampled())
-               if (auto resolved = m_RenderTarget->BindAndBlitToScreen(); !resolved) { ReportFramebufferError("resolve", resolved.error()); return; }
-
-           if(m_RenderTarget)
-               m_RenderTarget->UnBind();
-
-
+        RenderContext context{*m_Window,*GetWindowManager(),m_RenderTarget.get(),HasVisibleViewport()};
+        context.legacyScene={this,[](void* user)->ScheduleResult {
+            auto& app=*static_cast<BaseApp*>(user);
+            Renderer::GetRenderStats().m_ArrayDrawCall=0;
+            Renderer::GetRenderStats().m_ElementsDrawCall=0;
+            RenderParam param;
+            param.ClearColor={.1f,.1f,.1f,1.f}; param.bEnableDepthTest=true;
+            param.bClearColorBit=true; param.bClearDepthBit=true; param.bClearStencilBit=false;
+            auto result=app.m_EngineContext.RenderScene(app.m_Scene.get(),app.m_EditorCamera,app.m_RenderTarget.get(),param);
+            if(!result) return std::unexpected(ScheduleError{FrameStage::Pass,result.error()});
+            return {};
+        }};
+        context.editorUI={this,[](void* user)->ScheduleResult { static_cast<BaseApp*>(user)->ImGuiRender(); return {}; }};
+        if(auto result=FrameScheduler::Render(context);!result) {
+            GENGINE_CORE_ERROR("{}",DescribeScheduleError(result.error())); ShutDown();
         }
-
-       for (auto& [windowID, window] : windows)
-       {
-           auto* window_ = window.get();
-           if (auto ui = window_->BeginUI(); !ui) { ReportPlatformError(ui.error()); ShutDown(); return; }
-           ImGuiRender();
-           if (auto ui = window_->EndUI(); !ui) { ReportPlatformError(ui.error()); ShutDown(); return; }
-           window_->SwapBuffer();
-       }
-       
-
-    
-
-        //
-        //for (auto& [windowID, window] : windows)
-        //{
-        //    window->BeginRender();
-        //
-        //    Renderer::RenderBegin(m_EditorCamera, window.get());
-
-        //    //inplemented by derived class inherited from BaseApp
-        //   // Update(ts);
-        //    Renderer::RenderScene(m_Scene.get(), m_EditorCamera);
-        //    window->EndRender(this);
-        //
-        //}
     }
 
     void BaseApp::ShutDown()

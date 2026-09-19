@@ -1,3 +1,4 @@
+#include "Renderer/FrameScheduler.h"
 #include "Core/Renderer.h"
 #include "Core/Scene.h"
 #include "RayTracing.h"
@@ -57,25 +58,16 @@ namespace GEngine
 			m_Renderer.ResetFrameIndex();
 	}
 
-	void RayTracingAPP::Render()
-	{
-		auto& windows = GetWindowManager()->GetWindows();
-		//Renderer::RenderBegin(m_EditorCamera, nullptr);
-		//m_Renderer.RenderBegin();
-		
-		for (auto& [windowID, window] : windows)
-		{
-			auto* window_ = window.get();
-			if (auto ui = window_->BeginUI(); !ui) { ReportPlatformError(ui.error()); ShutDown(); return; }
-			OnUIRender();
-			if (auto ui = window_->EndUI(); !ui) { ReportPlatformError(ui.error()); ShutDown(); return; }
-			window_->SwapBuffer();
-		}
-
-
-		//Renderer::Clear();
-		
-	}
+    void RayTracingAPP::Render()
+    {
+        RenderContext context{*GetWindow(),*GetWindowManager()};
+        context.editorUI={this,[](void* user)->ScheduleResult {
+            static_cast<RayTracingAPP*>(user)->OnUIRender(); return {};
+        }};
+        if(auto result=FrameScheduler::Render(context);!result) {
+            GENGINE_CORE_ERROR("{}",DescribeScheduleError(result.error())); ShutDown();
+        }
+    }
 
 	ApplicationInitializationResult RayTracingAPP::Initialize(const std::initializer_list<WindowProperties>& WindowsPropertyList)
 	{

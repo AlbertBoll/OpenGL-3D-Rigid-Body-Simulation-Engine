@@ -1,5 +1,6 @@
 #include "Renderer/FrameSubmission.h"
 #include "Renderer/RenderExtraction.h"
+#include "Renderer/FrameScheduler.h"
 #include <type_traits>
 using namespace GEngine;
 using namespace GEngine::Asset;
@@ -23,6 +24,8 @@ static_assert(std::same_as<decltype(std::declval<const RenderFrame&>().Draws()),
 #include <cstdlib>
 #include <cstring>
 #include <thread>
+#include <fstream>
+#include <imgui/imgui.h>
 
 namespace
 {
@@ -37,6 +40,7 @@ namespace
         if (!value) {
             if constexpr (std::same_as<E,SceneResourceError>) std::println(stderr,"{}",DescribeSceneResourceError(value.error()));
             if constexpr (std::same_as<E,SubmissionError>) std::println(stderr,"{}",DescribeSubmissionError(value.error()));
+            if constexpr (std::same_as<E,ScheduleError>) std::println(stderr,"{}",DescribeScheduleError(value.error()));
         }
         Check(value,message);return std::move(*value);
     }
@@ -94,6 +98,8 @@ namespace
     }
     void Run(EngineContext& root)
     {
+        std::println("Image comparison: renderer={} vendor={} version={}; 64x64 RGBA8 linear target; camera eye=(0,2,8), target=(0,0,0), FOV=45deg, aspect=1, near=.1, far=20; same-driver RGB composition tolerance=2.5/255",
+            reinterpret_cast<const char*>(glGetString(GL_RENDERER)),reinterpret_cast<const char*>(glGetString(GL_VENDOR)),reinterpret_cast<const char*>(glGetString(GL_VERSION)));
         auto services=Take(root.SceneServices(),"typed scene services");
         Geometry indexed;
         const std::vector<Vec3f> positions{{-1,0,0},{1,0,0},{0,1,0}};
@@ -328,6 +334,300 @@ namespace
             auto frame=Take(Extract(scene,*resources,access,camera),"typed spot extraction");
             auto result=submitter.Submit(frame,desc,picks);
             Check(!result && std::get<SubmissionCode>(result.error().cause)==SubmissionCode::UnsupportedLights,"unsupported light schema fails before submission");
+        }
+        // A click is consumed before BeginUI changes the mouse/viewport snapshot.
+        // Exercise real integer pixels, this submission's table, and Entity Tags.
+        {
+            _Scene clickScene;
+            const auto clickCamera=Camera(clickScene);
+            auto a=clickScene.CreateEntity("Tag A"), b=clickScene.CreateEntity("Tag B");
+            a.AddComponent<MeshRendererComponent>(MeshRendererComponent{box,material});
+            b.AddComponent<MeshRendererComponent>(MeshRendererComponent{box,material});
+            a.GetComponent<Transform3DComponent>().Translation={-2,0,0};
+            b.GetComponent<Transform3DComponent>().Translation={2,0,0};
+            const auto idA=Take(clickScene.RenderData().Identify(a),"pick A identity");
+            const auto idB=Take(clickScene.RenderData().Identify(b),"pick B identity");
+            EntityPickTable clickTable;
+            RenderContext context{*root.MainWindow(),*root.LegacyEngine().GetWindowManager(),&target};
+            FrameSceneInput input{clickScene,*resources,submitter,desc,clickTable,{&clickCamera,1}};
+            struct Click {
+                _Scene& scene; SceneRenderResources& resources;
+                const MousePickFrameBuffer& target; EntityPickTable& table;
+                ViewportPixelPosition position{}; EntityRenderId resolved{};
+                std::string tag; int reads{},ui{},frame{}; bool fail=false;
+            } click{clickScene,*resources,picking,clickTable};
+            input.pickingReadback={&click,[](void* user)->ScheduleResult {
+                auto& c=*static_cast<Click*>(user); ++c.reads;
+                Check(ImGui::GetFrameCount()==c.frame,"click readback precedes BeginUI input advance");
+                Check(GLContextThread::IsCurrentOwner(),"click readback stays on the owning context thread");
+                Check(c.resources.Publication().CanPublish() && !c.scene.RenderData().IsExtracting(),
+                    "click Entity/Tag lookup runs after extraction and frame access retire");
+                if(c.fail) return std::unexpected(ScheduleError{FrameStage::Pass,ScheduleCode::InvalidInput});
+                auto pixel=c.target.ReadPixel(c.position.X,c.position.Y);
+                if(!pixel) return std::unexpected(ScheduleError{FrameStage::Pass,pixel.error()});
+                c.resolved={}; c.tag="None";
+                if(*pixel!=EntityPickTable::InvalidPixel) {
+                    c.resolved=Take(c.scene.RenderData().ResolvePick(c.table,*pixel),"current-frame generation-safe click resolution");
+                    auto entity=Take(c.scene.RenderData().Resolve(c.resolved),"current-frame clicked Entity");
+                    c.tag=_Entity{entity,&c.scene}.GetName();
+                }
+                return {};
+            }};
+            context.editorUI={&click,[](void* user)->ScheduleResult {
+                auto& c=*static_cast<Click*>(user); ++c.ui;
+                Check(ImGui::GetFrameCount()==c.frame+1,"UI begins after picking readback");
+                return {};
+            }};
+            auto request=[&](glm::vec3 world,EntityRenderId expected,const char* tag) {
+                const auto clip=clickCamera.projection*clickCamera.view*glm::vec4(world,1);
+                const auto ndc=glm::vec3(clip)/clip.w;
+                // Offset logical panel and non-unit/nonuniform target scaling;
+                // the public converter performs exactly one top-left -> GL Y flip.
+                const float windowX=100+(ndc.x*.5f+.5f)*96;
+                const float windowY=50+(1-(ndc.y*.5f+.5f))*48;
+                auto pixel=ViewportPixelAt(windowX-100,windowY-50,{96,48},{64,64});
+                Check(pixel.has_value(),"window -> local -> target picking coordinate");
+                click.position=*pixel; click.frame=ImGui::GetFrameCount();
+                input.targets.pickingEnabled=true;
+                const auto before=click.reads;
+                auto frame=Take(FrameScheduler::Render(context,&input),"scheduled click request");
+                Check(click.reads==before+1,"scheduler fulfills each picking request exactly once");
+                Check(frame.submission.pickDraws==2,"requested Picking pass executes");
+                Check(std::any_of(frame.trace.Events().begin(),frame.trace.Events().end(),[](auto event) {
+                    return event.stage==FrameStage::Pass && event.pass==RenderPass::Picking;
+                }),"Picking request appears in the executed pass trace");
+                Check(click.resolved==expected && click.tag==tag,"clicked Entity and Tag match, never the previous result");
+                std::println("[PASS] scheduled click ({},{}) -> {}",pixel->X,pixel->Y,click.tag);
+            };
+            request({-2,0,0},idA,"Tag A");
+            request({2,0,0},idB,"Tag B");
+            request({0,3,0},{},"None");
+            request({-2,0,0},idA,"Tag A");
+            auto topLeft=ViewportPixelAt(0,0,{96,48},{64,64});
+            auto bottomRight=ViewportPixelAt(95.9f,47.9f,{96,48},{64,64});
+            Check(topLeft && topLeft->X==0 && topLeft->Y==63 && bottomRight && bottomRight->X==63 && bottomRight->Y==0,
+                "picking coordinate corners preserve framebuffer Y orientation");
+            Check(!ViewportPixelAt(-1,0,{96,48},{64,64}) && !ViewportPixelAt(96,0,{96,48},{64,64}),"outside panel does not request a pixel");
+            const auto reads=click.reads;
+            input.targets.pickingEnabled=false; click.frame=ImGui::GetFrameCount();
+            auto skipped=Take(FrameScheduler::Render(context,&input),"no click request");
+            Check(click.reads==reads && skipped.submission.pickDraws==0,"no readback or Picking work without a request");
+            input.targets.pickingEnabled=true; context.visible=false; click.frame=ImGui::GetFrameCount();
+            Take(FrameScheduler::Render(context,&input),"hidden viewport click");
+            Check(click.reads==reads,"hidden viewport cannot consume an old picking image");
+            context.visible=true; click.fail=true; click.frame=ImGui::GetFrameCount();
+            const auto ui=click.ui;
+            auto failed=FrameScheduler::Render(context,&input);
+            Check(!failed && std::get<ScheduleCode>(failed.error().cause)==ScheduleCode::InvalidInput && click.ui==ui,
+                "typed readback failure is returned before UI without leaking active frame state");
+            click.fail=false;
+            request({2,0,0},idB,"Tag B");
+        }
+        // Phase 46 exercises the production scheduler, not a stand-in order list.
+        {
+            _Scene scheduledScene;
+            const auto scheduledCamera=Camera(scheduledScene);
+            auto skyEntity=scheduledScene.CreateEntity("scheduled sky");
+            skyEntity.AddComponent<MeshRendererComponent>(MeshRendererComponent{skyMesh,skyMaterial,0,false,false,false});
+            auto surface=scheduledScene.CreateEntity("scheduled surface");
+            const auto scheduledOpaque=Take(resources->PublishMaterial({SceneMaterialKind::Lit,parameters,textures}),"matched opaque fixture");
+            surface.AddComponent<MeshRendererComponent>(MeshRendererComponent{sphere,scheduledOpaque});
+            surface.AddComponent<VisibilityComponent>(VisibilityComponent{false});
+            EntityPickTable scheduledPicks;
+            RenderContext context{*root.MainWindow(),*root.LegacyEngine().GetWindowManager(),&target};
+            FrameSceneInput input{scheduledScene,*resources,submitter,desc,scheduledPicks,{&scheduledCamera,1}};
+            struct Callbacks { SceneRenderResources* resources; _Scene* scene; int updates{},ui{}; bool fail=false; } callbacks{resources.get(),&scheduledScene};
+            context.updateResources={&callbacks,[](void* user)->ScheduleResult {
+                auto& c=*static_cast<Callbacks*>(user); ++c.updates;
+                Check(c.resources->Publication().CanPublish() && !c.scene->RenderData().IsExtracting(),"update runs before resource/ECS freeze");
+                if(c.fail) return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources,ScheduleCode::InvalidInput});
+                return {};
+            }};
+            context.editorUI={&callbacks,[](void* user)->ScheduleResult {
+                auto& c=*static_cast<Callbacks*>(user); ++c.ui;
+                Check(c.resources->Publication().CanPublish() && !c.scene->RenderData().IsExtracting(),"UI starts after frame access and ECS freeze release");
+                Check(!glIsEnabled(GL_SCISSOR_TEST) && !glIsEnabled(GL_STENCIL_TEST) && !glIsEnabled(GL_RASTERIZER_DISCARD),"external UI receives established state");
+                return {};
+            }};
+            auto scheduled=Take(FrameScheduler::Render(context,&input),"scheduled sky frame");
+            Check(callbacks.updates==1 && callbacks.ui==1,"one update and UI callback");
+            auto hasPass=[](const FrameTrace& trace,RenderPass pass) {
+                return std::any_of(trace.Events().begin(),trace.Events().end(),[&](auto event){return event.stage==FrameStage::Pass && event.pass==pass;});
+            };
+            Check(scheduled.trace.events[0].stage==FrameStage::BeginFrame
+                && scheduled.trace.events[1].stage==FrameStage::UpdateFrameResources
+                && scheduled.trace.events[2].stage==FrameStage::FreezeFrameInputs
+                && scheduled.trace.events[3].stage==FrameStage::BuildRenderFrame,"recorded frame stages");
+            const RenderPass ordered[]{RenderPass::Picking,RenderPass::Opaque,RenderPass::Masked,RenderPass::Skybox,
+                RenderPass::Transparent,RenderPass::Debug,RenderPass::Resolve,RenderPass::EditorUI,RenderPass::Present};
+            Check(scheduled.trace.count==std::size(ordered)+4,"recorded active pass count");
+            for(std::size_t i=0;i<std::size(ordered);++i) Check(scheduled.trace.events[i+4].pass==ordered[i],"recorded renderer-owned order");
+            auto background=Pixels(target);
+            surface.GetComponent<VisibilityComponent>().enabled=true;
+            auto opaque=Take(FrameScheduler::Render(context,&input),"opaque over sky");
+            auto solid=Pixels(target);
+            Check(opaque.submission.opaqueDraws==1 && opaque.submission.skyDraws==1,"opaque category and sky");
+            // Publish a new material during UpdateFrameResources. This grows the
+            // pipeline role vector and must be visible in this very frame.
+            struct Publish { SceneRenderResources* resources; _Entity* entity; std::span<const MaterialParameterDecl> parameters;
+                std::span<const MaterialTextureAssignment> textures; MaterialInstanceHandle material; } publish{resources.get(),&surface,parameters,textures};
+            context.updateResources={&publish,[](void* user)->ScheduleResult {
+                auto& p=*static_cast<Publish*>(user);
+                auto created=p.resources->PublishMaterial({SceneMaterialKind::Lit,p.parameters,p.textures,false,1,AlphaMode::Transparent,.5f,.5f});
+                if(!created) return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources,created.error()});
+                p.material=*created;
+                p.entity->GetComponent<MeshRendererComponent>().material=*created;
+                return {};
+            }};
+            auto alpha=Take(FrameScheduler::Render(context,&input),"same-frame synchronous material publication");
+            Check(alpha.submission.transparentDraws==1 && alpha.submission.opaqueDraws==0,"new replacement visible before extraction");
+            auto composed=Pixels(target);
+            const auto saveImage=[](const char* path,const std::vector<std::byte>& pixels) {
+                std::ofstream output(path,std::ios::binary); output << "P6\n64 64\n255\n";
+                for(int y=63;y>=0;--y) for(int x=0;x<64;++x) output.write(reinterpret_cast<const char*>(pixels.data()+(y*64+x)*4),3);
+                Check(bool(output),"write alpha comparison evidence");
+            };
+            saveImage("sky-background.ppm",background);saveImage("opaque-over-sky.ppm",solid);saveImage("transparent-over-sky.ppm",composed);
+            int blendedPixels{};
+            for(std::size_t i=0;i<solid.size();i+=4) {
+                bool differs=false;
+                for(std::size_t c=0;c<3;++c) if(std::abs(int(solid[i+c])-int(background[i+c]))>12) differs=true;
+                if(!differs) continue;
+                ++blendedPixels;
+                for(std::size_t c=0;c<3;++c)
+                    Check(std::abs(int(composed[i+c])-(int(solid[i+c])+int(background[i+c]))*.5f)<=2.5f,"transparent fragment composes over established sky");
+            }
+            Check(blendedPixels>20,"transparent-over-sky fixture covers visible fragments");
+            context.updateResources={&callbacks,[](void* user)->ScheduleResult {
+                auto& c=*static_cast<Callbacks*>(user); ++c.updates;
+                Check(c.resources->Publication().CanPublish(),"publication safe point remains available");
+                if(c.fail) return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources,ScheduleCode::InvalidInput});
+                return {};
+            }};
+            input.extraction.tasks.workers=2; input.extraction.parallelThreshold=0;
+            auto parallel=Take(FrameScheduler::Render(context,&input),"scheduler optional frozen parallel extraction");
+            Check(parallel.extraction.tasks.lanes==2 && Pixels(target)==composed,"serial/parallel scheduler frame parity");
+            input.extraction={};
+            // Previous external clients may leave hostile state. Every pass must
+            // establish its declared state before clears or draws.
+            glEnable(GL_SCISSOR_TEST);glScissor(0,0,0,0);glEnable(GL_STENCIL_TEST);
+            glStencilFunc(GL_NEVER,0,~0u);glDepthMask(GL_FALSE);glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);
+            glEnable(GL_BLEND);glBlendEquation(GL_FUNC_REVERSE_SUBTRACT);glCullFace(GL_FRONT);glFrontFace(GL_CW);
+            glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);glEnable(GL_RASTERIZER_DISCARD);
+            glDepthRange(1,0);glClearDepth(0);glEnable(GL_SAMPLE_COVERAGE);glSampleCoverage(0,GL_FALSE);
+            Take(FrameScheduler::Render(context,&input),"state contamination recovery");
+            Check(Pixels(target)==composed,"pass state independent of preceding external client");
+            const auto masked=Take(resources->PublishMaterial({SceneMaterialKind::Lit,parameters,textures,false,1,AlphaMode::Masked,.5f,.25f}),"masked material");
+            surface.GetComponent<MeshRendererComponent>().material=masked;
+            auto maskFrame=Take(FrameScheduler::Render(context,&input),"masked color and picking");
+            Check(maskFrame.submission.maskedDraws==1 && Pixels(target)==background,"masked category discards below-cutoff color");
+            for(int y=0;y<64;++y) for(int x=0;x<64;++x) Check(Take(picking.ReadPixel(x,y),"masked picking read")==-1,"masked picking discards same coverage");
+            auto sun=scheduledScene.CreateEntity("scheduled directional");
+            sun.AddComponent<RenderLightComponent>(directional);
+            sun.GetComponent<Transform3DComponent>().QuatRotation=glm::rotation(glm::vec3(0,0,-1),-glm::normalize(glm::vec3(20,50,20)));
+            auto bulb=scheduledScene.CreateEntity("scheduled point");bulb.AddComponent<RenderLightComponent>(pointLight);
+            bulb.GetComponent<Transform3DComponent>().Translation={0,3,2};
+            auto shadowed=Take(FrameScheduler::Render(context,&input),"masked directional and point passes");
+            Check(shadowed.trace.events[4].pass==RenderPass::DirectionalShadow && shadowed.trace.events[5].pass==RenderPass::PointShadow,"directional precedes point shadow");
+            std::vector<float> depth(256*256*cascadeTarget.Buffer().Description().Layers);
+            Check(TextureView(Take(cascadeTarget.DepthView(),"cascade view")).Bind(0),"cascade readback bind");
+            glGetTexImage(GL_TEXTURE_2D_ARRAY,0,GL_DEPTH_COMPONENT,GL_FLOAT,depth.data());
+            Check(std::all_of(depth.begin(),depth.end(),[](float v){return v==1.f;}),"masked cascade coverage matches color");
+            const auto pointDepthIsClear=[&] {
+                Check(TextureView(Take(pointTarget.DepthView(),"point view")).Bind(0),"point readback bind");
+                GLint cube{},previousRead{};glGetIntegerv(GL_TEXTURE_BINDING_CUBE_MAP,&cube);
+                glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&previousRead);
+                GLuint reader{};glGenFramebuffers(1,&reader);glBindFramebuffer(GL_READ_FRAMEBUFFER,reader);
+                depth.resize(256*256);
+                bool allClear=true;
+                // Read each attached face as depth. Raw cube texture downloads
+                // on this maintained driver returned undefined data for a cleared
+                // face; attachment readback covers the actual depth image.
+                for(int face=0;face<6;++face) {
+                    glFramebufferTexture2D(GL_READ_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_TEXTURE_CUBE_MAP_POSITIVE_X+face,cube,0);
+                    glReadBuffer(GL_NONE);
+                    Check(glCheckFramebufferStatus(GL_READ_FRAMEBUFFER)==GL_FRAMEBUFFER_COMPLETE,"point face reader complete");
+                    std::fill(depth.begin(),depth.end(),-5.f);
+                    glReadPixels(0,0,256,256,GL_DEPTH_COMPONENT,GL_FLOAT,depth.data());
+                    Check(glGetError()==GL_NO_ERROR,"point depth readback has no driver error");
+                    allClear &= std::all_of(depth.begin(),depth.end(),[](float v){return v==1.f;});
+                }
+                glBindFramebuffer(GL_READ_FRAMEBUFFER,previousRead);glDeleteFramebuffers(1,&reader);
+                return allClear;
+            };
+            Check(pointDepthIsClear(),"masked point coverage matches color on all six faces");
+            const auto visibleMasked=Take(resources->PublishMaterial({SceneMaterialKind::Lit,parameters,textures,false,1,AlphaMode::Masked,.5f,.75f}),"visible mask positive control");
+            surface.GetComponent<MeshRendererComponent>().material=visibleMasked;
+            Take(FrameScheduler::Render(context,&input),"above-cutoff masked frame");
+            Check(!pointDepthIsClear(),"above-cutoff positive control writes point depth");
+            Check(Pixels(target)!=background,"above-cutoff masked color is visible");
+            // Required targets fail before any pass, preserving the last image.
+            auto smallPick=Take(MousePickFrameBuffer::Create(16,16),"incompatible pick target");
+            FrameSubmissionDesc bad{target,smallPick,pointTarget,cascadeTarget,resources->Pipelines(),splits,glm::radians(45.f),1,.1f,20,.1f,100};
+            FrameSceneInput badInput{scheduledScene,*resources,submitter,bad,scheduledPicks,{&scheduledCamera,1}};
+            auto beforeFailure=Pixels(target);
+            auto failed=FrameScheduler::Render(context,&badInput);
+            Check(!failed && std::get<SubmissionCode>(std::get<SubmissionError>(failed.error().cause).cause)==SubmissionCode::InvalidTarget,"required picking target failure is typed");
+            Check(Pixels(target)==beforeFailure && resources->Publication().CanPublish() && !scheduledScene.RenderData().IsExtracting(),"failed frame releases freeze and preserves image");
+            auto missingShadow=Take(CascadeShadowFrameBuffer::Create(0,0,5),"deferred shadow target");
+            FrameSubmissionDesc noShadow{target,picking,pointTarget,missingShadow,resources->Pipelines(),splits,glm::radians(45.f),1,.1f,20,.1f,100};
+            FrameSceneInput noShadowInput{scheduledScene,*resources,submitter,noShadow,scheduledPicks,{&scheduledCamera,1}};
+            auto shadowFailure=FrameScheduler::Render(context,&noShadowInput);
+            Check(!shadowFailure && std::get<SubmissionCode>(std::get<SubmissionError>(shadowFailure.error().cause).cause)==SubmissionCode::InvalidTarget,"active directional shadow requires a live target");
+            badInput.targets.pickingEnabled=false;
+            auto skipped=Take(FrameScheduler::Render(context,&badInput),"optional picking skips unusable target");
+            Check(!hasPass(skipped.trace,RenderPass::Picking) && skipped.submission.pickDraws==0,"optional pass omitted from actual order");
+            Check(!scheduledScene.RenderData().ResolvePick(scheduledPicks,0),"skipped picking invalidates old lookup");
+            callbacks.fail=true; const int priorUI=callbacks.ui;
+            auto updateFailure=FrameScheduler::Render(context,&input);
+            Check(!updateFailure && updateFailure.error().stage==FrameStage::UpdateFrameResources && callbacks.ui==priorUI,"update failure stops before extraction/UI/present");
+            callbacks.fail=false;
+            {
+                auto held=resources->Publication().BeginFrame();
+                const auto priorUpdates=callbacks.updates;
+                auto busy=FrameScheduler::Render(context,&input);
+                Check(!busy && std::get<ScheduleCode>(busy.error().cause)==ScheduleCode::FrameActive
+                    && callbacks.updates==priorUpdates,"active resource frame rejects before update callback");
+            }
+            auto updateCallback=context.updateResources;
+            context.updateResources={&context,[](void* user)->ScheduleResult {
+                auto nested=FrameScheduler::Render(*static_cast<RenderContext*>(user));
+                Check(!nested && std::get<ScheduleCode>(nested.error().cause)==ScheduleCode::FrameActive,"reentrant scheduler returns typed error");
+                return {};
+            }};
+            Take(FrameScheduler::Render(context,&input),"outer frame survives rejected reentry");
+            context.updateResources=updateCallback;
+            auto invalidCamera=scheduledCamera; invalidCamera.viewportWidth=32;
+            auto oldCameras=input.cameras; input.cameras={&invalidCamera,1};
+            auto cameraFailure=FrameScheduler::Render(context,&input);
+            Check(!cameraFailure && resources->Publication().CanPublish(),"invalid viewport returns typed failure and releases frame");
+            input.cameras=oldCameras;
+            bool threadRejected=false;
+            std::thread wrongThread([&] { auto result=FrameScheduler::Render(context,&input);
+                threadRejected=!result && std::get<ScheduleCode>(result.error().cause)==ScheduleCode::Context; });
+            wrongThread.join(); Check(threadRejected,"scheduler rejects worker without issuing GL");
+            context.visible=false;
+            auto hidden=Take(FrameScheduler::Render(context,&input),"collapsed viewport preserves UI lifecycle");
+            Check(!hasPass(hidden.trace,RenderPass::Opaque) && hasPass(hidden.trace,RenderPass::EditorUI) && hasPass(hidden.trace,RenderPass::Present),"collapsed optional scene skip");
+            context.visible=true;
+            scheduledScene.DestroyEntity(surface);scheduledScene.DestroyEntity(skyEntity);
+            scheduledScene.DestroyEntity(sun);scheduledScene.DestroyEntity(bulb);
+            input.targets.pickingEnabled=false;
+            auto empty=Take(FrameScheduler::Render(context,&input),"empty scene scheduler");
+            Check(empty.extraction.draws==0 && empty.submission.colorDraws==0 && empty.submission.shadowDraws==0
+                && !hasPass(empty.trace,RenderPass::DirectionalShadow) && !hasPass(empty.trace,RenderPass::PointShadow),"empty scene clears and skips optional shadow work");
+            Take(FrameScheduler::Render(context,&noShadowInput),"inactive shadow needs no live target");
+            Check(target.SetSamples(4),"multisample target configuration");
+            auto resolved=Take(FrameScheduler::Render(context,&input),"scheduled multisample resolve");
+            Check(hasPass(resolved.trace,RenderPass::Resolve) && Pixels(target).size()==64*64*4,"resolved output is readable after scheduled resolve");
+            Check(target.SetSamples(1),"restore single sample target");
+            for(const auto& event:shadowed.trace.Events()) if(event.stage==FrameStage::Pass) {
+                Check(!event.contract.scissor && !event.contract.stencilWrite,"declared scissor and stencil policy");
+                if(event.pass==RenderPass::Transparent) Check(event.contract.blend && !event.contract.depthWrite,"transparent state declaration");
+                if(event.pass==RenderPass::Skybox) Check(!event.contract.depthWrite,"sky retains scene depth");
+            }
+            Check(root.MainWindow()->IsCurrent(),"scheduler restores owning context");
+            std::println("[PASS] frame-scheduler order/skip/targets/publication/freeze/failure/alpha/state/empty checks={}",checks);
         }
         // Dropping CPU leases on a worker cannot perform GPU retirement.
         std::thread release([frame=std::move(retained)]() mutable {frame.reset();});release.join();

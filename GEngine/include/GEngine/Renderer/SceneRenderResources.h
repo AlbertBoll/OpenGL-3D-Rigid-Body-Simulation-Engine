@@ -24,6 +24,8 @@ namespace GEngine
         Asset::PipelineHandle pipeline;
         SceneMaterialKind kind;
         float lineWidth = 1.f;
+        // Lit coverage uses albedoMap alpha and u_tiling in every raster pass.
+        float opacity = 1.f;
     };
     struct SceneMaterialDesc
     {
@@ -32,6 +34,9 @@ namespace GEngine
         std::span<const MaterialTextureAssignment> textures;
         bool doubleSided = false;
         float lineWidth = 1.f;
+        AlphaMode alpha = AlphaMode::Opaque;
+        float alphaCutoff = .5f, opacity = 1.f;
+        TransparentBlend transparentBlend = TransparentBlend::StraightAlpha;
     };
 
     // Bounded application resource publisher. The root outlives this owner; scenes

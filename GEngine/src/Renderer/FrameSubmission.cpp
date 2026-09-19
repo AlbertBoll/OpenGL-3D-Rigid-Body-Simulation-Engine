@@ -47,18 +47,95 @@ namespace GEngine
                 glBindBufferBase(GL_UNIFORM_BUFFER, 0, uniformBuffer);
             }
         };
-        std::expected<Shader, SubmissionError> Load(std::initializer_list<const char*> names)
+        std::expected<Shader, SubmissionError> CoverageProgram(RenderPass pass)
         {
-            std::vector<std::string> paths;
-            for (const auto* name : names)
-            {
-                auto path = RuntimeAssets::TryFile(std::string("Shaders/") + name);
-                if (!path) return std::unexpected(SubmissionError{"submission shader path", path.error()});
-                paths.push_back(*path);
+            const bool picking=pass==RenderPass::Picking, point=pass==RenderPass::PointShadow;
+            const std::string vertex=std::string(R"(#version 450 core
+layout(location=0) in vec3 position;
+layout(location=1) in vec2 uv;
+uniform mat4 u_model, u_view, u_projection;
+out vec2 vertexUV;
+void main() { vertexUV=uv; gl_Position=)") + (picking?"u_projection*u_view*":"") + "u_model*vec4(position,1.0); }";
+            const std::string geometry=point?R"(#version 450 core
+layout(triangles) in;
+layout(triangle_strip,max_vertices=18) out;
+uniform mat4 shadowMatrices[6];
+in vec2 vertexUV[];
+out vec2 fragmentUV;
+out vec4 FragPos;
+void main() { for(int face=0;face<6;++face) {
+  for(int i=0;i<3;++i) { gl_Layer=face; FragPos=gl_in[i].gl_Position;
+    fragmentUV=vertexUV[i]; gl_Position=shadowMatrices[face]*FragPos; EmitVertex(); }
+  EndPrimitive(); } }
+)":R"(#version 450 core
+layout(triangles,invocations=5) in;
+layout(triangle_strip,max_vertices=3) out;
+layout(std140,binding=0) uniform LightSpaceMatrices { mat4 lightSpaceMatrices[16]; };
+in vec2 vertexUV[];
+out vec2 fragmentUV;
+void main() { for(int i=0;i<3;++i) { gl_Layer=gl_InvocationID;
+  fragmentUV=vertexUV[i]; gl_Position=lightSpaceMatrices[gl_InvocationID]*gl_in[i].gl_Position;
+  EmitVertex(); } EndPrimitive(); }
+)";
+            std::string fragment="#version 450 core\n";
+            fragment+=picking?"in vec2 vertexUV;\n#define fragmentUV vertexUV\nlayout(location=0) out int pixel; uniform int u_EntityID;\n":"in vec2 fragmentUV;\n";
+            if(point) fragment+="in vec4 FragPos; uniform vec3 lightPos; uniform float far_plane;\n";
+            fragment+=R"(
+uniform bool frameMasked;
+uniform sampler2D frameCoverage;
+uniform vec2 frameTiling;
+uniform float frameAlphaCutoff, frameOpacity;
+void main() {
+  if(frameMasked && texture(frameCoverage,fragmentUV*frameTiling).a*frameOpacity < frameAlphaCutoff) discard;
+)";
+            if(picking) fragment+="pixel=u_EntityID;";
+            if(point) fragment+="gl_FragDepth=length(FragPos.xyz-lightPos)/far_plane;";
+            fragment+="}";
+            std::array<Asset::ShaderSource,3> stages{{{Asset::ShaderStage::Vertex,vertex,"frame coverage vertex"},
+                {Asset::ShaderStage::Fragment,fragment,"frame coverage fragment"},
+                {Asset::ShaderStage::Geometry,geometry,"frame coverage geometry"}}};
+            auto result=Shader::Create({std::span(stages).first(picking?2:3)});
+            if(!result) return std::unexpected(SubmissionError{"coverage shader",result.error()});
+            return std::move(*result);
+        }
+        GLenum Compare(DepthCompare value)
+        {
+            switch(value) {
+            case DepthCompare::Never:return GL_NEVER; case DepthCompare::Less:return GL_LESS;
+            case DepthCompare::Equal:return GL_EQUAL; case DepthCompare::LessEqual:return GL_LEQUAL;
+            case DepthCompare::Greater:return GL_GREATER; case DepthCompare::NotEqual:return GL_NOTEQUAL;
+            case DepthCompare::GreaterEqual:return GL_GEQUAL; case DepthCompare::Always:return GL_ALWAYS;
             }
-            auto shader = Asset::CreateShaderProgramFromFiles(paths);
-            if (!shader) return std::unexpected(SubmissionError{"submission shader", shader.error()});
-            return std::move(*shader);
+            Asset::AssetDetail::RequireInvariant(false); return GL_LESS;
+        }
+        GLenum Factor(BlendFactor value)
+        {
+            switch(value) { case BlendFactor::Zero:return GL_ZERO; case BlendFactor::One:return GL_ONE;
+            case BlendFactor::SourceAlpha:return GL_SRC_ALPHA; case BlendFactor::OneMinusSourceAlpha:return GL_ONE_MINUS_SRC_ALPHA; }
+            Asset::AssetDetail::RequireInvariant(false); return GL_ONE;
+        }
+        void Toggle(GLenum capability,bool enabled) { if(enabled) glEnable(capability); else glDisable(capability); }
+        void Apply(const RenderPassDesc& pass)
+        {
+            glViewport(pass.viewport.x,pass.viewport.y,pass.viewport.width,pass.viewport.height);
+            Toggle(GL_SCISSOR_TEST,pass.scissor); glScissor(pass.viewport.x,pass.viewport.y,pass.viewport.width,pass.viewport.height);
+            Toggle(GL_DEPTH_TEST,pass.depthTest); glDepthMask(pass.depthWrite); glDepthFunc(Compare(pass.depthCompare));
+            glColorMask(pass.colorWrite,pass.colorWrite,pass.colorWrite,pass.colorWrite);
+            glDisable(GL_STENCIL_TEST); glStencilMask(pass.stencilWrite?~0u:0u);
+            Toggle(GL_BLEND,pass.blend); glBlendEquationSeparate(GL_FUNC_ADD,GL_FUNC_ADD);
+            glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);
+            Toggle(GL_CULL_FACE,pass.cull!=CullMode::None); glCullFace(pass.cull==CullMode::Front?GL_FRONT:GL_BACK);
+            glFrontFace(GL_CCW); glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
+            glDisable(GL_RASTERIZER_DISCARD); glDisable(GL_POLYGON_OFFSET_FILL);
+            glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE); glDisable(GL_SAMPLE_COVERAGE); glDisable(GL_LINE_SMOOTH);
+            glDisable(GL_SAMPLE_MASK); glDisable(GL_DEPTH_CLAMP); glDisable(GL_FRAMEBUFFER_SRGB);
+            Toggle(GL_DITHER,pass.pass!=RenderPass::Picking);
+            glEnable(GL_MULTISAMPLE); glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+            glDepthRange(0,1); glClearDepth(1); glClearColor(.1f,.1f,.1f,1.f);
+            GLbitfield clear{};
+            if(pass.colorLoad==PassLoad::Clear) clear|=GL_COLOR_BUFFER_BIT;
+            if(pass.depthLoad==PassLoad::Clear) clear|=GL_DEPTH_BUFFER_BIT;
+            if(clear) glClear(clear);
         }
         glm::mat4 LightMatrix(const FrameCamera& camera, const FrameSubmissionDesc& desc,
             glm::vec3 direction, float nearPlane, float farPlane)
@@ -177,7 +254,8 @@ namespace GEngine
                 static_cast<int>(cause.code),cause.width,cause.height,cause.samples,cause.message);
             else if constexpr (std::same_as<T,Asset::TextureError>) return std::format("texture code={} source={} system={} registry={} message={}",
                 static_cast<int>(cause.code),cause.source,cause.system.message(),static_cast<int>(cause.registry),cause.message);
-            else return std::format("sampler code={} registry={} message={}",static_cast<int>(cause.code),static_cast<int>(cause.registry),cause.message);
+            else if constexpr (std::same_as<T,Asset::SamplerError>) return std::format("sampler code={} registry={} message={}",static_cast<int>(cause.code),static_cast<int>(cause.registry),cause.message);
+            else return std::format("visibility code={} element={}",int(cause.code),cause.element);
         },error.cause);
     }
     std::expected<FrameSubmission, SubmissionError> FrameSubmission::Create()
@@ -186,11 +264,11 @@ namespace GEngine
         FrameSubmission result;
         result.m_Storage.reset(new (std::nothrow) Storage);
         if (!result.m_Storage) return Error("submission storage",Code::Allocation);
-        auto point = Load({"point_shadows_depth.vert","point_shadows_depth.gs","point_shadows_depth.frag"});
+        auto point = CoverageProgram(RenderPass::PointShadow);
         if (!point) return std::unexpected(point.error());
-        auto cascade = Load({"shadow_mapping_depth.vert","shadow_mapping_depth.gs","shadow_mapping_depth.frag"});
+        auto cascade = CoverageProgram(RenderPass::DirectionalShadow);
         if (!cascade) return std::unexpected(cascade.error());
-        auto pick = Load({"mouse_pick.vert","mouse_pick.frag"});
+        auto pick = CoverageProgram(RenderPass::Picking);
         if (!pick) return std::unexpected(pick.error());
         auto& storage=*result.m_Storage;
         storage.point=std::move(*point); storage.cascade=std::move(*cascade); storage.pick=std::move(*pick);
@@ -199,6 +277,56 @@ namespace GEngine
         glNamedBufferData(storage.matrices,16*sizeof(glm::mat4),nullptr,GL_DYNAMIC_DRAW);
         if (const auto error=glGetError(); error!=GL_NO_ERROR)
             return std::unexpected(SubmissionError{std::format("shadow matrix storage: driver diagnostic 0x{:x}",error),Code::Driver});
+        return result;
+    }
+
+    RenderPassDesc FrameSubmission::DescribePass(RenderPass pass,const FrameSubmissionDesc& desc)
+    {
+        RenderPassDesc result;
+        result.pass=pass;
+        const auto& target=desc.color.Description().Storage;
+        result.viewport={0,0,target.Width,target.Height};
+        result.output=PassTarget::SceneColor;
+        result.depthTest=true; result.depthWrite=true; result.cull=CullMode::Back;
+        switch(pass)
+        {
+        case RenderPass::DirectionalShadow: {
+            const auto& size=desc.cascadeShadow.Buffer().Description();
+            result.viewport={0,0,size.Width,size.Height}; result.output=PassTarget::DirectionalDepth;
+            result.colorWrite=false; result.depthLoad=PassLoad::Clear; result.cull=CullMode::Front; break;
+        }
+        case RenderPass::PointShadow: {
+            const auto& size=desc.pointShadow.Buffer().Description();
+            result.viewport={0,0,size.Width,size.Height}; result.output=PassTarget::PointDepth;
+            result.colorWrite=false; result.depthLoad=PassLoad::Clear; break;
+        }
+        case RenderPass::Picking:
+            result.output=PassTarget::Picking; result.colorLoad=PassLoad::Clear; result.depthLoad=PassLoad::Clear; break;
+        case RenderPass::Opaque:
+            result.colorLoad=PassLoad::Clear; result.depthLoad=PassLoad::Clear; [[fallthrough]];
+        case RenderPass::Masked:
+            result.input=PassTarget::DirectionalDepth; result.secondaryInput=PassTarget::PointDepth;
+            result.materialOverrides=true; break;
+        case RenderPass::Skybox:
+            result.depthCompare=DepthCompare::LessEqual; result.depthWrite=false; result.materialOverrides=true; break;
+        case RenderPass::Transparent:
+            result.input=PassTarget::DirectionalDepth; result.secondaryInput=PassTarget::PointDepth;
+            result.depthWrite=false; result.blend=true; result.materialOverrides=true; break;
+        case RenderPass::Debug: result.materialOverrides=true; break;
+        case RenderPass::Resolve:
+            result.input=PassTarget::SceneColor; result.output=PassTarget::ResolvedColor;
+            result.depthTest=false; result.depthWrite=false; result.cull=CullMode::None; break;
+        case RenderPass::EditorUI:
+            result.input=PassTarget::ResolvedColor; result.output=PassTarget::Window;
+            result.depthTest=false; result.depthWrite=false; result.blend=true; result.cull=CullMode::None;
+            result.boundary=PassBoundary::EstablishBeforeUI; break;
+        case RenderPass::Present:
+            result.input=PassTarget::Window; result.output=PassTarget::Window;
+            result.depthTest=false; result.depthWrite=false; result.colorWrite=false; result.cull=CullMode::None;
+            result.boundary=PassBoundary::Presentation; break;
+        case RenderPass::LegacyScene:
+            result.boundary=PassBoundary::RestoreAfterLegacy; break;
+        }
         return result;
     }
 
@@ -213,11 +341,17 @@ namespace GEngine
             return Error("legacy lighting capacity (one directional, one point, no spot)",Code::UnsupportedLights);
         const auto& camera=frame.Cameras()[0];
         const auto& target=desc.color.Description().Storage;
+        const auto* directional=frame.DirectionalLights().empty()?nullptr:&frame.DirectionalLights()[0];
+        const auto* point=frame.PointLights().empty()?nullptr:&frame.PointLights()[0];
+        const bool directionalShadow=directional && directional->shadows.castShadows;
+        const bool pointShadow=point && point->shadows.castShadows;
         const auto& pickTarget=desc.picking.Buffer().Description();
-        if (!desc.color || !desc.picking || !desc.pointShadow || !desc.cascadeShadow
-            || camera.viewportX || camera.viewportY || camera.viewportWidth!=target.Width || camera.viewportHeight!=target.Height
-            || pickTarget.Width!=target.Width || pickTarget.Height!=target.Height)
-            return Error("submission target dimensions",Code::InvalidTarget);
+        if (!desc.color || (desc.pickingEnabled && (!desc.picking || pickTarget.Width!=target.Width || pickTarget.Height!=target.Height))
+            || (directionalShadow && !desc.cascadeShadow) || (pointShadow && !desc.pointShadow)
+            || target.ColorCount!=1 || target.Colors[0]!=FramebufferFormat::RGBA8 || target.Depth==FramebufferFormat::None
+            || (directionalShadow && desc.cascadeShadow.Buffer().Description().Layers<5)
+            || camera.viewportX || camera.viewportY || camera.viewportWidth!=target.Width || camera.viewportHeight!=target.Height)
+            return Error("submission required target or dimensions",Code::InvalidTarget);
         if (desc.cascadeSplits.size()!=5 || desc.cascadeSplits.back()!=desc.cameraFar
             || !std::isfinite(desc.cameraFov) || desc.cameraFov<=0 || desc.cameraFov>=glm::pi<float>() || !std::isfinite(desc.cameraAspect)
             || desc.cameraAspect<=0 || !std::isfinite(desc.cameraNear) || desc.cameraNear<=0
@@ -225,152 +359,208 @@ namespace GEngine
             || !std::isfinite(desc.pointNear) || desc.pointNear<=0 || !std::isfinite(desc.pointFar) || desc.pointFar<=desc.pointNear)
             return Error("shadow projection",Code::InvalidShadowSettings);
         float previous=desc.cameraNear;
-        for (float split:desc.cascadeSplits)
-        {
-            if (!std::isfinite(split) || split<=previous || split>desc.cameraFar)
-                return Error("cascade splits",Code::InvalidShadowSettings);
+        for(float split:desc.cascadeSplits) {
+            if(!std::isfinite(split) || split<=previous || split>desc.cameraFar) return Error("cascade splits",Code::InvalidShadowSettings);
             previous=split;
         }
-        const auto* directional=frame.DirectionalLights().empty()?nullptr:&frame.DirectionalLights()[0];
-        const auto* point=frame.PointLights().empty()?nullptr:&frame.PointLights()[0];
         const float pointFar=point?point->range:desc.pointFar;
-        if (pointFar<=desc.pointNear) return Error("point shadow range",Code::InvalidShadowSettings);
-        // Extraction stores ray direction; the existing BRDF uses surface-to-light.
+        if(pointFar<=desc.pointNear) return Error("point shadow range",Code::InvalidShadowSettings);
         const glm::vec3 lightDirection=directional?-directional->direction:glm::vec3(0,0,1);
-        if (directional && directional->shadows.castShadows && std::abs(glm::dot(lightDirection,glm::vec3(0,1,0)))>.99999f)
+        if(directionalShadow && std::abs(glm::dot(lightDirection,glm::vec3(0,1,0)))>.99999f)
             return Error("cascade up vector",Code::InvalidShadowSettings);
-        std::unique_ptr<PreparedDraw[]> draws(new (std::nothrow) PreparedDraw[frame.Draws().size()]);
-        if (!draws && !frame.Draws().empty()) return Error("submission draw metadata",Code::Allocation);
-        EntityPickTable candidatePicks;
-        std::size_t count=0;
-        for (const auto& draw:frame.Draws())
+        const glm::vec3 position=point?point->position:glm::vec3(0,15,-10);
+        const auto count=frame.Draws().size();
+        std::unique_ptr<PreparedDraw[]> draws(new (std::nothrow) PreparedDraw[count]);
+        std::unique_ptr<std::size_t[]> conservative(new (std::nothrow) std::size_t[count]);
+        if(count && (!draws || !conservative)) return Error("submission metadata",Code::Allocation);
+        std::size_t conservativeCount{};
+        for(std::size_t index=0;index<count;++index)
         {
-            if (!(draw.layers & camera.visibleLayers)) continue;
+            const auto& draw=frame.Draws()[index];
             const ScenePipeline* role=nullptr;
-            for (const auto& entry:desc.pipelines) if (entry.pipeline==draw.pipeline) { role=&entry; break; }
-            if (!role) return Error("unregistered scene pipeline",Code::UnsupportedPipeline);
-            if (draw.resources>=frame.Resources().size()) return Error("draw resources",Code::InvalidDraw);
+            for(const auto& entry:desc.pipelines) if(entry.pipeline==draw.pipeline) {role=&entry;break;}
+            if(!role) return Error("unregistered scene pipeline",Code::UnsupportedPipeline);
+            if(draw.resources>=frame.Resources().size()) return Error("draw resources",Code::InvalidDraw);
             const auto& resources=frame.Resources()[draw.resources];
             const auto& pipeline=resources.Material().Pipeline().Description();
-            if (pipeline.alpha!=AlphaMode::Opaque || !pipeline.depthTest || pipeline.polygon!=PolygonMode::Fill
-                || pipeline.frontFace!=FrontFace::CounterClockwise || (pipeline.cull!=CullMode::Back && pipeline.cull!=CullMode::None)
+            if(!pipeline.depthTest || pipeline.polygon!=PolygonMode::Fill || pipeline.frontFace!=FrontFace::CounterClockwise
+                || (pipeline.cull!=CullMode::Back && pipeline.cull!=CullMode::None)
                 || (pipeline.depthCompare!=DepthCompare::Less && pipeline.depthCompare!=DepthCompare::LessEqual)
-                || !std::isfinite(role->lineWidth) || role->lineWidth<=0)
+                || !std::isfinite(role->lineWidth) || role->lineWidth<=0 || !std::isfinite(role->opacity) || role->opacity<0 || role->opacity>1
+                || (role->kind!=SceneMaterialKind::Lit && pipeline.alpha!=AlphaMode::Opaque))
                 return Error("unsupported scene pipeline state",Code::UnsupportedPipeline);
-            auto& prepared=draws[count++]; prepared={&draw,&resources,role};
+            // Alpha coverage is a semantic material contract across all passes.
+            if(pipeline.alpha!=AlphaMode::Opaque) {
+                bool coverage=false;
+                for(const auto& slot:resources.Material().Source()->Declaration()->Textures())
+                    if(slot.declaration.name=="albedoMap") coverage=true;
+                if(!coverage) return Error("alpha material needs albedoMap coverage",Code::UnsupportedPipeline);
+            }
+            auto& prepared=draws[index]; prepared={&draw,&resources,role};
             bool found=false;
             const auto ranges=resources.Mesh()->Submeshes();
-            for (std::size_t i=0;i<ranges.size();++i)
-                if (ranges[i].firstElement==draw.submesh.firstElement && ranges[i].elementCount==draw.submesh.elementCount
+            for(std::size_t i=0;i<ranges.size();++i)
+                if(ranges[i].firstElement==draw.submesh.firstElement && ranges[i].elementCount==draw.submesh.elementCount
                     && ranges[i].materialSlot==draw.submesh.materialSlot) {prepared.submesh=i;found=true;break;}
-            if (!found) return Error("draw submesh",Code::InvalidDraw);
-            if (draw.pickable)
-            {
-                auto pixel=candidatePicks.Encode(draw.entity);
-                if (!pixel) return std::unexpected(SubmissionError{"pick encoding",pixel.error()});
-                prepared.pixel=*pixel;
-            }
+            if(!found) return Error("draw submesh",Code::InvalidDraw);
+            if(role->kind==SceneMaterialKind::Sky) conservative[conservativeCount++]=index;
         }
+        auto visibility=RenderVisibility::Build(frame,0,{conservative.get(),conservativeCount});
+        if(!visibility) return std::unexpected(SubmissionError{"frame visibility",visibility.error()});
+        EntityPickTable candidatePicks;
+        if(desc.pickingEnabled) for(auto index:visibility->Picking()) {
+            auto pixel=candidatePicks.Encode(draws[index].draw->entity);
+            if(!pixel) return std::unexpected(SubmissionError{"pick encoding",pixel.error()});
+            draws[index].pixel=*pixel;
+        }
+        // Sort only frame-local ordinals; retained frame storage remains immutable.
+        std::unique_ptr<std::size_t[]> transparent(new (std::nothrow) std::size_t[visibility->Transparent().size()]);
+        if(!transparent && !visibility->Transparent().empty()) return Error("transparent ordering",Code::Allocation);
+        std::copy(visibility->Transparent().begin(),visibility->Transparent().end(),transparent.get());
+        auto depth=[&](std::size_t i) {return (camera.view*draws[i].draw->worldTransform*glm::vec4(0,0,0,1)).z;};
+        if(visibility->Transparent().size()>1) std::sort(transparent.get(),transparent.get()+visibility->Transparent().size(),
+            [&](auto a,auto b){const auto za=depth(a),zb=depth(b);return za==zb?a<b:za<zb;});
         TargetRestore restore;
         auto& storage=*m_Storage;
-        FrameSubmissionStats stats;
-        glEnable(GL_DEPTH_TEST); glDepthMask(GL_TRUE); glDepthFunc(GL_LESS);
-        glDisable(GL_BLEND); glEnable(GL_MULTISAMPLE); glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
-        glEnable(GL_CULL_FACE); glCullFace(GL_BACK); glFrontFace(GL_CCW); glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
-        glBindBufferBase(GL_UNIFORM_BUFFER,0,storage.matrices);
-        std::array<glm::mat4,5> matrices;
-        previous=desc.cameraNear;
-        for (std::size_t i=0;i<matrices.size();++i)
-        {
-            matrices[i]=LightMatrix(camera,desc,lightDirection,previous,desc.cascadeSplits[i]);
-            previous=desc.cascadeSplits[i];
-        }
-        glNamedBufferSubData(storage.matrices,0,sizeof(matrices),matrices.data());
-        const auto shadowPass=[&](const Shader& shader,bool enabled)->std::expected<void,SubmissionError>
-        {
-            RenderCounters::RecordPass(RenderCounters::Pass::Shadow);
-            glClear(GL_DEPTH_BUFFER_BIT);
-            if (!enabled) return {};
-            for (std::size_t i=0;i<count;++i) if (draws[i].draw->castShadows && draws[i].role->kind==SceneMaterialKind::Lit)
-            {
-                auto result=Draw(draws[i],shader); if (!result) return result; ++stats.shadowDraws;
+        FrameSubmissionStats stats; stats.visibility=visibility->Stats();
+        auto begin=[&](RenderPass pass) {
+            auto contract=DescribePass(pass,desc);
+            if(contract.input==PassTarget::DirectionalDepth && !directionalShadow) contract.input=PassTarget::None;
+            if(contract.secondaryInput==PassTarget::PointDepth && !pointShadow) contract.secondaryInput=PassTarget::None;
+            stats.trace.Pass(contract);
+            // Signed picking attachment uses its typed clear operation below.
+            if(pass==RenderPass::Picking) contract.colorLoad=PassLoad::Load;
+            Apply(contract);
+        };
+        auto coverage=[&](const PreparedDraw& draw,const Shader& shader)->std::expected<void,SubmissionError> {
+            const auto& material=draw.resources->Material();
+            const auto& pipeline=material.Pipeline();
+            const bool masked=pipeline.Alpha()==AlphaMode::Masked;
+            Uniform(shader,"frameMasked",masked);
+            if(!masked) return {};
+            Uniform(shader,"frameAlphaCutoff",pipeline.Description().alphaCutoff);
+            Uniform(shader,"frameOpacity",draw.role->opacity);
+            glm::vec2 tiling(1);
+            auto parameters=material.Source()->Declaration()->Parameters();
+            for(std::size_t i=0;i<parameters.size();++i) if(parameters[i].declaration.name=="u_tiling")
+                if(auto* value=std::get_if<std::array<float,2>>(&material.Source()->Values()[i])) tiling=glm::make_vec2(value->data());
+            Uniform(shader,"frameTiling",tiling);
+            auto slots=material.Source()->Declaration()->Textures();
+            for(std::size_t i=0;i<slots.size();++i) if(slots[i].declaration.name=="albedoMap") {
+                if(auto bound=Asset::TextureView(material.Textures()[i].texture).Bind(0);!bound) return std::unexpected(SubmissionError{"coverage texture",bound.error()});
+                if(auto bound=material.Textures()[i].sampler->Bind(0);!bound) return std::unexpected(SubmissionError{"coverage sampler",bound.error()});
+                Uniform(shader,"frameCoverage",0); break;
             }
             return {};
         };
-        storage.point.Bind(); desc.pointShadow.Bind();
-        const auto pointSize=desc.pointShadow.Buffer().Description();
-        glViewport(0,0,pointSize.Width,pointSize.Height);
-        const glm::vec3 position=point?point->position:glm::vec3(0,15,-10);
-        const auto transforms=PointMatrices(position,desc.pointNear,pointFar,float(pointSize.Width)/pointSize.Height);
-        for (std::size_t i=0;i<transforms.size();++i) Uniform(storage.point,std::format("shadowMatrices[{}]",i).c_str(),transforms[i]);
-        Uniform(storage.point,"lightPos",position); Uniform(storage.point,"far_plane",pointFar);
-        if (auto result=shadowPass(storage.point,point && point->shadows.castShadows);!result) return std::unexpected(result.error());
-        storage.cascade.Bind(); desc.cascadeShadow.Bind();
-        const auto cascadeSize=desc.cascadeShadow.Buffer().Description();
-        glViewport(0,0,cascadeSize.Width,cascadeSize.Height); glCullFace(GL_FRONT);
-        if (auto result=shadowPass(storage.cascade,directional && directional->shadows.castShadows);!result) return std::unexpected(result.error());
-        glCullFace(GL_BACK);
-        RenderCounters::RecordPass(RenderCounters::Pass::Picking);
-        storage.pick.Bind(); desc.picking.Bind(); glViewport(0,0,target.Width,target.Height);
-        glClear(GL_DEPTH_BUFFER_BIT);
-        if (auto result=desc.picking.ClearAttachment(0,-1);!result) return std::unexpected(SubmissionError{"clear picking",result.error()});
-        CameraUniforms(storage.pick,camera);
-        for (std::size_t i=0;i<count;++i) if (draws[i].draw->pickable)
+        auto shadowDraws=[&](const Shader& shader)->std::expected<void,SubmissionError> {
+            RenderCounters::RecordPass(RenderCounters::Pass::Shadow);
+            for(auto index:visibility->Shadows()) if(draws[index].role->kind==SceneMaterialKind::Lit) {
+                if(auto result=coverage(draws[index],shader);!result) return result;
+                if(auto result=Draw(draws[index],shader);!result) return result;
+                ++stats.shadowDraws;
+            }
+            return {};
+        };
+        if(directionalShadow)
         {
-            if (auto result=Draw(draws[i],storage.pick);!result) return std::unexpected(result.error());
-            ++stats.pickDraws;
+            storage.cascade.Bind(); desc.cascadeShadow.Bind(); begin(RenderPass::DirectionalShadow);
+            glBindBufferBase(GL_UNIFORM_BUFFER,0,storage.matrices);
+            std::array<glm::mat4,5> matrices;
+            previous=desc.cameraNear;
+            for(std::size_t i=0;i<matrices.size();++i) {matrices[i]=LightMatrix(camera,desc,lightDirection,previous,desc.cascadeSplits[i]);previous=desc.cascadeSplits[i];}
+            glNamedBufferSubData(storage.matrices,0,sizeof(matrices),matrices.data());
+            if(auto result=shadowDraws(storage.cascade);!result) return std::unexpected(result.error());
         }
-        desc.color.Bind(); glViewport(0,0,target.Width,target.Height);
-        glClearColor(.1f,.1f,.1f,1.f); glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-        auto cascadeView=desc.cascadeShadow.DepthView();
-        if (!cascadeView) return std::unexpected(SubmissionError{"cascade depth view",cascadeView.error()});
-        auto pointView=desc.pointShadow.DepthView();
-        if (!pointView) return std::unexpected(SubmissionError{"point depth view",pointView.error()});
-        // Preserve source order within each existing pass; the sky pass stays last.
-        for (bool skyPass:{false,true}) for (std::size_t i=0;i<count;++i)
+        if(pointShadow)
         {
-            const auto& prepared=draws[i]; const auto kind=prepared.role->kind;
-            if ((kind==SceneMaterialKind::Sky)!=skyPass) continue;
+            storage.point.Bind(); desc.pointShadow.Bind(); begin(RenderPass::PointShadow);
+            const auto& size=desc.pointShadow.Buffer().Description();
+            const auto matrices=PointMatrices(position,desc.pointNear,pointFar,float(size.Width)/size.Height);
+            for(std::size_t i=0;i<matrices.size();++i) Uniform(storage.point,std::format("shadowMatrices[{}]",i).c_str(),matrices[i]);
+            Uniform(storage.point,"lightPos",position); Uniform(storage.point,"far_plane",pointFar);
+            if(auto result=shadowDraws(storage.point);!result) return std::unexpected(result.error());
+        }
+        if(desc.pickingEnabled)
+        {
+            storage.pick.Bind(); desc.picking.Bind(); begin(RenderPass::Picking);
+            RenderCounters::RecordPass(RenderCounters::Pass::Picking);
+            if(auto result=desc.picking.ClearAttachment(0,-1);!result) return std::unexpected(SubmissionError{"clear picking",result.error()});
+            CameraUniforms(storage.pick,camera);
+            for(auto index:visibility->Picking()) {
+                if(auto result=coverage(draws[index],storage.pick);!result) return std::unexpected(result.error());
+                // Match the authored color geometry's culling policy.
+                Toggle(GL_CULL_FACE,draws[index].resources->Material().Pipeline().Description().cull!=CullMode::None);
+                if(auto result=Draw(draws[index],storage.pick);!result) return std::unexpected(result.error());
+                ++stats.pickDraws;
+            }
+        }
+        const auto colorDraw=[&](std::size_t index,RenderPass pass)->std::expected<void,SubmissionError> {
+            const auto& prepared=draws[index]; const auto kind=prepared.role->kind;
+            const bool sky=kind==SceneMaterialKind::Sky, helper=kind==SceneMaterialKind::Helper || kind==SceneMaterialKind::PointLight;
+            if((pass==RenderPass::Skybox)!=sky || (pass==RenderPass::Debug)!=helper) return {};
+            if(kind==SceneMaterialKind::PointLight && (!point || point->entity!=prepared.draw->entity)) return {};
             const auto& material=prepared.resources->Material(); const auto& shader=*material.Program();
-            const auto& pipeline=material.Pipeline();
+            const auto& pipeline=material.Pipeline(); const auto blend=pipeline.Blend();
             shader.Bind();
-            if (pipeline.Description().cull==CullMode::None) glDisable(GL_CULL_FACE); else glEnable(GL_CULL_FACE);
-            glDepthFunc(pipeline.Depth().compare==DepthCompare::LessEqual?GL_LEQUAL:GL_LESS);
-            glDepthMask(pipeline.Depth().write?GL_TRUE:GL_FALSE);
-            CameraUniforms(shader,camera,skyPass);
-            if (auto result=MaterialUniforms(material);!result) return std::unexpected(result.error());
-            if (kind==SceneMaterialKind::Lit)
+            Toggle(GL_CULL_FACE,pipeline.Description().cull!=CullMode::None);
+            glCullFace(GL_BACK); glDepthFunc(Compare(pipeline.Depth().compare));
+            glDepthMask(!sky && pipeline.Depth().write); Toggle(GL_BLEND,blend.enabled);
+            glBlendFuncSeparate(Factor(blend.sourceColor),Factor(blend.destinationColor),Factor(blend.sourceAlpha),Factor(blend.destinationAlpha));
+            CameraUniforms(shader,camera,sky);
+            if(kind==SceneMaterialKind::Lit) Uniform(shader,"u_tiling",glm::vec2(1));
+            if(auto result=MaterialUniforms(material);!result) return result;
+            Uniform(shader,"frameAlphaMode",int(pipeline.Alpha()));
+            Uniform(shader,"frameAlphaCutoff",pipeline.Description().alphaCutoff);
+            Uniform(shader,"frameOpacity",prepared.role->opacity);
+            Uniform(shader,"framePremultiplied",pipeline.Description().transparentBlend==TransparentBlend::PremultipliedAlpha);
+            if(kind==SceneMaterialKind::Lit)
             {
-                const auto shadowUnit=static_cast<unsigned>(material.Textures().size());
-                if (auto result=Asset::TextureView(*cascadeView).Bind(shadowUnit);!result) return std::unexpected(SubmissionError{"cascade binding",result.error()});
-                if (auto result=Asset::TextureView(*pointView).Bind(shadowUnit+1);!result) return std::unexpected(SubmissionError{"point binding",result.error()});
-                // Target-authored sampling policy (including border/depth behavior).
-                glBindSampler(shadowUnit,0); glBindSampler(shadowUnit+1,0);
-                Uniform(shader,"shadowMap",int(shadowUnit)); Uniform(shader,"pointShadowDepthMap",int(shadowUnit+1));
+                const auto unit=static_cast<unsigned>(material.Textures().size());
+                if(directionalShadow) {
+                    auto view=desc.cascadeShadow.DepthView(); if(!view) return std::unexpected(SubmissionError{"cascade view",view.error()});
+                    if(auto result=Asset::TextureView(*view).Bind(unit);!result) return std::unexpected(SubmissionError{"cascade binding",result.error()});
+                } else { glActiveTexture(GL_TEXTURE0+unit); glBindTexture(GL_TEXTURE_2D_ARRAY,0); }
+                if(pointShadow) {
+                    auto view=desc.pointShadow.DepthView(); if(!view) return std::unexpected(SubmissionError{"point view",view.error()});
+                    if(auto result=Asset::TextureView(*view).Bind(unit+1);!result) return std::unexpected(SubmissionError{"point binding",result.error()});
+                } else { glActiveTexture(GL_TEXTURE0+unit+1); glBindTexture(GL_TEXTURE_CUBE_MAP,0); }
+                glBindSampler(unit,0); glBindSampler(unit+1,0);
+                Uniform(shader,"shadowMap",int(unit)); Uniform(shader,"pointShadowDepthMap",int(unit+1));
                 Uniform(shader,"lightDir",lightDirection); Uniform(shader,"lightPos",position);
                 Uniform(shader,"directionallightColor",directional?directional->color*directional->intensity:glm::vec3(0));
                 Uniform(shader,"pointlightColor",point?point->color*point->intensity:glm::vec3(0));
                 Uniform(shader,"frameLights",true); Uniform(shader,"frameDirectional",bool(directional)); Uniform(shader,"framePoint",bool(point));
-                Uniform(shader,"frameDirectionalShadows",directional && directional->shadows.castShadows && prepared.draw->receiveShadows);
-                Uniform(shader,"framePointShadows",point && point->shadows.castShadows && prepared.draw->receiveShadows);
+                Uniform(shader,"frameDirectionalShadows",directionalShadow && prepared.draw->receiveShadows);
+                Uniform(shader,"framePointShadows",pointShadow && prepared.draw->receiveShadows);
                 Uniform(shader,"farPlane",desc.cameraFar); Uniform(shader,"pointShadowfarPlane",pointFar);
                 Uniform(shader,"cascadeCount",int(desc.cascadeSplits.size())); Uniform(shader,"reverse_normals",false);
-                for (std::size_t j=0;j<desc.cascadeSplits.size();++j) Uniform(shader,std::format("cascadePlaneDistances[{}]",j).c_str(),desc.cascadeSplits[j]);
+                for(std::size_t j=0;j<desc.cascadeSplits.size();++j) Uniform(shader,std::format("cascadePlaneDistances[{}]",j).c_str(),desc.cascadeSplits[j]);
             }
-            if (kind==SceneMaterialKind::Helper) {glEnable(GL_LINE_SMOOTH); glLineWidth(prepared.role->lineWidth);}
-            if (kind==SceneMaterialKind::PointLight)
-            {
-                if (!point || point->entity!=prepared.draw->entity) continue;
-                Uniform(shader,"pointlightColor",point->color*point->intensity);
+            Toggle(GL_LINE_SMOOTH,kind==SceneMaterialKind::Helper);
+            if(kind==SceneMaterialKind::Helper) glLineWidth(prepared.role->lineWidth);
+            if(kind==SceneMaterialKind::PointLight) Uniform(shader,"pointlightColor",point->color*point->intensity);
+            if(auto result=Draw(prepared,shader);!result) return result;
+            if(sky) ++stats.skyDraws; else if(helper) ++stats.helperDraws; else {
+                ++stats.colorDraws;
+                if(pass==RenderPass::Opaque) ++stats.opaqueDraws;
+                if(pass==RenderPass::Masked) ++stats.maskedDraws;
+                if(pass==RenderPass::Transparent) ++stats.transparentDraws;
             }
-            if (auto result=Draw(prepared,shader);!result) return std::unexpected(result.error());
-            if (skyPass) ++stats.skyDraws; else if (kind==SceneMaterialKind::Helper || kind==SceneMaterialKind::PointLight) ++stats.helperDraws;
-            else ++stats.colorDraws;
+            return {};
+        };
+        desc.color.Bind();
+        for(auto pass:{RenderPass::Opaque,RenderPass::Masked,RenderPass::Skybox,RenderPass::Transparent,RenderPass::Debug})
+        {
+            begin(pass);
+            auto indices=pass==RenderPass::Opaque?visibility->Opaque():pass==RenderPass::Masked?visibility->Masked():
+                pass==RenderPass::Transparent?std::span<const std::size_t>(transparent.get(),visibility->Transparent().size()):visibility->Main();
+            for(auto index:indices) if(auto result=colorDraw(index,pass);!result) return std::unexpected(result.error());
         }
-        glDepthFunc(GL_LESS); glDepthMask(GL_TRUE);
-        if (const auto error=glGetError(); error!=GL_NO_ERROR)
+        glDepthFunc(GL_LESS); glDepthMask(GL_TRUE); glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE); glDisable(GL_BLEND);
+        if(const auto error=glGetError();error!=GL_NO_ERROR)
             return std::unexpected(SubmissionError{std::format("frame submission: driver diagnostic 0x{:x}",error),Code::Driver});
-        picks=std::move(candidatePicks);
+        picks=std::move(candidatePicks); // A skipped picking pass invalidates last frame's lookup.
         return stats;
     }
 }

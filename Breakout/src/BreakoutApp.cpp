@@ -1,3 +1,4 @@
+#include "Renderer/FrameScheduler.h"
 #include "BreakoutApp.h"
 #include "Core/RuntimeAssets.h"
 #include "Managers/AssetsManager.h"
@@ -278,33 +279,29 @@ namespace GEngine
 	    return Initialize(std::initializer_list<WindowProperties>{prop});
 	}
 
-	void BreakoutApp::Render()
-	{
-		auto& windows = GetWindowManager()->GetWindows();
-
-        const auto pixels = GetWindow()->GetFramebufferPixelSize();
-        if (!pixels.Width || !pixels.Height) return;
-        static_cast<Camera::OrthographicCamera*>(m_EditorCamera)->SetOrthographic(0.0f,
-            float(m_Height) * float(pixels.Width) / float(pixels.Height), float(m_Height), 0.0f);
-        Renderer2D::SetSurfaceSize(static_cast<int>(pixels.Width), static_cast<int>(pixels.Height));
-        Renderer2D::RenderBegin(m_EditorCamera);
-		Renderer2D::RenderSetup();
-
-		if (m_GameState == GameState::ACTIVE)
-		{
-			Renderer2D::Render(std::vector { m_Background, m_Player }, m_EditorCamera);
-			m_Levels[m_Level].Render(m_EditorCamera);
-			Renderer2D::Render(m_Ball, m_EditorCamera);
-			//Renderer2D::Render(m_GroupsLookUp, m_EditorCamera);
-		}
-
-		for (auto& [windowID, window] : windows)
-		{
-			auto* window_ = window.get();
-			window_->SwapBuffer();
-		}
-
-	}
+    void BreakoutApp::Render()
+    {
+        RenderContext context{*GetWindow(),*GetWindowManager()};
+        context.legacyScene={this,[](void* user)->ScheduleResult {
+            auto& app=*static_cast<BreakoutApp*>(user);
+            const auto pixels=app.GetWindow()->GetFramebufferPixelSize();
+            if(!pixels.Width || !pixels.Height) return {};
+            static_cast<Camera::OrthographicCamera*>(app.m_EditorCamera)->SetOrthographic(0.0f,
+                float(app.m_Height)*float(pixels.Width)/float(pixels.Height),float(app.m_Height),0.0f);
+            Renderer2D::SetSurfaceSize(static_cast<int>(pixels.Width),static_cast<int>(pixels.Height));
+            Renderer2D::RenderBegin(app.m_EditorCamera);
+            Renderer2D::RenderSetup();
+            if(app.m_GameState==GameState::ACTIVE) {
+                Renderer2D::Render(std::vector{app.m_Background,app.m_Player},app.m_EditorCamera);
+                app.m_Levels[app.m_Level].Render(app.m_EditorCamera);
+                Renderer2D::Render(app.m_Ball,app.m_EditorCamera);
+            }
+            return {};
+        }};
+        if(auto result=FrameScheduler::Render(context);!result) {
+            GENGINE_CORE_ERROR("{}",DescribeScheduleError(result.error())); ShutDown();
+        }
+    }
 
 	void BreakoutApp::ProcessInput(Timestep ts)
 	{

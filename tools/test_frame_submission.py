@@ -1,4 +1,4 @@
-"""Build and validate the bounded Phase 42 application/frame submission integration."""
+"""Build and validate immutable submission and the Phase 46 frame/pass scheduler."""
 import argparse
 import hashlib
 import json
@@ -115,7 +115,7 @@ def main():
     parser.add_argument("--scene-variants", action="store_true", help="Compile and smoke each authored rigid-body scene")
     args = parser.parse_args()
     config = args.configuration
-    out = (args.output or ROOT / "logs/rendering/phase42/final" / config).resolve()
+    out = (args.output or ROOT / "logs/rendering/phase46/final" / config).resolve()
     out.mkdir(parents=True, exist_ok=True)
     report = {"configuration": config, "steps": []}
     env = {k: v for k, v in os.environ.items() if k.lower() != "path"}
@@ -193,7 +193,9 @@ def main():
             return 1
         for rel in ("GEngine/include/GEngine/Renderer/FrameSubmission.h", "GEngine/src/Renderer/FrameSubmission.cpp",
                     "GEngine/include/GEngine/Renderer/SceneRenderResources.h", "GEngine/src/Renderer/SceneRenderResources.cpp",
-                    "RigidBodySimulation/src/RigidBodySimulation.cpp"):
+                    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+                    "GEngine/include/GEngine/Renderer/FrameScheduler.h", "GEngine/src/Renderer/FrameScheduler.cpp",
+                    "GEngine/src/Core/BaseApp.cpp", "Breakout/src/BreakoutApp.cpp", "RayTracing/src/RayTracing.cpp"):
             source = re.sub(r"//[^\n]*|/\*.*?\*/", "", (ROOT / rel).read_text(), flags=re.S)
             if re.search(r"\b(throw|try|catch|enable_if|exception_ptr)\b", source):
                 report["reason"] = "New exception/SFINAE boundary: " + rel
@@ -202,7 +204,16 @@ def main():
         if re.search(r"GetComponent|GetAllEntities|GetGroupEntities|AssetsManager|ShapeManager|ShaderManager|BeginFrame|BeginPublication", submission):
             report["reason"] = "Submission performs ECS/manager lookup or creates an access scope"
             return 1
-        report["architecture"] = {"no_new_exception": "PASS", "consumer_boundary": "PASS"}
+        for rel, owner in (("RigidBodySimulation/src/RigidBodySimulation.cpp", "RigidBodySimulationApp"),
+                           ("GEngine/src/Core/BaseApp.cpp", "BaseApp"),
+                           ("Breakout/src/BreakoutApp.cpp", "BreakoutApp"),
+                           ("RayTracing/src/RayTracing.cpp", "RayTracingAPP")):
+            source = (ROOT / rel).read_text()
+            body = source.split("void " + owner + "::Render()", 1)[1].split("\n}", 1)[0] if owner == "RigidBodySimulationApp" else source.split("void " + owner + "::Render()", 1)[1].split("\n    }", 1)[0]
+            if "FrameScheduler::Render" not in body or re.search(r"\b(SwapBuffer|BeginUI|EndUI|ExtractRenderFrame|BindAndBlitToScreen)\s*\(", body):
+                report["reason"] = "Application still sequences frame pipeline: " + rel
+                return 1
+        report["architecture"] = {"no_new_exception": "PASS", "consumer_boundary": "PASS", "application_pipeline_ownership": "PASS"}
 
         executable = out / "frame-submission-probe.exe"
         command = [vc / "bin/Hostx64/x64/cl.exe", "/nologo", "/std:c++23preview", "/EHsc", "/W3",
@@ -227,7 +238,7 @@ def main():
         env["GENGINE_ASSET_ROOT"] = str(ROOT / "bin" / config / "assets")
         env["GENGINE_SHADOW_RESOLUTION"] = "256"
         passed = invoke("frame-submission", [executable], cwd=out,
-                        marker="[PASS] frame-submission ")
+                        marker="[PASS] frame-scheduler order/skip/targets/publication/freeze/failure/alpha/state/empty")
         if not passed:
             return 1
         if args.scene_variants:

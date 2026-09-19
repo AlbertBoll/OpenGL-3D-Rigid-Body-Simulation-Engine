@@ -50,6 +50,24 @@ void main() { gl_Position = u_projection * u_view * u_model * vec4(vertexPositio
             std::string source((std::istreambuf_iterator<char>(input)), {});
             if (input.bad()) return std::unexpected(SceneResourceError{"shader read", Asset::ShaderError{
                 Asset::ShaderErrorCode::FileRead, Asset::ShaderStage::Fragment, *path, "Cannot read shader source"}});
+            if (kind == SceneMaterialKind::Lit)
+            {
+                // Preserve the lighting implementation and wrap only fragment coverage.
+                source.insert(source.find('\n') + 1, "#define main frameLightingMain\n");
+                source += R"(
+#undef main
+uniform int frameAlphaMode;
+uniform float frameAlphaCutoff, frameOpacity;
+uniform bool framePremultiplied;
+void main() {
+    float coverage = texture(albedoMap, fs_in.TexCoords * u_tiling).a * frameOpacity;
+    if (frameAlphaMode == 1 && coverage < frameAlphaCutoff) discard;
+    frameLightingMain();
+    FragColor.a = frameAlphaMode == 2 ? coverage : 1.0;
+    if (frameAlphaMode == 2 && framePremultiplied) FragColor.rgb *= coverage;
+}
+)";
+            }
             std::string sky;
             const char* vertex = kind == SceneMaterialKind::Helper ? HelperVertex : LitVertex;
             if (kind == SceneMaterialKind::Sky)
@@ -144,7 +162,9 @@ void main() { gl_Position = u_projection * u_view * u_model * vec4(vertexPositio
     std::expected<Asset::MaterialInstanceHandle, SceneResourceError> SceneRenderResources::PublishMaterial(const SceneMaterialDesc& desc)
     {
         if (desc.kind < SceneMaterialKind::Lit || desc.kind > SceneMaterialKind::Sky
-            || !std::isfinite(desc.lineWidth) || desc.lineWidth <= 0)
+            || !std::isfinite(desc.lineWidth) || desc.lineWidth <= 0
+            || !std::isfinite(desc.opacity) || desc.opacity < 0 || desc.opacity > 1
+            || (desc.kind != SceneMaterialKind::Lit && desc.alpha != AlphaMode::Opaque))
             return std::unexpected(SceneResourceError{"material description", SceneResourceCode::InvalidMaterial});
         auto shader = Program(desc.kind);
         if (!shader) return std::unexpected(shader.error());
@@ -180,6 +200,8 @@ void main() { gl_Position = u_projection * u_view * u_model * vec4(vertexPositio
             PipelineDesc pipeline;
             pipeline.program = *program; pipeline.programRevision = 1;
             pipeline.cull = desc.doubleSided ? CullMode::None : CullMode::Back;
+            pipeline.alpha = desc.alpha; pipeline.alphaCutoff = desc.alphaCutoff;
+            pipeline.transparentBlend = desc.transparentBlend;
             if (desc.kind == SceneMaterialKind::Sky) pipeline.depthCompare = DepthCompare::LessEqual;
             auto state = PipelineState::Create(pipeline);
             if (!state) return std::unexpected(SceneResourceError{"pipeline", state.error()});
@@ -196,7 +218,7 @@ void main() { gl_Position = u_projection * u_view * u_model * vec4(vertexPositio
         }
         std::vector<MaterialTextureSlotDecl> textures;
         for (const auto& texture : desc.textures) textures.push_back({std::string(texture.name), true, texture.value});
-        const bool shadow = desc.kind == SceneMaterialKind::Lit;
+        const bool shadow = desc.kind == SceneMaterialKind::Lit && desc.alpha != AlphaMode::Transparent;
         auto declaration = MaterialTemplate::Create({pipeline, desc.parameters, textures, shadow, shadow});
         if (!declaration) return std::unexpected(SceneResourceError{"material template", declaration.error()});
         {
@@ -220,7 +242,7 @@ void main() { gl_Position = u_projection * u_view * u_model * vec4(vertexPositio
             if (!handle) return std::unexpected(SceneResourceError{"material publication", handle.error()});
             rollback.material = *handle;
         }
-        m_Roles.push_back({rollback.pipeline, desc.kind, desc.lineWidth});
+        m_Roles.push_back({rollback.pipeline, desc.kind, desc.lineWidth, desc.opacity});
         rollback.committed = true;
         return rollback.material;
     }

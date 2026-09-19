@@ -1,3 +1,4 @@
+#include "Renderer/FrameScheduler.h"
 #include "UI/FramebufferImage.h"
 #include "RigidBodySimulation.h"
 #include "Core/RuntimeAssets.h"
@@ -26,13 +27,13 @@ using namespace ::GEngine::Asset;
 #define activate_boxes_stacking 0
 #endif
 #ifndef activate_sphere_lattice
-#define activate_sphere_lattice 0
+#define activate_sphere_lattice 1
 #endif
 #ifndef activate_sphere_diamond
 #define activate_sphere_diamond 0
 #endif
 #ifndef activate_sphere_boxes_stacking
-#define activate_sphere_boxes_stacking 1
+#define activate_sphere_boxes_stacking 0
 #endif
 
 
@@ -548,51 +549,36 @@ void RigidBodySimulationApp::Update(Timestep ts)
 
 void RigidBodySimulationApp::Render()
 {
-    if (HasVisibleViewport())
-    {
+    RenderContext context{*GetWindow(),*GetWindowManager(),m_RenderTarget.get(),HasVisibleViewport()};
+    context.editorUI={this,[](void* user)->ScheduleResult {
+        auto& app=*static_cast<RigidBodySimulationApp*>(user);
+        app.ImGuiRender();
+        return {};
+    }};
+    auto render=[&]()->std::expected<ScheduledFrameStats,ScheduleError> {
+        if(!context.visible) return FrameScheduler::Render(context);
         m_EditorCamera_.UpdateView();
-        auto cameraId = m_ActiveScene->RenderData().Identify(m_FrameCameraEntity);
-        if (!cameraId) { Log::GetCoreLogger()->error("Frame camera identity: {}", int(cameraId.error())); m_Running=false; return; }
-        const FrameCamera camera{*cameraId, m_EditorCamera_.GetViewMatrix(), m_EditorCamera_.GetProjection(),
-            m_EditorCamera_.GetPosition(), 0, 0, static_cast<unsigned>(m_RenderTarget->GetWidth()), static_cast<unsigned>(m_RenderTarget->GetHeight())};
-        {
-            auto access = m_FrameResources->Publication().BeginFrame();
-            RenderExtractionStats extraction;
-            auto frame = ExtractRenderFrame(*m_ActiveScene, m_FrameResources->ForFrame(access), extraction, {&camera,1});
-            if (!frame) {
-                Log::GetCoreLogger()->error("Frame extraction entity={}/{}/{} cause-domain={}", frame.error().entity.index,
-                    frame.error().entity.generation, frame.error().entity.registry, frame.error().cause.index());
-                std::visit([&](const auto& cause) {
-                    using T=std::decay_t<decltype(cause)>;
-                    if constexpr (std::is_enum_v<T>) Log::GetCoreLogger()->error("Frame extraction entity={}/{}/{} cause-domain={} code={}", frame.error().entity.index,frame.error().entity.generation,frame.error().entity.registry,frame.error().cause.index(),int(cause));
-                    else if constexpr (std::same_as<T, MaterialBindingError>) Log::GetCoreLogger()->error("Frame material code={} binding={} message={} registry={} fallback-cause={}",int(cause.code),cause.binding,cause.message,int(cause.registry),cause.cause?int(*cause.cause):-1);
-                    else if constexpr (std::same_as<T, FrameError>) Log::GetCoreLogger()->error("Frame code={} section={} element={}",int(cause.code),int(cause.section),cause.element);
-                    else if constexpr (std::same_as<T, RenderWorkError>) {
-                        Log::GetCoreLogger()->error("Frame task code={} element={} boundary={} cause-domain={}",int(cause.code),cause.element,cause.boundary,cause.cause.index());
-                        if (const auto* system=std::get_if<std::error_code>(&cause.cause))
-                            Log::GetCoreLogger()->error("Frame task system category={} code={} message={}",system->category().name(),system->value(),system->message());
-                    }
-                    else Log::GetCoreLogger()->error("Frame transform code={} entity={} parent={}",int(cause.code),static_cast<uint64_t>(cause.entity),static_cast<uint64_t>(cause.parent));
-                }, frame.error().cause);
-                m_Running=false; return;
-            }
-            FrameSubmissionDesc desc{*m_RenderTarget,*m_MousePickFrameBuffer,*m_PointShadowFrameBuffer,*m_CascadeShadowFrameBuffer,
-                m_FrameResources->Pipelines(),m_ShadowCascadeLevels,m_EditorCamera_.GetFOV(),m_EditorCamera_.GetAspectRatio(),
-                m_EditorCamera_.GetNearClip(),m_EditorCamera_.GetFarClip(),m_NearPlane,m_FarPlane};
-            auto submitted = m_FrameSubmission->Submit(*frame,desc,m_PickTable);
-            if (!submitted) { Log::GetCoreLogger()->error("{}",DescribeSubmissionError(submitted.error())); m_Running=false; return; }
-        }
-        OnMouseClicked();
-        if (m_RenderTarget->IsMultiSampled())
-            if (auto result=m_RenderTarget->BindAndBlitToScreen(); !result) { ReportFramebufferError("target resolve",result.error()); m_Running=false; return; }
-        m_RenderTarget->UnBind();
-    }
-    for (auto& [windowID, window] : GetWindowManager()->GetWindows())
-    {
-        if (auto ui=window->BeginUI(); !ui) { ReportPlatformError(ui.error()); ShutDown(); return; }
-        ImGuiRender();
-        if (auto ui=window->EndUI(); !ui) { ReportPlatformError(ui.error()); ShutDown(); return; }
-        window->SwapBuffer();
+        auto cameraId=m_ActiveScene->RenderData().Identify(m_FrameCameraEntity);
+        if(!cameraId) return std::unexpected(ScheduleError{FrameStage::FreezeFrameInputs,
+            RenderExtractionError{{},cameraId.error()}});
+        const FrameCamera camera{*cameraId,m_EditorCamera_.GetViewMatrix(),m_EditorCamera_.GetProjection(),
+            m_EditorCamera_.GetPosition(),0,0,static_cast<unsigned>(m_RenderTarget->GetWidth()),static_cast<unsigned>(m_RenderTarget->GetHeight())};
+        FrameSubmissionDesc targets{*m_RenderTarget,*m_MousePickFrameBuffer,*m_PointShadowFrameBuffer,*m_CascadeShadowFrameBuffer,
+            m_FrameResources->Pipelines(),m_ShadowCascadeLevels,m_EditorCamera_.GetFOV(),m_EditorCamera_.GetAspectRatio(),
+            m_EditorCamera_.GetNearClip(),m_EditorCamera_.GetFarClip(),m_NearPlane,m_FarPlane};
+        targets.pickingEnabled=GetInputManager()->GetMouseState().isButtonPressed(GEngineMouseCode::GENGINE_BUTTON_LEFT);
+        FrameSceneInput input{*m_ActiveScene,*m_FrameResources,*m_FrameSubmission,targets,m_PickTable,{&camera,1}};
+        // Preserve Phase 45's input/viewport snapshot: read this frame's IDs
+        // before BeginUI refreshes ImGui mouse state or authors new panel bounds.
+        input.pickingReadback={this,[](void* user)->ScheduleResult {
+            static_cast<RigidBodySimulationApp*>(user)->OnMouseClicked();
+            return {};
+        }};
+        return FrameScheduler::Render(context,&input);
+    };
+    if(auto result=render();!result) {
+        Log::GetCoreLogger()->error("{}",DescribeScheduleError(result.error()));
+        ShutDown();
     }
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 #include "Assets/Textures/Texture.h"
+#include "Assets/Textures/AsyncTexture.h"
 #include "Assets/Samplers/Sampler.h"
 #include "Assets/Fonts/Font.h"
 #include "Core/RuntimeAssets.h"
@@ -17,6 +18,9 @@ namespace GEngine::Manager
         ~AssetsManager();
         AssetsManager(const AssetsManager&) = delete;
         AssetsManager& operator=(const AssetsManager&) = delete;
+        // Root-owned, lazy async loader. Caller supplies Queue() to FrameScheduler
+        // and retains FallbackTexture until Status reports a ready handle.
+        static std::expected<Asset::AsyncTextureLoader*, Asset::AsyncTextureError> AsyncTextures();
         static std::expected<Asset::TextureHandle, Asset::TextureError> LoadTexture(const std::string& path,
             const Asset::TextureDesc& desc = {}, const std::string& extension = ".png");
         static std::expected<Asset::TextureView, Asset::TextureError> ResolveTexture(Asset::TextureHandle);
@@ -59,5 +63,6 @@ namespace GEngine::Manager
         using TextKey = std::tuple<std::string, std::string, int, float, float, float>;
         std::map<TextKey, Asset::TextureHandle> m_TextCache;
         std::map<std::string, std::unique_ptr<Asset::Font>> m_Fonts;
+        std::unique_ptr<Asset::AsyncTextureLoader> m_AsyncTextures;
     };
 }

@@ -24,10 +24,10 @@ using namespace GEngine;
 using namespace ::GEngine::Asset;
 
 #ifndef activate_boxes_stacking
-#define activate_boxes_stacking 0
+#define activate_boxes_stacking 1
 #endif
 #ifndef activate_sphere_lattice
-#define activate_sphere_lattice 1
+#define activate_sphere_lattice 0
 #endif
 #ifndef activate_sphere_diamond
 #define activate_sphere_diamond 0
@@ -177,7 +177,8 @@ auto sphere_albedoResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/r
     auto wallMaterialResult = material(SceneMaterialKind::Lit, {floor_albedo,floor_normal,floor_metallic,floor_roughness,floor_ao}, wallParameters);
     if (!wallMaterialResult) return failure(wallMaterialResult.error());
     auto wallMaterial = *wallMaterialResult;
-    auto woodResult = AssetsManager::GetTextureOrFallback("Sphere/wood_diffuse", "albedoMap");
+    // Keep the bootstrap fallback until the asynchronous file request publishes.
+    auto woodResult = AssetsManager::GetTextureOrFallback({}, "albedoMap");
     if (!woodResult) return std::unexpected(woodResult.error());
     const MaterialParameterDecl boxParameters[]{
         {"metalness", MaterialParameterType::Float3, std::array<float,3>{.08f,.08f,.08f}},
@@ -187,6 +188,7 @@ auto sphere_albedoResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/r
     auto boxMaterialResult = material(SceneMaterialKind::Lit, {*woodResult,floor_normal,floor_metallic,floor_roughness,floor_ao}, boxParameters);
     if (!boxMaterialResult) return failure(boxMaterialResult.error());
     auto boxMaterial = *boxMaterialResult;
+    m_AsyncBoxMaterial = boxMaterial;
     auto ambientLightEntity = m_ActiveScene->CreateEntity("ambient_light");
     m_PointLightEntity = m_ActiveScene->CreateEntity("point_light");
     m_LightDirection = glm::normalize(Vec3f{20,50,20});
@@ -556,6 +558,58 @@ void RigidBodySimulationApp::Render()
         return {};
     }};
     auto render=[&]()->std::expected<ScheduledFrameStats,ScheduleError> {
+        auto loads = AssetsManager::AsyncTextures();
+        if (!loads) return std::visit([](const auto& cause) -> std::unexpected<ScheduleError> {
+            if constexpr (std::same_as<std::decay_t<decltype(cause)>, UploadError>)
+                return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources, cause});
+            else return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources, SceneResourceError{"async wood texture", cause}});
+        }, loads.error());
+        m_TextureLoads = *loads;
+        context.uploads = &m_TextureLoads->Queue();
+        context.updateResources = {this, [](void* user) -> ScheduleResult {
+            auto& app = *static_cast<RigidBodySimulationApp*>(user);
+            if (app.m_WoodSettled) return {};
+            auto failure = [](const auto& cause) -> ScheduleResult {
+                if constexpr (std::same_as<std::decay_t<decltype(cause)>, UploadError>)
+                    return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources, cause});
+                else return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources, SceneResourceError{"async wood texture", cause}});
+            };
+            if (!app.m_WoodRequest) {
+                auto requested = app.m_TextureLoads->Request("Sphere/wood_diffuse");
+                if (!requested) return std::visit(failure, requested.error());
+                app.m_WoodRequest = *requested;
+                return {};
+            }
+            auto status = app.m_TextureLoads->Status(app.m_WoodRequest);
+            if (!status) return failure(status.error());
+            if (status->state == AsyncAssetState::Failed || status->state == AsyncAssetState::Cancelled) {
+                if (status->error) Log::GetCoreLogger()->warn("{}; retaining wood fallback", DescribeAsyncTextureError(*status->error));
+                app.m_WoodSettled = true;
+                return {};
+            }
+            if (status->state != AsyncAssetState::Ready) return {};
+            auto view = AssetsManager::ResolveTexture(status->image);
+            if (!view) return failure(view.error());
+            auto sampled = AssetsManager::SampleTexture(*view);
+            if (!sampled) return std::visit(failure, sampled.error().cause);
+            std::optional<MaterialInstance> material;
+            {
+                auto access = app.m_FrameResources->Publication().BeginFrame();
+                auto previous = app.m_FrameResources->Materials().Acquire(access, app.m_AsyncBoxMaterial);
+                if (!previous) return failure(previous.error());
+                material = **previous;
+            }
+            if (auto changed = material->SetTexture("albedoMap", {sampled->TextureIdentity(), sampled->SamplerIdentity()}); !changed)
+                return failure(changed.error());
+            {
+                auto publication = app.m_FrameResources->Publication().BeginPublication();
+                if (auto replaced = app.m_FrameResources->Materials().Replace(publication, app.m_AsyncBoxMaterial, std::move(*material)); !replaced)
+                    return failure(replaced.error());
+            }
+            app.m_WoodSettled = true;
+            Log::GetCoreLogger()->info("Async wood texture published: {}x{}", status->description.width, status->description.height);
+            return {};
+        }};
         if(!context.visible) return FrameScheduler::Render(context);
         m_EditorCamera_.UpdateView();
         auto cameraId=m_ActiveScene->RenderData().Identify(m_FrameCameraEntity);

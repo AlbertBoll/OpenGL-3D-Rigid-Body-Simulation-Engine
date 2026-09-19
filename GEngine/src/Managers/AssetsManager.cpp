@@ -47,6 +47,7 @@ namespace GEngine::Manager
         : m_Publication(publication), m_Images(publication), m_Samplers(publication), m_ImageRoot(std::move(root)) {}
     AssetsManager::~AssetsManager()
     {
+        m_AsyncTextures.reset(); // Close/wake/join before any registry or context retirement.
         m_Attachments.clear();
         m_Bindings.clear();
         auto access = m_Publication.BeginPublication();
@@ -58,6 +59,18 @@ namespace GEngine::Manager
         auto* root = EngineContext::TryGet();
         if (!root) return std::unexpected(TextureError{TextureErrorCode::ContextUnavailable, {}, "No live EngineContext"});
         return root->TryAssets();
+    }
+    std::expected<AsyncTextureLoader*, AsyncTextureError> AssetsManager::AsyncTextures()
+    {
+        auto manager = Current();
+        if (!manager) return std::unexpected(AsyncTextureError{manager.error()});
+        auto& self = **manager;
+        if (!self.m_AsyncTextures) {
+            auto loader = AsyncTextureLoader::Create(self.m_Publication, self.m_Images, self.m_ImageRoot);
+            if (!loader) return std::unexpected(loader.error());
+            self.m_AsyncTextures = std::move(*loader);
+        }
+        return self.m_AsyncTextures.get();
     }
     std::expected<TextureHandle, TextureError> AssetsManager::Publish(TextureResource image)
     {

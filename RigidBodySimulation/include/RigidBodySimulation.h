@@ -8,6 +8,7 @@
 #include "Physics/PhysicsSystem.h"
 #include <SpatialPartition/KDTree.h>
 #include "Renderer/FrameSubmission.h"
+#include "Assets/Textures/AsyncTexture.h"
 
 namespace GEngine
 {
@@ -48,6 +49,10 @@ private:
 	std::unique_ptr<SceneRenderResources> m_FrameResources;
 	std::optional<FrameSubmission> m_FrameSubmission;
 	EntityPickTable m_PickTable;
+    Asset::AsyncTextureLoader* m_TextureLoads{}; // Borrowed root-owned service.
+    Asset::UploadTicket m_WoodRequest{};
+    Asset::MaterialInstanceHandle m_AsyncBoxMaterial{};
+    bool m_WoodSettled{};
 	_Entity m_FrameCameraEntity;
 	_Entity m_Sphere;
 	_Entity m_HoveredEntity;

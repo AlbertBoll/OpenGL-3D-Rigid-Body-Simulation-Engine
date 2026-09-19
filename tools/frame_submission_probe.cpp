@@ -3,6 +3,7 @@
 #include "Renderer/FrameScheduler.h"
 #include "Renderer/PassTiming.h"
 #include <type_traits>
+#include "../GEngine/src/Renderer/DrawOrdering.h"
 using namespace GEngine;
 using namespace GEngine::Asset;
 using namespace GEngine::Component;
@@ -34,6 +35,39 @@ static_assert(std::same_as<decltype(std::declval<const RenderFrame&>().Draws()),
 #include <fstream>
 #include <imgui/imgui.h>
 #include <set>
+
+// Link the actual application request into this production-library probe.
+extern WindowProperties winProp;
+namespace WindowPlacementProbe
+{
+    struct Request { int x{}, y{}, width{}, height{}; Uint32 flags{}; } last;
+    unsigned creations{}, repositions{};
+    void* Library()
+    {
+        struct Module {
+            void* value=SDL_LoadObject("SDL2.dll");
+            ~Module() { if(value) SDL_UnloadObject(value); }
+        };
+        static Module module;return module.value;
+    }
+}
+// Observe the actual SDL boundary, then forward unchanged to the real DLL.
+// No desktop-origin, monitor-size or DPI-specific coordinate expectation.
+extern "C" SDL_Window* SDLCALL SDL_CreateWindow(const char* title,int x,int y,int w,int h,Uint32 flags)
+{
+    using namespace WindowPlacementProbe;
+    static const auto create=reinterpret_cast<decltype(&SDL_CreateWindow)>(SDL_LoadFunction(Library(),"SDL_CreateWindow"));
+    if(!create) return nullptr;
+    last={x,y,w,h,flags};++creations;
+    return create(title,x,y,w,h,flags);
+}
+extern "C" void SDLCALL SDL_SetWindowPosition(SDL_Window* window,int x,int y)
+{
+    using namespace WindowPlacementProbe;
+    static const auto position=reinterpret_cast<decltype(&SDL_SetWindowPosition)>(SDL_LoadFunction(Library(),"SDL_SetWindowPosition"));
+    if(!position) std::exit(1);
+    ++repositions;position(window,x,y);
+}
 
 namespace
 {
@@ -367,6 +401,213 @@ namespace
         RenderExtractionStats stats;
         return ExtractRenderFrame(scene,resources.ForFrame(access),stats,{&camera,1});
     }
+    void WindowPlacementTests(EngineContext& root,const WindowProperties& properties)
+    {
+        using namespace WindowPlacementProbe;
+        Check(winProp.m_WinPos==WindowPos::Center,"actual application requests engine Center semantics");
+        const bool predecessor=SDL_getenv("GENGINE_PREDECESSOR_PLACEMENT")!=nullptr;
+        auto centered=[&] {return SDL_WINDOWPOS_ISCENTERED(last.x) && SDL_WINDOWPOS_ISCENTERED(last.y);};
+        Check(creations==1 && centered()!=predecessor,"engine Center reaches the SDL creation boundary");
+        Check(last.width==int(properties.m_Width) && last.height==int(properties.m_Height),"placement preserves requested logical extent");
+        Check(last.flags==(SDL_WINDOW_OPENGL|SDL_WINDOW_ALLOW_HIGHDPI|SDL_WINDOW_HIDDEN),"placement preserves GL/high-DPI/visibility flags");
+        Check(repositions==0,"no post-creation reposition or initial-position jump");
+        int width{},height{};auto* native=SDL_GL_GetCurrentWindow();
+        SDL_GetWindowSize(native,&width,&height);
+        Check(root.MainWindow()->GetScreenWidth()==unsigned(width) && root.MainWindow()->GetScreenHeight()==unsigned(height),"engine logical size matches native window");
+        SDL_GL_GetDrawableSize(native,&width,&height);
+        const auto pixels=root.MainWindow()->GetFramebufferPixelSize();
+        Check(pixels.Width==unsigned(width) && pixels.Height==unsigned(height),"framebuffer dimensions retain native DPI mapping");
+        auto full=properties;full.flag={WindowFlags::INVISIBLE,WindowFlags::FULLSCREEN};
+        auto fullscreen=Take(Window::Create(full),"fullscreen placement preserves creation/context");
+        Check(centered()!=predecessor && (last.flags&SDL_WINDOW_FULLSCREEN_DESKTOP)==SDL_WINDOW_FULLSCREEN_DESKTOP
+            && (last.flags&SDL_WINDOW_ALLOW_HIGHDPI) && (last.flags&SDL_WINDOW_OPENGL),"fullscreen and DPI/context flags survive Center mapping");
+        Check((SDL_GetWindowFlags(SDL_GL_GetCurrentWindow())&SDL_WINDOW_FULLSCREEN_DESKTOP)==SDL_WINDOW_FULLSCREEN_DESKTOP,"native fullscreen desktop state");
+        Check(repositions==0,"fullscreen also needs no corrective reposition");
+        Check(root.MainWindow()->BeginRender(),"restore main context before secondary retirement");fullscreen.reset();
+        Check(root.MainWindow()->IsCurrent(),"placement probe preserves context/shutdown ordering");
+        std::println("{}",predecessor?"[PASS] predecessor numeric-placement observation":"[PASS] window-placement application/semantic-create/size/DPI/GL/fullscreen/no-reposition");
+    }
+
+    void OrderingTests()
+    {
+        std::array<DrawItem,10> draws{};
+        for(auto& d:draws) {d.pipeline={1,1,1};d.material={1,1,2};d.mesh={1,1,3};d.submesh={0,3,0};}
+        draws[0].pipeline.index=2; // pipeline dominates lower material/mesh.
+        draws[1].material.index=2;
+        draws[2].mesh.index=2;
+        draws[3].submesh.firstElement=3;
+        draws[4].submesh.elementCount=6;
+        draws[5].submesh.materialSlot=1;
+        draws[6].sortKey=999;draws[6].resources=999; // advisory/table position ignored.
+        draws[8].mesh.generation=2;
+        draws[9].mesh.registry=4;
+        const std::array<std::size_t,10> expected{6,7,5,4,3,9,8,2,1,0};
+        std::array<std::size_t,10> indices{};
+        for(unsigned repeat=0;repeat<10;++repeat) {
+            std::iota(indices.begin(),indices.end(),0);
+            std::rotate(indices.begin(),indices.begin()+repeat,indices.end());
+            RenderDetail::SortLocality(indices,draws);
+            Check(indices==expected,"pipeline/material/full mesh identity/submesh and stable ties");
+        }
+        FrameCamera camera;camera.view=glm::mat4(1);
+        draws[0].worldTransform[3]={100,0,-2,1}; // radial distance must not win.
+        draws[1].worldTransform[3]={0,0,-8,1};
+        draws[2].worldTransform[3]={0,0,-8,1};
+        std::array<std::size_t,3> alpha{2,0,1};
+        RenderDetail::SortTransparent(alpha,draws,camera);
+        Check(alpha==std::array<std::size_t,3>{1,2,0},"transparent camera depth dominates locality and radial distance; stable depth ties");
+        camera.view[2][2]=-1;
+        RenderDetail::SortTransparent(alpha,draws,camera);
+        Check(alpha==std::array<std::size_t,3>{0,1,2},"camera reversal updates transparency order");
+        camera.view[2][2]=(std::numeric_limits<float>::max)();
+        draws[0].worldTransform[3].z=-(std::numeric_limits<float>::max)();
+        draws[1].worldTransform[3].z=-2;
+        RenderDetail::SortTransparent(alpha,draws,camera);
+        Check(alpha[0]==0,"finite extreme products retain a strict depth order");
+        RenderDetail::SortLocality({},draws);RenderDetail::SortTransparent({},draws,camera);
+        std::array<std::size_t,1> one{4};RenderDetail::SortLocality(one,draws);
+        Check(one[0]==4,"empty and singleton partitions");
+        std::println("[PASS] draw-order deterministic/full-identities/submesh/stable-ties/camera-depth/extremes");
+    }
+
+    void SortingFixture(EngineContext& root,SceneRenderResources& resources,FrameSubmissionDesc desc,
+        MeshHandle box,MeshHandle sphere,std::span<const MaterialParameterDecl> parameters,
+        std::span<const MaterialTextureAssignment> textures)
+    {
+        // Two alpha partitions x two programs x two instances per program.
+        // Instance variants share the pipeline but bind a different albedo.
+        std::array<MaterialInstanceHandle,8> materials;
+        for(unsigned group=0;group<4;++group) {
+            auto base=Take(resources.PublishMaterial({SceneMaterialKind::Lit,parameters,textures,false,1,
+                group<2?AlphaMode::Opaque:AlphaMode::Masked,.5f,1}),"sort material");
+            materials[group*2]=base;
+            std::optional<MaterialInstance> copy;
+            {auto access=resources.Publication().BeginFrame();copy.emplace(*Take(resources.Materials().Acquire(access,base),"sort instance source"));}
+            Check(copy->SetTexture("albedoMap",textures.back().value),"sort distinct texture");
+            {auto access=resources.Publication().BeginPublication();materials[group*2+1]=Take(resources.Materials().Create(access,std::move(*copy)),"sort instance variant");}
+        }
+        desc.pipelines=resources.Pipelines();desc.pickingEnabled=false;
+        auto submitter=Take(FrameSubmission::Create(),"sort submitter");EntityPickTable picks;
+        auto renderGrid=[&](bool grouped,const char* output) {
+            _Scene scene;auto camera=Camera(scene);
+            camera.view=glm::lookAt(glm::vec3(0,0,10),glm::vec3(0),glm::vec3(0,1,0));
+            camera.projection=glm::ortho(-4.f,4.f,-4.f,4.f,.1f,20.f);camera.worldPosition={0,0,10};
+            std::array<unsigned,64> order;std::iota(order.begin(),order.end(),0);
+            if(grouped) std::sort(order.begin(),order.end(),[](auto a,auto b) {
+                return std::tuple(a%8,(a/8+a)%2,a)<std::tuple(b%8,(b/8+b)%2,b);
+            });
+            // Empty cached shadow targets keep all declared texture bindings
+            // complete; synchronous Debug warnings must not pollute CPU timing.
+            auto sun=scene.CreateEntityWithUUID(UUID(1),"sort sun");
+            RenderLightComponent light;light.castShadows=true;sun.AddComponent<RenderLightComponent>(light);
+            auto bulb=scene.CreateEntityWithUUID(UUID(2),"sort bulb");
+            light.kind=RenderLightKind::Point;light.range=100;bulb.AddComponent<RenderLightComponent>(light);
+            bulb.GetComponent<Transform3DComponent>().Translation={0,3,5};
+            unsigned sourceOrdinal=100;
+            for(auto i:order) {
+                auto entity=scene.CreateEntityWithUUID(UUID(sourceOrdinal++),"sort "+std::to_string(i));
+                entity.AddComponent<MeshRendererComponent>(MeshRendererComponent{(i/8+i)%2?box:sphere,materials[i%8],0,false,false,false});
+                auto& pose=entity.GetComponent<Transform3DComponent>();
+                // 32 overlapping pairs at distinct depths exercise depth equivalence.
+                const unsigned cell=i%32;
+                pose.Translation={float(cell%8)*.95f-3.325f,float(cell/8)*1.8f-2.7f,i<32?.5f:-.5f};
+                pose.Scale=glm::vec3(i<32?.25f:.4f);
+            }
+            auto access=resources.Publication().BeginFrame();
+            auto frame=Take(Extract(scene,resources,access,camera),"sort frozen extraction");
+            const std::vector<DrawItem> before(frame.Draws().begin(),frame.Draws().end());
+            std::ofstream csv;
+            if(output) {csv.open(output);csv<<"iteration,cpu_ns,UseProgram,BindVertexArray,BindTexture,BindSampler,DrawArrays,DrawElements\n";}
+            const unsigned iterations=output?360:1;
+            for(unsigned i=0;i<iterations;++i) {
+                std::chrono::nanoseconds elapsed;
+                {
+                    DriverCalls::Observe observe;
+                    const auto start=std::chrono::steady_clock::now();
+                    auto result=Take(submitter.Submit(frame,desc,picks),"sort submission");
+                    elapsed=std::chrono::steady_clock::now()-start;
+                    Check(result.opaqueDraws==32 && result.maskedDraws==32 && result.colorDraws==64
+                        && result.shadowDraws==0 && result.pickDraws==0,"sort identical 64-draw work");
+                }
+                if(output && i>=120) csv<<i<<','<<elapsed.count()<<','<<DriverCalls::counts[0]<<','<<DriverCalls::counts[1]<<','
+                    <<DriverCalls::counts[4]<<','<<DriverCalls::counts[5]<<','<<DriverCalls::counts[26]<<','<<DriverCalls::counts[27]<<'\n';
+                if(output) root.MainWindow()->SwapBuffer();
+            }
+            for(std::size_t i=0;i<before.size();++i) {
+                const auto& d=frame.Draws()[i];const auto& b=before[i];
+                Check(d.entity==b.entity && d.mesh==b.mesh && d.material==b.material && d.pipeline==b.pipeline
+                    && d.resources==b.resources && d.worldTransform==b.worldTransform,"published frame stays immutable");
+            }
+            const auto pixels=Pixels(desc.color);
+            if(output) {
+                std::ofstream image(std::string(output)+".rgba",std::ios::binary);
+                image.write(reinterpret_cast<const char*>(pixels.data()),pixels.size());
+                Check(csv.good() && image.good(),"sort measurement output");
+                std::println("[PASS] draw-sort-measure 120 warmup / 240 samples / 64 draws; 64x64 linear RGBA8; frozen camera; no Physics");
+                std::println("sort GPU={} driver={}",reinterpret_cast<const char*>(glGetString(GL_RENDERER)),reinterpret_cast<const char*>(glGetString(GL_VERSION)));
+            }
+            return pixels;
+        };
+        const auto original=renderGrid(false,SDL_getenv("GENGINE_DRAW_SORT_MEASURE"));
+        Check(original==renderGrid(true,nullptr),"opaque and masked pixels equivalent across source permutations");
+        Check(std::any_of(original.begin(),original.end(),[](auto b){return b!=std::byte{26} && b!=std::byte{255};}),"sort fixture has visible fragments");
+
+        // Deliberately publish near before far, opposing locality order.
+        const auto nearMaterial=Take(resources.PublishMaterial({SceneMaterialKind::Lit,parameters,textures,false,1,AlphaMode::Transparent,.5f,.5f}),"near alpha");
+        auto other=std::vector<MaterialTextureAssignment>(textures.begin(),textures.end());other[0].value=textures.back().value;
+        const auto farMaterial=Take(resources.PublishMaterial({SceneMaterialKind::Lit,parameters,other,false,1,AlphaMode::Transparent,.5f,.5f}),"far alpha");
+        desc.pipelines=resources.Pipelines();
+        auto overlap=[&](unsigned mask,bool reverse,float nearZ) {
+            _Scene scene;auto camera=Camera(scene);
+            camera.view=glm::lookAt(glm::vec3(0,0,8),glm::vec3(0),glm::vec3(0,1,0));
+            camera.projection=glm::ortho(-2.f,2.f,-2.f,2.f,.1f,20.f);camera.worldPosition={0,0,8};
+            for(unsigned j=0;j<2;++j) {
+                const unsigned i=reverse?1-j:j;if(!(mask&(1u<<i))) continue;
+                auto entity=scene.CreateEntityWithUUID(UUID(100+j),"alpha "+std::to_string(i));
+                entity.AddComponent<MeshRendererComponent>(MeshRendererComponent{box,i?farMaterial:nearMaterial,0,false,false,false});
+                entity.GetComponent<Transform3DComponent>().Translation.z=i?-.75f:nearZ;
+            }
+            auto access=resources.Publication().BeginFrame();auto frame=Take(Extract(scene,resources,access,camera),"overlap extraction");
+            Take(submitter.Submit(frame,desc,picks),"overlap submit");return Pixels(desc.color);
+        };
+        const auto background=overlap(0,false,.75f),nearOnly=overlap(1,false,.75f),farOnly=overlap(2,false,.75f);
+        const auto both=overlap(3,false,.75f);
+        Check(both==overlap(3,true,.75f),"transparent overlap invariant under source reversal at distinct depths");
+        unsigned overlapPixels{};
+        for(unsigned i=0;i<both.size();i+=4) {
+            bool nearHit=false,farHit=false;
+            for(unsigned c=0;c<3;++c) {nearHit|=nearOnly[i+c]!=background[i+c];farHit|=farOnly[i+c]!=background[i+c];}
+            if(!nearHit || !farHit) continue;
+            ++overlapPixels;
+            for(unsigned c=0;c<3;++c) {
+                const float expected=float(nearOnly[i+c])+.5f*(float(farOnly[i+c])-float(background[i+c]));
+                Check(std::abs(float(both[i+c])-expected)<=3,"transparent far then near source-over reference");
+            }
+        }
+        Check(overlapPixels>100,"transparent reference has substantial overlap");
+        Check(overlap(3,false,-.75f)!=overlap(3,true,-.75f),"equal-depth transparent ties retain source order");
+        const MaterialParameterDecl red[]{{"u_baseColor",MaterialParameterType::Float4,std::array<float,4>{1,0,0,1}},
+            {"u_useVertexColor",MaterialParameterType::Boolean,false}};
+        const MaterialParameterDecl green[]{{"u_baseColor",MaterialParameterType::Float4,std::array<float,4>{0,1,0,1}},
+            {"u_useVertexColor",MaterialParameterType::Boolean,false}};
+        const auto redHelper=Take(resources.PublishMaterial({SceneMaterialKind::Helper,red,{},true}),"red debug material");
+        const auto greenHelper=Take(resources.PublishMaterial({SceneMaterialKind::Helper,green,{},true}),"green debug material");
+        desc.pipelines=resources.Pipelines();
+        auto debugImage=[&](bool reverse) {
+            _Scene scene;const auto camera=Camera(scene);
+            for(unsigned j=0;j<2;++j) {
+                const auto i=reverse?1-j:j;auto entity=scene.CreateEntityWithUUID(UUID(100+j),"debug "+std::to_string(i));
+                entity.AddComponent<MeshRendererComponent>(MeshRendererComponent{box,i?greenHelper:redHelper,0,false,false,false});
+            }
+            auto access=resources.Publication().BeginFrame();auto frame=Take(Extract(scene,resources,access,camera),"debug extraction");
+            auto result=Take(submitter.Submit(frame,desc,picks),"debug ordering submit");
+            Check(result.helperDraws==2 && result.colorDraws==0,"debug stays in its own pass");return Pixels(desc.color);
+        };
+        Check(debugImage(false)!=debugImage(true),"debug equal-depth source ordering is not regrouped by material");
+        std::println("[PASS] draw-sort debug-source-order");
+        std::println("[PASS] draw-sort opaque/masked-equivalence/immutable/transparent-overlap/stable-ties");
+    }
+
     void PickingParity(const RenderFrame& frame,_Scene& scene,const FrameCamera& camera,
         const MousePickFrameBuffer& actual,std::span<const std::pair<MeshHandle,Geometry*>> geometry,Shader& shader)
     {
@@ -797,6 +1038,9 @@ namespace
         auto cascadeTarget=Take(CascadeShadowFrameBuffer::Create(256,256,5),"cascade target");
         const float splits[]{.5f,1.f,2.f,5.f,20.f};
         FrameSubmissionDesc desc{target,picking,pointTarget,cascadeTarget,resources->Pipelines(),splits,glm::radians(45.f),1,.1f,20,.1f,100};
+        SortingFixture(root,*resources,desc,box,sphere,parameters,textures);
+        if(SDL_getenv("GENGINE_DRAW_SORT_MEASURE")) return;
+        desc.pipelines=resources->Pipelines();
         _Scene scene;
         const auto camera=Camera(scene);
         std::array<_Entity,3> bodies;
@@ -1252,13 +1496,15 @@ namespace
 }
 int main()
 {
+    OrderingTests();
     RuntimeAssets::Initialize("RigidBodySimulation");
     EngineContext root;
     Check(!root.SceneServices(),"uninitialized service typed failure");
-    WindowProperties properties;properties.m_Title="Phase 42 hidden submission validation";
+    WindowProperties properties;properties.m_WinPos=winProp.m_WinPos;properties.m_Title="Phase 53 hidden submission validation";
     properties.flag={WindowFlags::INVISIBLE};properties.m_Width=properties.m_Height=64;
     properties.m_MinWidth=properties.m_MinHeight=64;properties.m_IsVsync=false;
     Check(root.Initialize({properties}),"owner root initialization");
+    WindowPlacementTests(root,properties);
     if(!SDL_getenv("GENGINE_STATE_CACHE_MEASURE")) StateCacheTests();
     TimingTests(root);
     Run(root);

@@ -8,6 +8,7 @@
 #include "../Assets/ShaderBackend.h"
 #include "../Assets/TextureBackend.h"
 #include "GLStateCache.h"
+#include "DrawOrdering.h"
 #include <format>
 #include <new>
 #include <bit>
@@ -566,13 +567,23 @@ void main() {
             if(!pixel) return std::unexpected(SubmissionError{"pick encoding",pixel.error()});
             draws[index].pixel=*pixel;
         }
-        // Sort only frame-local ordinals; retained frame storage remains immutable.
-        std::unique_ptr<std::size_t[]> transparent(new (std::nothrow) std::size_t[visibility->Transparent().size()]);
-        if(!transparent && !visibility->Transparent().empty()) return Error("transparent ordering",Code::Allocation);
-        std::copy(visibility->Transparent().begin(),visibility->Transparent().end(),transparent.get());
-        auto depth=[&](std::size_t i) {return (camera.view*draws[i].draw->worldTransform*glm::vec4(0,0,0,1)).z;};
-        if(visibility->Transparent().size()>1) std::sort(transparent.get(),transparent.get()+visibility->Transparent().size(),
-            [&](auto a,auto b){const auto za=depth(a),zb=depth(b);return za==zb?a<b:za<zb;});
+        // Disjoint pass partitions fit in count ordinals. Allocate before GL;
+        // failure returns a typed error without partially submitting the frame.
+        std::unique_ptr<std::size_t[]> ordering(new (std::nothrow) std::size_t[count]);
+        if(count && !ordering) return Error("draw ordering",Code::Allocation);
+        std::span<std::size_t> remaining(ordering.get(),count);
+        auto copyIndices=[&](std::span<const std::size_t> source) {
+            auto result=remaining.first(source.size());
+            std::copy(source.begin(),source.end(),result.begin());
+            remaining=remaining.subspan(source.size());
+            return result;
+        };
+        auto opaque=copyIndices(visibility->Opaque());
+        auto masked=copyIndices(visibility->Masked());
+        auto transparent=copyIndices(visibility->Transparent());
+        RenderDetail::SortLocality(opaque,frame.Draws());
+        RenderDetail::SortLocality(masked,frame.Draws());
+        RenderDetail::SortTransparent(transparent,frame.Draws(),camera);
         TargetRestore restore;
         State state; // Ends before restore and every external scheduler boundary.
         auto& storage=*m_Storage;
@@ -716,8 +727,9 @@ void main() {
         {
             PassTiming::Scope timing(pass);
             begin(pass);
-            auto indices=pass==RenderPass::Opaque?visibility->Opaque():pass==RenderPass::Masked?visibility->Masked():
-                pass==RenderPass::Transparent?std::span<const std::size_t>(transparent.get(),visibility->Transparent().size()):visibility->Main();
+            // Sky/Debug retain source order; UI stays in the later scheduler stage.
+            std::span<const std::size_t> indices=pass==RenderPass::Opaque?opaque:pass==RenderPass::Masked?masked:
+                pass==RenderPass::Transparent?std::span<const std::size_t>(transparent):visibility->Main();
             for(auto index:indices) if(auto result=colorDraw(index,pass);!result) return std::unexpected(result.error());
             timing.Complete();
         }

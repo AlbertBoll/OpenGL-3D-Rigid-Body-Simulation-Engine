@@ -220,8 +220,9 @@ namespace GEngine
 			break;
 
 		case WindowPos::Center:
-			topLeftPosX = DisplayWidth / 2 - winProp.m_Width / 2;
-			topLeftPosY = DisplayHeight / 2 - winProp.m_Height / 2;
+            // Let the platform place the window before it is first shown.
+            topLeftPosX = SDL_WINDOWPOS_CENTERED;
+            topLeftPosY = SDL_WINDOWPOS_CENTERED;
 			break;
 
 		}

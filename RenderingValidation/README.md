@@ -1722,3 +1722,84 @@ runs only the measurement mode. The Phase 52 before library is the exact approve
 Phase 51 Debug library; the ordinary Release library available at phase entry did
 not match its recorded hash and was not accepted as before evidence. Do not infer
 Release or whole-application speedup from the Debug comparison.
+
+
+## Phase 53: draw sorting
+
+`FrameSubmission` copies Opaque, Masked and Transparent visibility ordinals into
+one checked transient allocation before issuing GL work. Opaque and masked are
+separate depth-writing passes, each ordered by full pipeline handle, material
+handle, mesh handle and submesh range (first element, count, material slot).
+Handles include registry and generation. Equal keys use the immutable frame's
+source ordinal; neither native names nor advisory `sortKey` participate.
+Transparent draws use transformed-origin camera-space Z, far to near, then
+source ordinal. Double intermediates prevent finite Float32 multiplication from
+overflowing the comparator. Object sorting does not solve intersecting surfaces
+or per-triangle transparency. Exact coplanar opaque surfaces with different
+keys follow the documented locality order; equivalence tests use distinct depth.
+Sky, debug helpers, picking and shadows retain their existing source lists.
+UI remains after resolve in the scheduler. Raw FrameDebugLine submission retains
+its existing typed unsupported result. Published frame/resource arrays never move
+or change during sorting; only ordinals are copied, and leases remain retained.
+
+The existing frame-submission probe includes deterministic key priority, full
+mesh identity, submesh, stable-tie, camera reversal, extreme finite depth and
+empty/singleton checks. Real GL checks cover mixed opaque/masked overlap under
+source permutations, frame immutability, two transparent layers against a
+source-over reference (3/255 rounding tolerance), source reversal, equal-depth
+transparency, debug source order, and the existing scheduler/UI pass trace.
+The normal probe retains masked cutoff, picking/shadow, failure/retry, external
+state and lifetime coverage. Compile traces include the private CPU ordering
+header without concrete backend includes.
+
+Matched performance commands (repeat for Release):
+
+```powershell
+python tools/test_frame_submission.py --configuration Debug --no-build --draw-sort-measure --draw-sort-baseline logs/rendering/phase53/baseline-Debug.lib --output logs/rendering/phase53/before-final/Debug
+python tools/test_frame_submission.py --configuration Debug --draw-sort-measure --draw-sort-reference logs/rendering/phase53/before-final/Debug/results.json --output logs/rendering/phase53/final/Debug
+```
+
+Preserve the approved Phase 52 libraries and verify their recorded hashes before
+building the candidate. The workload uses fixed UUID source order, 64 overlapping
+opaque/masked draws, four pipelines, eight material instances and two meshes.
+Camera: orthographic [-4,4] XY, eye (0,0,10), near/far .1/20. Output: 64x64 linear
+RGBA8; empty 256-pixel shadow targets are cached during warmup. No Physics,
+picking or shadow draws enter timed samples. Three processes per configuration,
+120 warmup and 240 samples each, measure Submit CPU including ordering; extraction,
+readback and swap are excluded. Record median/p95 and actual driver program,
+VAO, texture, sampler and draw calls. Run-median spread above 10% is NOISY;
+timing then remains descriptive. Exact before/after image hashes and draw counts,
+unchanged sampler counts and strictly fewer program/texture/VAO binds are gates
+regardless of timing. GPU/whole-application speedups are not inferred.
+
+Current evidence, compiler/hardware identity, actual outcomes and review status:
+`docs/rendering/reviews/PHASE_53_REVIEW.md`, `logs/rendering/phase53/` and the
+sealed `rendering-checkpoints/phase-53.json`.
+
+
+### Phase 53 bounded revision: initial window placement
+
+Owner-authorized correction of a pre-existing startup issue: RigidBodySimulation's
+main.cpp requested `WindowPos::ButtomRight`. It now requests the existing `Center`
+value, mapped in SDLWindow.cpp to `SDL_WINDOWPOS_CENTERED` for both creation
+coordinates. This places the window before first display. Other policies, extents,
+flags, context setup and lifecycle remain unchanged; no public API was added.
+
+The production-linked frame-submission probe also links the actual application
+WindowProperties and forwards observed SDL_CreateWindow/SDL_SetWindowPosition
+calls to the installed SDL DLL. It checks Center semantics at the creation boundary,
+unchanged requested/native logical and drawable sizes, high-DPI/GL/visibility and
+fullscreen-desktop flags, context restoration, and zero corrective reposition calls.
+It makes no monitor-size/origin/absolute-coordinate assertions. Preserved-library
+measurement mode explicitly identifies the predecessor's numeric Center mapping;
+it does not claim that predecessor implements the corrected semantic placement.
+
+All existing Phase 53 gates run again for the amended candidate, with matched
+comparison against the retained exact BEFORE workload. Required Release manual
+validation covers initial placement, rendered output, title-bar move, native resize,
+viewport resizing, keyboard/mouse and generation-safe picking, ImGui and native
+close. Debug graphical checks also run. Process-owned interaction scripts,
+screenshots, observed native geometry/DPI, click diagnostics, binary identities and
+clean-exit records live under `logs/rendering/phase53/revision2/`. Current results
+and refreshed candidate status are in PHASE_53_REVIEW.md. See the local owner
+contract `docs/rendering/phases/PHASE_53_SCOPE_AMENDMENT.md` for scope and stop rules.

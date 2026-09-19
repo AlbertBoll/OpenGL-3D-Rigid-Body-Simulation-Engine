@@ -22,6 +22,10 @@ static_assert(std::same_as<decltype(std::declval<const RenderFrame&>().Draws()),
 #include "Managers/ShaderManager.h"
 #include "Scene/_Entity.h"
 #include "../GEngine/src/Assets/ShaderBackend.h"
+#include "../GEngine/src/Renderer/GLStateCache.h"
+#include "../GEngine/src/Core/FramebufferBackend.h"
+#include <chrono>
+#include <numeric>
 #include <glm/gtx/quaternion.hpp>
 #include <print>
 #include <cstdlib>
@@ -47,6 +51,196 @@ namespace
             if constexpr (std::same_as<E,ScheduleError>) std::println(stderr,"{}",DescribeScheduleError(value.error()));
         }
         Check(value,message);return std::move(*value);
+    }
+    namespace DriverCalls
+    {
+        std::array<std::uint64_t,28> counts{};
+        decltype(glad_glUseProgram) realUseProgram{};
+        void APIENTRY UseProgram(GLuint a) { ++counts[0]; realUseProgram(a); }
+        decltype(glad_glBindVertexArray) realBindVertexArray{};
+        void APIENTRY BindVertexArray(GLuint a) { ++counts[1]; realBindVertexArray(a); }
+        decltype(glad_glBindFramebuffer) realBindFramebuffer{};
+        void APIENTRY BindFramebuffer(GLenum a, GLuint b) { ++counts[2]; realBindFramebuffer(a,b); }
+        decltype(glad_glActiveTexture) realActiveTexture{};
+        void APIENTRY ActiveTexture(GLenum a) { ++counts[3]; realActiveTexture(a); }
+        decltype(glad_glBindTexture) realBindTexture{};
+        void APIENTRY BindTexture(GLenum a, GLuint b) { ++counts[4]; realBindTexture(a,b); }
+        decltype(glad_glBindSampler) realBindSampler{};
+        void APIENTRY BindSampler(GLuint a, GLuint b) { ++counts[5]; realBindSampler(a,b); }
+        decltype(glad_glEnable) realEnable{};
+        void APIENTRY Enable(GLenum a) { ++counts[6]; realEnable(a); }
+        decltype(glad_glDisable) realDisable{};
+        void APIENTRY Disable(GLenum a) { ++counts[7]; realDisable(a); }
+        decltype(glad_glViewport) realViewport{};
+        void APIENTRY Viewport(GLint a, GLint b, GLsizei c, GLsizei d) { ++counts[8]; realViewport(a,b,c,d); }
+        decltype(glad_glScissor) realScissor{};
+        void APIENTRY Scissor(GLint a, GLint b, GLsizei c, GLsizei d) { ++counts[9]; realScissor(a,b,c,d); }
+        decltype(glad_glDepthMask) realDepthMask{};
+        void APIENTRY DepthMask(GLboolean a) { ++counts[10]; realDepthMask(a); }
+        decltype(glad_glDepthFunc) realDepthFunc{};
+        void APIENTRY DepthFunc(GLenum a) { ++counts[11]; realDepthFunc(a); }
+        decltype(glad_glColorMask) realColorMask{};
+        void APIENTRY ColorMask(GLboolean a, GLboolean b, GLboolean c, GLboolean d) { ++counts[12]; realColorMask(a,b,c,d); }
+        decltype(glad_glStencilMask) realStencilMask{};
+        void APIENTRY StencilMask(GLuint a) { ++counts[13]; realStencilMask(a); }
+        decltype(glad_glBlendEquationSeparate) realBlendEquationSeparate{};
+        void APIENTRY BlendEquationSeparate(GLenum a, GLenum b) { ++counts[14]; realBlendEquationSeparate(a,b); }
+        decltype(glad_glBlendFuncSeparate) realBlendFuncSeparate{};
+        void APIENTRY BlendFuncSeparate(GLenum a, GLenum b, GLenum c, GLenum d) { ++counts[15]; realBlendFuncSeparate(a,b,c,d); }
+        decltype(glad_glCullFace) realCullFace{};
+        void APIENTRY CullFace(GLenum a) { ++counts[16]; realCullFace(a); }
+        decltype(glad_glFrontFace) realFrontFace{};
+        void APIENTRY FrontFace(GLenum a) { ++counts[17]; realFrontFace(a); }
+        decltype(glad_glPolygonMode) realPolygonMode{};
+        void APIENTRY PolygonMode(GLenum a, GLenum b) { ++counts[18]; realPolygonMode(a,b); }
+        decltype(glad_glLineWidth) realLineWidth{};
+        void APIENTRY LineWidth(GLfloat a) { ++counts[19]; realLineWidth(a); }
+        decltype(glad_glDepthRange) realDepthRange{};
+        void APIENTRY DepthRange(GLdouble a, GLdouble b) { ++counts[20]; realDepthRange(a,b); }
+        decltype(glad_glClearDepth) realClearDepth{};
+        void APIENTRY ClearDepth(GLdouble a) { ++counts[21]; realClearDepth(a); }
+        decltype(glad_glClearColor) realClearColor{};
+        void APIENTRY ClearColor(GLfloat a, GLfloat b, GLfloat c, GLfloat d) { ++counts[22]; realClearColor(a,b,c,d); }
+        decltype(glad_glDrawBuffer) realDrawBuffer{};
+        void APIENTRY DrawBuffer(GLenum a) { ++counts[23]; realDrawBuffer(a); }
+        decltype(glad_glReadBuffer) realReadBuffer{};
+        void APIENTRY ReadBuffer(GLenum a) { ++counts[24]; realReadBuffer(a); }
+        decltype(glad_glBindBufferBase) realBindBufferBase{};
+        void APIENTRY BindBufferBase(GLenum a, GLuint b, GLuint c) { ++counts[25]; realBindBufferBase(a,b,c); }
+        decltype(glad_glDrawArrays) realDrawArrays{};
+        void APIENTRY DrawArrays(GLenum a, GLint b, GLsizei c) { ++counts[26]; realDrawArrays(a,b,c); }
+        decltype(glad_glDrawElements) realDrawElements{};
+        void APIENTRY DrawElements(GLenum a, GLsizei b, GLenum c, const void* d) { ++counts[27]; realDrawElements(a,b,c,d); }
+        struct Observe
+        {
+            Observe() { counts={};
+                realUseProgram=glad_glUseProgram; glad_glUseProgram=UseProgram;
+                realBindVertexArray=glad_glBindVertexArray; glad_glBindVertexArray=BindVertexArray;
+                realBindFramebuffer=glad_glBindFramebuffer; glad_glBindFramebuffer=BindFramebuffer;
+                realActiveTexture=glad_glActiveTexture; glad_glActiveTexture=ActiveTexture;
+                realBindTexture=glad_glBindTexture; glad_glBindTexture=BindTexture;
+                realBindSampler=glad_glBindSampler; glad_glBindSampler=BindSampler;
+                realEnable=glad_glEnable; glad_glEnable=Enable;
+                realDisable=glad_glDisable; glad_glDisable=Disable;
+                realViewport=glad_glViewport; glad_glViewport=Viewport;
+                realScissor=glad_glScissor; glad_glScissor=Scissor;
+                realDepthMask=glad_glDepthMask; glad_glDepthMask=DepthMask;
+                realDepthFunc=glad_glDepthFunc; glad_glDepthFunc=DepthFunc;
+                realColorMask=glad_glColorMask; glad_glColorMask=ColorMask;
+                realStencilMask=glad_glStencilMask; glad_glStencilMask=StencilMask;
+                realBlendEquationSeparate=glad_glBlendEquationSeparate; glad_glBlendEquationSeparate=BlendEquationSeparate;
+                realBlendFuncSeparate=glad_glBlendFuncSeparate; glad_glBlendFuncSeparate=BlendFuncSeparate;
+                realCullFace=glad_glCullFace; glad_glCullFace=CullFace;
+                realFrontFace=glad_glFrontFace; glad_glFrontFace=FrontFace;
+                realPolygonMode=glad_glPolygonMode; glad_glPolygonMode=PolygonMode;
+                realLineWidth=glad_glLineWidth; glad_glLineWidth=LineWidth;
+                realDepthRange=glad_glDepthRange; glad_glDepthRange=DepthRange;
+                realClearDepth=glad_glClearDepth; glad_glClearDepth=ClearDepth;
+                realClearColor=glad_glClearColor; glad_glClearColor=ClearColor;
+                realDrawBuffer=glad_glDrawBuffer; glad_glDrawBuffer=DrawBuffer;
+                realReadBuffer=glad_glReadBuffer; glad_glReadBuffer=ReadBuffer;
+                realBindBufferBase=glad_glBindBufferBase; glad_glBindBufferBase=BindBufferBase;
+                realDrawArrays=glad_glDrawArrays; glad_glDrawArrays=DrawArrays;
+                realDrawElements=glad_glDrawElements; glad_glDrawElements=DrawElements;
+            }
+            ~Observe() {
+                glad_glUseProgram=realUseProgram;
+                glad_glBindVertexArray=realBindVertexArray;
+                glad_glBindFramebuffer=realBindFramebuffer;
+                glad_glActiveTexture=realActiveTexture;
+                glad_glBindTexture=realBindTexture;
+                glad_glBindSampler=realBindSampler;
+                glad_glEnable=realEnable;
+                glad_glDisable=realDisable;
+                glad_glViewport=realViewport;
+                glad_glScissor=realScissor;
+                glad_glDepthMask=realDepthMask;
+                glad_glDepthFunc=realDepthFunc;
+                glad_glColorMask=realColorMask;
+                glad_glStencilMask=realStencilMask;
+                glad_glBlendEquationSeparate=realBlendEquationSeparate;
+                glad_glBlendFuncSeparate=realBlendFuncSeparate;
+                glad_glCullFace=realCullFace;
+                glad_glFrontFace=realFrontFace;
+                glad_glPolygonMode=realPolygonMode;
+                glad_glLineWidth=realLineWidth;
+                glad_glDepthRange=realDepthRange;
+                glad_glClearDepth=realClearDepth;
+                glad_glClearColor=realClearColor;
+                glad_glDrawBuffer=realDrawBuffer;
+                glad_glReadBuffer=realReadBuffer;
+                glad_glBindBufferBase=realBindBufferBase;
+                glad_glDrawArrays=realDrawArrays;
+                glad_glDrawElements=realDrawElements;
+            }
+        };
+    }
+    void StateCacheTests()
+    {
+        using Cache=RenderBackend::GLStateCache;
+        GLuint vao{},textures[2]{},sampler{},fb[2]{};
+        glGenVertexArrays(1,&vao);glGenTextures(2,textures);glGenSamplers(1,&sampler);glGenFramebuffers(2,fb);
+        {
+            DriverCalls::Observe observe;
+            Cache cache;
+            auto request=[&] {
+                cache.Program(0);cache.VertexArray(vao);cache.Framebuffer(GL_FRAMEBUFFER,fb[0]);
+                cache.DrawBuffer(GL_NONE);cache.ReadBuffer(GL_NONE);
+                cache.Texture(0,GL_TEXTURE_2D,textures[0]);cache.Sampler(0,sampler);
+                cache.Toggle(GL_DEPTH_TEST,true);cache.Toggle(GL_CULL_FACE,true);cache.Toggle(GL_BLEND,true);
+                cache.Viewport(0,0,64,64);cache.Scissor(0,0,32,32);cache.Toggle(GL_SCISSOR_TEST,false);
+                cache.DepthFunc(GL_LESS);cache.DepthMask(GL_TRUE);cache.ColorMask(GL_TRUE,GL_FALSE,GL_TRUE,GL_FALSE);
+                cache.StencilMask(0x12);cache.BlendEquation(GL_FUNC_ADD,GL_FUNC_ADD);
+                cache.BlendFunction(GL_ONE,GL_ZERO,GL_ONE,GL_ZERO);cache.CullFace(GL_BACK);cache.FrontFace(GL_CCW);
+                cache.Polygon(GL_FILL);cache.LineWidth(1);cache.DepthRange(0,1);cache.ClearDepth(1);cache.ClearColor(0,0,0,1);
+                cache.UniformBuffer(0);cache.Toggle(GL_FRAMEBUFFER_SRGB,false);
+            };
+            request();const auto first=DriverCalls::counts;
+            request();Check(DriverCalls::counts==first,"every redundant cached request emits zero driver calls");
+            cache.DepthFunc(GL_GEQUAL);cache.DepthMask(GL_FALSE);cache.ColorMask(GL_FALSE,GL_TRUE,GL_FALSE,GL_TRUE);
+            cache.StencilMask(0x34);cache.CullFace(GL_FRONT);cache.FrontFace(GL_CW);cache.Polygon(GL_LINE);
+            cache.LineWidth(3);cache.DepthRange(.25,.75);cache.BlendEquation(GL_FUNC_SUBTRACT,GL_FUNC_REVERSE_SUBTRACT);
+            cache.BlendFunction(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ZERO,GL_ONE);
+            cache.Viewport(2,3,44,45);cache.Scissor(4,5,22,23);cache.Toggle(GL_SCISSOR_TEST,true);
+            cache.Toggle(GL_FRAMEBUFFER_SRGB,true);
+            GLint integer{};glGetIntegerv(GL_DEPTH_FUNC,&integer);Check(integer==GL_GEQUAL,"depth transition reaches GL");
+            GLboolean mask[4]{};glGetBooleanv(GL_COLOR_WRITEMASK,mask);Check(!mask[0]&&mask[1]&&!mask[2]&&mask[3],"color write mask transition");
+            glGetBooleanv(GL_DEPTH_WRITEMASK,mask);Check(!mask[0],"depth write mask transition");
+            glGetIntegerv(GL_STENCIL_WRITEMASK,&integer);Check(integer==0x34,"stencil write transition");
+            glGetIntegerv(GL_CULL_FACE_MODE,&integer);Check(integer==GL_FRONT,"cull transition");
+            glGetIntegerv(GL_FRONT_FACE,&integer);Check(integer==GL_CW,"front face transition");
+            // OpenGL 4.6 core table 23.10: one polygon mode for front and back.
+            GLint polygon{};glGetIntegerv(GL_POLYGON_MODE,&polygon);Check(polygon==GL_LINE,"polygon transition");
+            GLfloat width{};glGetFloatv(GL_LINE_WIDTH,&width);Check(width==3,"line width transition");
+            GLdouble range[2]{};glGetDoublev(GL_DEPTH_RANGE,range);Check(range[0]==.25&&range[1]==.75,"depth range transition");
+            GLint rect[4]{};glGetIntegerv(GL_VIEWPORT,rect);Check(rect[0]==2&&rect[1]==3&&rect[2]==44&&rect[3]==45,"viewport transition");
+            glGetIntegerv(GL_SCISSOR_BOX,rect);Check(rect[0]==4&&rect[1]==5&&rect[2]==22&&rect[3]==23,"scissor transition");
+            Check(glIsEnabled(GL_SCISSOR_TEST)&&glIsEnabled(GL_FRAMEBUFFER_SRGB),"scissor and color-space transition");
+            glGetIntegerv(GL_BLEND_EQUATION_RGB,&integer);Check(integer==GL_FUNC_SUBTRACT,"blend equation transition");
+            glGetIntegerv(GL_BLEND_DST_RGB,&integer);Check(integer==GL_ONE_MINUS_SRC_ALPHA,"blend factor transition");
+            cache.Texture(0,GL_TEXTURE_CUBE_MAP,textures[1]);cache.Texture(0,GL_TEXTURE_2D,textures[0]);
+            glGetIntegerv(GL_TEXTURE_BINDING_2D,&integer);Check(integer==int(textures[0]),"per-target texture slots");
+            glGetIntegerv(GL_TEXTURE_BINDING_CUBE_MAP,&integer);Check(integer==int(textures[1]),"same-unit cube binding retained");
+            cache.Sampler(0,0);glGetIntegeri_v(GL_SAMPLER_BINDING,0,&integer);Check(integer==0,"sampler transition to defaults");
+            cache.Framebuffer(GL_READ_FRAMEBUFFER,fb[1]);cache.ReadBuffer(GL_NONE);
+            glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&integer);Check(integer==int(fb[1]),"read target independent");
+            glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&integer);Check(integer==int(fb[0]),"draw target retained");
+            cache.Framebuffer(GL_FRAMEBUFFER,fb[1]);cache.DrawBuffer(GL_NONE);
+            cache.Framebuffer(GL_FRAMEBUFFER,fb[0]);cache.DrawBuffer(GL_NONE);cache.ReadBuffer(GL_NONE);
+            if(cache.textureUnits>32) {cache.Texture(32,GL_TEXTURE_2D,textures[0]);cache.Sampler(32,sampler);
+                glGetIntegeri_v(GL_SAMPLER_BINDING,32,&integer);Check(integer==int(sampler),"valid high unit selected without truncation");
+                const auto before=DriverCalls::counts;cache.Texture(32,GL_TEXTURE_2D,textures[0]);cache.Sampler(32,sampler);
+                Check(DriverCalls::counts==before,"high unit queries suppress redundant mutations too");}
+            glDepthFunc(GL_NEVER);glViewport(1,1,1,1);glEnable(GL_FRAMEBUFFER_SRGB);
+            cache.Invalidate();request();
+            glGetIntegerv(GL_DEPTH_FUNC,&integer);Check(integer==GL_LESS&&!glIsEnabled(GL_FRAMEBUFFER_SRGB),"external boundary invalidation re-establishes desired state");
+            Check(glGetError()==GL_NO_ERROR,"cache query fixture has no driver errors");
+        }
+        Check(!Cache::Current(),"cache ends at boundary");
+        glBindFramebuffer(GL_FRAMEBUFFER,0);glBindVertexArray(0);glBindSampler(0,0);glBindSampler(32,0);
+        glDeleteFramebuffers(2,fb);glDeleteSamplers(1,&sampler);glDeleteTextures(2,textures);glDeleteVertexArrays(1,&vao);
+        glActiveTexture(GL_TEXTURE0);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);glDisable(GL_BLEND);
+        std::println("[PASS] state-cache redundant/transition/external/queried-GL");
     }
     auto realAvailable=glad_glGetQueryObjectiv;
     auto realResult=glad_glGetQueryObjectui64v;
@@ -244,6 +438,65 @@ namespace
             }
             return result;
         };
+        if(const auto* output=SDL_getenv("GENGINE_STATE_CACHE_MEASURE")) {
+            // Identical geometry/material shared by 64 overlapping draws; no
+            // simulation/extraction/readback/presentation inside timed Submit.
+            for(unsigned i=1;i<64;++i) {
+                auto copy=scene.CreateEntity("repeated state "+std::to_string(i));
+                copy.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,material});
+            }
+            auto access=resources.Publication().BeginFrame();
+            auto frame=Take(Extract(scene,resources,access,camera),"state measurement frozen frame");
+            std::ofstream csv(output);csv<<"iteration,cpu_ns";
+            csv<<",UseProgram";
+            csv<<",BindVertexArray";
+            csv<<",BindFramebuffer";
+            csv<<",ActiveTexture";
+            csv<<",BindTexture";
+            csv<<",BindSampler";
+            csv<<",Enable";
+            csv<<",Disable";
+            csv<<",Viewport";
+            csv<<",Scissor";
+            csv<<",DepthMask";
+            csv<<",DepthFunc";
+            csv<<",ColorMask";
+            csv<<",StencilMask";
+            csv<<",BlendEquationSeparate";
+            csv<<",BlendFuncSeparate";
+            csv<<",CullFace";
+            csv<<",FrontFace";
+            csv<<",PolygonMode";
+            csv<<",LineWidth";
+            csv<<",DepthRange";
+            csv<<",ClearDepth";
+            csv<<",ClearColor";
+            csv<<",DrawBuffer";
+            csv<<",ReadBuffer";
+            csv<<",BindBufferBase";
+            csv<<",DrawArrays";
+            csv<<",DrawElements";
+            csv<<'\n';
+            for(unsigned i=0;i<360;++i) {
+                submitter.InvalidatePassContents();
+                std::chrono::nanoseconds elapsed;
+                {
+                    DriverCalls::Observe observe;
+                    const auto start=std::chrono::steady_clock::now();
+                    auto result=Take(submitter.Submit(frame,targets,picks),"state measurement submission");
+                    elapsed=std::chrono::steady_clock::now()-start;
+                    Check(result.shadowDraws==128&&result.pickDraws==64&&result.colorDraws==64,"matched 256-draw frozen workload");
+                }
+                if(i>=120) {csv<<i<<','<<elapsed.count();for(auto count:DriverCalls::counts) csv<<','<<count;csv<<'\n';}
+                root.MainWindow()->SwapBuffer();
+            }
+            const auto pixels=Pixels(desc.color);
+            std::ofstream image(std::string(output)+".rgba",std::ios::binary);
+            image.write(reinterpret_cast<const char*>(pixels.data()),pixels.size());
+            Check(csv.good()&&image.good(),"state measurement output");
+            std::println("[PASS] state-measure 120 warmup / 240 samples / 256 draws; 64x64 linear RGBA8; 256 shadows; one retained frame; no Physics");
+            return;
+        }
         if(const auto* output=SDL_getenv("GENGINE_TIMING_FIXTURE")) {
             // A separate frozen fixture keeps shadow/picking work active even
             // when the default application legitimately caches those images.
@@ -267,6 +520,25 @@ namespace
         }
         expect(PassDirtyReason::InitialContent,7);
         const auto color=Pixels(desc.color);
+        if(!SDL_getenv("GENGINE_STATE_CACHE_MEASURE")) {
+            // Poison object-local routing as well as global state, between two
+            // independent submissions. The next submission must establish both.
+            desc.color.Bind();glDrawBuffer(GL_NONE);glReadBuffer(GL_NONE);
+            picking.Bind();glDrawBuffer(GL_NONE);glReadBuffer(GL_NONE);
+            glEnable(GL_FRAMEBUFFER_SRGB);glEnable(GL_POLYGON_OFFSET_LINE);glEnable(GL_POLYGON_OFFSET_POINT);
+            glColorMaski(0,GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);glDepthMask(GL_FALSE);
+            glActiveTexture(GL_TEXTURE0+7);glBindTexture(GL_TEXTURE_2D,0);glBindSampler(0,0);
+            GLuint incomingVao{};glGenVertexArrays(1,&incomingVao);glBindVertexArray(incomingVao);
+            glViewport(3,4,17,18);
+            submitter.InvalidatePassContents();expect(PassDirtyReason::ExternalWrite,7);
+            GLint actual{},viewport[4]{};glGetIntegerv(GL_VERTEX_ARRAY_BINDING,&actual);
+            Check(actual==int(incomingVao),"submission restores incoming VAO once");
+            glGetIntegerv(GL_VIEWPORT,viewport);Check(viewport[0]==3&&viewport[1]==4&&viewport[2]==17&&viewport[3]==18,"submission restores external viewport");
+            Check(Pixels(desc.color)==color,"external routing/color-space/mask boundary preserves exact image");
+            Check(!RenderBackend::GLStateCache::Current(),"no cache retained across readback/UI/upload boundaries");
+            glBindVertexArray(0);glDeleteVertexArrays(1,&incomingVao);
+            std::println("[PASS] state-cache submission-boundary/routing/pass-to-pass/image/VAO-restore");
+        }
         const auto firstPixel=Take(picking.ReadPixel(32,32),"cached initial pixel");
         auto unchanged=expect(PassDirtyReason::None,0);
         Check(unchanged.shadowDraws==0 && unchanged.pickDraws==0 && Pixels(desc.color)==color,"unchanged frame skips cacheable draws and preserves color");
@@ -987,6 +1259,7 @@ int main()
     properties.flag={WindowFlags::INVISIBLE};properties.m_Width=properties.m_Height=64;
     properties.m_MinWidth=properties.m_MinHeight=64;properties.m_IsVsync=false;
     Check(root.Initialize({properties}),"owner root initialization");
+    if(!SDL_getenv("GENGINE_STATE_CACHE_MEASURE")) StateCacheTests();
     TimingTests(root);
     Run(root);
     std::println("[PASS] frame-submission-retirement");

@@ -1,4 +1,5 @@
 #include "gepch.h"
+#include "../Renderer/GLStateCache.h"
 #include "FramebufferBackend.h"
 #include "../Assets/TextureBackend.h"
 #include <new>
@@ -288,7 +289,16 @@ namespace GEngine
     void FrameBuffer::Bind(FramebufferBinding b) const
     {
         if (!*this) GLContextThread::Detail::Fail("Binding an empty framebuffer owner");
-        m_Storage->Require(); glBindFramebuffer(Binding(b), m_Storage->name);
+        m_Storage->Require();
+        if(auto* state=RenderBackend::GLStateCache::Current()) {
+            state->Framebuffer(Binding(b),m_Storage->name);
+            // Submission currently accepts exactly one color attachment or depth
+            // only. Re-establish object-local routing after an external boundary.
+            Asset::AssetDetail::RequireInvariant(Description().ColorCount<=1);
+            const auto buffer=Description().ColorCount?GL_COLOR_ATTACHMENT0:GL_NONE;
+            if(b!=FramebufferBinding::Read) state->DrawBuffer(buffer);
+            if(b!=FramebufferBinding::Draw) state->ReadBuffer(buffer);
+        } else glBindFramebuffer(Binding(b), m_Storage->name);
     }
     void FrameBuffer::UnBind(FramebufferBinding b)
     { GLContextThread::RequireCurrent("Default framebuffer binding"); glBindFramebuffer(Binding(b), 0); }

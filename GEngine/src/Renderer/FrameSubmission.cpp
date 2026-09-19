@@ -6,6 +6,8 @@
 #include "Core/GLContextThread.h"
 #include "Core/RenderCounters.h"
 #include "../Assets/ShaderBackend.h"
+#include "../Assets/TextureBackend.h"
+#include "GLStateCache.h"
 #include <format>
 #include <new>
 #include <bit>
@@ -15,9 +17,15 @@ namespace GEngine
     namespace
     {
         using Asset::Shader;
+        using State = RenderBackend::GLStateCache;
         using Code = SubmissionCode;
         std::unexpected<SubmissionError> Error(const char* op, Code code)
         { return std::unexpected(SubmissionError{op, code}); }
+        void BindProgram(const Shader& shader)
+        {
+            Asset::ShaderBackendAccess::RequireBindable(shader);
+            State::Get().Program(Asset::ShaderBackendAccess::Program(shader));
+        }
         GLint Location(const Shader& shader, const char* name)
         { return glGetUniformLocation(Asset::ShaderBackendAccess::Program(shader), name); }
         void Uniform(const Shader& s, const char* n, int v) { glUniform1i(Location(s, n), v); }
@@ -31,13 +39,14 @@ namespace GEngine
 
         struct TargetRestore
         {
-            GLint draw{}, read{}, viewport[4]{}, program{}, uniformBuffer{};
+            GLint draw{}, read{}, viewport[4]{}, program{}, uniformBuffer{}, vao{};
             TargetRestore()
             {
                 glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw);
                 glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read);
                 glGetIntegerv(GL_VIEWPORT, viewport);
                 glGetIntegerv(GL_CURRENT_PROGRAM, &program);
+                glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &vao);
                 glGetIntegeri_v(GL_UNIFORM_BUFFER_BINDING, 0, &uniformBuffer);
             }
             ~TargetRestore()
@@ -46,6 +55,7 @@ namespace GEngine
                 glBindFramebuffer(GL_READ_FRAMEBUFFER, read);
                 glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
                 glUseProgram(program);
+                glBindVertexArray(vao);
                 glBindBufferBase(GL_UNIFORM_BUFFER, 0, uniformBuffer);
             }
         };
@@ -116,24 +126,25 @@ void main() {
             case BlendFactor::SourceAlpha:return GL_SRC_ALPHA; case BlendFactor::OneMinusSourceAlpha:return GL_ONE_MINUS_SRC_ALPHA; }
             Asset::AssetDetail::RequireInvariant(false); return GL_ONE;
         }
-        void Toggle(GLenum capability,bool enabled) { if(enabled) glEnable(capability); else glDisable(capability); }
+        void Toggle(GLenum capability,bool enabled) { State::Get().Toggle(capability,enabled); }
         void Apply(const RenderPassDesc& pass)
         {
-            glViewport(pass.viewport.x,pass.viewport.y,pass.viewport.width,pass.viewport.height);
-            Toggle(GL_SCISSOR_TEST,pass.scissor); glScissor(pass.viewport.x,pass.viewport.y,pass.viewport.width,pass.viewport.height);
-            Toggle(GL_DEPTH_TEST,pass.depthTest); glDepthMask(pass.depthWrite); glDepthFunc(Compare(pass.depthCompare));
-            glColorMask(pass.colorWrite,pass.colorWrite,pass.colorWrite,pass.colorWrite);
-            glDisable(GL_STENCIL_TEST); glStencilMask(pass.stencilWrite?~0u:0u);
-            Toggle(GL_BLEND,pass.blend); glBlendEquationSeparate(GL_FUNC_ADD,GL_FUNC_ADD);
-            glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);
-            Toggle(GL_CULL_FACE,pass.cull!=CullMode::None); glCullFace(pass.cull==CullMode::Front?GL_FRONT:GL_BACK);
-            glFrontFace(GL_CCW); glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
-            glDisable(GL_RASTERIZER_DISCARD); glDisable(GL_POLYGON_OFFSET_FILL);
-            glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE); glDisable(GL_SAMPLE_COVERAGE); glDisable(GL_LINE_SMOOTH);
-            glDisable(GL_SAMPLE_MASK); glDisable(GL_DEPTH_CLAMP); glDisable(GL_FRAMEBUFFER_SRGB);
+            State::Get().Viewport(pass.viewport.x,pass.viewport.y,pass.viewport.width,pass.viewport.height);
+            Toggle(GL_SCISSOR_TEST,pass.scissor); State::Get().Scissor(pass.viewport.x,pass.viewport.y,pass.viewport.width,pass.viewport.height);
+            Toggle(GL_DEPTH_TEST,pass.depthTest); State::Get().DepthMask(pass.depthWrite); State::Get().DepthFunc(Compare(pass.depthCompare));
+            State::Get().ColorMask(pass.colorWrite,pass.colorWrite,pass.colorWrite,pass.colorWrite);
+            Toggle(GL_STENCIL_TEST,false); State::Get().StencilMask(pass.stencilWrite?~0u:0u);
+            Toggle(GL_BLEND,pass.blend); State::Get().BlendEquation(GL_FUNC_ADD,GL_FUNC_ADD);
+            State::Get().BlendFunction(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);
+            Toggle(GL_CULL_FACE,pass.cull!=CullMode::None); State::Get().CullFace(pass.cull==CullMode::Front?GL_FRONT:GL_BACK);
+            State::Get().FrontFace(GL_CCW); State::Get().Polygon(GL_FILL);
+            Toggle(GL_RASTERIZER_DISCARD,false); Toggle(GL_POLYGON_OFFSET_FILL,false);
+            Toggle(GL_POLYGON_OFFSET_LINE,false); Toggle(GL_POLYGON_OFFSET_POINT,false);
+            Toggle(GL_SAMPLE_ALPHA_TO_COVERAGE,false); Toggle(GL_SAMPLE_COVERAGE,false); Toggle(GL_LINE_SMOOTH,false);
+            Toggle(GL_SAMPLE_MASK,false); Toggle(GL_DEPTH_CLAMP,false); Toggle(GL_FRAMEBUFFER_SRGB,false);
             Toggle(GL_DITHER,pass.pass!=RenderPass::Picking);
-            glEnable(GL_MULTISAMPLE); glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
-            glDepthRange(0,1); glClearDepth(1); glClearColor(.1f,.1f,.1f,1.f);
+            Toggle(GL_MULTISAMPLE,true); Toggle(GL_TEXTURE_CUBE_MAP_SEAMLESS,true);
+            State::Get().DepthRange(0,1); State::Get().ClearDepth(1); State::Get().ClearColor(.1f,.1f,.1f,1.f);
             GLbitfield clear{};
             if(pass.colorLoad==PassLoad::Clear) clear|=GL_COLOR_BUFFER_BIT;
             if(pass.depthLoad==PassLoad::Clear) clear|=GL_DEPTH_BUFFER_BIT;
@@ -176,6 +187,16 @@ void main() {
             Uniform(shader, "u_projection", camera.projection);
             Uniform(shader, "viewPos", camera.worldPosition);
         }
+        std::expected<void, Asset::TextureError> BindTexture(const Asset::TextureView& texture, unsigned unit)
+        {
+            auto name=Asset::AssetDetail::TextureBackend::Name(texture);
+            if(!name) return std::unexpected(name.error());
+            auto& state=State::Get();
+            if(unit>=static_cast<unsigned>(state.textureUnits))
+                return std::unexpected(Asset::TextureError{Asset::TextureErrorCode::InvalidUnit,{},"Texture unit exceeds the context limit"});
+            state.Texture(unit,Asset::AssetDetail::TextureBackend::Target(texture),*name);
+            return {};
+        }
         std::expected<void, SubmissionError> MaterialUniforms(const PreparedMaterialBinding& material)
         {
             const auto& shader = *material.Program();
@@ -198,7 +219,7 @@ void main() {
             {
                 const auto& texture = material.Textures()[i];
                 const auto unit = slots[i].bindingIndex;
-                if (auto bound = Asset::TextureView(texture.texture).Bind(unit); !bound)
+                if (auto bound = BindTexture(Asset::TextureView(texture.texture),unit); !bound)
                     return std::unexpected(SubmissionError{"material texture", bound.error()});
                 if (auto bound = texture.sampler->Bind(unit); !bound)
                     return std::unexpected(SubmissionError{"material sampler", bound.error()});
@@ -322,7 +343,7 @@ void main() {
             Uniform(shader,"u_model",draw.draw->worldTransform);
             Uniform(shader,"u_EntityID",draw.pixel);
             const auto primitive = draw.role->kind == SceneMaterialKind::Helper ? MeshPrimitive::Lines : MeshPrimitive::Triangles;
-            if(primitive==MeshPrimitive::Lines) glLineWidth(draw.role->lineWidth);
+            if(primitive==MeshPrimitive::Lines) State::Get().LineWidth(draw.role->lineWidth);
             auto result = draw.resources->Mesh()->DrawSubmesh(draw.submesh, primitive);
             if (!result) return std::unexpected(SubmissionError{"mesh submission",result.error()});
             PassTiming::Submitted(1,1);
@@ -553,6 +574,7 @@ void main() {
         if(visibility->Transparent().size()>1) std::sort(transparent.get(),transparent.get()+visibility->Transparent().size(),
             [&](auto a,auto b){const auto za=depth(a),zb=depth(b);return za==zb?a<b:za<zb;});
         TargetRestore restore;
+        State state; // Ends before restore and every external scheduler boundary.
         auto& storage=*m_Storage;
         auto begin=[&](RenderPass pass) {
             auto contract=DescribePass(pass,desc);
@@ -578,7 +600,7 @@ void main() {
             Uniform(shader,"frameTiling",tiling);
             auto slots=material.Source()->Declaration()->Textures();
             for(std::size_t i=0;i<slots.size();++i) if(slots[i].declaration.name=="albedoMap") {
-                if(auto bound=Asset::TextureView(material.Textures()[i].texture).Bind(0);!bound) return std::unexpected(SubmissionError{"coverage texture",bound.error()});
+                if(auto bound=BindTexture(Asset::TextureView(material.Textures()[i].texture),0);!bound) return std::unexpected(SubmissionError{"coverage texture",bound.error()});
                 if(auto bound=material.Textures()[i].sampler->Bind(0);!bound) return std::unexpected(SubmissionError{"coverage sampler",bound.error()});
                 Uniform(shader,"frameCoverage",0); break;
             }
@@ -595,12 +617,12 @@ void main() {
         };
         // The cached cascade matrices still belong to this submitter. Re-establish
         // their binding even when no shadow draw is needed after external UI work.
-        if(directionalShadow) glBindBufferBase(GL_UNIFORM_BUFFER,0,storage.matrices);
+        if(directionalShadow) state.UniformBuffer(storage.matrices);
         if(stats.decisions[0].executed)
         {
             PassTiming::Scope timing(RenderPass::DirectionalShadow);
-            storage.cascade.Bind(); desc.cascadeShadow.Bind(); begin(RenderPass::DirectionalShadow);
-            glBindBufferBase(GL_UNIFORM_BUFFER,0,storage.matrices);
+            BindProgram(storage.cascade); desc.cascadeShadow.Bind(); begin(RenderPass::DirectionalShadow);
+            state.UniformBuffer(storage.matrices);
             std::array<glm::mat4,5> matrices;
             previous=desc.cameraNear;
             for(std::size_t i=0;i<matrices.size();++i) {matrices[i]=LightMatrix(camera,desc,lightDirection,previous,desc.cascadeSplits[i]);previous=desc.cascadeSplits[i];}
@@ -611,7 +633,7 @@ void main() {
         if(stats.decisions[1].executed)
         {
             PassTiming::Scope timing(RenderPass::PointShadow);
-            storage.point.Bind(); desc.pointShadow.Bind(); begin(RenderPass::PointShadow);
+            BindProgram(storage.point); desc.pointShadow.Bind(); begin(RenderPass::PointShadow);
             const auto& size=desc.pointShadow.Buffer().Description();
             const auto matrices=PointMatrices(position,desc.pointNear,pointFar,float(size.Width)/size.Height);
             for(std::size_t i=0;i<matrices.size();++i) Uniform(storage.point,std::format("shadowMatrices[{}]",i).c_str(),matrices[i]);
@@ -622,7 +644,7 @@ void main() {
         if(stats.decisions[2].executed)
         {
             PassTiming::Scope timing(RenderPass::Picking);
-            storage.pick.Bind(); desc.picking.Bind(); begin(RenderPass::Picking);
+            BindProgram(storage.pick); desc.picking.Bind(); begin(RenderPass::Picking);
             RenderCounters::RecordPass(RenderCounters::Pass::Picking);
             if(auto result=desc.picking.ClearAttachment(0,-1);!result) return std::unexpected(SubmissionError{"clear picking",result.error()});
             CameraUniforms(storage.pick,camera);
@@ -642,11 +664,11 @@ void main() {
             if(kind==SceneMaterialKind::PointLight && (!point || point->entity!=prepared.draw->entity)) return {};
             const auto& material=prepared.resources->Material(); const auto& shader=*material.Program();
             const auto& pipeline=material.Pipeline(); const auto blend=pipeline.Blend();
-            shader.Bind();
+            BindProgram(shader);
             Toggle(GL_CULL_FACE,pipeline.Description().cull!=CullMode::None);
-            glCullFace(GL_BACK); glDepthFunc(Compare(pipeline.Depth().compare));
-            glDepthMask(!sky && pipeline.Depth().write); Toggle(GL_BLEND,blend.enabled);
-            glBlendFuncSeparate(Factor(blend.sourceColor),Factor(blend.destinationColor),Factor(blend.sourceAlpha),Factor(blend.destinationAlpha));
+            State::Get().CullFace(GL_BACK); State::Get().DepthFunc(Compare(pipeline.Depth().compare));
+            State::Get().DepthMask(!sky && pipeline.Depth().write); Toggle(GL_BLEND,blend.enabled);
+            State::Get().BlendFunction(Factor(blend.sourceColor),Factor(blend.destinationColor),Factor(blend.sourceAlpha),Factor(blend.destinationAlpha));
             CameraUniforms(shader,camera,sky);
             if(kind==SceneMaterialKind::Lit) Uniform(shader,"u_tiling",glm::vec2(1));
             if(auto result=MaterialUniforms(material);!result) return result;
@@ -659,13 +681,13 @@ void main() {
                 const auto unit=static_cast<unsigned>(material.Textures().size());
                 if(directionalShadow) {
                     auto view=desc.cascadeShadow.DepthView(); if(!view) return std::unexpected(SubmissionError{"cascade view",view.error()});
-                    if(auto result=Asset::TextureView(*view).Bind(unit);!result) return std::unexpected(SubmissionError{"cascade binding",result.error()});
-                } else { glActiveTexture(GL_TEXTURE0+unit); glBindTexture(GL_TEXTURE_2D_ARRAY,0); }
+                    if(auto result=BindTexture(Asset::TextureView(*view),unit);!result) return std::unexpected(SubmissionError{"cascade binding",result.error()});
+                } else { state.Texture(unit,GL_TEXTURE_2D_ARRAY,0); }
                 if(pointShadow) {
                     auto view=desc.pointShadow.DepthView(); if(!view) return std::unexpected(SubmissionError{"point view",view.error()});
-                    if(auto result=Asset::TextureView(*view).Bind(unit+1);!result) return std::unexpected(SubmissionError{"point binding",result.error()});
-                } else { glActiveTexture(GL_TEXTURE0+unit+1); glBindTexture(GL_TEXTURE_CUBE_MAP,0); }
-                glBindSampler(unit,0); glBindSampler(unit+1,0);
+                    if(auto result=BindTexture(Asset::TextureView(*view),unit+1);!result) return std::unexpected(SubmissionError{"point binding",result.error()});
+                } else { state.Texture(unit+1,GL_TEXTURE_CUBE_MAP,0); }
+                State::Get().Sampler(unit,0); State::Get().Sampler(unit+1,0);
                 Uniform(shader,"shadowMap",int(unit)); Uniform(shader,"pointShadowDepthMap",int(unit+1));
                 Uniform(shader,"lightDir",lightDirection); Uniform(shader,"lightPos",position);
                 Uniform(shader,"directionallightColor",directional?directional->color*directional->intensity:glm::vec3(0));
@@ -678,7 +700,7 @@ void main() {
                 for(std::size_t j=0;j<desc.cascadeSplits.size();++j) Uniform(shader,std::format("cascadePlaneDistances[{}]",j).c_str(),desc.cascadeSplits[j]);
             }
             Toggle(GL_LINE_SMOOTH,kind==SceneMaterialKind::Helper);
-            if(kind==SceneMaterialKind::Helper) glLineWidth(prepared.role->lineWidth);
+            if(kind==SceneMaterialKind::Helper) State::Get().LineWidth(prepared.role->lineWidth);
             if(kind==SceneMaterialKind::PointLight) Uniform(shader,"pointlightColor",point->color*point->intensity);
             if(auto result=Draw(prepared,shader);!result) return result;
             if(sky) ++stats.skyDraws; else if(helper) ++stats.helperDraws; else {
@@ -699,7 +721,7 @@ void main() {
             for(auto index:indices) if(auto result=colorDraw(index,pass);!result) return std::unexpected(result.error());
             timing.Complete();
         }
-        glDepthFunc(GL_LESS); glDepthMask(GL_TRUE); glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE); glDisable(GL_BLEND);
+        State::Get().DepthFunc(GL_LESS); State::Get().DepthMask(GL_TRUE); State::Get().ColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE); Toggle(GL_BLEND,false);
         if(const auto error=glGetError();error!=GL_NO_ERROR)
             return std::unexpected(SubmissionError{std::format("frame submission: driver diagnostic 0x{:x}",error),Code::Driver});
         // Rebuild the same deterministic table on cache hits; absent requests

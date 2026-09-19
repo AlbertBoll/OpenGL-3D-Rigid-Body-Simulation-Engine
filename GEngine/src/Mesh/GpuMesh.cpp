@@ -1,5 +1,6 @@
 #include "gepch.h"
 #include "Mesh/GpuMesh.h"
+#include "../Renderer/GLStateCache.h"
 #include "Mesh/VertexBuffer.h"
 #include "Mesh/IndexBuffer.h"
 #include "Mesh/Mesh.h"
@@ -250,7 +251,11 @@ namespace GEngine
         const auto& range = s.submeshes[submesh];
         if (!range.elementCount) return {};
         if (DriverFailed("before draw")) return Error(Code::Driver, "Pre-existing driver error; no draw issued");
-        Bindings previous; glBindVertexArray(s.vao.m_VertexArrayRef);
+        // A retained submission restores the incoming VAO once at its boundary.
+        // Standalone draws keep the existing preserve-binding contract.
+        std::optional<Bindings> previous;
+        if(auto* state=RenderBackend::GLStateCache::Current()) state->VertexArray(s.vao.m_VertexArrayRef);
+        else { previous.emplace(); glBindVertexArray(s.vao.m_VertexArrayRef); }
         if (s.indexFormat == MeshIndexFormat::None)
             glDrawArrays(mode, static_cast<GLint>(range.firstElement), static_cast<GLsizei>(range.elementCount));
         else

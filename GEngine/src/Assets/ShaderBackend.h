@@ -29,6 +29,8 @@ namespace GEngine::Asset
     {
         static GLuint Program(const Shader& shader) noexcept
         { return shader.m_Storage ? shader.m_Storage->program : 0; }
+        static void RequireBindable(const Shader& shader)
+        { AssetDetail::RequireInvariant(shader.IsLinked()); shader.m_Storage->RequireOwner(); }
         static const auto& Uniforms(const Shader& shader) { return shader.m_Storage->uniforms; }
         static void BindTexture(Shader& shader, const char* uniform, GLenum target, GLuint name, GLuint unit);
     };

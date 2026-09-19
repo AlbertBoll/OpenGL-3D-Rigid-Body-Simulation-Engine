@@ -1675,3 +1675,50 @@ The new async static OBJ path scans its supported directive vocabulary with fixe
 storage before Assimp, rejecting an invalid directive that reproducibly hangs the
 bundled parser. This does not claim comprehensive hostile-file sandboxing or a
 wall-clock bound on every dependency reader. No benchmark or sanitizer is implied.
+
+
+## Phase 52: backend render state cache
+
+Run `python tools/test_frame_submission.py --configuration Debug --state-cache-measure --smoke --output logs/rendering/phase52/final/Debug`
+and the corresponding Release command. This builds the six maintained consumers,
+compiles the native-free renderer and application closures, runs queried-GL cache
+transitions and the retained-frame/scheduler/image/error regressions, and closes
+all four graphical applications normally. `--no-build` requires matching binaries.
+
+The private `src/Renderer/GLStateCache.h` is active only during synchronous
+`FrameSubmission::Submit`. Each entry starts unknown. It compares program, VAO,
+framebuffer, per-target texture/unit and sampler state, depth/cull/blend/polygon,
+line width, viewport/scissor, write masks, color-space and other used enable bits.
+Valid texture units above the fixed 32-unit cache capacity compare queried driver
+state before mutation, without an allocation or a new unit limit.
+The normal texture-only API still selects its authored defaults; the submitter
+binds retained texture/sampler pairs without an intermediate sampler-zero bind.
+
+Mutation boundaries are explicit:
+
+| State or operation | Ownership / boundary |
+| --- | --- |
+| Program, VAO, framebuffer, viewport | Cached within submission; incoming program/VAO/read+draw framebuffer/viewport restored once on every return |
+| Depth, cull, blend, polygon, line width, scissor, color/depth/stencil write masks, framebuffer SRGB, multisampling, raster/discard/offset/coverage/clamp/dither/seamless enables | Desired state established through the private cache; no state knowledge survives submission |
+| Draw/read buffer selection | Object-local selection re-established for each newly bound one-color/depth-only submission target; switching framebuffers invalidates the corresponding selector |
+| Picking integer clear | Existing framebuffer operation temporarily changes draw routing, scissor and indexed color mask, then restores their exact incoming values; cache observations remain valid |
+| Shadow UBO index 0 | Cached binding; DSA data upload has no binding side effect; incoming indexed binding restored at exit |
+| Uniform values, draws, clears and DSA buffer uploads | Operations always execute; this phase does not cache data uploads |
+| Upload pixel store / PBO and readback pack state | Outside the cache scope; existing texture unpack and framebuffer pack guards restore all used fields and buffer bindings |
+| Resource creation/retirement, legacy callbacks, resolve, ImGui/platform contexts, presentation | Outside the cache scope; the next submission begins unknown, including after a failed submission |
+
+`--state-cache-measure` records three frozen 256-draw series (64 shared box/material
+instances, directional + point shadows, picking and color; 64x64 linear RGBA8,
+256 shadow maps), each with 120 warm-up and 240 measured iterations. The retained
+frame and camera are fixed; only Submit CPU time is measured. Extraction, Physics,
+readback and swap are excluded. Actual driver-pointer hooks count mutations and
+draws even in Release. Run-median spread above 10% is noisy; exact images/work
+counts and reduced state calls are the required gates, without a timing speedup
+claim when noisy. GPU timings are outside this focused measurement protocol.
+
+`--state-cache-baseline <preserved-GEngine.lib> --no-build --state-cache-measure`
+links the same probe against an explicitly identified predecessor library and
+runs only the measurement mode. The Phase 52 before library is the exact approved
+Phase 51 Debug library; the ordinary Release library available at phase entry did
+not match its recorded hash and was not accepted as before evidence. Do not infer
+Release or whole-application speedup from the Debug comparison.

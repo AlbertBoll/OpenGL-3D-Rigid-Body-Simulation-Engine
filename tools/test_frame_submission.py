@@ -162,7 +162,11 @@ def main():
     parser.add_argument("--smoke", action="store_true", help="All four graphical applications: responsiveness and native shutdown")
     parser.add_argument("--scene-variants", action="store_true", help="Compile and smoke each authored rigid-body scene")
     parser.add_argument("--timing-baseline", action="store_true", help="Release: capture the secondary Phase 48 per-pass reference")
+    parser.add_argument("--state-cache-measure", action="store_true", help="Three frozen submission series, 120 warmup and 240 samples each")
+    parser.add_argument("--state-cache-baseline", type=Path, help="Measurement-only link against an explicitly preserved predecessor library; requires --no-build")
     args = parser.parse_args()
+    if args.state_cache_baseline and (not args.no_build or not args.state_cache_measure):
+        parser.error("Preserved baseline requires --no-build --state-cache-measure")
     config = args.configuration
     if args.timing_baseline and (config != "Release" or args.no_build):
         parser.error("Timing capture requires a fresh Release measurement build")
@@ -244,6 +248,8 @@ def main():
             report["reason"] = "Concrete backend leaked into the normal application translation unit"
             return 1
         for rel in ("GEngine/include/GEngine/Renderer/FrameSubmission.h", "GEngine/src/Renderer/FrameSubmission.cpp",
+                    "GEngine/src/Renderer/GLStateCache.h", "GEngine/src/Assets/ShaderBackend.h",
+                    "GEngine/src/Assets/Sampler.cpp", "GEngine/src/Mesh/GpuMesh.cpp",
                     "GEngine/include/GEngine/Renderer/PassTiming.h", "GEngine/src/Renderer/PassTiming.cpp",
                     "GEngine/include/GEngine/Core/Window.h", "GEngine/src/Windows/SDLWindow.cpp",
                     "GEngine/include/GEngine/Core/FrameBuffer.h", "GEngine/src/Core/FrameBuffer.cpp",
@@ -268,8 +274,13 @@ def main():
             if "FrameScheduler::Render" not in body or re.search(r"\b(SwapBuffer|BeginUI|EndUI|ExtractRenderFrame|BindAndBlitToScreen)\s*\(", body):
                 report["reason"] = "Application still sequences frame pipeline: " + rel
                 return 1
+        submission_body=submission.split("        void Apply(",1)[1]
+        if re.search(r"\bgl(?:UseProgram|BindVertexArray|BindFramebuffer|BindTexture|BindSampler|ActiveTexture|Enable|Disable|Viewport|Scissor|DepthMask|DepthFunc|ColorMask|StencilMask|BlendFuncSeparate|BlendEquationSeparate|CullFace|FrontFace|PolygonMode|LineWidth|DepthRange|ClearDepth|ClearColor|DrawBuffer|ReadBuffer)\s*\(", submission_body):
+            report["reason"]="Migrated submission bypasses private state cache"
+            return 1
         report["architecture"] = {"no_new_exception": "PASS", "consumer_boundary": "PASS", "application_pipeline_ownership": "PASS"}
 
+        library = args.state_cache_baseline.resolve() if args.state_cache_baseline else ROOT / "bin" / config / "GEngine/GEngine.lib"
         executable = out / "frame-submission-probe.exe"
         command = [vc / "bin/Hostx64/x64/cl.exe", "/nologo", "/std:c++23preview", "/EHsc", "/W3",
                    *(["/DGENGINE_RENDER_COUNTERS=1", "/DGE_ENABLE_PHYSICS_PROFILING"] if args.timing_baseline else []),
@@ -281,7 +292,7 @@ def main():
                    "/Fo" + str(out) + os.sep,
                    "/Fe" + str(executable), "/link", "/SUBSYSTEM:CONSOLE",
                    *(["/OPT:NOREF", "/OPT:NOICF"] if config == "Debug" else []),
-                   *["/LIBPATH:" + str(p) for p in libraries], ROOT / "bin" / config / "GEngine/GEngine.lib",
+                   *["/LIBPATH:" + str(p) for p in libraries], library,
                    ROOT / "external/glad/bin" / config / "glad/glad.lib", "SDL2.lib", "SDL2_ttf.lib",
                    "tbb12.lib", "tbb12_debug.lib", "tbb.lib", "tbb_debug.lib", "assimp.lib",
                    "fmod64_vc.lib", "fmodL64_vc.lib", "fmodstudio64_vc.lib", "fmodstudioL64_vc.lib"]
@@ -289,17 +300,48 @@ def main():
             return 1
         sdl = ROOT / "bin" / config / "GEngineEditor/SDL2.dll"
         report["inputs"] = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in
-                            (executable, ROOT / "bin" / config / "GEngine/GEngine.lib", sdl)}
+                            (executable, library, sdl)}
         env["Path"] = str(sdl.parent) + os.pathsep + env["Path"]
         env["GENGINE_ASSET_ROOT"] = str(ROOT / "bin" / config / "assets")
         env["GENGINE_SHADOW_RESOLUTION"] = "256"
         env["GENGINE_PASS_TIMING"] = "1"
+        if args.state_cache_measure:
+            protocol = {"workload": "one immutable 64-box shared-material frame; 128 shadow + 64 picking + 64 color draws; 64x64 linear RGBA8; 256 shadow maps; no Physics", "warmup": 120, "samples": 240, "series": 3,
+                "noise_policy": "Run median spread above 10% is NOISY. Timing is descriptive; no speedup claim unless stable. Required gates are exact image/work counts and fewer driver state mutations.",
+                "scope": "Submit CPU only; excludes extraction, simulation, readback and swap. GPU timings are not measured by this protocol."}
+            report["state_cache_protocol"] = protocol
+            (out / "state-cache-protocol.json").write_text(json.dumps(protocol, indent=2))
+            records=[]
+            for series in range(3):
+                capture = out / f"state-cache-{series}.csv"
+                measured_env=dict(env, GENGINE_STATE_CACHE_MEASURE=str(capture))
+                if not invoke(f"state-cache-{series}", [executable], 180, out, measured_env, marker="[PASS] state-measure"):
+                    return 1
+                with capture.open(newline="") as stream:
+                    rows=list(csv.DictReader(stream))
+                if len(rows)!=240:
+                    return 1
+                cpu=sorted(int(r["cpu_ns"]) for r in rows)
+                counts={k:sorted({int(r[k]) for r in rows}) for k in rows[0] if k not in ("iteration","cpu_ns")}
+                if any(len(v)!=1 for v in counts.values()) or sum(counts[k][0] for k in ("DrawArrays","DrawElements"))!=256:
+                    return 1
+                records.append({"series":series,"cpu_median_ns":statistics.median(cpu),"cpu_p95_ns":cpu[int(.95*(len(cpu)-1))],
+                    "driver_calls":counts,"image_sha256":hashlib.sha256(Path(str(capture)+".rgba").read_bytes()).hexdigest()})
+            medians=[r["cpu_median_ns"] for r in records]
+            report["state_cache_measurements"]={"runs":records,"median_spread":(max(medians)-min(medians))/statistics.median(medians)}
+        if args.state_cache_baseline:
+            passed=True
+            return 0
         passed = invoke("frame-submission", [executable], cwd=out,
                         marker="[PASS] pass-invalidation unchanged/revisions/targets/deferred/multiple/failure")
         if not passed:
             return 1
         if "[PASS] pass-timing delayed/unavailable/reuse/no-block/labels/move/context/retirement" not in (out / "frame-submission.log").read_text(errors="replace"):
             passed = False
+            return 1
+        probe_log=(out / "frame-submission.log").read_text(errors="replace")
+        if "[PASS] state-cache redundant/transition/external/queried-GL" not in probe_log or "[PASS] state-cache submission-boundary/routing/pass-to-pass/image/VAO-restore" not in probe_log:
+            passed=False
             return 1
         if args.scene_variants:
             flags = ("activate_sphere_lattice", "activate_boxes_stacking", "activate_sphere_diamond", "activate_sphere_boxes_stacking")

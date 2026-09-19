@@ -1,6 +1,7 @@
 #include "gepch.h"
 #include "Assets/Samplers/Sampler.h"
 #include "TextureBackend.h"
+#include "../Renderer/GLStateCache.h"
 #include "Core/GLContextThread.h"
 #include <cmath>
 #include <new>
@@ -118,7 +119,8 @@ namespace GEngine::Asset
     {
         auto valid = ValidateUnit(unit);
         if (!valid) return valid;
-        glBindSampler(unit, m_Storage->name);
+        if(auto* state=RenderBackend::GLStateCache::Current()) state->Sampler(unit,m_Storage->name);
+        else glBindSampler(unit, m_Storage->name);
         return {};
     }
 

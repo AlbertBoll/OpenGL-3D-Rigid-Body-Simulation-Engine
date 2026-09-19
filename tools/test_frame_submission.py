@@ -18,7 +18,39 @@ from rendering_baseline import LAYOUT, APPS, samples, quantiles, image_region
 from rendering_validation import ROOT, toolchain
 
 
-def application_smoke(executable, directory, env):
+def loaded_modules(pid):
+    """Inspect this process, including the actual app-local/system DLL paths."""
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    psapi = ctypes.WinDLL("psapi", use_last_error=True)
+    kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel.OpenProcess.restype = wintypes.HANDLE
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    psapi.EnumProcessModulesEx.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.HMODULE),
+                                         wintypes.DWORD, ctypes.POINTER(wintypes.DWORD), wintypes.DWORD]
+    psapi.GetModuleFileNameExW.argtypes = [wintypes.HANDLE, wintypes.HMODULE, wintypes.LPWSTR, wintypes.DWORD]
+    process = kernel.OpenProcess(0x0400 | 0x0010, False, pid)
+    if not process:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        modules = (wintypes.HMODULE * 1024)()
+        needed = wintypes.DWORD()
+        if not psapi.EnumProcessModulesEx(process, modules, ctypes.sizeof(modules), ctypes.byref(needed), 3):
+            raise ctypes.WinError(ctypes.get_last_error())
+        if needed.value > ctypes.sizeof(modules):
+            raise OSError("Module inspection buffer too small")
+        result = {}
+        for module in modules[:needed.value // ctypes.sizeof(wintypes.HMODULE)]:
+            name = ctypes.create_unicode_buffer(32768)
+            if not psapi.GetModuleFileNameExW(process, module, name, len(name)):
+                raise ctypes.WinError(ctypes.get_last_error())
+            path = Path(name.value).resolve()
+            result[path.name.lower()] = str(path)
+        return result
+    finally:
+        kernel.CloseHandle(process)
+
+
+def application_smoke(executable, directory, env, required_modules=None):
     """Exercise only the launched process's window, then request native close."""
     directory.mkdir(parents=True, exist_ok=True)
     user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -37,6 +69,7 @@ def application_smoke(executable, directory, env):
     child_env = dict(env)
     child_env.pop("GENGINE_BASELINE_OUTPUT", None)
     record["asset_root"] = child_env.get("GENGINE_ASSET_ROOT")
+    record["path"] = next((v for k, v in child_env.items() if k.lower() == "path"), "")
     with log.open("wb") as output:
         child = subprocess.Popen([str(executable)], cwd=directory, env=child_env,
                                  stdout=output, stderr=subprocess.STDOUT, creationflags=subprocess.CREATE_NO_WINDOW)
@@ -82,9 +115,21 @@ def application_smoke(executable, directory, env):
                     record["reason"] = "Owned window became unresponsive"
                 else:
                     record["responsive"] = True
+                    closure = True
+                    if required_modules is not None:
+                        record["loaded_modules"] = loaded_modules(child.pid)
+                        record["required_modules"] = required_modules
+                        for name, expected in required_modules.items():
+                            actual = record["loaded_modules"].get(name.lower())
+                            if (actual is None or Path(actual) != Path(expected["path"]).resolve()
+                                    or hashlib.sha256(Path(actual).read_bytes()).hexdigest() != expected["sha256"]):
+                                closure = False
+                        record["runtime_closure"] = "PASS" if closure else "FAIL"
                     record["native_close_posted"] = bool(user32.PostMessageW(ready, 0x0010, 0, 0))
                     record["exit"] = child.wait(timeout=30)
-                    record["result"] = "PASS" if record["native_close_posted"] and record["exit"] == 0 else "FAIL"
+                    record["result"] = "PASS" if closure and record["native_close_posted"] and record["exit"] == 0 else "FAIL"
+        except OSError as error:
+            record["reason"] = str(error)
         except subprocess.TimeoutExpired:
             record["reason"] = "Owned process failed to shut down after native close"
             debugger = Path(r"C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe")

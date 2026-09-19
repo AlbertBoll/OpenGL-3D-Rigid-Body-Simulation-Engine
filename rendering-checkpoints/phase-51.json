@@ -1,0 +1,322 @@
+{
+  "baseline": "f11722be9b584463b48c186259edcd3b0814506f",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Mesh/AsyncMesh.h",
+    "GEngine/include/GEngine/Mesh/MeshImporter.h",
+    "GEngine/src/Mesh/AsyncMesh.cpp",
+    "GEngine/src/Mesh/MeshImportNormalization.cpp",
+    "GEngine/src/Mesh/MeshImporter.cpp",
+    "RenderingValidation/README.md",
+    "RigidBodySimulation/include/RigidBodySimulation.h",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "bin/Release/RigidBodySimulation/assimp-vc140-mt.dll",
+    "rendering-checkpoints/phase-51.json",
+    "tools/async_mesh_probe.cpp",
+    "tools/postbuild.py",
+    "tools/test_async_mesh.py",
+    "tools/test_frame_submission.py",
+    "tools/test_runtime_assets.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Normal postbuild verifies selected source/library hashes and stages/repairs app-local DLL in both configurations; Release/Debug standalone evidence records loaded-module provenance.",
+      "finding": "Release RigidBodySimulation omitted the DLL named by the selected Assimp import library.",
+      "id": "P51-R2-runtime-closure",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Separate sanitized OS environment, system-only PATH, required output hash and actual loaded module path/hash, barrel publication/native close; always run smoke with --no-build. Controlled reproduction is in revision2/reproduction.json.",
+      "finding": "Probe Editor PATH injection leaked into actual application smoke and masked missing app-local DLL.",
+      "id": "P51-R2-false-positive-smoke",
+      "status": "RESOLVED"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/phases/PHASE_51.md",
+    "docs/rendering/reviews/PHASE_51_REVIEW.md"
+  ],
+  "next_phase": "52",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "a9fb1c4c921c8f28ffba521485cff4dab790d53e",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-51/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/a9fb1c4c921c8f28ffba521485cff4dab790d53e",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "abc50664ab0583e185a120f745026984e2a00b5614d17af601d1d2283537383a"
+      },
+      "mode": "100644",
+      "validated_blob": "7e32ee6cfb172f689f73964f310ad7ed21c8784b",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-51/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/7e32ee6cfb172f689f73964f310ad7ed21c8784b"
+    }
+  },
+  "phase": "51",
+  "previous_approved_tag": "render-refactor-phase-50-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_51_REVIEW.md",
+  "schema": 2,
+  "summary": "Worker static mesh import with bounded engine preparation, immutable MeshAsset upload, coalesced requests and typed failures; selected barrel action publishes before frame extraction. Assimp internal scratch has the explicit owner-approved exception. Revision 2 fixes selected Assimp runtime staging and requires standalone Debug/Release closure with loaded-module provenance.",
+  "validation": [
+    {
+      "check": "Focused staging regression: 11 tests, repair absent/corrupt output, reject wrong/missing source/import library, copy failure and PATH-masked invalid output",
+      "command": "python tools/test_runtime_assets.py",
+      "evidence": "logs/rendering/phase51/revision2/final-staging-tests.log",
+      "result": "PASS"
+    },
+    {
+      "check": "Affected Release clean then Build (including GEngine/glad references), normal postbuild stages previously absent DLL; affected Debug Build",
+      "command": "python logs/rendering/phase51/revision2/validate.py",
+      "evidence": "logs/rendering/phase51/revision2/build-validation.json",
+      "result": "PASS",
+      "reuse_reason": "Only the test sanitizer OS-variable allowlist changed afterward; all production, staging, toolchain and dependency inputs match the pre-build fingerprint."
+    },
+    {
+      "check": "Actual standalone Release startup, app-local Assimp provenance, barrel publication, responsive window, native close exit 0 with system-only PATH",
+      "command": "python tools/test_async_mesh.py --configuration Release --smoke-only --output logs/rendering/phase51/revision2/Release-standalone-final",
+      "evidence": "logs/rendering/phase51/revision2/Release-standalone-final/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Phase 51 Release suite: native-free boundaries, real GPU worker handoff/error/lifetime cases, CPU importer regression, sanitized application publication/native-close smoke",
+      "command": "python tools/test_async_mesh.py --configuration Release --no-build --output logs/rendering/phase51/revision2/Release-final",
+      "evidence": "logs/rendering/phase51/revision2/Release-final/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Debug standalone runtime closure, selected DLL provenance, barrel publication and native close exit 0",
+      "command": "python tools/test_async_mesh.py --configuration Debug --smoke-only --output logs/rendering/phase51/revision2/Debug-standalone-final",
+      "evidence": "logs/rendering/phase51/revision2/Debug-standalone-final/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Prior Debug async GPU/failure/lifetime, CPU importer and native-boundary coverage; prior other-consumer builds",
+      "command": "python tools/test_async_mesh.py --configuration Debug --output logs/rendering/phase51/final/Debug",
+      "evidence": "logs/rendering/phase51/final/Debug/results.json",
+      "result": "PASS",
+      "reuse_reason": "All seven production files, probe sources, dependent importer/queue/scheduler sources, build configuration and bundled dependencies retain original validated identities. Revision only changes RigidBodySimulation runtime staging and smoke tooling; earlier application-smoke closure claim is superseded by fresh Debug/Release results."
+    },
+    {
+      "check": "Controlled reproduction of former false-positive: withhold only generated app DLL, same binary fails system PATH with 0xC0000135 but loads Editor DLL on injected PATH and publishes/closes exit 0; restore exact DLL",
+      "command": "python logs/rendering/phase51/revision2/negative-control.py",
+      "evidence": "logs/rendering/phase51/revision2/reproduction.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Exact final fingerprint/index/protected scope and owner scene/physics preservation, unchanged selected dependency provenance and governance",
+      "command": "python logs/rendering/phase51/revision2/prepare-checkpoint.py",
+      "evidence": "logs/rendering/phase51/revision2/scope-check.json",
+      "result": "PASS"
+    },
+    {
+      "actual_outcome": "Bundled Assimp has no per-import allocator-budget hook. Its internal allocations are excluded; fixed workers bound concurrency and GEngine preparation/output/queue storage remain bounded.",
+      "check": "Assimp internal scratch/imported-scene allocation cap",
+      "command": "Owner-approved Phase 51 scope amendment; inspect bundled external/assimp/include/assimp/cimport.h",
+      "evidence": "docs/rendering/phases/PHASE_51.md",
+      "owner_acceptance": "Approve the Assimp scratch exception",
+      "result": "ACCEPTED_EXCEPTION"
+    }
+  ],
+  "validation_input_hashes": {
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "GEngine/include/GEngine/Assets/AsyncUploadQueue.h": {
+      "executable": null,
+      "sha256": "fe0ff121b564eaf42c9712cdfdeb7c019244b30c97905d3d0ce78ca80705e96e"
+    },
+    "GEngine/include/GEngine/Assets/Models/barrel.mtl": {
+      "absent": true
+    },
+    "GEngine/include/GEngine/Assets/Models/barrel.obj": {
+      "executable": null,
+      "sha256": "8000e9cc67d051cc27580ef726e560f080e8127c169c901e3bd02d7dbeda1407"
+    },
+    "GEngine/include/GEngine/Core/RenderTarget.h": {
+      "executable": null,
+      "sha256": "65671bbc5b1b7fe91a9f6f7c0bcdf671eb3a4b7d328d5d1967196b95e30e6e50"
+    },
+    "GEngine/include/GEngine/Mesh/AsyncMesh.h": {
+      "executable": null,
+      "sha256": "fb2f732a72ea37b8710634eb42970759337e8af246e96f0d72033b35fdb62b59"
+    },
+    "GEngine/include/GEngine/Mesh/GpuMesh.h": {
+      "executable": null,
+      "sha256": "70293e8871f6ed6bbfa2e38820e90a46a852b2435823f05042e3fee38fc7a874"
+    },
+    "GEngine/include/GEngine/Mesh/MeshAsset.h": {
+      "executable": null,
+      "sha256": "1d0dd5e38cf6e7bbba2ce68ea3fdeb827d47440bcc78c8d7989f63a11eb23cee"
+    },
+    "GEngine/include/GEngine/Mesh/MeshImporter.h": {
+      "executable": null,
+      "sha256": "308175fc0614a6711d0908df26f249efeb3dcebba1428946fd31f77c5bfeeba6"
+    },
+    "GEngine/include/GEngine/Renderer/FrameScheduler.h": {
+      "executable": null,
+      "sha256": "c79f434dd3fd7fcc35e0a2ad7e70cda233eff7f673e66cd8cd784ef312909272"
+    },
+    "GEngine/src/Assets/AsyncUploadQueue.cpp": {
+      "executable": null,
+      "sha256": "eb6d6fb2c6e9844218e66882802ea643c8fd9530b0fae59196c680ff2a05c430"
+    },
+    "GEngine/src/Core/FrameBuffer.cpp": {
+      "executable": null,
+      "sha256": "98fd9efc1b7e47bd7baa45705d0c5a903bc8985f940d9cbd4530338f461d4ebb"
+    },
+    "GEngine/src/Mesh/AsyncMesh.cpp": {
+      "executable": null,
+      "sha256": "f5db3c19e87be948d75cebaaa757f1ed17746fb7ce47a32ac5399f905b7c9576"
+    },
+    "GEngine/src/Mesh/GpuMesh.cpp": {
+      "executable": null,
+      "sha256": "781a8088e841805533bb4c50319b0503d336cb1ec0916946f868bee4e21d9eb7"
+    },
+    "GEngine/src/Mesh/MeshAsset.cpp": {
+      "executable": null,
+      "sha256": "43332cc15e9d498daaf06e962ef7ac89ea7a57e626db14d7a122d054524c1e79"
+    },
+    "GEngine/src/Mesh/MeshImportNormalization.cpp": {
+      "executable": null,
+      "sha256": "4bfc301c90cb40b26d72990b6e47351afd1e917cba72295e7cfa084a4163c47f"
+    },
+    "GEngine/src/Mesh/MeshImporter.cpp": {
+      "executable": null,
+      "sha256": "1bd6a958a33c37b403db9810204af92092f05c30faafe4e19d50ffc9e4c99eb4"
+    },
+    "GEngine/src/Renderer/FrameScheduler.cpp": {
+      "executable": null,
+      "sha256": "156375fff83e9869cc3b6c01f854a1e722f45c56959c02b7db7f2db32e966a47"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "RigidBodySimulation/include/RigidBodySimulation.h": {
+      "executable": null,
+      "sha256": "729cb59af013f3c19b2d7a5c207deeb5627be5fd6b2efd93c3e7faac021353a8"
+    },
+    "RigidBodySimulation/postbuild.py": {
+      "executable": null,
+      "sha256": "d0d0fd0382fd599f06d0a2751187d6d744493ab50dde121a6240790b30fd17a4"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "abc50664ab0583e185a120f745026984e2a00b5614d17af601d1d2283537383a"
+    },
+    "bin/Debug/RigidBodySimulation/assimp-vc140-mt.dll": {
+      "executable": null,
+      "sha256": "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b"
+    },
+    "bin/Release/GEngineEditor/assimp-vc140-mt.dll": {
+      "executable": null,
+      "sha256": "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b"
+    },
+    "bin/Release/RigidBodySimulation/assimp-vc140-mt.dll": {
+      "executable": null,
+      "sha256": "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b"
+    },
+    "docs/rendering/VALIDATION_POLICY.md": {
+      "executable": null,
+      "sha256": "4a37ed0bfe3a03db9d13c6503b35d076f5dc6535291da7f43ee7b42460b3be43"
+    },
+    "docs/rendering/phases/PHASE_51.md": {
+      "executable": null,
+      "sha256": "42924af491de87e30b23db759b0bf3322931489a909d13242efd26bc7a6e41d2"
+    },
+    "external/assimp/lib/assimp.lib": {
+      "executable": null,
+      "sha256": "d6e82cad3f705ce86bf3da2f472461d183c39d1e4a86559df587143a10d33d0a"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052"
+    },
+    "tools/async_mesh_probe.cpp": {
+      "executable": null,
+      "sha256": "a1b1a138af552a767ac1f9c159d2d3355da93fbf82c0b15b1b972f519edc1b2c"
+    },
+    "tools/mesh_import_probe.cpp": {
+      "executable": null,
+      "sha256": "ce9dcb0470f1ee66e2b5cff2aa30e20ba185761fc7e8f1c8bf2be71fbd038623"
+    },
+    "tools/postbuild.py": {
+      "executable": null,
+      "sha256": "04a0a293c07e456537a850e07963fdae52ba1c0f12c52e568d113eb012c7037f"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/runtime_assets.json": {
+      "executable": null,
+      "sha256": "de0f15f505442f26238e622fef1ca6d3ec794abf0875250b837344f804fce70c"
+    },
+    "tools/test_async_mesh.py": {
+      "executable": null,
+      "sha256": "a3d546dd800d9d0e3dee84c359cf7412c04faf81e3a2f5e0d4c167a6d6bceef6"
+    },
+    "tools/test_frame_submission.py": {
+      "executable": null,
+      "sha256": "ef879e1c94f889473c29b93cdfe8c22cbce362fe7173028412340a2b26e489bb"
+    },
+    "tools/test_mesh_import.py": {
+      "executable": null,
+      "sha256": "6c20d8ae14a196e4f106ac4dfb0d4ec258936a1498fe0387fee701d4312e6248"
+    },
+    "tools/test_runtime_assets.py": {
+      "executable": null,
+      "sha256": "f6117e8990982fd7184564bcb1f3defc482465bc1739036171d82f73fa654e58"
+    }
+  }
+}

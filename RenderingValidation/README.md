@@ -1619,3 +1619,59 @@ serial/1/2/8-worker, warmup, rotation and sampling policy. Color and picking use
 64x64 targets and shared box/PBR resources; Physics, swap/vsync and explicit GPU
 completion waits are outside the timed CPU interval. The review reports these
 submission-inclusive numbers separately from extraction-plus-visibility timing.
+
+
+## Phase 51 asynchronous mesh import
+
+Run `python tools/test_async_mesh.py --configuration Debug --output logs/rendering/phase51/final/Debug`
+and the equivalent `Release` command. The runner builds maintained consumers with
+the recorded compiler/static CRT, compiles async/import/application consumer
+boundaries without native backend headers, runs the production loader against
+real GL, runs the existing CPU import regressions, and smokes the selected
+RigidBodySimulation action through native close. `--no-build` reuses matching
+built libraries and the application but still requires its standalone smoke.
+`--smoke-only` runs just that standalone validation against the actual output.
+
+The application smoke uses only Windows/System32 on PATH, an unrelated working
+directory, and the application's normal adjacent asset package. It requires
+barrel publication, a responsive window, native close and exit 0, and records
+the loaded Assimp module's app-local path and SHA-256. Probe-only Editor DLL PATH
+assistance is never passed to this smoke. Missing or mismatched app-local Assimp
+fails validation without repairing the output.
+
+The normal RigidBodySimulation postbuild stages `assimp-vc140-mt.dll` in both
+configurations from the existing tracked
+`bin/Release/GEngineEditor/assimp-vc140-mt.dll`, the runtime paired with
+`external/assimp/lib/assimp.lib`. `tools/postbuild.py` pins both bundled file
+identities, verifies content on every postbuild, repairs absent or wrong output
+bytes, and fails on a missing/mismatched source or copy failure. The Release
+output DLL follows the repository's existing tracked runtime-DLL policy; no
+system installation or PATH lookup supplies the staging source. Run
+`python tools/test_runtime_assets.py` for focused staging regression checks.
+
+RigidBodySimulation's File > Load barrel mesh action imports the shipped static
+barrel after the existing one-shot wood-texture bootstrap. Its worker queue becomes
+the selected scheduler upload source; the current app has no further texture
+requests after that bootstrap. Every imported submesh receives the existing lit
+box material and a render-only entity at (-6,0,0), before extraction. The default
+scene and authoritative physics are unchanged. The runner sets the opt-in
+`GENGINE_ASYNC_MESH_SMOKE=1` action trigger and requires the actual mesh-publication
+marker. This is a bounded one-shot application path, not a general multi-service
+streaming scheduler or a migration of the legacy Editor's Geometry import APIs.
+
+Focused probes cover single/multiple submeshes and material slots, exact uploaded
+vertex/index parity with Phase 33 (including the 4800-vertex barrel), generated
+bounds/normal/tangent frames, missing attributes, missing/malformed files, lexical
+and file-identity coalescing, import-option separation, engine allocation limits,
+GPU creation/publication rollback, retained leases, pending/loading/CPU-ready
+cancellation, full-queue shutdown and context-thread-only GPU ownership. A worker
+allocation gate proves the frame owner progresses during unfinished preparation.
+
+Owner-approved exception: Assimp-owned internal scratch/imported scene storage is
+outside the hard engine-payload reservation. Fixed workers bound concurrency;
+GEngine adapter copies, normalization scratch, MeshAsset storage and queued uploads
+remain bounded. The synchronous dependency call can delay cooperative shutdown.
+The new async static OBJ path scans its supported directive vocabulary with fixed
+storage before Assimp, rejecting an invalid directive that reproducibly hangs the
+bundled parser. This does not claim comprehensive hostile-file sandboxing or a
+wall-clock bound on every dependency reader. No benchmark or sanitizer is implied.

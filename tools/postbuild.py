@@ -1,11 +1,44 @@
 """Copy optional application overlays and verify the checked-in Windows runtime."""
 
 from pathlib import Path, PurePosixPath
+import hashlib
 import json
 import os
 import shutil
 import subprocess
 import sys
+
+
+# The bundled import library names this DLL in both configurations. Keep the
+# existing tracked Editor copy as the source; never discover it through PATH.
+ASSIMP_RUNTIME_SOURCE = "bin/Release/GEngineEditor/assimp-vc140-mt.dll"
+ASSIMP_RUNTIME_SHA256 = "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b"
+ASSIMP_IMPORT_LIBRARY_SHA256 = "d6e82cad3f705ce86bf3da2f472461d183c39d1e4a86559df587143a10d33d0a"
+
+
+def stage_assimp_runtime(repo, destination):
+    """Repair the selected consumer's app-local Assimp closure, or fail build."""
+    repo, destination = Path(repo).resolve(), Path(destination).resolve()
+    source = repo / ASSIMP_RUNTIME_SOURCE
+    library = repo / "external/assimp/lib/assimp.lib"
+    target = destination / source.name
+    temporary = target.with_name(target.name + f".{os.getpid()}.stage-tmp")
+    try:
+        for path, expected in ((source, ASSIMP_RUNTIME_SHA256), (library, ASSIMP_IMPORT_LIBRARY_SHA256)):
+            if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+                raise RuntimeError(f"Bundled Assimp identity mismatch: {path}. Restore the selected dependency and rebuild.")
+        if not target.is_file() or hashlib.sha256(target.read_bytes()).hexdigest() != ASSIMP_RUNTIME_SHA256:
+            destination.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, temporary)
+            if hashlib.sha256(temporary.read_bytes()).hexdigest() != ASSIMP_RUNTIME_SHA256:
+                raise RuntimeError(f"Assimp staging verification failed: {source} -> {target}")
+            os.replace(temporary, target)
+    except OSError as error:
+        raise RuntimeError(f"Cannot stage bundled Assimp: {source} -> {target}: {error}. Restore the selected dependency or fix destination access and rebuild.") from error
+    finally:
+        if temporary.is_file():
+            temporary.unlink()
+    print(f"Assimp runtime verified: {source} -> {target}; SHA-256 {ASSIMP_RUNTIME_SHA256}", flush=True)
 
 
 def runtime_dlls(config, project):
@@ -18,7 +51,7 @@ def runtime_dlls(config, project):
         names.append("assimp-vc140-mt.dll")
     else:
         names.extend(["assimp-vc143-mt.dll", "assimp-vc143-mtd.dll"])
-        if project == "GEngineEditor":
+        if project in ("GEngineEditor", "RigidBodySimulation"):
             names.append("assimp-vc140-mt.dll")
     return names
 
@@ -115,6 +148,8 @@ def main(project_dir, arguments):
     stage_runtime_assets(project_dir.parent, dest.parent / "assets")
 
     if windows:
+        if project == "RigidBodySimulation":
+            stage_assimp_runtime(project_dir.parent, dest)
         missing = [name for name in runtime_dlls(config, project) if not (dest / name).is_file()]
         if missing:
             raise RuntimeError(

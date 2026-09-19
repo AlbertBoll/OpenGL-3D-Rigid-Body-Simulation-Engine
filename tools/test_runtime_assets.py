@@ -1,8 +1,11 @@
 """Focused postbuild/launcher contract tests; all mutations use disposable fixtures."""
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import subprocess
+import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -104,6 +107,80 @@ class RuntimeStagingTests(unittest.TestCase):
             self.assertFalse(any(name.startswith("Breakout/") for name in package["startup"][app]))
         for name, source in package["files"].items():
             self.assertTrue((HERE.parent / source).is_file(), name)
+
+
+@unittest.skipUnless(sys.platform == "win32", "Windows Assimp runtime closure")
+class AssimpClosureTests(unittest.TestCase):
+    write = RuntimeStagingTests.write
+
+    def setUp(self):
+        RuntimeStagingTests.setUp(self)
+        self.project = self.repo / "RigidBodySimulation"
+        self.project.mkdir()
+        self.config = "Release"
+        for relative in (postbuild.ASSIMP_RUNTIME_SOURCE, "external/assimp/lib/assimp.lib"):
+            target = self.repo / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(HERE.parent / relative, target)
+        for config in ("Debug", "Release"):
+            for name in postbuild.runtime_dlls(config, self.project.name):
+                if name != "assimp-vc140-mt.dll":
+                    self.write(f"bin/{config}/RigidBodySimulation/" + name, "unchanged fixture dependency")
+
+    def invoke_postbuild(self):
+        code = ("import sys; sys.path.insert(0, sys.argv[1]); from postbuild import main; "
+                "main(sys.argv[2], ['config=' + sys.argv[3], 'prj=RigidBodySimulation'])")
+        return subprocess.run([sys.executable, "-c", code, str(HERE), str(self.project), self.config],
+                              cwd=self.temp.name, capture_output=True, text=True, timeout=30)
+
+    def test_assimp_clean_output_and_same_size_corruption_are_repaired(self):
+        for config in ("Release", "Debug"):
+            self.config = config
+            target = self.repo / f"bin/{config}/RigidBodySimulation/assimp-vc140-mt.dll"
+            self.assertFalse(target.exists())
+            result = self.invoke_postbuild()
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(hashlib.sha256(target.read_bytes()).hexdigest(), postbuild.ASSIMP_RUNTIME_SHA256)
+            info = target.stat()
+            with target.open("r+b") as handle:
+                handle.write(b"XX")
+            os.utime(target, ns=(info.st_atime_ns, info.st_mtime_ns))
+            self.assertEqual(self.invoke_postbuild().returncode, 0)
+            self.assertEqual(hashlib.sha256(target.read_bytes()).hexdigest(), postbuild.ASSIMP_RUNTIME_SHA256)
+
+    def test_assimp_source_and_library_identity_required_even_when_destination_exists(self):
+        self.assertEqual(self.invoke_postbuild().returncode, 0)
+        for relative in (postbuild.ASSIMP_RUNTIME_SOURCE, "external/assimp/lib/assimp.lib"):
+            path = self.repo / relative
+            original = path.read_bytes()
+            path.write_bytes(b"incidental or wrong dependency")
+            result = self.invoke_postbuild()
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Bundled Assimp identity mismatch", result.stderr)
+            path.write_bytes(original)
+        (self.repo / postbuild.ASSIMP_RUNTIME_SOURCE).unlink()
+        result = self.invoke_postbuild()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Cannot stage bundled Assimp", result.stderr)
+
+    def test_assimp_copy_failure_is_nonzero(self):
+        self.write("bin/Release/RigidBodySimulation/assimp-vc140-mt.dll", "wrong dll")
+        with mock.patch.object(postbuild.shutil, "copy2", side_effect=PermissionError("fixture denied")):
+            with self.assertRaisesRegex(RuntimeError, "Cannot stage bundled Assimp.*fixture denied"):
+                postbuild.stage_assimp_runtime(self.repo, self.repo / "bin/Release/RigidBodySimulation")
+
+    def test_smoke_rejects_missing_or_wrong_output_despite_editor_path(self):
+        import test_async_mesh
+        target = self.repo / "bin/Release/RigidBodySimulation/assimp-vc140-mt.dll"
+        with mock.patch.object(test_async_mesh, "ROOT", self.repo), mock.patch.dict(
+                os.environ, {"Path": str((self.repo / postbuild.ASSIMP_RUNTIME_SOURCE).parent)}):
+            for exists in (False, True):
+                if exists:
+                    target.write_bytes(b"wrong installed dependency")
+                result = test_async_mesh.standalone_smoke("Release", self.repo / "smoke")
+                self.assertEqual(result["result"], "FAIL")
+                self.assertIn(str(target), result["reason"])
+                self.assertEqual(target.exists(), exists)  # Validation never repairs staging.
 
 
 if __name__ == "__main__":

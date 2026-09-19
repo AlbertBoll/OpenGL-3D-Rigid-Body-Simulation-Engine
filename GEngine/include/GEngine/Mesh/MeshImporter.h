@@ -45,14 +45,28 @@ namespace GEngine
         MissingAttribute, NonFiniteAttribute, InvalidDirection, InvalidTransform,
         InvalidTriangleRange, IndexOutOfRange, MaterialSlotOutOfRange,
         DegenerateTriangle, NormalGenerationFailed, TangentGenerationFailed,
-        MeshValidationFailed
+        MeshValidationFailed, MemoryBudgetExceeded, Cancelled
     };
     struct MeshImportError
     {
         MeshImportErrorCode code;
         std::size_t part = 0, element = 0;
         MeshImportField field = MeshImportField::None;
-        MeshError meshError{}; // meaningful only for MeshValidationFailed
+        MeshError meshError{}; // meaningful only for MeshValidationFailed, MemoryBudgetExceeded, Cancelled
+    };
+
+    // Bounds engine-owned heap payload, including adapter copies, normalization
+    // scratch and completed MeshAsset storage. Assimp-owned internal allocations
+    // are explicitly excluded by the Phase 51 owner-approved exception. Fixed
+    // stack frames and caller-controlled source/descriptor storage are not payload.
+    // Callback/context are borrowed only for the synchronous import call.
+    struct MeshImportControl
+    {
+        std::size_t maxEngineBytes = SIZE_MAX;
+        const void* cancellationContext{};
+        bool (*stopRequested)(const void*) noexcept = nullptr;
+        bool Stopped() const noexcept
+        { return stopRequested && stopRequested(cancellationContext); }
     };
 
     // Canonical output: right-handed model space, CCW triangles, Float32 position,
@@ -69,7 +83,7 @@ namespace GEngine
     // Nothing is published or uploaded, including on failure; workers may use this.
     std::expected<MeshAsset, MeshImportError> NormalizeImportedMesh(
         std::span<const MeshImportPart> parts, std::uint32_t materialSlotCount,
-        const MeshImportOptions& options = {}) noexcept;
+        const MeshImportOptions& options = {}, const MeshImportControl& control = {}) noexcept;
 
     // Static Assimp adapter: depth-first node/mesh order, transforms baked per
     // instance, material table ordinals retained. Bones/morphs/animations and
@@ -77,8 +91,8 @@ namespace GEngine
     // Assimp's format reader first decodes its format conventions; options describe
     // the resulting source coordinates. No additional implicit UV/axis conversion.
     std::expected<MeshAsset, MeshImportError> ImportMeshFile(
-        const char* path, const MeshImportOptions& options = {});
+        const char* path, const MeshImportOptions& options = {}, const MeshImportControl& control = {});
     std::expected<MeshAsset, MeshImportError> ImportMeshMemory(
         std::span<const std::byte> bytes, const char* formatHint,
-        const MeshImportOptions& options = {});
+        const MeshImportOptions& options = {}, const MeshImportControl& control = {});
 }

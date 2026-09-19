@@ -9,6 +9,7 @@
 #include <SpatialPartition/KDTree.h>
 #include "Renderer/FrameSubmission.h"
 #include "Assets/Textures/AsyncTexture.h"
+#include "Mesh/AsyncMesh.h"
 
 namespace GEngine
 {
@@ -41,6 +42,7 @@ private:
 	void UI_Toolbar();
 	void OnMouseClicked();
 	void FilledKDTreePoints();
+	void UpdateImportedMesh();
 	void OnViewportResize(int viewport_x, int viewport_y);
 
 
@@ -53,6 +55,10 @@ private:
     Asset::UploadTicket m_WoodRequest{};
     Asset::MaterialInstanceHandle m_AsyncBoxMaterial{};
     bool m_WoodSettled{};
+    std::filesystem::path m_MeshRoot;
+    std::unique_ptr<Asset::AsyncMeshLoader> m_MeshLoads;
+    Asset::UploadTicket m_BarrelRequest{};
+    bool m_LoadBarrel{}, m_BarrelSettled{};
 	_Entity m_FrameCameraEntity;
 	_Entity m_Sphere;
 	_Entity m_HoveredEntity;

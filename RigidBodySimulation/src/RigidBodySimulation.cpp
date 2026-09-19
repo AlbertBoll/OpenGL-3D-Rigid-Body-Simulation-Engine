@@ -3,6 +3,7 @@
 #include "RigidBodySimulation.h"
 #include "Core/RuntimeAssets.h"
 #include <cstdint>
+#include <cstdlib>
 #include "EntryPoint.h"
 #include "Renderer/RenderExtraction.h"
 #include "Managers/AssetsManager.h"
@@ -24,10 +25,10 @@ using namespace GEngine;
 using namespace ::GEngine::Asset;
 
 #ifndef activate_boxes_stacking
-#define activate_boxes_stacking 1
+#define activate_boxes_stacking 0
 #endif
 #ifndef activate_sphere_lattice
-#define activate_sphere_lattice 0
+#define activate_sphere_lattice 1
 #endif
 #ifndef activate_sphere_diamond
 #define activate_sphere_diamond 0
@@ -45,6 +46,7 @@ RigidBodySimulationApp::~RigidBodySimulationApp()
 		m_AudioSystem->Shutdown();
     if (m_FrameResources) {
         if (auto current = GetEngineContext().MakeCurrent(); !current) { ReportPlatformError(current.error()); std::terminate(); }
+        m_MeshLoads.reset(); // Cancel/join imports before registry or scene retirement.
         m_ActiveScene.reset(); m_EditorScene.reset();
         m_FrameSubmission.reset(); m_FrameResources.reset();
     }
@@ -62,6 +64,11 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
     auto resources = SceneRenderResources::Create(GetEngineContext());
     if (!resources) return failure(resources.error());
     m_FrameResources = std::move(*resources);
+    auto meshRoot = RuntimeAssets::TryFile("Models");
+    if (!meshRoot) return std::unexpected(meshRoot.error());
+    m_MeshRoot = *meshRoot;
+    // Opt-in validation exercises the same action as the File menu.
+    m_LoadBarrel = std::getenv("GENGINE_ASYNC_MESH_SMOKE") != nullptr;
     auto submission = FrameSubmission::Create();
     if (!submission) {
         Log::GetCoreLogger()->error("{}", DescribeSubmissionError(submission.error()));
@@ -549,6 +556,45 @@ void RigidBodySimulationApp::Update(Timestep ts)
 	//}
 }
 
+void RigidBodySimulationApp::UpdateImportedMesh()
+{
+    if (m_BarrelSettled) return;
+    auto failed = [&](const AsyncMeshError& error) {
+        Log::GetCoreLogger()->warn("Barrel mesh: {}", DescribeAsyncMeshError(error));
+        m_BarrelSettled = true;
+    };
+    if (!m_BarrelRequest) {
+        auto request = m_MeshLoads->Request("barrel.obj");
+        if (!request) { failed(request.error()); return; }
+        m_BarrelRequest = *request;
+        return;
+    }
+    auto status = m_MeshLoads->Status(m_BarrelRequest);
+    if (!status) { failed(status.error()); return; }
+    if (status->state == AsyncAssetState::Failed || status->state == AsyncAssetState::Cancelled) {
+        if (status->error) failed(*status->error);
+        m_BarrelSettled = true;
+        return;
+    }
+    if (status->state != AsyncAssetState::Ready) return;
+    std::size_t submeshes{};
+    {
+        auto access = m_FrameResources->Publication().BeginFrame();
+        auto mesh = m_FrameResources->Meshes().Acquire(access, status->mesh);
+        if (!mesh) { failed(GpuMeshError{GpuMeshErrorCode::Registry, "Imported mesh resolution", 0, mesh.error()}); return; }
+        submeshes = (*mesh)->Submeshes().size();
+    }
+    // This callback runs after upload and before frame extraction. No physics
+    // component is authored; imported submeshes share the existing lit material.
+    for (std::size_t part = 0; part < submeshes; ++part) {
+        auto entity = m_ActiveScene->CreateEntity(std::format("Imported barrel {}", part));
+        entity.AddOrReplaceComponent<MeshRendererComponent>(MeshRendererComponent{status->mesh, m_AsyncBoxMaterial, static_cast<std::uint32_t>(part)});
+        entity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{-6.f, 0.f, 0.f});
+    }
+    m_BarrelSettled = true;
+    Log::GetCoreLogger()->info("Async barrel mesh published: {} submeshes", submeshes);
+}
+
 void RigidBodySimulationApp::Render()
 {
     RenderContext context{*GetWindow(),*GetWindowManager(),m_RenderTarget.get(),HasVisibleViewport()};
@@ -565,9 +611,17 @@ void RigidBodySimulationApp::Render()
             else return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources, SceneResourceError{"async wood texture", cause}});
         }, loads.error());
         m_TextureLoads = *loads;
-        context.uploads = &m_TextureLoads->Queue();
+        // This selected one-shot import follows the one-shot texture bootstrap;
+        // only the active service needs draining. This is not a second scheduler.
+        if (m_LoadBarrel && m_WoodSettled && !m_MeshLoads && !m_BarrelSettled) {
+            auto meshLoads = AsyncMeshLoader::Create(m_FrameResources->Publication(), m_FrameResources->Meshes(), m_MeshRoot);
+            if (meshLoads) m_MeshLoads = std::move(*meshLoads);
+            else { Log::GetCoreLogger()->warn("Barrel mesh: {}", DescribeAsyncMeshError(meshLoads.error())); m_BarrelSettled = true; }
+        }
+        context.uploads = m_MeshLoads ? &m_MeshLoads->Queue() : &m_TextureLoads->Queue();
         context.updateResources = {this, [](void* user) -> ScheduleResult {
             auto& app = *static_cast<RigidBodySimulationApp*>(user);
+            if (app.m_MeshLoads) app.UpdateImportedMesh();
             if (app.m_WoodSettled) return {};
             auto failure = [](const auto& cause) -> ScheduleResult {
                 if constexpr (std::same_as<std::decay_t<decltype(cause)>, UploadError>)
@@ -694,6 +748,8 @@ void RigidBodySimulationApp::ImGuiRender()
 	{
 		if (ImGui::BeginMenu("File"))
 		{
+			if (ImGui::MenuItem("Load barrel mesh", nullptr, false, m_WoodSettled && !m_LoadBarrel))
+				m_LoadBarrel = true;
 			// Disabling fullscreen would allow the window to be moved to the front of other windows,
 			// which we can't undo at the moment without finer window depth/z control.
 			if(ImGui::MenuItem("Exit"))

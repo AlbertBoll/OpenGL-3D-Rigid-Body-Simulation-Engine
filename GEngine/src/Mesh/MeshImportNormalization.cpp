@@ -50,8 +50,9 @@ namespace GEngine
 
     std::expected<MeshAsset, MeshImportError> NormalizeImportedMesh(
         std::span<const MeshImportPart> parts, std::uint32_t materialSlotCount,
-        const MeshImportOptions& options) noexcept
+        const MeshImportOptions& options, const MeshImportControl& control) noexcept
     {
+        if (control.Stopped()) return Error(Code::Cancelled);
         if (options.handedness > MeshSourceHandedness::Left || options.winding > MeshSourceWinding::Clockwise
             || options.normals > MissingMeshNormals::Reject || options.uvs > MissingMeshUVs::Reject
             || options.tangents > MissingMeshTangents::Reject) return Error(Code::InvalidOptions);
@@ -59,6 +60,7 @@ namespace GEngine
         std::size_t vertexCount=0, indexCount=0;
         for (std::size_t p=0;p<parts.size();++p)
         {
+            if (control.Stopped()) return Error(Code::Cancelled,p);
             const auto& part=parts[p];
             const auto count=part.positions.size();
             if (!count || part.indices.empty()) return Error(Code::EmptyMesh,p);
@@ -69,6 +71,18 @@ namespace GEngine
         }
         if (!Fits(vertexCount,sizeof(Vertex)) || !Fits(vertexCount,sizeof(Frame))
             || !Fits(indexCount,sizeof(std::uint32_t)) || !Fits(parts.size(),sizeof(SubmeshRange))) return Error(Code::SizeOverflow);
+        // Keep all simultaneously live temporary/output allocations within the
+        // reservation before allocating any normalization buffers. MeshAsset::Create
+        // copies vertices, indices and ranges while the scratch arrays still live.
+        auto remaining = control.maxEngineBytes;
+        auto reserve = [&](std::size_t count, std::size_t width) {
+            if (count > remaining / width) return false;
+            remaining -= count * width; return true;
+        };
+        if (!reserve(vertexCount, 2 * sizeof(Vertex) + sizeof(Frame)) ||
+            !reserve(indexCount, 2 * sizeof(std::uint32_t)) ||
+            !reserve(parts.size(), 2 * sizeof(SubmeshRange)) || !reserve(1, sizeof(MeshAsset)))
+            return Error(Code::MemoryBudgetExceeded);
         std::unique_ptr<Vertex[]> vertices(new(std::nothrow) Vertex[vertexCount]{});
         std::unique_ptr<Frame[]> frames(new(std::nothrow) Frame[vertexCount]{});
         std::unique_ptr<std::uint32_t[]> indices(new(std::nothrow) std::uint32_t[indexCount]);
@@ -77,6 +91,7 @@ namespace GEngine
         std::size_t base=0, first=0;
         for (std::size_t p=0;p<parts.size();++p)
         {
+            if (control.Stopped()) return Error(Code::Cancelled,p);
             const auto& part=parts[p];
             const auto count=part.positions.size();
             const bool normals=!part.normals.empty(), uvs=!part.uvs.empty(), tangents=!part.tangents.empty();
@@ -99,6 +114,7 @@ namespace GEngine
             const bool reverse=(determinant<0)!=(options.winding==MeshSourceWinding::Clockwise);
             for (std::size_t v=0;v<count;++v)
             {
+                if ((v & 1023) == 0 && control.Stopped()) return Error(Code::Cancelled,p,v);
                 auto& out=vertices[base+v]; auto& frame=frames[base+v];
                 if (!Store(Transform(m,ToDouble(part.positions[v]),true),out.position)) return Error(Code::NonFiniteAttribute,p,v,Field::Position);
                 if (normals)
@@ -125,6 +141,7 @@ namespace GEngine
             }
             for (std::size_t i=0;i<part.indices.size();i+=3)
             {
+                if ((i & 1023) == 0 && control.Stopped()) return Error(Code::Cancelled,p,i);
                 std::array<std::uint32_t,3> triangle{part.indices[i],part.indices[i+1],part.indices[i+2]};
                 for (int j=0;j<3;++j) if (triangle[j]>=count) return Error(Code::IndexOutOfRange,p,i+j,Field::Index);
                 if (reverse) std::swap(triangle[1],triangle[2]);
@@ -147,6 +164,7 @@ namespace GEngine
             }
             for (std::size_t v=0;v<count;++v)
             {
+                if ((v & 1023) == 0 && control.Stopped()) return Error(Code::Cancelled,p,v);
                 auto& f=frames[base+v]; auto& out=vertices[base+v];
                 if (!Unit(f.normal)) return Error(Code::NormalGenerationFailed,p,v,Field::Normal);
                 if (!tangents && !uvs)
@@ -176,6 +194,7 @@ namespace GEngine
         auto source=MeshSourceData::FromVertices<Vertex>({vertices.get(),vertexCount},attributes);
         source.indexFormat=MeshIndexFormat::UInt32; source.indices=std::as_bytes(std::span(indices.get(),indexCount));
         source.indexCount=indexCount; source.submeshes={ranges.get(),parts.size()}; source.materialSlotCount=materialSlotCount;
+        if (control.Stopped()) return Error(Code::Cancelled);
         auto asset=MeshAsset::Create(source);
         if (!asset) return std::unexpected(MeshImportError{Code::MeshValidationFailed,0,0,Field::None,asset.error()});
         return std::move(*asset);

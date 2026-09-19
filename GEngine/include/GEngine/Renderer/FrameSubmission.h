@@ -13,6 +13,22 @@ namespace GEngine
     enum class PassTarget { None, DirectionalDepth, PointDepth, Picking, SceneColor, ResolvedColor, Window };
     enum class PassLoad { Load, Clear, Discard };
     enum class PassBoundary { Internal, RestoreAfterLegacy, EstablishBeforeUI, Presentation };
+    enum class PassDirtyReason : std::uint32_t
+    {
+        None = 0, InitialContent = 1, TargetStorage = 2, SceneMembership = 4,
+        Transform = 8, Mesh = 16, Material = 32, Camera = 64, Light = 128,
+        ShadowSettings = 256, ExternalWrite = 512, RetryAfterFailure = 1024
+    };
+    constexpr PassDirtyReason operator|(PassDirtyReason a, PassDirtyReason b) noexcept
+    { return static_cast<PassDirtyReason>(static_cast<std::uint32_t>(a) | static_cast<std::uint32_t>(b)); }
+    constexpr bool HasDirtyReason(PassDirtyReason reasons, PassDirtyReason reason) noexcept
+    { return (static_cast<std::uint32_t>(reasons) & static_cast<std::uint32_t>(reason)) != 0; }
+    struct PassDecision
+    {
+        RenderPass pass{};
+        PassDirtyReason reasons = PassDirtyReason::None;
+        bool requested = false, executed = false;
+    };
     struct PassViewport { unsigned x{}, y{}, width{}, height{}; };
     // Semantic contracts consumed by the concrete backend; no native state escapes.
     struct RenderPassDesc
@@ -61,6 +77,8 @@ namespace GEngine
         float cameraFov = glm::radians(45.f), cameraAspect = 1.f;
         float cameraNear = .1f, cameraFar = 1000.f;
         float pointNear = .1f, pointFar = 100.f;
+        // Requests a current picking image/readback, independently of image dirtiness.
+        // A repeated request may reuse the image and rebuild its matching CPU table.
         bool pickingEnabled = true;
     };
     struct FrameSubmissionStats
@@ -69,6 +87,8 @@ namespace GEngine
         std::size_t opaqueDraws{}, maskedDraws{}, transparentDraws{};
         VisibilityStats visibility;
         FrameTrace trace;
+        // Directional shadow, point shadow, picking; includes deferred/clean passes.
+        std::array<PassDecision, 3> decisions{};
     };
     // Serial owner-context submission only. All scene/resource reads are complete
     // before entry; only immutable frame leases and retained targets are consumed.
@@ -88,6 +108,9 @@ namespace GEngine
         std::expected<FrameSubmissionStats, SubmissionError> Submit(
             const RenderFrame&, const FrameSubmissionDesc&, EntityPickTable&);
         static RenderPassDesc DescribePass(RenderPass, const FrameSubmissionDesc&);
+        // This submitter owns cached target contents. External writes (including
+        // another submitter) must notify it before reuse. Resizes detect themselves.
+        void InvalidatePassContents() noexcept;
     private:
         FrameSubmission() = default;
         struct Storage;

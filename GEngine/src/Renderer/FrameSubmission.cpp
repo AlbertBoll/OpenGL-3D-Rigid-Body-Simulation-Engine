@@ -7,6 +7,7 @@
 #include "../Assets/ShaderBackend.h"
 #include <format>
 #include <new>
+#include <bit>
 
 namespace GEngine
 {
@@ -212,11 +213,115 @@ void main() {
             std::size_t submesh{};
             int pixel = -1;
         };
+        // Exact scalar sequences, split by cause. No padding, hashes, native
+        // names, addresses, live scene references or retained heavy resources.
+        struct PassInputs
+        {
+            std::unique_ptr<std::uint64_t[]> words;
+            std::array<std::size_t,8> ends{};
+            bool valid = false;
+            PassDirtyReason pending = PassDirtyReason::None;
+            PassDirtyReason Changes(const PassInputs& next) const
+            {
+                auto reasons=pending;
+                if(!valid) return reasons | PassDirtyReason::InitialContent;
+                std::size_t a{},b{};
+                for(std::size_t i=0;i<ends.size();++i) {
+                    if(ends[i]-a!=next.ends[i]-b || !std::equal(words.get()+a,words.get()+ends[i],next.words.get()+b))
+                        reasons=reasons | static_cast<PassDirtyReason>(2u<<i);
+                    a=ends[i]; b=next.ends[i];
+                }
+                return reasons;
+            }
+        };
+        struct InputWriter
+        {
+            std::uint64_t* words{};
+            std::size_t size{};
+            bool overflow = false;
+            void U(std::uint64_t value)
+            {
+                if(size==(std::numeric_limits<std::size_t>::max)()/sizeof(std::uint64_t)) { overflow=true; return; }
+                if(words) words[size]=value;
+                ++size;
+            }
+            void F(float value) { U(std::bit_cast<std::uint32_t>(value)); }
+            void V(const glm::vec3& value) { for(int i=0;i<3;++i) F(value[i]); }
+            void M(const glm::mat4& value) { for(int c=0;c<4;++c) for(int r=0;r<4;++r) F(value[c][r]); }
+            template<class Tag> void Id(Asset::AssetHandle<Tag> value)
+            { U(value.index); U(value.generation); U(value.registry); }
+        };
+        std::expected<PassInputs,SubmissionError> CaptureInputs(RenderPass pass,const RenderFrame& frame,
+            const FrameSubmissionDesc& desc,const PreparedDraw* draws,const RenderVisibility& visibility)
+        {
+            PassInputs result;
+            const bool picking=pass==RenderPass::Picking, directional=pass==RenderPass::DirectionalShadow;
+            const auto indices=picking?visibility.Picking():visibility.Shadows();
+            const auto include=[&](std::size_t i) {return picking || draws[i].role->kind==SceneMaterialKind::Lit;};
+            const auto emit=[&](InputWriter& out) {
+                const auto& target=picking?desc.picking.Buffer():directional?desc.cascadeShadow.Buffer():desc.pointShadow.Buffer();
+                out.Id(target.StorageIdentity());
+                result.ends[0]=out.size;
+                for(auto i:indices) if(include(i)) {
+                    const auto& d=*draws[i].draw;
+                    out.Id(d.entity); out.U(d.submesh.firstElement); out.U(d.submesh.elementCount); out.U(d.submesh.materialSlot);
+                }
+                result.ends[1]=out.size;
+                for(auto i:indices) if(include(i)) out.M(draws[i].draw->worldTransform);
+                result.ends[2]=out.size;
+                for(auto i:indices) if(include(i)) {
+                    const auto& mesh=draws[i].resources->Mesh(); out.Id(mesh.Identity()); out.U(mesh.Revision());
+                }
+                result.ends[3]=out.size;
+                for(auto i:indices) if(include(i)) {
+                    const auto& material=draws[i].resources->Material();
+                    out.Id(material.Instance()); out.U(material.PublicationRevision()); out.U(material.Revision());
+                    out.Id(material.Source()->Template()); out.U(material.Source()->TemplateRevision());
+                    out.U(material.Source()->Declaration()->PipelineRevision());
+                    out.Id(draws[i].draw->pipeline); out.U(static_cast<unsigned>(draws[i].role->kind)); out.F(draws[i].role->opacity);
+                    if(picking && draws[i].role->kind==SceneMaterialKind::Helper) out.F(draws[i].role->lineWidth);
+                    out.Id(material.Program().Identity()); out.U(material.Program().Revision());
+                    out.U(material.Textures().size());
+                    for(const auto& texture:material.Textures()) {
+                        out.Id(texture.texture.Identity()); out.U(texture.texture.Revision());
+                        out.Id(texture.sampler.Identity()); out.U(texture.sampler.Revision());
+                    }
+                }
+                result.ends[4]=out.size;
+                if(picking || directional) {
+                    const auto& camera=frame.Cameras()[0];
+                    out.Id(camera.entity); out.M(camera.view); out.M(camera.projection); out.V(camera.worldPosition);
+                    out.U(camera.viewportX); out.U(camera.viewportY); out.U(camera.viewportWidth); out.U(camera.viewportHeight);
+                    if(picking) out.U(camera.visibleLayers);
+                }
+                result.ends[5]=out.size;
+                if(directional) for(const auto& light:frame.DirectionalLights()) {
+                    out.Id(light.entity); out.U(light.revision); out.V(light.direction); out.U(light.shadows.castShadows);
+                }
+                if(!picking && !directional) for(const auto& light:frame.PointLights()) {
+                    out.Id(light.entity); out.U(light.revision); out.V(light.position); out.F(light.range); out.U(light.shadows.castShadows);
+                }
+                result.ends[6]=out.size;
+                if(directional) {
+                    out.F(desc.cameraFov); out.F(desc.cameraAspect); out.F(desc.cameraNear); out.F(desc.cameraFar);
+                    for(float split:desc.cascadeSplits) out.F(split);
+                }
+                if(!picking && !directional) out.F(desc.pointNear);
+                result.ends[7]=out.size;
+            };
+            InputWriter measure; emit(measure);
+            if(measure.overflow) return Error("pass input size",Code::Allocation);
+            result.words.reset(new (std::nothrow) std::uint64_t[measure.size]);
+            if(!result.words) return Error("pass input allocation",Code::Allocation);
+            InputWriter writer{result.words.get()}; emit(writer); result.valid=true;
+            return result;
+        }
         std::expected<void, SubmissionError> Draw(const PreparedDraw& draw, const Shader& shader)
         {
             Uniform(shader,"u_model",draw.draw->worldTransform);
             Uniform(shader,"u_EntityID",draw.pixel);
             const auto primitive = draw.role->kind == SceneMaterialKind::Helper ? MeshPrimitive::Lines : MeshPrimitive::Triangles;
+            if(primitive==MeshPrimitive::Lines) glLineWidth(draw.role->lineWidth);
             auto result = draw.resources->Mesh()->DrawSubmesh(draw.submesh, primitive);
             if (!result) return std::unexpected(SubmissionError{"mesh submission",result.error()});
             return {};
@@ -226,6 +331,7 @@ void main() {
     {
         Shader point, cascade, pick;
         GLuint matrices{};
+        std::array<PassInputs,3> inputs;
         SDL_GLContext context = SDL_GL_GetCurrentContext();
         std::thread::id owner = std::this_thread::get_id();
         ~Storage()
@@ -238,6 +344,13 @@ void main() {
     FrameSubmission::FrameSubmission(FrameSubmission&&) noexcept = default;
     FrameSubmission& FrameSubmission::operator=(FrameSubmission&&) noexcept = default;
     FrameSubmission::~FrameSubmission() = default;
+    void FrameSubmission::InvalidatePassContents() noexcept
+    {
+        if(m_Storage) {
+            GLContextThread::RequireOwner(m_Storage->owner,"invalidate pass contents");
+            for(auto& inputs:m_Storage->inputs) inputs.pending=inputs.pending | PassDirtyReason::ExternalWrite;
+        }
+    }
 
     std::string DescribeSubmissionError(const SubmissionError& error)
     {
@@ -335,6 +448,12 @@ void main() {
     {
         if (!m_Storage || !GLContextThread::IsCurrentOwner() || SDL_GL_GetCurrentContext()!=m_Storage->context)
             return Error("submit",Code::Context);
+        struct FailedSubmission
+        {
+            Storage& storage; bool success=false;
+            ~FailedSubmission() { if(!success) for(auto& inputs:storage.inputs)
+                inputs.pending=inputs.pending | PassDirtyReason::RetryAfterFailure; }
+        } transaction{*m_Storage};
         if (frame.Cameras().size()!=1) return Error("submission camera count",Code::InvalidCamera);
         if (!frame.DebugLines().empty()) return Error("debug lines are outside this scene submission layer",Code::UnsupportedPipeline);
         if (frame.DirectionalLights().size()>1 || frame.PointLights().size()>1 || !frame.SpotLights().empty())
@@ -407,6 +526,17 @@ void main() {
         }
         auto visibility=RenderVisibility::Build(frame,0,{conservative.get(),conservativeCount});
         if(!visibility) return std::unexpected(SubmissionError{"frame visibility",visibility.error()});
+        FrameSubmissionStats stats; stats.visibility=visibility->Stats();
+        std::array<PassInputs,3> candidateInputs;
+        constexpr RenderPass cachedPasses[]{RenderPass::DirectionalShadow,RenderPass::PointShadow,RenderPass::Picking};
+        const bool requested[]{directionalShadow,pointShadow,desc.pickingEnabled};
+        for(std::size_t i=0;i<candidateInputs.size();++i) {
+            auto captured=CaptureInputs(cachedPasses[i],frame,desc,draws.get(),*visibility);
+            if(!captured) return std::unexpected(captured.error());
+            candidateInputs[i]=std::move(*captured);
+            const auto reasons=m_Storage->inputs[i].Changes(candidateInputs[i]);
+            stats.decisions[i]={cachedPasses[i],reasons,requested[i],requested[i] && reasons!=PassDirtyReason::None};
+        }
         EntityPickTable candidatePicks;
         if(desc.pickingEnabled) for(auto index:visibility->Picking()) {
             auto pixel=candidatePicks.Encode(draws[index].draw->entity);
@@ -422,7 +552,6 @@ void main() {
             [&](auto a,auto b){const auto za=depth(a),zb=depth(b);return za==zb?a<b:za<zb;});
         TargetRestore restore;
         auto& storage=*m_Storage;
-        FrameSubmissionStats stats; stats.visibility=visibility->Stats();
         auto begin=[&](RenderPass pass) {
             auto contract=DescribePass(pass,desc);
             if(contract.input==PassTarget::DirectionalDepth && !directionalShadow) contract.input=PassTarget::None;
@@ -462,7 +591,10 @@ void main() {
             }
             return {};
         };
-        if(directionalShadow)
+        // The cached cascade matrices still belong to this submitter. Re-establish
+        // their binding even when no shadow draw is needed after external UI work.
+        if(directionalShadow) glBindBufferBase(GL_UNIFORM_BUFFER,0,storage.matrices);
+        if(stats.decisions[0].executed)
         {
             storage.cascade.Bind(); desc.cascadeShadow.Bind(); begin(RenderPass::DirectionalShadow);
             glBindBufferBase(GL_UNIFORM_BUFFER,0,storage.matrices);
@@ -472,7 +604,7 @@ void main() {
             glNamedBufferSubData(storage.matrices,0,sizeof(matrices),matrices.data());
             if(auto result=shadowDraws(storage.cascade);!result) return std::unexpected(result.error());
         }
-        if(pointShadow)
+        if(stats.decisions[1].executed)
         {
             storage.point.Bind(); desc.pointShadow.Bind(); begin(RenderPass::PointShadow);
             const auto& size=desc.pointShadow.Buffer().Description();
@@ -481,7 +613,7 @@ void main() {
             Uniform(storage.point,"lightPos",position); Uniform(storage.point,"far_plane",pointFar);
             if(auto result=shadowDraws(storage.point);!result) return std::unexpected(result.error());
         }
-        if(desc.pickingEnabled)
+        if(stats.decisions[2].executed)
         {
             storage.pick.Bind(); desc.picking.Bind(); begin(RenderPass::Picking);
             RenderCounters::RecordPass(RenderCounters::Pass::Picking);
@@ -560,7 +692,12 @@ void main() {
         glDepthFunc(GL_LESS); glDepthMask(GL_TRUE); glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE); glDisable(GL_BLEND);
         if(const auto error=glGetError();error!=GL_NO_ERROR)
             return std::unexpected(SubmissionError{std::format("frame submission: driver diagnostic 0x{:x}",error),Code::Driver});
-        picks=std::move(candidatePicks); // A skipped picking pass invalidates last frame's lookup.
+        // Rebuild the same deterministic table on cache hits; absent requests
+        // expose no lookup. Deferred dirty inputs never replace the cached key.
+        picks=std::move(candidatePicks);
+        for(std::size_t i=0;i<candidateInputs.size();++i)
+            if(stats.decisions[i].executed) storage.inputs[i]=std::move(candidateInputs[i]);
+        transaction.success=true;
         return stats;
     }
 }

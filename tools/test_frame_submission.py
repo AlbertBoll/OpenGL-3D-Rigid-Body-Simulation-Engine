@@ -1,4 +1,4 @@
-"""Build and validate immutable submission and the Phase 46 frame/pass scheduler."""
+"""Build and validate immutable submission, scheduling and pass invalidation."""
 import argparse
 import hashlib
 import json
@@ -115,7 +115,7 @@ def main():
     parser.add_argument("--scene-variants", action="store_true", help="Compile and smoke each authored rigid-body scene")
     args = parser.parse_args()
     config = args.configuration
-    out = (args.output or ROOT / "logs/rendering/phase46/final" / config).resolve()
+    out = (args.output or ROOT / "logs/rendering/phase47/final" / config).resolve()
     out.mkdir(parents=True, exist_ok=True)
     report = {"configuration": config, "steps": []}
     env = {k: v for k, v in os.environ.items() if k.lower() != "path"}
@@ -192,6 +192,7 @@ def main():
             report["reason"] = "Concrete backend leaked into the normal application translation unit"
             return 1
         for rel in ("GEngine/include/GEngine/Renderer/FrameSubmission.h", "GEngine/src/Renderer/FrameSubmission.cpp",
+                    "GEngine/include/GEngine/Core/FrameBuffer.h", "GEngine/src/Core/FrameBuffer.cpp",
                     "GEngine/include/GEngine/Renderer/SceneRenderResources.h", "GEngine/src/Renderer/SceneRenderResources.cpp",
                     "RigidBodySimulation/src/RigidBodySimulation.cpp",
                     "GEngine/include/GEngine/Renderer/FrameScheduler.h", "GEngine/src/Renderer/FrameScheduler.cpp",
@@ -238,7 +239,7 @@ def main():
         env["GENGINE_ASSET_ROOT"] = str(ROOT / "bin" / config / "assets")
         env["GENGINE_SHADOW_RESOLUTION"] = "256"
         passed = invoke("frame-submission", [executable], cwd=out,
-                        marker="[PASS] frame-scheduler order/skip/targets/publication/freeze/failure/alpha/state/empty")
+                        marker="[PASS] pass-invalidation unchanged/revisions/targets/deferred/multiple/failure")
         if not passed:
             return 1
         if args.scene_variants:

@@ -94,6 +94,7 @@ namespace GEngine
     }
     struct FrameBuffer::Storage
     {
+        FramebufferStorageHandle identity;
         FrameBufferSpecification desc;
         GLuint name = 0, depth = 0, renderbuffer = 0;
         std::array<GLuint, 4> colors{};
@@ -132,6 +133,8 @@ namespace GEngine
         return *this;
     }
     FrameBuffer::operator bool() const noexcept { return m_Storage && m_Storage->name; }
+    FramebufferStorageHandle FrameBuffer::StorageIdentity() const noexcept
+    { return m_Storage ? m_Storage->identity : FramebufferStorageHandle{}; }
     void FrameBuffer::RequireOwner() const { if (m_Storage) m_Storage->Require(); }
     const FrameBufferSpecification& FrameBuffer::Description() const noexcept
     { return m_Description; }
@@ -184,6 +187,9 @@ namespace GEngine
         result.m_Storage.reset(new (std::nothrow) Storage);
         if (!result.m_Storage) return std::unexpected(Error(FramebufferErrorCode::Allocation, "Framebuffer owner allocation failed", d));
         auto& s = *result.m_Storage; s.desc = d;
+        auto identity = Asset::AssetDetail::TakeRegistryIdentity(Asset::AssetDetail::nextRegistryIdentity);
+        if (!identity) return std::unexpected(Error(FramebufferErrorCode::Allocation, "Framebuffer storage identity exhausted", d));
+        s.identity = {0, 1, *identity};
         const auto& previous = Description();
         const bool sameShape = m_Storage && d.Width == previous.Width && d.Height == previous.Height
             && d.Samples == previous.Samples && d.Kind == previous.Kind && d.Layers == previous.Layers;

@@ -1,0 +1,180 @@
+{
+  "baseline": "f867c2f31fb2cda3e426e47ac1e0ce38d3381243",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Core/FrameBuffer.h",
+    "GEngine/include/GEngine/Renderer/FrameSubmission.h",
+    "GEngine/src/Core/FrameBuffer.cpp",
+    "GEngine/src/Renderer/FrameSubmission.cpp",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-47.json",
+    "tools/frame_submission_probe.cpp",
+    "tools/test_frame_submission.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Exact per-pass input snapshots and PassDecision records select execution, preserve deferred dirtiness and retry failed submissions.",
+      "finding": "Shadows always redraw and requested picking draws lack explicit invalidation causes.",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Establish the authored width before line draws and include it in picking material inputs; production GL pixel regression passes.",
+      "finding": "Helper-line picking depends on inherited driver line width.",
+      "status": "RESOLVED"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_47_REVIEW.md"
+  ],
+  "next_phase": "48",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "8ad99b93ce969596b45aff15f34ea4c2ec8bcd77",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-47/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/8ad99b93ce969596b45aff15f34ea4c2ec8bcd77",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "191e33e0e575181c0d877c579d829e965014a93f2eeae718b92958e1e764362b"
+      },
+      "mode": "100644",
+      "validated_blob": "6c19377e35b50b5995c5f7fb84620a7d15dc9e22",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-47/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/6c19377e35b50b5995c5f7fb84620a7d15dc9e22"
+    }
+  },
+  "phase": "47",
+  "previous_approved_tag": "render-refactor-phase-46-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_47_REVIEW.md",
+  "schema": 2,
+  "summary": "Cache picking and directional/point shadows with exact revision/value inputs, traceable dirty reasons, request-independent picking readback, allocation-safe target identity and transactional failure retry. Timing remains Phase 48.",
+  "validation": [
+    {
+      "check": "Debug: maintained consumer builds, native-free consumer/full simulation TU, source policy, production GL invalidation/scheduler probe and four graphical application smokes",
+      "command": "python tools/test_frame_submission.py --configuration Debug --smoke --output logs/rendering/phase47/final-v2/Debug",
+      "evidence": "logs/rendering/phase47/final-v2/Debug/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Release: maintained consumer builds, native-free consumer/full simulation TU, source policy, production GL invalidation/scheduler probe and four graphical application smokes",
+      "command": "python tools/test_frame_submission.py --configuration Release --smoke --output logs/rendering/phase47/final-v2/Release",
+      "evidence": "logs/rendering/phase47/final-v2/Release/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Preserve pre-existing owner/protected work and index",
+      "command": "python logs/rendering/phase47/prepare-checkpoint.py",
+      "evidence": "logs/rendering/phase47/scope-check.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Timing/performance benchmark",
+      "command": "Inspected docs/rendering/phases/PHASE_47.md Tests and Exit criteria",
+      "evidence": "docs/rendering/phases/PHASE_47.md",
+      "reason": "Phase 47 contract explicitly leaves timing to Phase 48; no performance claim.",
+      "result": "NOT_APPLICABLE"
+    }
+  ],
+  "validation_input_hashes": {
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "GEngine/include/GEngine/Core/FrameBuffer.h": {
+      "executable": null,
+      "sha256": "0da5a2d932f47e4126e7c915d1816e40ee3b63246eb279545c5aad0ca20f0b81"
+    },
+    "GEngine/include/GEngine/Renderer/FrameScheduler.h": {
+      "executable": null,
+      "sha256": "f5909977bb5a7f2ca4751fdc73d5a2ffd4d6e02fe857b12858e6af7b43bba6d6"
+    },
+    "GEngine/include/GEngine/Renderer/FrameSubmission.h": {
+      "executable": null,
+      "sha256": "75bd0033047aed2bb32cbc0267996c4cbbac79254ad4f97d490870b7f83ff4aa"
+    },
+    "GEngine/src/Core/FrameBuffer.cpp": {
+      "executable": null,
+      "sha256": "98fd9efc1b7e47bd7baa45705d0c5a903bc8985f940d9cbd4530338f461d4ebb"
+    },
+    "GEngine/src/Renderer/FrameScheduler.cpp": {
+      "executable": null,
+      "sha256": "535ac6225aed407839252436b3b3732bbc2ea6d98f114980c4232359d415211d"
+    },
+    "GEngine/src/Renderer/FrameSubmission.cpp": {
+      "executable": null,
+      "sha256": "bcc71c9d60cbb8e4dedd07f3294dce74f06dc728fa2bcc0df43e73e6407f4de9"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "191e33e0e575181c0d877c579d829e965014a93f2eeae718b92958e1e764362b"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052"
+    },
+    "tools/frame_submission_probe.cpp": {
+      "executable": null,
+      "sha256": "9105607c41e12d7ea2abd6134bf8cccdd056afa3ccad96f033eeeee86b917dcf"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/test_frame_submission.py": {
+      "executable": null,
+      "sha256": "e93e72639f20f53c5455b02038dc295c85f6a7ab7b98d79340bcc25a29af477c"
+    }
+  }
+}

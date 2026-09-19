@@ -31,6 +31,8 @@ namespace GEngine
         bool operator==(const FrameBufferSpecification&) const = default;
     };
     namespace FramebufferDetail { struct Backend; }
+    struct FramebufferStorageTag;
+    using FramebufferStorageHandle = Asset::AssetHandle<FramebufferStorageTag>;
     // Owns the framebuffer and storage. Views observe this object's current
     // attachments across resize; this object must outlive all uses of its views.
     class FrameBuffer
@@ -53,6 +55,9 @@ namespace GEngine
         // descriptions are no-ops; changed attachments are replaced transactionally.
         [[nodiscard]] FramebufferResult Reconfigure(const FrameBufferSpecification&);
         std::uint64_t ReallocationCount() const noexcept { return m_Reallocations; }
+        // Identity of this exact allocation; transfers on move, changes on
+        // replacement, and is empty while deferred. Never a native name/address.
+        FramebufferStorageHandle StorageIdentity() const noexcept;
         [[nodiscard]] FramebufferResult ResolveTo(const FrameBuffer& destination,
             std::uint32_t sourceAttachment = 0, std::uint32_t destinationAttachment = 0) const;
         [[nodiscard]] FramebufferResult Present() const;

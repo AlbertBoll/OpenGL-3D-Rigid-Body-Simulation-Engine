@@ -96,6 +96,200 @@ namespace
         }
         reference.UnBind();
     }
+    void Invalidation(EngineContext& root,SceneRenderResources& resources,FrameSubmissionDesc desc,
+        MeshHandle mesh,MaterialInstanceHandle material)
+    {
+        auto submitter=Take(FrameSubmission::Create(),"invalidation submitter");
+        _Scene scene; auto camera=Camera(scene);
+        auto body=scene.CreateEntity("cached body");
+        body.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,material});
+        body.AddComponent<VisibilityComponent>();
+        auto sun=scene.CreateEntity("cached sun"),bulb=scene.CreateEntity("cached bulb");
+        RenderLightComponent light;light.castShadows=true;
+        sun.AddComponent<RenderLightComponent>(light);
+        sun.GetComponent<Transform3DComponent>().QuatRotation=glm::rotation(glm::vec3(0,0,-1),-glm::normalize(glm::vec3(20,50,20)));
+        light.kind=RenderLightKind::Point;light.range=100;
+        bulb.AddComponent<RenderLightComponent>(light);
+        bulb.GetComponent<Transform3DComponent>().Translation={0,3,2};
+        auto picking=Take(MousePickFrameBuffer::Create(64,64),"invalidation picking target");
+        auto point=Take(PointShadowFrameBuffer::Create(256,256),"invalidation point target");
+        auto cascade=Take(CascadeShadowFrameBuffer::Create(256,256,5),"invalidation cascade target");
+        FrameSubmissionDesc targets{desc.color,picking,point,cascade,resources.Pipelines(),desc.cascadeSplits,
+            desc.cameraFov,desc.cameraAspect,desc.cameraNear,desc.cameraFar,desc.pointNear,desc.pointFar};
+        EntityPickTable picks;
+        std::vector<ScenePipeline> overrideRoles;
+        auto run=[&] {
+            auto access=resources.Publication().BeginFrame();
+            auto frame=Take(Extract(scene,resources,access,camera),"invalidation extraction");
+            targets.pipelines=overrideRoles.empty()?resources.Pipelines():std::span<const ScenePipeline>(overrideRoles);
+            return Take(submitter.Submit(frame,targets,picks),"invalidation submission");
+        };
+        auto expect=[&](PassDirtyReason reason,unsigned mask) {
+            auto result=run();
+            for(unsigned i=0;i<3;++i) {
+                Check(result.decisions[i].executed==bool(mask&(1u<<i)),"exact dirty pass selection");
+                if(mask&(1u<<i)) Check(HasDirtyReason(result.decisions[i].reasons,reason),"traceable dirty reason");
+                else if(result.decisions[i].requested) Check(result.decisions[i].reasons==PassDirtyReason::None,"unaffected requested pass stays clean");
+            }
+            return result;
+        };
+        expect(PassDirtyReason::InitialContent,7);
+        const auto color=Pixels(desc.color);
+        const auto firstPixel=Take(picking.ReadPixel(32,32),"cached initial pixel");
+        auto unchanged=expect(PassDirtyReason::None,0);
+        Check(unchanged.shadowDraws==0 && unchanged.pickDraws==0 && Pixels(desc.color)==color,"unchanged frame skips cacheable draws and preserves color");
+        Check(Take(picking.ReadPixel(32,32),"cached reused pixel")==firstPixel && picks.Decode(firstPixel),"cache hit keeps image and table paired");
+        body.GetComponent<Transform3DComponent>().Translation.x=.25f;
+        expect(PassDirtyReason::Transform,7);
+        camera.view[3][0]+=.1f;
+        expect(PassDirtyReason::Camera,5); // Point shadows are independent of camera.
+        camera.projection[0][0]*=1.05f;
+        expect(PassDirtyReason::Camera,5);
+        bulb.GetComponent<Transform3DComponent>().Translation.x+=.25f;
+        expect(PassDirtyReason::Light,2);
+        bulb.GetComponent<RenderLightComponent>().range=80;
+        expect(PassDirtyReason::Light,2);
+        sun.GetComponent<RenderLightComponent>().intensity=.75f;
+        expect(PassDirtyReason::Light,1);
+        sun.GetComponent<RenderLightComponent>().castShadows=false;
+        auto inactive=run();Check(!inactive.decisions[0].requested && !inactive.decisions[0].executed,"disabled shadow defers execution");
+        sun.GetComponent<RenderLightComponent>().castShadows=true;
+        expect(PassDirtyReason::Light,1);
+        targets.pointNear=.2f;
+        expect(PassDirtyReason::ShadowSettings,2);
+        float splits[]{.6f,1.f,2.f,5.f,20.f};targets.cascadeSplits=splits;
+        expect(PassDirtyReason::ShadowSettings,1);
+        body.GetComponent<MeshRendererComponent>().pickable=false;
+        expect(PassDirtyReason::SceneMembership,4);
+        body.GetComponent<MeshRendererComponent>().pickable=true;
+        expect(PassDirtyReason::SceneMembership,4);
+        body.GetComponent<MeshRendererComponent>().castShadows=false;
+        expect(PassDirtyReason::SceneMembership,3);
+        body.GetComponent<MeshRendererComponent>().castShadows=true;
+        expect(PassDirtyReason::SceneMembership,3);
+        body.GetComponent<VisibilityComponent>().layers=2;camera.visibleLayers=1;
+        expect(PassDirtyReason::SceneMembership,4);
+        camera.visibleLayers=~0u;
+        expect(PassDirtyReason::Camera,4); // Directional fit ignores camera layers.
+        body.GetComponent<VisibilityComponent>().enabled=false;
+        expect(PassDirtyReason::SceneMembership,7);
+        Check(Take(picking.ReadPixel(32,32),"empty picking clear")==-1,"empty dirty pass clears old image");
+        body.GetComponent<VisibilityComponent>().enabled=true;
+        expect(PassDirtyReason::SceneMembership,7);
+        {
+            auto cpu=Take(root.Shapes().ExportMesh("Box"),"replacement mesh export");
+            auto gpu=Take(GpuMesh::Create(cpu),"replacement GPU mesh");
+            auto publication=resources.Publication().BeginPublication();
+            Check(resources.Meshes().Replace(publication,mesh,std::move(gpu)),"same-handle mesh publication");
+        }
+        expect(PassDirtyReason::Mesh,7);
+        std::optional<MaterialInstance> changed;
+        {
+            auto access=resources.Publication().BeginFrame();
+            changed.emplace(*Take(resources.Materials().Acquire(access,material),"material revision source"));
+        }
+        Check(changed->SetParameter("u_tiling",std::array<float,2>{2,2}),"edit material value");
+        {
+            auto publication=resources.Publication().BeginPublication();
+            Check(resources.Materials().Replace(publication,material,std::move(*changed)),"same-handle material publication");
+        }
+        changed.reset();expect(PassDirtyReason::Material,7);
+        // The fixture owns these registries through root. Mutate via their real
+        // publication APIs to prove dependency revisions independent of material.
+        TextureRegistry* images{};SamplerRegistry* samplers{};
+        TextureHandle imageId;SamplerHandle samplerId;SamplerDesc samplerDesc;
+        {
+            auto access=resources.Publication().BeginFrame();auto bindings=resources.ForFrame(access).bindings;
+            images=&const_cast<TextureRegistry&>(bindings.textures);samplers=&const_cast<SamplerRegistry&>(bindings.samplers);
+            auto frame=Take(Extract(scene,resources,access,camera),"dependency revision sources");
+            const auto& texture=frame.Resources()[0].Material().Textures()[0];
+            imageId=texture.texture.Identity();samplerId=texture.sampler.Identity();samplerDesc=texture.sampler->Description();
+        }
+        {
+            TextureDesc td;td.width=td.height=1;td.mips=TextureMipIntent::None;
+            const std::byte pixel[]{std::byte{255},std::byte{255},std::byte{255},std::byte{255}};
+            auto image=Take(TextureResource::Create(td,{pixel}),"texture replacement");
+            auto publication=resources.Publication().BeginPublication();
+            Check(images->Replace(publication,imageId,std::move(image)),"same-handle texture publication");
+        }
+        expect(PassDirtyReason::Material,7);
+        {
+            auto sampler=Take(GpuSampler::Create(samplerDesc),"sampler replacement");
+            auto publication=resources.Publication().BeginPublication();
+            Check(samplers->Replace(publication,samplerId,std::move(sampler)),"same-handle sampler publication");
+        }
+        expect(PassDirtyReason::Material,7);
+        targets.pickingEnabled=false;
+        body.GetComponent<Transform3DComponent>().Translation.y=.25f;
+        auto deferred=expect(PassDirtyReason::Transform,3);
+        Check(HasDirtyReason(deferred.decisions[2].reasons,PassDirtyReason::Transform) && !deferred.decisions[2].requested,"dirty picking is deferred without a readback request");
+        run();targets.pickingEnabled=true;
+        expect(PassDirtyReason::Transform,4);
+        expect(PassDirtyReason::None,0);
+        Check(picking.OnResize(64,64) && point.OnResize(256,256) && cascade.OnResize(256,256),"no-op target resizes");
+        expect(PassDirtyReason::None,0);
+        const auto identity=picking.Buffer().StorageIdentity();
+        auto moved=std::move(picking);picking=std::move(moved);
+        Check(picking.Buffer().StorageIdentity()==identity,"storage identity transfers with owner");
+        expect(PassDirtyReason::None,0);
+        Check(!picking.OnResize(9000,64) && picking.Buffer().StorageIdentity()==identity,"failed target resize preserves allocation identity");
+        expect(PassDirtyReason::None,0);
+        picking=Take(MousePickFrameBuffer::Create(64,64),"same-size picking recreation");
+        expect(PassDirtyReason::TargetStorage,4);
+        point=Take(PointShadowFrameBuffer::Create(256,256),"same-size point recreation");
+        expect(PassDirtyReason::TargetStorage,2);
+        cascade=Take(CascadeShadowFrameBuffer::Create(256,256,5),"same-size cascade recreation");
+        expect(PassDirtyReason::TargetStorage,1);
+        Check(picking.OnResize(0,0) && !picking.Buffer().StorageIdentity(),"zero-size storage invalidation");
+        targets.pickingEnabled=false;run();
+        Check(picking.OnResize(64,64),"restore deferred storage");targets.pickingEnabled=true;
+        expect(PassDirtyReason::TargetStorage,4);
+        Check(point.OnResize(128,128) && cascade.OnResize(128,128),"shadow storage resize");
+        expect(PassDirtyReason::TargetStorage,3);
+        body.GetComponent<Transform3DComponent>().Translation.z=.25f;camera.view[3][0]+=.1f;
+        auto multiple=expect(PassDirtyReason::Transform,7);
+        Check(HasDirtyReason(multiple.decisions[0].reasons,PassDirtyReason::Camera)
+            && HasDirtyReason(multiple.decisions[2].reasons,PassDirtyReason::Camera),"multiple dirty reasons retained");
+        Check(picking.ClearAttachment(0,-1),"external target overwrite");submitter.InvalidatePassContents();
+        expect(PassDirtyReason::ExternalWrite,7);
+        glBindBufferBase(GL_UNIFORM_BUFFER,0,0);
+        const auto before=Pixels(desc.color);expect(PassDirtyReason::None,0);
+        Check(Pixels(desc.color)==before,"cached cascade UBO rebound after external state changes");
+        body.GetComponent<Transform3DComponent>().Translation.x+=.05f;
+        {
+            auto access=resources.Publication().BeginFrame();auto frame=Take(Extract(scene,resources,access,camera),"failed submission input");
+            glEnable(0xffffffffu); // Pending driver error, consumed by production submission.
+            auto failed=submitter.Submit(frame,targets,picks);
+            Check(!failed,"injected driver failure is returned");
+            const auto* meshError=std::get_if<GpuMeshError>(&failed.error().cause);
+            Check(meshError && meshError->code==GpuMeshErrorCode::Driver,"submission preserves the originating mesh driver diagnostic");
+        }
+        expect(PassDirtyReason::RetryAfterFailure,7);expect(PassDirtyReason::None,0);
+        const auto oldId=Take(scene.RenderData().Identify(body),"old entity lifetime");scene.DestroyEntity(body);
+        body=scene.CreateEntity("new generation");body.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,material});
+        Check(Take(scene.RenderData().Identify(body),"new entity lifetime")!=oldId,"entity recreation changes generation");
+        expect(PassDirtyReason::SceneMembership,7);
+        const MaterialParameterDecl helperParameters[]{
+            {"u_baseColor",MaterialParameterType::Float4,std::array<float,4>{1,1,1,1}},
+            {"u_useVertexColor",MaterialParameterType::Boolean,true}};
+        const auto helper=Take(resources.PublishMaterial({SceneMaterialKind::Helper,helperParameters,{},true,3}),"cached helper material");
+        body.GetComponent<MeshRendererComponent>()={Take(resources.PublishShape("AxisHelper"),"cached helper mesh"),helper,0,false,false,true};
+        run();
+        auto pickImage=[&] {
+            std::vector<int> result;
+            for(int y=0;y<64;++y) for(int x=0;x<64;++x) result.push_back(Take(picking.ReadPixel(x,y),"helper pick image"));
+            return result;
+        };
+        const auto helperImage=pickImage();
+        glLineWidth(7);submitter.InvalidatePassContents();run();
+        Check(pickImage()==helperImage,"picking establishes helper width independently of previous GL state");
+        overrideRoles.assign(resources.Pipelines().begin(),resources.Pipelines().end());
+        for(auto& role:overrideRoles) if(role.kind==SceneMaterialKind::Helper) role.lineWidth=7;
+        expect(PassDirtyReason::Material,4);
+        Check(pickImage()!=helperImage,"helper width edit invalidates and changes picking coverage");
+        expect(PassDirtyReason::None,0);
+        std::println("[PASS] pass-invalidation unchanged/revisions/targets/deferred/multiple/failure checks={}",checks);
+    }
     void Run(EngineContext& root)
     {
         std::println("Image comparison: renderer={} vendor={} version={}; 64x64 RGBA8 linear target; camera eye=(0,2,8), target=(0,0,0), FOV=45deg, aspect=1, near=.1, far=20; same-driver RGB composition tolerance=2.5/255",
@@ -392,10 +586,12 @@ namespace
                 const auto before=click.reads;
                 auto frame=Take(FrameScheduler::Render(context,&input),"scheduled click request");
                 Check(click.reads==before+1,"scheduler fulfills each picking request exactly once");
-                Check(frame.submission.pickDraws==2,"requested Picking pass executes");
+                const auto& decision=frame.submission.decisions[2];
+                Check(decision.requested && frame.submission.pickDraws==(decision.executed?2:0),"request is independent of dirty picking work");
                 Check(std::any_of(frame.trace.Events().begin(),frame.trace.Events().end(),[](auto event) {
                     return event.stage==FrameStage::Pass && event.pass==RenderPass::Picking;
-                }),"Picking request appears in the executed pass trace");
+                })==decision.executed,"only executed picking appears in the pass trace");
+                if(before>0) Check(!decision.executed && decision.reasons==PassDirtyReason::None,"repeated readbacks reuse unchanged picking image");
                 Check(click.resolved==expected && click.tag==tag,"clicked Entity and Tag match, never the previous result");
                 std::println("[PASS] scheduled click ({},{}) -> {}",pixel->X,pixel->Y,click.tag);
             };
@@ -481,6 +677,8 @@ namespace
             }};
             auto alpha=Take(FrameScheduler::Render(context,&input),"same-frame synchronous material publication");
             Check(alpha.submission.transparentDraws==1 && alpha.submission.opaqueDraws==0,"new replacement visible before extraction");
+            Check(alpha.submission.decisions[2].executed && HasDirtyReason(alpha.submission.decisions[2].reasons,PassDirtyReason::Material),
+                "new material/template/pipeline/program invalidates picking");
             auto composed=Pixels(target);
             const auto saveImage=[](const char* path,const std::vector<std::byte>& pixels) {
                 std::ofstream output(path,std::ios::binary); output << "P6\n64 64\n255\n";
@@ -629,6 +827,7 @@ namespace
             Check(root.MainWindow()->IsCurrent(),"scheduler restores owning context");
             std::println("[PASS] frame-scheduler order/skip/targets/publication/freeze/failure/alpha/state/empty checks={}",checks);
         }
+        Invalidation(root,*resources,desc,box,material);
         // Dropping CPU leases on a worker cannot perform GPU retirement.
         std::thread release([frame=std::move(retained)]() mutable {frame.reset();});release.join();
         Check(glGetError()==GL_NO_ERROR,"no driver errors");

@@ -17,7 +17,7 @@
 #include <Physics/ShapeBox.h>
 #include <Physics/PhysicsWorld.h>
 #include <Physics/GJK.h>
-
+#include <print>
 
 
 using namespace GEngine;
@@ -833,7 +833,8 @@ void RigidBodySimulationApp::OnMouseClicked()
             if (!entity) { Log::GetCoreLogger()->warn("Picking entity: {}",int(entity.error())); return; }
             m_HoveredEntity = _Entity{*entity,m_ActiveScene.get()};
         }
-        GENGINE_CORE_INFO("Mouse Position: {}, {}; Entity {} has been clicked",x,y,m_HoveredEntity?m_HoveredEntity.GetName():"None");
+		//GENGINE_CORE_INFO("Mouse Position: {}, {}; Entity {} has been clicked",x,y,m_HoveredEntity?m_HoveredEntity.GetName():"None");
+		std::println("Mouse Position: {}, {}; Entity {} has been clicked", x, y, m_HoveredEntity ? m_HoveredEntity.GetName() : "None");
 		//std::cout << "Pixel Data: " << pixel_data << std::endl;
 		//m_MousePickFrameBuffer->UnBind();
 	}

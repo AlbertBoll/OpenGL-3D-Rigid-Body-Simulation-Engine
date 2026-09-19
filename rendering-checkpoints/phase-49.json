@@ -1,0 +1,195 @@
+{
+  "baseline": "3dc46bc473516077e233856176f3e246e733aa23",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Assets/AsyncUploadQueue.h",
+    "GEngine/include/GEngine/Renderer/FrameScheduler.h",
+    "GEngine/src/Assets/AsyncUploadQueue.cpp",
+    "GEngine/src/Renderer/FrameScheduler.cpp",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-49.json",
+    "tools/async_upload_probe.cpp",
+    "tools/test_async_upload.py"
+  ],
+  "eligible": true,
+  "findings": [],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_49_REVIEW.md"
+  ],
+  "next_phase": "50",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "8ad99b93ce969596b45aff15f34ea4c2ec8bcd77",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-49/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/8ad99b93ce969596b45aff15f34ea4c2ec8bcd77",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "191e33e0e575181c0d877c579d829e965014a93f2eeae718b92958e1e764362b"
+      },
+      "mode": "100644",
+      "validated_blob": "6c19377e35b50b5995c5f7fb84620a7d15dc9e22",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-49/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/6c19377e35b50b5995c5f7fb84620a7d15dc9e22"
+    }
+  },
+  "phase": "49",
+  "previous_approved_tag": "render-refactor-phase-48-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_49_REVIEW.md",
+  "schema": 2,
+  "summary": "Generic typed async asset states and bounded decoded/upload storage with cancellable joined CRT workers; scheduler-only immutable upload publication, generation rejection and retained registry versions.",
+  "validation": [
+    {
+      "check": "Final Debug maintained affected-target build",
+      "command": "MSBuild GEngine.sln /t:GEngineEditor;Breakout;RayTracing;RigidBodySimulation;PhysicsTests;PhysicsBenchmark /p:Configuration=Debug /p:Platform=x64 /p:VCToolsVersion=14.44.35207 /p:WindowsTargetPlatformVersion=10.0.26100.0 (exact command in build.json)",
+      "evidence": "logs/rendering/phase49/final-v2/Debug/build.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Debug async concurrency/state/bounds/lifetime probes and consumer/error-model gates",
+      "command": "python tools/test_async_upload.py --configuration Debug --no-build --output logs/rendering/phase49/final-v2/Debug",
+      "evidence": "logs/rendering/phase49/final-v2/Debug/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Debug existing scheduler regression and four application smokes",
+      "command": "python tools/test_frame_submission.py --configuration Debug --smoke --output logs/rendering/phase49/final/Debug/consumers",
+      "evidence": "logs/rendering/phase49/final/Debug/consumers/results.json",
+      "result": "PASS",
+      "reuse_reason": "The final revision changes only the new queue implementation, its contract comments and focused tests. Scheduler code and application sources are unchanged. These legacy consumers leave RenderContext::uploads null, so the revised queue behavior is outside these checks; final Debug rebuild and focused probes validate the revised queue."
+    },
+    {
+      "check": "Release maintained builds, existing scheduler/graphical smokes and final async/architecture probes",
+      "command": "python tools/test_async_upload.py --configuration Release --output logs/rendering/phase49/final-v2/Release",
+      "evidence": "logs/rendering/phase49/final-v2/Release/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Governance context links and unchanged protected work/index/final validation identities",
+      "command": "python .codex/tools/validate_rendering_governance.py; python logs/rendering/phase49/prepare-checkpoint.py",
+      "evidence": "logs/rendering/phase49/scope-check.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "GEngine/include/GEngine/Assets/AssetHandle.h": {
+      "executable": null,
+      "sha256": "0c2e54fe82b781b290628fe1c520ab3cf065570fcfa699d4afd341b3d5c61e1f"
+    },
+    "GEngine/include/GEngine/Assets/AssetPublication.h": {
+      "executable": null,
+      "sha256": "76555c4f8319a5d82cb2b0ef4e2f8b14856391c5bea6871305f43719edd4b415"
+    },
+    "GEngine/include/GEngine/Assets/AssetRegistry.h": {
+      "executable": null,
+      "sha256": "54e4109ad0b728c67454af19ae09599318054c13918c1df75c191a0ad21e58b5"
+    },
+    "GEngine/include/GEngine/Assets/AsyncUploadQueue.h": {
+      "executable": null,
+      "sha256": "fe0ff121b564eaf42c9712cdfdeb7c019244b30c97905d3d0ce78ca80705e96e"
+    },
+    "GEngine/include/GEngine/Core/GLContextThread.h": {
+      "executable": null,
+      "sha256": "d2b6c8c92f9e8c1f92508aba51a4a20963778115e727a285b1ebed0aeaca9873"
+    },
+    "GEngine/include/GEngine/Renderer/FrameScheduler.h": {
+      "executable": null,
+      "sha256": "c79f434dd3fd7fcc35e0a2ad7e70cda233eff7f673e66cd8cd784ef312909272"
+    },
+    "GEngine/src/Assets/AsyncUploadQueue.cpp": {
+      "executable": null,
+      "sha256": "eb6d6fb2c6e9844218e66882802ea643c8fd9530b0fae59196c680ff2a05c430"
+    },
+    "GEngine/src/Renderer/FrameScheduler.cpp": {
+      "executable": null,
+      "sha256": "156375fff83e9869cc3b6c01f854a1e722f45c56959c02b7db7f2db32e966a47"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "f36136a149c06a69669716d8bcff453f395e89650327507fb2efe165fb84ac4c"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "191e33e0e575181c0d877c579d829e965014a93f2eeae718b92958e1e764362b"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052"
+    },
+    "tools/async_upload_probe.cpp": {
+      "executable": null,
+      "sha256": "3b481bb6b34ea339f5b152c796e4dee826d03256992f5266d7af8783715bc901"
+    },
+    "tools/frame_submission_probe.cpp": {
+      "executable": null,
+      "sha256": "46ae420f13b02dda2818ef0df1e62dc537a82547ffa950694f4c51aa7b7558de"
+    },
+    "tools/rendering_baseline.py": {
+      "executable": null,
+      "sha256": "9a07b35398d63a2ba3a54519ee309351ad18050daad301aff1ac1ed5a8866301"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/test_async_upload.py": {
+      "executable": null,
+      "sha256": "a972002771cc216ad4b0009d9d3f106997211dfea4b2da6beb0b0fd5b5ecbc22"
+    },
+    "tools/test_frame_submission.py": {
+      "executable": null,
+      "sha256": "11de4ac76962f1cfc295d40c5837e50c7502db1ef9780bbc23ec90be7de67893"
+    }
+  }
+}

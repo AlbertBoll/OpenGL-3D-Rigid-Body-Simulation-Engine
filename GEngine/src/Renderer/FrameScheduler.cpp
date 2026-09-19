@@ -14,6 +14,8 @@ namespace GEngine
             if constexpr (std::same_as<T, ScheduleCode>) return std::format("scheduler code={}", int(cause));
             else if constexpr (std::same_as<T, SubmissionError>) return DescribeSubmissionError(cause);
             else if constexpr (std::same_as<T, SceneResourceError>) return DescribeSceneResourceError(cause);
+            else if constexpr (std::same_as<T, Asset::UploadError>) return std::format("upload code={} detail={} system={} registry={}",
+                int(cause.code),cause.detail,cause.system.message(),cause.registry?int(*cause.registry):-1);
             else if constexpr (std::same_as<T, PlatformError>) return std::format("platform code={} operation={} message={}", int(cause.code), cause.operation, cause.message);
             else if constexpr (std::same_as<T, FramebufferError>) return std::format("framebuffer code={} size={}x{} samples={} message={}",int(cause.code),cause.width,cause.height,cause.samples,cause.message);
             else return std::format("extraction entity={}/{}/{} cause-domain={} ",cause.entity.index,cause.entity.generation,cause.entity.registry,cause.cause.index()) +
@@ -80,6 +82,8 @@ namespace GEngine
             return std::unexpected(ScheduleError{FrameStage::BeginFrame,ScheduleCode::InvalidInput});
         if(scene && !scene->resources.Publication().CanPublish())
             return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources,ScheduleCode::FrameActive});
+        if(context.uploads && scene && &context.uploads->Publication() != &scene->resources.Publication())
+            return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources,ScheduleCode::InvalidInput});
         active=true;
         struct EndFrame { bool& active; ~EndFrame() { active=false; } } end{active};
         auto& timings=context.window.Timings();
@@ -95,6 +99,9 @@ namespace GEngine
         ScheduledFrameStats stats;
         stats.trace.Stage(FrameStage::BeginFrame);
         stats.trace.Stage(FrameStage::UpdateFrameResources);
+        if (context.uploads)
+            if (auto uploaded=context.uploads->DrainUpdateFrameResources(); !uploaded)
+                return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources,uploaded.error()});
         if (auto updated=context.updateResources(); !updated) return std::unexpected(updated.error());
         if (context.visible && scene)
         {

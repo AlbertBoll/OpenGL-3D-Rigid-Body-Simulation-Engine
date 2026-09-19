@@ -2,6 +2,7 @@
 
 #include "Renderer/FrameSubmission.h"
 #include "Renderer/RenderExtraction.h"
+#include "Assets/AsyncUploadQueue.h"
 
 namespace GEngine
 {
@@ -9,7 +10,7 @@ namespace GEngine
     namespace Manager { class WindowManager; }
     enum class ScheduleCode { Context, InvalidInput, FrameActive };
     using ScheduleCause = std::variant<ScheduleCode, SubmissionError, RenderExtractionError,
-        FramebufferError, PlatformError, SceneResourceError>;
+        FramebufferError, PlatformError, SceneResourceError, Asset::UploadError>;
     struct ScheduleError { FrameStage stage; ScheduleCause cause; };
     using ScheduleResult = std::expected<void, ScheduleError>;
     std::string DescribeScheduleError(const ScheduleError&);
@@ -28,6 +29,7 @@ namespace GEngine
         FrameCallback updateResources; // Synchronous publication only; runs before FrameAccess.
         FrameCallback legacyScene;     // Isolated compatibility draw body, no resolve/UI/present.
         FrameCallback editorUI;        // UI authoring only; native backend calls stay in Window.
+        Asset::AsyncUploadQueue* uploads{}; // Optional generic queue, drained before updateResources.
     };
     struct FrameSceneInput
     {

@@ -141,3 +141,14 @@ Use `python tools/test_frame_submission.py --configuration Release --shadow-cull
 for three matched frozen series, each with 120 warmup and 240 recorded samples per
 mode. Timing is descriptive; exact images and reduced draw/caster/layer counts
 are required even when run-median timing spread exceeds 10%.
+
+
+## Technique decision (Phase 60)
+
+The matched [shadow technique benchmark](SHADOW_TECHNIQUE_BENCHMARK.md) retains
+the current layered geometry-shader implementation. Separate layer/face draws
+and an alternative layered GS layout produced exact images but did not meet the
+predeclared CPU/GPU/noise criteria across both workloads. Temporary runnable
+prototypes were removed; no production technique switch or architecture change
+was retained. The Phase 59 GPU tail cause remains a non-blocking audit item for
+after Phase 68, without a general latency-speedup claim.

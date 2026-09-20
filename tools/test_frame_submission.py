@@ -171,6 +171,7 @@ def main():
     parser.add_argument("--upload-baseline", type=Path, help="Preserved Phase 53 library, measurement only")
     parser.add_argument("--upload-reference", type=Path, help="Matched Phase 53 upload results")
     parser.add_argument("--instance-measure", action="store_true", help="Paired serial/instanced lattice and stack CPU/GPU samples")
+    parser.add_argument("--shadow-cull-measure", action="store_true", help="Three paired shadow broadcast/culled CPU and GPU series")
     parser.add_argument("--picking-measure", action="store_true", help="Three idle/cached/dirty synchronous readback series")
     args = parser.parse_args()
     if args.upload_baseline and (not args.no_build or not args.upload_measure):
@@ -266,7 +267,7 @@ def main():
             return 1
         for rel in ("GEngine/include/GEngine/Renderer/ShadowQuality.h", "GEngine/src/Renderer/ShadowQuality.cpp",
                     "GEngine/include/GEngine/Core/BaseApp.h", "GEngine/include/GEngine/Renderer/FrameSubmission.h", "GEngine/src/Renderer/FrameSubmission.cpp",
-                    "GEngine/src/Renderer/GLStateCache.h", "GEngine/src/Renderer/DrawOrdering.h",
+                    "GEngine/src/Renderer/GLStateCache.h", "GEngine/src/Renderer/DrawOrdering.h", "GEngine/src/Renderer/ShadowCulling.h",
                     "GEngine/src/Renderer/SubmissionGpuLayout.h", "GEngine/src/Renderer/SubmissionUploads.h", "GEngine/src/Assets/ShaderBackend.h",
                     "GEngine/src/Assets/Sampler.cpp", "GEngine/src/Mesh/GpuMesh.cpp",
                     "GEngine/include/GEngine/Renderer/PassTiming.h", "GEngine/src/Renderer/PassTiming.cpp",
@@ -330,6 +331,46 @@ def main():
             env["GENGINE_PREDECESSOR_PLACEMENT"] = "1"
         else:
             env.pop("GENGINE_PREDECESSOR_PLACEMENT", None)
+        if args.shadow_cull_measure:
+            protocol = {"workload": "64 frozen casters: 16 nearby boxes and 48 distant spheres; one directional and one range-12 point light; 64x64 linear RGBA8 and 256x256 depth; instancing enabled; no Physics, picking or swap",
+                "warmup": 120, "samples": 240, "series": 3,
+                "scope": "Submit CPU including lists, masks and uploads; GPU elapsed around Submit; forced dirty shadows; readback/query collection excluded from CPU samples",
+                "noise_policy": "Run-median spread above 10% is NOISY. Timing descriptive; exact depth/color equality, 128 to 32 caster submissions, lower layer counts and lower real draw counts are the required fallback. No timing speedup claim when noisy."}
+            report["shadow_cull_protocol"] = protocol
+            (out / "shadow-cull-protocol.json").write_text(json.dumps(protocol, indent=2))
+            records = []
+            for series in range(3):
+                capture = out / f"shadow-cull-{series}.csv"
+                if not invoke(f"shadow-cull-{series}", [executable], 240, out,
+                              dict(env, GENGINE_SHADOW_CULL_MEASURE=str(capture)), marker="[PASS] shadow-cull-measure"):
+                    return 1
+                with capture.open(newline="") as stream:
+                    rows = list(csv.DictReader(stream))
+                for mode in ("reference", "culled"):
+                    group = [r for r in rows if r["mode"] == mode]
+                    if len(group) != 240 or any(int(r["casters"]) != (128 if mode == "reference" else 32) for r in group):
+                        report["reason"] = "Shadow culling sample/count mismatch"
+                        return 1
+                    row = {"series": series, "mode": mode}
+                    for metric in ("cpu_ns", "gpu_ns"):
+                        values = sorted(int(r[metric]) for r in group)
+                        row[metric + "_median"] = statistics.median(values)
+                        row[metric + "_p95"] = values[int(.95 * (len(values)-1))]
+                    for metric in ("draw_calls", "casters", "layers"):
+                        values = {int(r[metric]) for r in group}
+                        if len(values) != 1:
+                            report["reason"] = "Nondeterministic shadow work count"
+                            return 1
+                        row[metric] = values.pop()
+                    records.append(row)
+                if any(records[-1][metric] >= records[-2][metric] for metric in ("draw_calls", "casters", "layers")):
+                    report["reason"] = "Shadow work did not decline"
+                    return 1
+            report["shadow_cull_measurements"] = records
+            report["shadow_cull_spread"] = {f"{mode}/{metric}":
+                (max(values)-min(values))/statistics.median(values)
+                for mode in ("reference", "culled") for metric in ("cpu_ns_median", "gpu_ns_median")
+                if (values := [r[metric] for r in records if r["mode"] == mode]) and statistics.median(values)}
         if args.picking_measure:
             protocol = {"workload": "64 frozen boxes, instancing enabled, 1280x640 linear RGBA8/R32I; fixed orthographic camera; no Physics, swap or glFinish",
                 "warmup": 120, "samples": 240, "series": 3,
@@ -489,6 +530,9 @@ def main():
             passed = False
             return 1
         probe_log=(out / "frame-submission.log").read_text(errors="replace")
+        if "[PASS] shadow-culling lists/counters/serial/instanced/depth/color/moving/large/retained" not in probe_log:
+            passed = False
+            return 1
         if "[PASS] shadow-dirtiness static/non-caster/interpolation/masked-async/mesh-async/retained/depth" not in probe_log:
             passed = False
             return 1

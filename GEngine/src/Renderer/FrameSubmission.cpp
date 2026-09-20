@@ -9,6 +9,7 @@
 #include "../Assets/TextureBackend.h"
 #include "GLStateCache.h"
 #include "DrawOrdering.h"
+#include "ShadowCulling.h"
 #include "SubmissionUploads.h"
 #include <format>
 #include <new>
@@ -64,17 +65,22 @@ layout(location=1) in vec2 uv;
 uniform mat4 u_model, u_view, u_projection;
 out vec2 vertexUV;
 flat out int gePickingPixel;
+flat out uint geShadowMask;
+uniform uint geShadowLayers, geShadowKind;
 uniform int u_EntityID;
-void main() { gePickingPixel=geInstanced ? int(geInstances[geInstanceBase+uint(gl_InstanceID)].identity1.y) : u_EntityID;
+void main() { geShadowMask=geInstanced ? geInstances[geInstanceBase+uint(gl_InstanceID)].identity1[geShadowKind] : geShadowLayers;
+gePickingPixel=geInstanced ? int(geInstances[geInstanceBase+uint(gl_InstanceID)].identity1.y) : u_EntityID;
 vertexUV=uv; gl_Position=)") + (picking?"u_projection*u_view*":"") + "u_model*vec4(position,1.0); }";
             const std::string geometry=point?R"(#version 450 core
 layout(triangles) in;
 layout(triangle_strip,max_vertices=18) out;
 uniform mat4 shadowMatrices[6];
 in vec2 vertexUV[];
+flat in uint geShadowMask[];
 out vec2 fragmentUV;
 out vec4 FragPos;
 void main() { for(int face=0;face<6;++face) {
+  if((geShadowMask[0] & (1u<<uint(face)))==0u) continue;
   for(int i=0;i<3;++i) { gl_Layer=face; FragPos=gl_in[i].gl_Position;
     fragmentUV=vertexUV[i]; gl_Position=shadowMatrices[face]*FragPos; EmitVertex(); }
   EndPrimitive(); } }
@@ -83,8 +89,10 @@ layout(triangles,invocations=5) in;
 layout(triangle_strip,max_vertices=3) out;
 layout(std140,binding=0) uniform LightSpaceMatrices { mat4 lightSpaceMatrices[16]; };
 in vec2 vertexUV[];
+flat in uint geShadowMask[];
 out vec2 fragmentUV;
-void main() { for(int i=0;i<3;++i) { gl_Layer=gl_InvocationID;
+void main() { if((geShadowMask[0] & (1u<<uint(gl_InvocationID)))==0u) return;
+for(int i=0;i<3;++i) { gl_Layer=gl_InvocationID;
   fragmentUV=vertexUV[i]; gl_Position=lightSpaceMatrices[gl_InvocationID]*gl_in[i].gl_Position;
   EmitVertex(); } EndPrimitive(); }
 )";
@@ -215,11 +223,14 @@ void main() {
         }
         struct PreparedDraw
         {
+            // Layer membership is per instance, independent of shared material identity.
+
             const DrawItem* draw{};
             const FrameResources* resources{};
             const ScenePipeline* role{};
             std::size_t submesh{};
             int pixel = -1;
+            std::array<unsigned,2> shadowMasks{};
         };
         struct InstanceGroup { std::size_t index{}, count=1; unsigned base{}; };
         bool Compatible(const PreparedDraw& a,const PreparedDraw& b)
@@ -249,10 +260,10 @@ void main() {
             static std::expected<InstancePlan,SubmissionError> Create(std::size_t draws,std::size_t byteLimit,bool enabled)
             {
                 constexpr auto maximum=(std::numeric_limits<std::size_t>::max)();
-                if(draws>maximum/3/sizeof(InstanceGroup)) return Error("instance group capacity",Code::InvalidDraw);
+                if(draws>maximum/4/sizeof(InstanceGroup)) return Error("instance group capacity",Code::InvalidDraw);
                 InstancePlan result;
-                result.groups.reset(new(std::nothrow) InstanceGroup[draws*3]);
-                result.capacity=enabled?(std::min)({draws*3,byteLimit/sizeof(RenderBackend::PackedInstance),
+                result.groups.reset(new(std::nothrow) InstanceGroup[draws*4]);
+                result.capacity=enabled?(std::min)({draws*4,byteLimit/sizeof(RenderBackend::PackedInstance),
                     std::size_t((std::numeric_limits<unsigned>::max)())}):0;
                 result.instances.reset(new(std::nothrow) RenderBackend::PackedInstance[(std::max)(result.capacity,std::size_t{1})]);
                 if((draws && !result.groups) || !result.instances) return Error("instance plan allocation",Code::Allocation);
@@ -276,7 +287,7 @@ void main() {
                         std::copy_n(glm::value_ptr(draw.worldTransform),16,packed.model.begin());
                         const auto id=draw.entity;
                         packed.identity0={id.index,static_cast<unsigned>(id.generation),static_cast<unsigned>(id.generation>>32),static_cast<unsigned>(id.registry)};
-                        packed.identity1={static_cast<unsigned>(id.registry>>32),std::bit_cast<unsigned>(prepared.pixel),0,0};
+                        packed.identity1={static_cast<unsigned>(id.registry>>32),std::bit_cast<unsigned>(prepared.pixel),prepared.shadowMasks[0],prepared.shadowMasks[1]};
                     }
                     i+=count;
                 }
@@ -379,6 +390,7 @@ void main() {
                     for(float split:desc.cascadeSplits) out.F(split);
                 }
                 if(!picking && !directional) out.F(desc.pointNear);
+                if(!picking) out.U(desc.shadowCullingEnabled);
                 result.ends[7]=out.size;
             };
             InputWriter measure; emit(measure);
@@ -614,6 +626,35 @@ void main() {
         auto visibility=RenderVisibility::Build(frame,0,{conservative.get(),conservativeCount});
         if(!visibility) return std::unexpected(SubmissionError{"frame visibility",visibility.error()});
         FrameSubmissionStats stats; stats.visibility=visibility->Stats();
+        // Reuse the temporary ordinal buffer after general visibility owns its lists.
+        std::size_t casterCount{};
+        for(const auto index:visibility->Shadows())
+            if(draws[index].role->kind==SceneMaterialKind::Lit) conservative[casterCount++]=index;
+        const std::span<const std::size_t> casters(conservative.get(),casterCount);
+        std::array<glm::mat4,5> cascadeMatrices;
+        std::array<glm::mat4,6> pointMatrices;
+        previous=desc.cameraNear;
+        if(directionalShadow) for(std::size_t i=0;i<cascadeMatrices.size();++i) {
+            cascadeMatrices[i]=LightMatrix(camera,desc,lightDirection,previous,desc.cascadeSplits[i]);
+            previous=desc.cascadeSplits[i];
+        }
+        if(pointShadow) {
+            const auto& size=desc.pointShadow.Buffer().Description();
+            pointMatrices=PointMatrices(position,desc.pointNear,pointFar,float(size.Width)/size.Height);
+        }
+        std::array<std::optional<RenderDetail::ShadowCasterLists>,2> shadowLists;
+        for(std::size_t light=0;light<shadowLists.size();++light) {
+            if(light==0 ? !directionalShadow : !pointShadow) continue;
+            const auto matrices=light==0 ? std::span<const glm::mat4>(cascadeMatrices) : std::span<const glm::mat4>(pointMatrices);
+            auto lists=RenderDetail::ShadowCasterLists::Build(frame,casters,matrices,
+                light==0 ? std::nullopt : std::optional(RenderDetail::ShadowPointRange{position,pointFar}),desc.shadowCullingEnabled);
+            if(!lists) return std::unexpected(SubmissionError{"shadow caster lists",lists.error()});
+            lists->stats.light=light==0 ? directional->entity : point->entity;
+            stats.shadowVisibility[light]=lists->stats;
+            for(std::size_t layer=0;layer<matrices.size();++layer)
+                for(const auto index:lists->Layer(layer)) draws[index].shadowMasks[light]|=1u<<layer;
+            shadowLists[light]=std::move(*lists);
+        }
         std::array<PassInputs,3> candidateInputs;
         constexpr RenderPass cachedPasses[]{RenderPass::DirectionalShadow,RenderPass::PointShadow,RenderPass::Picking};
         const bool requested[]{directionalShadow,pointShadow,desc.pickingEnabled};
@@ -651,8 +692,10 @@ void main() {
         if(!instancePlan) return std::unexpected(instancePlan.error());
         const auto opaqueGroups=instancePlan->Append(opaque,draws.get());
         const auto maskedGroups=instancePlan->Append(masked,draws.get());
-        const auto shadowGroups=instancePlan->Append((stats.decisions[0].executed || stats.decisions[1].executed)
-            ?visibility->Shadows():std::span<const std::size_t>{},draws.get());
+        std::array<std::span<const InstanceGroup>,2> shadowGroups;
+        for(std::size_t light=0;light<shadowGroups.size();++light)
+            shadowGroups[light]=instancePlan->Append(stats.decisions[light].executed
+                ?shadowLists[light]->Union():std::span<const std::size_t>{},draws.get());
         const auto pickingGroups=instancePlan->Append(stats.decisions[2].executed
             ?visibility->Picking():std::span<const std::size_t>{},draws.get());
         auto materialBatch=RenderBackend::MaterialBatch::Pack(frame,desc.pipelines,m_Storage->materialLimit);
@@ -672,14 +715,11 @@ void main() {
         previous=desc.cameraNear;
         for(std::size_t i=0;i<desc.cascadeSplits.size();++i) {
             packedFrame.splits[i][0]=desc.cascadeSplits[i];
-            if(stats.decisions[0].executed) packedFrame.cascades[i]=matrixWords(LightMatrix(camera,desc,lightDirection,previous,desc.cascadeSplits[i]));
+            if(stats.decisions[0].executed) packedFrame.cascades[i]=matrixWords(cascadeMatrices[i]);
             previous=desc.cascadeSplits[i];
         }
-        if(stats.decisions[1].executed) {
-            const auto& size=desc.pointShadow.Buffer().Description();
-            const auto matrices=PointMatrices(position,desc.pointNear,pointFar,float(size.Width)/size.Height);
-            for(std::size_t i=0;i<matrices.size();++i) packedFrame.pointMatrices[i]=matrixWords(matrices[i]);
-        }
+        if(stats.decisions[1].executed)
+            for(std::size_t i=0;i<pointMatrices.size();++i) packedFrame.pointMatrices[i]=matrixWords(pointMatrices[i]);
         RenderBackend::UploadBindings uploadRestore;
         struct InstanceBindingRestore {
             RenderBackend::UploadBindings::Binding binding=RenderBackend::UploadBindings::Capture(
@@ -722,27 +762,32 @@ void main() {
             }
             return {};
         };
-        auto shadowDraws=[&](const Shader& shader)->std::expected<void,SubmissionError> {
+        auto shadowDraws=[&](const Shader& shader,std::size_t light)->std::expected<void,SubmissionError> {
             RenderCounters::RecordPass(RenderCounters::Pass::Shadow);
-            for(const auto group:shadowGroups) if(draws[group.index].role->kind==SceneMaterialKind::Lit) {
+            Uniform(shader,"geShadowKind",static_cast<unsigned>(light+2));
+            for(const auto group:shadowGroups[light]) {
+                Uniform(shader,"geShadowLayers",draws[group.index].shadowMasks[light]);
                 if(auto result=coverage(draws[group.index],shader);!result) return result;
                 if(auto result=Draw(draws[group.index],shader,group,stats);!result) return result;
                 stats.shadowDraws+=group.count;
             }
+            auto& counts=stats.shadowVisibility[light];
+            counts.total.submittedCasters=counts.total.visible;
+            for(auto& layer:counts.layers) layer.submittedCasters=layer.visible;
             return {};
         };
         if(stats.decisions[0].executed)
         {
             PassTiming::Scope timing(RenderPass::DirectionalShadow);
             BindProgram(storage.cascade); desc.cascadeShadow.Bind(); begin(RenderPass::DirectionalShadow);
-            if(auto result=shadowDraws(storage.cascade);!result) return std::unexpected(result.error());
+            if(auto result=shadowDraws(storage.cascade,0);!result) return std::unexpected(result.error());
             timing.Complete();
         }
         if(stats.decisions[1].executed)
         {
             PassTiming::Scope timing(RenderPass::PointShadow);
             BindProgram(storage.point); desc.pointShadow.Bind(); begin(RenderPass::PointShadow);
-            if(auto result=shadowDraws(storage.point);!result) return std::unexpected(result.error());
+            if(auto result=shadowDraws(storage.point,1);!result) return std::unexpected(result.error());
             timing.Complete();
         }
         if(stats.decisions[2].executed)

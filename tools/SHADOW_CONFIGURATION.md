@@ -103,8 +103,8 @@ Failed submissions leave dirty work pending for retry. External target writes
 must call `FrameSubmission::InvalidatePassContents()` before reuse.
 
 The existing cache is conservative: it may refresh for light/material revisions
-that do not change depth. Per-light/cascade caster culling remains Phase 59; this
-phase does not change shadow filtering, bias, quality defaults or Physics.
+that do not change depth. Phase 59 adds per-light/cascade caster culling; shadow filtering, bias, quality
+defaults and Physics remain unchanged.
 
 `tools/test_frame_submission.py` checks both real depth images for static reuse,
 non-caster/caster movement, alpha coverage, asynchronous same-handle texture and
@@ -113,3 +113,31 @@ existing regression checks cover light/camera/settings changes, caster flags,
 removal, same-size target recreation, resizing, external writes and failure retry.
 The async fixture uses deterministic CPU payloads through the real worker queue
 and scheduler, independently of file-decoder timing.
+
+## Shadow caster relevance (Phase 59)
+
+Submission builds source-ordered lists for each of the five directional cascades
+and six point faces from immutable retained mesh bounds and presentation poses.
+Directional tests use the exact expanded light projection, so camera-invisible
+casters are not rejected merely for being outside a camera slice or layer mask.
+Point tests first intersect the world AABB with the light range sphere, then the
+exact face frusta. Touching/uncertain boundaries and unavailable or invalid bounds
+remain eligible. Large intersecting casters are tested by their extents.
+
+Each light submits its union once. Geometry shader layer masks suppress irrelevant
+cascade/face output; each instance carries its own masks in the existing packed
+payload. Main visibility, frame contents and resource lifetimes are unchanged.
+`FrameSubmissionStats::shadowVisibility` reports directional/point light identity,
+union and per-layer candidate/visible/culled/conservative/submitted-caster counts.
+Cached passes report zero submitted casters. Logical caster counts differ from
+API draws when instancing is active. Invalidation still conservatively keys all
+eligible scene casters; moving a rejected caster may refresh the pass.
+
+`FrameSubmissionDesc::shadowCullingEnabled=false` selects the full broadcast
+reference and invalidates cached shadows. The default is enabled. The real-GL
+probe requires exact depth/color equivalence for both modes, including serial and
+instanced submission, moving boundaries, large/off-camera casters and old frames.
+Use `python tools/test_frame_submission.py --configuration Release --shadow-cull-measure`
+for three matched frozen series, each with 120 warmup and 240 recorded samples per
+mode. Timing is descriptive; exact images and reduced draw/caster/layer counts
+are required even when run-median timing spread exceeds 10%.

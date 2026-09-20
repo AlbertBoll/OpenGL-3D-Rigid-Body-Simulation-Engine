@@ -16,6 +16,7 @@ namespace GEngine::RenderBackend
         MatrixWords model{};
         // Full shared identity: slot, generation low/high, domain low/high.
         // The separately encoded signed picking pixel is not an entity identity.
+        // identity1.zw hold directional/point shadow layer masks, not identities.
         std::array<std::uint32_t,4> identity0{}, identity1{};
     };
     static_assert(sizeof(PackedInstance)==96 && offsetof(PackedInstance,identity0)==64

@@ -83,8 +83,23 @@ namespace GEngine
         bool pickingEnabled = true;
         // Serial fallback/reference uses the same sorted immutable frame.
         bool instancingEnabled = true;
+        // Conservative shadow relevance; false retains the broadcast reference.
+        bool shadowCullingEnabled = true;
     };
     inline constexpr std::size_t MinimumRenderInstances = 4;
+    struct ShadowCasterStats
+    {
+        // candidates = visible + culled; conservative is a subset of visible.
+        // submittedCasters is zero for a reused pass, otherwise equals visible.
+        std::size_t candidates{}, visible{}, culled{}, conservative{}, submittedCasters{};
+    };
+    struct ShadowVisibilityStats
+    {
+        EntityRenderId light;
+        std::size_t layerCount{};
+        ShadowCasterStats total; // Union: a caster appears at most once per light.
+        std::array<ShadowCasterStats,6> layers{}; // Cascades or cube faces.
+    };
     struct FrameSubmissionStats
     {
         std::size_t shadowDraws{}, pickDraws{}, colorDraws{}, helperDraws{}, skyDraws{};
@@ -92,6 +107,7 @@ namespace GEngine
         // Existing draw fields count logical items; these count actual API draws.
         std::size_t submittedDrawCalls{}, instancedDrawCalls{}, submittedInstances{};
         VisibilityStats visibility;
+        std::array<ShadowVisibilityStats,2> shadowVisibility; // Directional, point.
         FrameTrace trace;
         // Directional shadow, point shadow, picking; includes deferred/clean passes.
         std::array<PassDecision, 3> decisions{};

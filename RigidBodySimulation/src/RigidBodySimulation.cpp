@@ -28,13 +28,13 @@ using namespace ::GEngine::Asset;
 #define activate_boxes_stacking 0
 #endif
 #ifndef activate_sphere_lattice
-#define activate_sphere_lattice 1
+#define activate_sphere_lattice 0
 #endif
 #ifndef activate_sphere_diamond
 #define activate_sphere_diamond 0
 #endif
 #ifndef activate_sphere_boxes_stacking
-#define activate_sphere_boxes_stacking 0
+#define activate_sphere_boxes_stacking 1
 #endif
 
 

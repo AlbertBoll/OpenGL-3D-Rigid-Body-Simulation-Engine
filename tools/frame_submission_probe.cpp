@@ -5,6 +5,7 @@
 #include "Renderer/ShadowQuality.h"
 #include <type_traits>
 #include "../GEngine/src/Renderer/DrawOrdering.h"
+#include "../GEngine/src/Renderer/ShadowCulling.h"
 using namespace GEngine;
 using namespace GEngine::Asset;
 using namespace GEngine::Component;
@@ -1687,6 +1688,179 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         expect(run(),0,PassDirtyReason::None);scene.OnRuntimeStop();queue->Shutdown();
         std::println("[PASS] shadow-dirtiness static/non-caster/interpolation/masked-async/mesh-async/retained/depth");
     }
+    void ShadowCullingBounds()
+    {
+        using namespace RenderDetail;
+        FrameCamera camera;camera.view=glm::mat4(1);camera.projection=glm::mat4(1);
+        const auto volume=CameraFrustum::FromCamera(camera);
+        WorldBounds bounds{BoundsStatus::Valid};bounds.minimum={-.5,-.5,-.5};bounds.maximum={.5,.5,.5};
+        const ShadowPointRange point{{0,0,0},10};
+        Check(TestShadowRange(bounds,point)!=BoundsVisibility::Outside,"caster inside point range");
+        bounds.minimum={10,0,0};bounds.maximum={11,1,1};
+        Check(TestShadowRange(bounds,point)!=BoundsVisibility::Outside,"point sphere boundary retained");
+        bounds.minimum[0]=10.01;
+        Check(TestShadowRange(bounds,point)==BoundsVisibility::Outside,"caster outside point range");
+        bounds.minimum={9.9,-1,-1};bounds.maximum={100,1,1};
+        Check(TestShadowRange(bounds,point)!=BoundsVisibility::Outside,"large caster with outside center intersects range");
+        for(double x:{1.01,1.0,.99,1.01}) {
+            bounds.minimum={x,-.5,-.5};bounds.maximum={x+2,.5,.5};
+            Check((TestShadowVolume(bounds,volume,BoundsVisibility::Intersecting)==BoundsVisibility::Outside)==(x>1),
+                "moving caster crosses exact cascade boundary conservatively");
+        }
+        bounds.minimum={.99,-100,-100};bounds.maximum={100,100,100};
+        Check(TestShadowVolume(bounds,volume,BoundsVisibility::Intersecting)!=BoundsVisibility::Outside,
+            "large intersecting caster is not rejected by its origin");
+        for(auto status:{BoundsStatus::Empty,BoundsStatus::Unavailable,BoundsStatus::Invalid}) {
+            bounds.status=status;
+            Check(TestShadowVolume(bounds,volume,TestShadowRange(bounds,point))==BoundsVisibility::Conservative,"invalid bounds retain all layers");
+        }
+        bounds.status=BoundsStatus::Valid;bounds.minimum[0]=std::numeric_limits<double>::quiet_NaN();
+        Check(TestShadowRange(bounds,point)==BoundsVisibility::Conservative,"nonfinite bounds fallback");
+        bounds.minimum[0]=101;
+        Check(TestShadowRange(bounds,point)==BoundsVisibility::Conservative,"inverted bounds fallback");
+        bounds.minimum={0,0,0};bounds.maximum={1,1,1};camera.projection=glm::mat4(0);
+        Check(TestShadowVolume(bounds,CameraFrustum::FromCamera(camera),BoundsVisibility::Intersecting)==BoundsVisibility::Conservative,
+            "degenerate shadow matrix fallback");
+        std::println("[PASS] shadow-culling bounds/range/cascade-boundary/large/moving/invalid");
+    }
+    std::vector<float> ShadowDepth(const PointShadowFrameBuffer& point,const CascadeShadowFrameBuffer& cascade)
+    {
+        constexpr GLenum keys[]{GL_PACK_ALIGNMENT,GL_PACK_ROW_LENGTH,GL_PACK_SKIP_PIXELS,GL_PACK_SKIP_ROWS,
+            GL_PACK_IMAGE_HEIGHT,GL_PACK_SKIP_IMAGES,GL_PACK_SWAP_BYTES,GL_PACK_LSB_FIRST};
+        GLint packBuffer{};std::array<GLint,std::size(keys)> saved{};
+        glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING,&packBuffer);glBindBuffer(GL_PIXEL_PACK_BUFFER,0);
+        for(std::size_t i=0;i<saved.size();++i) {glGetIntegerv(keys[i],&saved[i]);glPixelStorei(keys[i],i==0?1:0);}
+        const auto layers=cascade.Buffer().Description().Layers;
+        std::vector<float> result(256*256*(layers+6));
+        glGetTextureImage(FramebufferDetail::Backend::Depth(cascade.Buffer()),0,GL_DEPTH_COMPONENT,GL_FLOAT,
+            static_cast<GLsizei>(256*256*layers*sizeof(float)),result.data());
+        GLint previousRead{};GLuint readback{};glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&previousRead);
+        glGenFramebuffers(1,&readback);glBindFramebuffer(GL_READ_FRAMEBUFFER,readback);
+        glNamedFramebufferDrawBuffer(readback,GL_NONE);glReadBuffer(GL_NONE);
+        for(unsigned face=0;face<6;++face) {
+            glFramebufferTexture2D(GL_READ_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_TEXTURE_CUBE_MAP_POSITIVE_X+face,
+                FramebufferDetail::Backend::Depth(point.Buffer()),0);
+            Check(glCheckFramebufferStatus(GL_READ_FRAMEBUFFER)==GL_FRAMEBUFFER_COMPLETE,"culling depth attachment complete");
+            glReadPixels(0,0,256,256,GL_DEPTH_COMPONENT,GL_FLOAT,result.data()+256*256*(layers+face));
+        }
+        glBindFramebuffer(GL_READ_FRAMEBUFFER,previousRead);glDeleteFramebuffers(1,&readback);
+        for(std::size_t i=0;i<saved.size();++i) glPixelStorei(keys[i],saved[i]);
+        glBindBuffer(GL_PIXEL_PACK_BUFFER,packBuffer);
+        Check(glGetError()==GL_NO_ERROR,"culling depth readback succeeds");
+        Check(std::all_of(result.begin(),result.end(),[](float v){return std::isfinite(v) && v>=0 && v<=1;}),"culling depth finite/normalized");
+        return result;
+    }
+    void ShadowCullingFixture(SceneRenderResources& resources,FrameSubmissionDesc desc,MeshHandle box,MeshHandle sphere,
+        MaterialInstanceHandle material)
+    {
+        ShadowCullingBounds();
+        _Scene scene;auto camera=Camera(scene);EntityPickTable picks;
+        auto sun=scene.CreateEntity("culling sun"),bulb=scene.CreateEntity("culling bulb");
+        RenderLightComponent light;light.castShadows=true;sun.AddComponent<RenderLightComponent>(light);
+        sun.Transform().QuatRotation=glm::rotation(glm::vec3(0,0,-1),-glm::normalize(glm::vec3(2,5,3)));
+        light.kind=RenderLightKind::Point;light.range=12;bulb.AddComponent<RenderLightComponent>(light);
+        bulb.Transform().Translation={0,3,2};
+        std::vector<_Entity> entities;
+        for(unsigned i=0;i<64;++i) {
+            auto body=scene.CreateEntityWithUUID(UUID(100+i),"culling caster "+std::to_string(i));
+            body.AddComponent<MeshRendererComponent>(MeshRendererComponent{i<16?box:sphere,material});
+            body.Transform().Translation=i<16 ? glm::vec3(float(i%4)-1.5f,float(i/4)-1.5f,0)
+                : glm::vec3(300.f+float(i),0,0);
+            body.Transform().Scale={.3f,.3f,.3f};entities.push_back(body);
+        }
+        desc.pickingEnabled=false;
+        const auto* output=SDL_getenv("GENGINE_SHADOW_CULL_MEASURE");
+        std::ofstream csv;
+        if(output) {csv.open(output);csv<<"mode,iteration,cpu_ns,gpu_ns,draw_calls,casters,layers\n";}
+        auto submitter=Take(FrameSubmission::Create(),"culling submitter");
+        const auto extract=[&] {auto access=resources.Publication().BeginFrame();return Take(Extract(scene,resources,access,camera),"culling extraction");};
+        auto compare=[&](const RenderFrame& frame,bool instanced,bool measure=false) {
+            std::vector<float> referenceDepth;std::vector<std::byte> referenceColor;
+            FrameSubmissionStats reference,culled;
+            for(bool culling:{false,true}) {
+                desc.instancingEnabled=instanced;desc.shadowCullingEnabled=culling;
+                const unsigned iterations=measure?360:1;
+                std::vector<GLuint> queries(measure?iterations:0);std::vector<std::int64_t> cpu(iterations);
+                if(measure) glGenQueries(static_cast<GLsizei>(queries.size()),queries.data());
+                FrameSubmissionStats stats;
+                for(unsigned i=0;i<iterations;++i) {
+                    submitter.InvalidatePassContents();
+                    if(measure) glBeginQuery(GL_TIME_ELAPSED,queries[i]);
+                    const auto start=std::chrono::steady_clock::now();
+                    stats=Take(submitter.Submit(frame,desc,picks),"culled/reference shadow submission");
+                    cpu[i]=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now()-start).count();
+                    if(measure) glEndQuery(GL_TIME_ELAPSED);
+                }
+                const auto depth=ShadowDepth(desc.pointShadow,desc.cascadeShadow);const auto color=Pixels(desc.color);
+                if(!culling) {referenceDepth=depth;referenceColor=color;reference=stats;}
+                else {
+                    Check(depth==referenceDepth,"culling preserves every cascade and cube-face depth sample");
+                    Check(color==referenceColor,"culling preserves exact shadowed color");culled=stats;
+                }
+                std::size_t layers{};
+                for(const auto& counts:stats.shadowVisibility) {
+                    Check(counts.light && counts.total.candidates==64 && counts.total.visible+counts.total.culled==64,
+                        "per-light identity and exact caster partition");
+                    Check(counts.total.submittedCasters==counts.total.visible,"executed light submits union once");
+                    for(std::size_t layer=0;layer<counts.layerCount;++layer) {
+                        const auto& count=counts.layers[layer];
+                        Check(count.candidates==64 && count.visible+count.culled==64 && count.submittedCasters==count.visible,
+                            "per-cascade/face exact caster partition and submitted count");
+                        layers+=count.submittedCasters;
+                    }
+                }
+                if(measure) {
+                    for(unsigned i=0;i<iterations;++i) {
+                        GLuint64 gpu{};glGetQueryObjectui64v(queries[i],GL_QUERY_RESULT,&gpu);
+                        if(i>=120) csv<<(culling?"culled":"reference")<<','<<i<<','<<cpu[i]<<','<<gpu<<','
+                            <<stats.submittedDrawCalls<<','<<stats.shadowDraws<<','<<layers<<'\n';
+                    }
+                    glDeleteQueries(static_cast<GLsizei>(queries.size()),queries.data());
+                }
+                const auto cached=Take(submitter.Submit(frame,desc,picks),"culled static cache");
+                Check(!cached.decisions[0].executed && !cached.decisions[1].executed && cached.shadowDraws==0,"culling preserves static shadow reuse");
+                for(const auto& counts:cached.shadowVisibility) {
+                    Check(counts.total.submittedCasters==0,"clean light records zero submitted casters");
+                    for(const auto& layer:counts.layers) Check(layer.submittedCasters==0,"clean layer records zero submitted casters");
+                }
+            }
+            Check(culled.shadowDraws<reference.shadowDraws && culled.submittedDrawCalls<reference.submittedDrawCalls,
+                "culling reduces actual draws and caster instances in serial and instanced modes");
+            std::size_t before{},after{};
+            for(std::size_t i=0;i<2;++i) for(std::size_t j=0;j<6;++j) {
+                before+=reference.shadowVisibility[i].layers[j].visible;after+=culled.shadowVisibility[i].layers[j].visible;
+            }
+            Check(after<before,"culling reduces layer submissions");
+            std::println("shadow-culling instanced={} draws={}->{} casters={}->{} layers={}->{}",instanced,
+                reference.submittedDrawCalls,culled.submittedDrawCalls,reference.shadowDraws,culled.shadowDraws,before,after);
+            return culled;
+        };
+        auto frame=extract();
+        for(bool instanced:{false,true}) {
+            if(output && !instanced) continue;
+            const auto stats=compare(frame,instanced,output!=nullptr);
+            Check(stats.shadowDraws==32,"48 irrelevant casters rejected independently for both lights");
+        }
+        if(!output) {
+            // Point boundary crossing with a large intersecting box; all image
+            // comparisons use the full broadcast result as the independent oracle.
+            for(float x:{11.5f,12.15f,12.4f,11.5f,15.f}) {
+                entities[0].Transform().Translation={x,3,2};
+                entities[0].Transform().Scale=x==15.f?glm::vec3(10,2,2):glm::vec3(.3f);
+                auto changed=extract();const auto counts=compare(changed,true);
+                Check(counts.shadowVisibility[1].total.visible==(x==12.4f?15:16),"point membership changes at moving range boundary");
+                if(x==15.f) Check(counts.shadowVisibility[0].total.visible==16,"large off-origin caster intersects directional volume");
+            }
+            // Independent main visibility: zero-layer casters still affect lights.
+            entities[1].AddComponent<VisibilityComponent>(VisibilityComponent{true,0});
+            entities[1].Transform().Translation={0,6,0};
+            auto offscreen=extract();compare(offscreen,true);
+            // Earlier immutable transforms/mesh leases still produce their old depth.
+            compare(frame,true);
+        }
+        if(output) {Check(csv.good(),"shadow culling measurement file");std::println("[PASS] shadow-cull-measure");}
+        std::println("[PASS] shadow-culling lists/counters/serial/instanced/depth/color/moving/large/retained");
+    }
     void ShadowQualityReference(SceneRenderResources& resources,FrameSubmissionDesc base,MeshHandle box,MaterialInstanceHandle material)
     {
         _Scene scene;const auto camera=Camera(scene);
@@ -2120,6 +2294,8 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         auto cascadeTarget=Take(CascadeShadowFrameBuffer::Create(256,256,5),"cascade target");
         const float splits[]{.5f,1.f,2.f,5.f,20.f};
         FrameSubmissionDesc desc{target,picking,pointTarget,cascadeTarget,resources->Pipelines(),splits,glm::radians(45.f),1,.1f,20,.1f,100};
+        ShadowCullingFixture(*resources,desc,box,sphere,material);
+        if(SDL_getenv("GENGINE_SHADOW_CULL_MEASURE")) return;
         PickingArchitecture(*resources,desc,box,material);
         if(SDL_getenv("GENGINE_PICKING_MEASURE")) return;
         InstancingFixture(*resources,desc,box,sphere,material,parameters,textures);

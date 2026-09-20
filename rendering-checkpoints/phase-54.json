@@ -1,0 +1,482 @@
+{
+  "baseline": "2ad273e160710a630a4ead5f484830c7a13c4bcc",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/src/Renderer/FrameSubmission.cpp",
+    "GEngine/src/Renderer/SceneRenderResources.cpp",
+    "GEngine/src/Renderer/SubmissionGpuLayout.h",
+    "GEngine/src/Renderer/SubmissionUploads.h",
+    "RenderingValidation/README.md",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-54.json",
+    "tools/frame_submission_probe.cpp",
+    "tools/test_frame_submission.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Private 1968-byte frame UBO and checked packed material SSBO; whole-store replacement once per dirty batch; unchanged batches issue no uploads. Matched API calls 2368 to 704 and bytes 24576 to 6656; exact images/work retained.",
+      "finding": "Repeated small frame and material uploads confirmed in current submission",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Actual GPU all-type interpretation, reflected alignment/size, exact byte bounds, retained versions, six queued frames, typed failure/retry, range preservation and deletion pass. Obsolete legacy UBO slot write removed. Batching evidence does not justify persistent mapping.",
+      "finding": "Storage lifetime, layout, boundary restoration and persistent mapping evaluation",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Revision 2 provenance retained: contact halo materially pre-existing in approved Phase 53. Owner revision 3 explicitly supersedes its prior stop condition only to correct this defect; see the separate resolved correction finding and retained before evidence.",
+      "finding": "Owner-reported bright/light halo at sphere contacts: investigate Phase 54 regression provenance",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Directional Front culling stored far-side depth and leaked light near biased receiver contacts. Retain default Back culling to store nearest surfaces. Isolated face-selection experiment preserves point-mask bytes and closes directional contact gaps. New GPU sphere/box depth test fails old engine and passes Debug/Release across cascades. Final canonical 4096 contact pixels match the causal correction in both configs; fresh interactive checks pass. No tuning/packing/GLSL/API/Physics changes. Evidence: logs/rendering/phase54/revision3/investigation.json.",
+      "finding": "Authorized correction of the pre-existing sphere contact-shadow halo",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Case A proven by unchanged reviewed sources/options and byte-level object/executable equivalence. One controlled Release rebuild was needed because old per-object provenance was absent. Generated COFF/CodeView/checksum/archive/PE metadata is nondeterministic. Authoritative outputs freshly validated; no source changes. Evidence: logs/rendering/phase54/revision4/provenance.json.",
+      "finding": "Release library/application raw hashes changed after Revision 3 seal; approval blocked",
+      "status": "RESOLVED"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_54_REVIEW.md"
+  ],
+  "next_phase": "55",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "a9fb1c4c921c8f28ffba521485cff4dab790d53e",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-54/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/a9fb1c4c921c8f28ffba521485cff4dab790d53e",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "abc50664ab0583e185a120f745026984e2a00b5614d17af601d1d2283537383a"
+      },
+      "mode": "100644",
+      "validated_blob": "7e32ee6cfb172f689f73964f310ad7ed21c8784b",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-54/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/7e32ee6cfb172f689f73964f310ad7ed21c8784b"
+    }
+  },
+  "phase": "54",
+  "previous_approved_tag": "render-refactor-phase-53-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_54_REVIEW.md",
+  "schema": 2,
+  "summary": "GPU Upload Consolidation and accepted contact-shadow correction unchanged. Revision 4 resolves sealed Release binary mismatch as Case A: unchanged reviewed sources rebuilt with compiler/linker metadata differences. One controlled provenance build; 140 object payloads and executable payloads match after explicit metadata normalization; fresh exact-binary Release 41523-check/upload, four smokes, canonical image and manual checks pass; exact Debug evidence reused. Awaiting human review.",
+  "validation": [
+    {
+      "check": "Debug full build/regression/upload/canonical/manual/four graphical smokes",
+      "command": "Reused Revision 3 Debug commands; exact identity comparison",
+      "evidence": "logs/rendering/phase54/revision4/debug-reuse.json; logs/rendering/phase54/revision3/final/Debug/results.json",
+      "result": "PASS",
+      "reuse_reason": "All relevant source/shader fingerprints, Debug GEngine.lib and all four Debug executable hashes match unchanged; no production/build-input changes."
+    },
+    {
+      "check": "One controlled Release source-to-binary build; compile/link and object/archive/executable provenance; determinism",
+      "command": "Recorded MSBuild /t:Rebuild for RigidBodySimulation.vcxproj, then byte-level comparisons",
+      "evidence": "logs/rendering/phase54/revision4/controlled-build-command.json; logs/rendering/phase54/revision4/provenance.json; logs/rendering/phase54/revision4/object-payload-proof.json; logs/rendering/phase54/revision4/sealed-binary-equivalence.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Release full 41523-check submission/upload/shadow/cascade/sorting/picking/scheduler/retained/binding/failure/retry regression and retirement; native-free consumer compile and source policy",
+      "command": "python tools/test_frame_submission.py --configuration Release --no-build --upload-measure --upload-reference logs/rendering/phase54/before/Release/results.json --output logs/rendering/phase54/revision4/final/Release",
+      "evidence": "logs/rendering/phase54/revision4/final/Release/results.json; logs/rendering/phase54/revision4/final/Release/frame-submission.log",
+      "result": "PASS"
+    },
+    {
+      "check": "Matched Release upload images/work/binds and reduced calls/bytes",
+      "command": "Same final Release runner with --upload-measure --upload-reference",
+      "evidence": "logs/rendering/phase54/revision4/final-validation-summary.json",
+      "result": "PASS",
+      "reuse_reason": "Approved Phase 53 BEFORE is unchanged; fresh AFTER measured final library. Exact mandatory image/work/counter gates pass; no timing speedup claim."
+    },
+    {
+      "check": "Four Release graphical smokes against current executable identities",
+      "command": "python logs/rendering/phase54/revision4/run_release_smokes.py",
+      "evidence": "logs/rendering/phase54/revision4/release-smokes.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Canonical Release 4096 capture exactly matches corrected Revision 3 RGBA and 187 matrices",
+      "command": "build_final_capture.py Release; run_final_capture.py Release; byte comparison and screenshot inspection",
+      "evidence": "logs/rendering/phase54/revision4/capture-comparison.json; logs/rendering/phase54/revision4/final-capture-Release/result.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Normal final Release shadow quality, native move/resize/viewport, sphere/floor/repeat picking, ImGui, zoom and native close",
+      "command": "launch_ui.py Release; manual_action.py key/move/resize/click/wheel/capture/close; assistant visual inspection",
+      "evidence": "logs/rendering/phase54/revision4/manual-validation.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Accepted halo provenance, causal diagnostics and old-engine negative control",
+      "command": "Retained Revision 2 and Revision 3 root-cause/equivalence/depth-test commands",
+      "evidence": "logs/rendering/phase54/revision3/investigation.json; logs/rendering/phase54/revision3/old-behavior-regression/frame-submission.log",
+      "result": "PASS",
+      "reuse_reason": "All production/shader/test source identities and executable payloads unchanged; fresh final Release nearest-occluder GPU test and canonical image confirm the correction."
+    },
+    {
+      "check": "Source/build fingerprints, protected/index, candidate raw identities and whitespace",
+      "command": "python logs/rendering/phase54/revision4/finalize_records.py",
+      "evidence": "logs/rendering/phase54/revision4/source-scope-verification.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Current rendering governance",
+      "command": "python .codex/tools/validate_rendering_governance.py",
+      "evidence": "logs/rendering/phase54/revision4/governance.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "GEngine/GEngine.vcxproj": {
+      "executable": null,
+      "sha256": "9f60fa29bc41248a90d779d2ff31015200869a11776fd041f3e79c04cd925c02"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/basic.frag": {
+      "executable": null,
+      "sha256": "e3c16d825d02ec1dd96fd34b87c1509c5329720f3a4a44372fe524d9e71ca9c7"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/pbr_cascade_shadow.frag": {
+      "executable": null,
+      "sha256": "6e69c94bbce9d1782b5a14836e579bd36a1ea430043259f1d01a2bf49f7f25ac"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/pbr_cascade_shadow.vert": {
+      "executable": null,
+      "sha256": "91e74dae2dada3975f4ff0e885322b2feb5f1dc9aef75a744edecd0308c57e2a"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/point_light_sphere_visual.frag": {
+      "executable": null,
+      "sha256": "4d329a12c51d93340b1f41a15f88e11a65aa017f5f8b9dbe9fa4b829d00565c8"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/skybox_environment.frag": {
+      "executable": null,
+      "sha256": "72fd58db48ecc8c393fccec53972c753fa693e980872ed1dc9b310daea133912"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/skybox_environment.vert": {
+      "executable": null,
+      "sha256": "1689f3895f60c342ac3b7acfa6f18f3b13ed102fffc83047860cacc07ba48a4f"
+    },
+    "GEngine/src/Renderer/FrameSubmission.cpp": {
+      "executable": null,
+      "sha256": "ea33a561a8598bcf58125486c3f6971ff1c6dd323f3bef541502ccce9f1a1243"
+    },
+    "GEngine/src/Renderer/SceneRenderResources.cpp": {
+      "executable": null,
+      "sha256": "003d0f1b9af3e287c5644d8efaf5aa1a4a353e2befde88483b8218a808708602"
+    },
+    "GEngine/src/Renderer/SubmissionGpuLayout.h": {
+      "executable": null,
+      "sha256": "66d44d892db701f942a5c50d53feb44a6ae7a9a5a4d0fd845e6b74b41afd58a6"
+    },
+    "GEngine/src/Renderer/SubmissionUploads.h": {
+      "executable": null,
+      "sha256": "91ed862fd189575046d364187b378ff6e722872f63581a6abd7d3b15c6afaeb4"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "c86d6a50f0f4bcda7f2770ca3eceb999f5d5816144dbc8d54ea783eec126cf8d"
+    },
+    "RigidBodySimulation/RigidBodySimulation.vcxproj": {
+      "executable": null,
+      "sha256": "87a6e2687ae529dc04367bd97d832f7cca2b51b891ace488e2337493a16ef141"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "abc50664ab0583e185a120f745026984e2a00b5614d17af601d1d2283537383a"
+    },
+    "bin/Debug/GEngine/GEngine.lib": {
+      "executable": null,
+      "sha256": "213b743b70164d5642fe856f54caba549002d5beeb268aadd7f767d1396e5e5f"
+    },
+    "bin/Debug/RigidBodySimulation/RigidBodySimulation.exe": {
+      "executable": null,
+      "sha256": "a1a0be20fc53f0ab28c2742d732e545ba7fe8d1f755e2a4f7ce190fa721cf371"
+    },
+    "bin/Debug/assets/Shaders/pbr_cascade_shadow.frag": {
+      "executable": null,
+      "sha256": "6e69c94bbce9d1782b5a14836e579bd36a1ea430043259f1d01a2bf49f7f25ac"
+    },
+    "bin/Release/Breakout/Breakout.exe": {
+      "executable": null,
+      "sha256": "15251ccbac131ebec1a11fe9cfd3804570c3d3228b705663490bc08f92cb9ea7"
+    },
+    "bin/Release/GEngine/GEngine.lib": {
+      "executable": null,
+      "sha256": "4ce5ce5cd5c49445440844c843f6ce9ba53e8594f2c2d91ec6e957424c4a2c53"
+    },
+    "bin/Release/GEngineEditor/GEngineEditor.exe": {
+      "executable": null,
+      "sha256": "7770b7f96c5978b781f87311633acb1a2bb4edc020ddfd4e959062f668551548"
+    },
+    "bin/Release/RayTracing/RayTracing.exe": {
+      "executable": null,
+      "sha256": "02feecdc3dda9b5c63c7f66fbab49feaa8a90ae19dbcd1684008b9f3c109da6e"
+    },
+    "bin/Release/RigidBodySimulation/RigidBodySimulation.exe": {
+      "executable": null,
+      "sha256": "665146a856d4f15b8032ff0b8ed6d72b7db0ca5fd3f1353511a806fd50890a46"
+    },
+    "bin/Release/assets/Shaders/pbr_cascade_shadow.frag": {
+      "executable": null,
+      "sha256": "6e69c94bbce9d1782b5a14836e579bd36a1ea430043259f1d01a2bf49f7f25ac"
+    },
+    "external/glad/bin/Release/glad/glad.lib": {
+      "executable": null,
+      "sha256": "ea3bd83dcd910794e6dfa026256f87bd95e72c8ddd1e5124730dcaece4b9c7da"
+    },
+    "logs/rendering/phase54/desktop_probe.py": {
+      "executable": null,
+      "sha256": "0c606f78116c6c99bcd0aa8c156d8b0c50a607f10ac18d6430c77f636aece7a5"
+    },
+    "logs/rendering/phase54/launch_ui.py": {
+      "executable": null,
+      "sha256": "1d08229f2f375b9ede997a59cf70dbd3424ef26966c2e7bdad3397f9470a5d34"
+    },
+    "logs/rendering/phase54/revision2/halo_capture.cpp": {
+      "executable": null,
+      "sha256": "2843deae9c9c3a852e99175ca7d5fddd15e9ffc5321010f8fbe75da7be8cd993"
+    },
+    "logs/rendering/phase54/revision3/before-after.json": {
+      "executable": null,
+      "sha256": "f55b2df3c9e8b828ba4cc4fbdb901ee945e0b0d135dd7f5176de20d9cff99de1"
+    },
+    "logs/rendering/phase54/revision3/build_final_capture.py": {
+      "executable": null,
+      "sha256": "3898ebbb6ed23979c0d53e8862de9eb8ed8f50d7ba9c9dfb639044bc1ccb251f"
+    },
+    "logs/rendering/phase54/revision3/capture-build/Debug/RigidBodySimulation.exe": {
+      "executable": null,
+      "sha256": "5a026cd72917a83626a6774e06ec336cbebb3bb078c411ad2f2587d5388700e9"
+    },
+    "logs/rendering/phase54/revision3/capture-build/Release/RigidBodySimulation.exe": {
+      "executable": null,
+      "sha256": "bd6c7be8e3f9c58f9f2a9e923e12548934d794aecc405bc9115fc514e8adb819"
+    },
+    "logs/rendering/phase54/revision3/desktop_probe.py": {
+      "executable": null,
+      "sha256": "ab35d9bf008b9a09a60b28791d639612063c5ab5d56e0e9751206684e3cf3a2f"
+    },
+    "logs/rendering/phase54/revision3/evidence-manifest.json": {
+      "executable": null,
+      "sha256": "dd6c14343afdf81fa4950f46fc9fdea345f7d4322c7d58b1285b01e025e9a95b"
+    },
+    "logs/rendering/phase54/revision3/face-isolation.json": {
+      "executable": null,
+      "sha256": "93c1dd857f6f7495c26f3d5e9195987fbba40cade00ee4ddc97c7d79324929bb"
+    },
+    "logs/rendering/phase54/revision3/governance-command.json": {
+      "executable": null,
+      "sha256": "ecf74992e0a7c915adc6d8e01bcd37a8ac3fb0961d9451a704fc7ef8161da8c2"
+    },
+    "logs/rendering/phase54/revision3/governance.json": {
+      "executable": null,
+      "sha256": "e9142a395494a6281995be98b88ea61cb3a431e8614ed8a311869fcfe693ea84"
+    },
+    "logs/rendering/phase54/revision3/investigation.json": {
+      "executable": null,
+      "sha256": "324b966123e922eb31f5fcb914865c86dd2f1f683138bf5d82412b48cbf982a3"
+    },
+    "logs/rendering/phase54/revision3/launch_ui.py": {
+      "executable": null,
+      "sha256": "1d08229f2f375b9ede997a59cf70dbd3424ef26966c2e7bdad3397f9470a5d34"
+    },
+    "logs/rendering/phase54/revision3/manual-validation.json": {
+      "executable": null,
+      "sha256": "17f79aabea1dd2bc3aead2bd79da6b6d0016869ecfdb74c417f0e710e37e8afd"
+    },
+    "logs/rendering/phase54/revision3/manual_action.py": {
+      "executable": null,
+      "sha256": "029e2706f746043aaf8954029b6704f42d7519ac491c1643acd8f6ad9a566376"
+    },
+    "logs/rendering/phase54/revision3/repeat-difference.json": {
+      "executable": null,
+      "sha256": "2dd7db673137f57638e8c7993f78f8e0a4cbeb6e8f9ea8e74fb01ab0667362d8"
+    },
+    "logs/rendering/phase54/revision3/run_final_capture.py": {
+      "executable": null,
+      "sha256": "6ecb4a6708d5d3471685deba3e65969e18b25ac93331dabdf09f5dd77baf9aff"
+    },
+    "logs/rendering/phase54/revision3/scope-amendment.md": {
+      "executable": null,
+      "sha256": "33483f86b893ed332088354f38da5bc03b8461beb6038ea75cd763ffd2086cf5"
+    },
+    "logs/rendering/phase54/revision3/source-scope-verification.json": {
+      "executable": null,
+      "sha256": "4322e5d96fe834023872ef5559e3e7d85d64f738ffb4c53dc2b31f0fb027aa6d"
+    },
+    "logs/rendering/phase54/revision4/analyze_ab.py": {
+      "executable": null,
+      "sha256": "14eaa7c80b37b8d62ee3e1b635eb1f2d41e5f9389e5ef51173da312ab0a26d9e"
+    },
+    "logs/rendering/phase54/revision4/authoritative-artifacts.json": {
+      "executable": null,
+      "sha256": "821137f36b85c4db24b6a39e5d0af6010766acb753578f615d5e8711d93aa016"
+    },
+    "logs/rendering/phase54/revision4/authoritative/bin-int/Release/RigidBodySimulation/RigidBodySimulation.obj": {
+      "executable": null,
+      "sha256": "8b2f825a98bad61b047c7ff394a5e9cd235b7604c0f51c75fca5d0a0222f9bc2"
+    },
+    "logs/rendering/phase54/revision4/authoritative/bin-int/Release/RigidBodySimulation/main.obj": {
+      "executable": null,
+      "sha256": "d030b9a32350ce34536f74d78218f02dcb79e431c4efbe7d30e0554dc1425d7a"
+    },
+    "logs/rendering/phase54/revision4/authoritative/bin/Release/GEngine/GEngine.lib": {
+      "executable": null,
+      "sha256": "4ce5ce5cd5c49445440844c843f6ce9ba53e8594f2c2d91ec6e957424c4a2c53"
+    },
+    "logs/rendering/phase54/revision4/authoritative/bin/Release/RigidBodySimulation/RigidBodySimulation.exe": {
+      "executable": null,
+      "sha256": "665146a856d4f15b8032ff0b8ed6d72b7db0ca5fd3f1353511a806fd50890a46"
+    },
+    "logs/rendering/phase54/revision4/build_final_capture.py": {
+      "executable": null,
+      "sha256": "eff250a30dd86b5ae3044f704fa37b78eb7ecef17b9305aef0f13e391ef82fc4"
+    },
+    "logs/rendering/phase54/revision4/capture-build/Release/RigidBodySimulation.exe": {
+      "executable": null,
+      "sha256": "75a25c3a7a2a5332bb0bd1856ad131170c9e0e02a28c6043eca1cd3aac5ef3b1"
+    },
+    "logs/rendering/phase54/revision4/capture-comparison.json": {
+      "executable": null,
+      "sha256": "7a8411656479acf77a0eec335e518f94d3cc138a631bdfdd005f19525aaa2fe6"
+    },
+    "logs/rendering/phase54/revision4/compile-link-commands.json": {
+      "executable": null,
+      "sha256": "641096dba801771f4c7c133a127fef41611dd895bb476a200314a91c3d499e1b"
+    },
+    "logs/rendering/phase54/revision4/debug-reuse.json": {
+      "executable": null,
+      "sha256": "c7f9c17e4d720978addea14bc8710688fcd549782664379e81ceede16a9db7ba"
+    },
+    "logs/rendering/phase54/revision4/desktop_probe.py": {
+      "executable": null,
+      "sha256": "ab35d9bf008b9a09a60b28791d639612063c5ab5d56e0e9751206684e3cf3a2f"
+    },
+    "logs/rendering/phase54/revision4/evidence-manifest.json": {
+      "executable": null,
+      "sha256": "05dd74e6cd3a02c3adc2229a63d9c971a2bd9a5b3f9775c0c0e8412d3449f746"
+    },
+    "logs/rendering/phase54/revision4/final-build-artifacts.json": {
+      "executable": null,
+      "sha256": "663f5d99ba3b5fa52c00bdc52c0366801bd135f071eb0dd1cf9582e47e2e5b5e"
+    },
+    "logs/rendering/phase54/revision4/final-validation-summary.json": {
+      "executable": null,
+      "sha256": "107736cdd3c43f1f569abc6371e4e373b1c220ee3c7b20e40229725feeae00a1"
+    },
+    "logs/rendering/phase54/revision4/governance.json": {
+      "executable": null,
+      "sha256": "e9142a395494a6281995be98b88ea61cb3a431e8614ed8a311869fcfe693ea84"
+    },
+    "logs/rendering/phase54/revision4/launch_ui.py": {
+      "executable": null,
+      "sha256": "1d08229f2f375b9ede997a59cf70dbd3424ef26966c2e7bdad3397f9470a5d34"
+    },
+    "logs/rendering/phase54/revision4/manual-validation.json": {
+      "executable": null,
+      "sha256": "2d2a53581fa2b316633e0f05648041d22ab07557e16e78eff1f0d69290924613"
+    },
+    "logs/rendering/phase54/revision4/manual_action.py": {
+      "executable": null,
+      "sha256": "d79b79e501b93fb71a9fb6899a74f20cac4e4e62a75e3cceb890c26ad998d0e2"
+    },
+    "logs/rendering/phase54/revision4/object-payload-proof.json": {
+      "executable": null,
+      "sha256": "6ee0ec8012fb5032635d8e65d304eb2510c921f0ccf9f1fa09eb2492f70ca5a6"
+    },
+    "logs/rendering/phase54/revision4/provenance.json": {
+      "executable": null,
+      "sha256": "8cb7237f064e6b6db6d326e2a9d9a63db8d73adbf77293de903ccfef8574c37e"
+    },
+    "logs/rendering/phase54/revision4/run_final_capture.py": {
+      "executable": null,
+      "sha256": "3bbfa4b28e3d036e3e5a77b548bcbff951928a0ae99edea08897bf975b1dce2b"
+    },
+    "logs/rendering/phase54/revision4/run_release_smokes.py": {
+      "executable": null,
+      "sha256": "9a76746e5fcbc9dbe538012d42253a877253364d889f81afd63522e120e6a28f"
+    },
+    "logs/rendering/phase54/revision4/scope-integrity.md": {
+      "executable": null,
+      "sha256": "710d45933615742f929eefe9308538d9d62ee026b1e5769585344c43c993cacc"
+    },
+    "logs/rendering/phase54/revision4/sealed-binary-equivalence.json": {
+      "executable": null,
+      "sha256": "3bd4a4c5895aa8afb88518a48d723bb2ebb9f6d8d22a7da592053ee74095737b"
+    },
+    "logs/rendering/phase54/revision4/source-inputs-before-rebuild.json": {
+      "executable": null,
+      "sha256": "98cf2dcfe255c1d4879b6d3ca771d06d40d8f3db827ac23e31880140f1c913dc"
+    },
+    "logs/rendering/phase54/revision4/source-scope-verification.json": {
+      "executable": null,
+      "sha256": "083c997e556c119209a3ef70cbdb33e95d54c7bdf27c36d0e4d53c800bee4674"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052"
+    },
+    "tools/frame_submission_probe.cpp": {
+      "executable": null,
+      "sha256": "4dffad97da4035877d41cb16fc467a3cb17d58804bc2d21378b393ccea3f0d26"
+    },
+    "tools/test_frame_submission.py": {
+      "executable": null,
+      "sha256": "91a11b987c87a11de4a167d1b6367b128add5544b3b6bce9accaf314994711f1"
+    }
+  }
+}

@@ -1803,3 +1803,56 @@ screenshots, observed native geometry/DPI, click diagnostics, binary identities 
 clean-exit records live under `logs/rendering/phase53/revision2/`. Current results
 and refreshed candidate status are in PHASE_53_REVIEW.md. See the local owner
 contract `docs/rendering/phases/PHASE_53_SCOPE_AMENDMENT.md` for scope and stop rules.
+
+
+## Phase 54 GPU upload consolidation
+
+`python tools/test_frame_submission.py --configuration Debug --upload-measure --upload-reference logs/rendering/phase54/before/Debug/results.json --smoke --output logs/rendering/phase54/final/Debug`
+
+Run the equivalent Release command. The preserved approved Phase 53 library can
+be measured using `--no-build --upload-measure --upload-baseline <GEngine.lib>`;
+this mode never substitutes for candidate builds or behavioral checks.
+
+The private scene/coverage adapters consume one 1,968-byte std140 camera/light/frame
+block and a std430 material-word batch. Material records have two 16-byte coverage
+lanes followed by the existing PreparedMaterialBinding parameter lanes. Full
+material identity and publication/authored revision deduplicate repeated mesh
+packets. Byte-identical frame/material batches issue no buffer transfer. Any dirty
+batch replaces its complete store in one call; sparse edits deliberately copy the
+whole active batch, rather than adding partial-update synchronization machinery.
+Frame storage uses STREAM_DRAW; material storage uses DYNAMIC_DRAW. OpenGL owns
+queued-store synchronization. No persistent mapping, unsynchronized mapping,
+worker GL, client fences, or per-frame GPU wait is introduced.
+
+The probe checks one/many materials; no-op, sparse and dense edits; all eight
+parameter types through a real compute shader; std140 offsets/strides and exact
+byte limits; nonzero incoming buffer ranges; injected frame/material allocation
+failure and retry; retained old resource versions; six differently colored queued
+frames without intermediate readback/waits/swap; and context-thread retirement.
+Zero/one/two supported lights are packed; excess directional/point or spot lights
+retain the existing typed UnsupportedLights result. Lighting capacity is unchanged.
+Renderer-owned frame/draw names are reserved in material declarations; matching
+active shader parameters must have their declared type. Failures are typed.
+Legacy shader files and non-frame shader consumers keep their existing uniforms.
+
+Matched measurements use the existing frozen 64-draw, 8-material, two-light scene:
+three processes, 120 warm-up and 240 measured samples, Submit-only CPU median/p95,
+actual uniform and buffer API calls/bytes, bind/draw counts and exact same-GPU
+image equality. The predeclared >10% run-median-spread threshold marks timing
+NOISY. Timing is descriptive; exact image/work and lower combined upload calls
+and bytes gate acceptance. The byte counter is API payload requested (including
+ignored default-uniform locations), not measured PCIe traffic. Persistent mapping
+is considered only after these batching results, not implemented speculatively.
+
+### Phase 54 contact-shadow scope amendment
+
+The owner-authorized correction of the pre-existing sphere contact halo keeps
+nearest facing surfaces in directional shadow maps by retaining back-face culling.
+Bias, PCF, cascade fitting and GPU packing remain unchanged. The existing probe's
+`ShadowContactDepthFixture` reads real sphere/box cascade depths and requires center
+rays to encounter a surface nearer than the occluder center in multiple cascades;
+the former far-surface behavior fails. Full submission/upload/sorting/state/retry
+coverage remains mandatory. Canonical Debug/Release before/after captures use
+normal 4096 shadows, with separate fresh resize, picking, ImGui and native-close
+validation. Current evidence and scope are in `PHASE_54_REVIEW.md`; revision artifacts
+are under `logs/rendering/phase54/revision3/`.

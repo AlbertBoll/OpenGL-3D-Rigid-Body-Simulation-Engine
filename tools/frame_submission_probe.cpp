@@ -24,6 +24,7 @@ static_assert(std::same_as<decltype(std::declval<const RenderFrame&>().Draws()),
 #include "Scene/_Entity.h"
 #include "../GEngine/src/Assets/ShaderBackend.h"
 #include "../GEngine/src/Renderer/GLStateCache.h"
+#include "../GEngine/src/Renderer/SubmissionUploads.h"
 #include "../GEngine/src/Core/FramebufferBackend.h"
 #include <chrono>
 #include <numeric>
@@ -85,6 +86,53 @@ namespace
             if constexpr (std::same_as<E,ScheduleError>) std::println(stderr,"{}",DescribeScheduleError(value.error()));
         }
         Check(value,message);return std::move(*value);
+    }
+    namespace UploadCalls
+    {
+        std::uint64_t uniforms{}, uniformBytes{}, buffers{}, bufferBytes{};
+        GLuint lastFrameBuffer{}, lastMaterialBuffer{};
+        decltype(glad_glUniform1i) realUniform1i{};
+        void APIENTRY Uniform1i(GLint location, GLint value) { ++uniforms; uniformBytes+=4; realUniform1i(location,value); }
+        decltype(glad_glUniform1ui) realUniform1ui{};
+        void APIENTRY Uniform1ui(GLint location, GLuint value) { ++uniforms; uniformBytes+=4; realUniform1ui(location,value); }
+        decltype(glad_glUniform1f) realUniform1f{};
+        void APIENTRY Uniform1f(GLint location, GLfloat value) { ++uniforms; uniformBytes+=4; realUniform1f(location,value); }
+        decltype(glad_glUniform2fv) realUniform2fv{};
+        void APIENTRY Uniform2fv(GLint location, GLsizei count, const GLfloat* value) { ++uniforms; uniformBytes+=8*count; realUniform2fv(location,count,value); }
+        decltype(glad_glUniform3fv) realUniform3fv{};
+        void APIENTRY Uniform3fv(GLint location, GLsizei count, const GLfloat* value) { ++uniforms; uniformBytes+=12*count; realUniform3fv(location,count,value); }
+        decltype(glad_glUniform4fv) realUniform4fv{};
+        void APIENTRY Uniform4fv(GLint location, GLsizei count, const GLfloat* value) { ++uniforms; uniformBytes+=16*count; realUniform4fv(location,count,value); }
+        decltype(glad_glUniformMatrix4fv) realUniformMatrix4fv{};
+        void APIENTRY UniformMatrix4fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat* value) { ++uniforms; uniformBytes+=64*count; realUniformMatrix4fv(location,count,transpose,value); }
+        decltype(glad_glNamedBufferData) realNamedBufferData{};
+        void APIENTRY NamedBufferData(GLuint buffer, GLsizeiptr size, const void* data, GLenum usage) { ++buffers; bufferBytes+=size; if(usage==GL_STREAM_DRAW) lastFrameBuffer=buffer;else if(usage==GL_DYNAMIC_DRAW) lastMaterialBuffer=buffer; realNamedBufferData(buffer,size,data,usage); }
+        decltype(glad_glNamedBufferSubData) realNamedBufferSubData{};
+        void APIENTRY NamedBufferSubData(GLuint buffer, GLintptr offset, GLsizeiptr size, const void* data) { ++buffers; bufferBytes+=size; realNamedBufferSubData(buffer,offset,size,data); }
+        struct Observe {
+            Observe() { uniforms=uniformBytes=buffers=bufferBytes=0;
+                realUniform1i=glad_glUniform1i;glad_glUniform1i=Uniform1i;
+                realUniform1ui=glad_glUniform1ui;glad_glUniform1ui=Uniform1ui;
+                realUniform1f=glad_glUniform1f;glad_glUniform1f=Uniform1f;
+                realUniform2fv=glad_glUniform2fv;glad_glUniform2fv=Uniform2fv;
+                realUniform3fv=glad_glUniform3fv;glad_glUniform3fv=Uniform3fv;
+                realUniform4fv=glad_glUniform4fv;glad_glUniform4fv=Uniform4fv;
+                realUniformMatrix4fv=glad_glUniformMatrix4fv;glad_glUniformMatrix4fv=UniformMatrix4fv;
+                realNamedBufferData=glad_glNamedBufferData;glad_glNamedBufferData=NamedBufferData;
+                realNamedBufferSubData=glad_glNamedBufferSubData;glad_glNamedBufferSubData=NamedBufferSubData;
+            }
+            ~Observe() {
+                glad_glUniform1i=realUniform1i;
+                glad_glUniform1ui=realUniform1ui;
+                glad_glUniform1f=realUniform1f;
+                glad_glUniform2fv=realUniform2fv;
+                glad_glUniform3fv=realUniform3fv;
+                glad_glUniform4fv=realUniform4fv;
+                glad_glUniformMatrix4fv=realUniformMatrix4fv;
+                glad_glNamedBufferData=realNamedBufferData;
+                glad_glNamedBufferSubData=realNamedBufferSubData;
+            }
+        };
     }
     namespace DriverCalls
     {
@@ -517,12 +565,12 @@ namespace
             auto frame=Take(Extract(scene,resources,access,camera),"sort frozen extraction");
             const std::vector<DrawItem> before(frame.Draws().begin(),frame.Draws().end());
             std::ofstream csv;
-            if(output) {csv.open(output);csv<<"iteration,cpu_ns,UseProgram,BindVertexArray,BindTexture,BindSampler,DrawArrays,DrawElements\n";}
+            if(output) {csv.open(output);csv<<"iteration,cpu_ns,UseProgram,BindVertexArray,BindTexture,BindSampler,DrawArrays,DrawElements,UniformCalls,UniformBytes,BufferCalls,BufferBytes\n";}
             const unsigned iterations=output?360:1;
             for(unsigned i=0;i<iterations;++i) {
                 std::chrono::nanoseconds elapsed;
                 {
-                    DriverCalls::Observe observe;
+                    DriverCalls::Observe observe; UploadCalls::Observe uploads;
                     const auto start=std::chrono::steady_clock::now();
                     auto result=Take(submitter.Submit(frame,desc,picks),"sort submission");
                     elapsed=std::chrono::steady_clock::now()-start;
@@ -530,7 +578,8 @@ namespace
                         && result.shadowDraws==0 && result.pickDraws==0,"sort identical 64-draw work");
                 }
                 if(output && i>=120) csv<<i<<','<<elapsed.count()<<','<<DriverCalls::counts[0]<<','<<DriverCalls::counts[1]<<','
-                    <<DriverCalls::counts[4]<<','<<DriverCalls::counts[5]<<','<<DriverCalls::counts[26]<<','<<DriverCalls::counts[27]<<'\n';
+                    <<DriverCalls::counts[4]<<','<<DriverCalls::counts[5]<<','<<DriverCalls::counts[26]<<','<<DriverCalls::counts[27]<<','
+                    <<UploadCalls::uniforms<<','<<UploadCalls::uniformBytes<<','<<UploadCalls::buffers<<','<<UploadCalls::bufferBytes<<'\n';
                 if(output) root.MainWindow()->SwapBuffer();
             }
             for(std::size_t i=0;i<before.size();++i) {
@@ -606,6 +655,200 @@ namespace
         Check(debugImage(false)!=debugImage(true),"debug equal-depth source ordering is not regrouped by material");
         std::println("[PASS] draw-sort debug-source-order");
         std::println("[PASS] draw-sort opaque/masked-equivalence/immutable/transparent-overlap/stable-ties");
+    }
+
+
+    namespace UploadFault
+    {
+        decltype(glad_glNamedBufferData) write{};
+        decltype(glad_glGetError) error{};
+        bool pending{}, denied{};
+        void APIENTRY Write(GLuint buffer,GLsizeiptr bytes,const void* data,GLenum usage)
+        { if(pending) {pending=false;denied=true;} else write(buffer,bytes,data,usage); }
+        GLenum APIENTRY Error() { if(denied) {denied=false;return GL_OUT_OF_MEMORY;} return error(); }
+        struct Scope {
+            Scope() {write=glad_glNamedBufferData;error=glad_glGetError;pending=true;glad_glNamedBufferData=Write;glad_glGetError=Error;}
+            ~Scope() {glad_glNamedBufferData=write;glad_glGetError=error;}
+        };
+    }
+    void UploadFixture(SceneRenderResources& resources,FrameSubmissionDesc desc,MeshHandle box,MeshHandle sphere)
+    {
+        using namespace RenderBackend;
+        // Every parameter representation crosses the actual std430 shader ABI.
+        const MaterialParameterDecl parameters[]{
+            {"pBool",MaterialParameterType::Boolean,true},
+            {"pInt",MaterialParameterType::Integer,std::int32_t(-7)},
+            {"pUint",MaterialParameterType::UnsignedInteger,std::uint32_t(4000000000u)},
+            {"pFloat",MaterialParameterType::Float,.25f},
+            {"pVec2",MaterialParameterType::Float2,std::array<float,2>{.5f,.75f}},
+            {"pVec3",MaterialParameterType::Float3,std::array<float,3>{1,2,3}},
+            {"pVec4",MaterialParameterType::Float4,std::array<float,4>{4,5,6,7}},
+            {"pMatrix",MaterialParameterType::Matrix4,std::array<float,16>{1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}},
+            {"u_baseColor",MaterialParameterType::Float4,std::array<float,4>{1,0,0,1}},
+            {"u_useVertexColor",MaterialParameterType::Boolean,false}};
+        std::array<MaterialInstanceHandle,16> materials;
+        materials[0]=Take(resources.PublishMaterial({SceneMaterialKind::Helper,parameters,{},true}),"upload source material");
+        for(unsigned i=1;i<materials.size();++i) {
+            std::optional<MaterialInstance> copy;
+            {auto access=resources.Publication().BeginFrame();copy.emplace(*Take(resources.Materials().Acquire(access,materials[0]),"upload clone"));}
+            Check(copy->SetParameter("u_baseColor",std::array<float,4>{float(i)/16,1,0,1}),"upload distinct material");
+            {auto publish=resources.Publication().BeginPublication();materials[i]=Take(resources.Materials().Create(publish,std::move(*copy)),"upload material publication");}
+        }
+        desc.pipelines=resources.Pipelines();desc.pickingEnabled=false;
+        _Scene scene;auto camera=Camera(scene);
+        std::vector<_Entity> bodies;
+        for(unsigned i=0;i<32;++i) {
+            auto body=scene.CreateEntity("upload body");
+            body.AddComponent<VisibilityComponent>();
+            body.AddComponent<MeshRendererComponent>(MeshRendererComponent{i<16?box:sphere,materials[i%16],0,false,false,false});
+            bodies.push_back(body);
+        }
+        auto extract=[&]() { auto access=resources.Publication().BeginFrame();return Take(Extract(scene,resources,access,camera),"upload frame extraction"); };
+        auto frame=extract();
+        auto batch=Take(MaterialBatch::Pack(frame,desc.pipelines,1u<<20),"material batch packing");
+        Check(frame.Resources().size()==32 && batch.wordCount==16*(8+52),"distinct instances deduplicated across mesh-resource pairs");
+        const auto exactBytes=batch.Bytes().size();
+        Check(MaterialBatch::Pack(frame,desc.pipelines,exactBytes),"exact byte boundary accepted");
+        auto shortBatch=MaterialBatch::Pack(frame,desc.pipelines,exactBytes-1);
+        Check(!shortBatch && std::get<SubmissionCode>(shortBatch.error().cause)==SubmissionCode::InvalidDraw,"one-byte-short rejected before GL");
+        for(std::size_t i=0;i<frame.Resources().size();++i) {
+            const auto& material=frame.Resources()[i].Material();const auto at=std::size_t(batch.offsets[i])*4;
+            Check(at%4==0 && at+8+material.PackedWords().size()<=batch.wordCount,"aligned complete material span");
+            Check(std::equal(material.PackedWords().begin(),material.PackedWords().end(),batch.words.get()+at+8),"all packed words preserve representation");
+            Check(batch.words[at+6]==0 && batch.words[at+7]==0,"coverage padding initialized");
+        }
+        // A real compute shader interprets every scalar/vector/matrix field, not
+        // a second CPU implementation of the packing rules.
+        const std::string compute=R"(#version 450 core
+layout(local_size_x=1) in;
+layout(std430,binding=1) buffer Result { uint passed; };
+uniform bool pBool; uniform int pInt; uniform uint pUint; uniform float pFloat;
+uniform vec2 pVec2; uniform vec3 pVec3; uniform vec4 pVec4; uniform mat4 pMatrix;
+void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
+ && pVec2==vec2(.5,.75) && pVec3==vec3(1,2,3) && pVec4==vec4(4,5,6,7)
+ && pMatrix[0]==vec4(1,2,3,4) && pMatrix[3]==vec4(13,14,15,16))?1u:0u; }
+)";
+        auto code=Take(PackedStage(compute,false,parameters),"packed compute adapter");
+        const ShaderSource source{ShaderStage::Compute,code,"packed ABI proof"};
+        auto shader=Take(Shader::Create({{&source,1}}),"packed compute program");
+        GLuint resultBuffer{};glCreateBuffers(1,&resultBuffer);const GLuint zero=0;
+        glNamedBufferData(resultBuffer,sizeof(zero),&zero,GL_DYNAMIC_READ);
+        {
+            UploadBindings restore;UploadBuffer payload;
+            Check(payload.Update(batch.Bytes(),GL_DYNAMIC_DRAW),"compute material upload");
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER,0,payload.Name());glBindBufferBase(GL_SHADER_STORAGE_BUFFER,1,resultBuffer);
+            shader.Bind();glUniform1ui(glGetUniformLocation(ShaderBackendAccess::Program(shader),"geMaterialOffset"),batch.offsets[0]);
+            glDispatchCompute(1,1,1);glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT);
+            GLuint passed{};glGetNamedBufferSubData(resultBuffer,0,sizeof(passed),&passed);Check(passed==1,"all packed parameter types interpreted correctly on GPU");
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER,1,0);glUseProgram(0);
+        }
+        glDeleteBuffers(1,&resultBuffer);
+        EntityPickTable picks;GLuint frameName{},materialName{};
+        {
+            auto submitter=Take(FrameSubmission::Create(),"upload submitter");
+            {
+                UploadCalls::Observe uploads;Take(submitter.Submit(frame,desc,picks),"many-material upload");
+                Check(UploadCalls::buffers==2 && UploadCalls::bufferBytes==sizeof(PackedFrame)+exactBytes,"one frame and one material batch upload");
+                frameName=UploadCalls::lastFrameBuffer;materialName=UploadCalls::lastMaterialBuffer;
+            }
+            GLint usage{},bytes{};glGetNamedBufferParameteriv(frameName,GL_BUFFER_USAGE,&usage);
+            Check(usage==GL_STREAM_DRAW,"frame storage uses streaming draw policy");
+            glGetNamedBufferParameteriv(materialName,GL_BUFFER_USAGE,&usage);glGetNamedBufferParameteriv(materialName,GL_BUFFER_SIZE,&bytes);
+            Check(usage==GL_DYNAMIC_DRAW && bytes==exactBytes,"material storage usage and exact bytes");
+            const auto program=ShaderBackendAccess::Program(*frame.Resources()[0].Material().Program());
+            const char* names[]{"geView","geProjection","geSkyView","geCascades[0]","gePointMatrices[0]","geViewPosition","geLights","geSplits[0]"};
+            const GLint expected[]{0,64,128,192,1216,1600,1696,1712};
+            GLuint indices[8];GLint offsets[8],strides[8];
+            glGetUniformIndices(program,8,names,indices);glGetActiveUniformsiv(program,8,indices,GL_UNIFORM_OFFSET,offsets);
+            glGetActiveUniformsiv(program,8,indices,GL_UNIFORM_ARRAY_STRIDE,strides);
+            for(unsigned i=0;i<8;++i) Check(offsets[i]==expected[i],"driver uniform offset matches ABI");
+            Check(strides[3]==64 && strides[4]==64 && strides[7]==16,"driver matrix and scalar-array strides");
+            {
+                UploadCalls::Observe uploads;Take(submitter.Submit(frame,desc,picks),"unchanged upload frame");
+                Check(UploadCalls::buffers==0 && UploadCalls::bufferBytes==0,"unchanged frame/materials issue zero buffer uploads");
+            }
+            // Preserve incoming nonzero ranges and generic bindings, including failures.
+            GLuint foreign{};glCreateBuffers(1,&foreign);GLint alignment{};
+            glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT,&alignment);
+            GLint ssboAlignment{};glGetIntegerv(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT,&ssboAlignment);
+            const auto offset=std::lcm(alignment,ssboAlignment);glNamedBufferData(foreign,offset+4096,nullptr,GL_DYNAMIC_DRAW);
+            glBindBufferRange(GL_UNIFORM_BUFFER,0,foreign,offset,512);
+            glBindBufferRange(GL_UNIFORM_BUFFER,1,foreign,offset,2048);glBindBufferRange(GL_SHADER_STORAGE_BUFFER,0,foreign,offset,1024);
+            const auto restored=[&] {
+                GLint bound{};GLint64 start{},size{};
+                glGetIntegeri_v(GL_UNIFORM_BUFFER_BINDING,0,&bound);glGetInteger64i_v(GL_UNIFORM_BUFFER_START,0,&start);glGetInteger64i_v(GL_UNIFORM_BUFFER_SIZE,0,&size);
+                Check(bound==foreign && start==offset && size==512,"legacy UBO slot remains untouched by packed submission");
+                glGetIntegeri_v(GL_UNIFORM_BUFFER_BINDING,1,&bound);glGetInteger64i_v(GL_UNIFORM_BUFFER_START,1,&start);glGetInteger64i_v(GL_UNIFORM_BUFFER_SIZE,1,&size);
+                Check(bound==foreign && start==offset && size==2048,"incoming UBO range restored");
+                glGetIntegeri_v(GL_SHADER_STORAGE_BUFFER_BINDING,0,&bound);glGetInteger64i_v(GL_SHADER_STORAGE_BUFFER_START,0,&start);glGetInteger64i_v(GL_SHADER_STORAGE_BUFFER_SIZE,0,&size);
+                Check(bound==foreign && start==offset && size==1024,"incoming SSBO range restored");
+                glGetIntegerv(GL_UNIFORM_BUFFER_BINDING,&bound);Check(bound==foreign,"generic UBO restored");
+                glGetIntegerv(GL_SHADER_STORAGE_BUFFER_BINDING,&bound);Check(bound==foreign,"generic SSBO restored");
+            };
+            Take(submitter.Submit(frame,desc,picks),"range restoration submission");restored();
+            camera.worldPosition.x+=1;auto changedCamera=extract();
+            {UploadFault::Scope fault;auto failed=submitter.Submit(changedCamera,desc,picks);
+                Check(!failed && std::get<SubmissionCode>(failed.error().cause)==SubmissionCode::Driver,"upload failure is typed");}
+            restored();
+            {UploadCalls::Observe uploads;Take(submitter.Submit(changedCamera,desc,picks),"failed upload retry");
+                Check(UploadCalls::buffers==1 && UploadCalls::bufferBytes==sizeof(PackedFrame),"retry replaces failed frame storage; material batch stays clean");}
+            restored();glBindBufferBase(GL_UNIFORM_BUFFER,0,0);glBindBufferBase(GL_UNIFORM_BUFFER,1,0);glBindBufferBase(GL_SHADER_STORAGE_BUFFER,0,0);glDeleteBuffers(1,&foreign);
+            // Reduce to one visible object, then queue differently colored frames
+            // without readback, waits, swaps or glFinish between submissions.
+            for(std::size_t i=1;i<bodies.size();++i) bodies[i].GetComponent<VisibilityComponent>().enabled=false;
+            camera.worldPosition.x-=1;
+            std::array<std::optional<RenderTarget>,6> targets;
+            std::optional<RenderFrame> retained;
+            auto replace=[&](MaterialInstanceHandle handle,std::array<float,4> color) {
+                std::optional<MaterialInstance> copy;
+                {auto access=resources.Publication().BeginFrame();copy.emplace(*Take(resources.Materials().Acquire(access,handle),"dirty material source"));}
+                Check(copy->SetParameter("u_baseColor",color),"dirty material edit");
+                {auto publish=resources.Publication().BeginPublication();Check(resources.Materials().Replace(publish,handle,std::move(*copy)),"dirty material publish");}
+            };
+            for(unsigned i=0;i<targets.size();++i) {
+                replace(materials[0],i%2?std::array<float,4>{0,1,0,1}:std::array<float,4>{1,0,0,1});
+                auto edited=extract();if(i==0) retained.emplace(extract());
+                targets[i].emplace(Take(RenderTarget::Create(desc.color.Description()),"queued upload target"));
+                auto queued=FrameSubmissionDesc{*targets[i],desc.picking,desc.pointShadow,desc.cascadeShadow,desc.pipelines,desc.cascadeSplits,
+                    desc.cameraFov,desc.cameraAspect,desc.cameraNear,desc.cameraFar,desc.pointNear,desc.pointFar,false};
+                UploadCalls::Observe uploads;Take(submitter.Submit(edited,queued,picks),"queued dirty material frame");
+                Check(UploadCalls::buffers==(i==0?2:1),"frequent material edits remain one whole batch");
+            }
+            for(unsigned i=0;i<targets.size();++i) {
+                const auto image=Pixels(*targets[i]);const auto pixel=(32*64+32)*4;
+                Check(image[pixel+(i%2)]==std::byte{255} && image[pixel+(1-i%2)]==std::byte{0},"queued frame retains its own material bytes");
+            }
+            Take(submitter.Submit(*retained,desc,picks),"retained old material frame resubmission");
+            const auto old=Pixels(desc.color);Check(old[(32*64+32)*4]==std::byte{255} && old[(32*64+32)*4+1]==std::byte{0},"retained publication version restores old packed material");
+            // Dense edits across many instances still form one transfer.
+            for(auto& body:bodies) body.GetComponent<VisibilityComponent>().enabled=true;
+            for(unsigned i=0;i<materials.size();++i) replace(materials[i],{0,0,float(i+1)/16,1});
+            auto dense=extract();
+            {UploadCalls::Observe uploads;Take(submitter.Submit(dense,desc,picks),"dense material edits");
+                Check(UploadCalls::buffers==1 && UploadCalls::bufferBytes==exactBytes,"many dirty materials upload as one bounded batch");}
+            {UploadCalls::Observe uploads;Take(submitter.Submit(dense,desc,picks),"dense unchanged material frame");Check(UploadCalls::buffers==0,"dense unchanged batch stays clean");}
+            replace(materials[0],{.25f,.5f,.75f,1});auto dirty=extract();
+            {UploadFault::Scope fault;auto failed=submitter.Submit(dirty,desc,picks);
+                Check(!failed && std::get<SubmissionCode>(failed.error().cause)==SubmissionCode::Driver,"material upload failure stays typed");}
+            {UploadCalls::Observe uploads;Take(submitter.Submit(dirty,desc,picks),"material upload retry");
+                Check(UploadCalls::buffers==1 && UploadCalls::bufferBytes==exactBytes,"failed material storage retried as one complete batch");}
+            auto sun=scene.CreateEntity("upload sun");RenderLightComponent light;light.castShadows=false;
+            sun.AddComponent<RenderLightComponent>(light);auto oneLight=extract();
+            {UploadCalls::Observe uploads;Take(submitter.Submit(oneLight,desc,picks),"one packed light");
+                Check(UploadCalls::buffers==1 && UploadCalls::bufferBytes==sizeof(PackedFrame),"one light changes only frame block");}
+            auto bulb=scene.CreateEntity("upload bulb");light.kind=RenderLightKind::Point;light.range=20;
+            bulb.AddComponent<RenderLightComponent>(light);auto twoLights=extract();
+            {UploadCalls::Observe uploads;Take(submitter.Submit(twoLights,desc,picks),"two packed lights");
+                Check(UploadCalls::buffers==1 && UploadCalls::bufferBytes==sizeof(PackedFrame),"multiple supported lights share one upload");}
+            auto extra=scene.CreateEntity("upload extra directional");light.kind=RenderLightKind::Directional;
+            extra.AddComponent<RenderLightComponent>(light);auto excess=extract();
+            {UploadCalls::Observe uploads;auto failed=submitter.Submit(excess,desc,picks);
+                Check(!failed && std::get<SubmissionCode>(failed.error().cause)==SubmissionCode::UnsupportedLights && UploadCalls::buffers==0,
+                    "excess lights reject before upload; lighting capacity unchanged");}
+        }
+        Check(!glIsBuffer(frameName) && !glIsBuffer(materialName),"upload buffers retire with submitter on context");
+        Check(glGetError()==GL_NO_ERROR,"upload fixture leaves no driver error");
+        std::println("[PASS] gpu-uploads one/many/unchanged/edits/layout/byte-boundary/queued-frames/retained/failure-retry/ranges/retirement");
     }
 
     void PickingParity(const RenderFrame& frame,_Scene& scene,const FrameCamera& camera,
@@ -935,6 +1178,59 @@ namespace
         expect(PassDirtyReason::None,0);
         std::println("[PASS] pass-invalidation unchanged/revisions/targets/deferred/multiple/failure checks={}",checks);
     }
+    void ShadowContactDepthFixture(SceneRenderResources& resources,const FrameSubmissionDesc& desc,
+        MeshHandle sphere,MeshHandle box,MaterialInstanceHandle material)
+    {
+        // A convex occluder's shadow depth must precede its center along the
+        // light ray. Back-surface depth leaks light near receiver contact even
+        // though a shadow draw was submitted and the depth target is nonempty.
+        for(const auto mesh:{sphere,box}) {
+            _Scene scene;
+            const auto camera=Camera(scene);
+            auto caster=scene.CreateEntity("contact depth occluder");
+            caster.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,material});
+            auto sun=scene.CreateEntity("contact depth sun");
+            RenderLightComponent light;light.castShadows=true;
+            sun.AddComponent<RenderLightComponent>(light);
+            // Default light transform points toward +Z; lookAt's Y up is valid.
+            auto submitter=Take(FrameSubmission::Create(),"contact depth submitter");
+            EntityPickTable picks;
+            auto access=resources.Publication().BeginFrame();
+            auto frame=Take(Extract(scene,resources,access,camera),"contact depth extraction");
+            RenderBackend::PackedFrame gpu{};
+            {
+                UploadCalls::Observe uploads;
+                const auto stats=Take(submitter.Submit(frame,desc,picks),"contact depth submission");
+                Check(stats.shadowDraws==1,"one directional occluder draw");
+                glGetNamedBufferSubData(UploadCalls::lastFrameBuffer,0,sizeof(gpu),&gpu);
+            }
+            const auto& storage=desc.cascadeShadow.Buffer().Description();
+            std::vector<float> depth(static_cast<std::size_t>(storage.Width)*storage.Height*storage.Layers);
+            Check(TextureView(Take(desc.cascadeShadow.DepthView(),"contact cascade view")).Bind(0),"contact depth bind");
+            glGetTexImage(GL_TEXTURE_2D_ARRAY,0,GL_DEPTH_COMPONENT,GL_FLOAT,depth.data());
+            Check(glGetError()==GL_NO_ERROR,"contact depth readback succeeds");
+            // Both middle and outer cascades are checked when the center is
+            // covered; selection/transport comes from the actual uploaded block.
+            unsigned covered{};
+            for(std::size_t layer=0;layer<desc.cascadeSplits.size();++layer) {
+                glm::mat4 matrix;std::memcpy(&matrix,gpu.cascades[layer].data(),sizeof(matrix));
+                const auto clip=matrix*glm::vec4(0,0,0,1);
+                const auto center=glm::vec3(clip)/clip.w*.5f+.5f;
+                const int x=static_cast<int>(center.x*storage.Width),y=static_cast<int>(center.y*storage.Height);
+                if(x<1 || y<1 || x>=static_cast<int>(storage.Width)-1 || y>=static_cast<int>(storage.Height)-1
+                    || center.z<=0.f || center.z>=1.f) continue;
+                const float actual=depth[(layer*storage.Height+y)*storage.Width+x];
+                const float depthPerWorldUnit=.5f*glm::length(glm::vec3(matrix[0][2],matrix[1][2],matrix[2][2]));
+                std::println("contact-depth mesh={} layer={} center={} actual={} depth/world={}",
+                    mesh==sphere?"sphere":"box",layer,center.z,actual,depthPerWorldUnit);
+                Check(actual<center.z-.1f*depthPerWorldUnit,
+                    "directional shadow stores nearest occluder surface, not far surface");
+                ++covered;
+            }
+            Check(covered>=2,"contact depth sampled across multiple cascades");
+        }
+        std::println("[PASS] shadow-contact nearest-occluder sphere/box across cascades");
+    }
     void Run(EngineContext& root)
     {
         std::println("Image comparison: renderer={} vendor={} version={}; 64x64 RGBA8 linear target; camera eye=(0,2,8), target=(0,0,0), FOV=45deg, aspect=1, near=.1, far=20; same-driver RGB composition tolerance=2.5/255",
@@ -1040,7 +1336,9 @@ namespace
         FrameSubmissionDesc desc{target,picking,pointTarget,cascadeTarget,resources->Pipelines(),splits,glm::radians(45.f),1,.1f,20,.1f,100};
         SortingFixture(root,*resources,desc,box,sphere,parameters,textures);
         if(SDL_getenv("GENGINE_DRAW_SORT_MEASURE")) return;
+        UploadFixture(*resources,desc,box,sphere);
         desc.pipelines=resources->Pipelines();
+        ShadowContactDepthFixture(*resources,desc,sphere,box,material);
         _Scene scene;
         const auto camera=Camera(scene);
         std::array<_Entity,3> bodies;
@@ -1078,18 +1376,21 @@ namespace
             auto invalid=submitter.Submit(frame,invalidDesc,picks);
             Check(!invalid && std::get<SubmissionCode>(invalid.error().cause)==SubmissionCode::InvalidShadowSettings,
                 "invalid projection returns typed failure before drawing");
-            auto stats=Take(submitter.Submit(frame,desc,picks),"submit complete frame");
+            FrameSubmissionStats stats;
+            { UploadCalls::Observe uploads;stats=Take(submitter.Submit(frame,desc,picks),"submit complete frame"); }
             Check(stats.shadowDraws==6 && stats.pickDraws==4 && stats.colorDraws==3 && stats.helperDraws==1 && stats.skyDraws==1,"pass membership and one serial draw per item");
             original=Pixels(target);
             for(const auto& entry:frame.Resources()) if(entry.Material().Instance()==material)
             {
                 const auto program=ShaderBackendAccess::Program(*entry.Material().Program());
-                float color[3]{};glGetUniformfv(program,glGetUniformLocation(program,"directionallightColor"),color);
-                Check(std::abs(color[0]-.7f)<1e-6f && std::abs(color[1]-.7f)<1e-6f,"typed directional color reaches driver");
-                float position[3]{};glGetUniformfv(program,glGetUniformLocation(program,"lightPos"),position);
-                Check(position[0]==0 && position[1]==3 && position[2]==2,"typed point pose reaches driver");
-                float range{};glGetUniformfv(program,glGetUniformLocation(program,"pointShadowfarPlane"),&range);
-                Check(range==100,"typed point range reaches shadow consumer");
+                RenderBackend::PackedFrame gpu;
+                glGetNamedBufferSubData(UploadCalls::lastFrameBuffer,0,sizeof(gpu),&gpu);
+                Check(std::abs(gpu.directionalColor[0]-.7f)<1e-6f && std::abs(gpu.directionalColor[1]-.7f)<1e-6f,"typed directional color reaches driver");
+                Check(gpu.lightPosition[0]==0 && gpu.lightPosition[1]==3 && gpu.lightPosition[2]==2,"typed point pose reaches driver");
+                Check(gpu.planes[1]==100,"typed point range reaches shadow consumer");
+                GLint blockBytes{};const auto block=glGetUniformBlockIndex(program,"GEngineFrame");
+                glGetActiveUniformBlockiv(program,block,GL_UNIFORM_BLOCK_DATA_SIZE,&blockBytes);
+                Check(blockBytes==sizeof(gpu),"driver std140 block byte count matches packed ABI");
                 break;
             }
             int hits=0;

@@ -7,6 +7,7 @@
 #include <fstream>
 #include <format>
 #include <new>
+#include "SubmissionGpuLayout.h"
 
 namespace GEngine
 {
@@ -37,7 +38,7 @@ out vec3 color;
 void main() { gl_Position = u_projection * u_view * u_model * vec4(vertexPosition, 1.0); color = vertexColor; }
 )";
 
-        std::expected<Asset::Shader, SceneResourceError> Program(SceneMaterialKind kind)
+        std::expected<Asset::Shader, SceneResourceError> Program(SceneMaterialKind kind, std::span<const MaterialParameterDecl> parameters)
         {
             const char* fragment = kind == SceneMaterialKind::Lit ? "pbr_cascade_shadow.frag"
                 : kind == SceneMaterialKind::Helper ? "basic.frag"
@@ -82,9 +83,13 @@ void main() {
                     Asset::ShaderErrorCode::FileRead, Asset::ShaderStage::Vertex, *skyPath, "Cannot read shader source"}});
                 vertex = sky.c_str();
             }
+            auto packedVertex=RenderBackend::PackedStage(vertex,kind==SceneMaterialKind::Sky,parameters);
+            if(!packedVertex) return std::unexpected(packedVertex.error());
+            auto packedFragment=RenderBackend::PackedStage(source,false,parameters);
+            if(!packedFragment) return std::unexpected(packedFragment.error());
             const Asset::ShaderSource stages[]{
-                {Asset::ShaderStage::Vertex, vertex, "Phase42 semantic vertex input"},
-                {Asset::ShaderStage::Fragment, source, fragment}};
+                {Asset::ShaderStage::Vertex, *packedVertex, "semantic vertex / packed frame-material input"},
+                {Asset::ShaderStage::Fragment, *packedFragment, fragment}};
             auto shader = Asset::Shader::Create({stages});
             if (!shader) return std::unexpected(SceneResourceError{"program creation", shader.error()});
             return std::move(*shader);
@@ -166,7 +171,7 @@ void main() {
             || !std::isfinite(desc.opacity) || desc.opacity < 0 || desc.opacity > 1
             || (desc.kind != SceneMaterialKind::Lit && desc.alpha != AlphaMode::Opaque))
             return std::unexpected(SceneResourceError{"material description", SceneResourceCode::InvalidMaterial});
-        auto shader = Program(desc.kind);
+        auto shader = Program(desc.kind,desc.parameters);
         if (!shader) return std::unexpected(shader.error());
         // Every failure (including standard container unwinding) retires only this
         // transaction's versions. Dependent local leases end before rollback runs.

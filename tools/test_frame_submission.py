@@ -167,7 +167,14 @@ def main():
     parser.add_argument("--draw-sort-measure", action="store_true", help="Matched mixed-resource ordering workload, three frozen series")
     parser.add_argument("--draw-sort-baseline", type=Path, help="Preserved Phase 52 library, measurement only; requires --no-build")
     parser.add_argument("--draw-sort-reference", type=Path, help="Baseline results.json for exact image/work and reduced bind gates")
+    parser.add_argument("--upload-measure", action="store_true", help="Matched Phase 54 upload calls/bytes and Submit CPU")
+    parser.add_argument("--upload-baseline", type=Path, help="Preserved Phase 53 library, measurement only")
+    parser.add_argument("--upload-reference", type=Path, help="Matched Phase 53 upload results")
     args = parser.parse_args()
+    if args.upload_baseline and (not args.no_build or not args.upload_measure):
+        parser.error("Upload baseline requires --no-build --upload-measure")
+    if args.upload_reference and (not args.upload_measure or args.upload_baseline):
+        parser.error("Upload reference requires candidate --upload-measure")
     if args.draw_sort_baseline and (not args.no_build or not args.draw_sort_measure):
         parser.error("Sort baseline requires --no-build --draw-sort-measure")
     if args.draw_sort_reference and (not args.draw_sort_measure or args.draw_sort_baseline):
@@ -256,7 +263,8 @@ def main():
             report["reason"] = "Concrete backend leaked into the normal application translation unit"
             return 1
         for rel in ("GEngine/include/GEngine/Renderer/FrameSubmission.h", "GEngine/src/Renderer/FrameSubmission.cpp",
-                    "GEngine/src/Renderer/GLStateCache.h", "GEngine/src/Renderer/DrawOrdering.h", "GEngine/src/Assets/ShaderBackend.h",
+                    "GEngine/src/Renderer/GLStateCache.h", "GEngine/src/Renderer/DrawOrdering.h",
+                    "GEngine/src/Renderer/SubmissionGpuLayout.h", "GEngine/src/Renderer/SubmissionUploads.h", "GEngine/src/Assets/ShaderBackend.h",
                     "GEngine/src/Assets/Sampler.cpp", "GEngine/src/Mesh/GpuMesh.cpp",
                     "GEngine/include/GEngine/Renderer/PassTiming.h", "GEngine/src/Renderer/PassTiming.cpp",
                     "GEngine/include/GEngine/Core/Window.h", "GEngine/src/Windows/SDLWindow.cpp",
@@ -288,7 +296,7 @@ def main():
             return 1
         report["architecture"] = {"no_new_exception": "PASS", "consumer_boundary": "PASS", "application_pipeline_ownership": "PASS"}
 
-        baseline_library = args.draw_sort_baseline or args.state_cache_baseline
+        baseline_library = args.upload_baseline or args.draw_sort_baseline or args.state_cache_baseline
         library = baseline_library.resolve() if baseline_library else ROOT / "bin" / config / "GEngine/GEngine.lib"
         executable = out / "frame-submission-probe.exe"
         command = [vc / "bin/Hostx64/x64/cl.exe", "/nologo", "/std:c++23preview", "/EHsc", "/W3",
@@ -315,15 +323,17 @@ def main():
         env["GENGINE_ASSET_ROOT"] = str(ROOT / "bin" / config / "assets")
         env["GENGINE_SHADOW_RESOLUTION"] = "256"
         env["GENGINE_PASS_TIMING"] = "1"
-        if baseline_library:
+        if baseline_library and not args.upload_baseline:
             env["GENGINE_PREDECESSOR_PLACEMENT"] = "1"
         else:
             env.pop("GENGINE_PREDECESSOR_PLACEMENT", None)
-        if args.draw_sort_measure:
+        if args.draw_sort_measure or args.upload_measure:
             protocol = {"workload": "64 overlapping opaque/masked draws; 4 pipelines, 8 materials, 2 meshes; 64x64 linear RGBA8; fixed orthographic camera; no Physics/picking; empty shadow targets cached after warmup",
                 "warmup": 120, "samples": 240, "series": 3,
                 "noise_policy": "Run-median spread above 10% is NOISY. Timing is descriptive; exact image/work equality and reduced program/texture/VAO calls are required regardless of timing.",
                 "scope": "Submit CPU only, includes ordering; excludes extraction, simulation, readback and swap. No GPU timing claim."}
+            if args.upload_measure:
+                protocol["noise_policy"] = "Run-median spread above 10% is NOISY. Timing descriptive only; exact image/work equality and fewer combined uniform/buffer calls and bytes required regardless of timing."
             report["draw_sort_protocol"] = protocol
             (out / "draw-sort-protocol.json").write_text(json.dumps(protocol, indent=2))
             records = []
@@ -359,6 +369,18 @@ def main():
                         matching &= after["driver_calls"][name][0] < before["driver_calls"][name][0]
                 report["draw_sort_comparison"] = {"reference": str(args.draw_sort_reference),
                     "result": "PASS" if matching else "FAIL"}
+                if not matching:
+                    return 1
+            if args.upload_reference:
+                reference = json.loads(args.upload_reference.read_text())
+                matching = reference["configuration"] == config and reference["draw_sort_protocol"] == protocol
+                for before, after in zip(reference["draw_sort_measurements"]["runs"], records, strict=True):
+                    matching &= before["image_sha256"] == after["image_sha256"]
+                    for name in ("DrawArrays", "DrawElements", "BindSampler", "UseProgram", "BindVertexArray", "BindTexture"):
+                        matching &= before["driver_calls"][name] == after["driver_calls"][name]
+                    for names in (("UniformCalls","BufferCalls"),("UniformBytes","BufferBytes")):
+                        matching &= sum(after["driver_calls"][n][0] for n in names) < sum(before["driver_calls"][n][0] for n in names)
+                report["upload_comparison"] = {"reference": str(args.upload_reference), "result": "PASS" if matching else "FAIL"}
                 if not matching:
                     return 1
         if args.state_cache_measure:
@@ -403,6 +425,9 @@ def main():
             passed = False
             return 1
         if "[PASS] window-placement application/semantic-create/size/DPI/GL/fullscreen/no-reposition" not in probe_log:
+            passed = False
+            return 1
+        if "[PASS] gpu-uploads one/many/unchanged/edits/layout/byte-boundary/queued-frames/retained/failure-retry/ranges/retirement" not in probe_log:
             passed = False
             return 1
         if args.scene_variants:

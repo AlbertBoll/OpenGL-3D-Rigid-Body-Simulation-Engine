@@ -2,6 +2,7 @@
 #include "Renderer/RenderExtraction.h"
 #include "Renderer/FrameScheduler.h"
 #include "Renderer/PassTiming.h"
+#include "Renderer/ShadowQuality.h"
 #include <type_traits>
 #include "../GEngine/src/Renderer/DrawOrdering.h"
 using namespace GEngine;
@@ -900,6 +901,129 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             ~Observe() { glad_glGetTextureSubImage=original; }
         };
     }
+    namespace ShadowCalls
+    {
+        decltype(glad_glGenTextures) gen{};
+        decltype(glad_glDeleteTextures) del{};
+        decltype(glad_glTexImage2D) image{};
+        decltype(glad_glGetIntegerv) query{};
+        std::set<GLuint> live;
+        unsigned failPointAt{}, cubeLimit{};
+        void APIENTRY Gen(GLsizei count,GLuint* names) { gen(count,names);for(int i=0;i<count;++i) if(names[i]) live.insert(names[i]); }
+        void APIENTRY Delete(GLsizei count,const GLuint* names) { for(int i=0;i<count;++i) live.erase(names[i]);del(count,names); }
+        void APIENTRY Image(GLenum target,GLint level,GLint internal,GLsizei w,GLsizei h,GLint border,GLenum format,GLenum type,const void* data)
+        {
+            if(failPointAt && unsigned(w)>=failPointAt && target>=GL_TEXTURE_CUBE_MAP_POSITIVE_X && target<=GL_TEXTURE_CUBE_MAP_NEGATIVE_Z) return;
+            image(target,level,internal,w,h,border,format,type,data);
+        }
+        void APIENTRY Query(GLenum value,GLint* result)
+        { if(cubeLimit && value==GL_MAX_CUBE_MAP_TEXTURE_SIZE) *result=cubeLimit;else query(value,result); }
+        struct Observe
+        {
+            Observe() {
+                gen=glad_glGenTextures;del=glad_glDeleteTextures;image=glad_glTexImage2D;query=glad_glGetIntegerv;
+                glad_glGenTextures=Gen;glad_glDeleteTextures=Delete;glad_glTexImage2D=Image;glad_glGetIntegerv=Query;
+                live.clear();failPointAt=cubeLimit=0;
+            }
+            ~Observe() { glad_glGenTextures=gen;glad_glDeleteTextures=del;glad_glTexImage2D=image;glad_glGetIntegerv=query;failPointAt=cubeLimit=0; }
+        };
+    }
+    void ShadowQualityTests()
+    {
+        Check(Take(ParseShadowQuality(nullptr,nullptr),"default quality").quality==ShadowQuality::High,"approved 4096 remains default");
+        Check(Take(ParseShadowQuality("Low","333"),"explicit custom precedence").quality==ShadowQuality::Custom,"legacy resolution override selects Custom");
+        for(const auto* bad:{"","0","-1","8193","12x","99999999999999999999"})
+            Check(!ParseShadowQuality(nullptr,bad),"invalid custom resolution rejected");
+        Check(!ParseShadowQuality("ultra",nullptr) && !ParseShadowQuality("Custom",nullptr),"invalid/missing tier configuration rejected");
+        ShadowCalls::Observe observed;
+        for(const auto tier:{ShadowQuality::Low,ShadowQuality::Medium,ShadowQuality::High,ShadowQuality::Custom}) {
+            ShadowQualityDesc request;request.quality=tier;request.customResolution=333;
+            auto plan=Take(PlanShadowQuality(request),"quality plan");
+            auto targets=Take(CreateShadowTargets(request),"each tier allocation");
+            Check(targets.state.resolution==plan.resolution && targets.state.effective==tier
+                && targets.state.memory.allocatedDepthBytes==plan.estimatedBytes
+                && targets.state.memory.cascadeBytes==6ull*plan.resolution*plan.resolution*4
+                && targets.state.memory.pointBytes==targets.state.memory.cascadeBytes
+                && !targets.state.memory.physicalBytes && !targets.state.fallbackReason,"estimated/queried payload and unknown overhead");
+            Check(ShadowCalls::live.size()==2,"one array and one cube texture owner");
+            std::println("shadow-memory tier={} resolution={} estimated={} allocated={} cascade={} point={}",
+                ShadowQualityLabel(tier),plan.resolution,plan.estimatedBytes,targets.state.memory.allocatedDepthBytes,
+                targets.state.memory.cascadeBytes,targets.state.memory.pointBytes);
+            auto moved=std::move(targets);Check(moved.point && moved.cascade && !targets.point && !targets.cascade,"pair move transfers sole ownership");
+        }
+        Check(ShadowCalls::live.empty(),"all tier allocations retire exactly once");
+        ShadowQualityDesc request;request.byteBudget=192ull*1024*1024;
+        auto strict=CreateShadowTargets(request);
+        Check(!strict && strict.error().code==FramebufferErrorCode::Unsupported && ShadowCalls::live.empty(),"strict budget rejects without allocation or silent quality loss");
+        request.fallback=ShadowFallback::LowerTiers;
+        { auto fallback=Take(CreateShadowTargets(request),"budget fallback");
+          Check(fallback.state.effective==ShadowQuality::Medium && fallback.state.requested.quality==ShadowQuality::High
+            && fallback.state.fallbackReason && fallback.state.memory.allocatedDepthBytes==request.byteBudget,"explicit fallback reports requested/effective/cause and bytes"); }
+        request.byteBudget=1;Check(!CreateShadowTargets(request) && ShadowCalls::live.empty(),"exhausted fallback creates no leaked owners");
+        request={};request.quality=ShadowQuality::Medium;
+        ShadowCalls::failPointAt=2048;
+        Check(!CreateShadowTargets(request) && ShadowCalls::live.empty(),"partial point allocation failure retires successful cascade");
+        request.fallback=ShadowFallback::LowerTiers;
+        { auto fallback=Take(CreateShadowTargets(request),"allocation fallback");
+          Check(fallback.state.effective==ShadowQuality::Low && fallback.state.fallbackReason->code==FramebufferErrorCode::Storage
+            && ShadowCalls::live.size()==2,"point allocation failure falls back transactionally"); }
+        ShadowCalls::failPointAt=0;ShadowCalls::cubeLimit=1536;
+        { auto fallback=Take(CreateShadowTargets(request),"hardware limit fallback");
+          Check(fallback.state.effective==ShadowQuality::Low && fallback.state.fallbackReason->code==FramebufferErrorCode::Unsupported,"hardware limits validated before publication"); }
+        ShadowCalls::cubeLimit=0;
+        bool rejected=false;std::thread worker([&] {auto result=CreateShadowTargets(request);rejected=!result && result.error().code==FramebufferErrorCode::ContextUnavailable;});worker.join();
+        Check(rejected && ShadowCalls::live.empty() && glGetError()==GL_NO_ERROR,"worker rejected and all failed/fallback allocations retired");
+        std::println("[PASS] shadow-quality tiers/custom/limits/budget/allocation/fallback/memory/move/retirement");
+    }
+    void ShadowApplicationTests()
+    {
+        struct App : BaseApp
+        {
+            unsigned step{};FramebufferStorageHandle point{},cascade{};
+            void Render() override {}
+            void Update(Timestep) override {
+                const auto& state=GetShadowQuality();
+                Check(!ShadowQualityPending(),"quality changes applied before Update/extraction");
+                ShadowQualityDesc request;request.quality=ShadowQuality::Custom;request.customResolution=128;
+                if(step==0) {
+                    Check(state.resolution==64 && state.successfulReplacements==0,"application explicit startup resolution");
+                    point=m_PointShadowFrameBuffer->Buffer().StorageIdentity();cascade=m_CascadeShadowFrameBuffer->Buffer().StorageIdentity();
+                } else if(step==1) {
+                    Check(state.resolution==128 && state.successfulReplacements==1
+                        && point!=m_PointShadowFrameBuffer->Buffer().StorageIdentity()
+                        && cascade!=m_CascadeShadowFrameBuffer->Buffer().StorageIdentity(),"runtime replacement publishes both targets");
+                    point=m_PointShadowFrameBuffer->Buffer().StorageIdentity();cascade=m_CascadeShadowFrameBuffer->Buffer().StorageIdentity();
+                } else if(step==2) {
+                    Check(state.successfulReplacements==1 && point==m_PointShadowFrameBuffer->Buffer().StorageIdentity(),"no-op request allocates nothing");
+                    request.customResolution=256;ShadowCalls::failPointAt=256;
+                } else if(step==3) {
+                    Check(GetShadowQualityError() && state.resolution==128 && state.successfulReplacements==1
+                        && point==m_PointShadowFrameBuffer->Buffer().StorageIdentity()
+                        && cascade==m_CascadeShadowFrameBuffer->Buffer().StorageIdentity()
+                        && state.memory.allocatedDepthBytes==12ull*128*128*4,"failed runtime request preserves both targets and accounting");
+                    request.customResolution=256;ShadowCalls::failPointAt=0;
+                } else if(step==4) {
+                    Check(!GetShadowQualityError() && state.resolution==256 && state.successfulReplacements==2,"failed change retries successfully");
+                    request.quality=ShadowQuality::High;request.byteBudget=48ull*1024*1024;request.fallback=ShadowFallback::LowerTiers;
+                } else if(step==5) {
+                    Check(state.effective==ShadowQuality::Low && state.fallbackReason && state.memory.allocatedDepthBytes==48ull*1024*1024,"runtime fallback exposes actual quality/memory");
+                    auto invalid=request;invalid.customResolution=0;
+                    Check(!RequestShadowQuality(invalid) && !ShadowQualityPending(),"invalid request cannot overwrite queued state");
+                    ShutDown();return;
+                }
+                Check(RequestShadowQuality(request) && ShadowQualityPending(),"queue quality without immediate replacement");++step;
+            }
+        };
+        SDL_setenv("GENGINE_SHADOW_RESOLUTION","64",1);
+        std::optional<ShadowCalls::Observe> observed;
+        { App app;WindowProperties properties;properties.m_Title="Phase 57 quality update probe";
+          properties.m_Width=properties.m_Height=64;properties.m_MinWidth=properties.m_MinHeight=1;
+          properties.m_IsVsync=false;properties.flag={}; // Run must remain visible to exercise its update boundary.
+          Check(app.Initialize(properties),"quality application startup");observed.emplace();app.SetManualFrameRateLimit(0);app.Run();
+          Check(app.step==5,"complete application quality update sequence"); }
+        Check(ShadowCalls::live.empty(),"application quality owners retire before context shutdown");observed.reset();
+        std::println("[PASS] shadow-application queued/runtime/no-op/failure/retry/fallback/accounting/shutdown");
+    }
     void PickingArchitecture(SceneRenderResources& resources,FrameSubmissionDesc base,
         MeshHandle mesh,MaterialInstanceHandle material)
     {
@@ -1339,6 +1463,42 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         expect(PassDirtyReason::None,0);
         std::println("[PASS] pass-invalidation unchanged/revisions/targets/deferred/multiple/failure checks={}",checks);
     }
+    void ShadowQualityReference(SceneRenderResources& resources,FrameSubmissionDesc base,MeshHandle box,MaterialInstanceHandle material)
+    {
+        _Scene scene;const auto camera=Camera(scene);
+        for(unsigned i=0;i<2;++i) {
+            auto entity=scene.CreateEntity("reference caster");entity.AddComponent<MeshRendererComponent>(MeshRendererComponent{box,material});
+            entity.Transform().Translation={i?0.f:-1.f,i?-1.f:0.f,0};entity.Transform().Scale=i?glm::vec3(4,.1f,4):glm::vec3(1);
+        }
+        auto sun=scene.CreateEntity("reference sun");RenderLightComponent light;light.castShadows=true;sun.AddComponent<RenderLightComponent>(light);
+        sun.Transform().QuatRotation=glm::rotation(glm::vec3(0,0,-1),-glm::normalize(glm::vec3(20,50,20)));
+        auto point=scene.CreateEntity("reference point");light.kind=RenderLightKind::Point;light.range=100;point.AddComponent<RenderLightComponent>(light);point.Transform().Translation={0,3,2};
+        auto access=resources.Publication().BeginFrame();auto frame=Take(Extract(scene,resources,access,camera),"shadow quality reference extraction");
+        auto submitter=Take(FrameSubmission::Create(),"shadow quality reference submitter");EntityPickTable picks;
+        std::vector<std::byte> high;
+        auto render=[&](const PointShadowFrameBuffer& pointTarget,const CascadeShadowFrameBuffer& cascadeTarget,const char* label) {
+            FrameSubmissionDesc desc{base.color,base.picking,pointTarget,cascadeTarget,resources.Pipelines(),base.cascadeSplits,
+                base.cameraFov,base.cameraAspect,base.cameraNear,base.cameraFar,base.pointNear,base.pointFar};desc.pickingEnabled=false;
+            auto stats=Take(submitter.Submit(frame,desc,picks),"quality reference render");
+            Check(stats.decisions[0].executed && stats.decisions[1].executed && stats.shadowDraws==4,"new tier storage invalidates both shadows");
+            auto pixels=Pixels(base.color);std::ofstream ppm(std::string("shadow-reference-")+label+".ppm",std::ios::binary);ppm<<"P6\n64 64\n255\n";
+            for(int y=63;y>=0;--y) for(int x=0;x<64;++x) ppm.write(reinterpret_cast<const char*>(pixels.data()+(y*64+x)*4),3);
+            Check(bool(ppm),"reference image written");return pixels;
+        };
+        for(const auto tier:{ShadowQuality::Low,ShadowQuality::Medium,ShadowQuality::High,ShadowQuality::Custom}) {
+            ShadowQualityDesc request;request.quality=tier;request.customResolution=333;
+            auto targets=Take(CreateShadowTargets(request),"reference tier targets");
+            auto image=render(*targets.point,*targets.cascade,ShadowQualityLabel(tier).data());
+            if(tier==ShadowQuality::High) high=std::move(image);
+        }
+        // Match the approved explicit 4096 target factories, without simultaneous
+        // retention of two 768 MiB pairs or any shader/bias/PCF change.
+        auto legacyPoint=Take(PointShadowFrameBuffer::Create(4096,4096),"approved explicit point reference");
+        auto legacyCascade=Take(CascadeShadowFrameBuffer::Create(4096,4096,5),"approved explicit cascade reference");
+        Check(render(legacyPoint,legacyCascade,"approved-4096")==high,"High is pixel-exact to approved explicit 4096 reference on this GPU");
+        Check(glGetError()==GL_NO_ERROR,"quality reference has no driver error");
+        std::println("[PASS] shadow-reference tiers/runtime-invalidation/approved-4096-exact");
+    }
     void ShadowContactDepthFixture(SceneRenderResources& resources,const FrameSubmissionDesc& desc,
         MeshHandle sphere,MeshHandle box,MaterialInstanceHandle material)
     {
@@ -1746,6 +1906,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         if(SDL_getenv("GENGINE_DRAW_SORT_MEASURE")) return;
         UploadFixture(*resources,desc,box,sphere);
         desc.pipelines=resources->Pipelines();
+        ShadowQualityReference(*resources,desc,box,material);
         ShadowContactDepthFixture(*resources,desc,sphere,box,material);
         _Scene scene;
         const auto camera=Camera(scene);
@@ -2207,6 +2368,7 @@ int main()
 {
     OrderingTests();
     RuntimeAssets::Initialize("RigidBodySimulation");
+    if(SDL_getenv("GENGINE_SHADOW_APP_TEST")) { ShadowApplicationTests();return 0; }
     EngineContext root;
     Check(!root.SceneServices(),"uninitialized service typed failure");
     WindowProperties properties;properties.m_WinPos=winProp.m_WinPos;properties.m_Title="Phase 53 hidden submission validation";
@@ -2216,6 +2378,7 @@ int main()
     WindowPlacementTests(root,properties);
     if(!SDL_getenv("GENGINE_STATE_CACHE_MEASURE")) StateCacheTests();
     TimingTests(root);
+    ShadowQualityTests();
     Run(root);
     std::println("[PASS] frame-submission-retirement");
 }

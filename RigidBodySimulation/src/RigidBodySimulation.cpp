@@ -765,6 +765,37 @@ void RigidBodySimulationApp::ImGuiRender()
 		}
 	
 
+        if(ImGui::BeginMenu("Shadows")) {
+            auto request=GetShadowQuality().requested;
+            int tier=static_cast<int>(request.quality);
+            bool changed=ImGui::Combo("Quality",&tier,"Low (1024)\0Medium (2048)\0High (4096)\0Custom\0");
+            request.quality=static_cast<ShadowQuality>(tier);
+            if(request.quality==ShadowQuality::Custom) {
+                int resolution=static_cast<int>(request.customResolution);
+                if(ImGui::InputInt("Resolution",&resolution,64,256,ImGuiInputTextFlags_EnterReturnsTrue)) {
+                    request.customResolution=resolution>0?static_cast<unsigned>(resolution):0;changed=true;
+                }
+            }
+            int budget=static_cast<int>(request.byteBudget/(1024*1024));
+            if(ImGui::InputInt("Depth budget (MiB)",&budget,48,192,ImGuiInputTextFlags_EnterReturnsTrue)) {
+                request.byteBudget=budget>0?std::uint64_t(budget)*1024*1024:0;changed=true;
+            }
+            bool fallback=request.fallback==ShadowFallback::LowerTiers;
+            if(ImGui::Checkbox("Allow lower quality on allocation failure",&fallback)) {
+                request.fallback=fallback?ShadowFallback::LowerTiers:ShadowFallback::None;changed=true;
+            }
+            if(changed) if(auto queued=RequestShadowQuality(request);!queued)
+                ReportFramebufferError("shadow quality request",queued.error());
+            const auto& current=GetShadowQuality();
+            ImGui::Text("Active: %s (%u x %u)",ShadowQualityLabel(current.effective).data(),current.resolution,current.resolution);
+            ImGui::Text("Estimated / allocated depth: %.1f / %.1f MiB",
+                double(current.memory.estimatedBytes)/(1024*1024),double(current.memory.allocatedDepthBytes)/(1024*1024));
+            ImGui::TextDisabled("Driver overhead is not included.");
+            if(ShadowQualityPending()) ImGui::TextUnformatted("Quality change pending");
+            if(current.fallbackReason) ImGui::TextWrapped("Lower tier selected: %s",current.fallbackReason->message);
+            if(GetShadowQualityError()) ImGui::TextWrapped("Previous quality retained: %s",GetShadowQualityError()->message);
+            ImGui::EndMenu();
+        }
 		ImGui::EndMenuBar();
 	}
 

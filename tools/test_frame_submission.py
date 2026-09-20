@@ -264,7 +264,8 @@ def main():
         if any(token in app_dependencies for token in ("/glad/", "/sdl2/", "/opengl/", "/assimp/", "/gepch.h", "backend.h", "imgui_impl_")):
             report["reason"] = "Concrete backend leaked into the normal application translation unit"
             return 1
-        for rel in ("GEngine/include/GEngine/Renderer/FrameSubmission.h", "GEngine/src/Renderer/FrameSubmission.cpp",
+        for rel in ("GEngine/include/GEngine/Renderer/ShadowQuality.h", "GEngine/src/Renderer/ShadowQuality.cpp",
+                    "GEngine/include/GEngine/Core/BaseApp.h", "GEngine/include/GEngine/Renderer/FrameSubmission.h", "GEngine/src/Renderer/FrameSubmission.cpp",
                     "GEngine/src/Renderer/GLStateCache.h", "GEngine/src/Renderer/DrawOrdering.h",
                     "GEngine/src/Renderer/SubmissionGpuLayout.h", "GEngine/src/Renderer/SubmissionUploads.h", "GEngine/src/Assets/ShaderBackend.h",
                     "GEngine/src/Assets/Sampler.cpp", "GEngine/src/Mesh/GpuMesh.cpp",
@@ -504,6 +505,13 @@ def main():
             passed = False
             return 1
         if "[PASS] gpu-uploads one/many/unchanged/edits/layout/byte-boundary/queued-frames/retained/failure-retry/ranges/retirement" not in probe_log:
+            passed = False
+            return 1
+        if "[PASS] shadow-quality tiers/custom/limits/budget/allocation/fallback/memory/move/retirement" not in probe_log or "[PASS] shadow-reference tiers/runtime-invalidation/approved-4096-exact" not in probe_log:
+            passed = False
+            return 1
+        if not invoke("shadow-application", [executable], 120, out,
+                      dict(env, GENGINE_SHADOW_APP_TEST="1"), marker="[PASS] shadow-application"):
             passed = False
             return 1
         if args.scene_variants:

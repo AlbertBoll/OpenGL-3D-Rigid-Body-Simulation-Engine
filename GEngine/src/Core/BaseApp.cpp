@@ -2,6 +2,7 @@
 #include "Renderer/FrameScheduler.h"
 #include "Core/BaseApp.h"
 #include "Core/GLDebug.h"
+#include "Core/GLContextThread.h"
 #include "Core/RenderBaseline.h"
 #include "Core/RenderTarget.h"
 #include <new>
@@ -90,6 +91,38 @@ namespace GEngine
         return {};
     }
 
+    FramebufferResult BaseApp::RequestShadowQuality(const ShadowQualityDesc& desc)
+    {
+        if(!m_Initialize) return std::unexpected(FramebufferError{FramebufferErrorCode::InvalidOperation,
+            "Shadow quality changes require an initialized application"});
+        GLContextThread::RequireOwner(m_ShadowOwner,"shadow quality request");
+        if(auto plan=PlanShadowQuality(desc);!plan) return std::unexpected(plan.error());
+        m_PendingShadowQuality=desc;
+        return {};
+    }
+    void BaseApp::ApplyPendingShadowQuality()
+    {
+        if(!m_PendingShadowQuality) return;
+        const auto desc=*m_PendingShadowQuality;m_PendingShadowQuality.reset();
+        const auto plan=PlanShadowQuality(desc);
+        if(plan->resolution==m_ShadowQuality.resolution && plan->estimatedBytes<=desc.byteBudget) {
+            m_ShadowQuality.requested=desc;m_ShadowQuality.effective=desc.quality;
+            m_ShadowQuality.fallbackReason.reset();m_ShadowQualityError.reset();return;
+        }
+        auto next=CreateShadowTargets(desc);
+        if(!next) {m_ShadowQualityError=next.error();ReportFramebufferError("shadow quality (previous targets retained)",next.error());return;}
+        next->state.successfulReplacements=m_ShadowQuality.successfulReplacements+1;
+        m_CascadeShadowFrameBuffer=std::move(next->cascade);
+        m_PointShadowFrameBuffer=std::move(next->point);
+        m_ShadowQuality=next->state;m_ShadowQualityError.reset();
+        if(m_ShadowQuality.fallbackReason)
+            GENGINE_CORE_WARN("Shadow quality fallback {} -> {}: code={}, {}",ShadowQualityLabel(desc.quality),
+                ShadowQualityLabel(m_ShadowQuality.effective),int(m_ShadowQuality.fallbackReason->code),m_ShadowQuality.fallbackReason->message);
+        GENGINE_CORE_INFO("Shadows: {} {}x{}, allocated depth={} MiB (driver overhead unknown)",
+            ShadowQualityLabel(m_ShadowQuality.effective),m_ShadowQuality.resolution,m_ShadowQuality.resolution,
+            m_ShadowQuality.memory.allocatedDepthBytes/(1024*1024));
+    }
+
     FramebufferResult BaseApp::ResizeViewportTargets()
     {
         if (!m_Window || !m_RenderTarget || !m_MousePickFrameBuffer || !m_FinalFrameBuffer)
@@ -121,23 +154,8 @@ namespace GEngine
 
         if (!m_Initialize)
         {
-            // One explicit resolution override; keep layer counts and techniques unchanged.
-            unsigned int shadowResolution = 4096;
-            const char* configuredShadowResolution = SDL_getenv("GENGINE_SHADOW_RESOLUTION");
-            if (configuredShadowResolution)
-            {
-                const std::string_view value(configuredShadowResolution);
-                const auto result = std::from_chars(value.data(), value.data() + value.size(), shadowResolution);
-                if (result.ec != std::errc{} || result.ptr != value.data() + value.size()
-                    || shadowResolution == 0 || shadowResolution > 8192)
-                {
-                    return std::unexpected(FramebufferError{FramebufferErrorCode::InvalidDescription, "GENGINE_SHADOW_RESOLUTION must be an integer from 1 to 8192; unset it for the safe 4096 default."});
-                }
-            }
-            std::cout << "[Shadows] resolution=" << shadowResolution << "x" << shadowResolution
-                << " source=" << (configuredShadowResolution ? "GENGINE_SHADOW_RESOLUTION (explicit)" : "safe default")
-                << " estimated depth storage=" << (12ull * shadowResolution * shadowResolution * 4 / (1024 * 1024))
-                << " MiB (six cascade layers + six cube faces, estimated at four bytes/texel)" << std::endl;
+            auto shadowQuality=ShadowQualityFromEnvironment();
+            if(!shadowQuality) return std::unexpected(shadowQuality.error());
             if (auto initialized = m_EngineContext.Initialize(WindowsPropertyList); !initialized) return std::unexpected(initialized.error());
             m_Window = m_EngineContext.MainWindow();
             const GLDebug::Group initialization("Application render resources");
@@ -229,20 +247,14 @@ namespace GEngine
             m_ViewportSize = {m_EditorLogicalSize.Width, m_EditorLogicalSize.Height};
             auto RenderTargetCandidate = RenderTarget::Create(width, height);
             if (!RenderTargetCandidate) return std::unexpected(RenderTargetCandidate.error());
-            auto CascadeShadowFrameBufferCandidate = CascadeShadowFrameBuffer::Create(shadowResolution, shadowResolution, 5);
-            if (!CascadeShadowFrameBufferCandidate) return std::unexpected(CascadeShadowFrameBufferCandidate.error());
-            auto PointShadowFrameBufferCandidate = PointShadowFrameBuffer::Create(shadowResolution, shadowResolution);
-            if (!PointShadowFrameBufferCandidate) return std::unexpected(PointShadowFrameBufferCandidate.error());
+            auto shadows=CreateShadowTargets(*shadowQuality);
+            if(!shadows) return std::unexpected(shadows.error());
             auto MousePickFrameBufferCandidate = MousePickFrameBuffer::Create(width, height);
             if (!MousePickFrameBufferCandidate) return std::unexpected(MousePickFrameBufferCandidate.error());
             auto FinalFrameBufferCandidate = FinalFrameBuffer::Create(width, height);
             if (!FinalFrameBufferCandidate) return std::unexpected(FinalFrameBufferCandidate.error());
             ScopedPtr<RenderTarget> RenderTargetCandidateOwner(new (std::nothrow) RenderTarget(std::move(*RenderTargetCandidate)));
             if (!RenderTargetCandidateOwner) return std::unexpected(FramebufferError{FramebufferErrorCode::Allocation, "Framebuffer wrapper allocation failed"});
-            ScopedPtr<CascadeShadowFrameBuffer> CascadeShadowFrameBufferCandidateOwner(new (std::nothrow) CascadeShadowFrameBuffer(std::move(*CascadeShadowFrameBufferCandidate)));
-            if (!CascadeShadowFrameBufferCandidateOwner) return std::unexpected(FramebufferError{FramebufferErrorCode::Allocation, "Framebuffer wrapper allocation failed"});
-            ScopedPtr<PointShadowFrameBuffer> PointShadowFrameBufferCandidateOwner(new (std::nothrow) PointShadowFrameBuffer(std::move(*PointShadowFrameBufferCandidate)));
-            if (!PointShadowFrameBufferCandidateOwner) return std::unexpected(FramebufferError{FramebufferErrorCode::Allocation, "Framebuffer wrapper allocation failed"});
             ScopedPtr<MousePickFrameBuffer> MousePickFrameBufferCandidateOwner(new (std::nothrow) MousePickFrameBuffer(std::move(*MousePickFrameBufferCandidate)));
             if (!MousePickFrameBufferCandidateOwner) return std::unexpected(FramebufferError{FramebufferErrorCode::Allocation, "Framebuffer wrapper allocation failed"});
             ScopedPtr<FinalFrameBuffer> FinalFrameBufferCandidateOwner(new (std::nothrow) FinalFrameBuffer(std::move(*FinalFrameBufferCandidate)));
@@ -253,8 +265,12 @@ namespace GEngine
             MousePickFrameBufferCandidateOwner->SetSizeSource(TargetSizeSource::NativeFramebuffer);
             FinalFrameBufferCandidateOwner->SetSizeSource(TargetSizeSource::NativeFramebuffer);
             m_RenderTarget = std::move(RenderTargetCandidateOwner);
-            m_CascadeShadowFrameBuffer = std::move(CascadeShadowFrameBufferCandidateOwner);
-            m_PointShadowFrameBuffer = std::move(PointShadowFrameBufferCandidateOwner);
+            m_CascadeShadowFrameBuffer = std::move(shadows->cascade);
+            m_PointShadowFrameBuffer = std::move(shadows->point);
+            m_ShadowQuality=shadows->state;
+            GENGINE_CORE_INFO("Shadows: {} {}x{}, estimated={} MiB, allocated depth={} MiB (driver overhead unknown)",
+                ShadowQualityLabel(m_ShadowQuality.effective),m_ShadowQuality.resolution,m_ShadowQuality.resolution,
+                m_ShadowQuality.memory.estimatedBytes/(1024*1024),m_ShadowQuality.memory.allocatedDepthBytes/(1024*1024));
             m_MousePickFrameBuffer = std::move(MousePickFrameBufferCandidateOwner);
             m_FinalFrameBuffer = std::move(FinalFrameBufferCandidateOwner);
 
@@ -475,6 +491,7 @@ namespace GEngine
 #ifdef GENGINE_RENDER_BASELINE
                 baseline.UpdatedInput();
 #endif
+                ApplyPendingShadowQuality();
                 if (auto resized = ResizeViewportTargets(); !resized) ReportFramebufferError("viewport targets", resized.error());
                 //update                              
 #ifdef GENGINE_RENDER_BASELINE

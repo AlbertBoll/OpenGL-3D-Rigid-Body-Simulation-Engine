@@ -8,6 +8,8 @@
 
 
 #include "Core/RenderTarget.h"
+#include "Renderer/ShadowQuality.h"
+#include <thread>
 
 
 
@@ -27,6 +29,11 @@ namespace GEngine
 	private:
 		// First member, destroyed last: all derived/base GPU owners borrow its context.
 		EngineContext m_EngineContext;
+        const std::thread::id m_ShadowOwner = std::this_thread::get_id();
+        ShadowQualityState m_ShadowQuality;
+        std::optional<ShadowQualityDesc> m_PendingShadowQuality;
+        std::optional<FramebufferError> m_ShadowQualityError;
+        void ApplyPendingShadowQuality();
 	public:
 		BaseApp();
 
@@ -45,6 +52,12 @@ namespace GEngine
         EditorViewportPixelSize GetEditorViewportPixelSize() const { return m_EditorPixelSize; }
         [[nodiscard]] PlatformResult SetEditorViewport(EditorViewportLogicalSize size, FramebufferScale scale);
         [[nodiscard]] FramebufferResult ResizeViewportTargets();
+        // Queue on the application thread. The next Run boundary applies the pair
+        // before Update/extraction; failure keeps both previous targets and state.
+        [[nodiscard]] FramebufferResult RequestShadowQuality(const ShadowQualityDesc&);
+        const ShadowQualityState& GetShadowQuality() const noexcept { return m_ShadowQuality; }
+        const std::optional<FramebufferError>& GetShadowQualityError() const noexcept { return m_ShadowQualityError; }
+        bool ShadowQualityPending() const noexcept { return m_PendingShadowQuality.has_value(); }
 
 		//CameraBase* GetCamera(){ return m_EditorCamera; }
 

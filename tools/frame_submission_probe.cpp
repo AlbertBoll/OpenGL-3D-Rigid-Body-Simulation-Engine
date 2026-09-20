@@ -30,6 +30,7 @@ static_assert(std::same_as<decltype(std::declval<const RenderFrame&>().Draws()),
 #include "../GEngine/src/Renderer/SubmissionUploads.h"
 #include "../GEngine/src/Core/FramebufferBackend.h"
 #include <chrono>
+#include <bit>
 #include <numeric>
 #include <glm/gtx/quaternion.hpp>
 #include <print>
@@ -1463,6 +1464,229 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         expect(PassDirtyReason::None,0);
         std::println("[PASS] pass-invalidation unchanged/revisions/targets/deferred/multiple/failure checks={}",checks);
     }
+    // Real queue delivery with deterministic CPU payloads. File decoding belongs
+    // to the existing async-loader suites; these checks exercise publication ->
+    // extraction -> retained-version keys -> actual shadow depth on the owner.
+    struct ShadowPublication final : UploadRequest
+    {
+        TextureRegistry* images{}; TextureHandle image{}; std::byte alpha{};
+        MeshRegistry* meshes{}; MeshHandle mesh{}; std::shared_ptr<const MeshAsset> cpu;
+        std::size_t Bytes() const noexcept override
+        { return cpu ? cpu->Vertices().size()+cpu->Indices().size()+cpu->Submeshes().size_bytes()+cpu->Layout().attributes.size_bytes() : 4; }
+        UploadResult Apply(const AssetPublication::Publication& publication) const noexcept override
+        {
+            Check(GLContextThread::IsCurrentOwner(),"shadow completion uploads only on context owner");
+            if(cpu) {
+                auto gpu=GpuMesh::Create(*cpu);
+                if(!gpu) return std::unexpected(UploadError{UploadCode::UploadFailed});
+                auto result=meshes->Replace(publication,mesh,std::move(*gpu));
+                if(!result) return std::unexpected(UploadError{UploadCode::UploadFailed,{},result.error()});
+            } else {
+                TextureDesc description;description.width=description.height=1;description.mips=TextureMipIntent::None;
+                const std::byte pixel[]{std::byte{255},std::byte{255},std::byte{255},alpha};
+                auto texture=TextureResource::Create(description,{pixel});
+                if(!texture) return std::unexpected(UploadError{UploadCode::UploadFailed});
+                auto result=images->Replace(publication,image,std::move(*texture));
+                if(!result) return std::unexpected(UploadError{UploadCode::UploadFailed,{},result.error()});
+            }
+            return {};
+        }
+    };
+    struct ShadowDecode final : AssetDecodeJob
+    {
+        ShadowPublication payload;
+        explicit ShadowDecode(ShadowPublication value) : payload(std::move(value)) {}
+        std::expected<std::unique_ptr<const UploadRequest>,UploadError> Decode(
+            UploadCancellation cancel,std::size_t reservation) const noexcept override
+        {
+            if(GLContextThread::IsCurrentOwner() || reservation<payload.Bytes())
+                return std::unexpected(UploadError{UploadCode::DecodeFailed});
+            if(cancel.StopRequested()) return std::unexpected(UploadError{UploadCode::Cancelled});
+            std::unique_ptr<const UploadRequest> request(new (std::nothrow) ShadowPublication(payload));
+            if(!request) return std::unexpected(UploadError{UploadCode::Allocation});
+            return request;
+        }
+    };
+    void ShadowDirtiness(EngineContext& root,SceneRenderResources& resources,FrameSubmissionDesc base,
+        std::span<const MaterialParameterDecl> parameters,std::span<const MaterialTextureAssignment> originalTextures)
+    {
+        TextureRegistry* images{};
+        { auto access=resources.Publication().BeginFrame();
+          images=&const_cast<TextureRegistry&>(resources.ForFrame(access).bindings.textures); }
+        TextureDesc td;td.width=td.height=1;td.mips=TextureMipIntent::None;
+        const std::byte white[]{std::byte{255},std::byte{255},std::byte{255},std::byte{255}};
+        auto texture=Take(TextureResource::Create(td,{white}),"shadow alpha fallback");
+        auto cpu=Take(root.Shapes().ExportMesh("Box"),"shadow private mesh source");
+        auto gpu=Take(GpuMesh::Create(cpu),"shadow private GPU mesh");
+        TextureHandle image;MeshHandle mesh;
+        { auto publication=resources.Publication().BeginPublication();
+          image=Take(images->Create(publication,std::move(texture)),"shadow alpha handle");
+          mesh=Take(resources.Meshes().Create(publication,std::move(gpu)),"shadow mesh handle"); }
+        std::vector<MaterialTextureAssignment> textures(originalTextures.begin(),originalTextures.end());
+        bool albedo=false;
+        for(auto& binding:textures) if(binding.name=="albedoMap") {binding.value.texture=image;albedo=true;}
+        Check(albedo,"masked fixture has private albedo");
+        const auto masked=Take(resources.PublishMaterial({SceneMaterialKind::Lit,parameters,textures,false,1,AlphaMode::Masked,.5f,1}),"shadow masked material");
+        auto submitter=Take(FrameSubmission::Create(),"shadow dirtiness submitter");
+        auto point=Take(PointShadowFrameBuffer::Create(256,256),"shadow dirtiness point");
+        auto cascade=Take(CascadeShadowFrameBuffer::Create(256,256,5),"shadow dirtiness cascade");
+        FrameSubmissionDesc targets{base.color,base.picking,point,cascade,resources.Pipelines(),base.cascadeSplits,
+            base.cameraFov,base.cameraAspect,base.cameraNear,base.cameraFar,base.pointNear,base.pointFar,false};
+        _Scene scene;auto camera=Camera(scene);EntityPickTable picks;
+        auto caster=scene.CreateEntity("shadow changing caster");
+        caster.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,masked});
+        auto nonCaster=scene.CreateEntity("shadow non-caster");
+        nonCaster.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,masked});
+        nonCaster.GetComponent<MeshRendererComponent>().castShadows=false;
+        nonCaster.Transform().Translation={2,0,0};
+        auto sun=scene.CreateEntity("shadow sun"),bulb=scene.CreateEntity("shadow bulb");
+        RenderLightComponent light;light.castShadows=true;
+        sun.AddComponent<RenderLightComponent>(light);
+        sun.Transform().QuatRotation=glm::rotation(glm::vec3(0,0,-1),-glm::normalize(glm::vec3(20,50,20)));
+        light.kind=RenderLightKind::Point;light.range=100;bulb.AddComponent<RenderLightComponent>(light);
+        bulb.Transform().Translation={0,3,2};
+        auto extract=[&] { auto access=resources.Publication().BeginFrame();
+            return Take(Extract(scene,resources,access,camera),"shadow dirtiness extraction"); };
+        auto run=[&] { auto frame=extract();targets.pipelines=resources.Pipelines();
+            return Take(submitter.Submit(frame,targets,picks),"shadow dirtiness submission"); };
+        auto expect=[&](const FrameSubmissionStats& stats,unsigned mask,PassDirtyReason reason) {
+            for(unsigned i=0;i<2;++i) {
+                Check(stats.decisions[i].requested && stats.decisions[i].executed==bool(mask&(1u<<i)),"shadow exact pass work");
+                Check(mask&(1u<<i) ? HasDirtyReason(stats.decisions[i].reasons,reason)
+                    : stats.decisions[i].reasons==PassDirtyReason::None,"shadow precise dirty reason or clean cache");
+            }
+            Check(stats.shadowDraws==std::popcount(mask),"one shadow caster per executed pass");
+        };
+        auto depth=[&] {
+            // Read cascade storage and each attached cube face independently.
+            // Explicit pack state and bounded destinations keep the GPU oracle
+            // independent of preceding bindings and readback fixtures.
+            constexpr GLenum keys[]{GL_PACK_ALIGNMENT,GL_PACK_ROW_LENGTH,GL_PACK_SKIP_PIXELS,GL_PACK_SKIP_ROWS,
+                GL_PACK_IMAGE_HEIGHT,GL_PACK_SKIP_IMAGES,GL_PACK_SWAP_BYTES,GL_PACK_LSB_FIRST};
+            GLint packBuffer{};std::array<GLint,std::size(keys)> saved{};
+            glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING,&packBuffer);glBindBuffer(GL_PIXEL_PACK_BUFFER,0);
+            for(std::size_t i=0;i<saved.size();++i) {glGetIntegerv(keys[i],&saved[i]);glPixelStorei(keys[i],i==0?1:0);}
+            std::vector<float> result(256*256*12);
+            const auto cascadeName=FramebufferDetail::Backend::Depth(cascade.Buffer());
+            const auto pointName=FramebufferDetail::Backend::Depth(point.Buffer());
+            constexpr GLsizei bytes=256*256*6*sizeof(float);
+            glGetTextureImage(cascadeName,0,GL_DEPTH_COMPONENT,GL_FLOAT,bytes,result.data());
+            GLint previousRead{};GLuint readback{};glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&previousRead);
+            glGenFramebuffers(1,&readback);glBindFramebuffer(GL_READ_FRAMEBUFFER,readback);
+            glNamedFramebufferDrawBuffer(readback,GL_NONE);glReadBuffer(GL_NONE);
+            for(unsigned face=0;face<6;++face) {
+                glFramebufferTexture2D(GL_READ_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_TEXTURE_CUBE_MAP_POSITIVE_X+face,pointName,0);
+                Check(glCheckFramebufferStatus(GL_READ_FRAMEBUFFER)==GL_FRAMEBUFFER_COMPLETE,"shadow face readback framebuffer complete");
+                glReadPixels(0,0,256,256,GL_DEPTH_COMPONENT,GL_FLOAT,result.data()+256*256*(6+face));
+            }
+            glBindFramebuffer(GL_READ_FRAMEBUFFER,previousRead);glDeleteFramebuffers(1,&readback);
+            for(std::size_t i=0;i<saved.size();++i) glPixelStorei(keys[i],saved[i]);
+            glBindBuffer(GL_PIXEL_PACK_BUFFER,packBuffer);
+            Check(glGetError()==GL_NO_ERROR,"shadow depth readback succeeds");
+            Check(std::all_of(result.begin(),result.end(),[](float value) {return std::isfinite(value) && value>=0.f && value<=1.f;}),
+                "every depth sample is finite and normalized");
+            return result;
+        };
+        auto covered=[](const auto& values,std::size_t first,std::size_t last) {
+            return std::count_if(values.begin()+first,values.begin()+last,[](float value) {return value<1.f;}); };
+        unsigned coverageCase{};
+        auto assertCoverage=[&](const auto& values,bool present) {
+            std::println("shadow-coverage case={} expected={} cascade={} point={}",++coverageCase,present,
+                covered(values,0,256*256*5),covered(values,256*256*6,values.size()));
+            Check((covered(values,0,256*256*5)>0)==present && (covered(values,256*256*6,values.size())>0)==present,
+                "both actual shadow images match alpha coverage"); };
+        expect(run(),3,PassDirtyReason::InitialContent);
+        auto initial=depth();assertCoverage(initial,true);
+        for(unsigned frame=0;frame<4;++frame) expect(run(),0,PassDirtyReason::None);
+        Check(depth()==initial,"static frames preserve exact shadow depth without draws");
+        nonCaster.Transform().Translation.x+=1;
+        expect(run(),0,PassDirtyReason::None);
+        Check(depth()==initial,"moving non-caster leaves both shadows intact");
+        caster.Transform().Translation.x=.5f;expect(run(),3,PassDirtyReason::Transform);
+        Check(depth()!=initial,"moving caster changes shadow depth");
+        camera.view[3][0]+=.1f;expect(run(),1,PassDirtyReason::Camera);
+        sun.Transform().QuatRotation=glm::rotation(glm::vec3(0,0,-1),-glm::normalize(glm::vec3(30,50,20)));
+        expect(run(),1,PassDirtyReason::Light);
+        bulb.Transform().Translation.x+=1;expect(run(),2,PassDirtyReason::Light);
+        caster.GetComponent<MeshRendererComponent>().castShadows=false;
+        auto absent=run();Check(absent.decisions[0].executed && absent.decisions[1].executed && absent.shadowDraws==0,"last caster removal clears both targets");
+        assertCoverage(depth(),false);
+        caster.GetComponent<MeshRendererComponent>().castShadows=true;expect(run(),3,PassDirtyReason::SceneMembership);
+        auto retained=extract();const auto solidDepth=depth();
+        const auto materialRevision=retained.Resources()[0].Material().Revision();
+        auto queue=Take(AsyncUploadQueue::Create(resources.Publication()),"shadow completion queue");
+        RenderContext context{*root.MainWindow(),*root.LegacyEngine().GetWindowManager(),&base.color};context.uploads=queue.get();
+        FrameSceneInput input{scene,resources,submitter,targets,picks,{&camera,1}};
+        auto complete=[&](ShadowPublication payload,PassDirtyReason reason) {
+            std::unique_ptr<const AssetDecodeJob> job=std::make_unique<ShadowDecode>(std::move(payload));
+            const auto ticket=Take(queue->Submit(job,1024*1024),"shadow CPU work submitted");
+            const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(10);
+            while(!queue->Stats().queuedRequests) {
+                Check(std::chrono::steady_clock::now()<deadline,"shadow completion becomes queued");
+                const auto status=Take(queue->Status(ticket),"shadow CPU status");
+                Check(status.state!=AsyncAssetState::Failed,"shadow CPU preparation succeeds");
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            expect(run(),0,PassDirtyReason::None); // CPU-ready data is not render-visible yet.
+            input.targets.pipelines=resources.Pipelines();
+            auto scheduled=Take(FrameScheduler::Render(context,&input),"shadow scheduled completion");
+            Check(Take(queue->Status(ticket),"shadow ready status").state==AsyncAssetState::Ready && queue->LastDrain().completed==1,
+                "completion publishes in UpdateFrameResources before same-frame extraction");
+            expect(scheduled.submission,3,reason);expect(run(),0,PassDirtyReason::None);
+        };
+        ShadowPublication alpha;alpha.images=images;alpha.image=image;alpha.alpha=std::byte{0};
+        complete(alpha,PassDirtyReason::Material);assertCoverage(depth(),false);
+        { auto current=extract();
+          Check(current.Resources()[0].Material().Instance()==masked && current.Resources()[0].Material().Revision()==materialRevision,
+              "alpha arrival invalidates without changing the material handle or revision"); }
+        expect(Take(submitter.Submit(retained,targets,picks),"retained pre-arrival alpha frame"),3,PassDirtyReason::Material);
+        Check(depth()==solidDepth,"retained frame uses old texture content under the same handle");
+        expect(run(),3,PassDirtyReason::Material);assertCoverage(depth(),false);
+        alpha.alpha=std::byte{255};complete(alpha,PassDirtyReason::Material);assertCoverage(depth(),true);
+        // Opaque -> masked and cutoff/opacity changes must refresh coverage too.
+        const auto opaque=Take(resources.PublishMaterial({SceneMaterialKind::Lit,parameters,textures}),"shadow opaque mode");
+        caster.GetComponent<MeshRendererComponent>().material=opaque;expect(run(),3,PassDirtyReason::Material);
+        caster.GetComponent<MeshRendererComponent>().material=masked;expect(run(),3,PassDirtyReason::Material);
+        std::vector<ScenePipeline> roles(resources.Pipelines().begin(),resources.Pipelines().end());
+        for(auto& role:roles) if(role.pipeline==retained.Draws()[0].pipeline) role.opacity=.25f;
+        { auto frame=extract();auto changed=targets;changed.pipelines=roles;
+          expect(Take(submitter.Submit(frame,changed,picks),"shadow masked opacity change"),3,PassDirtyReason::Material);assertCoverage(depth(),false); }
+        expect(run(),3,PassDirtyReason::Material);assertCoverage(depth(),true);
+        // Same submesh and handle, different vertices and bounds from CPU data.
+        std::vector<std::byte> vertices(cpu.Vertices().begin(),cpu.Vertices().end());
+        const auto layout=cpu.Layout();
+        for(const auto& attribute:layout.attributes) if(attribute.semantic==VertexSemantic::Position) {
+            Check(attribute.scalar==VertexScalarFormat::Float32 && attribute.components==3,"box position fixture layout");
+            for(std::size_t i=0;i<cpu.VertexCount();++i) {
+                float xyz[3];auto* bytes=vertices.data()+i*layout.strideBytes+attribute.offsetBytes;
+                std::memcpy(xyz,bytes,sizeof(xyz));for(auto& value:xyz) value*=.5f;std::memcpy(bytes,xyz,sizeof(xyz));
+            }
+        }
+        MeshSourceData source{layout,vertices,cpu.VertexCount(),cpu.IndexFormat(),cpu.Indices(),cpu.IndexCount(),cpu.Submeshes(),cpu.MaterialSlotCount()};
+        auto smaller=Take(MeshAsset::Create(source),"shadow async changed mesh and bounds");
+        Check(smaller.Bounds().maximum!=cpu.Bounds().maximum,"replacement changes actual local bounds");
+        auto oldMeshFrame=extract();const auto oldMeshDepth=depth();
+        ShadowPublication meshArrival;meshArrival.meshes=&resources.Meshes();meshArrival.mesh=mesh;
+        meshArrival.cpu=std::make_shared<MeshAsset>(std::move(smaller));
+        complete(meshArrival,PassDirtyReason::Mesh);const auto smallerDepth=depth();Check(smallerDepth!=oldMeshDepth,"same-handle mesh completion changes depth");
+        { auto frame=extract();Check(frame.Resources()[0].Mesh().Identity()==mesh
+            && frame.Resources()[0].Mesh().Revision()!=oldMeshFrame.Resources()[0].Mesh().Revision(),"stable mesh identity carries new version"); }
+        expect(Take(submitter.Submit(oldMeshFrame,targets,picks),"retained mesh frame"),3,PassDirtyReason::Mesh);
+        Check(depth()==oldMeshDepth,"retained old geometry restores exact old shadow depth");
+        expect(run(),3,PassDirtyReason::Mesh);Check(depth()==smallerDepth,"current mesh version restores exact new shadow depth");
+        // Exercise the real fixed-step presentation path, without changing its equations.
+        caster.AddComponent<RigidBody3DComponent>().Type=BodyType::Kinematic;
+        caster.AddComponent<SphereFixture3DComponent>().Radius=.1f;
+        scene.OnRuntimeStart();auto* body=caster.GetComponent<RigidBody3DComponent>().RuntimeBody;
+        std::unique_ptr<PhysicalShape> shape(body->m_Shape);body->m_LinearVelocity={60,0,0};
+        scene.Update(Timestep(_Scene::PhysicsStepSeconds));run();const auto beforeInterpolation=depth();
+        const auto pose=caster.Transform().GetTransform();const auto ticks=scene.GetPhysicsTiming().totalSteps;
+        scene.Update(Timestep(_Scene::PhysicsStepSeconds*.5));expect(run(),3,PassDirtyReason::Transform);
+        Check(caster.Transform().GetTransform()==pose && scene.GetPhysicsTiming().totalSteps==ticks && depth()!=beforeInterpolation,
+            "tickless presentation changes both shadows without changing authoritative state");
+        expect(run(),0,PassDirtyReason::None);scene.OnRuntimeStop();queue->Shutdown();
+        std::println("[PASS] shadow-dirtiness static/non-caster/interpolation/masked-async/mesh-async/retained/depth");
+    }
     void ShadowQualityReference(SceneRenderResources& resources,FrameSubmissionDesc base,MeshHandle box,MaterialInstanceHandle material)
     {
         _Scene scene;const auto camera=Camera(scene);
@@ -1908,6 +2132,8 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         desc.pipelines=resources->Pipelines();
         ShadowQualityReference(*resources,desc,box,material);
         ShadowContactDepthFixture(*resources,desc,sphere,box,material);
+        ShadowDirtiness(root,*resources,desc,parameters,textures);
+        desc.pipelines=resources->Pipelines();
         _Scene scene;
         const auto camera=Camera(scene);
         std::array<_Entity,3> bodies;

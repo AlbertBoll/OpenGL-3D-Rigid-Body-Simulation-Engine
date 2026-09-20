@@ -489,6 +489,9 @@ def main():
             passed = False
             return 1
         probe_log=(out / "frame-submission.log").read_text(errors="replace")
+        if "[PASS] shadow-dirtiness static/non-caster/interpolation/masked-async/mesh-async/retained/depth" not in probe_log:
+            passed = False
+            return 1
         if "[PASS] picking-architecture idle/click/viewport/DPI/generation/instancing/bounds/interpolation/readback" not in probe_log:
             passed = False
             return 1

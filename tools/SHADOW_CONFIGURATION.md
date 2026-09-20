@@ -73,3 +73,43 @@ the approved explicit 4096 factory reference byte-for-byte on the same GPU. Exis
 nearest-occluder contact tests and the complete submission suite remain mandatory.
 `shadow-application.log` exercises actual BaseApp frame transitions and context shutdown.
 The historical Phase 03 runner remains historical evidence, not the current gate.
+
+## Shadow reuse and invalidation
+
+The frame submitter reuses directional and point depth images when their exact
+inputs are unchanged. A static scene issues no shadow draws after the first
+successful submission. Moving a non-caster does not invalidate either image.
+
+Both keys include target storage identity, effective caster membership/submesh,
+presentation matrices, and retained mesh/material/pipeline/program/texture/sampler
+identities and revisions. Mesh bounds derive from the retained mesh version;
+replacing vertices/bounds under the same handle invalidates the result. Masked
+coverage includes albedo content, tiling, cutoff and opacity through the material
+and dependency revisions, including texture content published under a stable
+handle without a material edit.
+
+Directional keys also include the camera region, light direction/revision and
+cascade projection/splits. Point keys include light position/range/revision and
+near plane; main-camera changes do not invalidate point shadows. Resolution or
+storage replacement changes the target identity. The shadow factories currently
+fix the format to Depth32Float; there is no independent mutable format setting.
+New storage of any description cannot inherit the old identity.
+
+Worker-ready CPU payloads become visible only after the scheduler publishes them
+on the context owner before extraction. Already retained frames continue to use
+their original resource versions. Presentation interpolation can refresh shadows
+without another fixed simulation step or mutation of authoritative transforms.
+Failed submissions leave dirty work pending for retry. External target writes
+must call `FrameSubmission::InvalidatePassContents()` before reuse.
+
+The existing cache is conservative: it may refresh for light/material revisions
+that do not change depth. Per-light/cascade caster culling remains Phase 59; this
+phase does not change shadow filtering, bias, quality defaults or Physics.
+
+`tools/test_frame_submission.py` checks both real depth images for static reuse,
+non-caster/caster movement, alpha coverage, asynchronous same-handle texture and
+mesh publication, retained old/new versions and tickless interpolation. Its
+existing regression checks cover light/camera/settings changes, caster flags,
+removal, same-size target recreation, resizing, external writes and failure retry.
+The async fixture uses deterministic CPU payloads through the real worker queue
+and scheduler, independently of file-decoder timing.

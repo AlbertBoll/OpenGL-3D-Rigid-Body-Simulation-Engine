@@ -22,6 +22,8 @@ static_assert(std::same_as<decltype(std::declval<const RenderFrame&>().Draws()),
 #include "Managers/ShapeManager.h"
 #include "Managers/ShaderManager.h"
 #include "Scene/_Entity.h"
+#include "Physics/PhysicsBody.h"
+#include "Physics/Shape.h"
 #include "../GEngine/src/Assets/ShaderBackend.h"
 #include "../GEngine/src/Renderer/GLStateCache.h"
 #include "../GEngine/src/Renderer/SubmissionUploads.h"
@@ -885,6 +887,164 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         }
         reference.UnBind();
     }
+    namespace PickReads
+    {
+        decltype(glad_glGetTextureSubImage) original{};
+        unsigned calls{};
+        void APIENTRY Read(GLuint texture,GLint level,GLint x,GLint y,GLint z,
+            GLsizei width,GLsizei height,GLsizei depth,GLenum format,GLenum type,GLsizei bytes,void* data)
+        { ++calls;original(texture,level,x,y,z,width,height,depth,format,type,bytes,data); }
+        struct Observe
+        {
+            Observe() { original=glad_glGetTextureSubImage;glad_glGetTextureSubImage=Read;calls=0; }
+            ~Observe() { glad_glGetTextureSubImage=original; }
+        };
+    }
+    void PickingArchitecture(SceneRenderResources& resources,FrameSubmissionDesc base,
+        MeshHandle mesh,MaterialInstanceHandle material)
+    {
+        _Scene scene;auto camera=Camera(scene);
+        camera.view=glm::lookAt(glm::vec3(0,0,8),glm::vec3(0),glm::vec3(0,1,0));camera.worldPosition={0,0,8};
+        camera.projection=glm::ortho(-4.f,4.f,-2.f,2.f,.1f,20.f);
+        camera.viewportWidth=192;camera.viewportHeight=96;
+        RenderTargetDesc td;td.Storage.Width=192;td.Storage.Height=96;
+        td.Storage.Colors[0]=FramebufferFormat::RGBA8;td.Storage.ColorCount=1;td.Storage.Depth=FramebufferFormat::Depth24;
+        auto color=Take(RenderTarget::Create(td),"non-square color target");
+        auto picking=Take(MousePickFrameBuffer::Create(192,96),"non-square picking target");
+        auto submitter=Take(FrameSubmission::Create(),"picking architecture submitter");
+        FrameSubmissionDesc desc{color,picking,base.pointShadow,base.cascadeShadow,resources.Pipelines(),base.cascadeSplits,
+            base.cameraFov,2.f,base.cameraNear,base.cameraFar,base.pointNear,base.pointFar};
+        std::array<_Entity,4> bodies;
+        std::array<EntityRenderId,4> ids;
+        for(unsigned i=0;i<4;++i) {
+            bodies[i]=scene.CreateEntity("pick quadrant "+std::to_string(i));
+            bodies[i].AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,material});
+            bodies[i].Transform().Translation={i%2?2.f:-2.f,i/2?1.f:-1.f,0};
+            bodies[i].Transform().Scale={.4f,.4f,.4f};
+            ids[i]=Take(scene.RenderData().Identify(bodies[i]),"quadrant identity");
+        }
+        EntityPickTable table;
+        PassTiming timing;Check(timing.Initialize(true),"picking CPU timing owner");
+        PickReads::Observe reads;
+        auto position=[&](glm::vec3 world,EditorViewportLogicalSize logical=EditorViewportLogicalSize{96,48}) {
+            const auto clip=camera.projection*camera.view*glm::vec4(world,1);
+            const auto ndc=glm::vec3(clip)/clip.w;
+            // Model an offset screen panel; scale using actual allocated extent.
+            const float x=123+(ndc.x*.5f+.5f)*logical.Width;
+            const float y=57+(1-(ndc.y*.5f+.5f))*logical.Height;
+            const auto& actual=picking.Buffer().Description();
+            return ViewportPixelAt(x-123,y-57,logical,{actual.Width,actual.Height});
+        };
+        struct Result { FrameSubmissionStats stats;std::int32_t pixel=-1;std::uint64_t ns{}; };
+        auto run=[&](bool request,glm::vec3 world=glm::vec3(-2,-1,0)) {
+            desc.pickingEnabled=request;
+            auto access=resources.Publication().BeginFrame();auto frame=Take(Extract(scene,resources,access,camera),"picking frame");
+            Check(timing.BeginFrame(),"picking timing begin");
+            PassTiming::Activation active(timing);
+            const auto before=PickReads::calls;
+            Result result{Take(submitter.Submit(frame,desc,table),"picking submission")};
+            if(request) {
+                auto pixel=position(world);Check(pixel.has_value(),"in-panel projected position");
+                result.pixel=Take(picking.ReadPixel(pixel->X,pixel->Y),"timed synchronous pixel");
+            }
+            unsigned samples=0;
+            for(const auto& sample:timing.Current()) if(sample.pass==RenderPass::PickingReadback) {
+                ++samples;result.ns=sample.cpuNanoseconds;
+                Check(sample.completed && sample.gpu==GpuTiming::NotMeasured && !sample.gpuNanoseconds
+                    && sample.submittedItems==1 && sample.submittedDraws==0,"readback is one CPU transfer, no GPU query/draw");
+            }
+            Check(samples==unsigned(request) && PickReads::calls-before==unsigned(request),"exact requested driver reads and timing samples");
+            timing.EndFrame();return result;
+        };
+        auto idle=run(false);
+        Check(!idle.stats.decisions[2].executed && idle.stats.pickDraws==0 && !table.Decode(0),"initial idle does not render or expose a lookup");
+        for(unsigned i=0;i<4;++i) {
+            auto picked=run(true,bodies[i].Transform().Translation);
+            Check(Take(scene.RenderData().ResolvePick(table,picked.pixel),"quadrant generation")==ids[i],"non-square high-DPI instanced entity selection");
+            Check(picked.stats.decisions[2].executed==(i==0),"unchanged click reuses paired image/table");
+            if(i==0) Check(picked.stats.pickDraws==4 && picked.stats.instancedDrawCalls>=2,"picking and color really use instanced submission");
+        }
+        Check(run(true,{0,0,0}).pixel==EntityPickTable::InvalidPixel,"background sentinel");
+        auto oldTable=table;const auto oldPixel=run(true).pixel;
+        scene.DestroyEntity(bodies[0]);bodies[0]=scene.CreateEntity("reused slot");
+        bodies[0].AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,material});
+        bodies[0].Transform().Translation={-2,-1,0};bodies[0].Transform().Scale={.4f,.4f,.4f};
+        const auto reused=Take(scene.RenderData().Identify(bodies[0]),"replacement generation");
+        Check(reused.index==ids[0].index && reused.generation!=ids[0].generation,"actual slot reuse with new generation");
+        Check(!scene.RenderData().ResolvePick(oldTable,oldPixel),"old image mapping rejects destroyed/reused entity");
+        auto deferred=run(false);
+        Check(!deferred.stats.decisions[2].executed && HasDirtyReason(deferred.stats.decisions[2].reasons,PassDirtyReason::SceneMembership),"scene change stays stale until requested");
+        auto changed=run(true);
+        Check(changed.stats.decisions[2].executed && Take(scene.RenderData().ResolvePick(table,changed.pixel),"replacement selection")==reused,"click after scene change uses new mapping");
+        EntityPickTable limited(1);const EntityRenderId wide{7,UINT64_MAX,UINT64_MAX};
+        Check(limited.Encode(wide)==0 && limited.Decode(0)==wide && limited.Encode(wide)==0,"full 160-bit identity survives signed pixel indirection");
+        auto overflow=limited.Encode(reused);
+        Check(!overflow && overflow.error()==RenderEcsError::PickCapacity && !limited.Decode(-1) && !limited.Decode(INT32_MAX),"capacity/invalid pixels reject without wrap");
+        const auto top=ViewportPixelAt(0,0,{96,48},{192,96});
+        const auto bottom=ViewportPixelAt(95.99f,47.99f,{96,48},{192,96});
+        Check(top && top->X==0 && top->Y==95 && bottom && bottom->X==191 && bottom->Y==0,"high-DPI corners invert Y exactly once");
+        const float nan=std::numeric_limits<float>::quiet_NaN();
+        Check(!ViewportPixelAt(-1,0,{96,48},{192,96}) && !ViewportPixelAt(96,0,{96,48},{192,96})
+            && !ViewportPixelAt(0,48,{96,48},{192,96}) && !ViewportPixelAt(0,-1,{96,48},{192,96})
+            && !ViewportPixelAt(nan,0,{96,48},{192,96}) && !ViewportPixelAt(0,0,{0,48},{192,96})
+            && !ViewportPixelAt(0,0,{96,48},{0,0}),"out-of-bounds/nonfinite/hidden inputs reject");
+        Check(timing.BeginFrame(),"invalid read timing begin");
+        { PassTiming::Activation active(timing);const auto before=PickReads::calls;
+          auto invalid=picking.ReadPixel(192,0);
+          Check(!invalid && invalid.error().code==FramebufferErrorCode::InvalidCoordinates
+              && PickReads::calls==before && timing.Current().empty(),"invalid read issues no driver call or timing sample"); }
+        timing.EndFrame();
+        Check(!picking.OnResize(9000,96),"failed resize is transactional");
+        Check(position({-2,-1,0},{48,48})->X==48,"logical change uses retained actual target width");
+        Check(color.OnResize(288,144) && picking.OnResize(288,144),"resize non-square targets");
+        camera.viewportWidth=288;camera.viewportHeight=144;
+        run(false);auto resized=run(true);
+        Check(HasDirtyReason(resized.stats.decisions[2].reasons,PassDirtyReason::TargetStorage)
+            && Take(scene.RenderData().ResolvePick(table,resized.pixel),"resized pick")==reused,"click after viewport resize redraws and resolves");
+        const auto ticks=scene.GetPhysicsTiming().totalSteps;
+        camera.view[3][0]=glm::mix(0.f,.5f,.5f); // Presentation-only camera movement.
+        run(false);auto movedCamera=run(true);
+        Check(HasDirtyReason(movedCamera.stats.decisions[2].reasons,PassDirtyReason::Camera)
+            && Take(scene.RenderData().ResolvePick(table,movedCamera.pixel),"camera pick")==reused
+            && scene.GetPhysicsTiming().totalSteps==ticks,"tickless camera interpolation invalidates selection");
+        bodies[0].AddComponent<RigidBody3DComponent>().Type=BodyType::Kinematic;
+        bodies[0].AddComponent<SphereFixture3DComponent>().Radius=.1f;
+        scene.OnRuntimeStart();auto* body=bodies[0].GetComponent<RigidBody3DComponent>().RuntimeBody;
+        std::unique_ptr<PhysicalShape> shape(body->m_Shape);body->m_LinearVelocity={6,0,0};
+        scene.Update(Timestep(_Scene::PhysicsStepSeconds));run(true);
+        const auto pose=bodies[0].Transform().GetTransform();const auto fixedTicks=scene.GetPhysicsTiming().totalSteps;
+        scene.Update(Timestep(_Scene::PhysicsStepSeconds*.5));
+        const auto presentation=scene.GetRenderTransform(bodies[0]).matrix;
+        run(false);auto interpolated=run(true,glm::vec3(presentation[3]));
+        Check(HasDirtyReason(interpolated.stats.decisions[2].reasons,PassDirtyReason::Transform)
+            && Take(scene.RenderData().ResolvePick(table,interpolated.pixel),"interpolated pick")==reused
+            && bodies[0].Transform().GetTransform()==pose && scene.GetPhysicsTiming().totalSteps==fixedTicks,
+            "tickless object interpolation invalidates picking without simulation mutation");
+        scene.OnRuntimeStop();
+        if(const auto* output=SDL_getenv("GENGINE_PICKING_MEASURE")) {
+            Check(color.OnResize(1280,640) && picking.OnResize(1280,640),"measurement target extent");
+            camera.viewportWidth=1280;camera.viewportHeight=640;
+            for(unsigned i=4;i<64;++i) {
+                auto entity=scene.CreateEntity("readback workload "+std::to_string(i));
+                entity.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,material});
+                entity.Transform().Translation={-3.5f+float(i%8),-1.75f+.5f*float(i/8),-.5f};
+                entity.Transform().Scale={.2f,.2f,.2f};
+            }
+            std::ofstream csv(output);csv<<"mode,sample,readback_ns,reads,pick_items,executed\n";
+            for(const char* mode:{"idle","cached","dirty"}) {
+                const bool requested=std::string_view(mode)!="idle";
+                for(int i=-120;i<240;++i) {
+                    if(std::string_view(mode)=="dirty") submitter.InvalidatePassContents();
+                    const auto before=PickReads::calls;auto measured=run(requested);
+                    if(i>=0) csv<<mode<<','<<i<<','<<measured.ns<<','<<(PickReads::calls-before)<<','
+                        <<measured.stats.pickDraws<<','<<measured.stats.decisions[2].executed<<'\n';
+                }
+            }
+            Check(bool(csv),"readback CSV output");
+            std::println("[PASS] picking-measure 64 boxes / 1280x640 / 120 warmup / 240 samples / idle-cached-dirty");
+        }
+        std::println("[PASS] picking-architecture idle/click/viewport/DPI/generation/instancing/bounds/interpolation/readback");
+    }
     void Invalidation(EngineContext& root,SceneRenderResources& resources,FrameSubmissionDesc desc,
         MeshHandle mesh,MaterialInstanceHandle material)
     {
@@ -1576,6 +1736,8 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         auto cascadeTarget=Take(CascadeShadowFrameBuffer::Create(256,256,5),"cascade target");
         const float splits[]{.5f,1.f,2.f,5.f,20.f};
         FrameSubmissionDesc desc{target,picking,pointTarget,cascadeTarget,resources->Pipelines(),splits,glm::radians(45.f),1,.1f,20,.1f,100};
+        PickingArchitecture(*resources,desc,box,material);
+        if(SDL_getenv("GENGINE_PICKING_MEASURE")) return;
         InstancingFixture(*resources,desc,box,sphere,material,parameters,textures);
         if(SDL_getenv("GENGINE_INSTANCE_MEASURE")) return;
         desc.pipelines=resources->Pipelines();

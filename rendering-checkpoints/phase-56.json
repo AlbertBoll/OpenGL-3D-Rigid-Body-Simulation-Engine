@@ -1,0 +1,152 @@
+{
+  "baseline": "a5c041c334d620f2a28c460018a9ab17be257c05",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Renderer/FrameSubmission.h",
+    "GEngine/src/Core/FrameBuffer.cpp",
+    "GEngine/src/Renderer/PassTiming.cpp",
+    "RenderingValidation/README.md",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-56.json",
+    "tools/frame_submission_probe.cpp",
+    "tools/test_frame_submission.py"
+  ],
+  "eligible": true,
+  "findings": [],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_56_REVIEW.md"
+  ],
+  "next_phase": "57",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "77d31ccdf8eed262188e8c5668544012aeff7240",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-56/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/77d31ccdf8eed262188e8c5668544012aeff7240",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "b4c80740ab995c8a16da8198548f0c1bd9acd5a8a4cff193579d371fd9ce009b"
+      },
+      "mode": "100644",
+      "validated_blob": "fd07abcf56898c901ef230152d0949815a916a91",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-56/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/fd07abcf56898c901ef230152d0949815a916a91"
+    }
+  },
+  "phase": "56",
+  "previous_approved_tag": "render-refactor-phase-55-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_56_REVIEW.md",
+  "schema": 2,
+  "summary": "On-demand generation-safe picking retains exact cached image/table pairing, rejects outside-panel requests before submission, and separately measures synchronous CPU readback. Debug/Release real-GL tests cover high-DPI/non-square storage, idle/deferred clicks, reuse, instancing, bounds and tickless interpolation; all maintained builds and eight graphical smokes pass. Dirty readback p95 is 4.65-5.08ms in the measured fixture; synchronous immediate click selection retained, no PBO/fence or timing speedup claim.",
+  "validation": [
+    {
+      "check": "Debug affected-target build; original harness later failed in the new test fixture, corrected before final checks",
+      "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\" C:\\dev\\GEngine-rendering\\GEngine.sln /t:GEngineEditor;Breakout;RayTracing;RigidBodySimulation;PhysicsTests;PhysicsBenchmark /m:1 /nr:false /nologo /v:normal /p:Configuration=Debug /p:Platform=x64 /p:VCToolsVersion=14.44.35207 /p:WindowsTargetPlatformVersion=10.0.26100.0 /bl:C:\\dev\\GEngine-rendering\\logs\\rendering\\phase56\\final\\Debug\\build.binlog",
+      "evidence": "logs/rendering/phase56/final/Debug/build.log (MSBuild exit 0); logs/rendering/phase56/final/Debug/results.json build step",
+      "result": "PASS",
+      "reuse_reason": "Production files unchanged from pre-build fingerprint; only missing test includes and fixture camera descriptor corrected. Final fixture compiled/run below."
+    },
+    {
+      "check": "Final Debug native-free consumer/application compile, source policy, real-GL picking and full submission regressions, four graphical smokes",
+      "command": "python tools/test_frame_submission.py --configuration Debug --output logs/rendering/phase56/final3/Debug --no-build --smoke",
+      "evidence": "logs/rendering/phase56/final3/Debug/results.json; frame-submission.log; smoke/*/smoke.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Release affected-target build, native-free consumer/application compile, source policy, real-GL picking and full submission regressions, four graphical smokes",
+      "command": "python tools/test_frame_submission.py --configuration Release --output logs/rendering/phase56/final/Release --smoke --picking-measure",
+      "evidence": "logs/rendering/phase56/final/Release/results.json; frame-submission.log; smoke/*/smoke.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Isolated readback measurements and exact idle/cached/dirty counts; latency is descriptive, not a latency-budget PASS",
+      "command": "logs/rendering/phase56/final/Release/frame-submission-probe.exe with GENGINE_PICKING_MEASURE=logs/rendering/phase56/isolated/Release/picking-N.csv for N=0,1,2; full command/cwd and protocol in evidence",
+      "evidence": "logs/rendering/phase56/isolated/Release/results.json; picking-0.csv; picking-1.csv; picking-2.csv",
+      "result": "PASS",
+      "reuse_reason": "Same final binary/production inputs. Supersedes timing only from the first series, which overlapped Debug smokes. Dirty medians are NOISY (16.7% spread); p95 4.65-5.08ms exceeds the advisory consideration threshold. Retain immediate synchronous click-edge selection; no latency gate or speedup claimed."
+    },
+    {
+      "check": "Protected baseline contents, exact scope, validation fingerprints and whitespace",
+      "command": "Python compare SHA-256/absence to logs/rendering/phase56/preflight.json and validation-inputs.json; git diff --check; rendering_checkpoint.py seal",
+      "evidence": "logs/rendering/phase56/preflight.json; logs/rendering/phase56/validation-inputs.json; logs/rendering/phase56/coverage.json; rendering-checkpoints/phase-56.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    "GEngine/include/GEngine/Renderer/FrameSubmission.h": {
+      "executable": null,
+      "sha256": "51618fd49fcb1328297b02d524777ac577490bdf44d1e386898970029025e251"
+    },
+    "GEngine/src/Core/FrameBuffer.cpp": {
+      "executable": null,
+      "sha256": "9843a804b952eacfea33889963e111689a641ad29f27b62b08012c032a108e35"
+    },
+    "GEngine/src/Renderer/PassTiming.cpp": {
+      "executable": null,
+      "sha256": "1d826d6dbb92dc9be6ac1d0d63269f45eb4d3ccda13d5a273cb2514fc71f6405"
+    },
+    "RenderingValidation/README.md": {
+      "executable": null,
+      "sha256": "52928605a9ffacc6c82b3c812e6d78f71ca611cfe3165fb844bd95e207e59238"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "b4c80740ab995c8a16da8198548f0c1bd9acd5a8a4cff193579d371fd9ce009b"
+    },
+    "tools/frame_submission_probe.cpp": {
+      "executable": null,
+      "sha256": "e7d364ac20f65650a1250fa8eb01f4a9f514ef7e3a63a1f3ea8239b36cfea941"
+    },
+    "tools/test_frame_submission.py": {
+      "executable": null,
+      "sha256": "de270c99fcdf2b13fd98d341e6554f0c4e5852ab2eefaab44fb9de27e69205b9"
+    }
+  }
+}

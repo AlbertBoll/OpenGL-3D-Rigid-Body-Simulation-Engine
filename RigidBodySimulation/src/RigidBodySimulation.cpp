@@ -674,7 +674,11 @@ void RigidBodySimulationApp::Render()
         FrameSubmissionDesc targets{*m_RenderTarget,*m_MousePickFrameBuffer,*m_PointShadowFrameBuffer,*m_CascadeShadowFrameBuffer,
             m_FrameResources->Pipelines(),m_ShadowCascadeLevels,m_EditorCamera_.GetFOV(),m_EditorCamera_.GetAspectRatio(),
             m_EditorCamera_.GetNearClip(),m_EditorCamera_.GetFarClip(),m_NearPlane,m_FarPlane};
-        targets.pickingEnabled=GetInputManager()->GetMouseState().isButtonPressed(GEngineMouseCode::GENGINE_BUTTON_LEFT);
+        const auto mouse=ImGui::GetMousePos();
+        const auto& pickStorage=m_MousePickFrameBuffer->Buffer().Description();
+        targets.pickingEnabled=GetInputManager()->GetMouseState().isButtonPressed(GEngineMouseCode::GENGINE_BUTTON_LEFT)
+            && ViewportPixelAt(mouse.x-m_ViewportBounds[0].x,mouse.y-m_ViewportBounds[0].y,
+                GetEditorViewportLogicalSize(),{pickStorage.Width,pickStorage.Height}).has_value();
         FrameSceneInput input{*m_ActiveScene,*m_FrameResources,*m_FrameSubmission,targets,m_PickTable,{&camera,1}};
         // Preserve Phase 45's input/viewport snapshot: read this frame's IDs
         // before BeginUI refreshes ImGui mouse state or authors new panel bounds.

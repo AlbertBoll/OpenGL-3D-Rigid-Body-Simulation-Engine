@@ -1901,3 +1901,27 @@ query collection and image readback occur outside CPU samples. Extraction,
 simulation and presentation are excluded. A run-median spread above 10% is marked
 NOISY; timings are descriptive, while exact output/work equivalence and reduction
 from 256 to four actual draws gate acceptance. Serial fallback remains available.
+
+
+### Phase 56 picking
+
+`python tools/test_frame_submission.py --configuration Debug --output logs/rendering/phase56/final/Debug --smoke`
+and the corresponding Release command build maintained consumers and exercise real GL picking.
+Add `--picking-measure` to Release for three independent series at 1280x640 with 64 frozen boxes,
+120 warm-up and 240 measured frames per idle/cached/dirty mode. Production `picking-readback`
+CPU samples include the synchronous integer transfer/wait and pack-state restoration, distinct
+from `picking` rasterization. They report one item/zero draws, GPU `not-measured`; invalid reads
+and idle frames record no sample. Timing remains opt-in through existing `GENGINE_PASS_TIMING` /
+`GENGINE_PASS_TIMING_OUTPUT` controls. Other signed integer selection targets use the same read boundary.
+The predeclared noise/PBO decision policy is saved in `picking-protocol.json`; CSV and results retain
+per-series median/p95 and actual read/draw counts. No generic latency guarantee is inferred.
+
+The focused fixture checks idle/deferred requests, non-square/high-DPI coordinates, actual storage after
+resize failure/success, all four outside edges, invalid/background pixels, generation-safe destruction
+and slot reuse, real instancing, and camera/object interpolation without simulation ticks. Existing
+scheduler tests also cover readback-before-UI, exactly one callback, hidden/failed frames and typed errors.
+R32I stores a deterministic table ordinal, never entity bits: `-1` is background, encodable ordinals are
+`0..INT32_MAX-1`, and capacity exhaustion/other invalid pixels are typed errors. Full 32-bit slot and
+64-bit generation/domain remain in `EntityPickTable`; retain it with its image and resolve against the
+current scene. Synchronous callbacks consume the successful submission's mapping before it is replaced;
+unchanged cached images rebuild the same table from exact ordered identities. No delayed reads are added.

@@ -1,4 +1,6 @@
 #include "gepch.h"
+#include "Renderer/PassTiming.h"
+#include "Renderer/FrameSubmission.h"
 #include "../Renderer/GLStateCache.h"
 #include "FramebufferBackend.h"
 #include "../Assets/TextureBackend.h"
@@ -364,8 +366,18 @@ namespace GEngine
             return std::unexpected(Error(FramebufferErrorCode::InvalidAttachment, "Integer read requires a single-sample integer attachment", d));
         if (x < 0 || y < 0 || static_cast<unsigned>(x) >= d.Width || static_cast<unsigned>(y) >= d.Height)
             return std::unexpected(Error(FramebufferErrorCode::InvalidCoordinates, "Read coordinates are outside the attachment", d));
-        m_Storage->Require(); PixelPack pack; int value = 0;
-        glGetTextureSubImage(m_Storage->colors[i], 0, x, y, 0, 1, 1, 1, GL_RED_INTEGER, GL_INT, sizeof(value), &value); return value;
+        m_Storage->Require();
+        // Measure the synchronous transfer/wait and pack-state restoration apart
+        // from rasterization. Invalid coordinates never issue or record a read.
+        PassTiming::Scope timing(RenderPass::PickingReadback);
+        int value = 0;
+        {
+            PixelPack pack;
+            glGetTextureSubImage(m_Storage->colors[i], 0, x, y, 0, 1, 1, 1, GL_RED_INTEGER, GL_INT, sizeof(value), &value);
+        }
+        PassTiming::Submitted(1,0);
+        timing.Complete();
+        return value;
     }
     FramebufferResult FrameBuffer::ClearInteger(std::uint32_t i, int value) const
     {

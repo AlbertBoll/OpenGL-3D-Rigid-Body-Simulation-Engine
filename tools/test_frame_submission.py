@@ -171,6 +171,7 @@ def main():
     parser.add_argument("--upload-baseline", type=Path, help="Preserved Phase 53 library, measurement only")
     parser.add_argument("--upload-reference", type=Path, help="Matched Phase 53 upload results")
     parser.add_argument("--instance-measure", action="store_true", help="Paired serial/instanced lattice and stack CPU/GPU samples")
+    parser.add_argument("--picking-measure", action="store_true", help="Three idle/cached/dirty synchronous readback series")
     args = parser.parse_args()
     if args.upload_baseline and (not args.no_build or not args.upload_measure):
         parser.error("Upload baseline requires --no-build --upload-measure")
@@ -328,6 +329,40 @@ def main():
             env["GENGINE_PREDECESSOR_PLACEMENT"] = "1"
         else:
             env.pop("GENGINE_PREDECESSOR_PLACEMENT", None)
+        if args.picking_measure:
+            protocol = {"workload": "64 frozen boxes, instancing enabled, 1280x640 linear RGBA8/R32I; fixed orthographic camera; no Physics, swap or glFinish",
+                "warmup": 120, "samples": 240, "series": 3,
+                "scope": "Production synchronous ReadInteger CPU wait/transfer/pack restoration only; extraction/submission excluded; one requested pixel",
+                "noise_policy": "Run-median spread above 10% is NOISY. Timing descriptive. Require idle zero driver reads/pick draws/samples, cached one read/zero pick draws, dirty one read/64 pick items. Consider PBO/fence only if dirty-read p95 repeatedly exceeds 2ms (12% of a 60Hz frame); otherwise retain synchronous click-edge policy."}
+            report["picking_protocol"] = protocol
+            (out / "picking-protocol.json").write_text(json.dumps(protocol, indent=2))
+            records = []
+            for series in range(3):
+                capture = out / f"picking-{series}.csv"
+                if not invoke(f"picking-{series}", [executable], 240, out,
+                              dict(env, GENGINE_PICKING_MEASURE=str(capture)), marker="[PASS] picking-measure"):
+                    return 1
+                with capture.open(newline="") as stream:
+                    rows = list(csv.DictReader(stream))
+                for mode in ("idle", "cached", "dirty"):
+                    group = [r for r in rows if r["mode"] == mode]
+                    expected_reads = int(mode != "idle")
+                    expected_items = 64 if mode == "dirty" else 0
+                    if len(group) != 240 or any(int(r["reads"]) != expected_reads or int(r["pick_items"]) != expected_items
+                            or int(r["executed"]) != int(mode == "dirty") for r in group):
+                        report["reason"] = "Picking request/draw count mismatch"
+                        return 1
+                    times = sorted(int(r["readback_ns"]) for r in group)
+                    if mode == "idle" and any(times):
+                        report["reason"] = "Idle records nonexistent readback timing"
+                        return 1
+                    records.append({"series": series, "mode": mode, "readback_ns_median": statistics.median(times),
+                                    "readback_ns_p95": times[int(.95 * (len(times)-1))], "reads": expected_reads, "pick_items": expected_items})
+            report["picking_measurements"] = records
+            report["picking_spread"] = {mode: (max(values)-min(values))/statistics.median(values)
+                for mode in ("cached", "dirty")
+                if (values := [r["readback_ns_median"] for r in records if r["mode"] == mode]) and statistics.median(values)}
+            report["picking_pbo_review_needed"] = sum(r["readback_ns_p95"] > 2000000 for r in records if r["mode"] == "dirty") >= 2
         if args.instance_measure:
             protocol = {"workload": "64 frozen spheres or boxes, one material, nonuniform rotated transforms; 64x64 linear RGBA8; 256x256 five-layer cascade and six-face point shadows; picking; four passes forced dirty; no Physics",
                 "warmup": 120, "samples": 240, "series": 3,
@@ -453,6 +488,9 @@ def main():
             passed = False
             return 1
         probe_log=(out / "frame-submission.log").read_text(errors="replace")
+        if "[PASS] picking-architecture idle/click/viewport/DPI/generation/instancing/bounds/interpolation/readback" not in probe_log:
+            passed = False
+            return 1
         if "[PASS] instancing threshold/mixed/transparent/identity/color/picking/shadows/immutable/failure/range" not in probe_log:
             passed = False
             return 1

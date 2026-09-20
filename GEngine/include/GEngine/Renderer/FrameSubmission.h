@@ -9,7 +9,8 @@ namespace GEngine
 {
     enum class FrameStage { BeginFrame, UpdateFrameResources, FreezeFrameInputs, BuildRenderFrame, Pass };
     enum class RenderPass { DirectionalShadow, PointShadow, Picking, Opaque, Masked, Skybox,
-        Transparent, Debug, Resolve, EditorUI, Present, LegacyScene };
+        Transparent, Debug, Resolve, EditorUI, Present, LegacyScene,
+        PickingReadback }; // CPU wait/transfer timing, not a scheduled draw pass.
     enum class PassTarget { None, DirectionalDepth, PointDepth, Picking, SceneColor, ResolvedColor, Window };
     enum class PassLoad { Load, Clear, Discard };
     enum class PassBoundary { Internal, RestoreAfterLegacy, EstablishBeforeUI, Presentation };

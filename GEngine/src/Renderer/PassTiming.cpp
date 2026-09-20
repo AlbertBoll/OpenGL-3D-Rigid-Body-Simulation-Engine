@@ -14,6 +14,7 @@ namespace GEngine
         case RenderPass::DirectionalShadow:return "directional-shadow";
         case RenderPass::PointShadow:return "point-shadow";
         case RenderPass::Picking:return "picking";
+        case RenderPass::PickingReadback:return "picking-readback";
         case RenderPass::Opaque:return "opaque";
         case RenderPass::Masked:return "masked";
         case RenderPass::Skybox:return "skybox";
@@ -175,7 +176,8 @@ namespace GEngine
     PassTiming::Activation::Activation(PassTiming& value) noexcept : previous(active) { active=&value; }
     PassTiming::Activation::~Activation() { active=previous; }
     PassTiming::Scope::Scope(RenderPass pass)
-        : Scope(active?*active:[]()->PassTiming& {static thread_local PassTiming disabled;return disabled;}(),pass) {}
+        : Scope(active?*active:[]()->PassTiming& {static thread_local PassTiming disabled;return disabled;}(),
+            pass,TimingCounts::Explicit,pass!=RenderPass::PickingReadback) {}
     PassTiming::Scope::Scope(PassTiming& timing,RenderPass pass,TimingCounts source,bool gpu) : counts(source)
     {
         if(!timing.Active()) return;

@@ -1856,3 +1856,48 @@ coverage remains mandatory. Canonical Debug/Release before/after captures use
 normal 4096 shadows, with separate fresh resize, picking, ImGui and native-close
 validation. Current evidence and scope are in `PHASE_54_REVIEW.md`; revision artifacts
 are under `logs/rendering/phase54/revision3/`.
+
+
+### Phase 55 instanced rendering
+
+`FrameSubmissionDesc::instancingEnabled` defaults to true; false selects the same
+sorted serial path. `MinimumRenderInstances` is four. Compatible opaque/masked
+runs group after sorting; picking/shadows group adjacent source-order runs to
+preserve equal-depth winners. Transparent, sky and helper draws remain serial.
+Compatibility includes full mesh/submesh/pipeline/material identity, retained mesh,
+material/program/texture/sampler revisions and receive-shadow policy. Oversized
+runs fill a bounded instance prefix; remaining items retain the serial fallback.
+Published RenderFrame payloads and resource leases remain immutable.
+
+The private 96-byte std430 instance record carries a column-major transform, full
+32-bit slot/64-bit generation/64-bit domain EntityRenderId, and a separate encoded
+signed picking pixel. Vertex shaders index ordinary instanced draws using
+`gl_InstanceID`; picking transports its pixel as a flat varying. The owning
+context replaces complete buffer stores, restores incoming binding/range state,
+and retires buffers before context teardown. No indirect submission or worker GL.
+Logical draw fields remain item counts; `submittedDrawCalls`,
+`instancedDrawCalls`, and `submittedInstances` report actual submission work.
+
+```text
+python tools/test_frame_submission.py --configuration Debug --output logs/rendering/phase55/final-v3/Debug --smoke
+python tools/test_frame_submission.py --configuration Release --output logs/rendering/phase55/final-v3/Release --smoke --instance-measure
+python tools/test_gpu_mesh.py --configuration Debug --no-build --output logs/rendering/phase55/final-v3/mesh-Debug
+python tools/test_gpu_mesh.py --configuration Release --no-build --output logs/rendering/phase55/final-v3/mesh-Release
+```
+
+The paired fixture compares exact same-driver color, picking identities and all
+cascade/point shadow depth images at 0/1/3/4/5/64 instances, mixed materials,
+masked coverage and transparent fallback. It also checks full-width identity
+words, indexed/nonindexed nonzero ranges, count limits, immutable frames, real
+GL draw counters, upload failure/retry, range restoration and owner retirement.
+Existing submission, sorting, upload, timing and contact-shadow regressions remain.
+The retained legacy performance switches explicitly select serial submission.
+
+Performance uses three processes, each with 120 warmup and 240 measured samples
+per serial/instanced sphere lattice and box stack. Both modes use the same frozen
+64-object frame and four forced-dirty passes, 64x64 linear RGBA8 output and 256x256
+shadow faces/layers. Submit CPU and GPU elapsed-query median/p95 are separate;
+query collection and image readback occur outside CPU samples. Extraction,
+simulation and presentation are excluded. A run-median spread above 10% is marked
+NOISY; timings are descriptive, while exact output/work equivalence and reduction
+from 256 to four actual draws gate acceptance. Serial fallback remains available.

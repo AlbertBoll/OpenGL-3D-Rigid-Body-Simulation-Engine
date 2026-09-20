@@ -59,6 +59,10 @@ namespace GEngine
         std::expected<void, GpuMeshError> UpdateVertices(const VertexRecordUpdate&);
         // Uses the caller's active pipeline; preserves VAO/array-buffer bindings.
         std::expected<void, GpuMeshError> DrawSubmesh(std::size_t submesh, MeshPrimitive = MeshPrimitive::Triangles) const;
+        // Ordinary instancing with caller-owned per-instance shader inputs.
+        // Zero instances is a no-op; counts beyond the device API fail explicitly.
+        std::expected<void, GpuMeshError> DrawSubmeshInstanced(std::size_t submesh,
+            std::size_t instances, MeshPrimitive = MeshPrimitive::Triangles) const;
 
     private:
         struct Storage;

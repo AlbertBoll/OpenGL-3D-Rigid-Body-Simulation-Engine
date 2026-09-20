@@ -83,7 +83,7 @@ void main() {
                     Asset::ShaderErrorCode::FileRead, Asset::ShaderStage::Vertex, *skyPath, "Cannot read shader source"}});
                 vertex = sky.c_str();
             }
-            auto packedVertex=RenderBackend::PackedStage(vertex,kind==SceneMaterialKind::Sky,parameters);
+            auto packedVertex=RenderBackend::PackedStage(vertex,kind==SceneMaterialKind::Sky,parameters,Asset::ShaderStage::Vertex);
             if(!packedVertex) return std::unexpected(packedVertex.error());
             auto packedFragment=RenderBackend::PackedStage(source,false,parameters);
             if(!packedFragment) return std::unexpected(packedFragment.error());

@@ -170,6 +170,7 @@ def main():
     parser.add_argument("--upload-measure", action="store_true", help="Matched Phase 54 upload calls/bytes and Submit CPU")
     parser.add_argument("--upload-baseline", type=Path, help="Preserved Phase 53 library, measurement only")
     parser.add_argument("--upload-reference", type=Path, help="Matched Phase 53 upload results")
+    parser.add_argument("--instance-measure", action="store_true", help="Paired serial/instanced lattice and stack CPU/GPU samples")
     args = parser.parse_args()
     if args.upload_baseline and (not args.no_build or not args.upload_measure):
         parser.error("Upload baseline requires --no-build --upload-measure")
@@ -327,6 +328,40 @@ def main():
             env["GENGINE_PREDECESSOR_PLACEMENT"] = "1"
         else:
             env.pop("GENGINE_PREDECESSOR_PLACEMENT", None)
+        if args.instance_measure:
+            protocol = {"workload": "64 frozen spheres or boxes, one material, nonuniform rotated transforms; 64x64 linear RGBA8; 256x256 five-layer cascade and six-face point shadows; picking; four passes forced dirty; no Physics",
+                "warmup": 120, "samples": 240, "series": 3,
+                "scope": "Submit CPU including transient grouping; GPU GL_TIME_ELAPSED around Submit; query collection and readback excluded from CPU; no swap or simulation",
+                "noise_policy": "Run-median spread above 10% is NOISY. Timing descriptive; require identical color/picking/depth and identities and 256 to 4 actual draws at equal 256 logical instances. Serial fallback selectable; no timing speedup claim for noisy metrics."}
+            report["instance_protocol"] = protocol
+            (out / "instance-protocol.json").write_text(json.dumps(protocol, indent=2))
+            records = []
+            for series in range(3):
+                capture = out / f"instances-{series}.csv"
+                measured_env = dict(env, GENGINE_INSTANCE_MEASURE=str(capture))
+                if not invoke(f"instances-{series}", [executable], 240, out, measured_env,
+                              marker="[PASS] instance-measure"):
+                    return 1
+                with capture.open(newline="") as stream:
+                    rows = list(csv.DictReader(stream))
+                for workload in ("sphere-lattice", "box-stack"):
+                    for mode in ("serial", "instanced"):
+                        group = [r for r in rows if r["workload"] == workload and r["mode"] == mode]
+                        expected_draws = 256 if mode == "serial" else 4
+                        if len(group) != 240 or any(int(r["draw_calls"]) != expected_draws or int(r["instances"]) != 256 for r in group):
+                            report["reason"] = "Instance workload/count mismatch"
+                            return 1
+                        row = {"series": series, "workload": workload, "mode": mode, "draw_calls": expected_draws, "logical_instances": 256}
+                        for metric in ("cpu_ns", "gpu_ns"):
+                            values = sorted(int(r[metric]) for r in group)
+                            row[metric + "_median"] = statistics.median(values)
+                            row[metric + "_p95"] = values[int(.95 * (len(values)-1))]
+                        records.append(row)
+            report["instance_measurements"] = records
+            report["instance_spread"] = {f"{workload}/{mode}/{metric}":
+                (max(values)-min(values))/statistics.median(values)
+                for workload in ("sphere-lattice", "box-stack") for mode in ("serial", "instanced") for metric in ("cpu_ns_median", "gpu_ns_median")
+                if (values := [r[metric] for r in records if r["workload"] == workload and r["mode"] == mode])}
         if args.draw_sort_measure or args.upload_measure:
             protocol = {"workload": "64 overlapping opaque/masked draws; 4 pipelines, 8 materials, 2 meshes; 64x64 linear RGBA8; fixed orthographic camera; no Physics/picking; empty shadow targets cached after warmup",
                 "warmup": 120, "samples": 240, "series": 3,
@@ -410,7 +445,7 @@ def main():
         if baseline_library:
             passed=True
             return 0
-        passed = invoke("frame-submission", [executable], cwd=out,
+        passed = invoke("frame-submission", [executable], timeout=240, cwd=out,
                         marker="[PASS] pass-invalidation unchanged/revisions/targets/deferred/multiple/failure")
         if not passed:
             return 1
@@ -418,6 +453,9 @@ def main():
             passed = False
             return 1
         probe_log=(out / "frame-submission.log").read_text(errors="replace")
+        if "[PASS] instancing threshold/mixed/transparent/identity/color/picking/shadows/immutable/failure/range" not in probe_log:
+            passed = False
+            return 1
         if "[PASS] state-cache redundant/transition/external/queried-GL" not in probe_log or "[PASS] state-cache submission-boundary/routing/pass-to-pass/image/VAO-restore" not in probe_log:
             passed=False
             return 1

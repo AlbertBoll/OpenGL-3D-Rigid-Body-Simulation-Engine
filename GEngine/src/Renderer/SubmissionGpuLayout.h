@@ -11,6 +11,21 @@ namespace GEngine::RenderBackend
 {
     using MatrixWords = std::array<float,16>;
     using FloatLane = std::array<float,4>;
+    struct alignas(16) PackedInstance
+    {
+        MatrixWords model{};
+        // Full shared identity: slot, generation low/high, domain low/high.
+        // The separately encoded signed picking pixel is not an entity identity.
+        std::array<std::uint32_t,4> identity0{}, identity1{};
+    };
+    static_assert(sizeof(PackedInstance)==96 && offsetof(PackedInstance,identity0)==64
+        && offsetof(PackedInstance,identity1)==80 && std::is_standard_layout_v<PackedInstance>);
+    inline constexpr const char* InstanceBlock=R"(
+struct GEngineInstance { mat4 model; uvec4 identity0; uvec4 identity1; };
+layout(std430,binding=1) readonly buffer GEngineInstances { GEngineInstance geInstances[]; };
+uniform bool geInstanced;
+uniform uint geInstanceBase;
+)";
     struct alignas(16) PackedFrame
     {
         MatrixWords view{}, projection{}, skyView{};
@@ -54,7 +69,7 @@ uniform uint geMaterialOffset;
     // Only the bounded scene/coverage adapter uses this ABI. Legacy shader files
     // and all other shader consumers retain their original default uniforms.
     inline std::expected<std::string,SceneResourceError> PackedStage(std::string source,bool sky,
-        std::span<const MaterialParameterDecl> parameters={})
+        std::span<const MaterialParameterDecl> parameters={}, Asset::ShaderStage stage=Asset::ShaderStage::Fragment)
     {
         source.replace(0,source.find('\n'),"#version 450 core");
         // Split the adapter's known combined declarations before replacing names.
@@ -122,6 +137,13 @@ uniform uint geMaterialOffset;
                 }
             }
             lane+=parameter.type==MaterialParameterType::Matrix4?4:1;
+        }
+        if(stage==Asset::ShaderStage::Vertex) {
+            ReplaceAll(source,"u_model","geModelTransform()");
+            ReplaceAll(source,"uniform mat4 geModelTransform();",R"(uniform mat4 u_model;
+mat4 geModelTransform() { return geInstanced ? geInstances[geInstanceBase+uint(gl_InstanceID)].model : u_model; }
+)");
+            source.insert(source.find('\n')+1,InstanceBlock);
         }
         source.insert(source.find('\n')+1,std::string(FrameBlock)+MaterialBlock);
         return source;

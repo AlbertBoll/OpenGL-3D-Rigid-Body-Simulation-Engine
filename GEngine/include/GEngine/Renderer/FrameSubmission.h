@@ -80,11 +80,16 @@ namespace GEngine
         // Requests a current picking image/readback, independently of image dirtiness.
         // A repeated request may reuse the image and rebuild its matching CPU table.
         bool pickingEnabled = true;
+        // Serial fallback/reference uses the same sorted immutable frame.
+        bool instancingEnabled = true;
     };
+    inline constexpr std::size_t MinimumRenderInstances = 4;
     struct FrameSubmissionStats
     {
         std::size_t shadowDraws{}, pickDraws{}, colorDraws{}, helperDraws{}, skyDraws{};
         std::size_t opaqueDraws{}, maskedDraws{}, transparentDraws{};
+        // Existing draw fields count logical items; these count actual API draws.
+        std::size_t submittedDrawCalls{}, instancedDrawCalls{}, submittedInstances{};
         VisibilityStats visibility;
         FrameTrace trace;
         // Directional shadow, point shadow, picking; includes deferred/clean passes.

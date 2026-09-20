@@ -106,7 +106,7 @@ namespace
         decltype(glad_glUniformMatrix4fv) realUniformMatrix4fv{};
         void APIENTRY UniformMatrix4fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat* value) { ++uniforms; uniformBytes+=64*count; realUniformMatrix4fv(location,count,transpose,value); }
         decltype(glad_glNamedBufferData) realNamedBufferData{};
-        void APIENTRY NamedBufferData(GLuint buffer, GLsizeiptr size, const void* data, GLenum usage) { ++buffers; bufferBytes+=size; if(usage==GL_STREAM_DRAW) lastFrameBuffer=buffer;else if(usage==GL_DYNAMIC_DRAW) lastMaterialBuffer=buffer; realNamedBufferData(buffer,size,data,usage); }
+        void APIENTRY NamedBufferData(GLuint buffer, GLsizeiptr size, const void* data, GLenum usage) { ++buffers; bufferBytes+=size; if(usage==GL_STREAM_DRAW && size==sizeof(RenderBackend::PackedFrame)) lastFrameBuffer=buffer;else if(usage==GL_DYNAMIC_DRAW) lastMaterialBuffer=buffer; realNamedBufferData(buffer,size,data,usage); }
         decltype(glad_glNamedBufferSubData) realNamedBufferSubData{};
         void APIENTRY NamedBufferSubData(GLuint buffer, GLintptr offset, GLsizeiptr size, const void* data) { ++buffers; bufferBytes+=size; realNamedBufferSubData(buffer,offset,size,data); }
         struct Observe {
@@ -748,7 +748,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             auto submitter=Take(FrameSubmission::Create(),"upload submitter");
             {
                 UploadCalls::Observe uploads;Take(submitter.Submit(frame,desc,picks),"many-material upload");
-                Check(UploadCalls::buffers==2 && UploadCalls::bufferBytes==sizeof(PackedFrame)+exactBytes,"one frame and one material batch upload");
+                Check(UploadCalls::buffers==3 && UploadCalls::bufferBytes==sizeof(PackedFrame)+exactBytes+sizeof(PackedInstance),"frame/material uploads plus serial instance sentinel");
                 frameName=UploadCalls::lastFrameBuffer;materialName=UploadCalls::lastMaterialBuffer;
             }
             GLint usage{},bytes{};glGetNamedBufferParameteriv(frameName,GL_BUFFER_USAGE,&usage);
@@ -923,6 +923,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             return result;
         };
         if(const auto* output=SDL_getenv("GENGINE_STATE_CACHE_MEASURE")) {
+            targets.instancingEnabled=false;
             // Identical geometry/material shared by 64 overlapping draws; no
             // simulation/extraction/readback/presentation inside timed Submit.
             for(unsigned i=1;i<64;++i) {
@@ -1231,6 +1232,247 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         }
         std::println("[PASS] shadow-contact nearest-occluder sphere/box across cascades");
     }
+
+    namespace InstanceCalls
+    {
+        std::uint64_t calls{},items{};
+        GLuint buffer{};
+        bool failUpload{}, rejected{};
+        decltype(glad_glDrawArraysInstanced) arrays{};
+        decltype(glad_glDrawElementsInstanced) elements{};
+        decltype(glad_glNamedBufferData) upload{};
+        decltype(glad_glGetError) error{};
+        void APIENTRY Arrays(GLenum mode,GLint first,GLsizei count,GLsizei instances)
+        { ++calls;items+=instances;arrays(mode,first,count,instances); }
+        void APIENTRY Elements(GLenum mode,GLsizei count,GLenum type,const void* first,GLsizei instances)
+        { ++calls;items+=instances;elements(mode,count,type,first,instances); }
+        void APIENTRY Upload(GLuint name,GLsizeiptr bytes,const void* data,GLenum usage)
+        {
+            if(usage==GL_STREAM_DRAW && bytes%sizeof(RenderBackend::PackedInstance)==0) {
+                buffer=name;
+                if(failUpload) {failUpload=false;rejected=true;return;}
+            }
+            upload(name,bytes,data,usage);
+        }
+        GLenum APIENTRY Error() {if(rejected) {rejected=false;return GL_OUT_OF_MEMORY;}return error();}
+        struct Observe {
+            Observe() {
+                calls=items=0;buffer=0;failUpload=rejected=false;
+                arrays=glad_glDrawArraysInstanced;glad_glDrawArraysInstanced=Arrays;
+                elements=glad_glDrawElementsInstanced;glad_glDrawElementsInstanced=Elements;
+                upload=glad_glNamedBufferData;glad_glNamedBufferData=Upload;
+                error=glad_glGetError;glad_glGetError=Error;
+            }
+            ~Observe() {
+                glad_glDrawArraysInstanced=arrays;glad_glDrawElementsInstanced=elements;
+                glad_glNamedBufferData=upload;glad_glGetError=error;
+            }
+        };
+    }
+    namespace InstanceLimit
+    {
+        decltype(glad_glGetInteger64v) query{};
+        void APIENTRY Query(GLenum key,GLint64* value)
+        { query(key,value);if(key==GL_MAX_SHADER_STORAGE_BLOCK_SIZE) *value=8*sizeof(RenderBackend::PackedInstance); }
+        struct Scope {
+            Scope() {query=glad_glGetInteger64v;glad_glGetInteger64v=Query;}
+            ~Scope() {glad_glGetInteger64v=query;}
+        };
+    }
+    void InstancingFixture(SceneRenderResources& resources,FrameSubmissionDesc desc,MeshHandle box,MeshHandle sphere,
+        MaterialInstanceHandle material,std::span<const MaterialParameterDecl> parameters,
+        std::span<const MaterialTextureAssignment> textures)
+    {
+        std::optional<MaterialInstance> alternateSource;
+        {auto access=resources.Publication().BeginFrame();alternateSource.emplace(*Take(resources.Materials().Acquire(access,material),"instance material clone"));}
+        Check(alternateSource->SetTexture("albedoMap",textures.back().value),"visibly distinct material on shared pipeline");
+        MaterialInstanceHandle alternate;
+        {auto publication=resources.Publication().BeginPublication();alternate=Take(resources.Materials().Create(publication,std::move(*alternateSource)),"instance alternate material");}
+        const auto masked=Take(resources.PublishMaterial({SceneMaterialKind::Lit,parameters,textures,false,1,
+            AlphaMode::Masked,.5f,1}),"instance masked material");
+        const auto transparent=Take(resources.PublishMaterial({SceneMaterialKind::Lit,parameters,textures,false,1,
+            AlphaMode::Transparent,.5f,.5f}),"instance transparent material");
+        desc.pipelines=resources.Pipelines();
+        const auto depthImages=[&] {
+            std::vector<float> depth(256*256*11);
+            Check(TextureView(Take(desc.cascadeShadow.DepthView(),"instance cascade view")).Bind(0),"instance cascade bind");
+            glGetTexImage(GL_TEXTURE_2D_ARRAY,0,GL_DEPTH_COMPONENT,GL_FLOAT,depth.data());
+            Check(TextureView(Take(desc.pointShadow.DepthView(),"instance point view")).Bind(0),"instance point bind");
+            for(unsigned face=0;face<6;++face)
+                glGetTexImage(GL_TEXTURE_CUBE_MAP_POSITIVE_X+face,0,GL_DEPTH_COMPONENT,GL_FLOAT,depth.data()+256*256*(5+face));
+            Check(glGetError()==GL_NO_ERROR,"instance shadow readback");return depth;
+        };
+        const auto pickingImage=[&] {
+            std::vector<int> pixels(64*64);
+            desc.picking.Bind();glReadBuffer(GL_COLOR_ATTACHMENT0);glReadPixels(0,0,64,64,GL_RED_INTEGER,GL_INT,pixels.data());
+            Check(glGetError()==GL_NO_ERROR,"instance picking readback");return pixels;
+        };
+        // Full-width synthetic identities and nonzero ranges for all three index formats.
+        // The first triangle is far outside the image: drawing the wrong range loses every hit.
+        if(!SDL_getenv("GENGINE_INSTANCE_MEASURE")) for(auto format:{MeshIndexFormat::None,MeshIndexFormat::UInt16,MeshIndexFormat::UInt32}) {
+            const std::array<glm::vec3,6> vertices{{{99,99,0},{100,99,0},{99,100,0},{-.45f,-.4f,0},{.45f,-.4f,0},{0,.45f,0}}};
+            const VertexAttribute position{};const SubmeshRange ranges[]{{0,3,0},{3,3,0}};
+            const std::array<std::uint16_t,6> shortIndices{0,1,2,3,4,5};const std::array<std::uint32_t,6> longIndices{0,1,2,3,4,5};
+            auto source=MeshSourceData::FromVertices<glm::vec3>(vertices,{&position,1});source.submeshes=ranges;
+            source.indexFormat=format;
+            if(format!=MeshIndexFormat::None) {source.indices=format==MeshIndexFormat::UInt16?std::span<const std::byte>(std::as_bytes(std::span(shortIndices))):std::span<const std::byte>(std::as_bytes(std::span(longIndices)));source.indexCount=6;}
+            auto cpuMesh=Take(MeshAsset::Create(source),"instance ranged CPU mesh");MeshHandle handle;
+            {auto publication=resources.Publication().BeginPublication();handle=Take(PublishMesh(resources.Meshes(),publication,cpuMesh),"instance ranged publication");}
+            auto access=resources.Publication().BeginFrame();auto state=resources.ForFrame(access);
+            auto mesh=Take(resources.Meshes().Acquire(access,handle),"instance ranged lease");
+            auto instance=Take(resources.Materials().Acquire(access,material),"instance ranged material");
+            auto packet=Take(PreparedMaterialBinding::Prepare(instance,access,state.bindings),"instance ranged packet");
+            auto builder=Take(RenderFrameBuilder::Create({1,4,0,1}),"instance identity builder");
+            _Scene scene;auto camera=Camera(scene);camera.view=glm::mat4(1);camera.projection=glm::ortho(-2.f,2.f,-2.f,2.f,.1f,20.f);
+            Check(builder.AddCamera(camera),"instance identity camera");
+            const auto resource=Take(builder.AddResources(mesh,std::move(packet)),"instance identity resource");
+            for(unsigned i=0;i<4;++i) {
+                FrameDrawDesc draw;draw.resources=resource;draw.submesh=1;
+                draw.worldTransform=glm::translate(glm::mat4(1),glm::vec3(float(i%2)*2-1,float(i/2)*2-1,-2));
+                draw.entity={7,(std::uint64_t{1}<<48)+i+1,(std::uint64_t{1}<<52)+i+1};
+                Check(builder.AddDraw(draw),"instance identity draw");
+            }
+            auto frame=Take(std::move(builder).Finalize(),"instance identity finalize");
+            auto submitter=Take(FrameSubmission::Create(),"instance range submitter");EntityPickTable picks;
+            desc.instancingEnabled=true;
+            {
+                InstanceCalls::Observe observer;
+                auto stats=Take(submitter.Submit(frame,desc,picks),"instance ranged draw");
+                Check(stats.submittedDrawCalls==2 && stats.instancedDrawCalls==2,"nonzero range instanced color/picking draws");
+                const auto image=pickingImage();
+                for(unsigned i=0;i<4;++i) {
+                    const auto pixel=image[(16+32*(i/2))*64+16+32*(i%2)];
+                    Check(Take(picks.Decode(pixel),"full-width range picking")==frame.Draws()[i].entity,"high-bit generation/domain picking remains distinct");
+                }
+                std::array<RenderBackend::PackedInstance,8> uploaded;
+                glGetNamedBufferSubData(InstanceCalls::buffer,0,sizeof(uploaded),uploaded.data());
+                for(unsigned i=0;i<4;++i) Check(uploaded[4+i].identity0[2]==(1u<<16) && uploaded[4+i].identity1[0]==(1u<<20),"uploaded generation/domain high words preserved");
+            }
+            Check(mesh->DrawSubmeshInstanced(1,0),"zero instance count no-op");
+            auto overflow=mesh->DrawSubmeshInstanced(1,std::size_t(INT_MAX)+1);
+            Check(!overflow && overflow.error().code==GpuMeshErrorCode::DeviceLimit,"instance count overflow typed failure");
+            Check(!mesh->DrawSubmeshInstanced(2,4),"invalid instanced submesh typed failure");
+        }
+        const auto* output=SDL_getenv("GENGINE_INSTANCE_MEASURE");
+        std::ofstream csv;
+        if(output) {csv.open(output);csv<<"workload,mode,iteration,cpu_ns,gpu_ns,draw_calls,instances\n";}
+        for(const auto mesh:{sphere,box}) for(const unsigned count:output?std::vector<unsigned>{64}:std::vector<unsigned>{0,1,3,4,5,64})
+        for(unsigned variant=0;variant<(output?1u:4u);++variant) {
+            _Scene scene;auto camera=Camera(scene);
+            camera.view=glm::lookAt(glm::vec3(0,0,12),glm::vec3(0),glm::vec3(0,1,0));
+            camera.projection=glm::ortho(-4.f,4.f,-4.f,4.f,.1f,20.f);camera.worldPosition={0,0,12};
+            auto sun=scene.CreateEntity("instance sun"),bulb=scene.CreateEntity("instance bulb");
+            RenderLightComponent light;light.castShadows=true;sun.AddComponent<RenderLightComponent>(light);
+            sun.GetComponent<Transform3DComponent>().QuatRotation=glm::rotation(glm::vec3(0,0,-1),-glm::normalize(glm::vec3(2,5,3)));
+            light.kind=RenderLightKind::Point;light.range=50;bulb.AddComponent<RenderLightComponent>(light);
+            bulb.GetComponent<Transform3DComponent>().Translation={0,3,5};
+            for(unsigned i=0;i<count;++i) {
+                auto entity=scene.CreateEntityWithUUID(UUID(100+i),"instance "+std::to_string(i));
+                const auto selected=variant==1 && i%2?alternate:variant==2?masked:variant==3?transparent:material;
+                entity.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,selected});
+                auto& pose=entity.GetComponent<Transform3DComponent>();
+                pose.Translation={float(i%8)-3.5f,float(i/8)-3.5f,float(i%3)*.15f};
+                pose.Scale={.3f,.25f,.2f};pose.QuatRotation=glm::angleAxis(float(i)*.12f,glm::normalize(glm::vec3(1,2,3)));
+            }
+            auto access=resources.Publication().BeginFrame();
+            auto frame=Take(Extract(scene,resources,access,camera),"instance immutable frame");
+            const std::vector<DrawItem> before(frame.Draws().begin(),frame.Draws().end());
+            std::vector<std::byte> referenceColor;std::vector<float> referenceDepth;std::vector<int> referencePicking;
+            std::vector<EntityRenderId> referenceIds;
+            for(bool instanced:{false,true}) {
+                std::optional<FrameSubmission> owner(Take(FrameSubmission::Create(),"instance submitter"));
+                auto& submitter=*owner;EntityPickTable picks;
+                desc.instancingEnabled=instanced;
+                FrameSubmissionStats stats;
+                GLuint instanceName{};
+                const unsigned iterations=output?360:1;
+                std::vector<GLuint> queries(output?iterations:0);
+                std::vector<std::int64_t> cpu(iterations);
+                if(output) glGenQueries(static_cast<GLsizei>(queries.size()),queries.data());
+                for(unsigned iteration=0;iteration<iterations;++iteration) {
+                    submitter.InvalidatePassContents(); // Identical four-pass work for both modes.
+                    if(output) glBeginQuery(GL_TIME_ELAPSED,queries[iteration]);
+                    {
+                        InstanceCalls::Observe observer;DriverCalls::Observe serial;
+                        const auto start=std::chrono::steady_clock::now();
+                        stats=Take(submitter.Submit(frame,desc,picks),"instance submission");
+                        cpu[iteration]=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now()-start).count();
+                        Check(stats.instancedDrawCalls==InstanceCalls::calls,"instance counters match real ordinary GL calls");
+                        Check(stats.submittedDrawCalls==InstanceCalls::calls+DriverCalls::counts[26]+DriverCalls::counts[27],"total driver draws match reported draws");
+                        if(InstanceCalls::buffer) instanceName=InstanceCalls::buffer;
+                    }
+                    if(output) glEndQuery(GL_TIME_ELAPSED);
+                }
+                Check(stats.colorDraws==count && stats.pickDraws==count,"logical color and picking work conserved");
+                if(variant!=3) Check(stats.shadowDraws==2*count && stats.submittedInstances==4*count,"logical shadow and submitted instance work conserved");
+                if(!instanced || count<MinimumRenderInstances || variant==3) Check(stats.instancedDrawCalls==0,"threshold and transparent serial fallback");
+                if(instanced && count>=MinimumRenderInstances && variant!=1 && variant!=3)
+                    Check(stats.submittedDrawCalls==4 && stats.instancedDrawCalls==4,"repeated mesh reduces four passes to four draws");
+                if(instanced && variant==1 && count==64)
+                    Check(stats.colorDraws==64 && stats.submittedDrawCalls==194,"mixed material groups stay separate; picking and shadow source order retained");
+                if(instanced && variant==0 && count>=MinimumRenderInstances) {
+                    std::vector<RenderBackend::PackedInstance> uploaded(count*3);
+                    glGetNamedBufferSubData(instanceName,0,static_cast<GLsizeiptr>(uploaded.size()*sizeof(uploaded[0])),uploaded.data());
+                    for(unsigned i=0;i<count;++i) {
+                        const auto& id=frame.Draws()[i].entity;const auto& packet=uploaded[2*count+i];
+                        Check(packet.identity0[0]==id.index && (std::uint64_t(packet.identity0[2])<<32|packet.identity0[1])==id.generation
+                            && (std::uint64_t(packet.identity1[0])<<32|packet.identity0[3])==id.registry,"GPU instance payload retains full typed entity identity");
+                        Check(std::memcmp(packet.model.data(),glm::value_ptr(frame.Draws()[i].worldTransform),64)==0,"GPU per-instance transform bytes");
+                        Check(Take(picks.Decode(static_cast<int>(packet.identity1[1])),"instance encoded pixel")==id,"GPU pixel maps to full entity identity");
+                    }
+                }
+                const auto color=Pixels(desc.color);const auto depth=depthImages();const auto pixels=pickingImage();
+                std::vector<EntityRenderId> ids;std::set<int> hits;
+                for(auto pixel:pixels) {ids.push_back(pixel<0?EntityRenderId{}:Take(picks.Decode(pixel),"instance pixel decode"));if(pixel>=0) hits.insert(pixel);}
+                if(!instanced) {referenceColor=color;referenceDepth=depth;referencePicking=pixels;referenceIds=ids;}
+                else {
+                    Check(color==referenceColor,"serial/instanced color pixels identical");
+                    Check(depth==referenceDepth,"serial/instanced cascade and point shadow transforms identical");
+                    Check(pixels==referencePicking && ids==referenceIds,"per-instance picking identity image identical");
+                    if(variant!=3) Check(hits.size()==count,"every separate instance remains pickable");
+                }
+                if(output) {
+                    for(unsigned i=0;i<iterations;++i) {
+                        GLuint64 gpu{};glGetQueryObjectui64v(queries[i],GL_QUERY_RESULT,&gpu); // Fixture-only collection after CPU samples.
+                        if(i>=120) csv<<(mesh==sphere?"sphere-lattice":"box-stack")<<','<<(instanced?"instanced":"serial")<<','<<i<<','
+                            <<cpu[i]<<','<<gpu<<','<<stats.submittedDrawCalls<<','<<stats.submittedInstances<<'\n';
+                    }
+                    glDeleteQueries(static_cast<GLsizei>(queries.size()),queries.data());
+                }
+                if(instanced && count==4 && variant==0) {
+                    // Exact nonzero SSBO range restoration and failed instance upload retry.
+                    GLuint foreign{};glCreateBuffers(1,&foreign);GLint alignment{};glGetIntegerv(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT,&alignment);
+                    glNamedBufferData(foreign,alignment+1024,nullptr,GL_STATIC_DRAW);glBindBufferRange(GL_SHADER_STORAGE_BUFFER,1,foreign,alignment,512);
+                    // Cached auxiliary passes shorten the instance batch, requiring a fresh upload.
+                    {InstanceCalls::Observe observer;InstanceCalls::failUpload=true;
+                        const auto failed=submitter.Submit(frame,desc,picks);
+                        Check(!failed && std::get<SubmissionCode>(failed.error().cause)==SubmissionCode::Driver,"instance upload failure is typed");}
+                    GLint binding{};GLint64 start{},size{};
+                    glGetIntegeri_v(GL_SHADER_STORAGE_BUFFER_BINDING,1,&binding);glGetInteger64i_v(GL_SHADER_STORAGE_BUFFER_START,1,&start);glGetInteger64i_v(GL_SHADER_STORAGE_BUFFER_SIZE,1,&size);
+                    Check(binding==foreign && start==alignment && size==512,"instance binding range restored on failure");
+                    Take(submitter.Submit(frame,desc,picks),"failed instance upload retry");
+                    glGetIntegeri_v(GL_SHADER_STORAGE_BUFFER_BINDING,1,&binding);Check(binding==foreign,"instance binding restored after successful retry");
+                    glBindBufferBase(GL_SHADER_STORAGE_BUFFER,1,0);glDeleteBuffers(1,&foreign);
+                }
+                if(!output && instanced && count==64 && variant==0) {
+                    std::optional<FrameSubmission> limited;
+                    {InstanceLimit::Scope limit;limited.emplace(Take(FrameSubmission::Create(),"limited instance storage"));}
+                    const auto limitedStats=Take(limited->Submit(frame,desc,picks),"instance storage serial tail");
+                    Check(limitedStats.submittedDrawCalls==249 && limitedStats.instancedDrawCalls==1
+                        && limitedStats.submittedInstances==256,"bounded instance prefix plus complete serial fallback");
+                    Check(Pixels(desc.color)==referenceColor && depthImages()==referenceDepth && pickingImage()==referencePicking,
+                        "capacity fallback preserves all raster outputs");
+                }
+                owner.reset();
+                if(instanceName) Check(!glIsBuffer(instanceName),"instance buffer retires with its context-thread owner");
+            }
+            for(std::size_t i=0;i<before.size();++i) Check(before[i].entity==frame.Draws()[i].entity
+                && before[i].worldTransform==frame.Draws()[i].worldTransform && before[i].resources==frame.Draws()[i].resources,"instancing leaves published frame immutable");
+        }
+        if(output) {Check(csv.good(),"instance measurement output");std::println("[PASS] instance-measure 120 warmup / 240 samples / serial+instanced / lattice+stack");}
+        std::println("[PASS] instancing threshold/mixed/transparent/identity/color/picking/shadows/immutable/failure/range");
+    }
+
     void Run(EngineContext& root)
     {
         std::println("Image comparison: renderer={} vendor={} version={}; 64x64 RGBA8 linear target; camera eye=(0,2,8), target=(0,0,0), FOV=45deg, aspect=1, near=.1, far=20; same-driver RGB composition tolerance=2.5/255",
@@ -1334,6 +1576,10 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         auto cascadeTarget=Take(CascadeShadowFrameBuffer::Create(256,256,5),"cascade target");
         const float splits[]{.5f,1.f,2.f,5.f,20.f};
         FrameSubmissionDesc desc{target,picking,pointTarget,cascadeTarget,resources->Pipelines(),splits,glm::radians(45.f),1,.1f,20,.1f,100};
+        InstancingFixture(*resources,desc,box,sphere,material,parameters,textures);
+        if(SDL_getenv("GENGINE_INSTANCE_MEASURE")) return;
+        desc.pipelines=resources->Pipelines();
+        desc.instancingEnabled=false; // Historical serial-path regression/reference.
         SortingFixture(root,*resources,desc,box,sphere,parameters,textures);
         if(SDL_getenv("GENGINE_DRAW_SORT_MEASURE")) return;
         UploadFixture(*resources,desc,box,sphere);

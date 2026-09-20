@@ -236,6 +236,10 @@ namespace GEngine
     }
 
     std::expected<void, GpuMeshError> GpuMesh::DrawSubmesh(std::size_t submesh, MeshPrimitive primitive) const
+    { return DrawSubmeshInstanced(submesh, 1, primitive); }
+
+    std::expected<void, GpuMeshError> GpuMesh::DrawSubmeshInstanced(
+        std::size_t submesh, std::size_t instances, MeshPrimitive primitive) const
     {
         if (!m_Storage) return Error(Code::InvalidMesh, "Empty mesh owner");
         const auto& s = *m_Storage; s.RequireContext();
@@ -249,7 +253,9 @@ namespace GEngine
         default: return Error(Code::InvalidPrimitive, "Unsupported primitive topology");
         }
         const auto& range = s.submeshes[submesh];
-        if (!range.elementCount) return {};
+        if (instances > static_cast<std::size_t>((std::numeric_limits<GLsizei>::max)()))
+            return Error(Code::DeviceLimit, "Instance count exceeds the draw API limit", instances);
+        if (!range.elementCount || !instances) return {};
         if (DriverFailed("before draw")) return Error(Code::Driver, "Pre-existing driver error; no draw issued");
         // A retained submission restores the incoming VAO once at its boundary.
         // Standalone draws keep the existing preserve-binding contract.
@@ -257,12 +263,19 @@ namespace GEngine
         if(auto* state=RenderBackend::GLStateCache::Current()) state->VertexArray(s.vao.m_VertexArrayRef);
         else { previous.emplace(); glBindVertexArray(s.vao.m_VertexArrayRef); }
         if (s.indexFormat == MeshIndexFormat::None)
-            glDrawArrays(mode, static_cast<GLint>(range.firstElement), static_cast<GLsizei>(range.elementCount));
+        {
+            if (instances == 1) glDrawArrays(mode, static_cast<GLint>(range.firstElement), static_cast<GLsizei>(range.elementCount));
+            else glDrawArraysInstanced(mode, static_cast<GLint>(range.firstElement),
+                static_cast<GLsizei>(range.elementCount), static_cast<GLsizei>(instances));
+        }
         else
         {
             const bool shortIndex = s.indexFormat == MeshIndexFormat::UInt16;
-            glDrawElements(mode, static_cast<GLsizei>(range.elementCount), shortIndex ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT,
-                reinterpret_cast<const void*>(range.firstElement * (shortIndex ? 2 : 4)));
+            const auto* offset = reinterpret_cast<const void*>(range.firstElement * (shortIndex ? 2 : 4));
+            if (instances == 1) glDrawElements(mode, static_cast<GLsizei>(range.elementCount),
+                shortIndex ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, offset);
+            else glDrawElementsInstanced(mode, static_cast<GLsizei>(range.elementCount),
+                shortIndex ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, offset, static_cast<GLsizei>(instances));
         }
         if (DriverFailed("draw")) return Error(Code::Driver, "Driver rejected submesh draw", submesh);
         return {};

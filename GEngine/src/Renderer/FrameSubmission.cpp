@@ -63,7 +63,10 @@ layout(location=0) in vec3 position;
 layout(location=1) in vec2 uv;
 uniform mat4 u_model, u_view, u_projection;
 out vec2 vertexUV;
-void main() { vertexUV=uv; gl_Position=)") + (picking?"u_projection*u_view*":"") + "u_model*vec4(position,1.0); }";
+flat out int gePickingPixel;
+uniform int u_EntityID;
+void main() { gePickingPixel=geInstanced ? int(geInstances[geInstanceBase+uint(gl_InstanceID)].identity1.y) : u_EntityID;
+vertexUV=uv; gl_Position=)") + (picking?"u_projection*u_view*":"") + "u_model*vec4(position,1.0); }";
             const std::string geometry=point?R"(#version 450 core
 layout(triangles) in;
 layout(triangle_strip,max_vertices=18) out;
@@ -86,7 +89,7 @@ void main() { for(int i=0;i<3;++i) { gl_Layer=gl_InvocationID;
   EmitVertex(); } EndPrimitive(); }
 )";
             std::string fragment="#version 450 core\n";
-            fragment+=picking?"in vec2 vertexUV;\n#define fragmentUV vertexUV\nlayout(location=0) out int pixel; uniform int u_EntityID;\n":"in vec2 fragmentUV;\n";
+            fragment+=picking?"in vec2 vertexUV;\n#define fragmentUV vertexUV\nlayout(location=0) out int pixel; flat in int gePickingPixel;\n":"in vec2 fragmentUV;\n";
             if(point) fragment+="in vec4 FragPos; uniform vec3 lightPos; uniform float far_plane;\n";
             fragment+=R"(
 uniform bool frameMasked;
@@ -96,7 +99,7 @@ uniform float frameAlphaCutoff, frameOpacity;
 void main() {
   if(frameMasked && texture(frameCoverage,fragmentUV*frameTiling).a*frameOpacity < frameAlphaCutoff) discard;
 )";
-            if(picking) fragment+="pixel=u_EntityID;";
+            if(picking) fragment+="pixel=gePickingPixel;";
             if(point) fragment+="gl_FragDepth=length(FragPos.xyz-lightPos)/far_plane;";
             fragment+="}";
             std::array<Asset::ShaderSource,3> stages{{{Asset::ShaderStage::Vertex,vertex,"frame coverage vertex"},
@@ -104,7 +107,7 @@ void main() {
                 {Asset::ShaderStage::Geometry,geometry,"frame coverage geometry"}}};
             std::array<std::string,3> packed;
             for(std::size_t i=0;i<(picking?2u:3u);++i) {
-                auto adapted=RenderBackend::PackedStage(std::string(stages[i].source),false);
+                auto adapted=RenderBackend::PackedStage(std::string(stages[i].source),false,{},stages[i].type);
                 if(!adapted) return Error("coverage packed shader",Code::UnsupportedPipeline);
                 packed[i]=std::move(*adapted);stages[i].source=packed[i];
             }
@@ -218,6 +221,70 @@ void main() {
             std::size_t submesh{};
             int pixel = -1;
         };
+        struct InstanceGroup { std::size_t index{}, count=1; unsigned base{}; };
+        bool Compatible(const PreparedDraw& a,const PreparedDraw& b)
+        {
+            const auto& x=*a.draw;const auto& y=*b.draw;
+            const auto& am=a.resources->Material();const auto& bm=b.resources->Material();
+            if(a.role->kind!=SceneMaterialKind::Lit || b.role->kind!=SceneMaterialKind::Lit
+                || am.Pipeline().Alpha()==AlphaMode::Transparent || bm.Pipeline().Alpha()==AlphaMode::Transparent
+                || x.mesh!=y.mesh || x.pipeline!=y.pipeline || x.material!=y.material
+                || a.submesh!=b.submesh || x.receiveShadows!=y.receiveShadows
+                || a.resources->Mesh().Revision()!=b.resources->Mesh().Revision()
+                || am.PublicationRevision()!=bm.PublicationRevision() || am.Revision()!=bm.Revision()
+                || am.Program().Identity()!=bm.Program().Identity() || am.Program().Revision()!=bm.Program().Revision()
+                || am.Textures().size()!=bm.Textures().size()) return false;
+            for(std::size_t i=0;i<am.Textures().size();++i) {
+                const auto& at=am.Textures()[i];const auto& bt=bm.Textures()[i];
+                if(at.texture.Identity()!=bt.texture.Identity() || at.texture.Revision()!=bt.texture.Revision()
+                    || at.sampler.Identity()!=bt.sampler.Identity() || at.sampler.Revision()!=bt.sampler.Revision()) return false;
+            }
+            return true;
+        }
+        struct InstancePlan
+        {
+            std::unique_ptr<InstanceGroup[]> groups;
+            std::unique_ptr<RenderBackend::PackedInstance[]> instances;
+            std::size_t groupCount{}, instanceCount{}, capacity{};
+            static std::expected<InstancePlan,SubmissionError> Create(std::size_t draws,std::size_t byteLimit,bool enabled)
+            {
+                constexpr auto maximum=(std::numeric_limits<std::size_t>::max)();
+                if(draws>maximum/3/sizeof(InstanceGroup)) return Error("instance group capacity",Code::InvalidDraw);
+                InstancePlan result;
+                result.groups.reset(new(std::nothrow) InstanceGroup[draws*3]);
+                result.capacity=enabled?(std::min)({draws*3,byteLimit/sizeof(RenderBackend::PackedInstance),
+                    std::size_t((std::numeric_limits<unsigned>::max)())}):0;
+                result.instances.reset(new(std::nothrow) RenderBackend::PackedInstance[(std::max)(result.capacity,std::size_t{1})]);
+                if((draws && !result.groups) || !result.instances) return Error("instance plan allocation",Code::Allocation);
+                return result;
+            }
+            std::span<const InstanceGroup> Append(std::span<const std::size_t> indices,const PreparedDraw* draws)
+            {
+                const auto first=groupCount;
+                for(std::size_t i=0;i<indices.size();) {
+                    std::size_t count=1;
+                    const auto available=(std::min)(capacity-instanceCount,std::size_t(INT_MAX));
+                    if(available>=MinimumRenderInstances) while(i+count<indices.size() && count<available
+                        && Compatible(draws[indices[i]],draws[indices[i+count]])) ++count;
+                    // Bound scanning by available storage; the serial tail remains linear.
+                    // Unsupported/too-small groups and exhausted storage retain exact serial order.
+                    if(count<MinimumRenderInstances) count=1;
+                    auto& group=groups[groupCount++];group={indices[i],count,static_cast<unsigned>(instanceCount)};
+                    if(count>1) for(std::size_t j=0;j<count;++j) {
+                        const auto& prepared=draws[indices[i+j]];const auto& draw=*prepared.draw;
+                        auto& packed=instances[instanceCount++];
+                        std::copy_n(glm::value_ptr(draw.worldTransform),16,packed.model.begin());
+                        const auto id=draw.entity;
+                        packed.identity0={id.index,static_cast<unsigned>(id.generation),static_cast<unsigned>(id.generation>>32),static_cast<unsigned>(id.registry)};
+                        packed.identity1={static_cast<unsigned>(id.registry>>32),std::bit_cast<unsigned>(prepared.pixel),0,0};
+                    }
+                    i+=count;
+                }
+                return {groups.get()+first,groupCount-first};
+            }
+            std::span<const std::byte> Bytes() const
+            { return std::as_bytes(std::span(instances.get(),(std::max)(instanceCount,std::size_t{1}))); }
+        };
         // Exact scalar sequences, split by cause. No padding, hashes, native
         // names, addresses, live scene references or retained heavy resources.
         struct PassInputs
@@ -321,22 +388,29 @@ void main() {
             InputWriter writer{result.words.get()}; emit(writer); result.valid=true;
             return result;
         }
-        std::expected<void, SubmissionError> Draw(const PreparedDraw& draw, const Shader& shader)
+        std::expected<void, SubmissionError> Draw(const PreparedDraw& draw, const Shader& shader,
+            InstanceGroup group, FrameSubmissionStats& stats)
         {
-            Uniform(shader,"u_model",draw.draw->worldTransform);
-            Uniform(shader,"u_EntityID",draw.pixel);
+            Uniform(shader,"geInstanced",group.count>1);
+            if(group.count>1) Uniform(shader,"geInstanceBase",group.base);
+            else {
+                Uniform(shader,"u_model",draw.draw->worldTransform);
+                Uniform(shader,"u_EntityID",draw.pixel);
+            }
             const auto primitive = draw.role->kind == SceneMaterialKind::Helper ? MeshPrimitive::Lines : MeshPrimitive::Triangles;
             if(primitive==MeshPrimitive::Lines) State::Get().LineWidth(draw.role->lineWidth);
-            auto result = draw.resources->Mesh()->DrawSubmesh(draw.submesh, primitive);
+            auto result = draw.resources->Mesh()->DrawSubmeshInstanced(draw.submesh, group.count, primitive);
             if (!result) return std::unexpected(SubmissionError{"mesh submission",result.error()});
-            PassTiming::Submitted(1,1);
+            ++stats.submittedDrawCalls;stats.submittedInstances+=group.count;
+            if(group.count>1) ++stats.instancedDrawCalls;
+            PassTiming::Submitted(group.count,1);
             return {};
         }
     }
     struct FrameSubmission::Storage
     {
         Shader point, cascade, pick;
-        RenderBackend::UploadBuffer frameUpload, materialUpload;
+        RenderBackend::UploadBuffer frameUpload, materialUpload, instanceUpload;
         std::size_t materialLimit{};
         RenderBackend::PackedFrame lastFrame;
         std::array<PassInputs,3> inputs;
@@ -573,6 +647,14 @@ void main() {
         RenderDetail::SortLocality(opaque,frame.Draws());
         RenderDetail::SortLocality(masked,frame.Draws());
         RenderDetail::SortTransparent(transparent,frame.Draws(),camera);
+        auto instancePlan=InstancePlan::Create(count,m_Storage->materialLimit,desc.instancingEnabled);
+        if(!instancePlan) return std::unexpected(instancePlan.error());
+        const auto opaqueGroups=instancePlan->Append(opaque,draws.get());
+        const auto maskedGroups=instancePlan->Append(masked,draws.get());
+        const auto shadowGroups=instancePlan->Append((stats.decisions[0].executed || stats.decisions[1].executed)
+            ?visibility->Shadows():std::span<const std::size_t>{},draws.get());
+        const auto pickingGroups=instancePlan->Append(stats.decisions[2].executed
+            ?visibility->Picking():std::span<const std::size_t>{},draws.get());
         auto materialBatch=RenderBackend::MaterialBatch::Pack(frame,desc.pipelines,m_Storage->materialLimit);
         if(!materialBatch) return std::unexpected(materialBatch.error());
         RenderBackend::PackedFrame packedFrame;
@@ -599,6 +681,11 @@ void main() {
             for(std::size_t i=0;i<matrices.size();++i) packedFrame.pointMatrices[i]=matrixWords(matrices[i]);
         }
         RenderBackend::UploadBindings uploadRestore;
+        struct InstanceBindingRestore {
+            RenderBackend::UploadBindings::Binding binding=RenderBackend::UploadBindings::Capture(
+                GL_SHADER_STORAGE_BUFFER_BINDING,GL_SHADER_STORAGE_BUFFER_START,GL_SHADER_STORAGE_BUFFER_SIZE,1);
+            ~InstanceBindingRestore() { RenderBackend::UploadBindings::Restore(GL_SHADER_STORAGE_BUFFER,1,binding); }
+        } instanceRestore;
         TargetRestore restore;
         State state; // Ends before restore and every external scheduler boundary.
         auto& storage=*m_Storage;
@@ -606,9 +693,12 @@ void main() {
             return std::unexpected(uploaded.error());
         if(auto uploaded=storage.materialUpload.Update(materialBatch->Bytes(),GL_DYNAMIC_DRAW);!uploaded)
             return std::unexpected(uploaded.error());
+        if(auto uploaded=storage.instanceUpload.Update(instancePlan->Bytes(),GL_STREAM_DRAW);!uploaded)
+            return std::unexpected(uploaded.error());
         storage.lastFrame=packedFrame;
         glBindBufferBase(GL_UNIFORM_BUFFER,1,storage.frameUpload.Name());
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER,0,storage.materialUpload.Name());
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER,1,storage.instanceUpload.Name());
         auto begin=[&](RenderPass pass) {
             auto contract=DescribePass(pass,desc);
             if(contract.input==PassTarget::DirectionalDepth && !directionalShadow) contract.input=PassTarget::None;
@@ -634,10 +724,10 @@ void main() {
         };
         auto shadowDraws=[&](const Shader& shader)->std::expected<void,SubmissionError> {
             RenderCounters::RecordPass(RenderCounters::Pass::Shadow);
-            for(auto index:visibility->Shadows()) if(draws[index].role->kind==SceneMaterialKind::Lit) {
-                if(auto result=coverage(draws[index],shader);!result) return result;
-                if(auto result=Draw(draws[index],shader);!result) return result;
-                ++stats.shadowDraws;
+            for(const auto group:shadowGroups) if(draws[group.index].role->kind==SceneMaterialKind::Lit) {
+                if(auto result=coverage(draws[group.index],shader);!result) return result;
+                if(auto result=Draw(draws[group.index],shader,group,stats);!result) return result;
+                stats.shadowDraws+=group.count;
             }
             return {};
         };
@@ -661,17 +751,18 @@ void main() {
             BindProgram(storage.pick); desc.picking.Bind(); begin(RenderPass::Picking);
             RenderCounters::RecordPass(RenderCounters::Pass::Picking);
             if(auto result=desc.picking.ClearAttachment(0,-1);!result) return std::unexpected(SubmissionError{"clear picking",result.error()});
-            for(auto index:visibility->Picking()) {
+            for(const auto group:pickingGroups) {
+                const auto index=group.index;
                 if(auto result=coverage(draws[index],storage.pick);!result) return std::unexpected(result.error());
                 // Match the authored color geometry's culling policy.
                 Toggle(GL_CULL_FACE,draws[index].resources->Material().Pipeline().Description().cull!=CullMode::None);
-                if(auto result=Draw(draws[index],storage.pick);!result) return std::unexpected(result.error());
-                ++stats.pickDraws;
+                if(auto result=Draw(draws[index],storage.pick,group,stats);!result) return std::unexpected(result.error());
+                stats.pickDraws+=group.count;
             }
             timing.Complete();
         }
-        const auto colorDraw=[&](std::size_t index,RenderPass pass)->std::expected<void,SubmissionError> {
-            const auto& prepared=draws[index]; const auto kind=prepared.role->kind;
+        const auto colorDraw=[&](InstanceGroup group,RenderPass pass)->std::expected<void,SubmissionError> {
+            const auto& prepared=draws[group.index]; const auto kind=prepared.role->kind;
             const bool sky=kind==SceneMaterialKind::Sky, helper=kind==SceneMaterialKind::Helper || kind==SceneMaterialKind::PointLight;
             if((pass==RenderPass::Skybox)!=sky || (pass==RenderPass::Debug)!=helper) return {};
             if(kind==SceneMaterialKind::PointLight && (!point || point->entity!=prepared.draw->entity)) return {};
@@ -701,12 +792,12 @@ void main() {
             }
             Toggle(GL_LINE_SMOOTH,kind==SceneMaterialKind::Helper);
             if(kind==SceneMaterialKind::Helper) State::Get().LineWidth(prepared.role->lineWidth);
-            if(auto result=Draw(prepared,shader);!result) return result;
+            if(auto result=Draw(prepared,shader,group,stats);!result) return result;
             if(sky) ++stats.skyDraws; else if(helper) ++stats.helperDraws; else {
-                ++stats.colorDraws;
-                if(pass==RenderPass::Opaque) ++stats.opaqueDraws;
-                if(pass==RenderPass::Masked) ++stats.maskedDraws;
-                if(pass==RenderPass::Transparent) ++stats.transparentDraws;
+                stats.colorDraws+=group.count;
+                if(pass==RenderPass::Opaque) stats.opaqueDraws+=group.count;
+                if(pass==RenderPass::Masked) stats.maskedDraws+=group.count;
+                if(pass==RenderPass::Transparent) stats.transparentDraws+=group.count;
             }
             return {};
         };
@@ -718,7 +809,11 @@ void main() {
             // Sky/Debug retain source order; UI stays in the later scheduler stage.
             std::span<const std::size_t> indices=pass==RenderPass::Opaque?opaque:pass==RenderPass::Masked?masked:
                 pass==RenderPass::Transparent?std::span<const std::size_t>(transparent):visibility->Main();
-            for(auto index:indices) if(auto result=colorDraw(index,pass);!result) return std::unexpected(result.error());
+            if(pass==RenderPass::Opaque || pass==RenderPass::Masked) {
+                for(const auto group:pass==RenderPass::Opaque?opaqueGroups:maskedGroups)
+                    if(auto result=colorDraw(group,pass);!result) return std::unexpected(result.error());
+            } else for(auto index:indices)
+                if(auto result=colorDraw({index},pass);!result) return std::unexpected(result.error());
             timing.Complete();
         }
         State::Get().DepthFunc(GL_LESS); State::Get().DepthMask(GL_TRUE); State::Get().ColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE); Toggle(GL_BLEND,false);

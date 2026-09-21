@@ -38,8 +38,10 @@ namespace GEngine::RenderBackend
             Values<GLenum, GLenum> blendEquation;
             Values<GLenum, GLenum, GLenum, GLenum> blendFunction;
             Values<GLdouble, GLdouble> depthRange;
+            Values<GLenum, GLenum> clipControl;
             Values<GLfloat, GLfloat, GLfloat, GLfloat> clearColor;
-            std::array<Value<bool>, 18> capabilities;
+            std::array<Value<bool>, 25> capabilities;
+            std::array<Value<bool>, 8> clipDistances;
             // Higher units compare queried state without allocating cache storage.
             std::array<Unit, 32> units;
         } state;
@@ -67,13 +69,14 @@ namespace GEngine::RenderBackend
             GLContextThread::RequireCurrent("begin submission state cache");
             active = this;
             glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &textureUnits);
+            glGetIntegerv(GL_MAX_CLIP_DISTANCES, &clipDistances);
         }
         ~GLStateCache() { Require(); active = nullptr; }
         GLStateCache(const GLStateCache&) = delete;
         GLStateCache& operator=(const GLStateCache&) = delete;
         static GLStateCache* Current() noexcept { return active; }
         static GLStateCache& Get() { RequireInvariant(active != nullptr); return *active; }
-        GLint textureUnits{};
+        GLint textureUnits{}, clipDistances{};
         // Normal lifetime has no external callbacks. Each Submit starts unknown
         // and discards its cache before restore/UI/readback/uploads/context switch.
         void Invalidate() { Require(); state = {}; }
@@ -120,9 +123,19 @@ namespace GEngine::RenderBackend
             constexpr GLenum caps[]{GL_SCISSOR_TEST,GL_DEPTH_TEST,GL_STENCIL_TEST,GL_BLEND,GL_CULL_FACE,
                 GL_RASTERIZER_DISCARD,GL_POLYGON_OFFSET_FILL,GL_SAMPLE_ALPHA_TO_COVERAGE,GL_SAMPLE_COVERAGE,
                 GL_LINE_SMOOTH,GL_SAMPLE_MASK,GL_DEPTH_CLAMP,GL_FRAMEBUFFER_SRGB,GL_DITHER,GL_MULTISAMPLE,
-                GL_TEXTURE_CUBE_MAP_SEAMLESS,GL_POLYGON_OFFSET_LINE,GL_POLYGON_OFFSET_POINT};
+                GL_TEXTURE_CUBE_MAP_SEAMLESS,GL_POLYGON_OFFSET_LINE,GL_POLYGON_OFFSET_POINT,
+                GL_COLOR_LOGIC_OP,GL_PRIMITIVE_RESTART,GL_PRIMITIVE_RESTART_FIXED_INDEX,
+                GL_POLYGON_SMOOTH,GL_PROGRAM_POINT_SIZE,GL_SAMPLE_SHADING,GL_SAMPLE_ALPHA_TO_ONE};
             for (std::size_t i=0;i<std::size(caps);++i) if (caps[i]==cap) {
                 Set(state.capabilities[i],enabled,[&] { if(enabled) glEnable(cap); else glDisable(cap); }); return;
+            }
+            Require();
+            if(cap>=GL_CLIP_DISTANCE0 && cap<GL_CLIP_DISTANCE0+static_cast<GLenum>(clipDistances)) {
+                const auto index=cap-GL_CLIP_DISTANCE0;
+                if(index<state.clipDistances.size())
+                    Set(state.clipDistances[index],enabled,[&] { if(enabled) glEnable(cap); else glDisable(cap); });
+                else if(bool(glIsEnabled(cap))!=enabled) { if(enabled) glEnable(cap); else glDisable(cap); }
+                return;
             }
             RequireInvariant(false);
         }
@@ -145,6 +158,8 @@ namespace GEngine::RenderBackend
         void LineWidth(GLfloat v) { Set(state.lineWidth,v,[&] { glLineWidth(v); }); }
         void DepthRange(GLdouble nearValue, GLdouble farValue)
         { Set(state.depthRange,std::tuple{nearValue,farValue},[&] { glDepthRange(nearValue,farValue); }); }
+        void ClipControl(GLenum origin, GLenum depth)
+        { Set(state.clipControl,std::tuple{origin,depth},[&] { glClipControl(origin,depth); }); }
         void ClearDepth(GLdouble v) { Set(state.clearDepth,v,[&] { glClearDepth(v); }); }
         void ClearColor(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
         { Set(state.clearColor,std::tuple{r,g,b,a},[&] { glClearColor(r,g,b,a); }); }

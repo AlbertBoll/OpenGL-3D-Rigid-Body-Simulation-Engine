@@ -32,6 +32,13 @@ namespace GEngine
     };
     struct PassViewport { unsigned x{}, y{}, width{}, height{}; };
     // Semantic contracts consumed by the concrete backend; no native state escapes.
+    // Fixed baseline: filled CCW rasterization, unit line width, [0,1] depth range,
+    // lower-left/negative-one-to-one clip coordinates, linear framebuffer writes,
+    // multisampling and seamless cubes on. Stencil test, user clipping, logic ops,
+    // primitive restart, offsets, sample overrides and smoothing are off.
+    // Material state is applied after this baseline when materialOverrides is set.
+    // External callbacks must finish queries/feedback and return on their context;
+    // bindings are established by each draw backend, never inherited cache entries.
     struct RenderPassDesc
     {
         RenderPass pass{};

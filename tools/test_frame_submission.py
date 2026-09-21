@@ -267,7 +267,7 @@ def main():
             return 1
         for rel in ("GEngine/include/GEngine/Renderer/ShadowQuality.h", "GEngine/src/Renderer/ShadowQuality.cpp",
                     "GEngine/include/GEngine/Core/BaseApp.h", "GEngine/include/GEngine/Renderer/FrameSubmission.h", "GEngine/src/Renderer/FrameSubmission.cpp",
-                    "GEngine/src/Renderer/GLStateCache.h", "GEngine/src/Renderer/DrawOrdering.h", "GEngine/src/Renderer/ShadowCulling.h",
+                    "GEngine/src/Renderer/GLStateCache.h", "GEngine/src/Renderer/GLPassState.h", "GEngine/src/Windows/ImGuiWindow.cpp", "GEngine/src/Renderer/DrawOrdering.h", "GEngine/src/Renderer/ShadowCulling.h",
                     "GEngine/src/Renderer/SubmissionGpuLayout.h", "GEngine/src/Renderer/SubmissionUploads.h", "GEngine/src/Assets/ShaderBackend.h",
                     "GEngine/src/Assets/Sampler.cpp", "GEngine/src/Mesh/GpuMesh.cpp",
                     "GEngine/include/GEngine/Renderer/PassTiming.h", "GEngine/src/Renderer/PassTiming.cpp",
@@ -559,6 +559,15 @@ def main():
             return 1
         if not invoke("shadow-application", [executable], 120, out,
                       dict(env, GENGINE_SHADOW_APP_TEST="1"), marker="[PASS] shadow-application"):
+            passed = False
+            return 1
+        if not invoke("cross-pass-state", [executable], 240, out,
+                      dict(env, GENGINE_CROSS_PASS_STATE="1"), marker="[PASS] cross-pass-state complete"):
+            passed = False
+            return 1
+        cross_log = (out / "cross-pass-state.log").read_text(errors="replace")
+        if any("[OpenGL]" in line and re.search(r"severity=high|type=(?:error|undefined)", line, re.I) for line in cross_log.splitlines()):
+            report["reason"] = "Cross-pass GL debug diagnostic"
             passed = False
             return 1
         if args.scene_variants:

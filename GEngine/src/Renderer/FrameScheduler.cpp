@@ -3,6 +3,7 @@
 #include "Core/RenderTarget.h"
 #include "Core/GLContextThread.h"
 #include "Managers/WindowManager.h"
+#include "GLPassState.h"
 #include <format>
 
 namespace GEngine
@@ -34,19 +35,6 @@ namespace GEngine
         }, error.cause);
     }
 
-    namespace
-    {
-        // Context operations belong to this concrete backend, not its callbacks.
-        void ExternalState()
-        {
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-            glDisable(GL_SCISSOR_TEST); glDisable(GL_STENCIL_TEST);
-            glDisable(GL_RASTERIZER_DISCARD); glDisable(GL_BLEND); glDisable(GL_CULL_FACE);
-            glDisable(GL_DEPTH_TEST); glDepthMask(GL_TRUE); glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);
-            glStencilMask(0); glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
-            glActiveTexture(GL_TEXTURE0); glBindSampler(0,0); glUseProgram(0); glBindVertexArray(0);
-        }
-    }
     RenderPassDesc FrameScheduler::DescribeBoundary(RenderPass pass,const RenderContext& context)
     {
         RenderPassDesc result;
@@ -67,6 +55,9 @@ namespace GEngine
         }
         else {
             result.output=context.color?PassTarget::SceneColor:PassTarget::Window;
+            result.depthTest=true; result.depthWrite=true; result.blend=true;
+            result.materialOverrides=true;
+            if(context.color) result.viewport={0,0,context.color->Description().Storage.Width,context.color->Description().Storage.Height};
             result.boundary=PassBoundary::RestoreAfterLegacy;
         }
         return result;
@@ -127,8 +118,10 @@ namespace GEngine
         {
             PassTiming::Scope timing(timings,RenderPass::LegacyScene,TimingCounts::EngineCalls);
             stats.trace.Pass(DescribeBoundary(RenderPass::LegacyScene,context));
-            if(auto legacy=context.legacyScene(); !legacy) { ExternalState(); return std::unexpected(legacy.error()); }
-            ExternalState();
+            RenderBackend::EstablishWindowState(DescribeBoundary(RenderPass::LegacyScene,context));
+            auto legacy=context.legacyScene();
+            RenderBackend::EstablishWindowState(DescribeBoundary(RenderPass::Present,context));
+            if(!legacy) return std::unexpected(legacy.error());
             timing.Complete();
         }
         if (context.visible && scene && scene->targets.pickingEnabled)
@@ -137,6 +130,8 @@ namespace GEngine
         {
             PassTiming::Scope timing(timings,RenderPass::Resolve);
             stats.trace.Pass(DescribeBoundary(RenderPass::Resolve,context));
+            // Resolve owns its blit bindings; no cache survives the operation.
+            RenderBackend::EstablishWindowState(DescribeBoundary(RenderPass::Resolve,context));
             if(context.color->IsMultiSampled())
                 if(auto result=context.color->BindAndBlitToScreen(); !result)
                     return std::unexpected(ScheduleError{FrameStage::Pass,result.error()});
@@ -163,13 +158,16 @@ namespace GEngine
                 // measures CPU work only; its independent draw loader is not
                 // covered by the engine's submission counters.
                 PassTiming::Scope timing(window->Timings(),RenderPass::EditorUI,TimingCounts::Unavailable,false);
-                ExternalState();
-                const auto size=window->GetFramebufferPixelSize(); glViewport(0,0,size.Width,size.Height);
+                const auto size=window->GetFramebufferPixelSize();
+                RenderBackend::EstablishUIState(size.Width,size.Height);
                 if(auto ui=window->BeginUI(); !ui) return std::unexpected(ScheduleError{FrameStage::Pass,ui.error()});
                 auto authored=context.editorUI();
                 auto finished=window->EndUI(); // Balance a successful begin even if authoring fails.
-                if(!authored) return std::unexpected(authored.error());
                 if(!finished) return std::unexpected(ScheduleError{FrameStage::Pass,finished.error()});
+                auto boundary=DescribeBoundary(RenderPass::Present,context);
+                boundary.viewport={0,0,size.Width,size.Height};
+                RenderBackend::EstablishWindowState(boundary);
+                if(!authored) return std::unexpected(authored.error());
                 timing.Complete();
             }
         }
@@ -181,6 +179,10 @@ namespace GEngine
                 if(auto begun=window->Timings().BeginFrame();!begun)
                     return std::unexpected(ScheduleError{FrameStage::Pass,PlatformError{PlatformErrorCode::Initialization,"secondary timing",std::format("timing code={}",int(begun.error()))}});
             PassTiming::Scope timing(window->Timings(),RenderPass::Present,TimingCounts::Explicit,false);
+            auto boundary=DescribeBoundary(RenderPass::Present,context);
+            const auto size=window->GetFramebufferPixelSize();
+            boundary.viewport={0,0,size.Width,size.Height};
+            RenderBackend::EstablishWindowState(boundary);
             window->SwapBuffer();
             timing.Complete();
         }

@@ -1,6 +1,7 @@
 #include "gepch.h"
 #include "Core/RuntimeAssets.h"
 #include "Core/GLDebug.h"
+#include "../Renderer/GLPassState.h"
 #include "Windows/ImGuiWindow.h"
 #include "Windows/SDLWindow.h"
 #include <imgui/imgui.h>
@@ -137,6 +138,8 @@ namespace GEngine
 		GLContextThread::RequireCurrent("ImGuiWindow::EndRender");
 		ImGui::SetCurrentContext(m_Context);
 		ImGui::Render();
+        const auto size=window->GetFramebufferPixelSize();
+        RenderBackend::EstablishUIState(size.Width,size.Height);
 		{
 			const GLDebug::Group submission("ImGui draw data");
 			ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -146,7 +149,19 @@ namespace GEngine
 		if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
 		{
 			ImGui::UpdatePlatformWindows();
-			ImGui::RenderPlatformWindowsDefault();
+            // SDL activates each viewport context before this renderer callback.
+            // Wrap only this synchronous call; keep the vendor callback and its
+            // clear/draw behavior, without retaining state across contexts.
+            auto& platform=ImGui::GetPlatformIO();
+            auto renderWindow=platform.Renderer_RenderWindow;
+            platform.Renderer_RenderWindow=[](ImGuiViewport* viewport,void* user) {
+                int width{},height{};
+                SDL_GL_GetDrawableSize(SDL_GL_GetCurrentWindow(),&width,&height);
+                RenderBackend::EstablishUIState(width,height);
+                (*static_cast<decltype(renderWindow)*>(user))(viewport,nullptr);
+            };
+            ImGui::RenderPlatformWindowsDefault(nullptr,&renderWindow);
+            platform.Renderer_RenderWindow=renderWindow;
 			return window->BeginRender();
 		
 		}

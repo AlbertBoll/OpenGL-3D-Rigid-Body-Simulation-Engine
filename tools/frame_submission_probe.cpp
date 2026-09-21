@@ -2395,6 +2395,8 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         std::println("[PASS] lighting-reference spot/cone/range/hard-edge/retention/errors/alpha/fallback/shadows/instancing checks={}",checks);
     }
 
+    #include "cross_pass_state_probe.inl"
+
     void Run(EngineContext& root)
     {
         std::println("Image comparison: renderer={} vendor={} version={}; 64x64 RGBA8 linear target; camera eye=(0,2,8), target=(0,0,0), FOV=45deg, aspect=1, near=.1, far=20; same-driver RGB composition tolerance=2.5/255",
@@ -2980,7 +2982,9 @@ int main()
     WindowProperties properties;properties.m_WinPos=winProp.m_WinPos;properties.m_Title="Phase 53 hidden submission validation";
     properties.flag={WindowFlags::INVISIBLE};properties.m_Width=properties.m_Height=64;
     properties.m_MinWidth=properties.m_MinHeight=64;properties.m_IsVsync=false;
+    if(SDL_getenv("GENGINE_CROSS_PASS_STATE")) properties.ImGuiWindowProperties.bViewPortEnabled=true;
     Check(root.Initialize({properties}),"owner root initialization");
+    if(SDL_getenv("GENGINE_CROSS_PASS_STATE")) { CrossPassState::Run(root);return 0; }
     if(SDL_getenv("GENGINE_LIGHTING_REFERENCE")) { LightingReference(root);return 0; }
     WindowPlacementTests(root,properties);
     if(!SDL_getenv("GENGINE_STATE_CACHE_MEASURE")) StateCacheTests();

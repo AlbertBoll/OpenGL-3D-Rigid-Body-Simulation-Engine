@@ -150,6 +150,8 @@ namespace GEngine::GLContextThread
 #define glBufferSubData (::GEngine::GLContextThread::AssertCurrent("glBufferSubData"), glad_glBufferSubData)
 #undef glCheckFramebufferStatus
 #define glCheckFramebufferStatus (::GEngine::GLContextThread::AssertCurrent("glCheckFramebufferStatus"), glad_glCheckFramebufferStatus)
+#undef glClipControl
+#define glClipControl (::GEngine::GLContextThread::AssertCurrent("glClipControl"), glad_glClipControl)
 #undef glClear
 #define glClear (::GEngine::GLContextThread::AssertCurrent("glClear"), glad_glClear)
 #undef glClearBufferfv

@@ -7,7 +7,7 @@
 #include "Core/RenderCounters.h"
 #include "../Assets/ShaderBackend.h"
 #include "../Assets/TextureBackend.h"
-#include "GLStateCache.h"
+#include "GLPassState.h"
 #include "DrawOrdering.h"
 #include "ShadowCulling.h"
 #include "SubmissionUploads.h"
@@ -123,16 +123,6 @@ void main() {
             if(!result) return std::unexpected(SubmissionError{"coverage shader",result.error()});
             return std::move(*result);
         }
-        GLenum Compare(DepthCompare value)
-        {
-            switch(value) {
-            case DepthCompare::Never:return GL_NEVER; case DepthCompare::Less:return GL_LESS;
-            case DepthCompare::Equal:return GL_EQUAL; case DepthCompare::LessEqual:return GL_LEQUAL;
-            case DepthCompare::Greater:return GL_GREATER; case DepthCompare::NotEqual:return GL_NOTEQUAL;
-            case DepthCompare::GreaterEqual:return GL_GEQUAL; case DepthCompare::Always:return GL_ALWAYS;
-            }
-            Asset::AssetDetail::RequireInvariant(false); return GL_LESS;
-        }
         GLenum Factor(BlendFactor value)
         {
             switch(value) { case BlendFactor::Zero:return GL_ZERO; case BlendFactor::One:return GL_ONE;
@@ -142,22 +132,7 @@ void main() {
         void Toggle(GLenum capability,bool enabled) { State::Get().Toggle(capability,enabled); }
         void Apply(const RenderPassDesc& pass)
         {
-            State::Get().Viewport(pass.viewport.x,pass.viewport.y,pass.viewport.width,pass.viewport.height);
-            Toggle(GL_SCISSOR_TEST,pass.scissor); State::Get().Scissor(pass.viewport.x,pass.viewport.y,pass.viewport.width,pass.viewport.height);
-            Toggle(GL_DEPTH_TEST,pass.depthTest); State::Get().DepthMask(pass.depthWrite); State::Get().DepthFunc(Compare(pass.depthCompare));
-            State::Get().ColorMask(pass.colorWrite,pass.colorWrite,pass.colorWrite,pass.colorWrite);
-            Toggle(GL_STENCIL_TEST,false); State::Get().StencilMask(pass.stencilWrite?~0u:0u);
-            Toggle(GL_BLEND,pass.blend); State::Get().BlendEquation(GL_FUNC_ADD,GL_FUNC_ADD);
-            State::Get().BlendFunction(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);
-            Toggle(GL_CULL_FACE,pass.cull!=CullMode::None); State::Get().CullFace(pass.cull==CullMode::Front?GL_FRONT:GL_BACK);
-            State::Get().FrontFace(GL_CCW); State::Get().Polygon(GL_FILL);
-            Toggle(GL_RASTERIZER_DISCARD,false); Toggle(GL_POLYGON_OFFSET_FILL,false);
-            Toggle(GL_POLYGON_OFFSET_LINE,false); Toggle(GL_POLYGON_OFFSET_POINT,false);
-            Toggle(GL_SAMPLE_ALPHA_TO_COVERAGE,false); Toggle(GL_SAMPLE_COVERAGE,false); Toggle(GL_LINE_SMOOTH,false);
-            Toggle(GL_SAMPLE_MASK,false); Toggle(GL_DEPTH_CLAMP,false); Toggle(GL_FRAMEBUFFER_SRGB,false);
-            Toggle(GL_DITHER,pass.pass!=RenderPass::Picking);
-            Toggle(GL_MULTISAMPLE,true); Toggle(GL_TEXTURE_CUBE_MAP_SEAMLESS,true);
-            State::Get().DepthRange(0,1); State::Get().ClearDepth(1); State::Get().ClearColor(.1f,.1f,.1f,1.f);
+            RenderBackend::ApplyPassState(State::Get(),pass);
             GLbitfield clear{};
             if(pass.colorLoad==PassLoad::Clear) clear|=GL_COLOR_BUFFER_BIT;
             if(pass.depthLoad==PassLoad::Clear) clear|=GL_DEPTH_BUFFER_BIT;
@@ -537,6 +512,7 @@ void main() {
             result.depthTest=false; result.depthWrite=false; result.colorWrite=false; result.cull=CullMode::None;
             result.boundary=PassBoundary::Presentation; break;
         case RenderPass::LegacyScene:
+            result.cull=CullMode::None; result.blend=true; result.materialOverrides=true;
             result.boundary=PassBoundary::RestoreAfterLegacy; break;
         }
         return result;
@@ -823,7 +799,7 @@ void main() {
             const auto& pipeline=material.Pipeline(); const auto blend=pipeline.Blend();
             BindProgram(shader);
             Toggle(GL_CULL_FACE,pipeline.Description().cull!=CullMode::None);
-            State::Get().CullFace(GL_BACK); State::Get().DepthFunc(Compare(pipeline.Depth().compare));
+            State::Get().CullFace(GL_BACK); State::Get().DepthFunc(RenderBackend::DepthFunction(pipeline.Depth().compare));
             State::Get().DepthMask(!sky && pipeline.Depth().write); Toggle(GL_BLEND,blend.enabled);
             State::Get().BlendFunction(Factor(blend.sourceColor),Factor(blend.destinationColor),Factor(blend.sourceAlpha),Factor(blend.destinationAlpha));
             Uniform(shader,"geMaterialOffset",materialBatch->offsets[prepared.draw->resources]);

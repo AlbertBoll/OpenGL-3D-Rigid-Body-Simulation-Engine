@@ -114,8 +114,8 @@ namespace GEngine
     };
     // Serial owner-context submission only. All scene/resource reads are complete
     // before entry; only immutable frame leases and retained targets are consumed.
-    // The existing shader supports at most one directional + one point light;
-    // additional lights/spot lights return a typed capability error before drawing.
+    // Supports one directional, one point and one unshadowed spot light.
+    // Additional lights or spot shadows return a typed capability error before drawing.
     // No ECS/manager access or publication occurs. Visibility and explicit pass
     // contracts consume the same immutable frame, with sky before transparency.
     class FrameSubmission final

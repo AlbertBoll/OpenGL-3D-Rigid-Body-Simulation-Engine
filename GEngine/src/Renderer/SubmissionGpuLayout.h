@@ -35,12 +35,16 @@ uniform uint geInstanceBase;
         FloatLane viewPosition{}, lightDirection{}, lightPosition{}, pointColor{}, directionalColor{}, planes{};
         std::array<std::uint32_t,4> lights{};
         std::array<FloatLane,16> splits{};
+        // Appended lanes preserve directional/point offsets. Position.w is range
+        // (zero disables); direction.w/color.w are inner/outer cone cosines.
+        FloatLane spotPosition{}, spotDirection{}, spotColor{};
     };
     static_assert(std::is_standard_layout_v<PackedFrame> && alignof(PackedFrame)==16);
     static_assert(sizeof(MatrixWords)==64 && sizeof(FloatLane)==16);
     static_assert(offsetof(PackedFrame,cascades)==192 && offsetof(PackedFrame,pointMatrices)==1216);
     static_assert(offsetof(PackedFrame,viewPosition)==1600 && offsetof(PackedFrame,lights)==1696);
-    static_assert(offsetof(PackedFrame,splits)==1712 && sizeof(PackedFrame)==1968);
+    static_assert(offsetof(PackedFrame,splits)==1712 && offsetof(PackedFrame,spotPosition)==1968
+        && offsetof(PackedFrame,spotDirection)==1984 && offsetof(PackedFrame,spotColor)==2000 && sizeof(PackedFrame)==2016);
 
     inline constexpr const char* FrameBlock=R"(
 layout(std140,binding=1) uniform GEngineFrame {
@@ -49,6 +53,7 @@ layout(std140,binding=1) uniform GEngineFrame {
     vec4 geViewPosition, geLightDirection, geLightPosition, gePointColor, geDirectionalColor, gePlanes;
     uvec4 geLights;
     vec4 geSplits[16];
+    vec4 geSpotPosition, geSpotDirection, geSpotColor;
 };
 uniform bool geReceiveShadows;
 )";
@@ -86,6 +91,9 @@ uniform uint geMaterialOffset;
             {"frameLights","true"},{"frameDirectional","(geLights.x != 0u)"},{"framePoint","(geLights.y != 0u)"},
             {"frameDirectionalShadows","(geLights.z != 0u && geReceiveShadows)"},
             {"framePointShadows","(geLights.w != 0u && geReceiveShadows)"},
+            {"frameSpot","(geSpotPosition.w > 0.0)"},{"spotPosition","geSpotPosition.xyz"},
+            {"spotRange","geSpotPosition.w"},{"spotDirection","geSpotDirection.xyz"},
+            {"spotInnerCos","geSpotDirection.w"},{"spotColor","geSpotColor.xyz"},{"spotOuterCos","geSpotColor.w"},
             {"reverse_normals","false"},{"cascadeCount","5"},{"shadowMatrices","gePointMatrices"},
             {"frameAlphaMode",nullptr},{"frameAlphaCutoff",nullptr},{"frameOpacity",nullptr},
             {"framePremultiplied",nullptr},{"frameMasked",nullptr},{"frameTiling",nullptr}};

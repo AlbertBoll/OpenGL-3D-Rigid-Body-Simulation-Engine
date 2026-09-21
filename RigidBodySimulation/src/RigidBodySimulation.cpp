@@ -171,7 +171,7 @@ auto sphere_albedoResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/r
     };
     const MaterialParameterDecl sphereParameters[]{
         // Dark-metal patch GGX width fit: 0.275, rounded to 0.28. Keep maps linear.
-        {"roughnessScale", MaterialParameterType::Float, .28f},
+        {"roughnessScale", MaterialParameterType::Float, .9f},
         {"metalness", MaterialParameterType::Float3, std::array<float,3>{.8f,.8f,.8f}},
         {"u_tiling", MaterialParameterType::Float2, std::array<float,2>{1,1}}};
     auto sphereMaterialResult = material(SceneMaterialKind::Lit, {sphere_albedo,sphere_normal,sphere_metallic,sphere_roughness,sphere_ao}, sphereParameters);
@@ -179,14 +179,14 @@ auto sphere_albedoResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/r
     auto sphereMaterial = *sphereMaterialResult;
     // Polished floor: retain linear roughness data and author gloss explicitly.
     const MaterialParameterDecl floorParameters[]{
-        {"roughnessScale", MaterialParameterType::Float, .5f},
+        {"roughnessScale", MaterialParameterType::Float, .3f},
         {"metalness", MaterialParameterType::Float3, std::array<float,3>{.08f,.08f,.08f}},
         {"u_tiling", MaterialParameterType::Float2, std::array<float,2>{2,2}}};
     auto floorMaterialResult = material(SceneMaterialKind::Lit, {floor_albedo,floor_normal,floor_metallic,floor_roughness,floor_ao}, floorParameters);
     if (!floorMaterialResult) return failure(floorMaterialResult.error());
     auto floorMaterial = *floorMaterialResult;
     const MaterialParameterDecl wallParameters[]{
-		{"roughnessScale", MaterialParameterType::Float, .5f},
+		{"roughnessScale", MaterialParameterType::Float, .3f},
         {"metalness", MaterialParameterType::Float3, std::array<float,3>{.08f,.08f,.08f}},
         {"u_tiling", MaterialParameterType::Float2, std::array<float,2>{2,.2f}}};
     auto wallMaterialResult = material(SceneMaterialKind::Lit, {floor_albedo,floor_normal,floor_metallic,floor_roughness,floor_ao}, wallParameters);

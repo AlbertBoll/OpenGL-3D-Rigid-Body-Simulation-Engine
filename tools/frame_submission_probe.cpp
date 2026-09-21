@@ -761,12 +761,12 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             glGetNamedBufferParameteriv(materialName,GL_BUFFER_USAGE,&usage);glGetNamedBufferParameteriv(materialName,GL_BUFFER_SIZE,&bytes);
             Check(usage==GL_DYNAMIC_DRAW && bytes==exactBytes,"material storage usage and exact bytes");
             const auto program=ShaderBackendAccess::Program(*frame.Resources()[0].Material().Program());
-            const char* names[]{"geView","geProjection","geSkyView","geCascades[0]","gePointMatrices[0]","geViewPosition","geLights","geSplits[0]"};
-            const GLint expected[]{0,64,128,192,1216,1600,1696,1712};
-            GLuint indices[8];GLint offsets[8],strides[8];
-            glGetUniformIndices(program,8,names,indices);glGetActiveUniformsiv(program,8,indices,GL_UNIFORM_OFFSET,offsets);
-            glGetActiveUniformsiv(program,8,indices,GL_UNIFORM_ARRAY_STRIDE,strides);
-            for(unsigned i=0;i<8;++i) Check(offsets[i]==expected[i],"driver uniform offset matches ABI");
+            const char* names[]{"geView","geProjection","geSkyView","geCascades[0]","gePointMatrices[0]","geViewPosition","geLights","geSplits[0]","geSpotPosition","geSpotDirection","geSpotColor"};
+            const GLint expected[]{0,64,128,192,1216,1600,1696,1712,1968,1984,2000};
+            GLuint indices[11];GLint offsets[11],strides[11];
+            glGetUniformIndices(program,11,names,indices);glGetActiveUniformsiv(program,11,indices,GL_UNIFORM_OFFSET,offsets);
+            glGetActiveUniformsiv(program,11,indices,GL_UNIFORM_ARRAY_STRIDE,strides);
+            for(unsigned i=0;i<11;++i) Check(offsets[i]==expected[i],"driver uniform offset matches ABI");
             Check(strides[3]==64 && strides[4]==64 && strides[7]==16,"driver matrix and scalar-array strides");
             {
                 UploadCalls::Observe uploads;Take(submitter.Submit(frame,desc,picks),"unchanged upload frame");
@@ -2191,6 +2191,210 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         std::println("[PASS] instancing threshold/mixed/transparent/identity/color/picking/shadows/immutable/failure/range");
     }
 
+
+    // Phase 62: frozen production frames; native readback is confined to this fixture.
+    void LightingReference(EngineContext& root)
+    {
+        constexpr unsigned size=256;
+        auto resources=Take(SceneRenderResources::Create(root),"reference resources");
+        auto box=Take(resources->PublishShape("Box"),"reference box");
+        auto sphere=Take(resources->PublishShape("Sphere"),"reference sphere");
+        TextureRegistry* images{};
+        {auto access=resources->Publication().BeginFrame();images=&const_cast<TextureRegistry&>(resources->ForFrame(access).bindings.textures);}
+        auto texture=[&](std::array<unsigned char,4> rgba,bool checker=false) {
+            TextureDesc desc;desc.width=desc.height=4;desc.mips=TextureMipIntent::None;desc.colorSpace=TextureColorSpace::Linear;
+            std::array<std::byte,64> bytes{};
+            for(unsigned i=0;i<16;++i) for(unsigned c=0;c<4;++c)
+                bytes[4*i+c]=std::byte(checker && c==3 && ((i%4+i/4)%2)==0?0:rgba[c]);
+            auto value=Take(TextureResource::Create(desc,{bytes}),"reference texture");
+            auto publication=resources->Publication().BeginPublication();return Take(images->Create(publication,std::move(value)),"reference texture publication");
+        };
+        SamplerDesc nearest;nearest.minFilter=nearest.magFilter=SamplerFilter::Nearest;
+        const auto sampler=Take(Manager::AssetsManager::GetSampler(nearest),"reference nearest sampler");
+        const auto albedo=texture({128,96,64,255}),normal=texture({128,128,255,255});
+        const auto metallic=texture({0,0,0,255}),roughness=texture({160,160,160,255}),ao=texture({255,255,255,255});
+        const auto coverage=texture({128,96,64,255},true);
+        std::array<MaterialTextureAssignment,5> textures{{{"albedoMap",{albedo,sampler}},{"normalMap",{normal,sampler}},
+            {"metallicMap",{metallic,sampler}},{"roughnessMap",{roughness,sampler}},{"aoMap",{ao,sampler}}}};
+        const MaterialParameterDecl parameters[]{
+            {"metalness",MaterialParameterType::Float3,std::array<float,3>{.04f,.04f,.04f}},
+            {"u_tiling",MaterialParameterType::Float2,std::array<float,2>{1,1}}};
+        const auto opaque=Take(resources->PublishMaterial({SceneMaterialKind::Lit,parameters,textures}),"reference opaque");
+        textures[0].value.texture=coverage;
+        const auto masked=Take(resources->PublishMaterial({SceneMaterialKind::Lit,parameters,textures,false,1,AlphaMode::Masked,.5f}),"reference masked");
+        const auto transparent=Take(resources->PublishMaterial({SceneMaterialKind::Lit,parameters,textures,false,1,AlphaMode::Transparent,.5f,.5f}),"reference transparent");
+        const auto premultiplied=Take(resources->PublishMaterial({SceneMaterialKind::Lit,parameters,textures,false,1,AlphaMode::Transparent,.5f,.5f,TransparentBlend::PremultipliedAlpha}),"reference premultiplied");
+        TextureDesc fallbackDesc;fallbackDesc.colorSpace=TextureColorSpace::Linear;fallbackDesc.mips=TextureMipIntent::None;
+        const auto fallback=Take(Manager::AssetsManager::FallbackTexture(fallbackDesc),"reference fallback texture");
+        auto fallbackView=Take(Manager::AssetsManager::ResolveTexture(fallback),"reference fallback view");
+        const auto fallbackSampling=Take(Manager::AssetsManager::SampleTexture(fallbackView),"reference default sampler");
+        textures[0].value={fallback,fallbackSampling.SamplerIdentity()};
+        const auto fallbackMaterial=Take(resources->PublishMaterial({SceneMaterialKind::Lit,parameters,textures}),"reference fallback material");
+        // Valid-looking foreign identities exercise explicit preparation fallback.
+        auto badTextures=textures;badTextures[0].value.texture=albedo;badTextures[0].value.sampler={99,99,sampler.registry};
+        const auto badSamplerMaterial=Take(resources->PublishMaterial({SceneMaterialKind::Lit,parameters,badTextures}),"reference invalid sampler material");
+        badTextures=textures;badTextures[0].value.texture={99,99,albedo.registry};
+        const auto badTextureMaterial=Take(resources->PublishMaterial({SceneMaterialKind::Lit,parameters,badTextures}),"reference invalid texture material");
+        RenderTargetDesc td;td.Storage.Width=td.Storage.Height=size;td.Storage.ColorCount=1;
+        td.Storage.Colors[0]=FramebufferFormat::RGBA8;td.Storage.Depth=FramebufferFormat::Depth24Stencil8;
+        auto target=Take(RenderTarget::Create(td),"reference target");
+        auto picking=Take(MousePickFrameBuffer::Create(size,size),"reference picking");
+        auto pointDepth=Take(PointShadowFrameBuffer::Create(256,256),"reference point depth");
+        auto cascadeDepth=Take(CascadeShadowFrameBuffer::Create(256,256,5),"reference cascade depth");
+        const float splits[]{.5f,1.f,2.f,5.f,20.f};
+        FrameSubmissionDesc desc{target,picking,pointDepth,cascadeDepth,resources->Pipelines(),splits,glm::radians(45.f),1,.1f,20,.1f,100,false};
+        auto submitter=Take(FrameSubmission::Create(),"reference submitter");EntityPickTable picks;
+        auto read=[&] {std::vector<std::byte> result(size*size*4);Check(target.ReadColor(result),"reference pixels");return result;};
+        auto save=[&](const std::string& label,const std::vector<std::byte>& pixels) {
+            std::ofstream out(label+".ppm",std::ios::binary);out<<"P6\n"<<size<<' '<<size<<"\n255\n";
+            for(int y=size-1;y>=0;--y) for(unsigned x=0;x<size;++x) out.write(reinterpret_cast<const char*>(pixels.data()+4*(y*size+x)),3);
+            Check(out.good(),"reference image saved");
+        };
+        std::ofstream metadata("reference-metadata.txt");
+        metadata<<"GPU="<<glGetString(GL_RENDERER)<<"\nvendor="<<glGetString(GL_VENDOR)<<"\ndriver="<<glGetString(GL_VERSION)
+            <<"\nGLSL="<<glGetString(GL_SHADING_LANGUAGE_VERSION)<<"\nsize=256x256\nattachment=RGBA8 linear; framebuffer sRGB disabled; production shader RGB power 1/1.8\n"
+            <<"plane camera=(0,0,8), target=(0,0,0), up=(0,1,0), ortho=(-3,3,-3,3,.1,20); front z=0\n"
+            <<"showcase camera=(0,2,8), target=(0,0,0), FOV=45 degrees, aspect=1, near=.1, far=20\n"
+            <<"shadow=256x256 Depth32Float, 5 used cascades + 6 cube faces; splits=.5,1,2,5,20\n"
+            <<"materials=linear RGBA8 albedo(128,96,64), normal(128,128,255), metallic0, roughness160, AO255; F0=.04\n"
+            <<"sampler=nearest/repeat/no mips; fallback=engine 4x4 checker/default linear-repeat sampler\n"
+            <<"spot/point position=(0,0,3), color=(.8,.55,.3), intensity=.04; spot direction=(0,0,-1), cones=(.3,.7), range=10\n"
+            <<"directional ray=(0,0,-1), color=(.8,.55,.3), intensity=.04; no Physics/time/jitter/MSAA\n";
+        _Scene scene;auto camera=Camera(scene);camera.viewportWidth=camera.viewportHeight=size;
+        camera.worldPosition={0,0,8};camera.view=glm::lookAt(camera.worldPosition,glm::vec3(0),glm::vec3(0,1,0));
+        camera.projection=glm::ortho(-3.f,3.f,-3.f,3.f,.1f,20.f);
+        auto plate=scene.CreateEntity("reference plate");plate.AddComponent<MeshRendererComponent>(MeshRendererComponent{box,opaque});
+        plate.Transform().Scale={6,6,.1f};plate.Transform().Translation.z=-.05f;
+        auto lamp=scene.CreateEntity("reference light");RenderLightComponent light;light.kind=RenderLightKind::Spot;
+        light.color={.8f,.55f,.3f};light.intensity=0;light.range=10;light.innerConeRadians=.3f;light.outerConeRadians=.7f;
+        lamp.AddComponent<RenderLightComponent>(light);lamp.Transform().Translation={0,0,3};
+        auto render=[&](const std::string& name) {
+            auto access=resources->Publication().BeginFrame();auto frame=Take(Extract(scene,*resources,access,camera),"reference extraction");
+            const auto stats=Take(submitter.Submit(frame,desc,picks),"reference submission");auto pixels=read();
+            if(name=="instanced-repeated-objects") Check(stats.instancedDrawCalls>0 && stats.submittedInstances>=6,"reference actually instances repeated geometry");
+            Take(submitter.Submit(frame,desc,picks),"reference repeat");Check(read()==pixels,"frozen frame repeat exact");
+            save(name,pixels);metadata<<name<<": draws="<<stats.colorDraws<<", shadows="<<stats.shadowDraws<<", instances="<<stats.instancedDrawCalls<<'\n';
+            metadata<<" camera eye="<<camera.worldPosition.x<<','<<camera.worldPosition.y<<','<<camera.worldPosition.z<<" view=";
+            for(unsigned i=0;i<16;++i) metadata<<glm::value_ptr(camera.view)[i]<<',';
+            metadata<<" projection=";for(unsigned i=0;i<16;++i) metadata<<glm::value_ptr(camera.projection)[i]<<',';metadata<<'\n';
+            for(const auto& value:frame.DirectionalLights()) metadata<<" directional ray="<<value.direction.x<<','<<value.direction.y<<','<<value.direction.z<<" intensity="<<value.intensity<<" shadows="<<value.shadows.castShadows<<'\n';
+            for(const auto& value:frame.PointLights()) metadata<<" point position="<<value.position.x<<','<<value.position.y<<','<<value.position.z<<" intensity="<<value.intensity<<" range="<<value.range<<" shadows="<<value.shadows.castShadows<<'\n';
+            for(const auto& value:frame.SpotLights()) metadata<<" spot position="<<value.position.x<<','<<value.position.y<<','<<value.position.z<<" ray="<<value.direction.x<<','<<value.direction.y<<','<<value.direction.z<<" intensity="<<value.intensity<<" range="<<value.range<<" cones="<<value.innerConeRadians<<','<<value.outerConeRadians<<'\n';
+            for(const auto& draw:frame.Draws()) {metadata<<" model=";for(unsigned i=0;i<16;++i) metadata<<glm::value_ptr(draw.worldTransform)[i]<<',';metadata<<'\n';}
+            return pixels;
+        };
+        auto& authored=lamp.GetComponent<RenderLightComponent>();
+        plate.AddComponent<VisibilityComponent>(VisibilityComponent{false});const auto background=render("background");
+        plate.GetComponent<VisibilityComponent>().enabled=true;
+        const auto ambient=render("ambient");authored.intensity=.04f;authored.kind=RenderLightKind::Point;
+        const auto point=render("point");
+        if(SDL_getenv("GENGINE_LIGHTING_REFERENCE_COMPATIBILITY")) {
+            authored.kind=RenderLightKind::Directional;render("directional");
+            std::println("[PASS] lighting-reference prior shader compatibility");return;
+        }
+        authored.kind=RenderLightKind::Spot;
+        const auto spot=render("spot");Check(point!=ambient && spot!=ambient && spot!=point,"distinct contributing light references");
+        auto oracle=[&](const std::vector<std::byte>& actual,float inner,float outer,float range,glm::vec3 ray) {
+            unsigned lit{},dark{},penumbra{};
+            for(unsigned y=4;y<size-4;++y) for(unsigned x=4;x<size-4;++x) {
+                const glm::vec3 position{6.f*(x+.5f)/size-3.f,6.f*(y+.5f)/size-3.f,0};
+                const glm::vec3 delta=position-glm::vec3(0,0,3);const float distance=glm::length(delta);
+                const float cosine=glm::dot(delta/distance,ray);
+                const float cone=inner==outer?float(cosine>=std::cos(outer)):glm::clamp((cosine-std::cos(outer))/(std::cos(inner)-std::cos(outer)),0.f,1.f);
+                const float radial=std::max(0.f,1-distance/range);const float weight=cone*radial*radial;
+                lit+=weight>.1f;dark+=weight==0;penumbra+=cone>0 && cone<1;
+                for(unsigned c=0;c<3;++c) {
+                    const auto i=4*(y*size+x)+c;const float a=float(ambient[i])/255.f,p=float(point[i])/255.f;
+                    const float expected=std::pow(std::pow(a,1.8f)+(std::pow(p,1.8f)-std::pow(a,1.8f))*weight,1/1.8f)*255;
+                    Check(std::abs(float(actual[i])-expected)<=2.5f,"spot independent cone/range and point-BRDF oracle");
+                }
+            }
+            metadata<<"spot oracle inner="<<inner<<" outer="<<outer<<" range="<<range<<" lit="<<lit<<" dark="<<dark<<" penumbra="<<penumbra<<'\n';
+        };
+        oracle(spot,.3f,.7f,10,{0,0,-1});
+        authored.innerConeRadians=authored.outerConeRadians=.5f;oracle(render("spot-hard-edge"),.5f,.5f,10,{0,0,-1});
+        authored.innerConeRadians=.3f;authored.outerConeRadians=.7f;authored.range=3.5f;
+        oracle(render("spot-range"),.3f,.7f,3.5f,{0,0,-1});
+        authored.range=3;Check(render("spot-out-of-range")==ambient,"spot finite range excludes all farther fragments");
+        authored.range=10;const auto ray=glm::normalize(glm::vec3(.3f,.1f,-1));
+        lamp.Transform().QuatRotation=glm::rotation(glm::vec3(0,0,-1),ray);oracle(render("spot-rotated"),.3f,.7f,10,ray);
+        lamp.Transform().QuatRotation={1,0,0,0};
+        { auto access=resources->Publication().BeginFrame();auto retained=Take(Extract(scene,*resources,access,camera),"retained spot frame");
+          authored.intensity=0;Take(submitter.Submit(retained,desc,picks),"retained spot submit");Check(read()==spot,"spot frame retains light values after author edits"); }
+        Check(render("spot-disabled")==ambient,"zero-intensity spot contributes nothing");authored.intensity=.04f;
+        authored.castShadows=true;
+        auto reject=[&] {
+            auto before=read();auto access=resources->Publication().BeginFrame();auto frame=Take(Extract(scene,*resources,access,camera),"unsupported spot extraction");
+            UploadCalls::Observe uploads;DriverCalls::Observe calls;auto result=submitter.Submit(frame,desc,picks);
+            Check(!result && std::get<SubmissionCode>(result.error().cause)==SubmissionCode::UnsupportedLights,"unsupported spot capability typed error");
+            Check(UploadCalls::buffers==0 && DriverCalls::counts[26]==0 && DriverCalls::counts[27]==0 && read()==before,"unsupported spot leaves image/uploads/draws unchanged");
+        };reject();authored.castShadows=false;
+        auto extra=scene.CreateEntity("second spot");extra.AddComponent<RenderLightComponent>(authored);reject();scene.DestroyEntity(extra);
+        authored.kind=RenderLightKind::Directional;const auto directional=render("directional");Check(directional!=ambient,"directional contributes");
+        // Independent additive light oracle, before the retained gamma encoding.
+        extra=scene.CreateEntity("mixed spot");auto mixed=authored;mixed.kind=RenderLightKind::Spot;extra.AddComponent<RenderLightComponent>(mixed);extra.Transform().Translation={0,0,3};
+        const auto combined=render("mixed-lights");
+        for(unsigned i=0;i<combined.size();++i) if(i%4!=3) {
+            const float expected=std::pow(std::max(0.f,std::pow(float(directional[i])/255,1.8f)+std::pow(float(spot[i])/255,1.8f)-std::pow(float(ambient[i])/255,1.8f)),1/1.8f)*255;
+            Check(std::abs(float(combined[i])-std::min(255.f,expected))<=2.5f,"directional and spot add before gamma");
+        }
+        scene.DestroyEntity(extra);authored.intensity=2;
+        const auto alphaOpaque=render("opaque-alpha-reference");
+        plate.GetComponent<MeshRendererComponent>().material=masked;const auto mask=render("masked");
+        plate.GetComponent<MeshRendererComponent>().material=transparent;const auto alpha=render("transparent");
+        plate.GetComponent<MeshRendererComponent>().material=premultiplied;const auto premult=render("premultiplied");
+        for(unsigned i=0;i<alpha.size();++i) if(i%4!=3)
+            Check(std::abs(float(premult[i])-float(alpha[i]))<=1,"straight and premultiplied RGB agree within blend quantization");
+        unsigned holes{},solid{};
+        for(unsigned i=0;i<mask.size();i+=4) {
+            const bool hole=mask[i]==background[i] && mask[i+1]==background[i+1] && mask[i+2]==background[i+2];
+            holes+=hole;solid+=!hole;
+            for(unsigned c=0;c<3;++c) Check(std::abs(float(alpha[i+c])-(hole?float(background[i+c]):.5f*float(alphaOpaque[i+c])+.5f*float(background[i+c])))<=1.5f,"alpha coverage/source-over oracle");
+        }
+        Check(holes>20000 && solid>20000,"masked reference has substantial holes and coverage");
+        authored.intensity=0;plate.GetComponent<MeshRendererComponent>().material=fallbackMaterial;const auto fallbackPixels=render("fallback-texture-sampler");
+        // Explicit opt-in substitution retains failure reasons and resolves real sampled resources.
+        for(auto material:{badTextureMaterial,badSamplerMaterial}) {
+            auto access=resources->Publication().BeginFrame();auto bindings=resources->ForFrame(access);
+            auto view=Take(resources->Materials().Acquire(access,material),"fallback material view");
+            Check(!PreparedMaterialBinding::Prepare(view,access,bindings.bindings),"invalid binding requires explicit fallback");
+            auto packet=Take(PreparedMaterialBinding::Prepare(view,access,bindings.bindings,MaterialBindingFallback{{fallback,fallbackSampling.SamplerIdentity()}}),"explicit material fallback");
+            Check(packet.Fallbacks().size()==1,"fallback retains one exact reason");
+            auto builder=Take(RenderFrameBuilder::Create({1,1,0,1}),"fallback frame builder");Check(builder.AddCamera(camera),"fallback camera");
+            auto mesh=Take(resources->Meshes().Acquire(access,box),"fallback mesh");const auto index=Take(builder.AddResources(mesh,std::move(packet)),"fallback packet");
+            auto id=Take(scene.RenderData().Identify(plate),"fallback entity");
+            Check(builder.AddDraw({index,0,glm::translate(glm::mat4(1),glm::vec3(0,0,-.05f))*glm::scale(glm::mat4(1),glm::vec3(6,6,.1f)),id}),"fallback draw");
+            auto frame=Take(std::move(builder).Finalize(),"fallback final frame");Take(submitter.Submit(frame,desc,picks),"fallback submission");
+            Check(read()==fallbackPixels,"failed texture or sampler fallback equals explicitly authored reference");
+        }
+        // Real lit geometry, shadow images and repeated objects use the same final path.
+        scene.DestroyEntity(plate);camera.view=glm::lookAt(glm::vec3(0,2,8),glm::vec3(0),glm::vec3(0,1,0));
+        camera.worldPosition={0,2,8};camera.projection=glm::perspective(glm::radians(45.f),1.f,.1f,20.f);
+        auto floor=scene.CreateEntity("reference floor");floor.AddComponent<MeshRendererComponent>(MeshRendererComponent{box,opaque});
+        floor.Transform().Translation={0,-1.2f,0};floor.Transform().Scale={7,.2f,7};
+        for(unsigned i=0;i<6;++i) {auto e=scene.CreateEntity("repeated sphere");e.AddComponent<MeshRendererComponent>(MeshRendererComponent{sphere,opaque});
+            e.Transform().Translation={-1.5f+1.5f*(i%3),-.45f,1.f-2.f*(i/3)};e.Transform().Scale=glm::vec3(.55f);}
+        authored.intensity=2;authored.castShadows=true;lamp.Transform().QuatRotation=glm::rotation(glm::vec3(0,0,-1),-glm::normalize(glm::vec3(20,50,20)));
+        auto bulb=scene.CreateEntity("reference shadow point");RenderLightComponent pointLight;pointLight.kind=RenderLightKind::Point;
+        pointLight.intensity=.1f;pointLight.range=20;pointLight.castShadows=true;bulb.AddComponent<RenderLightComponent>(pointLight);bulb.Transform().Translation={0,3,2};
+        desc.instancingEnabled=false;desc.shadowCullingEnabled=false;
+        const auto serial=render("directional-cascade-point-shadows-serial");const auto serialDepth=ShadowDepth(pointDepth,cascadeDepth);
+        desc.instancingEnabled=true;desc.shadowCullingEnabled=true;submitter.InvalidatePassContents();
+        Check(render("instanced-repeated-objects")==serial && ShadowDepth(pointDepth,cascadeDepth)==serialDepth,"serial/instanced culled/broadcast color and depth exact");
+        std::ofstream rawDepth("shadow-depth.f32",std::ios::binary);
+        rawDepth.write(reinterpret_cast<const char*>(serialDepth.data()),serialDepth.size()*sizeof(float));Check(rawDepth.good(),"raw depth saved");
+        metadata<<"depth order=cascade layers then cube +X,-X,+Y,-Y,+Z,-Z; raw little-endian float32; bottom-up; layer count="<<serialDepth.size()/(size*size)<<'\n';
+        for(unsigned layer=0;layer<serialDepth.size()/(size*size);++layer) {
+            std::vector<std::byte> depthImage(size*size*4,std::byte{255});
+            for(unsigned i=0;i<size*size;++i) for(unsigned c=0;c<3;++c) depthImage[i*4+c]=std::byte(unsigned(serialDepth[layer*size*size+i]*255));
+            save("shadow-depth-"+std::to_string(layer),depthImage);
+        }
+        authored.castShadows=false;bulb.GetComponent<RenderLightComponent>().castShadows=false;
+        Check(render("shadow-disabled")!=serial,"shadows affect the lit reference image");
+        metadata<<"checks="<<checks<<'\n';Check(metadata.good() && glGetError()==GL_NO_ERROR,"reference metadata and driver clean");
+        std::println("[PASS] lighting-reference spot/cone/range/hard-edge/retention/errors/alpha/fallback/shadows/instancing checks={}",checks);
+    }
+
     void Run(EngineContext& root)
     {
         std::println("Image comparison: renderer={} vendor={} version={}; 64x64 RGBA8 linear target; camera eye=(0,2,8), target=(0,0,0), FOV=45deg, aspect=1, near=.1, far=20; same-driver RGB composition tolerance=2.5/255",
@@ -2441,7 +2645,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             Check(frame.Draws().size()==2,"new renderable and visible helper extracted");
         }
         auto spot=scene.CreateEntity("unsupported spot");
-        RenderLightComponent spotLight;spotLight.kind=RenderLightKind::Spot;
+        RenderLightComponent spotLight;spotLight.kind=RenderLightKind::Spot;spotLight.castShadows=true;
         spot.AddComponent<RenderLightComponent>(spotLight);
         {
             auto access=resources->Publication().BeginFrame();
@@ -2777,6 +2981,7 @@ int main()
     properties.flag={WindowFlags::INVISIBLE};properties.m_Width=properties.m_Height=64;
     properties.m_MinWidth=properties.m_MinHeight=64;properties.m_IsVsync=false;
     Check(root.Initialize({properties}),"owner root initialization");
+    if(SDL_getenv("GENGINE_LIGHTING_REFERENCE")) { LightingReference(root);return 0; }
     WindowPlacementTests(root,properties);
     if(!SDL_getenv("GENGINE_STATE_CACHE_MEASURE")) StateCacheTests();
     TimingTests(root);

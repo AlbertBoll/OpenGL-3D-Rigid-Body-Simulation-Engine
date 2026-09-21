@@ -555,8 +555,11 @@ void main() {
         } transaction{*m_Storage};
         if (frame.Cameras().size()!=1) return Error("submission camera count",Code::InvalidCamera);
         if (!frame.DebugLines().empty()) return Error("debug lines are outside this scene submission layer",Code::UnsupportedPipeline);
-        if (frame.DirectionalLights().size()>1 || frame.PointLights().size()>1 || !frame.SpotLights().empty())
-            return Error("legacy lighting capacity (one directional, one point, no spot)",Code::UnsupportedLights);
+        if (frame.DirectionalLights().size()>1 || frame.PointLights().size()>1 || frame.SpotLights().size()>1)
+            return Error("lighting capacity (one directional, one point, one unshadowed spot)",Code::UnsupportedLights);
+        const auto* spot=frame.SpotLights().empty()?nullptr:&frame.SpotLights()[0];
+        if (spot && spot->shadows.castShadows)
+            return Error("spot shadows are unsupported",Code::UnsupportedLights);
         const auto& camera=frame.Cameras()[0];
         const auto& target=desc.color.Description().Storage;
         const auto* directional=frame.DirectionalLights().empty()?nullptr:&frame.DirectionalLights()[0];
@@ -712,6 +715,11 @@ void main() {
         packedFrame.pointColor=lane(point?point->color*point->intensity:glm::vec3(0));
         packedFrame.planes={desc.cameraFar,pointFar,0,0};
         packedFrame.lights={bool(directional),bool(point),directionalShadow,pointShadow};
+        if(spot) {
+            packedFrame.spotPosition=lane(spot->position);packedFrame.spotPosition[3]=spot->range;
+            packedFrame.spotDirection=lane(spot->direction);packedFrame.spotDirection[3]=std::cos(spot->innerConeRadians);
+            packedFrame.spotColor=lane(spot->color*spot->intensity);packedFrame.spotColor[3]=std::cos(spot->outerConeRadians);
+        }
         previous=desc.cameraNear;
         for(std::size_t i=0;i<desc.cascadeSplits.size();++i) {
             packedFrame.splits[i][0]=desc.cascadeSplits[i];

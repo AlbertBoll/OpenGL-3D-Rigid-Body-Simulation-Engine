@@ -1,0 +1,276 @@
+{
+  "baseline": "dd827c2aafe0bcc73a5c2a458264854f5b3ec386",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Assets/Shaders/pbr_cascade_shadow.frag",
+    "GEngine/include/GEngine/Renderer/FrameSubmission.h",
+    "GEngine/src/Renderer/FrameSubmission.cpp",
+    "GEngine/src/Renderer/SubmissionGpuLayout.h",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-62.json",
+    "tools/LIGHTING_REFERENCE_VALIDATION.md",
+    "tools/frame_submission_probe.cpp",
+    "tools/test_lighting_reference.py"
+  ],
+  "eligible": true,
+  "findings": [],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/phases/PHASE_62.md",
+    "docs/rendering/reviews/PHASE_62_REVIEW.md"
+  ],
+  "next_phase": "63",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "8a1d9d93225b8329b37f830c75dde0b86eaecc9f",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-62/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/8a1d9d93225b8329b37f830c75dde0b86eaecc9f",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "3088cfb02d90dc7deb274e855a0723f398914fda4f0af025191d86d4fdc7b75a"
+      },
+      "mode": "100644",
+      "validated_blob": "0f192094cb5b6d9f59495b5ff364ba786dbe5f0c",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-62/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/0f192094cb5b6d9f59495b5ff364ba786dbe5f0c"
+    }
+  },
+  "phase": "62",
+  "previous_approved_tag": "render-refactor-phase-61-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_62_REVIEW.md",
+  "schema": 2,
+  "summary": "Phase 62: owner-approved one-unshadowed-spot prerequisite and repeatable lighting/material references. Debug/Release builds, eight application smokes, 186 captures, 161 exact RGB comparisons, raw shadow parity and defect controls pass on NVIDIA RTX 3070 Laptop / 552.44. Owner application bytes preserved.",
+  "validation": [
+    {
+      "check": "Debug affected builds, native-free consumers, submission/shadow regressions, four apps, reference scenes and controls",
+      "command": "python tools/test_lighting_reference.py --configuration Debug --output logs/rendering/phase62/final/Debug",
+      "evidence": "logs/rendering/phase62/final/Debug/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Release corresponding gates and Debug/Release image/raw-depth parity",
+      "command": "python tools/test_lighting_reference.py --configuration Release --output logs/rendering/phase62/final/Release --compare logs/rendering/phase62/final/Debug/run-0",
+      "evidence": "logs/rendering/phase62/final/Release/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Final visual inspection of spot, masked, transparent, fallback and instanced shadow scenes",
+      "command": "Executor viewed unmodified final Debug PNGs; Release images compare exactly",
+      "evidence": "logs/rendering/phase62/final/visual-review.json",
+      "result": "PASS"
+    },
+    {
+      "check": "577 pre-validation fingerprints, all pre-existing content, exact index and checkpoint whitespace",
+      "command": "Helper fingerprint comparison; SHA-256 46 pre-existing paths; git ls-files --stage -z; git diff --check on exact checkpoint files",
+      "evidence": "logs/rendering/phase62/final/source-and-protection.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Local governance structure, active owner-approved amendment and context links",
+      "command": "python .codex/tools/validate_rendering_governance.py",
+      "evidence": "logs/rendering/phase62/final/governance.log",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "GEngine/include/GEngine/Assets/Samplers/Sampler.h": {
+      "executable": null,
+      "sha256": "fb7949c2a99da229119c00931c9ba89577f3137593c0fd6b329776d8e61c5490"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/pbr_cascade_shadow.frag": {
+      "executable": null,
+      "sha256": "d5380d4ca30cfd6f9b78cd4f1a0b764bfa5f33cd72f99af66fd8c6875780d0e4"
+    },
+    "GEngine/include/GEngine/Component/RenderComponents.h": {
+      "executable": null,
+      "sha256": "ce2406fd76223b4cb0cb5d2cb20ca58e18c7b67aa0871683596a1f1d33cdce5f"
+    },
+    "GEngine/include/GEngine/Material/MaterialBinding.h": {
+      "executable": null,
+      "sha256": "68f52fde9c73b150de3cc3bda8f6b127e1d6c7fe1f0a05d82427a3ec7f4d5895"
+    },
+    "GEngine/include/GEngine/Material/MaterialInstance.h": {
+      "executable": null,
+      "sha256": "20918ce27f3f1d7ff20992a997e41283e337bca02a0e1bb7defc71b613080c48"
+    },
+    "GEngine/include/GEngine/Material/MaterialTemplate.h": {
+      "executable": null,
+      "sha256": "5edaabc5984f627b12801322b50d50bed5c534324c925072fc96deb1430ca035"
+    },
+    "GEngine/include/GEngine/Material/Pipeline.h": {
+      "executable": null,
+      "sha256": "1a5338955f8b0fd1ac7af01a1a6f032816d53e18b61b002177d081b31b193e0d"
+    },
+    "GEngine/include/GEngine/Renderer/FrameScheduler.h": {
+      "executable": null,
+      "sha256": "c79f434dd3fd7fcc35e0a2ad7e70cda233eff7f673e66cd8cd784ef312909272"
+    },
+    "GEngine/include/GEngine/Renderer/FrameSubmission.h": {
+      "executable": null,
+      "sha256": "8adef56c065c57b0bd420193300bc2445f2262a4db36e5b1e444273765a6c63e"
+    },
+    "GEngine/include/GEngine/Renderer/RenderExtraction.h": {
+      "executable": null,
+      "sha256": "1e585334e3a43a88759cadb224f50eb04eedb1b19ac5d14d4429ad7ff3e7d236"
+    },
+    "GEngine/include/GEngine/Renderer/RenderFrame.h": {
+      "executable": null,
+      "sha256": "b1916d1daed8b61de054e72d92ee45187829d9a4926baf9baef56c73ecf25809"
+    },
+    "GEngine/include/GEngine/Renderer/SceneRenderResources.h": {
+      "executable": null,
+      "sha256": "09b9fb22ba44e6716de89ccf4e95f11a0b78db720ffff3f7b6dda2d2da5ba76b"
+    },
+    "GEngine/include/GEngine/Renderer/ShadowQuality.h": {
+      "executable": null,
+      "sha256": "c8243dc1a9ae25d75c745a92e50c8aaacf4d799170a418eca579fca323d04298"
+    },
+    "GEngine/src/Assets/Sampler.cpp": {
+      "executable": null,
+      "sha256": "29255e2147c3751cf855713033ab91bd7339c8d7b89fe9571ad60984607588b3"
+    },
+    "GEngine/src/Material/MaterialBinding.cpp": {
+      "executable": null,
+      "sha256": "6fb2f40179d1ec3fc50c94cac07e185bdbeeb7cb111c92bc29d2ef887346b2d8"
+    },
+    "GEngine/src/Material/MaterialInstance.cpp": {
+      "executable": null,
+      "sha256": "9366c693097464c91335ad79a5e79cfec4607c19da5e1e41bca14d871a47fd97"
+    },
+    "GEngine/src/Material/MaterialTemplate.cpp": {
+      "executable": null,
+      "sha256": "e7fae7c67929623aa847203ce41e202bb3a68cf71127be213be6054ea315c764"
+    },
+    "GEngine/src/Renderer/FrameScheduler.cpp": {
+      "executable": null,
+      "sha256": "156375fff83e9869cc3b6c01f854a1e722f45c56959c02b7db7f2db32e966a47"
+    },
+    "GEngine/src/Renderer/FrameSubmission.cpp": {
+      "executable": null,
+      "sha256": "ee97295517746fcf10905f09705c6427a070ce5fc4f46959f64fd5f104e7c57e"
+    },
+    "GEngine/src/Renderer/RenderExtraction.cpp": {
+      "executable": null,
+      "sha256": "07aaa098513c18bc9475e406ef2771f460d8247545c882a06f377a5d6fac8a80"
+    },
+    "GEngine/src/Renderer/RenderFrame.cpp": {
+      "executable": null,
+      "sha256": "60340ba676cf711b65e53b65221cfbb1c34b13ef84b423e2d16f2e22be7f5e2c"
+    },
+    "GEngine/src/Renderer/SceneRenderResources.cpp": {
+      "executable": null,
+      "sha256": "ce578293ac5b5fb9e5e0f7afab3da803c04c9f9337e5af9a8c7a250ccf81d991"
+    },
+    "GEngine/src/Renderer/ShadowCulling.h": {
+      "executable": null,
+      "sha256": "39f43bccde48b16dd3070afa37abd335f990e23a7d3abcfddf6cb7882a625a6d"
+    },
+    "GEngine/src/Renderer/ShadowQuality.cpp": {
+      "executable": null,
+      "sha256": "d8caf00f379b6b9a630e6f8e8bf11ba8b69283ac9b76d0918987bb90ee3df582"
+    },
+    "GEngine/src/Renderer/SubmissionGpuLayout.h": {
+      "executable": null,
+      "sha256": "e2857494b8d4e86398d59972aa27b5e6bf7ea9c804f715b02dbc14f48a50e296"
+    },
+    "GEngine/src/Renderer/SubmissionUploads.h": {
+      "executable": null,
+      "sha256": "91ed862fd189575046d364187b378ff6e722872f63581a6abd7d3b15c6afaeb4"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "c86d6a50f0f4bcda7f2770ca3eceb999f5d5816144dbc8d54ea783eec126cf8d"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "3088cfb02d90dc7deb274e855a0723f398914fda4f0af025191d86d4fdc7b75a"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052"
+    },
+    "tools/LIGHTING_REFERENCE_VALIDATION.md": {
+      "executable": null,
+      "sha256": "db5ff0558d9d8aeeaaf6275ccc7253fb35ccbf217886fcf908249630f15b5bf8"
+    },
+    "tools/frame_submission_probe.cpp": {
+      "executable": null,
+      "sha256": "5880ed65ed9c5f321c80ac0bfaeb5eb7acc1d89c233b997792871bb356560d6e"
+    },
+    "tools/postbuild.py": {
+      "executable": null,
+      "sha256": "04a0a293c07e456537a850e07963fdae52ba1c0f12c52e568d113eb012c7037f"
+    },
+    "tools/rendering_baseline.py": {
+      "executable": null,
+      "sha256": "9a07b35398d63a2ba3a54519ee309351ad18050daad301aff1ac1ed5a8866301"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/runtime_assets.json": {
+      "executable": null,
+      "sha256": "de0f15f505442f26238e622fef1ca6d3ec794abf0875250b837344f804fce70c"
+    },
+    "tools/test_frame_submission.py": {
+      "executable": null,
+      "sha256": "52ba08018e68690780d3aaecd3703eb71e99732813d312d1004547b780c983b1"
+    },
+    "tools/test_lighting_reference.py": {
+      "executable": null,
+      "sha256": "e8915b90eed0b26754415cb4bd53488f5b7a1e4eddcd5ff45743ab82b49710eb"
+    }
+  }
+}

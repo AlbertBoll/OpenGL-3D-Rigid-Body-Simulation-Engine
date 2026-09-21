@@ -36,6 +36,14 @@ uniform bool frameDirectional;
 uniform bool framePoint;
 uniform bool frameDirectionalShadows;
 uniform bool framePointShadows;
+// Default-off for legacy callers; the frame adapter supplies validated typed data.
+uniform bool frameSpot;
+uniform vec3 spotPosition;
+uniform vec3 spotDirection;
+uniform vec3 spotColor;
+uniform float spotRange;
+uniform float spotInnerCos;
+uniform float spotOuterCos;
 
 uniform float pointShadowfarPlane;
 uniform bool shadows;
@@ -194,6 +202,28 @@ float CascadeShadowCalculation(vec3 fragPosWorldSpace)
     return shadow;
 }
 
+vec3 SpotContribution(vec3 N, vec3 V, vec3 albedo, float metallic, float roughness, vec3 F0)
+{
+    vec3 delta = spotPosition - fs_in.FragPos;
+    float distanceToSpot = length(delta);
+    // A coincident source has no ray direction; range is an authored finite cutoff.
+    if (distanceToSpot <= 0.0001 || distanceToSpot >= spotRange) return vec3(0.0);
+    vec3 Ls = delta / distanceToSpot;
+    float cosine = dot(-Ls, spotDirection);
+    float cone = spotInnerCos == spotOuterCos ? step(spotOuterCos, cosine)
+        : clamp((cosine - spotOuterCos) / (spotInnerCos - spotOuterCos), 0.0, 1.0);
+    if (cone <= 0.0 || dot(N, Ls) <= 0.0) return vec3(0.0);
+    vec3 halfVector = V + Ls;
+    if (dot(halfVector, halfVector) <= 0.00000001) return vec3(0.0);
+    vec3 Hs = normalize(halfVector);
+    vec3 F = fresnelSchlick(max(dot(Hs, V), 0.0), F0);
+    vec3 specular = DistributionGGX(N, Hs, roughness) * GeometrySmith(N, V, Ls, roughness) * F
+        / (4.0 * max(dot(N, V), 0.0) * max(dot(N, Ls), 0.0) + 0.0001);
+    float rangeWeight = 1.0 - distanceToSpot / spotRange;
+    vec3 radiance = spotColor * (80.0 / distanceToSpot) * rangeWeight * rangeWeight * cone;
+    return ((vec3(1.0) - F) * (1.0 - metallic) * albedo / PI + specular) * radiance * max(dot(N, Ls), 0.0);
+}
+
 void main()
 {      
 
@@ -285,6 +315,7 @@ void main()
     vec3 color = ambient;
     if (!frameLights || framePoint) color += (1 - point_light_shadow) * point_light_Lo;
     if (!frameLights || frameDirectional) color += (1 - cascade_shadow) * directional_light_Lo;
+    if (frameLights && frameSpot) color += SpotContribution(N, V, albedo, metallic, roughness, F0);
     //vec3 color = ambient + point_light_Lo ;//+ directional_light_Lo;
     // HDR tonemapping
     //color = color / (color + vec3(1.0));

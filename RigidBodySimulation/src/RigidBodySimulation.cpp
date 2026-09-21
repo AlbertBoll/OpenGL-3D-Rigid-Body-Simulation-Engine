@@ -119,19 +119,22 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
 	auto* m_IconStop = *m_IconStopResult;
 
 
+// PBR vectors and scalar data must not use the color texture sRGB transfer.
+    TextureDesc dataMapDesc;
+    dataMapDesc.colorSpace = TextureColorSpace::Linear;
 auto sphere_albedoResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_basecolor", "albedoMap");
 	if (!sphere_albedoResult) { Log::GetCoreLogger()->error("Texture {}: {}", sphere_albedoResult.error().source, sphere_albedoResult.error().message); m_Running = false; return std::unexpected(sphere_albedoResult.error()); }
 	auto* sphere_albedo = *sphere_albedoResult;
-	auto sphere_normalResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_normal", "normalMap");
+	auto sphere_normalResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_normal", "normalMap", ".png", dataMapDesc);
 	if (!sphere_normalResult) { Log::GetCoreLogger()->error("Texture {}: {}", sphere_normalResult.error().source, sphere_normalResult.error().message); m_Running = false; return std::unexpected(sphere_normalResult.error()); }
 	auto* sphere_normal = *sphere_normalResult;
-	auto sphere_metallicResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_metallic", "metallicMap");
+	auto sphere_metallicResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_metallic", "metallicMap", ".png", dataMapDesc);
 	if (!sphere_metallicResult) { Log::GetCoreLogger()->error("Texture {}: {}", sphere_metallicResult.error().source, sphere_metallicResult.error().message); m_Running = false; return std::unexpected(sphere_metallicResult.error()); }
 	auto* sphere_metallic = *sphere_metallicResult;
-	auto sphere_roughnessResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_roughness", "roughnessMap");
+	auto sphere_roughnessResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_roughness", "roughnessMap", ".png", dataMapDesc);
 	if (!sphere_roughnessResult) { Log::GetCoreLogger()->error("Texture {}: {}", sphere_roughnessResult.error().source, sphere_roughnessResult.error().message); m_Running = false; return std::unexpected(sphere_roughnessResult.error()); }
 	auto* sphere_roughness = *sphere_roughnessResult;
-	auto sphere_aoResult = AssetsManager::GetTextureOrFallback("PBR/subtle_black_granite/subtle-black-granite_ao", "aoMap");
+	auto sphere_aoResult = AssetsManager::GetTextureOrFallback("PBR/subtle_black_granite/subtle-black-granite_ao", "aoMap", ".png", dataMapDesc);
 	if (!sphere_aoResult) { Log::GetCoreLogger()->error("Texture {}: {}", sphere_aoResult.error().source, sphere_aoResult.error().message); m_Running = false; return std::unexpected(sphere_aoResult.error()); }
 	auto* sphere_ao = *sphere_aoResult;
 
@@ -139,16 +142,16 @@ auto sphere_albedoResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/r
 	auto floor_albedoResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_albedo", "albedoMap");
 	if (!floor_albedoResult) { Log::GetCoreLogger()->error("Texture {}: {}", floor_albedoResult.error().source, floor_albedoResult.error().message); m_Running = false; return std::unexpected(floor_albedoResult.error()); }
 	auto* floor_albedo = *floor_albedoResult;
-	auto floor_normalResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_normal-dx", "normalMap");
+	auto floor_normalResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_normal-dx", "normalMap", ".png", dataMapDesc);
 	if (!floor_normalResult) { Log::GetCoreLogger()->error("Texture {}: {}", floor_normalResult.error().source, floor_normalResult.error().message); m_Running = false; return std::unexpected(floor_normalResult.error()); }
 	auto* floor_normal = *floor_normalResult;
-	auto floor_metallicResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_metallic", "metallicMap");
+	auto floor_metallicResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_metallic", "metallicMap", ".png", dataMapDesc);
 	if (!floor_metallicResult) { Log::GetCoreLogger()->error("Texture {}: {}", floor_metallicResult.error().source, floor_metallicResult.error().message); m_Running = false; return std::unexpected(floor_metallicResult.error()); }
 	auto* floor_metallic = *floor_metallicResult;
-	auto floor_roughnessResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_roughness", "roughnessMap");
+	auto floor_roughnessResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_roughness", "roughnessMap", ".png", dataMapDesc);
 	if (!floor_roughnessResult) { Log::GetCoreLogger()->error("Texture {}: {}", floor_roughnessResult.error().source, floor_roughnessResult.error().message); m_Running = false; return std::unexpected(floor_roughnessResult.error()); }
 	auto* floor_roughness = *floor_roughnessResult;
-	auto floor_aoResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_ao", "aoMap");
+	auto floor_aoResult = AssetsManager::GetTextureOrFallback("PBR/base_white_tile/base-white-tile_ao", "aoMap", ".png", dataMapDesc);
 	if (!floor_aoResult) { Log::GetCoreLogger()->error("Texture {}: {}", floor_aoResult.error().source, floor_aoResult.error().message); m_Running = false; return std::unexpected(floor_aoResult.error()); }
 	auto* floor_ao = *floor_aoResult;
 
@@ -167,18 +170,23 @@ auto sphere_albedoResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/r
         return m_FrameResources->PublishMaterial({kind, parameters, bindings, doubleSided, width});
     };
     const MaterialParameterDecl sphereParameters[]{
+        // Dark-metal patch GGX width fit: 0.275, rounded to 0.28. Keep maps linear.
+        {"roughnessScale", MaterialParameterType::Float, .28f},
         {"metalness", MaterialParameterType::Float3, std::array<float,3>{.8f,.8f,.8f}},
         {"u_tiling", MaterialParameterType::Float2, std::array<float,2>{1,1}}};
     auto sphereMaterialResult = material(SceneMaterialKind::Lit, {sphere_albedo,sphere_normal,sphere_metallic,sphere_roughness,sphere_ao}, sphereParameters);
     if (!sphereMaterialResult) return failure(sphereMaterialResult.error());
     auto sphereMaterial = *sphereMaterialResult;
+    // Polished floor: retain linear roughness data and author gloss explicitly.
     const MaterialParameterDecl floorParameters[]{
+        {"roughnessScale", MaterialParameterType::Float, .5f},
         {"metalness", MaterialParameterType::Float3, std::array<float,3>{.08f,.08f,.08f}},
         {"u_tiling", MaterialParameterType::Float2, std::array<float,2>{2,2}}};
     auto floorMaterialResult = material(SceneMaterialKind::Lit, {floor_albedo,floor_normal,floor_metallic,floor_roughness,floor_ao}, floorParameters);
     if (!floorMaterialResult) return failure(floorMaterialResult.error());
     auto floorMaterial = *floorMaterialResult;
     const MaterialParameterDecl wallParameters[]{
+		{"roughnessScale", MaterialParameterType::Float, .5f},
         {"metalness", MaterialParameterType::Float3, std::array<float,3>{.08f,.08f,.08f}},
         {"u_tiling", MaterialParameterType::Float2, std::array<float,2>{2,.2f}}};
     auto wallMaterialResult = material(SceneMaterialKind::Lit, {floor_albedo,floor_normal,floor_metallic,floor_roughness,floor_ao}, wallParameters);

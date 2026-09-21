@@ -114,7 +114,8 @@ uniform uint geMaterialOffset;
                 if(parameter.name=="u_model" || parameter.name=="u_EntityID" || parameter.name.starts_with("ge")
                     || std::any_of(std::begin(frameNames),std::end(frameNames),[&](const auto& n){return parameter.name==n.first;}))
                     return std::unexpected(SceneResourceError{"reserved frame material parameter",SceneResourceCode::InvalidMaterial});
-                const std::regex declaration(std::string(R"(uniform\s+(\w+)\s+)")+parameter.name+R"(\s*;)");
+                // An authored parameter overrides its GLSL initializer; unbound parameters keep that default.
+                const std::regex declaration(std::string(R"(uniform\s+(\w+)\s+)")+parameter.name+R"(\s*(?:=\s*[^;]+)?;)");
                 std::smatch match;
                 if(std::regex_search(source,match,declaration)) {
                     if(match[1].str()!=types[type])

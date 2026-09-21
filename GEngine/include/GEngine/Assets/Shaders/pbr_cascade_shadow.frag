@@ -2,7 +2,7 @@
 //out vec4 FragColor;
 
 layout(location = 0) out vec4 FragColor;
-layout(location = 1) out int o_EntityID;
+// Entity IDs belong to the dedicated integer picking pass.
 
 in VS_OUT {
     vec3 FragPos;
@@ -40,47 +40,26 @@ uniform bool framePointShadows;
 uniform float pointShadowfarPlane;
 uniform bool shadows;
 
-uniform int u_EntityID;
 
 uniform vec3 metalness;
+// Authored material factor; color-space conversion never controls roughness.
+uniform float roughnessScale = 1.0;
 
 const float PI = 3.14159265359;
 
 vec3 getNormalFromMap(vec2 uvs)
 {
-    vec3 tangentNormal = texture(normalMap, fs_in.TexCoords).xyz;
-    //vec3 tangentNormal = texture(normalMap, fs_in.TexCoords).xyz * 2.0 - 1.0;
-    //tangentNormal.y = -tangentNormal.y; // flip y to match OpenGL's coordinate system
-    //vec3 tangentNormal = texture(normalMap, uvs).xyz;// * 2.0 - 1.0;
-    vec3 Q1  = dFdx(fs_in.FragPos);
-    vec3 Q2  = dFdy(fs_in.FragPos);
+    vec3 tangentNormal = texture(normalMap, uvs).xyz * 2.0 - 1.0;
+    vec3 Q1 = dFdx(fs_in.FragPos);
+    vec3 Q2 = dFdy(fs_in.FragPos);
+    vec2 st1 = dFdx(uvs);
+    vec2 st2 = dFdy(uvs);
 
-
-    //vec2 st1 = dFdx(uvs);
-    //vec2 st2 = dFdy(uvs);
-    vec2 st1 = dFdx(fs_in.TexCoords);
-    vec2 st2 = dFdy(fs_in.TexCoords);
-
-//    vec3 dp2perp = cross(Q2, tangentNormal);
-//    vec3 dp1perp = cross(tangentNormal, Q1);
-//
-//    vec3 T = dp2perp * st1.x + dp1perp * st2.x;
-//    vec3 B = dp2perp * st1.y + dp1perp * st2.y;
-//
-//    float invMax = inversesqrt(max(dot(T, T), dot(B, B)));
-//    mat3 TBN = mat3(T * invMax, B * invMax, tangentNormal);
-
-
-//
-    vec3 N   = normalize(fs_in.Normal);
-    vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
-    vec3 B  = -normalize(cross(N, T));
+    // Preserve the existing material bitangent convention.
+    vec3 N = normalize(fs_in.Normal);
+    vec3 T = normalize(Q1*st2.t - Q2*st1.t);
+    vec3 B = -normalize(cross(N, T));
     mat3 TBN = mat3(T, B, N);
-    //mat3 TBN = mat3(T, N, B);
-    //mat3 TBN = mat3(N, T, B);
-    //mat3 TBN = mat3(N, B, T);
-    //mat3 TBN = mat3(B, T, N);
-    //mat3 TBN = mat3(B, N, T);
 
     return normalize(TBN * tangentNormal);
 }
@@ -137,7 +116,6 @@ vec3 gridSamplingDisk[20] = vec3[]
 
 uniform mat4 u_view;
 uniform vec2 u_tiling;
-uniform int u_entityID;
 
 layout (std140) uniform LightSpaceMatrices
 {
@@ -222,7 +200,7 @@ void main()
     vec2 uvs = vec2(fs_in.TexCoords.x * u_tiling.x, fs_in.TexCoords.y * u_tiling.y);
     vec3 albedo     = texture(albedoMap, uvs).rgb;
     float metallic  = texture(metallicMap, uvs).r;
-    float roughness = texture(roughnessMap, uvs).r;
+    float roughness = texture(roughnessMap, uvs).r * roughnessScale;
     float ao        = texture(aoMap, uvs).r;
 //    float metallic  = texture(metallicMap, fs_in.TexCoords).r;
 //    float roughness = texture(roughnessMap, fs_in.TexCoords).r;
@@ -315,7 +293,6 @@ void main()
     color = pow(color, vec3(1.0/1.8));
     
     FragColor = vec4(color, 1.0);
-    o_EntityID = 50;
 
 
    /* vec2 uvs = vec2(fs_in.TexCoords.x * u_tiling.x, fs_in.TexCoords.y * u_tiling.y);
@@ -368,7 +345,6 @@ void main()
     //lighting = lighting / (lighting + vec3(1.0));
     lighting = pow(lighting, vec3(1.0/1.7)); // Convert to linear space
     FragColor = vec4(lighting, 1.0);
-//    //o_EntityID = u_entityID;
 */
   
 }

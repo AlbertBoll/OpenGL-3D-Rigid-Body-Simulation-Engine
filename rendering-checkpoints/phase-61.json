@@ -1,0 +1,391 @@
+{
+  "baseline": "c0bef2cc3ebc302a4063075fb81aa39b9a9ab01a",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Assets/Shaders/pbr_cascade_shadow.frag",
+    "GEngine/include/GEngine/Assets/Shaders/point_light_sphere_visual.frag",
+    "GEngine/src/Renderer/SubmissionGpuLayout.h",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-61.json",
+    "tools/PBR_VALIDATION.md",
+    "tools/pbr_shader_probe.cpp",
+    "tools/test_pbr_shader.py"
+  ],
+  "eligible": true,
+  "findings": [],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_61_REVIEW.md"
+  ],
+  "next_phase": "62",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "793237dd24a6f68ea56fad117066bee7e789afe7",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-61/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/793237dd24a6f68ea56fad117066bee7e789afe7",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "1dcb270e077ed7a43079aa0cb1063b3666185e5faac851a71c12ba73abed5b63"
+      },
+      "mode": "100644",
+      "validated_blob": "54cb558b1c86744d81b7b107abb08370c52929f8",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-61/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/54cb558b1c86744d81b7b107abb08370c52929f8"
+    }
+  },
+  "phase": "61",
+  "previous_approved_tag": "render-refactor-phase-60-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_61_REVIEW.md",
+  "schema": 2,
+  "summary": "Preserve correct linear PBR data and signed tiled normals; author measured floor and rust-sphere gloss while retaining color-only visuals and dedicated picking",
+  "validation": [
+    {
+      "check": "Debug affected builds, native-free consumers, submission/shadow integration and four app smokes; refreshed 51445 GPU checks and twelve defect controls",
+      "command": "python tools/test_pbr_shader.py --configuration Debug --output logs/rendering/phase61/revision5/final/Debug; python tools/test_pbr_shader.py --configuration Debug --focused-only --output logs/rendering/phase61/revision5/final/Debug-observerfix",
+      "evidence": "logs/rendering/phase61/revision5/final/Debug-coverage.json",
+      "result": "PASS",
+      "reuse_reason": "Fresh Debug integration/smokes passed on exact final production/assets/build inputs. A test-only fix distinguishes the recovered wall material; focused Debug rerun covers all changed probe/controls. Final amendment only clarifies documentation. Failed original observer report is retained."
+    },
+    {
+      "check": "Release affected builds, native-free consumers, submission/shadow integration, 51445 GPU checks, twelve defect controls and four app smokes",
+      "command": "python tools/test_pbr_shader.py --configuration Release --output logs/rendering/phase61/revision5/final/Release",
+      "evidence": "logs/rendering/phase61/revision5/final/Release/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Matched Phase60/recovered61/final rust sphere and isolated scalar/normal controls, source-derived GGX width fit, actual application GPU samples",
+      "command": "revision5 source_stratified.ps1, analyze_metal.py, sphere_compare.py, actual_sample.py and capture_final.py final; visual inspection",
+      "evidence": "logs/rendering/phase61/revision5/final/sphere-visual-review.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Standard Release RigidBodySimulation visual inspection and native close",
+      "command": "launch_ui.py Release; read-only capture_owned_window.py on owned HWND; visual inspection; desktop_probe.py close",
+      "evidence": "logs/rendering/phase61/revision5/manual-Release-readonly/visual-review.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Accepted floor normal/TBN/hotspot isolation preserved; fresh packed floor factor/bindings/sign controls",
+      "command": "Revision4 matched floor evidence plus current source equality and Debug/Release regression",
+      "evidence": "logs/rendering/phase61/revision4/final/captures/visual-review.json",
+      "result": "PASS",
+      "reuse_reason": "Owner accepts floor. Relative to recovered revision4 all production shaders/adapter and floor authoring are byte/text identical. Only sphere factor changes; current GPU fixtures independently retain floor half-width, texture classification, binding and TBN coverage."
+    },
+    {
+      "check": "Exact index/45 protected paths, owner source preservation, final input identities and architecture gates",
+      "command": "python logs/rendering/phase61/revision5/check_protection.py",
+      "evidence": "logs/rendering/phase61/revision5/final/source-and-protection.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/base_white_tile/base-white-tile_albedo.png": {
+      "executable": null,
+      "sha256": "17b9c606092b48740ce52e79b234a5bf461326808d71b6911f3bd251a70af939"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/base_white_tile/base-white-tile_ao.png": {
+      "executable": null,
+      "sha256": "6be2b4dbf42f8a2b850914031b3ba195222292977821a0fd9ffa8ecc2dc1543e"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/base_white_tile/base-white-tile_metallic.png": {
+      "executable": null,
+      "sha256": "853c74cbddd9365725ee0f8e419931080c72fbb1f0be9eb70292e66327868198"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/base_white_tile/base-white-tile_normal-dx.png": {
+      "executable": null,
+      "sha256": "545a1f037856293c52deb910a68b8c9bc78d1735b71d6eccb44fb19f478adbd2"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/base_white_tile/base-white-tile_roughness.png": {
+      "executable": null,
+      "sha256": "afe133251f57c607e7cf1143c11f3f0d107e58b4de0bbd57205c757193b38a57"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/rustediron/rustediron2_basecolor.png": {
+      "executable": null,
+      "sha256": "ea49f2c44684c8810dfb628297c6b1bd8a8477fc77c469510f54db83edd1ba3b"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/rustediron/rustediron2_metallic.png": {
+      "executable": null,
+      "sha256": "571e89a4552fd8ae250e39a6058b484047798815f751f9eace60455ae64f0f91"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/rustediron/rustediron2_normal.png": {
+      "executable": null,
+      "sha256": "dea7d47c6c25f557803e4be7337c5bdb7b5b1592115d1dde18c1d661f17aa5e3"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/rustediron/rustediron2_roughness.png": {
+      "executable": null,
+      "sha256": "b078c4d5c20f9a04e7fe48c96119629d4692897bb6fa414c8419200946f125bc"
+    },
+    "GEngine/include/GEngine/Assets/Images/PBR/subtle_black_granite/subtle-black-granite_ao.png": {
+      "executable": null,
+      "sha256": "b3fa938ce5cdb2cf78f72b91379e3acd9c7ca1583b2496bac2c370c0bc75d5b7"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/mouse_pick.frag": {
+      "executable": null,
+      "sha256": "587b048f59ef2909f5c008ceb888dad702a554d85b19818da36ceacab071cd22"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/pbr_cascade_shadow.frag": {
+      "executable": null,
+      "sha256": "3f5d92b8ecb01d94063ea89f8eb3d2d9064824c4059a5a13049b2606d6d3314c"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/pbr_cascade_shadow.vert": {
+      "executable": null,
+      "sha256": "91e74dae2dada3975f4ff0e885322b2feb5f1dc9aef75a744edecd0308c57e2a"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/point_light_sphere_visual.frag": {
+      "executable": null,
+      "sha256": "12e05a673727b6f04a35062da676e7ce9c7e676a723762c6ca2f4715951cbb80"
+    },
+    "GEngine/include/GEngine/Assets/Textures/Texture.h": {
+      "executable": null,
+      "sha256": "07ae78a2e14aa21832adaa84d78515b35ce030b6a13ac845baa60e9cc8139c95"
+    },
+    "GEngine/src/Assets/Texture.cpp": {
+      "executable": null,
+      "sha256": "660a73a9383de02499535cace92bba1b48e70aab3a5eb152af94c156d2e3f2aa"
+    },
+    "GEngine/src/Managers/AssetsManager.cpp": {
+      "executable": null,
+      "sha256": "b9051878ad2d707fa45b669b13b6b848d02f02954eea359ecd4c4489e67bfeee"
+    },
+    "GEngine/src/Renderer/SubmissionGpuLayout.h": {
+      "executable": null,
+      "sha256": "a7fcbdf5dcd8ac5e05e6dfd5f25c3f08adb60366e863011433342d6136390043"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "c86d6a50f0f4bcda7f2770ca3eceb999f5d5816144dbc8d54ea783eec126cf8d"
+    },
+    "RigidBodySimulation/include/RigidBodySimulation.h": {
+      "executable": null,
+      "sha256": "729cb59af013f3c19b2d7a5c207deeb5627be5fd6b2efd93c3e7faac021353a8"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "1dcb270e077ed7a43079aa0cb1063b3666185e5faac851a71c12ba73abed5b63"
+    },
+    "RigidBodySimulation/src/main.cpp": {
+      "executable": null,
+      "sha256": "3b135dad004bfcbd567fb2985c57984d4b2bc879553f8cc3b94baab487336b19"
+    },
+    "docs/physics/PHASE_06_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_07_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_08_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_09_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_10_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_11_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_12_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_13_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_14_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_15_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_16_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_17_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_18_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_19_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_20_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_21_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_22_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_23_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_24_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_25_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_26_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_27_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_28_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_29_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_30_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_32_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_33_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_34_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_35_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_36_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_37_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_38_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_39_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_OPTIMIZATION.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_REFACTOR.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_00_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_01_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_02_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_03_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_04_REVIEW.md": {
+      "absent": true
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052"
+    },
+    "tools/PBR_VALIDATION.md": {
+      "executable": null,
+      "sha256": "e6124c70dfafeb0adca54971fe1d49058d4a986f6db253a86b04200bb8fa8023"
+    },
+    "tools/frame_submission_probe.cpp": {
+      "executable": null,
+      "sha256": "0af289efaa3d5f0ec6b11c790135507aa5c9c21aff92e92368a02f2b1534c215"
+    },
+    "tools/pbr_shader_probe.cpp": {
+      "executable": null,
+      "sha256": "570145c0e6b15df953561557770bb9e71ae799689894f62bebe54eb4aa66b62f"
+    },
+    "tools/postbuild.py": {
+      "executable": null,
+      "sha256": "04a0a293c07e456537a850e07963fdae52ba1c0f12c52e568d113eb012c7037f"
+    },
+    "tools/rendering_baseline.py": {
+      "executable": null,
+      "sha256": "9a07b35398d63a2ba3a54519ee309351ad18050daad301aff1ac1ed5a8866301"
+    },
+    "tools/rendering_validation.py": {
+      "executable": null,
+      "sha256": "ba91136a1beed9afbf76a0efb54020de89bbc08c62193d27ee9e0886e849373a"
+    },
+    "tools/runtime_assets.json": {
+      "executable": null,
+      "sha256": "de0f15f505442f26238e622fef1ca6d3ec794abf0875250b837344f804fce70c"
+    },
+    "tools/test_frame_submission.py": {
+      "executable": null,
+      "sha256": "52ba08018e68690780d3aaecd3703eb71e99732813d312d1004547b780c983b1"
+    },
+    "tools/test_pbr_shader.py": {
+      "executable": null,
+      "sha256": "2a7ac257abb7f157abd8a172d66263145f9878640d993974c8c8c4f2e44c7026"
+    }
+  }
+}

@@ -57,7 +57,11 @@ namespace GEngine::RenderCounters
         inline thread_local State state;
         inline Key KeyFor(Resource kind, GLuint name)
         {
-            return { reinterpret_cast<std::uintptr_t>(SDL_GL_GetCurrentContext()), kind, name };
+            // Query installation belongs to context creation, so CPU scene
+            // consumers retaining resource destructors do not acquire SDL linkage.
+            const auto query = GLContextThread::Detail::currentContextIdentity;
+            if (!query) GLContextThread::Detail::Fail("RenderCounters context query");
+            return { query(), kind, name };
         }
         inline void Created(Resource kind, GLsizei count, const GLuint* names)
         {

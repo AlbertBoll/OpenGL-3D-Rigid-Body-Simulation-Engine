@@ -42,6 +42,13 @@ static_assert(std::same_as<decltype(std::declval<const RenderFrame&>().Draws()),
 #include <imgui/imgui.h>
 #include <set>
 
+// Only the isolated diagnostic library calls this hook; production has no hook
+// or instrumentation. Count actual matrix/list preparation, independent of GL.
+#ifdef GENGINE_PHASE65_SHADOW_PREPARATION_TEST
+std::array<unsigned,4> phase65Preparation{};
+extern "C" void Phase65ShadowPreparation(unsigned kind) { ++phase65Preparation[kind]; }
+#endif
+
 // Link the actual application request into this production-library probe.
 extern WindowProperties winProp;
 namespace WindowPlacementProbe
@@ -91,6 +98,38 @@ namespace
             if constexpr (std::same_as<E,ScheduleError>) std::println(stderr,"{}",DescribeScheduleError(value.error()));
         }
         Check(value,message);return std::move(*value);
+    }
+    auto ObservedSubmit(FrameSubmission& submission,const RenderFrame& frame,
+        const FrameSubmissionDesc& desc,EntityPickTable& picks)
+    {
+#ifdef GENGINE_PHASE65_SHADOW_PREPARATION_TEST
+        const auto before=phase65Preparation;
+#endif
+        auto result=submission.Submit(frame,desc,picks);
+#ifdef GENGINE_PHASE65_SHADOW_PREPARATION_TEST
+        if(result) {
+            const unsigned expected[]{result->decisions[0].executed?5u:0u,result->decisions[1].executed?1u:0u,
+                result->decisions[0].executed?1u:0u,result->decisions[1].executed?1u:0u};
+            for(unsigned i=0;i<4;++i) Check(phase65Preparation[i]-before[i]==expected[i],
+                "actual shadow CPU preparation occurs exactly for executed passes");
+        }
+#endif
+        return result;
+    }
+    void CheckShadowReuse(const FrameSubmissionStats& previous,const FrameSubmissionStats& cached)
+    {
+        for(unsigned i=0;i<2;++i) {
+            const auto& a=previous.shadowVisibility[i];const auto& b=cached.shadowVisibility[i];
+            Check(!cached.decisions[i].executed && a.light==b.light && a.layerCount==b.layerCount,
+                "cached shadow visibility retains light identity and layer count");
+            auto same=[](const ShadowCasterStats& a,const ShadowCasterStats& b) {
+                Check(a.candidates==b.candidates && a.visible==b.visible && a.culled==b.culled
+                    && a.conservative==b.conservative && b.submittedCasters==0,
+                    "cached shadow counts retain current visibility and report zero submitted work");
+            };
+            same(a.total,b.total);
+            for(std::size_t layer=0;layer<a.layers.size();++layer) same(a.layers[layer],b.layers[layer]);
+        }
     }
     namespace UploadCalls
     {
@@ -1197,7 +1236,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             auto access=resources.Publication().BeginFrame();
             auto frame=Take(Extract(scene,resources,access,camera),"invalidation extraction");
             targets.pipelines=overrideRoles.empty()?resources.Pipelines():std::span<const ScenePipeline>(overrideRoles);
-            return Take(submitter.Submit(frame,targets,picks),"invalidation submission");
+            return Take(ObservedSubmit(submitter,frame,targets,picks),"invalidation submission");
         };
         auto expect=[&](PassDirtyReason reason,unsigned mask) {
             auto result=run();
@@ -1254,7 +1293,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
                 {
                     DriverCalls::Observe observe;
                     const auto start=std::chrono::steady_clock::now();
-                    auto result=Take(submitter.Submit(frame,targets,picks),"state measurement submission");
+                    auto result=Take(ObservedSubmit(submitter,frame,targets,picks),"state measurement submission");
                     elapsed=std::chrono::steady_clock::now()-start;
                     Check(result.shadowDraws==128&&result.pickDraws==64&&result.colorDraws==64,"matched 256-draw frozen workload");
                 }
@@ -1280,7 +1319,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
                     measured.InvalidatePassContents();
                     auto access=resources.Publication().BeginFrame();
                     auto frame=Take(Extract(scene,resources,access,camera),"fixture frozen extraction");
-                    auto result=Take(measured.Submit(frame,targets,picks),"fixture submission");
+                    auto result=Take(ObservedSubmit(measured,frame,targets,picks),"fixture submission");
                     Check(result.shadowDraws==2 && result.pickDraws==1 && result.colorDraws==1,"fixture exact workload");
                 }
                 timing.EndFrame();
@@ -1434,7 +1473,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         {
             auto access=resources.Publication().BeginFrame();auto frame=Take(Extract(scene,resources,access,camera),"failed submission input");
             glEnable(0xffffffffu); // Pending driver error, consumed by production submission.
-            auto failed=submitter.Submit(frame,targets,picks);
+            auto failed=ObservedSubmit(submitter,frame,targets,picks);
             Check(!failed,"injected driver failure is returned");
             const auto* meshError=std::get_if<GpuMeshError>(&failed.error().cause);
             Check(meshError && meshError->code==GpuMeshErrorCode::Driver,"submission preserves the originating mesh driver diagnostic");
@@ -1549,7 +1588,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         auto extract=[&] { auto access=resources.Publication().BeginFrame();
             return Take(Extract(scene,resources,access,camera),"shadow dirtiness extraction"); };
         auto run=[&] { auto frame=extract();targets.pipelines=resources.Pipelines();
-            return Take(submitter.Submit(frame,targets,picks),"shadow dirtiness submission"); };
+            return Take(ObservedSubmit(submitter,frame,targets,picks),"shadow dirtiness submission"); };
         auto expect=[&](const FrameSubmissionStats& stats,unsigned mask,PassDirtyReason reason) {
             for(unsigned i=0;i<2;++i) {
                 Check(stats.decisions[i].requested && stats.decisions[i].executed==bool(mask&(1u<<i)),"shadow exact pass work");
@@ -1596,9 +1635,11 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
                 covered(values,0,256*256*5),covered(values,256*256*6,values.size()));
             Check((covered(values,0,256*256*5)>0)==present && (covered(values,256*256*6,values.size())>0)==present,
                 "both actual shadow images match alpha coverage"); };
-        expect(run(),3,PassDirtyReason::InitialContent);
+        const auto initialStats=run();expect(initialStats,3,PassDirtyReason::InitialContent);
         auto initial=depth();assertCoverage(initial,true);
-        for(unsigned frame=0;frame<4;++frame) expect(run(),0,PassDirtyReason::None);
+        for(unsigned frame=0;frame<4;++frame) {
+            const auto cached=run();expect(cached,0,PassDirtyReason::None);CheckShadowReuse(initialStats,cached);
+        }
         Check(depth()==initial,"static frames preserve exact shadow depth without draws");
         nonCaster.Transform().Translation.x+=1;
         expect(run(),0,PassDirtyReason::None);
@@ -1640,7 +1681,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         { auto current=extract();
           Check(current.Resources()[0].Material().Instance()==masked && current.Resources()[0].Material().Revision()==materialRevision,
               "alpha arrival invalidates without changing the material handle or revision"); }
-        expect(Take(submitter.Submit(retained,targets,picks),"retained pre-arrival alpha frame"),3,PassDirtyReason::Material);
+        expect(Take(ObservedSubmit(submitter,retained,targets,picks),"retained pre-arrival alpha frame"),3,PassDirtyReason::Material);
         Check(depth()==solidDepth,"retained frame uses old texture content under the same handle");
         expect(run(),3,PassDirtyReason::Material);assertCoverage(depth(),false);
         alpha.alpha=std::byte{255};complete(alpha,PassDirtyReason::Material);assertCoverage(depth(),true);
@@ -1651,7 +1692,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         std::vector<ScenePipeline> roles(resources.Pipelines().begin(),resources.Pipelines().end());
         for(auto& role:roles) if(role.pipeline==retained.Draws()[0].pipeline) role.opacity=.25f;
         { auto frame=extract();auto changed=targets;changed.pipelines=roles;
-          expect(Take(submitter.Submit(frame,changed,picks),"shadow masked opacity change"),3,PassDirtyReason::Material);assertCoverage(depth(),false); }
+          expect(Take(ObservedSubmit(submitter,frame,changed,picks),"shadow masked opacity change"),3,PassDirtyReason::Material);assertCoverage(depth(),false); }
         expect(run(),3,PassDirtyReason::Material);assertCoverage(depth(),true);
         // Same submesh and handle, different vertices and bounds from CPU data.
         std::vector<std::byte> vertices(cpu.Vertices().begin(),cpu.Vertices().end());
@@ -1672,7 +1713,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         complete(meshArrival,PassDirtyReason::Mesh);const auto smallerDepth=depth();Check(smallerDepth!=oldMeshDepth,"same-handle mesh completion changes depth");
         { auto frame=extract();Check(frame.Resources()[0].Mesh().Identity()==mesh
             && frame.Resources()[0].Mesh().Revision()!=oldMeshFrame.Resources()[0].Mesh().Revision(),"stable mesh identity carries new version"); }
-        expect(Take(submitter.Submit(oldMeshFrame,targets,picks),"retained mesh frame"),3,PassDirtyReason::Mesh);
+        expect(Take(ObservedSubmit(submitter,oldMeshFrame,targets,picks),"retained mesh frame"),3,PassDirtyReason::Mesh);
         Check(depth()==oldMeshDepth,"retained old geometry restores exact old shadow depth");
         expect(run(),3,PassDirtyReason::Mesh);Check(depth()==smallerDepth,"current mesh version restores exact new shadow depth");
         // Exercise the real fixed-step presentation path, without changing its equations.
@@ -1787,7 +1828,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
                     submitter.InvalidatePassContents();
                     if(measure) glBeginQuery(GL_TIME_ELAPSED,queries[i]);
                     const auto start=std::chrono::steady_clock::now();
-                    stats=Take(submitter.Submit(frame,desc,picks),"culled/reference shadow submission");
+                    stats=Take(ObservedSubmit(submitter,frame,desc,picks),"culled/reference shadow submission");
                     cpu[i]=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now()-start).count();
                     if(measure) glEndQuery(GL_TIME_ELAPSED);
                 }
@@ -1817,8 +1858,11 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
                     }
                     glDeleteQueries(static_cast<GLsizei>(queries.size()),queries.data());
                 }
-                const auto cached=Take(submitter.Submit(frame,desc,picks),"culled static cache");
+                const auto cached=Take(ObservedSubmit(submitter,frame,desc,picks),"culled static cache");
                 Check(!cached.decisions[0].executed && !cached.decisions[1].executed && cached.shadowDraws==0,"culling preserves static shadow reuse");
+                CheckShadowReuse(stats,cached);
+                Check(ShadowDepth(desc.pointShadow,desc.cascadeShadow)==depth && Pixels(desc.color)==color,
+                    "cached culling retains exact depth and color");
                 for(const auto& counts:cached.shadowVisibility) {
                     Check(counts.total.submittedCasters==0,"clean light records zero submitted casters");
                     for(const auto& layer:counts.layers) Check(layer.submittedCasters==0,"clean layer records zero submitted casters");

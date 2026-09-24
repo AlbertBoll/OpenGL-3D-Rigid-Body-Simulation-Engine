@@ -159,6 +159,7 @@ def main():
     parser.add_argument("--configuration", choices=["Debug", "Release"], required=True)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--no-build", action="store_true", help="Reuse matching affected-consumer builds")
+    parser.add_argument("--build-closure-only", action="store_true", help="Rebuild the full solution and check headless CPU/link closure; skip rendering measurements")
     parser.add_argument("--smoke", action="store_true", help="All four graphical applications: responsiveness and native shutdown")
     parser.add_argument("--scene-variants", action="store_true", help="Compile and smoke each authored rigid-body scene")
     parser.add_argument("--timing-baseline", action="store_true", help="Release: capture the secondary Phase 48 per-pass reference")
@@ -174,6 +175,8 @@ def main():
     parser.add_argument("--shadow-cull-measure", action="store_true", help="Three paired shadow broadcast/culled CPU and GPU series")
     parser.add_argument("--picking-measure", action="store_true", help="Three idle/cached/dirty synchronous readback series")
     args = parser.parse_args()
+    if args.build_closure_only and args.no_build:
+        parser.error("Build closure requires a fresh full rebuild")
     if args.upload_baseline and (not args.no_build or not args.upload_measure):
         parser.error("Upload baseline requires --no-build --upload-measure")
     if args.upload_reference and (not args.upload_measure or args.upload_baseline):
@@ -229,13 +232,38 @@ def main():
         if not args.no_build and not invoke("generate", [ROOT / "vendor/bin/premake/premake5.exe", *(["--render-baseline"] if args.timing_baseline else []), "vs2022"], 120):
             return 1
         report["compiler_return_guards"] = env["CL"]
-        targets = "GEngineEditor;Breakout;RayTracing;RigidBodySimulation;" + ("PhysicsBenchmark;RenderingValidation" if args.timing_baseline else "PhysicsTests;PhysicsBenchmark")
-        build = [msbuild, ROOT / "GEngine.sln", "/t:" + targets,
+        targets = "GEngineEditor;Breakout;RayTracing;RigidBodySimulation;PhysicsTests;PhysicsBenchmark;RenderingValidation"
+        build = [msbuild, ROOT / "GEngine.sln", "/t:" + ("Rebuild" if args.build_closure_only else targets),
                  "/m:1", "/nr:false", "/nologo", "/v:normal",
                  "/p:Configuration=" + config, "/p:Platform=x64", "/p:VCToolsVersion=" + vc.name,
                  "/p:WindowsTargetPlatformVersion=" + sdk_version, "/bl:" + str(out / "build.binlog")]
         if not args.no_build and not invoke("build", build, 1200):
             return 1
+        # Include/link closure is distinct from the native-free header probes.
+        # Rebuild this headless target against the just-built engine so an old
+        # non-instrumented Release executable cannot hide a counter dependency.
+        if not args.no_build and config == "Release":
+            clean_link = [msbuild, ROOT / "PhysicsTests/PhysicsTests.vcxproj", "/t:Rebuild",
+                          "/m:1", "/nr:false", "/nologo", "/v:normal",
+                          "/p:BuildProjectReferences=false", "/p:Configuration=Release", "/p:Platform=x64",
+                          "/p:VCToolsVersion=" + vc.name, "/p:WindowsTargetPlatformVersion=" + sdk_version,
+                          "/bl:" + str(out / "physics-tests-clean-link.binlog")]
+            if not invoke("physics-tests-clean-link", clean_link, 1200):
+                return 1
+            executable = ROOT / "bin/Release/PhysicsTests/PhysicsTests.exe"
+            if not invoke("physics-tests-imports", [vc / "bin/Hostx64/x64/dumpbin.exe", "/imports", executable]):
+                return 1
+            if re.search(r"\bSDL[^\s]*\.dll\b", (out / "physics-tests-imports.log").read_text(errors="replace"), re.I):
+                report["reason"] = "Headless PhysicsTests Release acquired an SDL import"
+                return 1
+            if not invoke("physics-tests-program-grouping", [executable, "--program-grouping"]):
+                return 1
+        if args.build_closure_only:
+            report["scope"] = "full-solution-rebuild-and-headless-closure"
+            executable = ROOT / "bin" / config / "PhysicsTests/PhysicsTests.exe"
+            passed = invoke("physics-tests-all", [executable], 600)
+            passed = invoke("physics-tests-scene-grouping", [executable, "--program-grouping"]) and passed
+            return 0 if passed else 1
         includes = [vc / "include", *(sdk / "Include" / sdk_version / part for part in ("ucrt", "shared", "um")),
                     ROOT / "GEngine/include", ROOT / "GEngine/include/GEngine", ROOT / "GEngine/include/external",
                     *(ROOT / "external" / part / "include" for part in ("sdl2", "spdlog", "glad", "assimp", "entt", "tbb", "fmod"))]

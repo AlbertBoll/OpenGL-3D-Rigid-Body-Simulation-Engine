@@ -25,10 +25,14 @@ namespace GEngine
     };
     struct FrozenRenderEntity
     {
-        EntityRenderState state; // Retained versions, copied presentation/bounds/light data.
-        std::optional<Component::MeshRendererComponent> mesh;
-        std::optional<Component::RenderCameraComponent> camera;
-        Component::VisibilityComponent visibility;
+        EntityRenderState state;
+        const std::optional<Component::MeshRendererComponent>& mesh;
+        const std::optional<Component::RenderCameraComponent>& camera;
+        const Component::VisibilityComponent& visibility;
+        FrozenRenderEntity() noexcept;
+        explicit FrozenRenderEntity(const EntityRenderState&) noexcept;
+        FrozenRenderEntity(const FrozenRenderEntity&) = delete;
+        FrozenRenderEntity& operator=(const FrozenRenderEntity&) = delete;
     };
     struct RenderTaskConfig
     {
@@ -56,7 +60,7 @@ namespace GEngine
     // completed uploads/replacements/destruction first. Hold resources.access from
     // before Prepare until workers, merge and CPU submission all finish. Prepare
     // evaluates every lazy scene/presentation cache on the owner, freezes ECS, then
-    // copies all task-visible values and retains exact asset versions. Mutable ECS
+    // pins immutable CPU records and retains exact current asset versions. Mutable ECS
     // borrows must end before Prepare; workers get snapshots, never live scene access.
     //
     // Run is synchronous. One bounded batch of joinable CRT threads is the selected
@@ -85,6 +89,8 @@ namespace GEngine
         std::span<const FrozenRenderEntity> Inputs() const && = delete;
         RenderRevisions Revisions() const noexcept { return m_Revisions; }
         RenderTargetRevision Target() const noexcept { return m_Target; }
+        bool FullTransformChange() const noexcept { return m_FullTransformChange; }
+        const std::shared_ptr<RenderCpu::Domain>& CpuDomain() const noexcept { return m_CpuDomain; }
         void RequestCancel() noexcept { m_Cancelled.store(true, std::memory_order_relaxed); }
         std::size_t LaneCount(RenderTaskConfig) const noexcept;
         [[nodiscard]] std::expected<RenderTaskStats, RenderWorkError> Run(
@@ -99,6 +105,9 @@ namespace GEngine
         const std::thread::id m_Owner = std::this_thread::get_id();
         std::optional<Asset::AssetPublication::ReadPin> m_AccessPin;
         std::optional<RenderEcs::ExtractionScope> m_Freeze;
+        bool m_FullTransformChange{};
+        SceneEntityViews m_Views;
+        std::shared_ptr<RenderCpu::Domain> m_CpuDomain;
         std::unique_ptr<FrozenRenderEntity[]> m_Entities;
         std::size_t m_Count{};
         RenderRevisions m_Revisions;

@@ -18,6 +18,7 @@
 #include <stdexcept>
 #include <utility>
 #include <unordered_set>
+#include "../Renderer/RenderCpuBacking.h"
 
 namespace GEngine
 {
@@ -43,6 +44,28 @@ namespace GEngine
 					if (!std::isfinite(matrix[column][row])) return false;
 			return true;
 		}
+
+        struct C3WorldNode
+        {
+            entt::entity handle;
+            UUID uuid;
+            EntityRenderId identity{}, parentIdentity{};
+            std::size_t parent = SIZE_MAX;
+        };
+        struct C3TopologyInput
+        {
+            entt::entity handle;
+            UUID uuid, parent{0};
+            EntityRenderId identity{}, parentIdentity{};
+            bool relationship{}, transform{}, anchor{};
+            bool operator==(const C3TopologyInput&) const = default;
+        };
+        struct C3WorldGraph
+        {
+            std::vector<C3WorldNode> nodes;
+            std::vector<std::size_t> order;
+            std::vector<C3TopologyInput> observed;
+        };
 
 		// Runtime-only bridge state: not copied with authoring components or serialized.
 		struct RuntimePhysicsPose
@@ -310,42 +333,57 @@ namespace GEngine
 		return sampled;
 	}
 
-	Mat4 _Scene::SampleRenderMatrix(entt::entity handle) const
-	{
-		const auto& transform = m_Registry.get<Transform3DComponent>(handle);
-		const auto* link = m_Registry.try_get<RelationshipComponent>(handle);
-		const UUID parent = link ? link->ParentHandle : UUID{0};
-		Vec3f translation = transform.Translation;
-		Quat rotation = transform.QuatRotation;
-		const auto* pose = m_Registry.try_get<RuntimePhysicsPose>(handle);
-		const auto* rigidBody = m_Registry.try_get<RigidBody3DComponent>(handle);
-		if (pose && rigidBody && ValidPhysicsPose(m_PhysicsSystem->GetPhysicsWorld(), *rigidBody, *pose))
-		{
-			// Edits between Update and submission must be visible immediately, but must
-			// not write back into physics. Update accepts/rejects authored poses as before.
-			const bool authoredEdit = transform.Translation != pose->translation
-				|| transform.QuatRotation != pose->rotation;
-			if (!authoredEdit)
-			{
-				const auto* body = rigidBody->RuntimeBody;
-				translation = body->m_Position;
-				rotation = body->m_Orientation;
-				if (m_RenderInterpolationEnabled && !m_IsPaused && transform.Scale == pose->scale
-					&& parent == pose->parent && translation == pose->currentTranslation
-					&& rotation == pose->currentRotation)
-				{
-					const float alpha = static_cast<float>(GetRenderInterpolationAlpha());
-					translation = glm::mix(pose->previousTranslation, pose->currentTranslation, alpha);
-					// Shortest-arc normalized quaternion interpolation; no Euler or matrix lerp.
-					rotation = glm::normalize(glm::slerp(pose->previousRotation, pose->currentRotation, alpha));
-				}
-			}
-		}
-		// Scale is authored, not integrated. A scale edit snaps history; preserving
-		// T*R*S directly supports non-uniform/negative scale without matrix decomposition.
-		return glm::translate(Mat4(1.0f), translation) * glm::toMat4(glm::normalize(rotation))
-			* glm::scale(Mat4(1.0f), transform.Scale);
-	}
+    RenderPresentationInput _Scene::ObserveRenderPresentation(entt::entity handle) const
+    {
+        const auto& transform = m_Registry.get<Transform3DComponent>(handle);
+        const auto* link = m_Registry.try_get<RelationshipComponent>(handle);
+        const UUID parent = link ? link->ParentHandle : UUID{0};
+        RenderPresentationInput input;
+        input.translation = transform.Translation;
+        input.rotation = transform.QuatRotation;
+        input.scale = transform.Scale;
+        const auto* pose = m_Registry.try_get<RuntimePhysicsPose>(handle);
+        const auto* rigidBody = m_Registry.try_get<RigidBody3DComponent>(handle);
+        // Lifetime/readiness is tested freshly, before any body dereference.
+        if (pose && rigidBody && ValidPhysicsPose(m_PhysicsSystem->GetPhysicsWorld(), *rigidBody, *pose))
+        {
+            const bool authoredEdit = transform.Translation != pose->translation || transform.QuatRotation != pose->rotation;
+            if (!authoredEdit)
+            {
+                const auto* body = rigidBody->RuntimeBody;
+                input.translation = body->m_Position;
+                input.rotation = body->m_Orientation;
+                if (m_RenderInterpolationEnabled && !m_IsPaused && transform.Scale == pose->scale
+                    && parent == pose->parent && input.translation == pose->currentTranslation
+                    && input.rotation == pose->currentRotation)
+                {
+                    input.interpolate = true;
+                    input.alpha = static_cast<float>(GetRenderInterpolationAlpha());
+                    input.previousTranslation = pose->previousTranslation;
+                    input.currentTranslation = pose->currentTranslation;
+                    input.previousRotation = pose->previousRotation;
+                    input.currentRotation = pose->currentRotation;
+                }
+            }
+        }
+        return input;
+    }
+    Mat4 _Scene::EvaluateRenderPresentation(const RenderPresentationInput& input)
+    {
+        auto translation = input.translation;
+        auto rotation = input.rotation;
+        if (input.interpolate)
+        {
+            translation = glm::mix(input.previousTranslation, input.currentTranslation, input.alpha);
+            rotation = glm::normalize(glm::slerp(input.previousRotation, input.currentRotation, input.alpha));
+        }
+        return glm::translate(Mat4(1.0f), translation) * glm::toMat4(glm::normalize(rotation))
+            * glm::scale(Mat4(1.0f), input.scale);
+    }
+    Mat4 _Scene::SampleRenderMatrix(entt::entity handle) const
+    {
+        return EvaluateRenderPresentation(ObserveRenderPresentation(handle));
+    }
 
 	std::expected<void, TransformError> _Scene::ResetRenderInterpolation(const _Entity& entity)
 	{
@@ -364,13 +402,40 @@ namespace GEngine
 	std::expected<WorldTransformUpdate, TransformError> _Scene::UpdateWorldTransforms()
 	{
 		m_RenderData.RequireMutable();
-		struct Node
-		{
-			entt::entity handle;
-			UUID uuid;
-			EntityRenderId identity{}, parentIdentity{};
-			std::size_t parent = SIZE_MAX;
-		};
+        auto* previousGraph = m_Registry.ctx().find<C3WorldGraph>();
+        bool sameGraph = previousGraph != nullptr;
+        std::size_t ordinal = 0;
+        const auto observe = [&](entt::entity e) {
+            C3TopologyInput input{e, m_Registry.get<IDComponent>(e).ID};
+            if (const auto* parent = m_Registry.try_get<RelationshipComponent>(e)) {
+                input.relationship = true; input.parent = parent->ParentHandle; input.parentIdentity = parent->ParentIdentity;
+            }
+            input.transform = m_Registry.all_of<Transform3DComponent>(e);
+            input.anchor = m_Registry.all_of<RigidBody3DComponent>(e);
+            return input;
+        };
+        for (auto e : m_Registry.view<IDComponent>())
+        {
+            auto input = observe(e);
+            if (sameGraph)
+            {
+                if (ordinal >= previousGraph->observed.size()) sameGraph = false;
+                else
+                {
+                    const auto& old = previousGraph->observed[ordinal];
+                    const auto resolved = m_RenderData.Resolve(old.identity);
+                    input.identity = old.identity;
+                    if (!resolved || *resolved != e || input != old) sameGraph = false;
+                }
+            }
+            ++ordinal;
+        }
+        sameGraph = sameGraph && ordinal == previousGraph->observed.size();
+        C3WorldGraph nextGraph;
+        const C3WorldGraph* graph = previousGraph;
+        if (!sameGraph)
+        {
+        using Node = C3WorldNode;
 		std::vector<Node> nodes;
 		for (auto e : m_Registry.view<IDComponent>())
 			nodes.push_back({e, m_Registry.get<IDComponent>(e).ID});
@@ -426,9 +491,25 @@ namespace GEngine
 			}
 		}
 
+            nextGraph.nodes = std::move(nodes);
+            nextGraph.order = std::move(order);
+            nextGraph.observed.reserve(ordinal);
+            for (auto e : m_Registry.view<IDComponent>())
+            {
+                auto input = observe(e);
+                input.identity = m_RenderData.Identify(e).value(); // Full validator already identified each node.
+                nextGraph.observed.push_back(input);
+            }
+            graph = &nextGraph;
+
+        }
+        const auto& nodes = graph->nodes;
+        const auto& order = graph->order;
+
 		WorldTransformUpdate result;
 		result.transforms.reserve(nodes.size());
 		std::vector<CachedWorldTransform> candidate(nodes.size());
+        std::vector<bool> modified(nodes.size());
 		for (auto index : order)
 		{
 			const auto& node = nodes[index];
@@ -456,6 +537,7 @@ namespace GEngine
 			if (localChanged || cache.parent != node.parentIdentity || cache.parentRevision != parentRevision
 				|| cache.worldAnchor != anchor)
 			{
+                modified[index] = true;
 				const Mat4 world = compose ? candidate[node.parent].world * cache.local : cache.local;
 				if (!FiniteMatrix(world))
 					return std::unexpected(TransformError{TransformErrorCode::NonFiniteTransform, node.uuid});
@@ -474,12 +556,24 @@ namespace GEngine
 		}
 		// Publish caches only after the whole graph, including composed matrices, is valid.
 		for (std::size_t i = 0; i != nodes.size(); ++i)
-			m_Registry.emplace_or_replace<CachedWorldTransform>(nodes[i].handle, candidate[i]);
-		return result;
-	}
+            if (modified[i]) m_Registry.emplace_or_replace<CachedWorldTransform>(nodes[i].handle, candidate[i]);
+        if (!sameGraph)
+        {
+            if (previousGraph) *previousGraph = std::move(nextGraph);
+            else m_Registry.ctx().emplace<C3WorldGraph>(std::move(nextGraph));
+        }
+
+#ifdef GENGINE_RENDER_WORLD_DIAGNOSTICS
+        const auto& retained=*m_Registry.ctx().find<C3WorldGraph>();
+        RenderCpu::counts.worldCpuBytes=sizeof(C3WorldGraph)+retained.nodes.capacity()*sizeof(C3WorldNode)
+            +retained.order.capacity()*sizeof(std::size_t)+retained.observed.capacity()*sizeof(C3TopologyInput)
+            +m_Registry.storage<CachedWorldTransform>().capacity()*sizeof(CachedWorldTransform);
+#endif
+        return result;
+    }
 
 
-	void _Scene::SetPaused(bool paused)
+    void _Scene::SetPaused(bool paused)
 	{
 		m_RenderData.RequireMutable();
 		if (m_IsPaused == paused) return;

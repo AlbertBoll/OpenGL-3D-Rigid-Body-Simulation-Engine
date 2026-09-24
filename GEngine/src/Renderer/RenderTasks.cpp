@@ -6,6 +6,7 @@
 #include <new>
 #include <process.h>
 #include <Windows.h>
+#include "RenderCpuBacking.h"
 
 namespace GEngine
 {
@@ -47,6 +48,13 @@ namespace GEngine
         };
     }
 
+    namespace { const Component::VisibilityComponent DefaultVisibility; }
+    FrozenRenderEntity::FrozenRenderEntity() noexcept
+        : state(),mesh(state.cpu.meshIntent),camera(state.cpu.cameraIntent),visibility(DefaultVisibility) {}
+    FrozenRenderEntity::FrozenRenderEntity(const EntityRenderState& value) noexcept
+        :state(value),
+        mesh(state.cpu.meshIntent),camera(state.cpu.cameraIntent),
+        visibility(state.cpu.visibilityIntent?*state.cpu.visibilityIntent:DefaultVisibility) {}
     std::expected<std::unique_ptr<RenderTaskFrame>, RenderWorkError> RenderTaskFrame::Prepare(
         _Scene& scene, const RenderStateResources& resources)
     {
@@ -68,23 +76,15 @@ namespace GEngine
             if (!frame->m_Entities) return Error(RenderWorkCode::Allocation, count);
         }
         frame->m_Count = count; frame->m_Revisions = state->revisions; frame->m_Target = state->target;
-        for (std::size_t i = 0; i < count; ++i)
-        {
-            auto& entry = frame->m_Entities[i];
-            entry.state = std::move(state->entities[i]);
-            auto mesh = scene.RenderData().Get<Component::MeshRendererComponent>(entry.state.entity);
-            if (mesh) entry.mesh = *mesh;
-            else if (mesh.error() != RenderEcsError::MissingComponent)
-                return std::unexpected(RenderWorkError{RenderWorkCode::InvalidInput, i, mesh.error()});
-            auto visibility = scene.RenderData().Get<Component::VisibilityComponent>(entry.state.entity);
-            if (visibility) entry.visibility = *visibility;
-            else if (visibility.error() != RenderEcsError::MissingComponent)
-                return std::unexpected(RenderWorkError{RenderWorkCode::InvalidInput, i, visibility.error()});
-            auto camera = scene.RenderData().Get<Component::RenderCameraComponent>(entry.state.entity);
-            if (camera) entry.camera = *camera;
-            else if (camera.error() != RenderEcsError::MissingComponent)
-                return std::unexpected(RenderWorkError{RenderWorkCode::InvalidInput, i, camera.error()});
+        frame->m_FullTransformChange=state->fullTransformChange;
+        frame->m_Views=std::move(state->entities);frame->m_CpuDomain=std::move(state->cpuDomain);
+        for(std::size_t i=0;i<count;++i) {
+            std::destroy_at(&frame->m_Entities[i]);
+            std::construct_at(&frame->m_Entities[i],frame->m_Views[i]);
         }
+        // The input owner references now implement per-input consumption. Keep
+        // mesh groups and complete errors; do not keep redundant material owners.
+        for(auto& group:frame->m_Views.Bindings()->materials)group.material.reset();
         return frame;
     }
     RenderTaskFrame::~RenderTaskFrame() { Owner(m_Owner); Asset::AssetDetail::RequireInvariant(!m_Running); }
@@ -159,9 +159,10 @@ namespace GEngine
         auto& entry = m_Entities[input].state;
         if (!entry.mesh || !entry.material) return Error(RenderWorkCode::InvalidInput, input);
         m_Merging = true;
-        auto added = builder.AddResources(entry.mesh, std::move(*entry.material));
+        auto added = builder.AddSharedResources(entry.mesh, entry.material);
         if (!added) return std::unexpected(RenderWorkError{RenderWorkCode::InvalidInput, input, added.error()});
         entry.material.reset();
+        RW_COUNT(resourceRows,1);
         return *added;
     }
 

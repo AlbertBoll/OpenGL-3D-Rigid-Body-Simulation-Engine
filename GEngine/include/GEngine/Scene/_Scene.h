@@ -13,7 +13,8 @@ namespace GEngine
 	enum class TransformErrorCode
 	{
 		InvalidEntity, ForeignEntity, InvalidParent, Cycle, MissingTransform,
-		NonFiniteTransform, InvalidRotation, IdentityExhausted, NonFiniteRenderData
+		NonFiniteTransform, InvalidRotation, IdentityExhausted, NonFiniteRenderData,
+		AllocationFailed, CapacityOverflow
 	};
 	struct TransformError
 	{
@@ -171,6 +172,8 @@ namespace GEngine
 
 	private:
 		void RemoveFromRenderLists(const _Entity& entity);
+        RenderPresentationInput ObserveRenderPresentation(entt::entity entity) const;
+        static Mat4 EvaluateRenderPresentation(const RenderPresentationInput&);
 		Mat4 SampleRenderMatrix(entt::entity entity) const;
 
 		template<typename T>

@@ -204,6 +204,36 @@ namespace
         Require(counters::Current().liveNames == std::array<std::uint64_t, 8>{}, "Context retirement retained names");
         glDeleteBuffers(1, &buffer);
         Require(glGetError() == GL_NO_ERROR, "Counter fixture left a GL error");
+#if GENGINE_RENDER_COUNTERS
+        // A second unshared context must not redirect retirement in the first.
+        // This exercises the deletion query after the creating context changes.
+        const auto window = SDL_GL_GetCurrentWindow();
+        glGenBuffers(1, &buffer);
+        glBindBuffer(GL_ARRAY_BUFFER, buffer);
+        glBufferData(GL_ARRAY_BUFFER, 16, nullptr, GL_STATIC_DRAW);
+        using Context = std::unique_ptr<void, decltype(&SDL_GL_DeleteContext)>;
+        Context second(SDL_GL_CreateContext(window), &SDL_GL_DeleteContext);
+        Require(second != nullptr, "Cannot create second counter context");
+        GLuint other = 0;
+        glGenBuffers(1, &other);
+        glBindBuffer(GL_ARRAY_BUFFER, other);
+        glBufferData(GL_ARRAY_BUFFER, 32, nullptr, GL_STATIC_DRAW);
+        Require(counters::Current().liveNames[0] == 2 && counters::Current().estimatedBufferBytes == 48,
+            "Independent context resources were conflated");
+        Require(SDL_GL_MakeCurrent(window, context) == 0, "Cannot restore first counter context");
+        glDeleteBuffers(1, &buffer);
+        glDeleteBuffers(1, &buffer);
+        Require(counters::Current().liveNames[0] == 1 && counters::Current().estimatedBufferBytes == 32,
+            "Deletion used the creating context instead of the current context");
+        Require(SDL_GL_MakeCurrent(window, second.get()) == 0, "Cannot restore second counter context");
+        counters::ForgetContext(second.get());
+        glDeleteBuffers(1, &other);
+        Require(counters::Current().liveNames == std::array<std::uint64_t, 8>{}
+            && counters::Current().estimatedBufferBytes == 0, "Context retirement retained byte/name accounting");
+        Require(glGetError() == GL_NO_ERROR, "Second counter context left a GL error");
+        Require(SDL_GL_MakeCurrent(window, context) == 0, "Cannot restore fixture context");
+        std::cout << "[COUNTERS] context-switch-retirement=ok repeated-delete=ok forget-context=ok\n";
+#endif
         std::cout << "[COUNTERS] enabled=" << counters::Enabled << " draw-sequence=6/2/8 pixel=red reset=ok resources=retired\n";
     }
 

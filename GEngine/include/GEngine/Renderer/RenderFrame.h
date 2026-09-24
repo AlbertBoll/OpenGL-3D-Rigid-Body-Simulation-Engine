@@ -8,11 +8,13 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
-#include <optional>
+#include <variant>
+#include <type_traits>
 #include <span>
 
 namespace GEngine
 {
+    namespace RenderCpu { struct DrawStorage; struct FrameAccess; }
     // CPU frame limit across all three types, independent of any shader layout.
     inline constexpr std::size_t MaxFrameLights = 256;
     struct LightShadowSettings { bool castShadows = false; };
@@ -84,6 +86,25 @@ namespace GEngine
         DebugDepth depth = DebugDepth::Tested;
     };
 
+    // One-call immutable owner groups. Scene caches never retain these.
+    // The wrapper preserves independent mesh ownership when a material packet is consumed.
+    class FrameMeshReference final
+    {
+    public:
+        FrameMeshReference() = default;
+        explicit FrameMeshReference(std::shared_ptr<const MeshView> owner) : m_Owner(std::move(owner)) {}
+        explicit operator bool() const noexcept { return m_Owner && bool(*m_Owner); }
+        const GpuMesh* Get() const noexcept { return m_Owner ? m_Owner->Get() : nullptr; }
+        const GpuMesh* operator->() const noexcept { return Get(); }
+        const GpuMesh& operator*() const { return **m_Owner; }
+        Asset::MeshHandle Identity() const noexcept { return m_Owner ? m_Owner->Identity() : Asset::MeshHandle{}; }
+        std::uint64_t Revision() const noexcept { return m_Owner ? m_Owner->Revision() : 0; }
+        const std::shared_ptr<const MeshView>& Owner() const noexcept { return m_Owner; }
+    private:
+        std::shared_ptr<const MeshView> m_Owner;
+    };
+    using FrameMaterialReference = std::shared_ptr<const PreparedMaterialBinding>;
+
     // The builder derives identity/range from these exact ready versions. Moving a
     // prepared packet transfers its buffers; no mesh, texture or material is copied.
     class FrameResources final
@@ -93,13 +114,39 @@ namespace GEngine
         FrameResources& operator=(const FrameResources&) = delete;
         FrameResources(FrameResources&&) noexcept = default;
         FrameResources& operator=(FrameResources&&) noexcept = default;
-        const MeshView& Mesh() const noexcept { return m_Mesh; }
-        const PreparedMaterialBinding& Material() const noexcept { return *m_Material; }
+        const MeshView& Mesh() const noexcept
+        {
+            if (const auto* direct = std::get_if<DirectOwners>(&m_Owners)) return direct->mesh;
+            const auto& shared = *std::get_if<SharedOwners>(&m_Owners);
+            static const MeshView empty;
+            return shared.mesh ? *shared.mesh : empty;
+        }
+        const PreparedMaterialBinding& Material() const noexcept
+        {
+            if (const auto* direct = std::get_if<DirectOwners>(&m_Owners)) return direct->material;
+            return *std::get_if<SharedOwners>(&m_Owners)->material;
+        }
     private:
         friend class RenderFrameBuilder;
+        struct SharedOwners
+        {
+            std::shared_ptr<const MeshView> mesh;
+            FrameMaterialReference material;
+        };
+        struct DirectOwners
+        {
+            DirectOwners(const MeshView& sourceMesh, PreparedMaterialBinding&& sourceMaterial) noexcept
+                : mesh(sourceMesh), material(std::move(sourceMaterial)) {}
+            MeshView mesh;
+            PreparedMaterialBinding material;
+        };
+        static_assert(std::is_nothrow_copy_constructible_v<MeshView>
+            && std::is_nothrow_move_constructible_v<PreparedMaterialBinding>
+            && std::is_nothrow_move_assignable_v<PreparedMaterialBinding>);
         FrameResources() = default;
-        MeshView m_Mesh;
-        std::optional<PreparedMaterialBinding> m_Material;
+        // Exactly one owning representation is active. Generic insertion remains
+        // allocation-free; shared insertion retains the current per-call owners.
+        std::variant<SharedOwners, DirectOwners> m_Owners;
     };
 
     struct FrameCapacity
@@ -139,9 +186,9 @@ namespace GEngine
         RenderFrame& operator=(const RenderFrame&) = delete;
         RenderFrame(RenderFrame&&) noexcept;
         RenderFrame& operator=(RenderFrame&&) noexcept;
-        ~RenderFrame() = default;
+        ~RenderFrame();
         std::span<const FrameCamera> Cameras() const & noexcept { return {m_Cameras.get(), m_Size.cameras}; }
-        std::span<const DrawItem> Draws() const & noexcept { return {m_Draws.get(), m_Size.draws}; }
+        std::span<const DrawItem> Draws() const & noexcept;
         std::span<const FrameDebugLine> DebugLines() const & noexcept { return {m_Debug.get(), m_Size.debugLines}; }
         std::span<const FrameResources> Resources() const & noexcept { return {m_Resources.get(), m_Size.resources}; }
         std::span<const DirectionalLightData> DirectionalLights() const & noexcept { return {m_Directional.get(), m_Size.directionalLights}; }
@@ -159,10 +206,11 @@ namespace GEngine
         FrameStorageAccounting Storage() const noexcept;
     private:
         friend class RenderFrameBuilder;
-        RenderFrame() = default;
+        friend struct RenderCpu::FrameAccess;
+        RenderFrame();
         void Swap(RenderFrame&) noexcept;
         std::unique_ptr<FrameCamera[]> m_Cameras;
-        std::unique_ptr<DrawItem[]> m_Draws;
+        std::unique_ptr<RenderCpu::DrawStorage> m_Draws;
         std::unique_ptr<FrameDebugLine[]> m_Debug;
         std::unique_ptr<FrameResources[]> m_Resources;
         std::unique_ptr<DirectionalLightData[]> m_Directional;
@@ -203,10 +251,15 @@ namespace GEngine
         // call. One table entry may serve any number of draws/submeshes.
         [[nodiscard]] std::expected<std::size_t, FrameError> AddResources(
             const MeshView&, PreparedMaterialBinding&&) noexcept;
+        // Shares only this call's immutable resource owners. Keeps original row ordinals.
+        [[nodiscard]] std::expected<std::size_t, FrameError> AddSharedResources(
+            const FrameMeshReference&, const FrameMaterialReference&) noexcept;
         [[nodiscard]] std::expected<void, FrameError> AddDraw(const FrameDrawDesc&) noexcept;
         [[nodiscard]] std::expected<void, FrameError> AddDebugLine(const FrameDebugLine&) noexcept;
         [[nodiscard]] std::expected<RenderFrame, FrameError> Finalize() && noexcept;
     private:
+        friend struct RenderCpu::FrameAccess;
+        static std::expected<RenderFrameBuilder,FrameError> CreateStorage(FrameCapacity,std::uint64_t,bool) noexcept;
         RenderFrameBuilder() = default;
         RenderFrame m_Frame;
         bool m_Finalized = false;

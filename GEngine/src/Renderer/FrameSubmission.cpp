@@ -401,6 +401,7 @@ void main() {
         std::size_t materialLimit{};
         RenderBackend::PackedFrame lastFrame;
         std::array<PassInputs,3> inputs;
+        std::array<ShadowVisibilityStats,2> shadowVisibility;
         SDL_GLContext context = SDL_GL_GetCurrentContext();
         std::thread::id owner = std::this_thread::get_id();
         ~Storage()
@@ -610,30 +611,7 @@ void main() {
         for(const auto index:visibility->Shadows())
             if(draws[index].role->kind==SceneMaterialKind::Lit) conservative[casterCount++]=index;
         const std::span<const std::size_t> casters(conservative.get(),casterCount);
-        std::array<glm::mat4,5> cascadeMatrices;
-        std::array<glm::mat4,6> pointMatrices;
-        previous=desc.cameraNear;
-        if(directionalShadow) for(std::size_t i=0;i<cascadeMatrices.size();++i) {
-            cascadeMatrices[i]=LightMatrix(camera,desc,lightDirection,previous,desc.cascadeSplits[i]);
-            previous=desc.cascadeSplits[i];
-        }
-        if(pointShadow) {
-            const auto& size=desc.pointShadow.Buffer().Description();
-            pointMatrices=PointMatrices(position,desc.pointNear,pointFar,float(size.Width)/size.Height);
-        }
-        std::array<std::optional<RenderDetail::ShadowCasterLists>,2> shadowLists;
-        for(std::size_t light=0;light<shadowLists.size();++light) {
-            if(light==0 ? !directionalShadow : !pointShadow) continue;
-            const auto matrices=light==0 ? std::span<const glm::mat4>(cascadeMatrices) : std::span<const glm::mat4>(pointMatrices);
-            auto lists=RenderDetail::ShadowCasterLists::Build(frame,casters,matrices,
-                light==0 ? std::nullopt : std::optional(RenderDetail::ShadowPointRange{position,pointFar}),desc.shadowCullingEnabled);
-            if(!lists) return std::unexpected(SubmissionError{"shadow caster lists",lists.error()});
-            lists->stats.light=light==0 ? directional->entity : point->entity;
-            stats.shadowVisibility[light]=lists->stats;
-            for(std::size_t layer=0;layer<matrices.size();++layer)
-                for(const auto index:lists->Layer(layer)) draws[index].shadowMasks[light]|=1u<<layer;
-            shadowLists[light]=std::move(*lists);
-        }
+        // Exact keys are independent of derived matrices, lists and layer masks.
         std::array<PassInputs,3> candidateInputs;
         constexpr RenderPass cachedPasses[]{RenderPass::DirectionalShadow,RenderPass::PointShadow,RenderPass::Picking};
         const bool requested[]{directionalShadow,pointShadow,desc.pickingEnabled};
@@ -643,6 +621,39 @@ void main() {
             candidateInputs[i]=std::move(*captured);
             const auto reasons=m_Storage->inputs[i].Changes(candidateInputs[i]);
             stats.decisions[i]={cachedPasses[i],reasons,requested[i],requested[i] && reasons!=PassDirtyReason::None};
+        }
+        std::array<glm::mat4,5> cascadeMatrices;
+        std::array<glm::mat4,6> pointMatrices;
+        previous=desc.cameraNear;
+        if(stats.decisions[0].executed) for(std::size_t i=0;i<cascadeMatrices.size();++i) {
+            cascadeMatrices[i]=LightMatrix(camera,desc,lightDirection,previous,desc.cascadeSplits[i]);
+            previous=desc.cascadeSplits[i];
+        }
+        if(stats.decisions[1].executed) {
+            const auto& size=desc.pointShadow.Buffer().Description();
+            pointMatrices=PointMatrices(position,desc.pointNear,pointFar,float(size.Width)/size.Height);
+        }
+        std::array<std::optional<RenderDetail::ShadowCasterLists>,2> shadowLists;
+        for(std::size_t light=0;light<shadowLists.size();++light) {
+            if(!stats.decisions[light].requested) continue;
+            if(!stats.decisions[light].executed) {
+                // Reuse value-only visibility metadata, never frame-local ordinals.
+                // Submitted counts describe this frame, even on an exact cache hit.
+                auto& counts=stats.shadowVisibility[light];
+                counts=m_Storage->shadowVisibility[light];
+                counts.total.submittedCasters=0;
+                for(auto& layer:counts.layers) layer.submittedCasters=0;
+                continue;
+            }
+            const auto matrices=light==0 ? std::span<const glm::mat4>(cascadeMatrices) : std::span<const glm::mat4>(pointMatrices);
+            auto lists=RenderDetail::ShadowCasterLists::Build(frame,casters,matrices,
+                light==0 ? std::nullopt : std::optional(RenderDetail::ShadowPointRange{position,pointFar}),desc.shadowCullingEnabled);
+            if(!lists) return std::unexpected(SubmissionError{"shadow caster lists",lists.error()});
+            lists->stats.light=light==0 ? directional->entity : point->entity;
+            stats.shadowVisibility[light]=lists->stats;
+            for(std::size_t layer=0;layer<matrices.size();++layer)
+                for(const auto index:lists->Layer(layer)) draws[index].shadowMasks[light]|=1u<<layer;
+            shadowLists[light]=std::move(*lists);
         }
         EntityPickTable candidatePicks;
         if(desc.pickingEnabled) for(auto index:visibility->Picking()) {
@@ -719,7 +730,6 @@ void main() {
             return std::unexpected(uploaded.error());
         if(auto uploaded=storage.instanceUpload.Update(instancePlan->Bytes(),GL_STREAM_DRAW);!uploaded)
             return std::unexpected(uploaded.error());
-        storage.lastFrame=packedFrame;
         glBindBufferBase(GL_UNIFORM_BUFFER,1,storage.frameUpload.Name());
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER,0,storage.materialUpload.Name());
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER,1,storage.instanceUpload.Name());
@@ -850,9 +860,13 @@ void main() {
             return std::unexpected(SubmissionError{std::format("frame submission: driver diagnostic 0x{:x}",error),Code::Driver});
         // Rebuild the same deterministic table on cache hits; absent requests
         // expose no lookup. Deferred dirty inputs never replace the cached key.
+        storage.lastFrame=packedFrame;
         picks=std::move(candidatePicks);
         for(std::size_t i=0;i<candidateInputs.size();++i)
-            if(stats.decisions[i].executed) storage.inputs[i]=std::move(candidateInputs[i]);
+            if(stats.decisions[i].executed) {
+                storage.inputs[i]=std::move(candidateInputs[i]);
+                if(i<storage.shadowVisibility.size()) storage.shadowVisibility[i]=stats.shadowVisibility[i];
+            }
         transaction.success=true;
         return stats;
     }

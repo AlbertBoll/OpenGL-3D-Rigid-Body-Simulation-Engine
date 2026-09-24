@@ -3,6 +3,7 @@
 #include "Component/RenderComponents.h"
 #include "Mesh/GpuMesh.h"
 #include "Material/MaterialBinding.h"
+#include "Renderer/RenderFrame.h"
 #include "Math/Math.h"
 #include "Core/FrameBuffer.h"
 #include "Core/Platform.h"
@@ -57,24 +58,86 @@ namespace GEngine
         MaterialBindingResources bindings;
         RenderTargetRevision target; // Default means no offscreen target.
     };
-    struct EntityRenderState
+    // Persistent semantic records contain CPU values/identities only.
+    struct RenderSemanticRecord
     {
         EntityRenderId entity;
-        Math::Mat4 world{1.f}; // Presentation world, including interpolated ancestors.
+        Math::Mat4 world{1.f};
         WorldBounds bounds;
         RenderRevisions revisions;
-        // Authoring snapshot, read once alongside revision evaluation. Never published
-        // as a whole component in RenderFrame; extraction validates typed light values.
         std::optional<Component::RenderLightComponent> light;
-        MeshView mesh;
-        std::optional<PreparedMaterialBinding> material;
-        std::optional<Asset::RegistryError> meshError;
-        std::optional<MaterialBindingError> materialError;
+        std::optional<Component::MeshRendererComponent> meshIntent;
+        std::optional<Component::VisibilityComponent> visibilityIntent;
+        std::optional<Component::RenderCameraComponent> cameraIntent;
+        std::size_t meshGroup = SIZE_MAX, materialGroup = SIZE_MAX;
+        std::uint64_t epoch{};
+    };
+    namespace RenderCpu { struct SceneSnapshot; struct CallBindings; struct Domain; }
+    // Owning view of immutable CPU rows and this call's bindings. Copies preserve
+    // the former standalone row lifetime without copying semantic row values.
+    // Resource ownership here never enters persistent CPU state.
+    struct EntityRenderState
+    {
+        std::shared_ptr<const RenderCpu::SceneSnapshot> snapshotOwner;
+        std::shared_ptr<RenderCpu::CallBindings> bindingOwner;
+        const RenderSemanticRecord& cpu;
+        const EntityRenderId& entity;
+        const Math::Mat4& world;
+        const WorldBounds& bounds;
+        const RenderRevisions& revisions;
+        const std::optional<Component::RenderLightComponent>& light;
+        FrameMeshReference mesh;
+        FrameMaterialReference material;
+        const std::optional<Asset::RegistryError>& meshError;
+        const std::optional<MaterialBindingError>& materialError;
+        std::size_t meshGroup{}, materialGroup{};
+        EntityRenderState() noexcept;
+        EntityRenderState(const RenderSemanticRecord&, const FrameMeshReference&,
+            const FrameMaterialReference&, const std::optional<Asset::RegistryError>&,
+            const std::optional<MaterialBindingError>&) noexcept;
+        EntityRenderState(const EntityRenderState&) noexcept = default;
+        EntityRenderState& operator=(const EntityRenderState&) noexcept;
+        EntityRenderState WithMaterial(const FrameMaterialReference&) const noexcept;
+    };
+    class SceneEntityViews
+    {
+    public:
+        EntityRenderState operator[](std::size_t) const noexcept;
+        std::size_t size() const noexcept { return m_Count; }
+        bool empty() const noexcept { return !m_Count; }
+        struct Iterator
+        {
+            const SceneEntityViews* owner{}; std::size_t index{};
+            EntityRenderState operator*() const noexcept { return (*owner)[index]; }
+            Iterator& operator++() noexcept { ++index; return *this; }
+            bool operator==(const Iterator&) const = default;
+        };
+        Iterator begin() const noexcept { return {this,0}; }
+        Iterator end() const noexcept { return {this,m_Count}; }
+        SceneEntityViews() = default;
+        SceneEntityViews(std::shared_ptr<const RenderCpu::SceneSnapshot>,
+            std::shared_ptr<RenderCpu::CallBindings>, std::size_t) noexcept;
+        const std::shared_ptr<const RenderCpu::SceneSnapshot>& Snapshot() const noexcept { return m_Snapshot; }
+        const std::shared_ptr<RenderCpu::CallBindings>& Bindings() const noexcept { return m_Bindings; }
+    private:
+        std::shared_ptr<const RenderCpu::SceneSnapshot> m_Snapshot;
+        std::shared_ptr<RenderCpu::CallBindings> m_Bindings;
+        std::size_t m_Count{};
+    };
+    // Complete effective operands of presentation evaluation. No body/resource borrow.
+    struct RenderPresentationInput
+    {
+        Math::Vec3f translation{}, scale{1.f}, previousTranslation{}, currentTranslation{};
+        Math::Quat rotation{1.f,0.f,0.f,0.f}, previousRotation{1.f,0.f,0.f,0.f}, currentRotation{1.f,0.f,0.f,0.f};
+        float alpha{};
+        bool interpolate{};
     };
     struct SceneRenderState
     {
         RenderRevisions revisions;
-        std::vector<EntityRenderState> entities; // Deterministic hierarchy order.
+        SceneEntityViews entities; // Persistent immutable semantic rows plus fresh bindings.
+        std::shared_ptr<RenderCpu::Domain> cpuDomain;
+        bool fullTransformChange{};
         RenderTargetRevision target;
         // Mesh/material leases retain the sampled versions through submission.
         // The caller retains the target used to capture target revisions.

@@ -6,6 +6,7 @@
 
 namespace GEngine
 {
+    namespace RenderCpu { struct VisibilitySnapshot; }
     enum class BoundsVisibility { Inside, Intersecting, Outside, Conservative };
 
     // Engine column-vector clip convention: -w <= x,y,z <= w. Invalid or
@@ -32,8 +33,10 @@ namespace GEngine
 
     // CPU-only relevance stage over a finalized frame, safe for concurrent const
     // readers. Bounds derive from its retained mesh version and presentation pose;
-    // classification derives from its retained pipeline. No ECS/registry lookup,
-    // GL calls, asset copies, occlusion, sorting or frame mutation occurs.
+    // classification derives from its retained pipeline. Certified scene CPU backing
+    // and complete immutable index snapshots may be shared. No ECS/registry lookup,
+    // GL calls, asset copies, occlusion, sorting or frame mutation occurs. Only the
+    // preparation owner may publish a CPU cache result; other readers use immutable seeds.
     //
     // Lists contain frame-local draw ordinals, NOT resource/entity identities.
     // Consume them with the same originating frame, retained through submission.
@@ -57,6 +60,7 @@ namespace GEngine
         [[nodiscard]] static std::expected<RenderVisibility, VisibilityError> Build(
             const RenderFrame&, std::size_t camera = 0,
             std::span<const std::size_t> conservativeDraws = {}) noexcept;
+        ~RenderVisibility();
         RenderVisibility(const RenderVisibility&) = delete;
         RenderVisibility& operator=(const RenderVisibility&) = delete;
         RenderVisibility(RenderVisibility&&) noexcept;
@@ -80,8 +84,9 @@ namespace GEngine
         RenderVisibility() = default;
         void Swap(RenderVisibility&) noexcept;
         std::span<const std::size_t> List(std::size_t index) const noexcept;
-        void Append(std::size_t list, std::size_t draw) noexcept;
-        std::unique_ptr<std::size_t[]> m_Indices;
+        // One owned intrusive reference, adopted/released by out-of-line operations.
+        // Opaque here so private RenderWorld storage never enters normal includes.
+        const RenderCpu::VisibilitySnapshot* m_Snapshot{};
         std::array<std::size_t, 6> m_Counts{};
         std::size_t m_Capacity{}, m_Camera{};
         VisibilityStats m_Stats;

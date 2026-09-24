@@ -5,6 +5,7 @@
 #include <new>
 #include <numbers>
 #include <utility>
+#include "RenderCpuBacking.h"
 
 namespace GEngine
 {
@@ -41,6 +42,10 @@ namespace GEngine
         }
     }
 
+    RenderFrame::RenderFrame() = default;
+    RenderFrame::~RenderFrame() = default;
+    std::span<const DrawItem> RenderFrame::Draws() const & noexcept
+    { return {m_Draws?m_Draws->Data():nullptr,m_Size.draws}; }
     void RenderFrame::Swap(RenderFrame& other) noexcept
     {
         using std::swap;
@@ -59,7 +64,7 @@ namespace GEngine
     FrameStorageAccounting RenderFrame::Storage() const noexcept
     {
         return {Bytes(m_Size), Bytes(m_Capacity), std::size_t(bool(m_Cameras))
-            + bool(m_Draws) + bool(m_Debug) + bool(m_Resources) + bool(m_Directional) + bool(m_Point) + bool(m_Spot)};
+            + bool(m_Capacity.draws) + bool(m_Debug) + bool(m_Resources) + bool(m_Directional) + bool(m_Point) + bool(m_Spot)};
     }
     RenderFrameBuilder::RenderFrameBuilder(RenderFrameBuilder&& other) noexcept
         : m_Frame(std::move(other.m_Frame)), m_Finalized(std::exchange(other.m_Finalized, true)) {}
@@ -73,6 +78,9 @@ namespace GEngine
         return *this;
     }
     std::expected<RenderFrameBuilder, FrameError> RenderFrameBuilder::Create(FrameCapacity capacity, std::uint64_t lightRevision) noexcept
+    { return CreateStorage(capacity,lightRevision,false); }
+    std::expected<RenderFrameBuilder,FrameError> RenderFrameBuilder::CreateStorage(
+        FrameCapacity capacity,std::uint64_t lightRevision,bool scene) noexcept
     {
         if (capacity.directionalLights > MaxFrameLights || capacity.pointLights > MaxFrameLights - capacity.directionalLights
             || capacity.spotLights > MaxFrameLights - capacity.directionalLights - capacity.pointLights)
@@ -96,10 +104,16 @@ namespace GEngine
             frame.m_Cameras.reset(new (std::nothrow) FrameCamera[capacity.cameras]);
             if (!frame.m_Cameras) return Error(Code::AllocationFailed, Section::Cameras, capacity.cameras);
         }
-        if (capacity.draws)
+        if (capacity.draws || scene)
         {
-            frame.m_Draws.reset(new (std::nothrow) DrawItem[capacity.draws]);
+            frame.m_Draws.reset(new (std::nothrow) RenderCpu::DrawStorage);
             if (!frame.m_Draws) return Error(Code::AllocationFailed, Section::Draws, capacity.draws);
+            frame.m_Draws->capacity=capacity.draws;
+            if(!scene&&capacity.draws) {
+                auto& direct=std::get<std::unique_ptr<DrawItem[]>>(frame.m_Draws->rows);
+                direct.reset(new(std::nothrow)DrawItem[capacity.draws]);
+                if(!direct)return Error(Code::AllocationFailed,Section::Draws,capacity.draws);
+            }
         }
         if (capacity.debugLines)
         {
@@ -194,8 +208,20 @@ namespace GEngine
         if (!mesh || !static_cast<bool>(*mesh) || !material.Source() || !material.Program())
             return Error(Code::InvalidResources, Section::Resources, index);
         auto& entry = m_Frame.m_Resources[index];
-        entry.m_Mesh = mesh;
-        entry.m_Material.emplace(std::move(material));
+        entry.m_Owners.emplace<FrameResources::DirectOwners>(mesh, std::move(material));
+        ++m_Frame.m_Size.resources;
+        return index;
+    }
+    std::expected<std::size_t, FrameError> RenderFrameBuilder::AddSharedResources(
+        const FrameMeshReference& mesh, const FrameMaterialReference& material) noexcept
+    {
+        if (m_Finalized) return Error(Code::Finalized, Section::Resources);
+        const auto index = m_Frame.m_Size.resources;
+        if (index == m_Frame.m_Capacity.resources) return Error(Code::CapacityExceeded, Section::Resources, index);
+        if (!mesh || !static_cast<bool>(*mesh) || !material || !material->Source() || !material->Program())
+            return Error(Code::InvalidResources, Section::Resources, index);
+        auto& entry = m_Frame.m_Resources[index];
+        entry.m_Owners.emplace<FrameResources::SharedOwners>(mesh.Owner(), material);
         ++m_Frame.m_Size.resources;
         return index;
     }
@@ -211,7 +237,7 @@ namespace GEngine
         const auto& entry = m_Frame.m_Resources[desc.resources];
         const auto ranges = entry.Mesh()->Submeshes();
         if (desc.submesh >= ranges.size()) return Error(Code::InvalidSubmesh, Section::Draws, desc.submesh);
-        m_Frame.m_Draws[index] = {entry.Mesh().Identity(), ranges[desc.submesh],
+        std::get<std::unique_ptr<DrawItem[]>>(m_Frame.m_Draws->rows)[index] = {entry.Mesh().Identity(), ranges[desc.submesh],
             entry.Material().Source()->Declaration()->Pipeline(), entry.Material().Instance(),
             desc.worldTransform, desc.entity, desc.sortKey, desc.resources, desc.layers,
             desc.castShadows && entry.Material().Source()->Declaration()->Key().castsShadow,
@@ -236,6 +262,140 @@ namespace GEngine
     {
         if (m_Finalized) return Error(Code::Finalized, Section::Frame);
         m_Finalized = true;
+        if(m_Frame.m_Draws&&m_Frame.m_Draws->pending) {
+            auto& storage=*m_Frame.m_Draws;
+            storage.rows=RenderCpu::CpuOwner<const RenderCpu::DrawSnapshot>(storage.pending);
+            if(auto domain=storage.domain.lock();domain&&domain->owner==std::this_thread::get_id()
+                &&domain->publicationEpoch==storage.publicationEpoch) {
+                domain->nextEpoch=storage.nextEpoch;
+                storage.publicationEpoch=RenderCpu::Advance(domain->publicationEpoch);
+                domain->draws=storage.pending;
+            } else storage.publicationEpoch=0;
+            storage.pending.reset();storage.changedRows.reset();storage.changedInputs.reset();
+        }
         return std::move(m_Frame);
     }
+    const RenderCpu::DrawStorage* RenderCpu::FrameAccess::Storage(const RenderFrame& frame) noexcept
+    { return frame.m_Draws.get(); }
+
+    std::expected<RenderFrameBuilder,FrameError> RenderCpu::FrameAccess::Create(FrameCapacity capacity,
+        std::uint64_t light,const std::shared_ptr<Domain>& domain,const RenderTargetRevision& target,bool fullTransformChange)
+    {
+        auto result=RenderFrameBuilder::CreateStorage(capacity,light,true);
+        if(!result)return std::unexpected(result.error());
+        auto& storage=*result->m_Frame.m_Draws;
+        storage.domain=domain;storage.owner=domain->owner;storage.publicationEpoch=domain->publicationEpoch;
+        storage.seed=domain->visibility;storage.nextEpoch=domain->nextEpoch;
+        auto created=CpuOwner<DrawSnapshot>::Create();
+        if(!created)return Error(Code::AllocationFailed,Section::Draws,capacity.draws);
+        storage.pending=std::move(*created);
+        if(domain->draws) {
+            storage.pending->rows=domain->draws->rows;storage.pending->inputs=domain->draws->inputs;
+            storage.pending->orderEpoch=domain->draws->orderEpoch;
+            storage.pending->visibilityEpoch=domain->draws->visibilityEpoch;
+            storage.pending->predecessorVisibilityEpoch=domain->draws->visibilityEpoch;
+        }
+        storage.pending->target=target;
+        const auto count=domain->draws&&domain->draws->rows?domain->draws->rows->size:0;
+        storage.rows=domain->draws;
+        if(!domain->draws||count!=capacity.draws||fullTransformChange) {
+            storage.fullRebuild=true;
+            auto createdRows=CpuOwner<DrawRows>::Create();
+            if(!createdRows)return Error(Code::AllocationFailed,Section::Draws,capacity.draws);
+            storage.changedRows=std::move(*createdRows);
+            auto createdInputs=CpuOwner<DrawInputs>::Create();
+            if(!createdInputs)return Error(Code::AllocationFailed,Section::Draws,capacity.draws);
+            storage.changedInputs=std::move(*createdInputs);
+            storage.changedRows->size=storage.changedInputs->size=capacity.draws;
+            if(capacity.draws) {
+                storage.changedRows->values.reset(new(std::nothrow)DrawItem[capacity.draws]);
+                storage.changedInputs->values.reset(new(std::nothrow)VisibilityInput[capacity.draws]);
+                if(!storage.changedRows->values||!storage.changedInputs->values)
+                    return Error(Code::AllocationFailed,Section::Draws,capacity.draws);
+            }
+            storage.pending->rows=storage.changedRows;storage.pending->inputs=storage.changedInputs;
+            if(!domain->draws||count!=capacity.draws) {
+                storage.pending->orderEpoch=Advance(storage.nextEpoch);
+                storage.pending->visibilityEpoch=Advance(storage.nextEpoch);
+            }
+        }
+        return result;
+    }
+    namespace {
+        bool SameDraw(const DrawItem&a,const DrawItem&b) noexcept {
+            return a.mesh==b.mesh&&a.material==b.material&&a.pipeline==b.pipeline&&a.entity==b.entity
+                &&a.submesh.firstElement==b.submesh.firstElement&&a.submesh.elementCount==b.submesh.elementCount
+                &&a.submesh.materialSlot==b.submesh.materialSlot&&RenderCpu::SameMatrix(a.worldTransform,b.worldTransform)
+                &&a.sortKey==b.sortKey&&a.resources==b.resources&&a.layers==b.layers
+                &&a.castShadows==b.castShadows&&a.receiveShadows==b.receiveShadows&&a.pickable==b.pickable;
+        }
+    }
+    std::expected<void,FrameError> RenderCpu::FrameAccess::AddSceneDraw(RenderFrameBuilder& builder,
+        const EntityRenderState& source,std::size_t resource)
+    {
+        if(builder.m_Finalized)return Error(Code::Finalized,Section::Draws);
+        auto& frame=builder.m_Frame;const auto ordinal=frame.m_Size.draws;
+        if(ordinal==frame.m_Capacity.draws)return Error(Code::CapacityExceeded,Section::Draws,ordinal);
+        if(resource>=frame.m_Size.resources)return Error(Code::InvalidResources,Section::Resources,resource);
+        auto& storage=*frame.m_Draws;auto& pending=*storage.pending;
+        const auto* baseline=std::get_if<CpuOwner<const DrawSnapshot>>(&storage.rows);
+        const auto& input=baseline&&*baseline&&(*baseline)->inputs->size==frame.m_Capacity.draws
+            ?(*baseline)->inputs->values[ordinal]:pending.inputs->values[ordinal];
+        if(!storage.fullRebuild&&input.entity==source.entity&&input.semanticEpoch==source.cpu.epoch) {
+            ++frame.m_Size.draws;return {};
+        }
+        if(!source.cpu.meshIntent||!source.entity||!Finite(source.world)
+            ||source.world[0][3]!=0.f||source.world[1][3]!=0.f||source.world[2][3]!=0.f||source.world[3][3]!=1.f)
+            return Error(Code::InvalidDraw,Section::Draws,ordinal);
+        const auto& intent=*source.cpu.meshIntent;const auto& resources=frame.m_Resources[resource];
+        const auto submeshes=resources.Mesh()->Submeshes();
+        if(intent.submesh>=submeshes.size())return Error(Code::InvalidSubmesh,Section::Draws,intent.submesh);
+        const auto layers=source.cpu.visibilityIntent.value_or(Component::VisibilityComponent{}).layers;
+        const DrawItem draw{resources.Mesh().Identity(),submeshes[intent.submesh],
+            resources.Material().Source()->Declaration()->Pipeline(),resources.Material().Instance(),
+            source.world,source.entity,0,resource,layers,
+            intent.castShadows&&resources.Material().Source()->Declaration()->Key().castsShadow,
+            intent.receiveShadows,intent.pickable};
+        const bool sameEntity=input.entity==draw.entity;
+        const bool geometryChanged=!sameEntity||!SameBounds(input.bounds,source.bounds)
+            ||input.layers!=draw.layers||input.empty!=(draw.submesh.elementCount==0);
+        const bool visibilityChanged=geometryChanged||input.alpha!=resources.Material().Pipeline().Alpha()
+            ||input.casts!=draw.castShadows||input.pickable!=draw.pickable;
+        if(visibilityChanged) {
+            auto reserved=pending.changed.PrepareAppend();
+            if(!reserved)return Error(reserved.error()==StorageFailure::Capacity?Code::CapacityOverflow:Code::AllocationFailed,
+                Section::Draws,frame.m_Capacity.draws);
+        }
+        if(storage.fullRebuild||!SameDraw(pending.rows->values[ordinal],draw)) {
+            if(!storage.changedRows) {
+                auto createdRows=CpuOwner<DrawRows>::Create();
+                if(!createdRows)return Error(Code::AllocationFailed,Section::Draws,frame.m_Capacity.draws);
+                auto values=std::move(*createdRows);values->size=frame.m_Capacity.draws;
+                values->values.reset(new(std::nothrow)DrawItem[values->size]);
+                if(!values->values)return Error(Code::AllocationFailed,Section::Draws,values->size);
+                std::copy_n(pending.rows->values.get(),values->size,values->values.get());
+                RW_COUNT(drawBytesCopied,values->size*sizeof(DrawItem));
+                storage.changedRows=std::move(values);pending.rows=storage.changedRows;
+            }
+            storage.changedRows->values[ordinal]=draw;RW_COUNT(drawWrites,1);
+        }
+        if(!storage.changedInputs) {
+            auto createdInputs=CpuOwner<DrawInputs>::Create();
+            if(!createdInputs)return Error(Code::AllocationFailed,Section::Draws,frame.m_Capacity.draws);
+            auto values=std::move(*createdInputs);values->size=frame.m_Capacity.draws;
+            values->values.reset(new(std::nothrow)VisibilityInput[values->size]);
+            if(!values->values)return Error(Code::AllocationFailed,Section::Draws,values->size);
+            std::copy_n(pending.inputs->values.get(),values->size,values->values.get());
+            storage.changedInputs=std::move(values);pending.inputs=storage.changedInputs;
+        }
+        const auto epoch=visibilityChanged?Advance(storage.nextEpoch):input.visibilityEpoch;
+        storage.changedInputs->values[ordinal]={draw.entity,source.bounds,resources.Material().Pipeline().Alpha(),
+            draw.layers,draw.submesh.elementCount==0,draw.castShadows,draw.pickable,source.cpu.epoch,epoch,geometryChanged?epoch:input.geometryEpoch};
+        if(!sameEntity)pending.orderEpoch=Advance(storage.nextEpoch);
+        if(visibilityChanged){pending.visibilityEpoch=epoch;const auto appended=pending.changed.Append(ordinal);
+            Asset::AssetDetail::RequireInvariant(bool(appended)); // Capacity already checked before row mutation.
+        }
+        ++frame.m_Size.draws;return {};
+    }
+
 }

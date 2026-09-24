@@ -16,7 +16,11 @@ def main():
     parser.add_argument("--configuration", choices=["Debug", "Release"], required=True)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--no-build", action="store_true", help="Reuse matching affected-consumer builds")
+    parser.add_argument("--library", type=Path, help="Explicit preserved control library; requires --no-build")
+    parser.add_argument("--compare", type=Path, help="Compare exact material/state oracle lines with a control result directory")
     args = parser.parse_args()
+    if args.library and not args.no_build:
+        parser.error("Preserved control requires --no-build")
     config = args.configuration
     out = (args.output or ROOT / "logs/rendering/phase38" / config).resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -90,6 +94,7 @@ def main():
             report["reason"] = "Concrete backend declaration leaked into the transform consumer"
             return 1
         report["consumer_boundary"] = "PASS"
+        library = args.library.resolve() if args.library else ROOT / "bin" / config / "GEngine/GEngine.lib"
         executable = out / "render-state-probe.exe"
         command = [vc / "bin/Hostx64/x64/cl.exe", "/nologo", "/std:c++23preview", "/EHsc", "/W3",
                    "/MTd" if config == "Debug" else "/MT", "/Od" if config == "Debug" else "/O2",
@@ -100,7 +105,7 @@ def main():
                    "/Fo" + str(out) + os.sep,
                    "/Fe" + str(executable), "/link", "/SUBSYSTEM:CONSOLE",
                    *(["/OPT:NOREF", "/OPT:NOICF"] if config == "Debug" else []),
-                   *["/LIBPATH:" + str(p) for p in libraries], ROOT / "bin" / config / "GEngine/GEngine.lib",
+                   *["/LIBPATH:" + str(p) for p in libraries], library,
                    ROOT / "external/glad/bin" / config / "glad/glad.lib", "SDL2.lib", "SDL2_ttf.lib",
                    "tbb12.lib", "tbb12_debug.lib", "tbb.lib", "tbb_debug.lib", "assimp.lib",
                    "fmod64_vc.lib", "fmodL64_vc.lib", "fmodstudio64_vc.lib", "fmodstudioL64_vc.lib"]
@@ -108,10 +113,18 @@ def main():
             return 1
         sdl = ROOT / "bin" / config / "GEngineEditor/SDL2.dll"
         report["inputs"] = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in
-                            (executable, ROOT / "bin" / config / "GEngine/GEngine.lib", sdl)}
+                            (executable, library, sdl)}
         env["Path"] = str(sdl.parent) + os.pathsep + env["Path"]
         passed = invoke("render-state", [executable], cwd=out,
                         marker="[PASS] render-state ")
+        if passed and args.compare:
+            current = [line for line in (out / "render-state.log").read_text(errors="replace").splitlines() if line.startswith("[MEMO]")]
+            reference = [line for line in (args.compare / "render-state.log").read_text(errors="replace").splitlines() if line.startswith("[MEMO]")]
+            # Scene order can differ with generated UUIDs between processes.
+            # Compare full identity-bearing records, including multiplicity.
+            passed = bool(current) and sorted(current) == sorted(reference)
+            report["exact_control_oracle"] = {"result": "PASS" if passed else "FAIL", "rows": len(current),
+                                              "reference": str(args.compare), "comparison": "Exact full-record multiset; process-specific UUID order excluded"}
         return 0 if passed else 1
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         report["reason"] = str(error)

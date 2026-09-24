@@ -6,6 +6,7 @@
 #include <cmath>
 #include <limits>
 #include <new>
+#include "RenderCpuBacking.h"
 
 namespace GEngine
 {
@@ -18,10 +19,11 @@ namespace GEngine
             Clock::time_point start = Clock::now();
             ~Timer() { result = std::chrono::duration<double, std::micro>(Clock::now() - start).count(); }
         };
+        const Component::VisibilityComponent DefaultVisibility;
         struct Candidate
         {
-            Component::MeshRendererComponent mesh;
-            Component::VisibilityComponent visibility;
+            const Component::MeshRendererComponent& mesh;
+            const Component::VisibilityComponent& visibility;
         };
         std::expected<bool, FrameError> Contributes(const Component::RenderLightComponent& light)
         {
@@ -60,18 +62,10 @@ namespace GEngine
             if (!light) return std::unexpected(light.error());
             return std::visit([&](const auto& value) { return builder.AddLight(value); }, *light);
         }
-        std::expected<std::optional<Candidate>, RenderEcsError> Read(const RenderEcs& ecs, EntityRenderId entity)
+        std::expected<std::optional<Candidate>,RenderEcsError> Read(const EntityRenderState& row) noexcept
         {
-            auto mesh = ecs.Get<Component::MeshRendererComponent>(entity);
-            if (!mesh)
-            {
-                if (mesh.error() == RenderEcsError::MissingComponent) return std::nullopt;
-                return std::unexpected(mesh.error());
-            }
-            auto visibility = ecs.Get<Component::VisibilityComponent>(entity);
-            if (!visibility && visibility.error() != RenderEcsError::MissingComponent)
-                return std::unexpected(visibility.error());
-            return Candidate{*mesh, visibility.value_or(Component::VisibilityComponent{})};
+            if(!row.cpu.meshIntent)return std::nullopt;
+            return Candidate{*row.cpu.meshIntent,row.cpu.visibilityIntent?*row.cpu.visibilityIntent:DefaultVisibility};
         }
 
         struct ExtractedEntity
@@ -203,7 +197,7 @@ namespace GEngine
                     ++capacity.draws;
                 }
             capacity.resources = capacity.draws;
-            auto builder = RenderFrameBuilder::Create(capacity, task.Revisions().light);
+            auto builder = RenderCpu::FrameAccess::Create(capacity,task.Revisions().light,task.CpuDomain(),task.Target(),task.FullTransformChange());
             if (!builder) return std::unexpected(RenderExtractionError{{}, builder.error()});
             for (const auto& camera : cameras)
                 if (auto added = builder->AddCamera(camera); !added)
@@ -224,7 +218,7 @@ namespace GEngine
                     auto transferred = task.TransferResources(*builder, index);
                     if (!transferred) return std::unexpected(WorkFailure(transferred.error(), entity));
                     output.draw->resources = *transferred;
-                    if (auto added = builder->AddDraw(*output.draw); !added)
+                    if (auto added = RenderCpu::FrameAccess::AddSceneDraw(*builder,inputs[index].state,*transferred); !added)
                         return std::unexpected(RenderExtractionError{entity, added.error()});
                 }
             for (const auto& line : debugLines)
@@ -283,7 +277,7 @@ namespace GEngine
                     }
                 }
             }
-            auto candidate = Read(ecs, entry.entity);
+            auto candidate = Read(entry);
             if (!candidate) return std::unexpected(RenderExtractionError{entry.entity, candidate.error()});
             if (!*candidate) continue;
             ++stats.candidates;
@@ -300,29 +294,24 @@ namespace GEngine
             ++count;
         }
         capacity.draws = capacity.resources = count;
-        auto builder = RenderFrameBuilder::Create(capacity, state->revisions.light);
+        auto builder = RenderCpu::FrameAccess::Create(capacity,state->revisions.light,state->cpuDomain,state->target,state->fullTransformChange);
         if (!builder) return std::unexpected(RenderExtractionError{{}, builder.error()});
         for (const auto& camera : cameras)
             if (auto added = builder->AddCamera(camera); !added)
                 return std::unexpected(RenderExtractionError{camera.entity, added.error()});
-        for (auto& entry : state->entities)
+        for (auto entry : state->entities)
         {
             if (entry.light && entry.light->intensity > 0)
                 if (auto added = EmitLight(*builder, entry); !added)
                     return std::unexpected(RenderExtractionError{entry.entity, added.error()});
-            auto candidate = Read(ecs, entry.entity);
+            auto candidate = Read(entry);
             if (!candidate) return std::unexpected(RenderExtractionError{entry.entity, candidate.error()});
             if (!*candidate || !(**candidate).visibility.enabled) continue;
             const auto& intent = **candidate;
-            auto index = builder->AddResources(entry.mesh, std::move(*entry.material));
+            auto index = builder->AddSharedResources(entry.mesh, entry.material);
             if (!index) return std::unexpected(RenderExtractionError{entry.entity, index.error()});
-            FrameDrawDesc draw;
-            draw.resources = *index; draw.submesh = intent.mesh.submesh;
-            draw.worldTransform = entry.world; draw.entity = entry.entity;
-            draw.layers = intent.visibility.layers;
-            draw.castShadows = intent.mesh.castShadows; draw.receiveShadows = intent.mesh.receiveShadows;
-            draw.pickable = intent.mesh.pickable;
-            if (auto added = builder->AddDraw(draw); !added)
+            RW_COUNT(resourceRows,1);
+            if (auto added = RenderCpu::FrameAccess::AddSceneDraw(*builder,entry,*index); !added)
                 return std::unexpected(RenderExtractionError{entry.entity, added.error()});
         }
         for (const auto& line : debugLines)

@@ -1,0 +1,514 @@
+{
+  "baseline": "01064633df6018af847fb901327e3911cec97872",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Core/GLContextThread.h",
+    "GEngine/include/GEngine/Core/RenderCounters.h",
+    "GEngine/include/GEngine/Renderer/RenderFrame.h",
+    "GEngine/include/GEngine/Renderer/RenderTasks.h",
+    "GEngine/include/GEngine/Renderer/RenderVisibility.h",
+    "GEngine/include/GEngine/Scene/RenderState.h",
+    "GEngine/include/GEngine/Scene/_Scene.h",
+    "GEngine/src/Renderer/FrameSubmission.cpp",
+    "GEngine/src/Renderer/RenderCpuBacking.h",
+    "GEngine/src/Renderer/RenderExtraction.cpp",
+    "GEngine/src/Renderer/RenderFrame.cpp",
+    "GEngine/src/Renderer/RenderTasks.cpp",
+    "GEngine/src/Renderer/RenderVisibility.cpp",
+    "GEngine/src/Scene/RenderState.cpp",
+    "GEngine/src/Scene/_Scene.cpp",
+    "RenderingValidation/src/main.cpp",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-65.json",
+    "tools/FINAL_PERFORMANCE_VALIDATION.md",
+    "tools/final_performance_probe.cpp",
+    "tools/final_performance_validation.py",
+    "tools/frame_submission_probe.cpp",
+    "tools/render_state_probe.cpp",
+    "tools/test_frame_submission.py",
+    "tools/test_render_state.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Exactly the five owner-listed lines normalized; all other source bytes/line endings and historical evidence preserved.",
+      "finding": "Five blank-line trailing-whitespace defects prevent formal seal",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "FAILED/UNQUALIFIED overall: 8/14 cases fail 5% spread; numeric inequalities alone do not qualify the batch. Explicit owner carry-forward under closure amendment; future rendering-owner-authorized packet/backlog, not Phase66 implementation. No thresholds or failed results changed.",
+      "finding": "C scaling 5% run-median-spread qualification",
+      "id": "PERF65-01",
+      "owner": "Rendering owner; separately authorized follow-up packet, scheduling not yet assigned",
+      "remaining_status": "OPEN",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    },
+    {
+      "disposition": "UNRESOLVED: current RBS render/work medians exceed unchanged absolute Phase13 limits. Explicit owner carry-forward under closure amendment; future rendering-owner-authorized packet/backlog, not Phase66 implementation. No thresholds or failed results changed.",
+      "finding": "Phase 13 historical absolute CPU closure",
+      "id": "PERF65-02",
+      "owner": "Rendering owner; separately authorized follow-up packet, scheduling not yet assigned",
+      "remaining_status": "OPEN",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    },
+    {
+      "disposition": "UNRESOLVED: original texture requests exceeded 16.667ms; original maximum 30.764ms remains. Explicit owner carry-forward under closure amendment; future rendering-owner-authorized packet/backlog, not Phase66 implementation. No thresholds or failed results changed.",
+      "finding": "Async texture-publication stall remediation",
+      "id": "PERF65-03",
+      "owner": "Rendering owner; separately authorized follow-up packet, scheduling not yet assigned",
+      "remaining_status": "OPEN",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    },
+    {
+      "disposition": "UNRESOLVED; historical noisy/regressive results are not replaced by current CPU gains. Explicit owner carry-forward under closure amendment; future rendering-owner-authorized packet/backlog, not Phase66 implementation. No thresholds or failed results changed.",
+      "finding": "GPU/UI/shadow-tail reproducibility and remediation",
+      "id": "PERF65-04",
+      "owner": "Rendering owner; separately authorized follow-up packet, scheduling not yet assigned",
+      "remaining_status": "OPEN",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    },
+    {
+      "disposition": "UNRESOLVED: historical >=80% target unmet; session drift/lineage uncertainty and residual O(N)/O(Q)/full-dirty costs remain. Explicit owner carry-forward under closure amendment; future rendering-owner-authorized packet/backlog, not Phase66 implementation. No thresholds or failed results changed.",
+      "finding": "Historical attribution and remaining performance uncertainty",
+      "id": "PERF65-05-06",
+      "owner": "Rendering owner; separately authorized follow-up packet, scheduling not yet assigned",
+      "remaining_status": "OPEN",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_65_CLOSURE_PACKET.md",
+    "docs/rendering/reviews/PHASE_65_FINAL_REVIEW.md",
+    "docs/rendering/reviews/PHASE_65_OWNER_CLOSURE_AMENDMENT.md"
+  ],
+  "next_phase": "66",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "8a1d9d93225b8329b37f830c75dde0b86eaecc9f",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-65/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/8a1d9d93225b8329b37f830c75dde0b86eaecc9f",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "3088cfb02d90dc7deb274e855a0723f398914fda4f0af025191d86d4fdc7b75a"
+      },
+      "mode": "100644",
+      "validated_blob": "0f192094cb5b6d9f59495b5ff364ba786dbe5f0c",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-65/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/0f192094cb5b6d9f59495b5ff364ba786dbe5f0c"
+    }
+  },
+  "phase": "65",
+  "previous_approved_tag": "render-refactor-phase-64-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md",
+    "tools/render_world_probe.cpp",
+    "tools/test_render_world.py"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_65_FINAL_REVIEW.md",
+  "schema": 2,
+  "summary": "Retain validated cached-shadow/build-boundary and Persistent RenderWorld/high-Q corrections. Exact five-line whitespace normalization only. Correctness/lifetime/memory/RBS evidence retained; scaling/historical CPU/upload/GPU/UI/shadow and attribution findings remain OPEN under explicit owner carry-forward acceptance. No new runtime/timing or publication. Seal uses validated RBS bytes; owner-confirmed separate workload edits are restored exactly after seal and are outside Phase65 validation/approval.",
+  "validation": [
+    {
+      "check": "Exact five-line normalization, semantic/input identity and preservation",
+      "command": "python logs/rendering/phase65/final-seal/prepare_packet.py; python logs/rendering/phase65/final-seal/seal_preserve_owner.py",
+      "evidence": "logs/rendering/phase65/seal-preparation/normalization.json; logs/rendering/phase65/final-seal/preflight.json; logs/rendering/phase65/final-seal/restoration.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Scoped source/new-header formatting and refreshed non-SDL Release headless link",
+      "command": "python logs/rendering/phase65/seal-preparation/integrity_build.py",
+      "evidence": "logs/rendering/phase65/seal-preparation/integrity-build-checks.json; logs/rendering/phase65/seal-preparation/refreshed-binary.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Final Debug engine and Release solution integration",
+      "command": "Recorded MSBuild commands in build-results.json",
+      "evidence": "logs/rendering/phase65/owner-closure/build-results.json",
+      "result": "PASS",
+      "reuse_reason": "Owner-accepted closure builds; only five whitespace-only blank lines changed, no code tokens or line numbers. Other executable drift is separately relinked; no fresh engine build/run claimed."
+    },
+    {
+      "check": "Retained RenderWorld Debug/Release correctness, immutable lifetime, allocation failures, transactions, sizes and counts",
+      "command": "Recorded Stage-A proof commands/logs in proof/candidate/{Debug,Release}/run-1.json",
+      "evidence": "logs/rendering/phase65/render-world/high-q-task-harness-continuation/RESULTS.json",
+      "result": "PASS",
+      "reuse_reason": "Same engine semantics; 1,228 oracle records per configuration; no production change beyond five blank-line normalizations."
+    },
+    {
+      "check": "Separated persistent/staging memory and high-Q retained-frame lifetime",
+      "command": "Recorded Stage-A Release proof in proof/candidate/Release/run-1.json",
+      "evidence": "logs/rendering/phase65/render-world/high-q-task-harness-continuation/memory-accounting.json",
+      "result": "PASS",
+      "reuse_reason": "Same representation; A<=16MiB and A+B<=32MiB at Q1/3724/7448; all tracked categories drain."
+    },
+    {
+      "check": "Qualified RBS median/p95 retention, image and applicable exact counters/state",
+      "command": "Original RBS captures and three alternating matched pairs; exact commands retained in rbs evidence",
+      "evidence": "logs/rendering/phase65/render-world/high-q-task-harness-continuation/rbs/summary.json",
+      "result": "PASS",
+      "reuse_reason": "No changed workload, inputs or semantics; no repeated runtime or fresh performance claim."
+    },
+    {
+      "check": "Normal-consumer native-free and typed-error boundaries",
+      "command": "Original Debug/Release header compilation and allocation/lifetime proof commands",
+      "evidence": "logs/rendering/phase65/render-world/high-q-compaction/build-boundary/results.json; logs/rendering/phase65/render-world/high-q-task-harness-continuation/RESULTS.json",
+      "result": "PASS",
+      "reuse_reason": "Public/header inputs unchanged; whitespace-only function-body edits do not alter error or native boundaries."
+    },
+    {
+      "actual_outcome": "FAILED/UNQUALIFIED overall: 8/14 cases fail 5% spread; numeric inequalities alone do not qualify the batch.",
+      "check": "C scaling 5% run-median-spread qualification",
+      "command": "Review unchanged original evidence; owner closure amendment and formatting/seal authorization, no rerun",
+      "evidence": "logs/rendering/phase65/render-world/scaling/RESULTS.json",
+      "owner_acceptance": "Record the following as explicit carried-forward unresolved performance findings rather than Phase 65 release blockers: C scaling 5% run-median-spread qualification remains unresolved;",
+      "owner_authority": "docs/rendering/reviews/PHASE_65_OWNER_CLOSURE_AMENDMENT.md",
+      "result": "ACCEPTED_EXCEPTION"
+    },
+    {
+      "actual_outcome": "UNRESOLVED: current RBS render/work medians exceed unchanged absolute Phase13 limits.",
+      "check": "Phase 13 historical absolute CPU closure",
+      "command": "Review unchanged original evidence; owner closure amendment and formatting/seal authorization, no rerun",
+      "evidence": "docs/rendering/reviews/PHASE_65_CLOSURE_PACKET.md",
+      "owner_acceptance": "Record the following as explicit carried-forward unresolved performance findings rather than Phase 65 release blockers: Phase 13 historical absolute CPU closure remains unresolved;",
+      "owner_authority": "docs/rendering/reviews/PHASE_65_OWNER_CLOSURE_AMENDMENT.md",
+      "result": "ACCEPTED_EXCEPTION"
+    },
+    {
+      "actual_outcome": "UNRESOLVED: original texture requests exceeded 16.667ms; original maximum 30.764ms remains.",
+      "check": "Async texture-publication stall remediation",
+      "command": "Review unchanged original evidence; owner closure amendment and formatting/seal authorization, no rerun",
+      "evidence": "tools/FINAL_PERFORMANCE_VALIDATION.md",
+      "owner_acceptance": "Record the following as explicit carried-forward unresolved performance findings rather than Phase 65 release blockers: async texture-publication stall remediation remains unresolved;",
+      "owner_authority": "docs/rendering/reviews/PHASE_65_OWNER_CLOSURE_AMENDMENT.md",
+      "result": "ACCEPTED_EXCEPTION"
+    },
+    {
+      "actual_outcome": "UNRESOLVED; historical noisy/regressive results are not replaced by current CPU gains.",
+      "check": "GPU/UI/shadow-tail reproducibility and remediation",
+      "command": "Review unchanged original evidence; owner closure amendment and formatting/seal authorization, no rerun",
+      "evidence": "tools/FINAL_PERFORMANCE_VALIDATION.md",
+      "owner_acceptance": "Record the following as explicit carried-forward unresolved performance findings rather than Phase 65 release blockers: GPU/UI/shadow-tail reproducibility and remediation remain unresolved;",
+      "owner_authority": "docs/rendering/reviews/PHASE_65_OWNER_CLOSURE_AMENDMENT.md",
+      "result": "ACCEPTED_EXCEPTION"
+    },
+    {
+      "actual_outcome": "UNRESOLVED: historical >=80% target unmet; session drift/lineage uncertainty and residual O(N)/O(Q)/full-dirty costs remain.",
+      "check": "Historical attribution and remaining performance uncertainty",
+      "command": "Review unchanged original evidence; owner closure amendment and formatting/seal authorization, no rerun",
+      "evidence": "docs/rendering/reviews/PHASE_65_CLOSURE_PACKET.md",
+      "owner_acceptance": "Record the following as explicit carried-forward unresolved performance findings rather than Phase 65 release blockers: any remaining historical attribution/performance uncertainties remain unresolved.",
+      "owner_authority": "docs/rendering/reviews/PHASE_65_OWNER_CLOSURE_AMENDMENT.md",
+      "result": "ACCEPTED_EXCEPTION"
+    },
+    {
+      "actual_outcome": "Final RenderWorld application acceptance is RBS-only. No fresh Editor/Breakout/RayTracing runtime or performance claim.",
+      "check": "Final non-RBS application runtime/performance coverage",
+      "command": "Reuse prior other-application results only for their original input-specific scope; no new execution",
+      "evidence": "docs/rendering/reviews/PHASE_65_CLOSURE_PACKET.md",
+      "owner_acceptance": "For this Phase 65 performance-remediation work, use RigidBodySimulation only for application-level runtime validation; performance measurement; matched control/candidate comparison; visual/image/counter checks; final application acceptance. The Phase 65 owner closure packet is accepted for technical closure review.",
+      "result": "ACCEPTED_EXCEPTION"
+    },
+    {
+      "check": "Canonical validated RBS snapshot and explicit owner-source separation authority",
+      "command": "SHA256 comparison against the accepted RBS fingerprint; owner instruction AUTHORIZE PHASE 65 SEAL USING THE VALIDATED RBS SOURCE WHILE PRESERVING OWNER EDITS",
+      "evidence": "logs/rendering/phase65/final-seal/preflight.json; docs/rendering/reviews/PHASE_65_FINAL_REVIEW.md",
+      "result": "PASS",
+      "reuse_reason": "Owner explicitly identifies current manual workload edits as outside Phase65 and authorizes temporary use of the exact previously validated source; no workload revalidation."
+    },
+    {
+      "check": "Resume identity audit and evidence reuse classification",
+      "command": "python logs/rendering/phase65/final-seal/resume_integrity.py",
+      "evidence": "logs/rendering/phase65/final-seal/resume-integrity.json",
+      "result": "PASS",
+      "reuse_reason": "All prepared source/validation inputs and archived tested artifacts match; live Release binary drift is separately recorded and excluded from claims. Completed builds, correctness, memory and RBS results retain their original source-specific scope. No reruns."
+    }
+  ],
+  "validation_input_hashes": {
+    ".gitignore": {
+      "executable": null,
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b"
+    },
+    "GEngine/include/GEngine/Core/GLContextThread.h": {
+      "executable": null,
+      "sha256": "de1fc23d60dd591a25faf9d832a2a28478da63da65e6120986d4a57630013c60"
+    },
+    "GEngine/include/GEngine/Core/RenderCounters.h": {
+      "executable": null,
+      "sha256": "a71344420150607ecbdd7860dd8b3b3f255bcd557a5c563180cd57ef06e701cb"
+    },
+    "GEngine/include/GEngine/Renderer/RenderFrame.h": {
+      "executable": null,
+      "sha256": "249d820700d87e5b64d86c914f7b08f3706f0a7a1e269878084de92d73ba3c18"
+    },
+    "GEngine/include/GEngine/Renderer/RenderTasks.h": {
+      "executable": null,
+      "sha256": "5750da7331ca517bc5bda4c07aa82f1666bfadefc372c1bdc8f7a6a61301c547"
+    },
+    "GEngine/include/GEngine/Renderer/RenderVisibility.h": {
+      "executable": null,
+      "sha256": "acd12f7b8b34cdf46f0040ca21f822fb125fc4cdf1e6c877f69ec56c492d09b4"
+    },
+    "GEngine/include/GEngine/Scene/RenderState.h": {
+      "executable": null,
+      "sha256": "129747aae0911e2fa439d30cb8829bd42f7165afa3ce177023628572b76c21f1"
+    },
+    "GEngine/include/GEngine/Scene/_Scene.h": {
+      "executable": null,
+      "sha256": "6f286ec445d6574edcf872e4d468f1d95a0b46832b6263a4b59ec905190982e0"
+    },
+    "GEngine/src/Renderer/FrameSubmission.cpp": {
+      "executable": null,
+      "sha256": "48509a56e1e6ce609d0d0c2727b6df33c1eb8ebd4f0175cb248454be0c05c495"
+    },
+    "GEngine/src/Renderer/RenderCpuBacking.h": {
+      "executable": null,
+      "sha256": "2c2000bc7922254178d5605b699a40abf80867adc7bb89322ab57367f26a6e4c"
+    },
+    "GEngine/src/Renderer/RenderExtraction.cpp": {
+      "executable": null,
+      "sha256": "5859d8e77edb5668ad6b765efa0ffe5c971672c9e881d6ef70926d95f167afaf"
+    },
+    "GEngine/src/Renderer/RenderFrame.cpp": {
+      "executable": null,
+      "sha256": "837e939e4107b1c0838bd91e7efe3a9e2645fefc4a71074b0c9cfce13f466a0e"
+    },
+    "GEngine/src/Renderer/RenderTasks.cpp": {
+      "executable": null,
+      "sha256": "446e20e5bcba13dea67fec4a6dc5f81bcf93b616c72c49c05c21e4d4fda86b08"
+    },
+    "GEngine/src/Renderer/RenderVisibility.cpp": {
+      "executable": null,
+      "sha256": "2348f33e357b840f68f9d7fbbfc804db18e81607710e53b3f4273c6060fa504b"
+    },
+    "GEngine/src/Scene/RenderState.cpp": {
+      "executable": null,
+      "sha256": "7065924cfbb1157722c5051b8d0fd4348c50f23da4b94916bba894cf6cd0af32"
+    },
+    "GEngine/src/Scene/_Scene.cpp": {
+      "executable": null,
+      "sha256": "0535e728b93fcac4d985a1d194cd7e0425a864b43399e545fc7a21fbd81ac34a"
+    },
+    "GEngineEditor/imgui.ini": {
+      "executable": null,
+      "sha256": "c86d6a50f0f4bcda7f2770ca3eceb999f5d5816144dbc8d54ea783eec126cf8d"
+    },
+    "RenderingValidation/src/main.cpp": {
+      "executable": null,
+      "sha256": "2f0aaa81c0e4491f838420fc5184f762315c48cad30c48d01047e29d7c219d67"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "3088cfb02d90dc7deb274e855a0723f398914fda4f0af025191d86d4fdc7b75a"
+    },
+    "docs/physics/PHASE_06_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_07_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_08_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_09_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_10_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_11_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_12_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_13_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_14_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_15_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_16_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_17_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_18_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_19_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_20_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_21_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_22_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_23_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_24_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_25_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_26_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_27_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_28_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_29_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_30_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_32_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_33_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_34_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_35_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_36_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_37_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_38_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_39_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_OPTIMIZATION.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_REFACTOR.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_00_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_01_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_02_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_03_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_04_REVIEW.md": {
+      "absent": true
+    },
+    "tools/FINAL_PERFORMANCE_VALIDATION.md": {
+      "executable": null,
+      "sha256": "8e27e80ea955eb1333b0288d0339f8957b02d603d8f04dcde0506761014ce6fa"
+    },
+    "tools/final_performance_probe.cpp": {
+      "executable": null,
+      "sha256": "103b0d931a4ae7917fda894ec9d7808c4faf26a76b91d1363dc2aa2c308decf2"
+    },
+    "tools/final_performance_validation.py": {
+      "executable": null,
+      "sha256": "5a455a209fe08faddd785106f6fd9d2db7e6a7b2eb8ef81c38d882765296b62d"
+    },
+    "tools/frame_submission_probe.cpp": {
+      "executable": null,
+      "sha256": "78d8a042ffcb2735e3e7cf502d87142a9015240f55ad3b405472534e73488d62"
+    },
+    "tools/render_state_probe.cpp": {
+      "executable": null,
+      "sha256": "ec1ae5ae5e7bca15e380d28aebe435bda63bdf21b1fbae55724d91230de87c22"
+    },
+    "tools/render_world_probe.cpp": {
+      "executable": null,
+      "sha256": "2ae212d888319403403961fb9339ebcec97185fddc3af4ea6f9439277f589aea"
+    },
+    "tools/test_frame_submission.py": {
+      "executable": null,
+      "sha256": "64e2342d7b23f1a3152dec695e34fcef4c49845ab592e938c70cb3a609773d0f"
+    },
+    "tools/test_render_state.py": {
+      "executable": null,
+      "sha256": "0ad2dcb305ac6579540e2d5dd521c0ffeb93b449dc67e18dfc9d2061a81d6f21"
+    },
+    "tools/test_render_world.py": {
+      "executable": null,
+      "sha256": "aaab2c398a106462e08d3d8b08dff7a5b8321c12e1f276fcd72eead7c26af677"
+    }
+  }
+}

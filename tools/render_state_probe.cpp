@@ -7,6 +7,8 @@
 #include <glad/glad.h>
 #include <sdl2/SDL.h>
 #include <cstdlib>
+#include <bit>
+#include <algorithm>
 #include <print>
 
 namespace
@@ -232,6 +234,127 @@ namespace
         Check(snapshot && snapshot->revisions.scene==1,"Copy does not inherit runtime caches");
         std::println("[PASS] revision causes, no-op writes, replacement, retention, failure and identity");
     }
+    void SameBinding(const PreparedMaterialBinding& actual, const PreparedMaterialBinding& expected)
+    {
+        Check(actual.Instance()==expected.Instance() && actual.PublicationRevision()==expected.PublicationRevision()
+            && actual.Revision()==expected.Revision() && actual.Source().Get()==expected.Source().Get(), "Exact material version/override owner");
+        Check(actual.Program().Identity()==expected.Program().Identity() && actual.Program().Revision()==expected.Program().Revision()
+            && actual.Program().Get()==expected.Program().Get(), "Exact retained program version");
+        Check(actual.Pipeline().Key()==expected.Pipeline().Key(), "Exact pipeline state");
+        Check(std::ranges::equal(actual.PackedWords(),expected.PackedWords()), "Exact packed parameter bits");
+        Check(actual.Parameters().size()==expected.Parameters().size(), "Parameter layout size");
+        for(std::size_t i=0;i<actual.Parameters().size();++i)
+            Check(actual.Parameters()[i].type==expected.Parameters()[i].type
+                && actual.Parameters()[i].wordOffset==expected.Parameters()[i].wordOffset
+                && actual.Parameters()[i].wordCount==expected.Parameters()[i].wordCount,"Exact parameter layout");
+        Check(actual.Textures().size()==expected.Textures().size() && actual.Fallbacks().empty() && expected.Fallbacks().empty(),"Exact texture slots/no fallback");
+        for(std::size_t i=0;i<actual.Textures().size();++i)
+        {
+            const auto&a=actual.Textures()[i];const auto&e=expected.Textures()[i];
+            Check(a.texture.Identity()==e.texture.Identity() && a.texture.Revision()==e.texture.Revision() && a.texture.Get()==e.texture.Get()
+                && a.sampler.Identity()==e.sampler.Identity() && a.sampler.Revision()==e.sampler.Revision() && a.sampler.Get()==e.sampler.Get(),"Exact retained texture/sampler versions");
+        }
+    }
+    template<class View> void PrintVersion(const View& view)
+    { const auto id=view.Identity();std::print(" {}/{}/{}/{}",id.index,id.generation,id.registry,view.Revision()); }
+    SceneRenderState MemoSample(Fixture& f, const char* label)
+    {
+        const auto ticks=f.scene.GetPhysicsTiming().totalSteps;
+        auto access=f.publication.BeginFrame();
+        auto result=f.scene.UpdateRenderState({access,f.meshes,f.materials,{f.programs,f.textures,f.samplers},f.Target(access)});
+        Check(result,"Memo scene snapshot");Check(f.scene.GetPhysicsTiming().totalSteps==ticks,"Preparation preserves authoritative physics ticks");
+        for(const auto&e:result->entities)
+        {
+            auto mesh=f.scene.RenderData().Get<MeshRendererComponent>(e.entity);
+            if(mesh)
+            {
+                auto instance=f.materials.Acquire(access,mesh->material);
+                auto expected=instance?PreparedMaterialBinding::Prepare(*instance,access,{f.programs,f.textures,f.samplers})
+                    :std::expected<PreparedMaterialBinding,MaterialBindingError>(std::unexpected(MaterialBindingError{MaterialBindingCode::InvalidInstance,{},"Material instance unavailable",instance.error()}));
+                Check(bool(e.material)==bool(expected),"Memo success/failure equals uncached preparation");
+                if(expected){Check(!e.materialError,"Success has no stale error");SameBinding(*e.material,*expected);}
+                else {Check(e.materialError,"Missing typed material failure");const auto&a=*e.materialError;const auto&b=expected.error();
+                    Check(a.code==b.code && a.binding==b.binding && std::string_view(a.message)==b.message && a.registry==b.registry && a.cause==b.cause,"Complete uncached error equality");}
+            }
+            const auto&r=e.revisions;
+            std::print("[MEMO] {} entity={}/{}/{} rev={}/{}/{}/{}/{}/{}/{}/{} bounds={}",label,e.entity.index,e.entity.generation,e.entity.registry,
+                r.transform,r.mesh,r.material,r.light,r.camera,r.bounds,r.target,r.scene,static_cast<int>(e.bounds.status));
+            for(int col=0;col<4;++col)for(int row=0;row<4;++row)std::print(" {}",std::bit_cast<std::uint32_t>(e.world[col][row]));
+            for(auto v:e.bounds.minimum)std::print(" {}",std::bit_cast<std::uint64_t>(v));
+            for(auto v:e.bounds.maximum)std::print(" {}",std::bit_cast<std::uint64_t>(v));
+            for(auto v:e.bounds.sphereCenter)std::print(" {}",std::bit_cast<std::uint64_t>(v));
+            std::print(" {} material={}",std::bit_cast<std::uint64_t>(e.bounds.sphereRadius),bool(e.material));
+            if(e.material){PrintVersion(e.material->Source());PrintVersion(e.material->Program());for(const auto&t:e.material->Textures()){PrintVersion(t.texture);PrintVersion(t.sampler);}for(auto w:e.material->PackedWords())std::print(" {}",w);}
+            if(e.materialError)std::print(" error={}/{}/{}/{}/{}",static_cast<int>(e.materialError->code),e.materialError->binding,e.materialError->message,static_cast<int>(e.materialError->registry),e.materialError->cause?static_cast<int>(*e.materialError->cause):-1);
+            std::println("");
+        }
+        return std::move(*result);
+    }
+    void Memoization()
+    {
+        Fixture f;std::vector<std::pair<_Entity,EntityRenderId>> entities;
+        for(int i=0;i<36;++i){auto entry=f.Entity();entry.first.Transform().Translation={float(i),float(i%3),0};entities.push_back(entry);}
+        auto first=MemoSample(f,"shared");auto stable=MemoSample(f,"stable");Check(first.revisions==stable.revisions,"Shared material no-op revisions");
+        Check(Find(first,entities[0].second).material->PackedWords().data()!=Find(first,entities[1].second).material->PackedWords().data(),"Per-entity value storage is independent");
+        auto distinct=MaterialInstance::Create(f.declaration).value();Check(distinct.SetParameter("roughness",.75f),"Distinct override");
+        MaterialInstanceHandle distinctId;
+        {auto p=f.publication.BeginPublication();distinctId=f.materials.Create(p,distinct).value();}
+        auto component=MeshRendererComponent{f.mesh,distinctId};Check(f.scene.RenderData().Replace(entities[1].second,component),"Assign distinct override");
+        auto mixed=MemoSample(f,"mixed");Check(Find(mixed,entities[0].second).material->PackedWords()[0]!=Find(mixed,entities[1].second).material->PackedWords()[0],"Shared template does not merge overrides");
+        auto edited=MaterialInstance::Create(f.declaration).value();Check(edited.SetParameter("roughness",.25f),"Shared override edit");
+        {auto p=f.publication.BeginPublication();Check(f.materials.Replace(p,f.material,edited),"Publish shared override");}
+        auto changed=MemoSample(f,"material-replace");Check(Find(first,entities[0].second).material->PackedWords()[0]==std::bit_cast<std::uint32_t>(.5f),"Retained old instance remains immutable");
+        {auto p=f.publication.BeginPublication();Check(f.textures.Replace(p,f.texture,Image()),"Independent texture publication");Check(f.samplers.Replace(p,f.sampler,GpuSampler::Create({}).value()),"Independent sampler publication");}
+        auto resources=MemoSample(f,"resource-replace");Check(Find(resources,entities[0].second).material->PublicationRevision()==Find(changed,entities[0].second).material->PublicationRevision()
+            && Find(resources,entities[0].second).revisions.material>Find(changed,entities[0].second).revisions.material,"Resource changes visible with unchanged material publication");
+        const auto oldTexture=f.texture;
+        {auto p=f.publication.BeginPublication();Check(f.textures.Destroy(p,f.texture),"Destroy texture");f.texture=f.textures.Create(p,Image()).value();}
+        Check(f.texture.index==oldTexture.index && f.texture.generation!=oldTexture.generation,"Reused texture generation");
+        auto failed=MemoSample(f,"stale-texture");Check(Find(failed,entities[0].second).materialError->code==MaterialBindingCode::InvalidTexture,"Stale texture stays an error");
+        Check(edited.SetTexture("image",{f.texture,f.sampler}),"Repair texture handle");
+        {auto p=f.publication.BeginPublication();Check(f.materials.Replace(p,f.material,edited),"Publish texture recovery");}
+        auto recovered=MemoSample(f,"texture-recovery");Check(Find(recovered,entities[0].second).material,"Texture recovery");
+        const auto oldSampler=f.sampler;
+        {auto p=f.publication.BeginPublication();Check(f.samplers.Destroy(p,f.sampler),"Destroy sampler");f.sampler=f.samplers.Create(p,GpuSampler::Create({}).value()).value();}
+        Check(f.sampler.index==oldSampler.index && f.sampler.generation!=oldSampler.generation,"Reused sampler generation");
+        auto samplerFailure=MemoSample(f,"stale-sampler");Check(Find(samplerFailure,entities[0].second).materialError->code==MaterialBindingCode::InvalidSampler,"Stale sampler stays an error");
+        Check(edited.SetTexture("image",{f.texture,f.sampler}),"Repair sampler handle");
+        {auto p=f.publication.BeginPublication();Check(f.materials.Replace(p,f.material,edited),"Publish sampler recovery");Check(f.programs.Replace(p,f.program,Program()),"Replace program independently");}
+        auto programFailure=MemoSample(f,"program-replace");Check(Find(programFailure,entities[0].second).materialError->code==MaterialBindingCode::ProgramRevisionMismatch,"Expected program revision exact");
+        const auto rebind=[&](std::uint64_t revision){
+            PipelineHandle pipeline;{auto p=f.publication.BeginPublication();PipelineDesc d;d.program=f.program;d.programRevision=revision;pipeline=f.pipelines.Create(p,PipelineState::Create(d).value()).value();}
+            PipelineView view;{auto a=f.publication.BeginFrame();view=f.pipelines.Acquire(a,pipeline).value();}
+            const MaterialParameterDecl params[]{{"roughness",MaterialParameterType::Float,.25f}};const MaterialTextureSlotDecl slots[]{{"image",true,MaterialTextureValue{f.texture,f.sampler}}};
+            auto definition=MaterialTemplate::Create({view,params,slots}).value();MaterialTemplateHandle id;
+            {auto p=f.publication.BeginPublication();id=f.templates.Create(p,std::move(definition)).value();}
+            {auto a=f.publication.BeginFrame();f.declaration=f.templates.Acquire(a,id).value();}
+            edited=MaterialInstance::Create(f.declaration).value();{auto p=f.publication.BeginPublication();Check(f.materials.Replace(p,f.material,edited),"Publish complete new template/program binding");}
+        };
+        rebind(2);auto newTemplate=MemoSample(f,"template-rebind");Check(Find(newTemplate,entities[0].second).material,"New template restores program");
+        const auto oldProgram=f.program;
+        {auto p=f.publication.BeginPublication();Check(f.programs.Destroy(p,f.program),"Destroy program");f.program=f.programs.Create(p,Program()).value();}
+        Check(f.program.index==oldProgram.index && f.program.generation!=oldProgram.generation,"Reused program generation");
+        auto staleProgram=MemoSample(f,"stale-program");Check(Find(staleProgram,entities[0].second).materialError->code==MaterialBindingCode::InvalidProgram,"Stale program cannot hit memo");
+        rebind(1);auto freshProgram=MemoSample(f,"program-recovery");Check(Find(freshProgram,entities[0].second).material,"Program generation recovery");
+        const auto oldMaterial=f.material;
+        {auto p=f.publication.BeginPublication();Check(f.materials.Destroy(p,f.material),"Destroy material");f.material=f.materials.Create(p,edited).value();}
+        Check(f.material.index==oldMaterial.index && f.material.generation!=oldMaterial.generation,"Reused material generation");
+        auto staleMaterial=MemoSample(f,"stale-material");Check(Find(staleMaterial,entities[0].second).materialError->code==MaterialBindingCode::InvalidInstance,"Stale material cannot hit memo");
+        for(std::size_t i=0;i<entities.size();i+=2)Check(f.scene.RenderData().Replace(entities[i].second,MeshRendererComponent{f.mesh,f.material}),"Reassign live generation");
+        auto live=MemoSample(f,"mixed-generations");
+        {auto p=f.publication.BeginPublication();Check(f.targets.Replace(p,f.target,RenderTarget::Create(20,16,1).value()),"Target replacement");}
+        auto target=MemoSample(f,"target");Check(target.revisions.target>live.revisions.target && target.revisions.material==live.revisions.material,"Target change does not alter material result");
+        auto parent=f.scene.CreateEntity();parent.Transform().Translation={2,3,4};Check(entities[0].first.SetParent(parent),"Shared-material hierarchy");
+        Check(f.scene.RenderData().Add(entities[0].second,VisibilityComponent{false,1}),"Visibility input");
+        auto hierarchy=MemoSample(f,"hierarchy-visibility");Check(Find(hierarchy,entities[0].second).revisions.material==Find(target,entities[0].second).revisions.material,"Entity inputs stay outside material result");
+        const auto pose=entities[0].first.Transform().GetTransform();
+        RenderLightComponent bad;bad.intensity=std::numeric_limits<float>::quiet_NaN();Check(f.scene.RenderData().Add(entities.back().second,bad),"Late invalid entity");
+        {auto a=f.publication.BeginFrame();auto failure=f.scene.UpdateRenderState({a,f.meshes,f.materials,{f.programs,f.textures,f.samplers},f.Target(a)});Check(!failure,"Late failure remains transactional");}
+        Check(f.scene.RenderData().Remove<RenderLightComponent>(entities.back().second),"Remove invalid input");
+        auto retry=MemoSample(f,"retry");Check(retry.revisions==hierarchy.revisions && entities[0].first.Transform().GetTransform()==pose,"Failure publishes no cache and preserves authoritative pose");
+        Check(Find(first,entities[0].second).material->Program().Revision()==1 && Find(first,entities[0].second).material->Textures()[0].texture.Revision()==1,"Retained old frame versions survive all replacements");
+        std::println("[PASS] per-call material semantic inputs, generations, errors, retention and transaction");
+    }
     void Interpolation()
     {
         Fixture f;
@@ -284,7 +407,7 @@ int main()
     {
         auto* window=SDL_CreateWindow("Render state validation",0,0,32,32,SDL_WINDOW_OPENGL|SDL_WINDOW_HIDDEN); Check(window,"Hidden window");
         auto context=SDL_GL_CreateContext(window); Check(context,"GL context"); Check(gladLoadGLLoader(SDL_GL_GetProcAddress),"GL loader");
-        { Revisions(); Interpolation(); DynamicBounds(); }
+        { Revisions(); Memoization(); Interpolation(); DynamicBounds(); }
         Check(glGetError()==GL_NO_ERROR,"No GL error"); SDL_GL_DeleteContext(context); SDL_DestroyWindow(window);
     }
     SDL_Quit(); std::println("[PASS] render-state checks={}",checks);

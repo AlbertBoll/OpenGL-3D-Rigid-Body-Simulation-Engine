@@ -3,6 +3,7 @@
 #include <glad/glad.h>
 #include <sdl2/SDL.h>
 #include <cstdio>
+#include <cstdint>
 #include <exception>
 #include <mutex>
 #include <thread>
@@ -16,6 +17,9 @@ namespace GEngine::GLContextThread
 {
     namespace Detail
     {
+        // Backend diagnostic query; installed with the owning context, never by
+        // a resource destructor. Keep SDL symbol references at context creation.
+        inline thread_local std::uintptr_t (*currentContextIdentity)() = nullptr;
         struct Owner { std::thread::id thread; };
         struct Registry
         {
@@ -76,6 +80,7 @@ namespace GEngine::GLContextThread
         {
             try { registry.contexts.emplace(context, Detail::Owner{std::this_thread::get_id()}); }
             catch (...) { SDL_GL_DeleteContext(context); throw; }
+            Detail::currentContextIdentity = [] { return reinterpret_cast<std::uintptr_t>(SDL_GL_GetCurrentContext()); };
         }
         return context;
     }

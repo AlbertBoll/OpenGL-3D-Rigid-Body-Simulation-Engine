@@ -23,6 +23,12 @@ namespace GEngine
 	{
 	public:
 		PhysicalShape() = default;
+        // Concrete shape payloads retire through the existing polymorphic owner boundary.
+        virtual ~PhysicalShape() = default;
+        PhysicalShape(const PhysicalShape&) = default;
+        PhysicalShape& operator=(const PhysicalShape&) = default;
+        PhysicalShape(PhysicalShape&&) noexcept = default;
+        PhysicalShape& operator=(PhysicalShape&&) noexcept = default;
 		PhysicalShape(const std::vector<Vec3f>& MeshPoints) : m_MeshPoints(MeshPoints) {};
 		virtual Mat3 InertiaTensor() const = 0;
 		virtual Bounds GetBounds(const Vec3f& pos, const glm::quat& orient) const = 0;

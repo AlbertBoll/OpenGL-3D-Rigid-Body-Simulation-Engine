@@ -51,7 +51,7 @@ namespace GEngine
         }
     }
 
-    void SimpleRenderer::OnResize(uint32_t width, uint32_t height)
+    ImageResult SimpleRenderer::OnResize(uint32_t width, uint32_t height)
     {
         if (width == 0 || height == 0) {
             m_FinalImage.reset();
@@ -59,25 +59,37 @@ namespace GEngine
             std::vector<Vec4f>().swap(m_AccumulationData);
             m_NeedsAllocation = false;
             ResetFrameIndex();
-            return;
+            return {};
         }
         if (m_FinalImage && m_FinalImage->GetWidth() == width && m_FinalImage->GetHeight() == height)
-            return; // Do not discard a pending first upload or reset active accumulation.
+            return {}; // Do not discard a pending first upload or reset active accumulation.
         const size_t pixels = static_cast<size_t>(width) * height;
         if (width > static_cast<uint32_t>((std::numeric_limits<GLsizei>::max)()) ||
             height > static_cast<uint32_t>((std::numeric_limits<GLsizei>::max)()) ||
             pixels > m_ImageData.max_size() / 4 || pixels > m_AccumulationData.max_size())
-            throw std::length_error("Ray image dimensions exceed supported storage");
+            return std::unexpected(ImageError{.code=ImageErrorCode::InvalidExtent,
+                .operation="SimpleRenderer::OnResize", .message="Ray image dimensions exceed supported storage",
+                .width=width, .height=height, .format=ImageFormat::RGBA,
+                .sourceWidth=m_FinalImage ? m_FinalImage->GetWidth() : 0,
+                .sourceHeight=m_FinalImage ? m_FinalImage->GetHeight() : 0,
+                .expectedElements=(std::min)(m_ImageData.max_size()/4, m_AccumulationData.max_size()),
+                .actualElements=pixels});
 
         // Allocate both CPU buffers before replacing the current, usable image.
         std::vector<uint8_t> imageData(pixels * 4);
         std::vector<Vec4f> accumulationData(pixels, Vec4f(0.0f));
-        if (m_FinalImage) m_FinalImage->Resize(width, height);
-        else m_FinalImage = CreateRefPtr<Image>(width, height, ImageFormat::RGBA);
+        if (m_FinalImage) {
+            if(auto resized=m_FinalImage->Resize(width,height);!resized) return std::unexpected(resized.error());
+        } else {
+            auto image=Image::Create(width,height,ImageFormat::RGBA);
+            if(!image) return std::unexpected(image.error());
+            m_FinalImage=CreateRefPtr<Image>(std::move(*image));
+        }
         m_ImageData.swap(imageData);
         m_AccumulationData.swap(accumulationData);
         m_NeedsAllocation = true;
         ResetFrameIndex();
+        return {};
     }
 
     void SimpleRenderer::RenderBegin()
@@ -87,14 +99,18 @@ namespace GEngine
         glViewport(0, 0, m_FinalImage->GetWidth(), m_FinalImage->GetHeight());
     }
 
-    void SimpleRenderer::Render(const RayTracingScene& scene, const RayTracingCamera& camera)
+    ImageResult SimpleRenderer::Render(const RayTracingScene& scene, const RayTracingCamera& camera)
     {
-        if (!m_FinalImage) return;
+        if (!m_FinalImage) return {};
         const auto width = m_FinalImage->GetWidth();
         const auto height = m_FinalImage->GetHeight();
         if (camera.GetViewportWidth() != width || camera.GetViewportHeight() != height ||
             camera.GetRayDirections().size() != m_AccumulationData.size())
-            throw std::invalid_argument("Ray camera must be resized before rendering");
+            return std::unexpected(ImageError{.code=ImageErrorCode::CameraMismatch,
+                .operation="SimpleRenderer::Render", .message="Ray camera must be resized before rendering",
+                .width=width, .height=height, .format=ImageFormat::RGBA,
+                .sourceWidth=camera.GetViewportWidth(), .sourceHeight=camera.GetViewportHeight(),
+                .expectedElements=m_AccumulationData.size(), .actualElements=camera.GetRayDirections().size()});
         const bool accumulate = m_Settings.Acculmate;
         if (!accumulate) ResetFrameIndex();
         const auto sample = m_FrameIndex;
@@ -125,12 +141,12 @@ namespace GEngine
         }
 
         // parallel_for/execute are synchronous. Only the owning context thread uploads.
-        glBindTexture(GL_TEXTURE_2D, m_FinalImage->GetTexID());
-        if (m_NeedsAllocation) m_FinalImage->ReAllocateData(m_ImageData.data());
-        else m_FinalImage->UpdateData(m_ImageData.data());
+        auto uploaded=m_NeedsAllocation ? m_FinalImage->ReAllocateData(m_ImageData) : m_FinalImage->UpdateData(m_ImageData);
+        if(!uploaded) return std::unexpected(uploaded.error());
         m_NeedsAllocation = false;
         if (accumulate && m_FrameIndex != (std::numeric_limits<uint64_t>::max)()) ++m_FrameIndex;
         else ResetFrameIndex();
+        return {};
     }
 
 	Vec4f SimpleRenderer::PerPixel(const RayTracingScene& scene, const RayTracingCamera& camera,

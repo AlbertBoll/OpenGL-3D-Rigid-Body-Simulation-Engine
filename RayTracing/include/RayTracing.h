@@ -3,6 +3,7 @@
 #include "Core\BaseApp.h"
 #include "Core/Image.h"
 #include "Core/SimpleRenderer.h"
+#include "Renderer/FrameScheduler.h"
 #include "Camera/RaytracingCamera.h"
 #include "Core/RayTracingScene.h"
 
@@ -23,9 +24,10 @@ namespace GEngine
 		void OnUIRender()override;
 
 	private:
-		void GenerateImage();
+		[[nodiscard]] ImageResult GenerateImage();
 
 	private:
+        std::optional<ScheduleError> m_UIFailure;
 		uint32_t m_Width{};
 		uint32_t m_Height{};
 		SimpleRenderer m_Renderer;

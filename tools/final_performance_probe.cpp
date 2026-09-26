@@ -130,7 +130,7 @@ namespace {
         csv << "kind,sample,request_ns,ready_ns,frames,max_scheduler_ns,stalls,completed,upload_bytes,texture_calls,buffer_calls,peak_reserved_bytes,peak_queued_bytes,names_ns,texture_upload_ns,mipmap_ns,image_query_ns,state_query_ns,buffer_upload_ns\n";
         frames << "kind,sample,frame,state,scheduler_ns,completed,upload_bytes,time_budget_reached\n";
         idle << "sample,scheduler_ns\n";
-        auto& publication = root.AssetPublications();
+        auto& publication = root.SceneServices().value().publication;
         RenderContext empty{*root.MainWindow(), *root.LegacyEngine().GetWindowManager()}; empty.visible = false;
         for (int i = -120; i < 240; ++i) {
             const auto start = Clock::now(); Take(FrameScheduler::Render(empty), "idle scheduler");

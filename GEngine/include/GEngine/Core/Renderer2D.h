@@ -1,11 +1,14 @@
 #pragma once
 #include <Math/Math.h>
+#include <vector>
+#include <unordered_map>
 
 
 
 namespace GEngine
 {
 	class SpriteEntity;
+	class Material;
 	class CameraBase;
 	class RenderTarget;
 
@@ -28,7 +31,15 @@ namespace GEngine
 	public:
 		static void Render(SpriteEntity* entity, CameraBase* camera);
 		static void Render(const std::vector<SpriteEntity*>& entities, CameraBase* camera);
-		static void Render(const std::unordered_map<unsigned int, std::vector<std::vector<SpriteEntity*>>>& groupsLookUp, CameraBase* camera);
+        // Retained sprite batches borrow their material and entities. Native keys stay private.
+        class Groups
+        {
+            friend class Renderer2D;
+            std::unordered_map<unsigned int, std::vector<std::vector<SpriteEntity*>>> m_Groups;
+        public:
+            void Set(const Material& material, std::vector<std::vector<SpriteEntity*>> groups);
+        };
+        static void Render(const Groups& groups, CameraBase* camera);
 		static void RenderBegin(CameraBase* camera, RenderTarget* target = nullptr);
 		static void RenderSetup(const Render2DParam& param = Render2DParam{});
 		static void Initialize(const Vec2f& windowSize);

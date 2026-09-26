@@ -35,9 +35,9 @@ namespace GEngine
 		// Render, resize, settings changes and destruction belong to the context
 		// thread. Render joins all CPU tasks before uploading or returning; callers
 		// must keep scene/camera inputs unchanged until it returns.
-		void OnResize(uint32_t width, uint32_t height);
+		[[nodiscard]] ImageResult OnResize(uint32_t width, uint32_t height);
 		void RenderBegin();
-		void Render(const RayTracingScene& scene, const RayTracingCamera& camera);
+		[[nodiscard]] ImageResult Render(const RayTracingScene& scene, const RayTracingCamera& camera);
 		auto& GetFinalImage()const { return m_FinalImage; }
 		void SetSphereColor(const Vec3f& color) { m_SphereColor = color; }
 		Vec3f& GetSphereColor() { return m_SphereColor; }

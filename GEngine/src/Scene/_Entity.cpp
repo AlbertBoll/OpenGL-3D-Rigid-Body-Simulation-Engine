@@ -2,7 +2,6 @@
 #include "Scene/_Entity.h"
 #include <Scene/_Scene.h>
 #include <algorithm>
-#include <stdexcept>
 #include <unordered_set>
 
 namespace GEngine
@@ -85,11 +84,11 @@ namespace GEngine
 		return SetParent(resolved);
 	}
 
-	std::vector<UUID>& _Entity::Children()
+	std::expected<std::reference_wrapper<std::vector<UUID>>, EntityChildrenError> _Entity::Children()
 	{
 		if (!*this)
-			throw std::invalid_argument("Children requires a live scene entity");
-		return m_Scene->Reg().get_or_emplace<RelationshipComponent>(m_EntityHandle).Children;
+			return std::unexpected(EntityChildrenError{});
+		return std::ref(m_Scene->Reg().get_or_emplace<RelationshipComponent>(m_EntityHandle).Children);
 	}
 
 	const std::vector<UUID>& _Entity::Children() const
@@ -103,7 +102,7 @@ namespace GEngine
 		if (!HasAllComponents<IDComponent, RelationshipComponent>() || child.m_Scene != m_Scene
 			|| !child.HasAllComponents<IDComponent>())
 			return false;
-		auto& children = Children();
+		auto& children = GetComponent<RelationshipComponent>().Children; // Existing precheck proves the component.
 		if (std::find(children.begin(), children.end(), child.GetUUID()) == children.end())
 			return false;
 		if (child.GetParentUUID() == GetUUID())

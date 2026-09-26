@@ -5,6 +5,7 @@
 #include "Managers/InputManager.h"
 #include "Managers/WindowManager.h"
 #include "Managers/EventManager.h"
+#include "Managers/ShapeManager.h"
 #include "Assets/AssetPublication.h"
 #include "Assets/Textures/Texture.h"
 #include <thread>
@@ -67,6 +68,9 @@ namespace GEngine
     // so it is destroyed last. One live root; all access stays on its owner thread.
     // Static manager accessors borrow these owned services. The renderer facade
     // remains transitional; no process-global cache owns rendering resources.
+    using EngineInitializationError = std::variant<PlatformError, ShapeRegistrationError>;
+    using EngineInitializationResult = std::expected<void, EngineInitializationError>;
+
     class EngineContext final
     {
     public:
@@ -78,24 +82,28 @@ namespace GEngine
         State GetState() const { return m_State; }
 
         static EngineContext* TryGet() { return s_Current; }
+        [[nodiscard]] static std::expected<EngineContext*, PlatformError> TryCurrent();
+        // Legacy callbacks require a live root on its owner thread. Fallible callers use TryCurrent.
         static EngineContext& Current();
         GEngine& LegacyEngine();
-        [[nodiscard]] PlatformResult Initialize(const std::initializer_list<WindowProperties>& properties);
+        [[nodiscard]] EngineInitializationResult Initialize(const std::initializer_list<WindowProperties>& properties);
         Window* MainWindow() const { return m_MainWindow; }
         bool IsReady() const { return m_State == State::Ready; }
-        Manager::AssetsManager& Assets();
+        [[nodiscard]] std::expected<Manager::AssetsManager*, PlatformError> Assets();
         [[nodiscard]] std::expected<Manager::ShaderManager*, Asset::ShaderError> Shaders();
-        Manager::ShapeManager& Shapes();
-        Asset::AssetPublication& AssetPublications();
+        [[nodiscard]] std::expected<Manager::ShapeManager*, PlatformError> Shapes();
+        [[nodiscard]] std::expected<Asset::AssetPublication*, PlatformError> AssetPublications();
         [[nodiscard]] std::expected<SceneResourceServices, PlatformError> SceneServices();
         [[nodiscard]] PlatformResult MakeCurrent();
         [[nodiscard]] PlatformResult RenderScene(Actor* scene, CameraBase* camera, RenderTarget* target, const RenderParam& parameters);
 
     private:
         friend class Manager::AssetsManager;
+        friend class Manager::ShapeManager;
+        std::expected<Manager::ShapeManager*, PlatformError> TryShapes();
         std::expected<Manager::AssetsManager*, Asset::TextureError> TryAssets();
         void RequireOwnerThread() const;
-        void RequireManagers();
+        [[nodiscard]] PlatformResult RequireManagers();
         void Release() noexcept;
         inline static EngineContext* s_Current = nullptr; // Non-owning compatibility lookup.
         const std::thread::id m_OwnerThread;

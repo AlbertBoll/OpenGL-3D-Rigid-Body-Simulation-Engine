@@ -1,9 +1,9 @@
 #include "gepch.h"
 #include "Core/RuntimeAssets.h"
 #include "Managers/ShapeManager.h"
+#include "Geometry/Geometry.h"
 #include "Core/GEngine.h"
 #include "Scene/_Entity.h"
-#include <stdexcept>
 #include <Shapes/Box.h>
 #include <Shapes/Circle.h>
 #include <Shapes/Cone.h>
@@ -40,41 +40,51 @@ namespace GEngine
 		static constexpr RuntimeAssets::Directory animated_model_base_dir{ "AnimatedModels/" };
 		static std::string animated_model_extension = ".dae";
 
-		void ShapeManager::Initialize()
+		ShapeManager::RegistrationResult ShapeManager::Initialize()
 		{
 			using namespace Shape;
 
-			RegisterShape(Quad);
-			RegisterShape(Box);
-			RegisterShape(SkyBox);
-			RegisterShape(Circle);
-			RegisterShape(Cone);
-			RegisterShape(Ellipsoid);
-			RegisterShape(Hexagon);
-			RegisterShape(Icosahedron);
-			RegisterShape(Plane);
-			RegisterShape(Prism);
-			RegisterShape(Pyramid);
-			RegisterShape(Ring);
-			RegisterShape(SmoothSphere);
-			RegisterShape(Torus);
-			RegisterShape(Cylinder);
-			RegisterShape(Sphere);
-			RegisterShape(Terrain);
-			RegisterShape(SpriteGeometry);
-			RegisterShape(GridHelper);
-			RegisterShape(AxisHelper);
-			RegisterShape(Diamond);
-			RegisterShape(PointLightHelper);
-			ShapeManager::__Register<Shape::AABBBoundingBox>("AABBBoundingBox");
-			RegisterShape(KDTreeVisualizer);
+            if (auto result = __Register<Quad>("Quad"); !result) return result;
+            if (auto result = __Register<Box>("Box"); !result) return result;
+            if (auto result = __Register<SkyBox>("SkyBox"); !result) return result;
+            if (auto result = __Register<Circle>("Circle"); !result) return result;
+            if (auto result = __Register<Cone>("Cone"); !result) return result;
+            if (auto result = __Register<Ellipsoid>("Ellipsoid"); !result) return result;
+            if (auto result = __Register<Hexagon>("Hexagon"); !result) return result;
+            if (auto result = __Register<Icosahedron>("Icosahedron"); !result) return result;
+            if (auto result = __Register<Plane>("Plane"); !result) return result;
+            if (auto result = __Register<Prism>("Prism"); !result) return result;
+            if (auto result = __Register<Pyramid>("Pyramid"); !result) return result;
+            if (auto result = __Register<Ring>("Ring"); !result) return result;
+            if (auto result = __Register<SmoothSphere>("SmoothSphere"); !result) return result;
+            if (auto result = __Register<Torus>("Torus"); !result) return result;
+            if (auto result = __Register<Cylinder>("Cylinder"); !result) return result;
+            if (auto result = __Register<Sphere>("Sphere"); !result) return result;
+            if (auto result = __Register<Terrain>("Terrain"); !result) return result;
+            if (auto result = __Register<SpriteGeometry>("SpriteGeometry"); !result) return result;
+            if (auto result = __Register<GridHelper>("GridHelper"); !result) return result;
+            if (auto result = __Register<AxisHelper>("AxisHelper"); !result) return result;
+            if (auto result = __Register<Diamond>("Diamond"); !result) return result;
+            if (auto result = __Register<PointLightHelper>("PointLightHelper"); !result) return result;
+            if (auto result = __Register<Shape::AABBBoundingBox>("AABBBoundingBox"); !result) return result;
+            if (auto result = __Register<KDTreeVisualizer>("KDTreeVisualizer"); !result) return result;
+            return {};
 			//_RegisterShape(SmoothSphere, EnvironmentSphere, 1000.f);
 			//_RegisterShape(SmoothSphere, FloorSphere, 80.f);
 			//_RegisterShape(Sphere, FloorBaseSphere, 80.f);
 			//_RegisterShape(Sphere, PointLight, 0.5f, 32, 32);
 		}
 
-        ShapeManager& ShapeManager::Current() { return EngineContext::Current().Shapes(); }
+        std::expected<ShapeManager*, PlatformError> ShapeManager::TryCurrent()
+        {
+            auto* root = EngineContext::TryGet();
+            if (!root) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+                "shape registration", "No live application EngineContext"});
+            return root->TryShapes();
+        }
+
+        std::expected<ShapeManager*, PlatformError> ShapeManager::Current() { return TryCurrent(); }
+        ShapeManager::ShapeManager() = default;
         ShapeManager::~ShapeManager() = default;
 
         std::expected<MeshAsset, SceneResourceError> ShapeManager::ExportMesh(std::string_view name) const
@@ -106,76 +116,118 @@ namespace GEngine
             return false;
         }
 
-        void ShapeManager::Register(const std::string& name, Geometry* shape)
+        Geometry* ShapeManager::Store(const std::string& name, std::unique_ptr<Geometry> candidate)
         {
-            auto& self = Current();
-            if (!shape) throw std::invalid_argument("Cannot register a null shape");
+            // A duplicate keeps its old borrower; the new candidate retires here.
+            return m_Shapes.try_emplace(name, std::move(candidate)).first->second.get();
+        }
+
+        ShapeManager::RegistrationResult ShapeManager::Register(const std::string& name, Geometry* shape)
+        {
+            auto manager = TryCurrent();
+            if (!manager) return std::unexpected(manager.error());
+            auto& self = **manager;
+            if (!shape) return std::unexpected(ShapeRegistrationError{ShapeRegistrationErrorCode::NullGeometry,
+                "ShapeManager::Register", name, "Cannot register a null shape"});
             if (self.Owns(shape))
             {
                 auto it = self.m_Shapes.find(name);
-                if (it != self.m_Shapes.end() && it->second.get() == shape) return;
-                throw std::invalid_argument("Geometry already belongs to this manager");
+                if (it != self.m_Shapes.end() && it->second.get() == shape) return {};
+                return std::unexpected(ShapeRegistrationError{ShapeRegistrationErrorCode::AlreadyOwned,
+                    "ShapeManager::Register", name, "Geometry already belongs to this manager"});
             }
-            std::unique_ptr<Geometry> candidate(shape);
-            // try_emplace leaves candidate owned locally on duplicate or failure.
-            self.m_Shapes.try_emplace(name, std::move(candidate));
+            self.Store(name, std::unique_ptr<Geometry>(shape));
+            return {};
         }
 
-        void ShapeManager::UnRegister(const std::string& name)
+        ShapeManager::LookupResult ShapeManager::FindShape(const std::string& name)
         {
-            auto& self = Current();
-            if (auto it = self.m_Shapes.find(name); it != self.m_Shapes.end())
-            {
-                self.m_Retired.push_back(std::move(it->second));
-                self.m_Shapes.erase(it);
+            auto manager = TryCurrent();
+            if (!manager) {
+                auto error = std::move(manager.error());
+                error.operation = "ShapeManager::FindShape / " + error.operation;
+                return std::unexpected(std::move(error));
             }
-        }
-
-        Geometry* ShapeManager::GetShape(const std::string& name)
-        {
-            auto& shapes = Current().m_Shapes;
+            auto& shapes = (*manager)->m_Shapes;
             if (auto it = shapes.find(name); it != shapes.end()) return it->second.get();
             return nullptr;
         }
 
-        Geometry* ShapeManager::GetModel(const std::string& name)
+        PlatformResult ShapeManager::RetireShape(const std::string& name)
         {
-            auto& shapes = Current().m_Shapes;
+            auto manager = TryCurrent();
+            if (!manager) {
+                auto error = std::move(manager.error());
+                error.operation = "ShapeManager::RetireShape / " + error.operation;
+                return std::unexpected(std::move(error));
+            }
+            auto& self = **manager;
+            if (auto it = self.m_Shapes.find(name); it != self.m_Shapes.end()) {
+                self.m_Retired.push_back(std::move(it->second));
+                self.m_Shapes.erase(it);
+            }
+            return {};
+        }
+
+        PlatformResult ShapeManager::UnRegister(const std::string& name)
+        {
+            return RetireShape(name);
+        }
+
+        ShapeManager::LookupResult ShapeManager::GetShape(const std::string& name)
+        {
+            return FindShape(name);
+        }
+
+        ShapeManager::ModelResult ShapeManager::GetModel(const std::string& name)
+        {
+            auto* root = EngineContext::TryGet();
+            if (!root) return std::unexpected(ModelError{PlatformError{PlatformErrorCode::InvalidState,
+                "ShapeManager::GetModel", "No live application EngineContext"}});
+            auto services = root->SceneServices();
+            if (!services) return std::unexpected(ModelError{services.error()});
+            auto& shapes = services->shapes.m_Shapes;
             if (auto it = shapes.find(name); it != shapes.end()) return it->second.get();
-            const auto path = model_base_dir + name + model_extension;
-            if (!std::filesystem::is_regular_file(path)) throw std::runtime_error("Model not found: " + path);
-            RawModel model(path);
-            auto shape = std::unique_ptr<Geometry>(model.GetGeometry(0));
-            if (!shape) throw std::runtime_error("Model contains no geometry: " + path);
+            auto path = RuntimeAssets::TryFile("Models/" + name + model_extension);
+            if (!path) return std::unexpected(ModelError{path.error()});
+            std::error_code error;
+            if (!std::filesystem::is_regular_file(*path, error) || error)
+                return std::unexpected(ModelError{ModelImportError{ModelImportErrorCode::FileRead,
+                    "ShapeManager::GetModel", *path, "Model not found: " + *path
+                        + (error ? "; " + error.message() : "")}});
+            auto model = RawModel::Create(*path);
+            if (!model) return std::unexpected(ModelError{model.error()});
+            auto geometries = std::move(*model).TakeGeometries();
+            // The cache continues to own the first mesh; remaining results retire locally.
+            auto shape = std::move(geometries.front());
             auto* result = shape.get();
             shapes.emplace(name, std::move(shape));
             return result;
         }
 
-        const std::vector<Geometry*>& ShapeManager::GetModels(const std::string& name)
+        ShapeManager::ModelsResult ShapeManager::GetModels(const std::string& name)
         {
-            auto& models = Current().m_Models;
-            if (auto it = models.find(name); it != models.end()) return it->second.borrowers;
-            const auto path = animated_model_base_dir + name + animated_model_extension;
-            if (!std::filesystem::is_regular_file(path)) throw std::runtime_error("Model not found: " + path);
-            AnimatedModel model(path);
-            auto& raw = model.GetGeometries();
-            // The legacy loader transfers its raw results. Adopt all of them even
-            // if allocation of the manager entry fails after the loader returns.
-            struct Pending
-            {
-                std::vector<Geometry*>& raw;
-                ~Pending() { for (auto* geometry : raw) delete geometry; }
-            } pending{raw};
+            auto* root = EngineContext::TryGet();
+            if (!root) return std::unexpected(ModelError{PlatformError{PlatformErrorCode::InvalidState,
+                "ShapeManager::GetModels", "No live application EngineContext"}});
+            auto services = root->SceneServices();
+            if (!services) return std::unexpected(ModelError{services.error()});
+            auto& models = services->shapes.m_Models;
+            if (auto it = models.find(name); it != models.end()) return std::cref(it->second.borrowers);
+            auto path = RuntimeAssets::TryFile("AnimatedModels/" + name + animated_model_extension);
+            if (!path) return std::unexpected(ModelError{path.error()});
+            std::error_code error;
+            if (!std::filesystem::is_regular_file(*path, error) || error)
+                return std::unexpected(ModelError{ModelImportError{ModelImportErrorCode::FileRead,
+                    "ShapeManager::GetModels", *path, "Model not found: " + *path
+                        + (error ? "; " + error.message() : "")}});
+            auto model = AnimatedModel::Create(*path);
+            if (!model) return std::unexpected(ModelError{model.error()});
             ModelEntry entry;
-            entry.borrowers = raw;
-            entry.owners.reserve(raw.size());
-            for (auto*& geometry : raw)
-            {
-                entry.owners.emplace_back(geometry);
-                geometry = nullptr;
-            }
-            return models.emplace(name, std::move(entry)).first->second.borrowers;
+            entry.owners = std::move(*model).TakeGeometries();
+            entry.borrowers.reserve(entry.owners.size());
+            for (const auto& geometry : entry.owners) entry.borrowers.push_back(geometry.get());
+            return std::cref(models.emplace(name, std::move(entry)).first->second.borrowers);
         }
     }
 }

@@ -11,6 +11,40 @@ import winreg
 from rendering_validation import ROOT, toolchain
 
 
+def phase66_children_main():
+    from test_runtime_failure import Validation
+    parser=argparse.ArgumentParser(description='Bounded Phase66 mutable child-list validation; no timing.')
+    parser.add_argument('--phase66-children',action='store_true')
+    parser.add_argument('--configuration',choices=['Debug','Release'],required=True)
+    parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument('--reuse-build',type=Path)
+    args=parser.parse_args();v=Validation(args.configuration,args.output)
+    sha=lambda p:hashlib.sha256(Path(p).read_bytes()).hexdigest()
+    path=ROOT/'logs/rendering/phase66/entity-children/validation-inputs.json';inputs=json.loads(path.read_text())
+    build_inputs={p:r['sha256'] for p,r in inputs.items() if not p.startswith('tools/')}
+    try:
+        if any(sha(ROOT/p)!=r['sha256'] for p,r in inputs.items()):raise RuntimeError('Input drift before validation')
+        v.report['build_inputs']=build_inputs
+        if args.reuse_build:
+            prior=json.loads(args.reuse_build.read_text());step=next(s for s in prior['steps'] if s['name']=='build')
+            if step['result']!='PASS' or prior['configuration']!=args.configuration or prior['build_inputs']!=build_inputs:
+                raise RuntimeError('Build reuse input mismatch')
+            if prior['engine_library_sha256']!=sha(ROOT/'bin'/args.configuration/'GEngine/GEngine.lib'):raise RuntimeError('Library mismatch')
+            v.report['steps'].append(dict(step,reuse=str(args.reuse_build.resolve())))
+        else:v.build(['GEngineEditor','Breakout','RayTracing','RigidBodySimulation','PhysicsTests','PhysicsBenchmark'])
+        v.report['engine_library_sha256']=sha(ROOT/'bin'/args.configuration/'GEngine/GEngine.lib');v.report['benchmark']='COMPILED ONLY';v.save()
+        source=ROOT/'tools/entity_api_probe.cpp'
+        v.compile('children-header',[source],['/DENTITY_CHILDREN_SCHEMA_ONLY'],boundary=True)
+        probe=v.compile('entity-api',[source,ROOT/'PhysicsTests/src/ProgramGroupingTests.cpp'])
+        v.invoke('entity-api',[probe],markers=['[PASS] typed children diagnostics/borrow/copy/move/retirement cycles=3','[PASS] entity-api ','[PASS] hierarchy depth=8192'])
+        v.smoke(['GEngineEditor','Breakout','RayTracing','RigidBodySimulation'])
+        if any(sha(ROOT/p)!=r['sha256'] for p,r in inputs.items()):raise RuntimeError('Input drift during validation')
+        v.report.update(result='PASS',validation_input_sha256=sha(path));return 0
+    except (OSError,RuntimeError) as error:
+        v.report.update(result='FAIL',reason=str(error));print(error,flush=True);return 1
+    finally:v.save()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--configuration", choices=["Debug", "Release"], required=True)
@@ -121,4 +155,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(phase66_children_main() if '--phase66-children' in sys.argv else main())

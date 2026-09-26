@@ -1,3 +1,6 @@
+#include <concepts>
+#include <functional>
+#include <iostream>
 #include "Scene/RenderEcs.h"
 #include <cstdlib>
 #include <print>
@@ -7,6 +10,7 @@
 #ifdef RENDER_ECS_SCENE_PROBE
 #include "Scene/_Entity.h"
 #include "Core/GEngine.h"
+#include "Core/BaseApp.h"
 #include "Core/RenderTarget.h"
 #include "Core/RuntimeAssets.h"
 #else
@@ -20,6 +24,29 @@ namespace
     using namespace ::GEngine;
     using namespace ::GEngine::Component;
     int checks = 0;
+    // Test-only preparation for bounded Scene value/void result migrations.
+    template<std::invocable Operation>
+    auto SceneOperationChecked(Operation&& operation)
+    {
+        using Result = std::remove_cvref_t<std::invoke_result_t<Operation>>;
+        if constexpr (std::is_void_v<Result>) {
+            std::invoke(std::forward<Operation>(operation));
+        } else {
+            auto result = std::invoke(std::forward<Operation>(operation));
+            if constexpr (requires { typename Result::error_type; typename Result::value_type; }) {
+                if (!result) {
+                    const auto& error = result.error();
+                    std::cerr << "[FAIL] Valid Scene fixture: operation=" << error.operation
+                        << " code=" << static_cast<unsigned>(error.code) << " entity=" << error.entity
+                        << ": " << error.message << '\n';
+                    std::exit(1);
+                }
+                if constexpr (std::is_void_v<typename Result::value_type>) return;
+                else return std::move(*result);
+            } else return result;
+        }
+    }
+
     template<class T> void Check(const T& value, const char* message)
     {
         ++checks;
@@ -136,7 +163,7 @@ namespace
     void SceneIntegration()
     {
         auto scene = CreateRefPtr<_Scene>();
-        auto entity = scene->CreateEntity("render intent");
+        auto entity = SceneOperationChecked([&] { return scene->CreateEntity("render intent"); });
         auto& ecs = scene->RenderData();
         auto id = ecs.Identify(entity).value();
         MeshRendererComponent component{{2, 3, 4}, {5, 6, 7}};
@@ -145,8 +172,8 @@ namespace
         entity.AddComponent<RenderCameraComponent>();
         entity.AddComponent<RenderLightComponent>();
         entity.AddComponent<VisibilityComponent>();
-        auto duplicate = scene->DuplicateEntity(entity);
-        auto copied = _Scene::Copy(scene);
+        auto duplicate = SceneOperationChecked([&] { return scene->DuplicateEntity(entity); });
+        auto copied = SceneOperationChecked([&] { return _Scene::Copy(scene); });
         {
             auto boundary = ecs.BeginExtraction(); Check(boundary, "Scene boundary");
             int count = 0;
@@ -166,8 +193,8 @@ namespace
             Check(count == 2, "Camera components copy");
         }
         EntityPickTable table; Check(table.Encode(id), "Picking original");
-        scene->DestroyEntity(entity);
-        auto replacement = scene->CreateEntity("replacement");
+        SceneOperationChecked([&] { return scene->DestroyEntity(entity); });
+        auto replacement = SceneOperationChecked([&] { return scene->CreateEntity("replacement"); });
         Check(ecs.Identify(replacement) != id, "Scene destroy/reuse advances render identity");
         Reject(ecs.ResolvePick(table, 0), RenderEcsError::StaleId);
     }
@@ -180,11 +207,11 @@ namespace
         p.m_Width = p.m_Height = 64; p.m_MinWidth = p.m_MinHeight = 32;
         p.m_IsVsync = false; p.flag = BitFlags<WindowFlags, uint8_t>{WindowFlags::INVISIBLE};
         auto initialized = root.Initialize({p});
-        if (!initialized) ReportPlatformError(initialized.error());
+        if (!initialized) std::visit([](const auto& error) { ReportApplicationError(ApplicationInitializationError{error}); }, initialized.error());
         Check(initialized, "Initialize picking context");
         {
             _Scene scene;
-            auto entity = scene.CreateEntity();
+            auto entity = SceneOperationChecked([&] { return scene.CreateEntity(); });
             auto& ecs = scene.RenderData();
             auto id = ecs.Identify(entity).value();
             EntityPickTable table;
@@ -194,8 +221,8 @@ namespace
             Check(target->Buffer().ClearInteger(0, pixel), "Write mapped signed pick token");
             auto read = target->ReadPixel(1, 1); Check(read, "Read actual R32I attachment");
             Check(*read == pixel && ecs.ResolvePick(table, *read) == id, "Attachment roundtrip and identity resolution");
-            scene.DestroyEntity(entity);
-            auto reuse = scene.CreateEntity(); Check(ecs.Identify(reuse), "Reused scene identity");
+            SceneOperationChecked([&] { return scene.DestroyEntity(entity); });
+            auto reuse = SceneOperationChecked([&] { return scene.CreateEntity(); }); Check(ecs.Identify(reuse), "Reused scene identity");
             Reject(ecs.ResolvePick(table, *read), RenderEcsError::StaleId);
             Check(target->Buffer().ClearInteger(0, EntityPickTable::InvalidPixel), "Clear no-hit sentinel");
             Check(target->ReadPixel(1, 1) == EntityPickTable::InvalidPixel, "Signed -1 survives attachment");
@@ -231,9 +258,9 @@ int main(int argc, char** argv)
         else if (mode == "--legacy-mutation") { auto scope = ecs.BeginExtraction(); ecs.RequireMutable(); }
         else if (mode == "--duplicate-facade") { RenderEcs duplicate(registry); }
 #ifdef RENDER_ECS_SCENE_PROBE
-        else if (mode == "--scene-create") { _Scene scene; auto scope = scene.RenderData().BeginExtraction(); scene.CreateEntity(); }
-        else if (mode == "--scene-destroy") { _Scene scene; auto entity = scene.CreateEntity(); auto scope = scene.RenderData().BeginExtraction(); scene.DestroyEntity(entity); }
-        else if (mode == "--entity-add") { _Scene scene; auto entity = scene.CreateEntity(); auto scope = scene.RenderData().BeginExtraction(); entity.AddComponent<VisibilityComponent>(); }
+        else if (mode == "--scene-create") { _Scene scene; auto scope = scene.RenderData().BeginExtraction(); SceneOperationChecked([&] { return scene.CreateEntity(); }); }
+        else if (mode == "--scene-destroy") { _Scene scene; auto entity = SceneOperationChecked([&] { return scene.CreateEntity(); }); auto scope = scene.RenderData().BeginExtraction(); SceneOperationChecked([&] { return scene.DestroyEntity(entity); }); }
+        else if (mode == "--entity-add") { _Scene scene; auto entity = SceneOperationChecked([&] { return scene.CreateEntity(); }); auto scope = scene.RenderData().BeginExtraction(); entity.AddComponent<VisibilityComponent>(); }
 #endif
         return 87;
     }

@@ -196,7 +196,6 @@ namespace GEngine
 						}
 					}
 
-					m_Attributes[location] = arg.m_Data;
 				},
 
 				}, it->second);

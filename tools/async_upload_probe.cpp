@@ -229,7 +229,7 @@ namespace
     }
     void GlTests(EngineContext& root)
     {
-        auto& publication=root.AssetPublications();
+        auto& publication=root.SceneServices().value().publication;
         Control first, second; first.touchGl=true;
         auto limits=Limits(); limits.frameBytes=4;
         auto queue=Take(AsyncUploadQueue::Create(publication,limits),"GL queue");
@@ -322,7 +322,7 @@ int main(int argc,char** argv)
         auto secondary=Take(Window::Create(properties),"secondary negative context");
         Check(root.MainWindow()->BeginRender(),"restore original context");
         Control change;change.switchContext=secondary.get();
-        auto queue=Take(AsyncUploadQueue::Create(root.AssetPublications(),Limits()),"context-bound queue");
+        auto queue=Take(AsyncUploadQueue::Create(root.SceneServices().value().publication,Limits()),"context-bound queue");
         Submit(*queue,change);Queued(*queue,1);Drain(root,*queue);
         return 1;
     }

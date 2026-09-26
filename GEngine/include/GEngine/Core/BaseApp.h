@@ -10,13 +10,28 @@
 #include "Core/RenderTarget.h"
 #include "Renderer/ShadowQuality.h"
 #include <thread>
+#include <expected>
+#include <string>
 
 
 
 
 namespace GEngine
 {
+    enum class ApplicationRuntimeErrorCode { SubsystemFailure };
+    struct ApplicationRuntimeError
+    {
+        ApplicationRuntimeErrorCode code;
+        std::string subsystem;
+        std::string subsystemCode;
+        std::string operation;
+        std::string context;
+        std::string message;
+    };
+    using ApplicationRunResult = std::expected<void, ApplicationRuntimeError>;
+
     void ReportApplicationError(const ApplicationInitializationError&);
+    void ReportApplicationError(const ApplicationRuntimeError&);
 	//using namespace  Manager;
 	class _Scene;
     class Scene;
@@ -34,6 +49,7 @@ namespace GEngine
         std::optional<ShadowQualityDesc> m_PendingShadowQuality;
         std::optional<FramebufferError> m_ShadowQualityError;
         void ApplyPendingShadowQuality();
+        std::optional<ApplicationRuntimeError> m_RuntimeFailure;
 	public:
 		BaseApp();
 
@@ -68,7 +84,7 @@ namespace GEngine
 
 		virtual void Update(Timestep ts){};
 		virtual void ProcessInput(Timestep ts);
-		virtual void Run();
+		virtual ApplicationRunResult Run();
 		const FrameTime& GetFrameTime() const { return m_FrameTime; }
 		// Used only when the main context's actual swap interval is zero; 0 is uncapped.
 		void SetManualFrameRateLimit(uint32_t framesPerSecond) { m_ManualFrameRateLimit = framesPerSecond; }
@@ -89,6 +105,10 @@ namespace GEngine
 		virtual void OnUIRender() {};
 		
 	protected:
+        // Application-thread callbacks report and return. Run retains the first cause
+        // and stops before subsequent rendering; ordinary ShutDown remains success.
+        void FailRuntime(ApplicationRuntimeError error);
+
 		CameraBase* m_EditorCamera{};
 		//CameraBase* m_GameOrthoCamera{};
 		//CameraBase* m_OrthoCamera{};

@@ -1,3 +1,7 @@
+#include <concepts>
+#include <functional>
+#include <cstdlib>
+#include <iostream>
 // Focused production-library tests; run through test_input_control.py.
 #include "gepch.h"
 #include "Core/BaseApp.h"
@@ -37,6 +41,25 @@ namespace
         if (!condition) throw std::runtime_error(message);
     }
 
+    // Test-only bridge while bounded callers precede the Scene typed-return migration.
+    template<std::invocable Start>
+    void StartRuntimeChecked(Start&& start)
+    {
+        if constexpr (std::is_void_v<std::invoke_result_t<Start>>)
+            std::invoke(std::forward<Start>(start));
+        else
+        {
+            auto result=std::invoke(std::forward<Start>(start));
+            if(!result)
+            {
+                std::cerr << "[FAIL] Valid fixture runtime startup: operation=" << result.error().operation
+                    << " code=" << static_cast<unsigned>(result.error().code)
+                    << " entity=" << result.error().entity << " radius=" << result.error().radius
+                    << " points=" << result.error().pointCount << ": " << result.error().message << '\n';
+                std::exit(1);
+            }
+        }
+    }
     void FrameClockChecks()
     {
         using namespace std::chrono_literals;
@@ -480,7 +503,7 @@ namespace
         for (int hz : {30, 60, 75, 120, 144, 240})
         {
             _Scene scene;
-            scene.OnRuntimeStart();
+            StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });
             for (int frame = 0; frame < hz * 10; ++frame)
             {
                 scene.Update(Timestep(1.0 / hz));
@@ -607,7 +630,7 @@ namespace
             app.switchPacing = mode == "--pacing-switch";
             const bool capped = mode == "--pacing-off-cap" || mode == "--pacing-on-cap" || app.switchPacing;
             if (!app.stallResume) app.SetManualFrameRateLimit(capped ? 2 : 0);
-            app.scene.OnRuntimeStart();
+            StartRuntimeChecked([&] { return app.scene.OnRuntimeStart(); });
             SDL_Event event{};
             while (SDL_PollEvent(&event)) {}
             PushState(static_cast<SDLWindow*>(app.GetWindow())->GetWindowID(), SDL_WINDOWEVENT_SHOWN);

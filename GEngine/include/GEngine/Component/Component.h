@@ -1,5 +1,6 @@
 #pragma once
 #include "Component/RenderComponents.h"
+#include "Core/Platform.h"
 #include "Component/TexturesComponent.h"
 #include"Math/Math.h"
 #include <string>
@@ -119,7 +120,10 @@ namespace GEngine
 		struct DebugKDTreeVisualizer
 		{
 			Geometry* m_KDTree{};
-			DebugKDTreeVisualizer();
+			[[nodiscard]] static std::expected<DebugKDTreeVisualizer, PlatformError> Create();
+		private:
+			explicit DebugKDTreeVisualizer(Geometry* geometry);
+		public:
 			Uniform<Vec4f> Color = { "u_baseColor", {1.0f, 1.0f, 1.0f, 1.0f} };
 			void LoadUniforms(Asset::Shader* shader) const;
 			//operator Geometry& () { return *m_KDTree; }
@@ -129,7 +133,10 @@ namespace GEngine
 		struct DebugAABBBoundingBoxMeshComponent
 		{
 			Geometry* m_AABB{};
-			DebugAABBBoundingBoxMeshComponent();
+			[[nodiscard]] static std::expected<DebugAABBBoundingBoxMeshComponent, PlatformError> Create();
+		private:
+			explicit DebugAABBBoundingBoxMeshComponent(Geometry* geometry);
+		public:
 		};
 
 

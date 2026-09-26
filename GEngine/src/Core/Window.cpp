@@ -7,7 +7,8 @@ namespace GEngine
 {
     void ReportPlatformError(const PlatformError& error)
     {
-        GENGINE_CORE_ERROR("Platform {}: {}", error.operation, error.message);
+        Log::GetCoreLogger()->error("Platform operation={} code={}: {}",
+            error.operation, static_cast<unsigned>(error.code), error.message);
     }
     std::expected<ScopedPtr<Window>, PlatformError> Window::Create(const WindowProperties& properties)
     {

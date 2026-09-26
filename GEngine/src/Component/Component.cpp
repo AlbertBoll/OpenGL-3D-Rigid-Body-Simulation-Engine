@@ -203,10 +203,17 @@ namespace GEngine
 			shader->SetUniform("u_useVertexColor", false);
 		}
 
-		DebugAABBBoundingBoxMeshComponent::DebugAABBBoundingBoxMeshComponent()
-		{
-			using namespace Manager;
-			m_AABB = ShapeManager::GetShape("AABBBoundingBox");
+        std::expected<DebugAABBBoundingBoxMeshComponent, PlatformError> DebugAABBBoundingBoxMeshComponent::Create()
+        {
+            auto geometry = Manager::ShapeManager::FindShape("AABBBoundingBox");
+            if (!geometry) return std::unexpected(geometry.error());
+            if (!*geometry) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+                "DebugAABBBoundingBoxMeshComponent::Create", "Required AABBBoundingBox geometry is unavailable"});
+            return DebugAABBBoundingBoxMeshComponent(*geometry);
+        }
+
+        DebugAABBBoundingBoxMeshComponent::DebugAABBBoundingBoxMeshComponent(Geometry* geometry) : m_AABB(geometry)
+        {
 			m_AABB->BindVAO();
 
 			for (auto& [index, ele] : m_AABB->GetAttributes())
@@ -224,10 +231,17 @@ namespace GEngine
 			m_AABB->UnBindVAO();
 		}
 
-		DebugKDTreeVisualizer::DebugKDTreeVisualizer()
-		{
-			using namespace Manager;
-			m_KDTree = ShapeManager::GetShape("KDTreeVisualizer");
+        std::expected<DebugKDTreeVisualizer, PlatformError> DebugKDTreeVisualizer::Create()
+        {
+            auto geometry = Manager::ShapeManager::FindShape("KDTreeVisualizer");
+            if (!geometry) return std::unexpected(geometry.error());
+            if (!*geometry) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+                "DebugKDTreeVisualizer::Create", "Required KDTreeVisualizer geometry is unavailable"});
+            return DebugKDTreeVisualizer(*geometry);
+        }
+
+        DebugKDTreeVisualizer::DebugKDTreeVisualizer(Geometry* geometry) : m_KDTree(geometry)
+        {
 			m_KDTree->BindVAO();
 
 			for (auto& [index, ele] : m_KDTree->GetAttributes())

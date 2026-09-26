@@ -2,6 +2,7 @@
 
 #include "Core\BaseApp.h"
 #include <GameLevel.h>
+#include "Core/Renderer2D.h"
 #include "Audio/SoundEvent.h"
 
 class BallEntity;
@@ -67,7 +68,7 @@ namespace GEngine
 
 
 	private:
-		std::unordered_map<unsigned int, std::vector<std::vector<SpriteEntity*>>> m_GroupsLookUp;
+		Renderer2D::Groups m_GroupsLookUp;
 		std::vector<GameLevel> m_Levels;
 		SpriteEntity* m_Background{};
 		SpriteEntity* m_Player{};

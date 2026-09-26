@@ -17,6 +17,7 @@ namespace GEngine
 	//class GEngine::Graphic::Shader;
 
 	class Actor;
+    namespace MaterialDetail { struct BackendAccess; }
 
 	enum class DrawMode
 	{
@@ -91,9 +92,15 @@ namespace GEngine
 
 	struct RenderSetting
 	{
+        RenderSetting();
 		PrimitivesSettings m_PrimitivesSetting;
 		RenderMode m_RenderMode = RenderMode::Arrays;
-		unsigned int m_TexTarget = 0x0DE1;
+    private:
+        friend class Material;
+        friend class SkyBoxMaterial;
+        friend class AAScreenMaterial;
+        unsigned int m_TexTarget{};
+    public:
 		DrawMode m_Mode = DrawMode::TRIANGLES;
 		
 	};
@@ -105,11 +112,14 @@ namespace GEngine
 
 		friend class Entity;
 		friend class SpriteEntity;
+		friend class Renderer2D;
 		MaterialProperty m_MaterialProp;
 		RenderSetting m_RenderSetting;
 		Asset::Shader* m_Shader{};
 		
+	private:
 		std::unordered_multimap<unsigned int, std::pair<unsigned int, unsigned int>> m_TextureList; // Legacy screen-target path; Phase 29/35.
+    protected:
         std::vector<std::pair<Asset::SampledTextureBinding, std::uint32_t>> m_ImageBindings;
 
 		inline static constexpr RuntimeAssets::Directory base_shader_dir{ "Shaders/" };
@@ -124,6 +134,7 @@ namespace GEngine
         class Construction
         {
             friend class Material;
+            friend class AAScreenMaterial;
             Construction() = default;
             Asset::ShaderResult result;
         public:
@@ -158,7 +169,6 @@ namespace GEngine
 			m_MaterialProp.HasFakeLighting = useFakeLighting;
 		}
 
-		unsigned int GetShaderID() const;
 
 		bool IsTransparency()const { return m_MaterialProp.HasTransparency; }
 
@@ -171,24 +181,20 @@ namespace GEngine
 
 
 
-		template <typename T>
+		template<Asset::ShaderUniform T>
 		void SetUniforms(const std::map<std::string, T>& uniforms);
 
-		template <typename T>
+		template<Asset::ShaderUniform T>
 		void SetUniforms(const std::string& uniformName, const std::vector<T>& uniforms);
 
-		template <typename T>
+		template<Asset::ShaderUniform T>
 		void SetUniforms(const std::map<std::string, std::vector<T>>& uniforms);
 
 
 		virtual void SetRenderSettings(const RenderSetting& settings) { m_RenderSetting = settings; }
-		std::unordered_multimap<unsigned, std::pair<unsigned, unsigned>>& GetTextureList() { return m_TextureList; }
 
-		[[nodiscard]] unsigned int GetShaderRef() const;
 
-		[[nodiscard]] int GetTextureTarget() const { return m_RenderSetting.m_TexTarget; }
 
-		void SetTextureTarget(int target) { m_RenderSetting.m_TexTarget = target; }
 
 		void UseProgram()const;
 
@@ -201,6 +207,16 @@ namespace GEngine
 		virtual void UploadUniforms(){}
 
     private:
+        friend struct MaterialDetail::BackendAccess;
+		std::unordered_multimap<unsigned, std::pair<unsigned, unsigned>>& GetTextureList() { return m_TextureList; }
+		[[nodiscard]] int GetTextureTarget() const { return m_RenderSetting.m_TexTarget; }
+		void SetTextureTarget(int target) { m_RenderSetting.m_TexTarget = target; }
+		void BindTextureUniforms(int TexTarget);
+
+        template<class T, class Eligibility> friend class Group;
+        unsigned int GetShaderID() const;
+        [[nodiscard]] unsigned int GetShaderRef() const;
+        friend class AAScreenMaterial;
         friend class TextureMaterial;
         friend class LightTextureMaterial;
         friend class TerrainLightMaterial;
@@ -212,12 +228,11 @@ namespace GEngine
     public:
         std::expected<void, Asset::SamplingError> SetSampledTextureBinding(const std::string& uniform,
             const Asset::SampledTextureBinding&, std::uint32_t unit) override;
-		void BindTextureUniforms(int TexTarget);
 		void BindTextureUniforms();
 		virtual void UseUniformBufferObject(const std::string& uniformBlockName) {}
 	};
 
-	template<typename T>
+	template<Asset::ShaderUniform T>
 	inline void Material::SetUniforms(const std::map<std::string, T>& uniforms)
 	{
 		//UseProgram();
@@ -233,7 +248,7 @@ namespace GEngine
 	}
 
 
-	template<typename T>
+	template<Asset::ShaderUniform T>
 	inline void Material::SetUniforms(const std::map<std::string, std::vector<T>>& uniforms)
 	{
 		//UseProgram();
@@ -249,7 +264,7 @@ namespace GEngine
 		
 	}
 
-	template<typename T>
+	template<Asset::ShaderUniform T>
 	inline void Material::SetUniforms(const std::string& uniformName, const std::vector<T>& uniforms)
 	{
 	
@@ -263,7 +278,5 @@ namespace GEngine
 	}
 
 
-    template <>
-    void Material::SetUniforms<std::pair<unsigned, std::pair<unsigned, unsigned>>>(
-        const std::map<std::string, std::pair<unsigned, std::pair<unsigned, unsigned>>>& uniforms);
+
 }

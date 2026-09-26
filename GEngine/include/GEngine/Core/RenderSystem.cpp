@@ -11,13 +11,18 @@
 #include "Physics/Shape.h"
 #include <imgui/imgui.h>
 #include <limits>
-#include <stdexcept>
+#include <array>
 
 
 namespace GEngine
 {
 	namespace
 	{
+		void ArraysDraw(unsigned int mode, int count, int first = 0);
+		void ElementsDraw(unsigned int mode, int count, unsigned int type = 0x1405, const void* indice = 0);
+		void ElementsInstancedDraw(unsigned int mode, int count, int instancecount, unsigned int type = 0x1405,  const void* indices = nullptr);
+		void ArraysInstancedDraw(unsigned int mode, int count, int instancecount, int first = 0);
+
 		template<typename Light>
 		bool TryLoadLightUniforms(const _Entity& entity, Shader* shader)
 		{
@@ -35,20 +40,35 @@ namespace GEngine
 			TryLoadLightUniforms<SpotLightComponent>(entity, shader);
 		}
 
-		GLsizei ViewportExtent(float value)
-		{
-			// Legacy GetResolution() exposes integral framebuffer dimensions as floats.
-			if (!std::isfinite(value) || value < 0.0f ||
-				static_cast<double>(value) > std::numeric_limits<GLsizei>::max()) {
-				throw std::out_of_range("Framebuffer extent is not representable as GLsizei");
-			}
-			return static_cast<GLsizei>(value);
-		}
+        std::expected<GLsizei, RenderSystemRangeError> ViewportExtent(float value, std::string_view operation, unsigned axis)
+        {
+            if (!std::isfinite(value) || value < 0.0f ||
+                static_cast<double>(value) > std::numeric_limits<GLsizei>::max())
+                return std::unexpected(RenderSystemRangeError{RenderSystemRangeCode::ViewportExtent, operation,
+                    "Framebuffer extent is not representable as GLsizei", value, axis});
+            return static_cast<GLsizei>(value);
+        }
+        std::expected<std::array<GLsizei, 2>, RenderSystemRangeError> ViewportSize(const Vec2f& size, std::string_view operation)
+        {
+            auto width=ViewportExtent(size.x,operation,0);
+            if (!width) return std::unexpected(width.error());
+            auto height=ViewportExtent(size.y,operation,1);
+            if (!height) return std::unexpected(height.error());
+            return std::array<GLsizei,2>{*width,*height};
+        }
+        std::expected<GLsizei, RenderSystemRangeError> VertexCount(std::size_t count)
+        {
+            if (count > static_cast<std::size_t>(std::numeric_limits<GLsizei>::max()))
+                return std::unexpected(RenderSystemRangeError{RenderSystemRangeCode::VertexCount,
+                    "RenderSystem::KDTreeVisualize", "Debug line vertex count exceeds GLsizei", 0, 0, count});
+            return static_cast<GLsizei>(count);
+        }
+
 	}
 	//class _Entity;
 	//using namespace Camera;
 
-	void RenderSystem::MousePickPreRender(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader)
+	RenderSystemResult RenderSystem::MousePickPreRender(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader)
 	{
 		RenderCounters::RecordPass(RenderCounters::Pass::Picking);
 		mouse_pick_shader->SetUniform("u_view", camera.GetViewMatrix());
@@ -70,7 +90,11 @@ namespace GEngine
 						auto geoComp = entity.GetComponent<MeshComponent>();
 						geoComp.m_Geometry->BindVAO();
 
-						mouse_pick_shader->SetUniform("u_model", scene->GetRenderTransform(entity).matrix);
+						auto transform=scene->GetRenderTransform(entity);
+
+						if (!transform) return std::unexpected(transform.error());
+
+						mouse_pick_shader->SetUniform("u_model", transform->matrix);
 
 						if (geoComp.m_Geometry->IsUsingIndexBuffer())
 						{
@@ -100,7 +124,11 @@ namespace GEngine
 					auto geoComp = entity.GetComponent<MeshComponent>();
 					geoComp.m_Geometry->BindVAO();
 
-					mouse_pick_shader->SetUniform("u_model", scene->GetRenderTransform(entity).matrix);
+					auto transform=scene->GetRenderTransform(entity);
+
+					if (!transform) return std::unexpected(transform.error());
+
+					mouse_pick_shader->SetUniform("u_model", transform->matrix);
 					
 					if (geoComp.m_Geometry->IsUsingIndexBuffer())
 					{
@@ -113,10 +141,11 @@ namespace GEngine
 				}
 			}
 		}
+        return {};
 	}
 
 
-	void RenderSystem::CascadedShadowPreRender(_Scene* scene)
+	RenderSystemResult RenderSystem::CascadedShadowPreRender(_Scene* scene)
 	{
 		RenderCounters::RecordPass(RenderCounters::Pass::Shadow);
 		auto& render_groups = scene->GetGroupEntities();
@@ -140,7 +169,11 @@ namespace GEngine
 						{
 							auto& comp = entity.GetComponent<Transform3DComponent>();
 
-							shader->SetUniform("u_model", scene->GetRenderTransform(entity).matrix);
+							auto transform=scene->GetRenderTransform(entity);
+
+							if (!transform) return std::unexpected(transform.error());
+
+							shader->SetUniform("u_model", transform->matrix);
 						}
 
 						if (geoComp.m_Geometry->IsUsingIndexBuffer())
@@ -155,9 +188,10 @@ namespace GEngine
 				}
 			}
 		}
+        return {};
 	}
 
-	void RenderSystem::PointShadowPreRender(_Scene* scene, Shader* point_shadow_depth_shader, const std::vector<Mat4>& shadowTransforms, const Vec3f& lightPos, float far_plane)
+	RenderSystemResult RenderSystem::PointShadowPreRender(_Scene* scene, Shader* point_shadow_depth_shader, const std::vector<Mat4>& shadowTransforms, const Vec3f& lightPos, float far_plane)
 	{
 		RenderCounters::RecordPass(RenderCounters::Pass::Shadow);
 		auto& render_groups = scene->GetGroupEntities();
@@ -192,7 +226,11 @@ namespace GEngine
 						{
 							auto& comp = entity.GetComponent<Transform3DComponent>();
 
-							point_shadow_depth_shader->SetUniform("u_model", scene->GetRenderTransform(entity).matrix);
+							auto transform=scene->GetRenderTransform(entity);
+
+							if (!transform) return std::unexpected(transform.error());
+
+							point_shadow_depth_shader->SetUniform("u_model", transform->matrix);
 						}
 
 						if (geoComp.m_Geometry->IsUsingIndexBuffer())
@@ -207,10 +245,11 @@ namespace GEngine
 				}
 			}
 		}
+        return {};
 	}
 
 	
-	void RenderSystem::CascadedShadowSceneRender(_Scene* scene, _EditorCamera& camera, const std::vector<float>& shadowCascadeLevels, float far_plane)
+	RenderSystemResult RenderSystem::CascadedShadowSceneRender(_Scene* scene, _EditorCamera& camera, const std::vector<float>& shadowCascadeLevels, float far_plane)
 	{
 
 		auto& render_groups = scene->GetGroupEntities();
@@ -269,7 +308,11 @@ namespace GEngine
 					{
 						auto& comp = entity.GetComponent<Transform3DComponent>();
 
-						shader->SetUniform("u_model", scene->GetRenderTransform(entity).matrix);
+						auto transform=scene->GetRenderTransform(entity);
+
+						if (!transform) return std::unexpected(transform.error());
+
+						shader->SetUniform("u_model", transform->matrix);
 					}
 
 					if (entity.HasAllComponents<TexturesComponent>())
@@ -329,12 +372,12 @@ namespace GEngine
 			}
 
 		}
-
+        return {};
 	}
 
 
 
-	void RenderSystem::SceneRender(_Scene* scene, _EditorCamera& camera)
+	RenderSystemResult RenderSystem::SceneRender(_Scene* scene, _EditorCamera& camera)
 	{
 		
 		auto& render_groups = scene->GetGroupEntities();
@@ -382,7 +425,11 @@ namespace GEngine
 					{
 						auto& comp = entity.GetComponent<Transform3DComponent>();
 					
-						shader->SetUniform("u_model", scene->GetRenderTransform(entity).matrix);
+						auto transform=scene->GetRenderTransform(entity);
+
+						if (!transform) return std::unexpected(transform.error());
+
+						shader->SetUniform("u_model", transform->matrix);
 					}
 
 					if (entity.HasAllComponents<TexturesComponent>())
@@ -432,6 +479,7 @@ namespace GEngine
 			}
 			
 		}
+        return {};
 	}
 
 	void RenderSystem::BeginFinalRender(_EditorCamera& camera, RenderTarget* target, const Vec4f& color)
@@ -503,7 +551,7 @@ namespace GEngine
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 	}
 
-	void RenderSystem::OnMouseClicked(_Scene* scene, const MousePickFrameBuffer& fb)
+	RenderSystemResult RenderSystem::OnMouseClicked(_Scene* scene, const MousePickFrameBuffer& fb)
 	{
 		if (BaseApp::GetInputManager()->GetMouseState().isButtonPressed(GEngineMouseCode::GENGINE_BUTTON_LEFT))
 		{
@@ -515,7 +563,7 @@ namespace GEngine
 			
 			auto pixel = fb.ReadPixel(x, y);
 
-			if (!pixel) { ReportFramebufferError("picking read", pixel.error()); return; }
+			if (!pixel) { return std::unexpected(pixel.error()); }
 
 			int pixel_data = *pixel;
 			std::string str = "None";
@@ -533,9 +581,10 @@ namespace GEngine
 			std::cout << "Entity " << str << " has been clicked" << std::endl;
 			//m_MousePickFrameBuffer->UnBind();
 		}
+        return {};
 	}
 
-	void RenderSystem::OnMouseClicked(_Scene* scene, const MousePickFrameBuffer& fb, const Vec2f& min_bound, const Vec2f& max_bound)
+	RenderSystemResult RenderSystem::OnMouseClicked(_Scene* scene, const MousePickFrameBuffer& fb, const Vec2f& min_bound, const Vec2f& max_bound)
 	{
 		
 		auto [mx, my] = ImGui::GetMousePos();
@@ -554,7 +603,7 @@ namespace GEngine
 			if (BaseApp::GetInputManager()->GetMouseState().isButtonPressed(GEngineMouseCode::GENGINE_BUTTON_LEFT))
 			{
 				auto pixel = fb.ReadPixel(mouseX, mouseY);
-				if (!pixel) { ReportFramebufferError("picking read", pixel.error()); return; }
+				if (!pixel) { return std::unexpected(pixel.error()); }
 				int pixel_data = *pixel;
 				std::string str = "None";
 				auto entity = pixel_data == -1 ? _Entity() : _Entity((entt::entity)pixel_data, scene);
@@ -571,8 +620,7 @@ namespace GEngine
 				std::cout << "Entity " << str << " has been clicked" << std::endl;
 			}
 		}
-
-		
+        return {};
 	}
 
 	void RenderSystem::OnMouseClicked(_Scene* scene, const RenderTarget& fb, const Vec2f& min_bound, const Vec2f& max_bound)
@@ -618,15 +666,18 @@ namespace GEngine
 
 	
 
-	void RenderSystem::SkyBoxRender(_Entity skybox, _EditorCamera& camera)
+	RenderSystemResult RenderSystem::SkyBoxRender(_Entity skybox, _EditorCamera& camera)
 	{
+        auto transform=skybox.GetSceneContext()->GetRenderTransform(skybox);
+        if (!transform) return std::unexpected(transform.error());
+
 		glDepthFunc(GL_LEQUAL);
 		auto& renderComp = skybox.GetComponent<RenderComponent>();
 		auto shader = renderComp.Shader;
 		shader->Bind();
 		shader->SetUniform("u_projection", camera.GetProjection());
 		shader->SetUniform("u_view", Mat4(Mat3(camera.GetViewMatrix())));
-		shader->SetUniform("u_model", skybox.GetSceneContext()->GetRenderTransform(skybox).matrix);
+		shader->SetUniform("u_model", transform->matrix);
 		
 
 		auto& skybox_geo = skybox.GetComponent<MeshComponent>().m_Geometry;
@@ -646,34 +697,38 @@ namespace GEngine
 		}
 
 		glDepthFunc(GL_LESS);
-
+        return {};
 	}
 
 
-	void RenderSystem::ArraysDraw(unsigned int mode, int count, int first)
+    namespace
+    {
+	void ArraysDraw(unsigned int mode, int count, int first)
 	{
 		glDrawArrays(mode, first, count);
-		m_RenderStats.m_ArrayDrawCall++;
+		RenderSystem::GetRenderStats().m_ArrayDrawCall++;
 	}
 
-	void RenderSystem::ElementsDraw(unsigned int mode, int count, unsigned int type, const void* indices)
+	void ElementsDraw(unsigned int mode, int count, unsigned int type, const void* indices)
 	{
 		glDrawElements(mode, count, type, indices);
-		m_RenderStats.m_ElementsDrawCall++;
+		RenderSystem::GetRenderStats().m_ElementsDrawCall++;
 	}
 
-	void RenderSystem::ElementsInstancedDraw(unsigned int mode, int count, int instancecount, unsigned int type, const void* indices)
+	void ElementsInstancedDraw(unsigned int mode, int count, int instancecount, unsigned int type, const void* indices)
 	{
 		glDrawElementsInstanced(mode, count, type, indices, instancecount);
-		m_RenderStats.m_ElementsInstancedDrawCall++;
+		RenderSystem::GetRenderStats().m_ElementsInstancedDrawCall++;
 	}
 
-	void RenderSystem::ArraysInstancedDraw(unsigned int mode, int count, int instancecount, int first)
+	void ArraysInstancedDraw(unsigned int mode, int count, int instancecount, int first)
 	{
 		glDrawArraysInstanced(mode, first, count, instancecount);
-		m_RenderStats.m_ArrayInstancedDrawCall++;
+		RenderSystem::GetRenderStats().m_ArrayInstancedDrawCall++;
 	
 	}
+
+    }
 
 	std::vector<Vec4f> RenderSystem::GetFrustumCornersWorldSpace(const Mat4& projview)
 	{
@@ -833,7 +888,7 @@ namespace GEngine
 	void RenderSystem::SetupUBO(const uniformbuffer& ubo, const _EditorCamera& camera, const Vec3f& lightDir, const std::vector<float>& shadowCascadeLevels)
 	{
 		const auto lightMatrices = GetLightSpaceMatrices(camera, lightDir, shadowCascadeLevels);
-		glBindBuffer(GL_UNIFORM_BUFFER, ubo.GetUBO());
+		glBindBuffer(GL_UNIFORM_BUFFER, ubo.m_UBO);
 		for (size_t i = 0; i < lightMatrices.size(); ++i)
 		{
 			glBufferSubData(GL_UNIFORM_BUFFER, i * ubo.GetUniformTypeSize(), ubo.GetUniformTypeSize(), &lightMatrices[i]);
@@ -875,82 +930,104 @@ namespace GEngine
 		glLineWidth(surfaceSetting.lineWidth);
 	}
 
-	void RenderSystem::CascadedShadowPass(_Scene* scene, Shader* depth_shader, const CascadeShadowFrameBuffer& fb)
+	RenderSystemResult RenderSystem::CascadedShadowPass(_Scene* scene, Shader* depth_shader, const CascadeShadowFrameBuffer& fb)
 	{
+        auto extent=ViewportSize(fb.GetResolution(),"RenderSystem::CascadedShadowPass");
+        if (!extent) return std::unexpected(extent.error());
+
 		depth_shader->Bind();
 		fb.Bind();
 		//glBindFramebuffer(GL_FRAMEBUFFER, fb.GetLightFBO());
-		glViewport(0, 0, ViewportExtent(fb.GetResolution().x), ViewportExtent(fb.GetResolution().y));
+		glViewport(0, 0, (*extent)[0], (*extent)[1]);
 		glClear(GL_DEPTH_BUFFER_BIT);
 		glCullFace(GL_FRONT);  // peter panning
-		CascadedShadowPreRender(scene);
+		auto submission = CascadedShadowPreRender(scene);
 		glCullFace(GL_BACK);
 		fb.UnBind();
-	
+        if (!submission) return submission;
+        return {};
 	}
 
-	void RenderSystem::PointShadowPass(_Scene* scene, Shader* depth_shader, const PointShadowFrameBuffer& fb, const Vec3f& lightPos, float near_plane, float far_plane)
+	RenderSystemResult RenderSystem::PointShadowPass(_Scene* scene, Shader* depth_shader, const PointShadowFrameBuffer& fb, const Vec3f& lightPos, float near_plane, float far_plane)
 	{
+        auto extent=ViewportSize(fb.GetResolution(),"RenderSystem::PointShadowPass");
+        if (!extent) return std::unexpected(extent.error());
+
 		depth_shader->Bind();
 		fb.Bind();
-		glViewport(0, 0, ViewportExtent(fb.GetResolution().x), ViewportExtent(fb.GetResolution().y));
+		glViewport(0, 0, (*extent)[0], (*extent)[1]);
 		glClear(GL_DEPTH_BUFFER_BIT);
 		float aspect = fb.GetResolution().x / fb.GetResolution().y; // Assuming square shadow map for simplicity
 		Mat4 perpective = glm::perspective(glm::radians(90.0f), aspect, near_plane, far_plane);
 		std::vector<Mat4> shadowTransforms = GetShadowTransformMatrices(perpective, lightPos);
-		PointShadowPreRender(scene, depth_shader, shadowTransforms, lightPos, far_plane);
+		auto submission = PointShadowPreRender(scene, depth_shader, shadowTransforms, lightPos, far_plane);
 		fb.UnBind();
-
+        if (!submission) return submission;
+        return {};
 	}
 
-	void RenderSystem::CascadedShadowScenePass(_Scene* scene, _EditorCamera& camera, Shader* cascade_shader, const std::vector<float>& shadowCascadeLevels, const FinalFrameBuffer& fb)
+	RenderSystemResult RenderSystem::CascadedShadowScenePass(_Scene* scene, _EditorCamera& camera, Shader* cascade_shader, const std::vector<float>& shadowCascadeLevels, const FinalFrameBuffer& fb)
 	{
+        auto extent=ViewportSize(fb.GetResolution(),"RenderSystem::CascadedShadowScenePass");
+        if (!extent) return std::unexpected(extent.error());
+
 		cascade_shader->Bind();
 		fb.Bind();
-		glViewport(0, 0, ViewportExtent(fb.GetResolution().x), ViewportExtent(fb.GetResolution().y));
+		glViewport(0, 0, (*extent)[0], (*extent)[1]);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		if (auto framebufferResult = fb.ClearMousePickAttachment(-1); !framebufferResult)
-		{ ReportFramebufferError("target update", framebufferResult.error()); return; } // Clear the color attachment to -1
+		{ fb.UnBind(); return std::unexpected(framebufferResult.error()); } // Clear the color attachment to -1
 		//CascadedShadowSceneRender(scene, camera, shadowCascadeLevels);
 		fb.UnBind();
-
+        return {};
 	}
 
-	void RenderSystem::MousePickPass(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader, const MousePickFrameBuffer& fb)
+	RenderSystemResult RenderSystem::MousePickPass(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader, const MousePickFrameBuffer& fb)
 	{
+        auto extent=ViewportSize(fb.GetResolution(),"RenderSystem::MousePickPass");
+        if (!extent) return std::unexpected(extent.error());
+
 		mouse_pick_shader->Bind();
 		fb.Bind();
-		glViewport(0, 0, ViewportExtent(fb.GetResolution().x), ViewportExtent(fb.GetResolution().y));
+		glViewport(0, 0, (*extent)[0], (*extent)[1]);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		if (auto framebufferResult = fb.ClearAttachment(0, -1); !framebufferResult)
-		{ ReportFramebufferError("target update", framebufferResult.error()); return; } // Clear the color attachment to -1
+		{ fb.UnBind(); return std::unexpected(framebufferResult.error()); } // Clear the color attachment to -1
 		//glDisable(GL_DEPTH_TEST);
 		//glEnable(GL_DEPTH_TEST);
-		MousePickPreRender(scene, camera, mouse_pick_shader);
+		if (auto submission=MousePickPreRender(scene, camera, mouse_pick_shader); !submission)
+        { fb.UnBind(); return submission; }
 		//;
 		
-		OnMouseClicked(scene, fb);
+		auto picking=OnMouseClicked(scene, fb);
 		
 		fb.UnBind();
-		
+        if (!picking) return picking;
+        return {};
 	}
 
-	void RenderSystem::MousePickPass(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader, const MousePickFrameBuffer& fb, const Vec2f& min_bound, const Vec2f& max_bound)
+	RenderSystemResult RenderSystem::MousePickPass(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader, const MousePickFrameBuffer& fb, const Vec2f& min_bound, const Vec2f& max_bound)
 	{
+        auto extent=ViewportSize(fb.GetResolution(),"RenderSystem::MousePickPass");
+        if (!extent) return std::unexpected(extent.error());
+
 		mouse_pick_shader->Bind();
 		fb.Bind();
-		glViewport(0, 0, ViewportExtent(fb.GetResolution().x), ViewportExtent(fb.GetResolution().y));
+		glViewport(0, 0, (*extent)[0], (*extent)[1]);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		if (auto framebufferResult = fb.ClearAttachment(0, -1); !framebufferResult)
-		{ ReportFramebufferError("target update", framebufferResult.error()); return; } // Clear the color attachment to -1
+		{ fb.UnBind(); return std::unexpected(framebufferResult.error()); } // Clear the color attachment to -1
 		//glDisable(GL_DEPTH_TEST);
 		//glEnable(GL_DEPTH_TEST);
-		MousePickPreRender(scene, camera, mouse_pick_shader);
+		if (auto submission=MousePickPreRender(scene, camera, mouse_pick_shader); !submission)
+        { fb.UnBind(); return submission; }
 		//;
 
-		OnMouseClicked(scene, fb, min_bound, max_bound);
+		auto picking=OnMouseClicked(scene, fb, min_bound, max_bound);
 
 		fb.UnBind();
+        if (!picking) return picking;
+        return {};
 	}
 
 	void RenderSystem::FinalPassBegin(_EditorCamera& camera, RenderTarget* target)
@@ -1040,8 +1117,11 @@ namespace GEngine
 
 	
 
-	void RenderSystem::KDTreeVisualize(_Scene* scene, _EditorCamera& camera, Shader* debug_shader, std::vector<Vec3f>& m_Points, const DebugKDTreeVisualizer& debug_kd_tree_visualizer)
+	RenderSystemResult RenderSystem::KDTreeVisualize(_Scene* scene, _EditorCamera& camera, Shader* debug_shader, std::vector<Vec3f>& m_Points, const DebugKDTreeVisualizer& debug_kd_tree_visualizer)
 	{
+        auto count=VertexCount(m_Points.size());
+        if (!count) return std::unexpected(count.error());
+
 		debug_shader->Bind();
 		debug_shader->SetUniform("u_view", camera.GetViewMatrix());
 		debug_shader->SetUniform("u_projection", camera.GetProjection());
@@ -1054,13 +1134,11 @@ namespace GEngine
 		glEnable(GL_LINE_SMOOTH);
 		glLineWidth(lineSetting.lineWidth);
 		debug_kd_tree_visualizer.m_KDTree->LoadKDTreeVisualizerDynamically(m_Points);
-		if (m_Points.size() > static_cast<size_t>(std::numeric_limits<GLsizei>::max())) {
-			throw std::length_error("Debug line vertex count exceeds GLsizei");
-		}
-		ArraysDraw(GL_LINES, static_cast<GLsizei>(m_Points.size()));
+		ArraysDraw(GL_LINES, *count);
+        return {};
 	}
 
-	void RenderSystem::PointLightsVisualize(_Scene* scene, const _EditorCamera& camera, Shader* point_light_shader)
+	RenderSystemResult RenderSystem::PointLightsVisualize(_Scene* scene, const _EditorCamera& camera, Shader* point_light_shader)
 	{
 
 		auto& light_groups = scene->GetLightEntities();
@@ -1079,7 +1157,9 @@ namespace GEngine
 					_Entity entity = { ent, scene };
 					const auto& pointLightComp = entity.GetComponent<PointLightComponent>();
 					pointLightComp.LoadUniforms(point_light_shader);
-					point_light_shader->SetUniform("u_model", scene->GetRenderTransform(entity).matrix);
+					auto transform=scene->GetRenderTransform(entity);
+					if (!transform) return std::unexpected(transform.error());
+					point_light_shader->SetUniform("u_model", transform->matrix);
 					const auto& geoComp = entity.GetComponent<MeshComponent>();
 					geoComp.m_Geometry->BindVAO();
 
@@ -1095,8 +1175,7 @@ namespace GEngine
 				}
 			}
 		}
-
-
+        return {};
 	}
 
 }

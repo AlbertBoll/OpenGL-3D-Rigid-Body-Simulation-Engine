@@ -10,6 +10,17 @@
 namespace GEngine
 {
 
+    std::expected<ShapeBox, PhysicsShapeError> ShapeBox::Create(const std::vector<Vec3f>& pts)
+    {
+        ShapeBox shape;
+        shape.Build(pts);
+        shape.m_ShapeType = ShapeType::Box;
+        if (!shape.IsValid())
+            return std::unexpected(PhysicsShapeError{PhysicsShapeErrorCode::InvalidPointSet,
+                "ShapeBox::Create", "ShapeBox requires finite points with non-zero extents", 0.0f, pts.size()});
+        return shape;
+    }
+
 	bool ShapeBox::IsValidPointSet(const std::vector<Vec3f>& pts)
 	{
 		if (pts.empty()) {

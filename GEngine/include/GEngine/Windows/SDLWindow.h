@@ -65,7 +65,7 @@ namespace GEngine
         int GetSwapInterval() const override;
         void SetMouseGrab(bool grabbed) override;
         [[nodiscard]] PlatformResult BeginUI() override;
-        [[nodiscard]] PlatformResult EndUI() override;
+        [[nodiscard]] PlatformResult EndUI(UIFrameDisposition disposition = UIFrameDisposition::Submit) override;
         bool WantsMouse() const override;
         bool WantsKeyboard() const override;
     private:

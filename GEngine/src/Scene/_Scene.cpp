@@ -17,6 +17,9 @@
 #include <limits>
 #include <stdexcept>
 #include <utility>
+#include <memory>
+#include <optional>
+#include <new>
 #include <unordered_set>
 #include "../Renderer/RenderCpuBacking.h"
 
@@ -72,12 +75,23 @@ namespace GEngine
 		{
 			RigidBodyIdentity identity;
 			RigidBody3D* body{};
+            std::optional<Delegate<void(const Vec3f&)>> scaleConnection;
 			Vec3f translation{};
 			Quat rotation{ 1.0f, 0.0f, 0.0f, 0.0f };
 			Vec3f previousTranslation{}, currentTranslation{}, scale{1.0f};
 			Quat previousRotation{1.0f, 0.0f, 0.0f, 0.0f}, currentRotation{1.0f, 0.0f, 0.0f, 0.0f};
 			UUID parent{0};
 		};
+
+        // Copies authoring state without borrowing another entity's live physics bindings.
+        void ClearCopiedRuntimeBindings(entt::registry& destination, entt::entity entity,
+            const RuntimePhysicsPose* sourceRuntime)
+        {
+            if (auto* body = destination.try_get<Component::RigidBody3DComponent>(entity)) body->RuntimeBody = nullptr;
+            if (sourceRuntime && sourceRuntime->scaleConnection)
+                if (auto* transform = destination.try_get<Component::Transform3DComponent>(entity))
+                    transform->OnScaleChanged.Disconnect(*sourceRuntime->scaleConnection);
+        }
 
 		bool ValidPhysicsPose(PhysicsWorld* world, const Component::RigidBody3DComponent& rigidBody, const RuntimePhysicsPose& pose)
 		{
@@ -169,8 +183,10 @@ namespace GEngine
 		delete m_PhysicsSystem;
 	}
 
-	RefPtr<_Scene> _Scene::Copy(RefPtr<_Scene> other)
+	std::expected<RefPtr<_Scene>, SceneError> _Scene::Copy(RefPtr<_Scene> other)
 	{
+        if (!other) return std::unexpected(SceneError{SceneErrorCode::InvalidScene, "_Scene::Copy",
+            "Scene copy requires a source scene"});
 		other->m_RenderData.RequireMutable();
 		RefPtr<_Scene> newScene = CreateRefPtr<_Scene>();
 
@@ -187,12 +203,16 @@ namespace GEngine
 		{
 			UUID uuid = srcSceneRegistry.get<IDComponent>(e).ID;
 			const auto& name = srcSceneRegistry.get<TagComponent>(e).Name;
-			_Entity newEntity = newScene->CreateEntityWithUUID(uuid, name);
-			enttMap[uuid] = (entt::entity)newEntity;
+            auto created = newScene->CreateEntityWithUUID(uuid, name);
+            if (!created) return std::unexpected(created.error());
+            enttMap[uuid] = static_cast<entt::entity>(*created);
 		}
 
 		// Copy components (except IDComponent and TagComponent)
 		CopyComponent(AllComponents{}, dstSceneRegistry, srcSceneRegistry, enttMap);
+        for (auto source : idView)
+            ClearCopiedRuntimeBindings(dstSceneRegistry, enttMap.find(srcSceneRegistry.get<IDComponent>(source).ID)->second,
+                srcSceneRegistry.try_get<RuntimePhysicsPose>(source));
 		// UUID authoring links copy, but runtime lifetime stamps belong to one scene.
 		for (auto e : dstSceneRegistry.view<RelationshipComponent>())
 		{
@@ -214,7 +234,8 @@ namespace GEngine
 		auto RenderView = dstSceneRegistry.view<RenderComponent>();
 		for (auto e : RenderView)
 		{
-			newScene->PushToRenderList(_Entity(e, newScene.get()));
+            if (auto published = newScene->PushToRenderList(_Entity(e, newScene.get())); !published)
+                return std::unexpected(published.error());
 		}
 
 		return newScene;
@@ -316,11 +337,11 @@ namespace GEngine
 		return std::clamp(m_PhysicsTiming.pendingSeconds / PhysicsStepSeconds, 0.0, 1.0);
 	}
 
-	_Scene::RenderTransform _Scene::GetRenderTransform(const _Entity& entity)
+	std::expected<_Scene::RenderTransform, RenderTransformQueryError> _Scene::GetRenderTransform(const _Entity& entity)
 	{
 		m_RenderData.RequireMutable();
 		if (entity.GetSceneContext() != this || !entity.HasAllComponents<Transform3DComponent>())
-			throw std::invalid_argument("Render transform requires a live entity in this scene");
+			return std::unexpected(RenderTransformQueryError{});
 		const auto handle = static_cast<entt::entity>(entity);
 		const auto matrix = SampleRenderMatrix(handle);
 		auto& sampled = m_Registry.get_or_emplace<RenderTransform>(handle);
@@ -583,13 +604,14 @@ namespace GEngine
 			(void)ResetRenderInterpolation(_Entity(e, this)); // Live member of this scene.
 	}
 
-	void _Scene::OnRuntimeStart()
-	{
-		m_RenderData.RequireMutable();
-		m_IsRunning = true;
-
-		OnPhysics3DStart();
-	}
+    std::expected<void, PhysicsShapeError> _Scene::OnRuntimeStart()
+    {
+        m_RenderData.RequireMutable();
+        m_IsRunning = true;
+        auto started = OnPhysics3DStart();
+        if (!started) m_IsRunning = false;
+        return started;
+    }
 
 	void _Scene::OnRuntimeStop()
 	{
@@ -640,24 +662,52 @@ namespace GEngine
 
 	}
 
-	_Entity _Scene::DuplicateEntity(_Entity entity)
-	{
-		m_RenderData.RequireMutable();
-		if (entity.GetSceneContext() != this || !entity.HasAllComponents<IDComponent>())
-			throw std::invalid_argument("Duplicate requires a live entity in this scene");
-		// Copy name because we're going to modify component data structure
-		std::string name = entity.GetName();
-		_Entity newEntity = CreateEntity(name);
-		CopyComponentIfExists(AllComponents{}, newEntity, entity);
-		// A single-entity duplicate is a sibling; its source's children are not copied.
-		if (newEntity.HasAllComponents<RelationshipComponent>())
-			newEntity.GetComponent<RelationshipComponent>() = RelationshipComponent{};
-		// Legacy duplication requires a valid source graph; the fresh entity cannot
-		// appear in its ancestor chain and its parent already has a runtime identity.
-		(void)newEntity.SetParent(entity.GetParent());
-		PushToRenderList(newEntity);
-		return newEntity;
-	}
+    std::expected<_Entity, SceneError> _Scene::DuplicateEntity(_Entity entity)
+    {
+        m_RenderData.RequireMutable();
+        if (entity.GetSceneContext() != this || !m_Registry.valid(entity))
+            return std::unexpected(SceneError{SceneErrorCode::ForeignEntity, "_Scene::DuplicateEntity",
+                "Duplicate requires a live entity in this scene"});
+        if (!entity.HasAllComponents<IDComponent>())
+            return std::unexpected(SceneError{SceneErrorCode::MissingIdentity, "_Scene::DuplicateEntity",
+                "Duplicate requires a live entity in this scene"});
+        // Copy name before component storage may move.
+        std::string name = entity.GetName();
+        auto created = CreateEntity(name);
+        if (!created) return std::unexpected(created.error());
+        _Entity newEntity = *created;
+        struct Rollback
+        {
+            _Scene& scene;
+            _Entity entity;
+            UUID id;
+            bool complete = false;
+            ~Rollback()
+            {
+                if (complete) return;
+                if (const auto* link = scene.m_Registry.try_get<RelationshipComponent>(entity))
+                    if (auto parent = scene.GetEntityByUUID(link->ParentHandle); parent)
+                        if (auto* relationship = scene.m_Registry.try_get<RelationshipComponent>(parent))
+                            std::erase(relationship->Children, id);
+                scene.RemoveFromRenderLists(entity);
+                scene.m_Registry.destroy(entity);
+                scene.m_EntityMap.erase(id);
+            }
+        } rollback{*this, newEntity, newEntity.GetUUID()};
+        CopyComponentIfExists(AllComponents{}, newEntity, entity);
+        ClearCopiedRuntimeBindings(m_Registry, static_cast<entt::entity>(newEntity),
+            m_Registry.try_get<RuntimePhysicsPose>(static_cast<entt::entity>(entity)));
+        // A single-entity duplicate is a sibling; its source's children are not copied.
+        if (newEntity.HasAllComponents<RelationshipComponent>())
+            newEntity.GetComponent<RelationshipComponent>() = RelationshipComponent{};
+        if (auto parented = newEntity.SetParent(entity.GetParent()); !parented)
+            return std::unexpected(SceneError{SceneErrorCode::Parenting, "_Scene::DuplicateEntity",
+                "Duplicate could not preserve the source parent", entity.GetUUID(), parented.error()});
+        if (auto published = PushToRenderList(newEntity); !published)
+            return std::unexpected(published.error());
+        rollback.complete = true;
+        return newEntity;
+    }
 
 	_Entity _Scene::FindEntityByName(std::string_view name)
 	{
@@ -693,38 +743,50 @@ namespace GEngine
 		return {};
 	}
 
-	_Entity _Scene::CreateEntity(const std::string& tag)
+	std::expected<_Entity, SceneError> _Scene::CreateEntity(const std::string& tag)
 	{
 		return CreateEntityWithUUID(UUID(), tag);
 	}
 
-	_Entity _Scene::CreateEntityWithUUID(UUID uuid, const std::string& name)
+	std::expected<_Entity, SceneError> _Scene::CreateEntityWithUUID(UUID uuid, const std::string& name)
 	{
 		m_RenderData.RequireMutable();
 		if (uuid == 0 || GetEntityByUUID(uuid))
-			throw std::invalid_argument("Entity UUID must be nonzero and unique in its scene");
-		_Entity entity = { m_Registry.create(), this };
+            return std::unexpected(SceneError{SceneErrorCode::InvalidIdentity, "_Scene::CreateEntityWithUUID",
+                "Entity UUID must be nonzero and unique in its scene", uuid});
+        _Entity entity = { m_Registry.create(), this };
+        struct Rollback
+        {
+            entt::registry& registry;
+            entt::entity entity;
+            bool complete = false;
+            ~Rollback() { if (!complete) registry.destroy(entity); }
+        } rollback{m_Registry, entity};
 		entity.AddComponent<IDComponent>(uuid);
 		entity.AddComponent<Transform3DComponent>();
 		auto& tag = entity.AddComponent<TagComponent>();
 		tag.Name = name.empty() ? "Entity" : name;
 
 		m_EntityMap[uuid] = entity;
+        rollback.complete = true;
 
 		return entity;
 	}
 
-	void _Scene::DestroyEntity(_Entity entity, bool excludeChildren, bool /*first*/)
+	std::expected<void, SceneError> _Scene::DestroyEntity(_Entity entity, bool excludeChildren, bool /*first*/)
 	{
 		m_RenderData.RequireMutable();
 		if ((entt::entity)entity == entt::null)
-			return;
+			return {};
 		if (entity.GetSceneContext() != this)
-			throw std::invalid_argument("Destroy entity does not belong to this scene");
+			return std::unexpected(SceneError{SceneErrorCode::ForeignEntity, "_Scene::DestroyEntity",
+                "Destroy entity does not belong to this scene",
+                0});
 		if (!entity)
-			return;
+			return {};
 		if (!entity.HasAllComponents<IDComponent>())
-			throw std::invalid_argument("Destroy requires a scene entity with an ID");
+			return std::unexpected(SceneError{SceneErrorCode::MissingIdentity, "_Scene::DestroyEntity",
+                "Destroy requires a scene entity with an ID", 0});
 
 		// Detach while parents are still alive, then retire descendants before parents.
 		// The explicit worklist also makes destruction safe for very deep hierarchies.
@@ -765,14 +827,15 @@ namespace GEngine
 			m_EntityMap.erase(id);
 		}
 
+        return {};
 	}
 
-	void _Scene::DestroyEntity(UUID entityID, bool excludeChildren, bool first)
+	std::expected<void, SceneError> _Scene::DestroyEntity(UUID entityID, bool excludeChildren, bool first)
 	{
 		auto it = m_EntityMap.find(entityID);
 		if (it == m_EntityMap.end())
-			return;
-		DestroyEntity({ it->second, this }, excludeChildren, first);
+			return {};
+		return DestroyEntity({ it->second, this }, excludeChildren, first);
 	}
 
 	const std::vector<_Entity>& _Scene::GetLightEntitiesWithRenderID(unsigned int id) const
@@ -797,27 +860,31 @@ namespace GEngine
 		}
 	}
 
-	void _Scene::PushToRenderList(_Entity entity)
+	std::expected<void, SceneError> _Scene::PushToRenderList(_Entity entity)
 	{
 		m_RenderData.RequireMutable();
 		if (entity.GetSceneContext() != this || !m_Registry.valid(entity))
-			throw std::invalid_argument("Render-list entity does not belong to this scene");
+            return std::unexpected(SceneError{SceneErrorCode::ForeignEntity, "_Scene::PushToRenderList",
+                "Render-list entity does not belong to this scene"});
 		if (!entity.HasAllComponents<RenderComponent>())
-			return;
+			return {};
 
 		const auto* shader = entity.GetComponent<RenderComponent>().Shader;
 		if (!shader || Asset::ShaderBackendAccess::Program(*shader) == 0)
-			throw std::invalid_argument("Render-list entity requires a nonzero shader program");
+            return std::unexpected(SceneError{SceneErrorCode::InvalidProgram, "_Scene::PushToRenderList",
+                "Render-list entity requires a nonzero shader program", entity.HasAllComponents<IDComponent>()
+                    ? static_cast<std::uint64_t>(entity.GetUUID()) : 0});
 		const auto program = static_cast<unsigned int>(Asset::ShaderBackendAccess::Program(*shader));
 		auto& groups = entity.HasAnyComponents<DirectionalLightComponent, PointLightComponent, SpotLightComponent>()
 			? m_LightEntities : m_GroupEntities;
 		const auto found = groups.find(program);
 		if (found != groups.end() && std::find(found->second.begin(), found->second.end(), entity) != found->second.end())
-			return;
+			return {};
 
 		// Re-publishing after a shader change moves the entity from its old group.
 		RemoveFromRenderLists(entity);
 		groups[program].push_back(entity);
+        return {};
 	}
 
 
@@ -827,10 +894,36 @@ namespace GEngine
 		m_StepFrames = frames;
 	}
 
-	void _Scene::OnPhysics3DStart()
-	{
-		OnPhysics3DStop();
-		auto m_PhysicsWorld = new PhysicsWorld{};
+    std::expected<void, PhysicsShapeError> _Scene::OnPhysics3DStart()
+    {
+        OnPhysics3DStop();
+        struct PendingShape
+        {
+            entt::entity entity;
+            std::unique_ptr<PhysicalShape> shape;
+            std::optional<Delegate<void(const Vec3f&)>> connection;
+        };
+        std::vector<PendingShape> pending;
+        struct Rollback
+        {
+            _Scene& scene;
+            std::vector<PendingShape>& pending;
+            bool complete = false;
+            ~Rollback()
+            {
+                if (complete) return;
+                // Startup does not remove authoring entities; only these new slots are ours.
+                for (auto& owner : pending)
+                    if (owner.connection)
+                        scene.m_Registry.get<Transform3DComponent>(owner.entity).OnScaleChanged.Disconnect(*owner.connection);
+                scene.m_IsRunning = false;
+                scene.OnPhysics3DStop(); // Body borrowers retire before pending shape owners.
+            }
+        } rollback{*this, pending};
+        auto m_PhysicsWorld = new (std::nothrow) PhysicsWorld{};
+        if (!m_PhysicsWorld)
+            return std::unexpected(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
+                "_Scene::OnPhysics3DStart", "Physics world allocation failed"});
 		m_PhysicsSystem->SetPhysicsWorld(m_PhysicsWorld);
 		//auto view = m_Registry.view<RigidBody3DComponent>();
 		for (auto& e : m_Registry.view<RigidBody3DComponent>())
@@ -838,10 +931,18 @@ namespace GEngine
 			_Entity entity{ e, this };
 			auto& transform = entity.GetComponent<Transform3DComponent>();
 			auto& rigid_body = entity.GetComponent<RigidBody3DComponent>();
+            std::unique_ptr<PhysicalShape> shape;
+            auto failure = [&](PhysicsShapeError error) -> std::expected<void, PhysicsShapeError>
+            { error.entity = entity.GetUUID(); return std::unexpected(error); };
 
 			if (entity.HasAllComponents<SphereFixture3DComponent>())
 			{
 				auto& sphere_fixure = entity.GetComponent<SphereFixture3DComponent>();
+                auto created = ShapeSphere::Create(sphere_fixure.Radius);
+                if (!created) return failure(created.error());
+                shape.reset(new (std::nothrow) ShapeSphere(std::move(*created)));
+                if (!shape) return failure(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
+                    "_Scene::OnPhysics3DStart", "Sphere shape allocation failed", sphere_fixure.Radius});
 				RigidBody3D* body = m_PhysicsWorld->CreateRigidBody3D();
 
 				body->m_LinearVelocity = sphere_fixure.Property.m_LinearVelocity;//rigid_body.Property.m_LinearVelocity;
@@ -852,7 +953,7 @@ namespace GEngine
 				body->Type = rigid_body.Type;
 				body->m_CollisionLayer = rigid_body.CollisionLayer;
 				body->m_CollisionMask = rigid_body.CollisionMask;
-				body->m_Shape = new ShapeSphere(sphere_fixure.Radius);
+				body->m_Shape = shape.get();
 
 				
 				
@@ -879,7 +980,11 @@ namespace GEngine
 					GENGINE_CORE_ERROR("Cannot create box rigid body from empty, non-finite, or degenerate geometry");
 					continue;
 				}
-				auto* shape = new ShapeBox(pts);
+                auto created = ShapeBox::Create(pts);
+                if (!created) return failure(created.error());
+                shape.reset(new (std::nothrow) ShapeBox(std::move(*created)));
+                if (!shape) return failure(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
+                    "_Scene::OnPhysics3DStart", "Box shape allocation failed", 0.0f, pts.size()});
 				RigidBody3D* body = m_PhysicsWorld->CreateRigidBody3D();
 
 				body->m_LinearVelocity = box_fixure.Property.m_LinearVelocity;//rigid_body.Property.m_LinearVelocity;
@@ -895,7 +1000,7 @@ namespace GEngine
 				{
 					std::cout << pt.x << " " << pt.y << " " << pt.z << std::endl;
 				}*/
-				body->m_Shape = shape;
+				body->m_Shape = shape.get();
 
 
 				//transform.SetScale(2);
@@ -925,7 +1030,10 @@ namespace GEngine
 				{
 					std::cout << pt.x << " " << pt.y << " " << pt.z << std::endl;
 				}*/
-				body->m_Shape = new ShapeConvex(pts);
+                shape.reset(new (std::nothrow) ShapeConvex(pts));
+                if (!shape) return failure(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
+                    "_Scene::OnPhysics3DStart", "Convex shape allocation failed", 0.0f, pts.size()});
+                body->m_Shape = shape.get();
 
 				
 				/*auto bound = body->m_Shape->GetBounds();
@@ -940,7 +1048,7 @@ namespace GEngine
 				if (!m_PhysicsSystem->SetBodyPose(body, transform.Translation, transform.QuatRotation))
 				{
 					GENGINE_CORE_ERROR("Cannot create rigid body from an invalid entity pose");
-					delete body->m_Shape;
+					body->m_Shape = nullptr; // Local owner retires the rejected shape.
 					m_PhysicsWorld->RemoveRigidBody3D(body);
 					rigid_body.RuntimeBody = nullptr;
 					continue;
@@ -950,13 +1058,21 @@ namespace GEngine
 				pose.body = body;
 				PublishPhysicsPose(transform, pose, *body);
 				ResetPhysicsHistory(pose, transform, *body, entity.GetParentUUID());
-				Connection(transform, OnScaleChanged, *body->m_Shape, &PhysicalShape::HandleScaleChanged);
+                pending.push_back(PendingShape{e, std::move(shape), {}});
+                pending.back().connection.emplace(Connection(transform, OnScaleChanged, *body->m_Shape, &PhysicalShape::HandleScaleChanged));
+                pose.scaleConnection = pending.back().connection;
 			}
 		}
-	}
+        for (auto& owner : pending) owner.shape.release(); // Existing successful caller handoff.
+        rollback.complete = true;
+        return {};
+    }
 
 	void _Scene::OnPhysics3DStop()
 	{
+        for (auto entity : m_Registry.view<RuntimePhysicsPose, Transform3DComponent>())
+            if (const auto& connection = m_Registry.get<RuntimePhysicsPose>(entity).scaleConnection; connection)
+                m_Registry.get<Transform3DComponent>(entity).OnScaleChanged.Disconnect(*connection);
 		m_PhysicsTiming = {};
 		m_TimingWorld = nullptr;
 		m_Registry.clear<RuntimePhysicsPose>();

@@ -20,7 +20,7 @@ namespace GEngine
 		delete m_CurrentAnimation; 
 	}
 
-	void AnimationSystem::UpdateAnimation(float dt)
+	BoneUpdateResult AnimationSystem::UpdateAnimation(float dt)
 	{
 		{
 			m_DeltaTime = dt;
@@ -28,12 +28,14 @@ namespace GEngine
 			{
 				m_CurrentTime += m_CurrentAnimation->GetTicksPerSecond() * dt;
 				m_CurrentTime = fmod(m_CurrentTime, m_CurrentAnimation->GetDuration());
-				CalculateBoneTransform(&m_CurrentAnimation->GetRootNode(), glm::mat4(1.0f));
+				if (auto result = CalculateBoneTransform(&m_CurrentAnimation->GetRootNode(), glm::mat4(1.0f)); !result)
+                    return result;
 			}
 		}
+        return {};
 	}
 
-	void AnimationSystem::CalculateBoneTransform(const AssimpNodeData* node, const Mat4& parentTransform)
+	BoneUpdateResult AnimationSystem::CalculateBoneTransform(const AssimpNodeData* node, const Mat4& parentTransform)
 	{
 		std::string nodeName = node->name;
 		Mat4 nodeTransform = node->transformation;
@@ -42,7 +44,7 @@ namespace GEngine
 
 		if (Bone)
 		{
-			Bone->Update(m_CurrentTime);
+			if (auto result = Bone->Update(m_CurrentTime); !result) return result;
 			nodeTransform = Bone->GetLocalTransform();
 		}
 
@@ -56,7 +58,9 @@ namespace GEngine
 			m_FinalBoneMatrices[index] = globalTransformation * offset;
 		}
 
-		for (int i = 0; i < node->childrenCount; i++)
-			CalculateBoneTransform(&node->children[i], globalTransformation);
+        for (int i = 0; i < node->childrenCount; i++)
+            if (auto result = CalculateBoneTransform(&node->children[i], globalTransformation); !result)
+                return result;
+        return {};
 	}
 }

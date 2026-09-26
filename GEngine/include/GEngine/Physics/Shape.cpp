@@ -19,17 +19,16 @@ namespace GEngine
 			}
 		}
 		// Build installs its input as the source for explicit geometry replacement.
-		// A scale rebuild must instead retain the previous unscaled source, even on throw.
+		// A scale rebuild retains the previous unscaled source on every exit.
 		std::vector<Vec3f> basePoints;
 		basePoints.swap(m_MeshPoints);
-		try {
-			Build(pts);
-		}
-		catch (...) {
-			m_MeshPoints.swap(basePoints);
-			throw;
-		}
-		m_MeshPoints.swap(basePoints);
+		struct RestoreSource
+		{
+			std::vector<Vec3f>& current;
+			std::vector<Vec3f>& original;
+			~RestoreSource() { current.swap(original); }
+		} restore{m_MeshPoints, basePoints};
+		Build(pts);
 	}
 
 }

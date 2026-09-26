@@ -8,6 +8,7 @@
 namespace GEngine
 {
 	class BaseApp;
+    enum class UIFrameDisposition { Submit, Discard };
 	//enum GraphicContext
 	//{
 	//	OPENGL,
@@ -94,7 +95,7 @@ namespace GEngine
         virtual int GetSwapInterval() const = 0;
         virtual void SetMouseGrab(bool grabbed) = 0;
         [[nodiscard]] virtual PlatformResult BeginUI() = 0;
-        [[nodiscard]] virtual PlatformResult EndUI() = 0;
+        [[nodiscard]] virtual PlatformResult EndUI(UIFrameDisposition disposition = UIFrameDisposition::Submit) = 0;
         virtual bool WantsMouse() const = 0;
         virtual bool WantsKeyboard() const = 0;
 

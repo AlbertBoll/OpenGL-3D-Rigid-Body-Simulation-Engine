@@ -3,8 +3,10 @@
 #include "BoneInfo.h"
 #include "Bone.h"
 
-struct aiNode;
-struct aiAnimation;
+#include "Assets/ModelImportError.h"
+#include <expected>
+#include <memory>
+#include <unordered_map>
 
 
 namespace GEngine
@@ -23,7 +25,8 @@ namespace GEngine
 	class Animation
 	{
 	public:
-		Animation(const std::string& animationPath, AnimatedModel* model);
+		[[nodiscard]] static std::expected<std::unique_ptr<Animation>, ModelImportError> Create(
+            const std::string& animationPath, AnimatedModel& model);
 		Animation() = default;
 		~Animation() {}
 		inline float GetTicksPerSecond() { return m_TicksPerSecond; }
@@ -38,11 +41,6 @@ namespace GEngine
 		}
 
 		Bone* FindBone(const std::string& name);
-
-	private:
-		void ReadMissingBones(const aiAnimation* animation, AnimatedModel& model);
-
-		void ReadHeirarchyData(AssimpNodeData& dest, const aiNode* src);
 
 	private:
 		float m_Duration{};

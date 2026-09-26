@@ -2,15 +2,28 @@
 #include "Core/FrameBuffer.h"
 #include "Core/Platform.h"
 #include "Assets/Shaders/Shader.h"
+#include "Assets/ModelImportError.h"
+#include "Managers/ShapeManager.h"
+#include "Physics/PhysicsShapeError.h"
+#include "Scene/SceneError.h"
 #include "Math/Math.h"
 #include <initializer_list>
 #include <vector>
 #include <variant>
+#include <string_view>
 
 namespace GEngine
 {
+    enum class UniformBufferErrorCode { InvalidDescription, SizeOverflow, InvalidBinding, Allocation, Storage, Binding };
+    struct UniformBufferError
+    {
+        UniformBufferErrorCode code;
+        std::string_view operation;
+        std::string_view message;
+        unsigned int elementCount = 0, bindingPoint = 0, elementBytes = 0;
+    };
     // Native-free startup error transport; existing platform arguments stay phase-owned.
-    using ApplicationInitializationError = std::variant<FramebufferError, Asset::TextureError, PlatformError, Asset::ShaderError>;
+    using ApplicationInitializationError = std::variant<FramebufferError, Asset::TextureError, PlatformError, Asset::ShaderError, UniformBufferError, ModelImportError, ShapeRegistrationError, PhysicsShapeError, SceneError>;
     using ApplicationInitializationResult = std::expected<void, ApplicationInitializationError>;
     enum class RenderTargetTextureFormat { None, RGBA8, RED_INTEGER, DEPTH24STENCIL8, Depth = DEPTH24STENCIL8 };
     struct RenderTargetTextureSpecification
@@ -121,18 +134,20 @@ namespace GEngine
 	class UniformBufferObject
 	{
 	public:
-		// max_size is a nonzero element count; invalid bindings/allocation failures throw.
-		UniformBufferObject(unsigned int max_size, unsigned int bind_point = 0);
+		// max_size is a nonzero element count; failures preserve previous bindings.
+		[[nodiscard]] static std::expected<UniformBufferObject, UniformBufferError> Create(unsigned int max_size, unsigned int bind_point = 0);
 		// Move transfers ownership, not the context/thread that may delete the buffer.
 		~UniformBufferObject();
 		UniformBufferObject(const UniformBufferObject&) = delete;
 		UniformBufferObject& operator=(const UniformBufferObject&) = delete;
 		UniformBufferObject(UniformBufferObject&& other) noexcept;
 		UniformBufferObject& operator=(UniformBufferObject&& other) noexcept;
-		unsigned int GetUBO() const { return m_UBO; }
+		explicit operator bool() const noexcept { return m_UBO != 0; }
 		unsigned int GetUniformTypeSize() const { return m_UniformTypeSize; }
 		
 	private:
+		friend class RenderSystem;
+		UniformBufferObject() noexcept = default;
 		void Swap(UniformBufferObject& other) noexcept;
 		unsigned int m_UBO{};
 		unsigned int m_MaxSize{};
@@ -146,15 +161,15 @@ namespace GEngine
 	{
 	public:
 		RenderBufferObject() noexcept = default;
-		RenderBufferObject(unsigned int width, unsigned int height, unsigned int samples = 1);
+		[[nodiscard]] static std::expected<RenderBufferObject, FramebufferError> Create(unsigned int width, unsigned int height, unsigned int samples = 1);
 		// Destruction/replacement require the owning current context thread.
 		~RenderBufferObject();
 		RenderBufferObject(const RenderBufferObject&) = delete;
 		RenderBufferObject& operator=(const RenderBufferObject&) = delete;
 		RenderBufferObject(RenderBufferObject&& other) noexcept;
 		RenderBufferObject& operator=(RenderBufferObject&& other) noexcept;
-		void Resize(unsigned int width, unsigned int height, unsigned int samples = 1);
-		unsigned int GetID() const { return m_ID; }
+		[[nodiscard]] FramebufferResult Resize(unsigned int width, unsigned int height, unsigned int samples = 1);
+		explicit operator bool() const noexcept { return m_ID != 0; }
 		unsigned int GetWidth() const { return m_Width; }
 		unsigned int GetHeight() const { return m_Height; }
 		unsigned int GetSamples() const { return m_Samples; }

@@ -20,18 +20,28 @@ namespace GEngine::GLDebug
 #endif
     }
 
-    inline SDL_GLContext CreateContext(SDL_Window* window)
+    inline std::expected<SDL_GLContext, PlatformError> TryCreateContext(SDL_Window* window)
     {
-        auto context = SDL_GL_CreateContext(window);
+        auto context = GLContextThread::TryCreateContext(window);
 #ifdef GENGINE_CONFIG_DEBUG
-        if (!context)
+        if (!context && context.error().code == PlatformErrorCode::ContextCreation)
         {
-            std::fprintf(stderr, "[OpenGL] Debug context creation failed: %s; retrying without debug flag\n", SDL_GetError());
+            std::fprintf(stderr, "[OpenGL] Debug context creation failed: %s; retrying without debug flag\n", context.error().message.c_str());
             SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
-            context = SDL_GL_CreateContext(window);
+            context = GLContextThread::TryCreateContext(window);
         }
 #endif
         return context;
+    }
+
+    inline SDL_GLContext CreateContext(SDL_Window* window)
+    {
+        auto context = TryCreateContext(window);
+        if (context) return *context;
+        const auto& error = context.error();
+        SDL_SetError("operation=%s code=%u: %s", error.operation.c_str(),
+            static_cast<unsigned>(error.code), error.message.c_str());
+        return nullptr;
     }
 
 #ifdef GENGINE_CONFIG_DEBUG

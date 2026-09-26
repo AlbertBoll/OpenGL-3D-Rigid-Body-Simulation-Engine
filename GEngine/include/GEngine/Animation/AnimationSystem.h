@@ -1,5 +1,6 @@
 #pragma once
 #include <Math/Math.h>
+#include "Animation/Bone.h"
 
 namespace GEngine
 {
@@ -14,7 +15,7 @@ namespace GEngine
 		AnimationSystem(Animation* animation);
 		~AnimationSystem();
 
-		void UpdateAnimation(float dt);
+		[[nodiscard]] BoneUpdateResult UpdateAnimation(float dt);
 	
 
 		void PlayAnimation(Animation* pAnimation)
@@ -23,7 +24,7 @@ namespace GEngine
 			m_CurrentTime = 0.0f;
 		}
 
-		void CalculateBoneTransform(const AssimpNodeData* node, const Mat4& parentTransform);
+		[[nodiscard]] BoneUpdateResult CalculateBoneTransform(const AssimpNodeData* node, const Mat4& parentTransform);
 		
 
 		std::vector<Mat4> GetFinalBoneMatrices()

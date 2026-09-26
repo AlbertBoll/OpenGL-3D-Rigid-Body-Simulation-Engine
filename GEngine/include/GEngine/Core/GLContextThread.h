@@ -7,7 +7,10 @@
 #include <exception>
 #include <mutex>
 #include <thread>
-#include <unordered_map>
+#include <memory>
+#include <new>
+#include <utility>
+#include "Core/Platform.h"
 
 // Transitional boundary for first-party GL calls, shared by engine and probes.
 // EngineContext and SDLWindow keep their construction thread for their lifetime.
@@ -21,10 +24,45 @@ namespace GEngine::GLContextThread
         // a resource destructor. Keep SDL symbol references at context creation.
         inline thread_local std::uintptr_t (*currentContextIdentity)() = nullptr;
         struct Owner { std::thread::id thread; };
+        struct Registration
+        {
+            SDL_GLContext context;
+            Owner second;
+            std::unique_ptr<Registration> next;
+        };
+        // Bookkeeping is fallible without exception transport. Each native context
+        // has one owner record; erasing a record cannot allocate or destroy GL.
+        struct Registrations
+        {
+            std::unique_ptr<Registration> first;
+            bool empty() const noexcept { return !first; }
+            Registration* begin() const noexcept { return first.get(); }
+            Registration* end() const noexcept { return nullptr; }
+            Registration* find(SDL_GLContext context) const noexcept
+            {
+                for (auto* item = first.get(); item; item = item->next.get())
+                    if (item->context == context) return item;
+                return nullptr;
+            }
+            bool emplace(SDL_GLContext context, Owner owner) noexcept
+            {
+                std::unique_ptr<Registration> pending(new (std::nothrow) Registration{context, owner, std::move(first)});
+                if (!pending) return false;
+                first = std::move(pending);
+                return true;
+            }
+            void erase(Registration* item) noexcept
+            {
+                auto* link = &first;
+                while (link->get() != item) link = &(*link)->next;
+                auto retiring = std::move(*link);
+                *link = std::move(retiring->next);
+            }
+        };
         struct Registry
         {
             std::mutex mutex;
-            std::unordered_map<SDL_GLContext, Owner> contexts;
+            Registrations contexts;
         };
         inline Registry& Contexts() { static Registry registry; return registry; }
         [[noreturn]] inline void Fail(const char* operation) noexcept
@@ -70,19 +108,33 @@ namespace GEngine::GLContextThread
 #endif
     }
 
-    inline SDL_GLContext CreateContext(SDL_Window* window)
+    inline std::expected<SDL_GLContext, PlatformError> TryCreateContext(SDL_Window* window)
     {
         auto& registry = Detail::Contexts();
         const std::lock_guard lock(registry.mutex);
         Detail::RequireThread(registry, "SDL_GL_CreateContext");
         const auto context = SDL_GL_CreateContext(window);
-        if (context)
+        if (!context) return std::unexpected(PlatformError{PlatformErrorCode::ContextCreation,
+            "context creation", SDL_GetError()});
+        if (!registry.contexts.emplace(context, Detail::Owner{std::this_thread::get_id()}))
         {
-            try { registry.contexts.emplace(context, Detail::Owner{std::this_thread::get_id()}); }
-            catch (...) { SDL_GL_DeleteContext(context); throw; }
-            Detail::currentContextIdentity = [] { return reinterpret_cast<std::uintptr_t>(SDL_GL_GetCurrentContext()); };
+            SDL_GL_DeleteContext(context);
+            return std::unexpected(PlatformError{PlatformErrorCode::Allocation,
+                "context registration", "Context owner registration allocation failed"});
         }
+        Detail::currentContextIdentity = [] { return reinterpret_cast<std::uintptr_t>(SDL_GL_GetCurrentContext()); };
         return context;
+    }
+
+    // Retained backend SDL interop signature. Normal startup consumes TryCreateContext.
+    inline SDL_GLContext CreateContext(SDL_Window* window)
+    {
+        auto context = TryCreateContext(window);
+        if (context) return *context;
+        const auto& error = context.error();
+        SDL_SetError("operation=%s code=%u: %s", error.operation.c_str(),
+            static_cast<unsigned>(error.code), error.message.c_str());
+        return nullptr;
     }
 
     inline int MakeCurrent(SDL_Window* window, SDL_GLContext context)

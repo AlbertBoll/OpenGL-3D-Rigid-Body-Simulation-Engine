@@ -2,6 +2,7 @@
 #include "SceneApp.h"
 #include "Core/RuntimeAssets.h"
 #include <cstdint>
+#include <format>
 #include "Managers/AssetsManager.h"
 #include "Managers/ShapeManager.h"
 #include "Managers/ShaderManager.h"
@@ -39,23 +40,37 @@
 #include "Animation/AnimatedModel.h"
 
 //#include "Audio/AudioSystem.h"
-#include <fmod/fmod_studio.hpp>
 
 SceneApp::~SceneApp()
 {
-	if(m_AudioSystem)
-		m_AudioSystem->Shutdown();
-	// This off-scene terrain retains texture leases and must retire before the root cache.
-	delete m_Terrain2;
-	m_Terrain2 = nullptr;
-	// The scene owns the camera through CameraRig's attachment child.
-	
+    // Match BaseApp's existing retirement invariant before destroying derived GPU owners.
+    if (GetWindow())
+        if (auto current = GetEngineContext().MakeCurrent(); !current)
+        { ReportPlatformError(current.error()); std::terminate(); }
+    if (m_AudioSystem) m_AudioSystem->Shutdown();
+    m_Panel.reset();
+    delete m_Terrain2;
+    m_Terrain2 = nullptr;
+    // Scene groups/children borrow terrain and the light lookup borrows pending actors.
+    m_Scene.reset();
+    m_PendingBarrel.reset();
+    m_PendingEditorCamera.reset();
+    for (auto& light : m_LightOwners) light.reset();
+    m_TerrainGeometry.reset();
 }
 
 void SceneApp::Update(Timestep ts)
 {
 
-	m_AnimationSystem->UpdateAnimation(ts);
+    if (auto updated = m_AnimationSystem->UpdateAnimation(ts); !updated)
+    {
+        const auto& error = updated.error();
+        FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Animation", "MissingInterval",
+            std::string(error.operation), std::format("bone={} id={} track={} time={} keys={}",
+                error.boneName, error.boneId, static_cast<int>(error.track), error.animationTime, error.keyCount),
+            std::string(error.message)});
+        return;
+    }
 
 	
 	if (m_ViewportForcused)
@@ -68,7 +83,15 @@ void SceneApp::Update(Timestep ts)
 	m_AudioSystem->Update(ts);
 
 	auto backgroundMusic = m_MusicEvent.GetPlayState();
-	if (backgroundMusic == Audio::PLAYBACK_STOPPING)
+	if (!backgroundMusic)
+	{
+	    const auto& error = backgroundMusic.error();
+	    FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Audio",
+	        std::string(Audio::PlaybackStateErrorLabel(error.code)), error.operation,
+	        "event=" + std::to_string(error.eventId), error.message});
+	    return;
+	}
+	if (*backgroundMusic == Audio::PLAYBACK_STOPPING)
 		m_MusicEvent.Restart();
 
 	
@@ -99,6 +122,7 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	GENGINE_CORE_INFO("Initialize Perspective Camera...");
 	m_EditorCamera = new PerspectiveCamera(
 		45.0f, static_cast<float>(width) / static_cast<float>(height), 0.1f, 10000.f);
+	m_PendingEditorCamera.reset(m_EditorCamera);
 	m_EditorCamera->SetTag("Editor Camera");
 	m_EditorCamera->SetActive(true);
 	
@@ -113,10 +137,15 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	auto barrelMaterialResult = Material::Create<NormalLightTextureMaterial>(textures, "normal");
 	if (!barrelMaterialResult) return std::unexpected(barrelMaterialResult.error());
 	auto barrelMaterial = std::move(*barrelMaterialResult);
-	auto barrelGeo = ShapeManager::GetModel("barrel");
+	auto barrelGeoResult = ShapeManager::GetModel("barrel");
+	if (!barrelGeoResult) return std::visit([](const auto& error) -> ApplicationInitializationResult {
+		return std::unexpected(ApplicationInitializationError{error});
+	}, barrelGeoResult.error());
+	auto* barrelGeo = *barrelGeoResult;
 
 	
 	auto barrel = new Entity(barrelGeo, barrelMaterial);
+	m_PendingBarrel.reset(barrel);
 	
 	barrel->SetTag("barrel");
 
@@ -125,6 +154,7 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 
 	
 	auto terrainGeo = new Terrain(0, -1, 900);
+	m_TerrainGeometry.reset(terrainGeo);
 
 
 	
@@ -163,6 +193,7 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	lights.Attenuations.Data = { lightAtt1, lightAtt2, lightAtt3, lightAtt4 };
 
 	LightEntity* ambient_light = new LightEntity();
+	m_LightOwners[0].reset(ambient_light);
 	ambient_light->SetTag("Ambient Light");
 	ambient_light->SetPos("u_lightPosition")
 				 ->SetColor("u_lightColor", lightCol1)
@@ -172,6 +203,7 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 
 
 	LightEntity* lamp_light_1 = new LightEntity();
+	m_LightOwners[1].reset(lamp_light_1);
 	lamp_light_1->SetTag("LampLight_1");
 	lamp_light_1->SetPos("u_lightPosition")
 				->SetColor("u_lightColor", lightCol2)
@@ -182,6 +214,7 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 
 
 	LightEntity* lamp_light_2 = new LightEntity();
+	m_LightOwners[2].reset(lamp_light_2);
 	lamp_light_2->SetTag("LampLight_2");
 	lamp_light_2->SetPos("u_lightPosition")
 				->SetColor("u_lightColor", lightCol3)
@@ -191,6 +224,7 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 
 
 	LightEntity* lamp_light_3 = new LightEntity();
+	m_LightOwners[3].reset(lamp_light_3);
 	lamp_light_3->SetTag("LampLight_3");
 	lamp_light_3->SetPos("u_lightPosition")
 				->SetColor("u_lightColor", lightCol4)
@@ -201,6 +235,7 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 
 
 	LightEntity* lamp_light_4 = new LightEntity();
+	m_LightOwners[4].reset(lamp_light_4);
 	lamp_light_4->SetTag("LampLight_4");
 	lamp_light_4->SetPos("u_lightPosition")
 		->SetColor("u_lightColor", lightCol5)
@@ -210,6 +245,7 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	lamp_light_4->SetPosition(0, 0, 9);
 
 	LightEntity* lamp_light_5 = new LightEntity();
+	m_LightOwners[5].reset(lamp_light_5);
 	lamp_light_5->SetTag("LampLight_5");
 	lamp_light_5->SetPos("u_lightPosition")
 		->SetColor("u_lightColor", lightCol6)
@@ -218,6 +254,7 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 
 	lamp_light_5->SetPosition(0, 0, 9);
 
+	(void)m_LightOwners[4].release();
 	barrel->Add(lamp_light_4);
 
 
@@ -271,7 +308,10 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	terrainMaterial->SetLightComponent(lights).SetFogComponent(fog);
 
 	
-	AnimatedModel* model = new AnimatedModel(RuntimeAssets::File("AnimatedModels/dancing_vampire.dae"));
+	auto vampirePath = RuntimeAssets::TryFile("AnimatedModels/dancing_vampire.dae");
+	if (!vampirePath) return std::unexpected(vampirePath.error());
+	auto model = AnimatedModel::Create(*vampirePath);
+	if (!model) return std::unexpected(model.error());
 
 	auto vampireTexNormalResult = AssetsManager::GetTextureOrFallback("Vampire_normal", "u_normalTexture");
 	if (!vampireTexNormalResult) { GENGINE_CORE_ERROR("Texture {}: {}", vampireTexNormalResult.error().source, vampireTexNormalResult.error().message); m_Running = false; return std::unexpected(vampireTexNormalResult.error()); }
@@ -283,12 +323,17 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	auto vampireMaterialResult = Material::Create<AnimatedMaterial>(vampiretextures, "animated");
 	if (!vampireMaterialResult) return std::unexpected(vampireMaterialResult.error());
 	auto vampireMaterial = std::move(*vampireMaterialResult);
-	auto vampireGeo = ShapeManager::GetModels("dancing_vampire")[0];
+	auto vampireGeometries = ShapeManager::GetModels("dancing_vampire");
+	if (!vampireGeometries) return std::visit([](const auto& error) -> ApplicationInitializationResult {
+		return std::unexpected(ApplicationInitializationError{error});
+	}, vampireGeometries.error());
+	auto* vampireGeo = vampireGeometries->get()[0];
 	
+	auto animation = Animation::Create(*vampirePath, *model);
+	if (!animation) return std::unexpected(animation.error());
 	m_VampireGroup = new Group<Entity>(vampireGeo, vampireMaterial.get());
-
-	Animation* animation = new Animation(RuntimeAssets::File("AnimatedModels/dancing_vampire.dae"), model);
-	m_AnimationSystem = CreateScopedPtr<AnimationSystem>(animation);
+	m_AnimationSystem = CreateScopedPtr<AnimationSystem>(animation->get());
+	(void)animation->release();
 
 	vampireMaterial->SetAnimationSystem(m_AnimationSystem.get());
 	
@@ -298,6 +343,7 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	vampire->SetPosition({ 60.f, 0.f, -60.f });
 	vampire->Scale(7);
 	vampire->SetTag("vampire");
+	(void)m_LightOwners[5].release();
 	vampire->Add(lamp_light_5);
 
 	lamp_light_5->Scale(1/7.f, false);
@@ -349,7 +395,11 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	setting.m_PerspectiveSetting.m_Far = 10000.f;
 
 
-	auto lampGeo = ShapeManager::GetModel("lamp");
+	auto lampGeoResult = ShapeManager::GetModel("lamp");
+	if (!lampGeoResult) return std::visit([](const auto& error) -> ApplicationInitializationResult {
+		return std::unexpected(ApplicationInitializationError{error});
+	}, lampGeoResult.error());
+	auto* lampGeo = *lampGeoResult;
 	auto lampTexResult = AssetsManager::GetTextureOrFallback("lamp");
 	if (!lampTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", lampTexResult.error().source, lampTexResult.error().message); m_Running = false; return std::unexpected(lampTexResult.error()); }
 	auto* lampTex = *lampTexResult;
@@ -363,17 +413,20 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	lamp1->SetTag("Lamp_1");
 	
 	lamp1->SetPosition({ 185, terrainGeo->GetTerrainHeight(185, -293), -293 });
+	(void)m_LightOwners[1].release();
 	lamp1->Add(lamp_light_1);
 
 	auto lamp2 = new Entity(lampGeo, lampMaterial);
 	lamp2->SetPosition({ 370, terrainGeo->GetTerrainHeight(370, -300), -300 });
 	lamp2->SetTag("Lamp_2");
+	(void)m_LightOwners[2].release();
 	lamp2->Add(lamp_light_2);
 
 
 	auto lamp3 = new Entity(lampGeo, lampMaterial);
 	lamp3->SetPosition({ 293, terrainGeo->GetTerrainHeight(293, -305), -305 });
 	lamp3->SetTag("Lamp_3");
+	(void)m_LightOwners[3].release();
 	lamp3->Add(lamp_light_3);
 
 	m_LampGroup->Push({ lamp1, lamp2, lamp3 });
@@ -381,12 +434,36 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	
 
 
-	auto treeGeo = ShapeManager::GetModel("tree");
-	auto grassGeo = ShapeManager::GetModel("plant");
-	auto flowerGeo = ShapeManager::GetModel("plant");
-	auto fernGeo = ShapeManager::GetModel("fern");
-	auto lowPolyTreeGeo = ShapeManager::GetModel("lowPolyTree");
-	auto pineGeo = ShapeManager::GetModel("pine");
+	auto treeGeoResult = ShapeManager::GetModel("tree");
+	if (!treeGeoResult) return std::visit([](const auto& error) -> ApplicationInitializationResult {
+		return std::unexpected(ApplicationInitializationError{error});
+	}, treeGeoResult.error());
+	auto* treeGeo = *treeGeoResult;
+	auto grassGeoResult = ShapeManager::GetModel("plant");
+	if (!grassGeoResult) return std::visit([](const auto& error) -> ApplicationInitializationResult {
+		return std::unexpected(ApplicationInitializationError{error});
+	}, grassGeoResult.error());
+	auto* grassGeo = *grassGeoResult;
+	auto flowerGeoResult = ShapeManager::GetModel("plant");
+	if (!flowerGeoResult) return std::visit([](const auto& error) -> ApplicationInitializationResult {
+		return std::unexpected(ApplicationInitializationError{error});
+	}, flowerGeoResult.error());
+	auto* flowerGeo = *flowerGeoResult;
+	auto fernGeoResult = ShapeManager::GetModel("fern");
+	if (!fernGeoResult) return std::visit([](const auto& error) -> ApplicationInitializationResult {
+		return std::unexpected(ApplicationInitializationError{error});
+	}, fernGeoResult.error());
+	auto* fernGeo = *fernGeoResult;
+	auto lowPolyTreeGeoResult = ShapeManager::GetModel("lowPolyTree");
+	if (!lowPolyTreeGeoResult) return std::visit([](const auto& error) -> ApplicationInitializationResult {
+		return std::unexpected(ApplicationInitializationError{error});
+	}, lowPolyTreeGeoResult.error());
+	auto* lowPolyTreeGeo = *lowPolyTreeGeoResult;
+	auto pineGeoResult = ShapeManager::GetModel("pine");
+	if (!pineGeoResult) return std::visit([](const auto& error) -> ApplicationInitializationResult {
+		return std::unexpected(ApplicationInitializationError{error});
+	}, pineGeoResult.error());
+	auto* pineGeo = *pineGeoResult;
 
 	auto treeTexResult = AssetsManager::GetTextureOrFallback("tree");
 	if (!treeTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", treeTexResult.error().source, treeTexResult.error().message); m_Running = false; return std::unexpected(treeTexResult.error()); }
@@ -440,6 +517,7 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 
 	m_BarrelGroup = new Group<Entity>(barrelGeo, barrelMaterial.get());
 	m_BarrelGroup->Push(barrel);
+	(void)m_PendingBarrel.release();
 
 	m_TreeGroup = new Group<Entity>(treeGeo, treeMaterial.get());
 	m_GrassGroup = new Group<Entity>(grassGeo, grassMaterial.get());
@@ -498,7 +576,11 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	m_Scene->Push({ m_TerrainGroup, m_FernGroup, m_PineGroup, m_LampGroup, m_BarrelGroup, m_VampireGroup });
 
 	
-	auto DragonGeo = ShapeManager::GetModel("dragon");
+	auto DragonGeoResult = ShapeManager::GetModel("dragon");
+	if (!DragonGeoResult) return std::visit([](const auto& error) -> ApplicationInitializationResult {
+		return std::unexpected(ApplicationInitializationError{error});
+	}, DragonGeoResult.error());
+	auto* DragonGeo = *DragonGeoResult;
 	DragonGeo->ApplyTransform(Matrix::MakeRotationY(-Math::PiOver2), 0);
 	DragonGeo->ApplyTransform(Matrix::MakeRotationY(-Math::PiOver2), 2, true);
 	auto DragonTexResult = AssetsManager::GetTextureOrFallback("white");
@@ -525,6 +607,7 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 
 	m_CameraRig = new CameraRig(true);
 	m_CameraRig->SetTag("Camera Rig");
+	(void)m_PendingEditorCamera.release();
 	m_CameraRig->Attach(m_EditorCamera);
 
 

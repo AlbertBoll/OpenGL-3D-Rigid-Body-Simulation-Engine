@@ -17,7 +17,9 @@ namespace GEngine
 
     public:
         [[nodiscard]] static std::expected<std::unique_ptr<SkyBoxEntity>, ApplicationInitializationError> Create(
-            const SkyBoxComponent& comp, Geometry* geometry = Manager::ShapeManager::GetShape("SkyBox"));
+            const SkyBoxComponent& comp);
+        [[nodiscard]] static std::expected<std::unique_ptr<SkyBoxEntity>, ApplicationInitializationError> Create(
+            const SkyBoxComponent& comp, Geometry* geometry);
     private:
         SkyBoxEntity(const SkyBoxComponent& comp, Geometry* geometry, const RefPtr<Material>& material);
     public:

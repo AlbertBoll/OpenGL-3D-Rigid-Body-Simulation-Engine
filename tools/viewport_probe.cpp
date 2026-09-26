@@ -1,3 +1,69 @@
+#if defined(SHAPE_STARTUP_SCHEMA_ONLY) || defined(SHAPE_STARTUP_ENTRY_PROBE)
+#include "Core/GEngine.h"
+#include "Core/RenderTarget.h"
+#include <type_traits>
+static_assert(std::is_constructible_v<::GEngine::ApplicationInitializationError, ::GEngine::ShapeRegistrationError>);
+static_assert(std::same_as<decltype(std::declval<::GEngine::EngineContext&>().Initialize({})), ::GEngine::EngineInitializationResult>);
+#ifndef SHAPE_STARTUP_SCHEMA_ONLY
+#include "gepch.h"
+#include "Core/BaseApp.h"
+#include "Core/Scene.h"
+#include <sdl2/SDL_ttf.h>
+#include <print>
+#define main ProductionEntryPoint
+#include "EntryPoint.h"
+#undef main
+namespace Fixture
+{
+    bool fail=false,valid=true;
+    unsigned runs=0,destructors=0;
+    void Check(bool ok,const char* reason){if(!ok){valid=false;std::println("[FAIL] {}",reason);}}
+    class App final : public ::GEngine::BaseApp
+    {
+    public:
+        ::GEngine::ApplicationInitializationResult Initialize(const std::initializer_list<::GEngine::WindowProperties>& props) override
+        {
+            auto initialized=BaseApp::Initialize(props);if(!initialized)return initialized;
+            if(fail)
+            {
+                ::GEngine::ShapeRegistrationError error{::GEngine::ShapeRegistrationErrorCode::AlreadyOwned,
+                    "ShapeRegistrationFixture::Register","fixture-shape","Geometry already belongs to this manager; detail=retired owner 37"};
+                ::GEngine::EngineInitializationResult rootResult = std::unexpected(error);
+                auto result = std::visit([](const auto& failure) -> ::GEngine::ApplicationInitializationResult
+                    { return std::unexpected(failure); }, rootResult.error());
+                auto transport = std::move(result.error());
+                const auto* observed=std::get_if<::GEngine::ShapeRegistrationError>(&transport);
+                Check(observed && observed->code==error.code && observed->operation==error.operation
+                    && observed->name==error.name && observed->message==error.message,"Startup variant lost registration diagnostics");
+                return std::unexpected(std::move(transport));
+            }
+            return {};
+        }
+        ::GEngine::ApplicationRunResult Run() override {++runs;return {};}
+        ~App() override {++destructors;Check(SDL_GL_GetCurrentContext()!=nullptr,"Application retired after its context");}
+    };
+}
+::GEngine::WindowProperties winProp=[] {
+    ::GEngine::WindowProperties p;p.m_Title="Shape startup error validation";p.m_Width=p.m_Height=64;
+    p.m_MinWidth=p.m_MinHeight=32;p.m_IsVsync=false;
+    p.flag=::GEngine::BitFlags<::GEngine::WindowFlags,uint8_t>{::GEngine::WindowFlags::INVISIBLE};return p;
+}();
+::GEngine::BaseApp* CreateApp(){return new Fixture::App;}
+int main(int argc,char* argv[])
+{
+    if(argc!=2)return 2;
+    const std::string_view mode=argv[1];if(mode!="success"&&mode!="failure")return 2;
+    Fixture::fail=mode=="failure";SDL_SetMainReady();
+    const int status=ProductionEntryPoint(argc,argv);
+    Fixture::Check(status==(Fixture::fail?1:0),"Actual EntryPoint exit status changed");
+    Fixture::Check(Fixture::runs==(Fixture::fail?0u:1u)&&Fixture::destructors==1,"Post-failure Run or missing application retirement");
+    Fixture::Check(!::GEngine::EngineContext::TryGet() && SDL_WasInit(0)==0 && TTF_WasInit()==0,"Root/platform survived registration failure");
+    if(!Fixture::valid)return 97;
+    std::println("[PASS] shape startup {} exit={} runs={} teardown=1",mode,status,Fixture::runs);return status;
+}
+#endif
+
+#else
 #include "gepch.h"
 #include "Core/BaseApp.h"
 #include "Core/RuntimeAssets.h"
@@ -222,7 +288,8 @@ namespace
             Check(!result, "additional window batch failure");
             Check(BaseApp::GetWindowManager()->GetWindows().size() == 1 && app.GetWindow()->IsCurrent(), "batch rollback preserves existing owner and context");
             auto repeated = app.GetEngineContext().Initialize({Properties()});
-            Check(!repeated && repeated.error().code == PlatformErrorCode::InvalidState, "repeated initialization typed failure");
+            const auto* platform = repeated ? nullptr : std::get_if<PlatformError>(&repeated.error());
+            Check(platform && platform->code == PlatformErrorCode::InvalidState, "repeated initialization typed failure");
             Check(app.GetEngineContext().IsReady(), "rejected repeat does not tear down live root");
         }
         Check(SDL_WasInit(0) == 0, "failure/success lifetimes drain platform");
@@ -251,3 +318,5 @@ int main(int argc, char** argv)
     else return 2;
     return 0;
 }
+
+#endif

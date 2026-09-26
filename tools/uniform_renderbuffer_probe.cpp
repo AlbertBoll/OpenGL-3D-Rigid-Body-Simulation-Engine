@@ -1,3 +1,16 @@
+#include "Core/RenderTarget.h"
+#include <type_traits>
+static_assert(std::is_same_v<decltype(GEngine::RenderBufferObject::Create(1, 1)),
+    std::expected<GEngine::RenderBufferObject, GEngine::FramebufferError>>);
+static_assert(!std::is_constructible_v<GEngine::RenderBufferObject, unsigned, unsigned>);
+template<class T> concept HasNativeRenderbufferName = requires(const T& t) { t.GetID(); };
+static_assert(!HasNativeRenderbufferName<GEngine::RenderBufferObject>);
+using SchemaUniform = GEngine::UniformBufferObject<GEngine::UniformType::MATRIX_4_4>;
+static_assert(!std::is_constructible_v<SchemaUniform, unsigned>);
+static_assert(std::is_same_v<decltype(SchemaUniform::Create(1)), std::expected<SchemaUniform, GEngine::UniformBufferError>>);
+template<class T> concept HasNativeUniformName = requires(const T& t) { t.GetUBO(); };
+static_assert(!HasNativeUniformName<SchemaUniform>);
+#ifndef RENDERBUFFER_SCHEMA_ONLY
 #include "../GEngine/src/Core/FramebufferBackend.h"
 // Real production-library ownership checks; invoke through test_uniform_renderbuffer.py.
 #include "gepch.h"
@@ -7,36 +20,128 @@
 #include <stdexcept>
 #include <string_view>
 
+#ifdef UBO_STARTUP_PROBE
+#include "Core/BaseApp.h"
+#include <sdl2/SDL_ttf.h>
+#define main ProductionEntryPoint
+#include "GEngine/EntryPoint.h"
+#undef main
+namespace Startup
+{
+    bool fail = false, valid = true;
+    int injections = 0, runs = 0, destructors = 0;
+    std::unordered_set<GLuint> buffers;
+    PFNGLBUFFERDATAPROC data;
+    PFNGLGENBUFFERSPROC generate;
+    PFNGLDELETEBUFFERSPROC destroy;
+    SDL_GLContext context;
+    SDL_threadID thread;
+    void Check(bool ok, const char* why) { if (!ok) { valid = false; std::cerr << "[FAIL] " << why << '\n'; } }
+    void APIENTRY Data(GLenum target, GLsizeiptr size, const void* input, GLenum usage)
+    {
+        if (fail && target == GL_UNIFORM_BUFFER && injections == 0) { ++injections; return; }
+        data(target, size, input, usage);
+    }
+    void APIENTRY Generate(GLsizei n, GLuint* ids)
+    { generate(n, ids); for (int i=0;i<n;++i) Check(buffers.insert(ids[i]).second, "duplicate buffer owner"); }
+    void APIENTRY Destroy(GLsizei n, const GLuint* ids)
+    {
+        Check(SDL_GL_GetCurrentContext() == context && SDL_ThreadID() == thread, "buffer teardown context/thread");
+        for (int i=0;i<n;++i) if (ids[i]) Check(buffers.erase(ids[i]) == 1, "missing/double buffer retirement");
+        destroy(n, ids);
+    }
+    class App final : public ::GEngine::BaseApp
+    {
+    public:
+        ::GEngine::ApplicationInitializationResult Initialize(const std::initializer_list<::GEngine::WindowProperties>& p) override
+        {
+            auto result = BaseApp::Initialize(p);
+            Check(result.has_value() != fail, "actual BaseApp result");
+            if (!result)
+            {
+                const auto* e = std::get_if<::GEngine::UniformBufferError>(&result.error());
+                Check(e && e->code == ::GEngine::UniformBufferErrorCode::Storage && e->elementCount == 16
+                    && e->bindingPoint == 0 && e->elementBytes == sizeof(::GEngine::Math::Mat4)
+                    && e->operation == "UniformBufferObject::Create"
+                    && e->message == "Uniform buffer storage allocation failed", "startup diagnostic propagation");
+                Check(!m_Initialize && !m_UniformBufferObject, "failed UBO published initialization");
+            }
+            return result;
+        }
+        ::GEngine::ApplicationRunResult Run() override { ++runs; return {}; }
+        ~App() override { ++destructors; Check(SDL_GL_GetCurrentContext() != nullptr, "application lost context before teardown"); }
+    };
+}
+extern "C" int Phase66RealGladLoadGL(void);
+extern "C" int gladLoadGL(void)
+{
+    const int result = Phase66RealGladLoadGL();
+    if (result)
+    {
+        Startup::context = SDL_GL_GetCurrentContext(); Startup::thread = SDL_ThreadID();
+        Startup::data = glad_glBufferData; glad_glBufferData = Startup::Data;
+        Startup::generate = glad_glGenBuffers; glad_glGenBuffers = Startup::Generate;
+        Startup::destroy = glad_glDeleteBuffers; glad_glDeleteBuffers = Startup::Destroy;
+    }
+    return result;
+}
+::GEngine::WindowProperties winProp = [] {
+    ::GEngine::WindowProperties p; p.m_Title="UBO startup validation"; p.m_Width=p.m_Height=64;
+    p.m_MinWidth=p.m_MinHeight=32; p.m_IsVsync=false;
+    p.flag=::GEngine::BitFlags<::GEngine::WindowFlags,uint8_t>{::GEngine::WindowFlags::INVISIBLE}; return p;
+}();
+::GEngine::BaseApp* CreateApp() { return new Startup::App; }
+int main(int argc, char* argv[])
+{
+    if (argc != 2) return 2;
+    Startup::fail = std::string_view(argv[1]) == "failure";
+    SDL_SetMainReady();
+    const auto status = ProductionEntryPoint(argc, argv);
+    Startup::Check(status == (Startup::fail ? 1 : 0), "actual EntryPoint status");
+    Startup::Check(Startup::runs == (Startup::fail ? 0 : 1) && Startup::destructors == 1, "post-failure Run or missing teardown");
+    Startup::Check(Startup::injections == (Startup::fail ? 1 : 0), "fault was not exercised");
+    std::cout << "[OBSERVE] buffers=" << Startup::buffers.size() << " engine=" << (::GEngine::EngineContext::TryGet()!=nullptr)
+        << " SDL=" << SDL_WasInit(0) << " TTF=" << TTF_WasInit() << '\n';
+    for (auto id : Startup::buffers) std::cout << "[OBSERVE] unretired buffer=" << id << '\n';
+    Startup::Check(Startup::buffers.empty() && !::GEngine::EngineContext::TryGet()
+        && SDL_WasInit(0) == 0 && TTF_WasInit() == 0, "resource/root/platform survived teardown");
+    if (!Startup::valid) return 97;
+    std::cout << "[PASS] UBO startup " << argv[1] << " typed-status/no-post-failure-run/RAII\n";
+    return status;
+}
+#else
+
 namespace
 {
     using namespace GEngine;
     int checks = 0;
     void Check(bool value, const char* reason)
     { ++checks; if (!value) throw std::runtime_error(reason); }
-    template<class Exception, class F> void Reject(F&& operation)
-    {
-        try { operation(); }
-        catch (const Exception&) { ++checks; return; }
-        throw std::runtime_error("Expected allocation/argument failure did not occur");
-    }
     template<class T> constexpr bool UniqueMovable = !std::is_copy_constructible_v<T>
         && !std::is_copy_assignable_v<T> && std::is_nothrow_move_constructible_v<T>
         && std::is_nothrow_move_assignable_v<T>;
     static_assert(UniqueMovable<RenderBufferObject>);
     static_assert(!std::is_copy_constructible_v<RenderTarget> && std::is_nothrow_move_constructible_v<RenderTarget>);
     GLuint Bound(GLenum what) { GLint name = 0; glGetIntegerv(what, &name); return name; }
+    GLuint Indexed(unsigned point) { GLint name = 0; glGetIntegeri_v(GL_UNIFORM_BUFFER_BINDING, point, &name); return name; }
+    template<class T> T TakeUniform(std::expected<T, UniformBufferError> result)
+    { Check(result.has_value(), "Expected UBO success"); return std::move(*result); }
+
 
     // Inject deterministic allocation failures without requesting GPU exhaustion.
     // Driver pointers otherwise forward every real call and record exact lifetime.
     struct Observer
     {
-        enum class Fault { None, BufferName, BufferStorage, RenderbufferName, RenderbufferStorage };
+        enum class Fault { None, BufferName, BufferStorage, BufferBind, BufferPublish, BufferUnbind, RenderbufferName, RenderbufferStorage, RenderbufferBind };
         inline static Fault fault = Fault::None;
         inline static GLenum pending = GL_NO_ERROR;
         inline static PFNGLGENBUFFERSPROC genBuffer;
+        inline static PFNGLBINDBUFFERPROC bindBuffer;
+        inline static PFNGLBINDBUFFERBASEPROC bindBufferBase;
         inline static PFNGLDELETEBUFFERSPROC deleteBuffer;
         inline static PFNGLBUFFERDATAPROC bufferData;
         inline static PFNGLGENRENDERBUFFERSPROC genRenderbuffer;
+        inline static PFNGLBINDRENDERBUFFERPROC bindRenderbuffer;
         inline static PFNGLDELETERENDERBUFFERSPROC deleteRenderbuffer;
         inline static PFNGLRENDERBUFFERSTORAGEPROC storage;
         inline static PFNGLRENDERBUFFERSTORAGEMULTISAMPLEPROC multisample;
@@ -62,12 +167,21 @@ namespace
         }
         static void APIENTRY GenBuffer(GLsizei n, GLuint* ids)
         { ++attempts; if (Fail(Fault::BufferName)) { std::fill_n(ids, n, 0); return; } genBuffer(n, ids); Add(buffers, n, ids); }
+        static void APIENTRY BindBuffer(GLenum target, GLuint id)
+        {
+            if (target == GL_UNIFORM_BUFFER && (id ? Fail(Fault::BufferBind) : Fail(Fault::BufferUnbind))) return;
+            bindBuffer(target, id);
+        }
+        static void APIENTRY BindBufferBase(GLenum target, GLuint point, GLuint id)
+        { if (!Fail(Fault::BufferPublish)) bindBufferBase(target, point, id); }
         static void APIENTRY DeleteBuffer(GLsizei n, const GLuint* ids)
         { Remove(buffers, n, ids); deleteBuffer(n, ids); }
         static void APIENTRY BufferData(GLenum target, GLsizeiptr bytes, const void* data, GLenum usage)
         { requestedBytes = bytes; if (!Fail(Fault::BufferStorage)) bufferData(target, bytes, data, usage); }
         static void APIENTRY GenRenderbuffer(GLsizei n, GLuint* ids)
         { ++attempts; if (Fail(Fault::RenderbufferName)) { std::fill_n(ids, n, 0); return; } genRenderbuffer(n, ids); Add(renderbuffers, n, ids); }
+        static void APIENTRY BindRenderbuffer(GLenum target, GLuint id)
+        { if (!Fail(Fault::RenderbufferBind)) bindRenderbuffer(target, id); }
         static void APIENTRY DeleteRenderbuffer(GLsizei n, const GLuint* ids)
         { Remove(renderbuffers, n, ids); deleteRenderbuffer(n, ids); }
         static void APIENTRY Storage(GLenum target, GLenum format, GLsizei w, GLsizei h)
@@ -81,9 +195,12 @@ namespace
             buffers.clear(); renderbuffers.clear(); created = deleted = deleteCalls = attempts = 0; valid = true;
             context = SDL_GL_GetCurrentContext(); thread = std::this_thread::get_id();
             genBuffer = glad_glGenBuffers; glad_glGenBuffers = GenBuffer;
+            bindBuffer = glad_glBindBuffer; glad_glBindBuffer = BindBuffer;
+            bindBufferBase = glad_glBindBufferBase; glad_glBindBufferBase = BindBufferBase;
             deleteBuffer = glad_glDeleteBuffers; glad_glDeleteBuffers = DeleteBuffer;
             bufferData = glad_glBufferData; glad_glBufferData = BufferData;
             genRenderbuffer = glad_glGenRenderbuffers; glad_glGenRenderbuffers = GenRenderbuffer;
+            bindRenderbuffer = glad_glBindRenderbuffer; glad_glBindRenderbuffer = BindRenderbuffer;
             deleteRenderbuffer = glad_glDeleteRenderbuffers; glad_glDeleteRenderbuffers = DeleteRenderbuffer;
             storage = glad_glRenderbufferStorage; glad_glRenderbufferStorage = Storage;
             multisample = glad_glRenderbufferStorageMultisample; glad_glRenderbufferStorageMultisample = Multisample;
@@ -92,7 +209,9 @@ namespace
         ~Observer()
         {
             glad_glGenBuffers = genBuffer; glad_glDeleteBuffers = deleteBuffer; glad_glBufferData = bufferData;
+            glad_glBindBuffer = bindBuffer; glad_glBindBufferBase = bindBufferBase;
             glad_glGenRenderbuffers = genRenderbuffer; glad_glDeleteRenderbuffers = deleteRenderbuffer;
+            glad_glBindRenderbuffer = bindRenderbuffer;
             glad_glRenderbufferStorage = storage; glad_glRenderbufferStorageMultisample = multisample;
             glad_glGetError = getError;
         }
@@ -144,118 +263,167 @@ namespace
     template<UniformType Type> void Uniforms()
     {
         using Buffer = UniformBufferObject<Type>;
+        using Code = UniformBufferErrorCode;
         static_assert(UniqueMovable<Buffer>);
-        auto source = std::make_unique<Buffer>(3, 0);
-        const auto name = source->GetUBO(), size = source->GetUniformTypeSize();
-        const std::array<GLuint, 4> values{ 123, 456, 789, 1011 };
+        auto source = std::make_unique<Buffer>(TakeUniform(Buffer::Create(3, 0)));
+        const auto name = Indexed(0), size = source->GetUniformTypeSize();
+        Check(Bound(GL_UNIFORM_BUFFER_BINDING) == 0, "Successful UBO creation did not unbind");
+        const std::array<GLuint, 4> values{123, 456, 789, 1011};
         glBindBuffer(GL_UNIFORM_BUFFER, name); glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(values), values.data());
         Buffer moved(std::move(*source));
-        Check(!source->GetUBO() && !source->GetUniformTypeSize(), "UBO moved-from state not zero");
+        Check(!*source && !source->GetUniformTypeSize(), "UBO moved-from state not zero");
         const auto deletes = Observer::deleteCalls; source.reset();
         Check(Observer::deleteCalls == deletes, "Empty UBO issued deletion");
-        Buffer destination(7, 1); const auto old = destination.GetUBO();
+        auto destination = TakeUniform(Buffer::Create(7, 1)); const auto old = Indexed(1);
         destination = std::move(moved);
-        Check(!glIsBuffer(old) && !moved.GetUBO() && destination.GetUBO() == name, "UBO assignment ownership failed");
+        Check(!glIsBuffer(old) && !moved && destination && glIsBuffer(name), "UBO assignment ownership failed");
         auto* same = &destination; destination = std::move(*same);
-        std::vector<Buffer> owners; owners.reserve(1); owners.push_back(std::move(destination)); owners.emplace_back(2, 2);
-        Check(owners.front().GetUBO() == name && owners.front().GetUniformTypeSize() == size, "UBO relocation lost metadata");
+        std::vector<Buffer> owners; owners.reserve(1); owners.push_back(std::move(destination));
+        owners.push_back(TakeUniform(Buffer::Create(2, 2)));
+        Check(owners.front() && owners.front().GetUniformTypeSize() == size, "UBO relocation lost metadata");
         glBindBuffer(GL_UNIFORM_BUFFER, name);
-        std::array<GLuint, 4> actual{}; glGetBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(actual), actual.data());
-        GLint64 bytes = 0; glGetBufferParameteri64v(GL_UNIFORM_BUFFER, GL_BUFFER_SIZE, &bytes);
-        GLint indexed = 0; glGetIntegeri_v(GL_UNIFORM_BUFFER_BINDING, 0, &indexed);
-        Check(actual == values && bytes == 3 * size && static_cast<GLuint>(indexed) == name, "UBO storage/data/binding changed after move");
-#if GENGINE_RENDER_COUNTERS
-        Check(RenderCounters::Current().liveNames[0] == Observer::buffers.size(), "Live UBO counter differs from driver calls");
-#endif
-        for (auto failure : {Observer::Fault::BufferName, Observer::Fault::BufferStorage})
+        const auto verify = [&] {
+            std::array<GLuint, 4> actual{}; glGetBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(actual), actual.data());
+            GLint64 bytes = 0; glGetBufferParameteri64v(GL_UNIFORM_BUFFER, GL_BUFFER_SIZE, &bytes);
+            Check(actual == values && bytes == 3 * size && Indexed(0) == name, "UBO storage/data/binding changed");
+        };
+        verify();
+        const auto reject = [&](const auto& result, Code code, unsigned count, unsigned point) {
+            Check(!result && result.error().code == code && result.error().operation == "UniformBufferObject::Create"
+                && !result.error().message.empty() && result.error().elementCount == count
+                && result.error().bindingPoint == point && result.error().elementBytes == size,
+                "UBO error lost typed diagnostic context");
+        };
+        for (auto failure : {Observer::Fault::BufferName, Observer::Fault::BufferStorage,
+            Observer::Fault::BufferBind, Observer::Fault::BufferPublish, Observer::Fault::BufferUnbind})
         {
             Observer::fault = failure;
-            Reject<std::runtime_error>([&] { owners.front() = Buffer(5, 0); });
-            Check(owners.front().GetUBO() == name && Bound(GL_UNIFORM_BUFFER_BINDING) == name,
-                "Failed UBO replacement changed owner/generic binding");
-            glGetIntegeri_v(GL_UNIFORM_BUFFER_BINDING, 0, &indexed);
-            Check(static_cast<GLuint>(indexed) == name, "Failed UBO replaced published indexed binding");
-            Observer::ErrorObserved();
+            const auto code = failure == Observer::Fault::BufferName ? Code::Allocation
+                : failure == Observer::Fault::BufferStorage ? Code::Storage : Code::Binding;
+            reject(Buffer::Create(5, 0), code, 5, 0);
+            Check(owners.front() && Bound(GL_UNIFORM_BUFFER_BINDING) == name && Indexed(0) == name,
+                "Failed UBO creation changed previous owner/bindings");
+            verify(); Observer::ErrorObserved();
         }
         const auto attempts = Observer::attempts;
-        Reject<std::invalid_argument>([] { Buffer empty(0); });
+        reject(Buffer::Create(0), Code::InvalidDescription, 0, 0);
         const auto maxBindings = Bound(GL_MAX_UNIFORM_BUFFER_BINDINGS);
-        Reject<std::out_of_range>([&] { Buffer invalid(1, maxBindings); });
+        reject(Buffer::Create(1, maxBindings), Code::InvalidBinding, 1, maxBindings);
         Check(Observer::attempts == attempts, "Invalid UBO request generated a name");
         Observer::fault = Observer::Fault::BufferStorage;
-        Reject<std::runtime_error>([] { Buffer huge((std::numeric_limits<unsigned int>::max)()); });
+        reject(Buffer::Create((std::numeric_limits<unsigned int>::max)()), Code::Storage, (std::numeric_limits<unsigned int>::max)(), 0);
         Check(Observer::requestedBytes == static_cast<GLsizeiptr>((std::numeric_limits<unsigned int>::max)()) * size,
-            "UBO byte count overflowed before reaching GL");
+            "UBO byte count overflowed");
         Observer::ErrorObserved();
-        // Successful recovery replaces the old name and binding only after allocation.
-        owners.front() = Buffer(4, 0);
-        Check(!glIsBuffer(name) && owners.front().GetUBO(), "UBO recovery failed to retire destination");
+        owners.front() = TakeUniform(Buffer::Create(4, 0));
+        Check(!glIsBuffer(name) && owners.front() && Indexed(0) != 0, "UBO recovery did not retire destination");
         owners.front() = std::move(moved);
-        Check(!owners.front().GetUBO() && !owners.front().GetUniformTypeSize(), "Empty UBO assignment retained state");
-        std::cout << "[PASS] UBO type=" << static_cast<int>(Type) << " moves/relocation/data/failures/recovery\n";
+        Check(!owners.front() && !owners.front().GetUniformTypeSize(), "Empty UBO assignment retained state");
+#if GENGINE_RENDER_COUNTERS
+        Check(RenderCounters::Current().liveNames[0] == Observer::buffers.size(), "UBO counters differ");
+#endif
+        std::cout << "[PASS] typed UBO type=" << static_cast<int>(Type) << " moves/data/errors/bindings/recovery\n";
     }
 
-    void Storage(const RenderBufferObject& buffer, unsigned width, unsigned height, unsigned samples)
+    void RangedUniformBindings()
+    {
+        using Buffer = UniformBufferObject<UniformType::VEC4F>;
+        const auto alignment = Bound(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
+        auto rangeOwner = TakeUniform(Buffer::Create((alignment + 64 + 15) / 16, 0));
+        const auto rangedName = Indexed(0);
+        auto genericOwner = TakeUniform(Buffer::Create(4, 1));
+        const auto genericName = Indexed(1);
+        glBindBufferRange(GL_UNIFORM_BUFFER, 0, rangedName, alignment, 64);
+        glBindBuffer(GL_UNIFORM_BUFFER, genericName);
+        for (auto fault : {Observer::Fault::BufferPublish, Observer::Fault::BufferUnbind})
+        {
+            Observer::fault = fault;
+            auto failed = Buffer::Create(2, 0);
+            Check(!failed && failed.error().code == UniformBufferErrorCode::Binding, "Expected publication rollback");
+            GLint64 start = 0, size = 0;
+            glGetInteger64i_v(GL_UNIFORM_BUFFER_START, 0, &start);
+            glGetInteger64i_v(GL_UNIFORM_BUFFER_SIZE, 0, &size);
+            Check(Indexed(0) == rangedName && start == alignment && size == 64
+                && Bound(GL_UNIFORM_BUFFER_BINDING) == genericName, "Rollback lost indexed range or generic binding");
+            Observer::ErrorObserved();
+        }
+        std::cout << "[PASS] UBO exact indexed-range/generic-binding rollback\n";
+    }
+
+    RenderBufferObject TakeRbo(std::expected<RenderBufferObject, FramebufferError> result)
+    { Check(result.has_value(), "Expected RBO success"); return std::move(*result); }
+    template<class T> void RejectRbo(const std::expected<T, FramebufferError>& result,
+        FramebufferErrorCode code, unsigned w, unsigned h, unsigned samples)
+    {
+        Check(!result && result.error().code == code && result.error().message
+            && result.error().width == w && result.error().height == h && result.error().samples == samples,
+            "Missing typed RBO error or diagnostic context");
+    }
+    void Storage(const RenderBufferObject& buffer, GLuint name, unsigned width, unsigned height, unsigned samples)
     {
         GLint w = 0, h = 0, s = 0, format = 0;
-        glGetNamedRenderbufferParameteriv(buffer.GetID(), GL_RENDERBUFFER_WIDTH, &w);
-        glGetNamedRenderbufferParameteriv(buffer.GetID(), GL_RENDERBUFFER_HEIGHT, &h);
-        glGetNamedRenderbufferParameteriv(buffer.GetID(), GL_RENDERBUFFER_SAMPLES, &s);
-        glGetNamedRenderbufferParameteriv(buffer.GetID(), GL_RENDERBUFFER_INTERNAL_FORMAT, &format);
+        glGetNamedRenderbufferParameteriv(name, GL_RENDERBUFFER_WIDTH, &w);
+        glGetNamedRenderbufferParameteriv(name, GL_RENDERBUFFER_HEIGHT, &h);
+        glGetNamedRenderbufferParameteriv(name, GL_RENDERBUFFER_SAMPLES, &s);
+        glGetNamedRenderbufferParameteriv(name, GL_RENDERBUFFER_INTERNAL_FORMAT, &format);
         Check(w == static_cast<GLint>(width) && h == static_cast<GLint>(height) && format == GL_DEPTH24_STENCIL8
             && (samples > 1 ? s >= static_cast<GLint>(samples) : s == 0)
             && buffer.GetWidth() == width && buffer.GetHeight() == height && buffer.GetSamples() == samples,
-            "Renderbuffer allocated storage or metadata differs");
+            "Renderbuffer storage or metadata differs");
     }
-
     void Renderbuffers()
     {
+        using Code = FramebufferErrorCode;
         for (unsigned samples : {1u, 4u})
         {
-            auto source = std::make_unique<RenderBufferObject>(16, 12, samples);
-            const auto name = source->GetID();
+            auto source = std::make_unique<RenderBufferObject>(TakeRbo(RenderBufferObject::Create(16, 12, samples)));
+            const auto name = Bound(GL_RENDERBUFFER_BINDING);
             RenderBufferObject moved(std::move(*source));
-            Check(!source->GetID() && !source->GetWidth() && !source->GetHeight() && !source->GetSamples(), "RBO moved-from state not zero");
+            Check(!*source && !source->GetWidth() && !source->GetHeight() && !source->GetSamples(), "RBO moved-from state not zero");
             const auto deletes = Observer::deleteCalls; source.reset();
             Check(Observer::deleteCalls == deletes, "Empty RBO issued deletion");
-            RenderBufferObject destination(8, 8); const auto old = destination.GetID();
+            auto destination = TakeRbo(RenderBufferObject::Create(8, 8)); const auto old = Bound(GL_RENDERBUFFER_BINDING);
             destination = std::move(moved);
-            Check(!glIsRenderbuffer(old) && destination.GetID() == name, "RBO assignment failed");
+            Check(!glIsRenderbuffer(old) && destination && !moved && glIsRenderbuffer(name), "RBO assignment failed");
             auto* same = &destination; destination = std::move(*same);
             std::vector<RenderBufferObject> owners;
-            owners.reserve(1); owners.push_back(std::move(destination)); owners.emplace_back(3, 3);
-            Check(owners.front().GetID() == name, "RBO relocation changed identity");
-            Storage(owners.front(), 16, 12, samples);
-            const auto unrelated = owners.back().GetID();
-            for (auto failure : {Observer::Fault::RenderbufferName, Observer::Fault::RenderbufferStorage})
+            owners.reserve(1); owners.push_back(std::move(destination)); owners.push_back(TakeRbo(RenderBufferObject::Create(3, 3)));
+            const auto unrelated = Bound(GL_RENDERBUFFER_BINDING);
+            Storage(owners.front(), name, 16, 12, samples);
+            for (auto failure : {Observer::Fault::RenderbufferName, Observer::Fault::RenderbufferStorage, Observer::Fault::RenderbufferBind})
             {
+                const auto code = failure == Observer::Fault::RenderbufferName ? Code::Allocation
+                    : failure == Observer::Fault::RenderbufferStorage ? Code::Storage : Code::InvalidOperation;
                 glBindRenderbuffer(GL_RENDERBUFFER, unrelated);
                 Observer::fault = failure;
-                Reject<std::runtime_error>([&] { owners.front().Resize(20, 24, samples); });
-                Check(owners.front().GetID() == name && Bound(GL_RENDERBUFFER_BINDING) == unrelated, "Failed RBO resize changed owner/binding");
-                Storage(owners.front(), 16, 12, samples); Observer::ErrorObserved();
+                RejectRbo(owners.front().Resize(20, 24, samples), code, 20, 24, samples);
+                Check(owners.front() && Bound(GL_RENDERBUFFER_BINDING) == unrelated, "Failed RBO resize changed owner/binding");
+                Storage(owners.front(), name, 16, 12, samples);
+                Storage(owners.back(), unrelated, 3, 3, 1); // failed binding must not mutate this storage
+                Observer::ErrorObserved();
                 Observer::fault = failure;
-                Reject<std::runtime_error>([&] { RenderBufferObject failed(2, 2, samples); });
+                RejectRbo(RenderBufferObject::Create(2, 2, samples), code, 2, 2, samples);
+                Check(Bound(GL_RENDERBUFFER_BINDING) == unrelated, "Failed creation lost previous binding");
                 Observer::ErrorObserved();
             }
             const auto attempts = Observer::attempts;
-            Reject<std::invalid_argument>([] { RenderBufferObject bad(0, 1); });
-            Reject<std::invalid_argument>([] { RenderBufferObject bad(1, 0); });
-            Reject<std::invalid_argument>([] { RenderBufferObject bad(1, 1, 0); });
+            RejectRbo(RenderBufferObject::Create(0, 1), Code::InvalidDescription, 0, 1, 1);
+            RejectRbo(RenderBufferObject::Create(1, 0), Code::InvalidDescription, 1, 0, 1);
+            RejectRbo(RenderBufferObject::Create(1, 1, 0), Code::InvalidDescription, 1, 1, 0);
             const auto maxSize = Bound(GL_MAX_RENDERBUFFER_SIZE), maxSamples = Bound(GL_MAX_SAMPLES);
-            Reject<std::out_of_range>([&] { RenderBufferObject bad(maxSize + 1, 1); });
-            Reject<std::out_of_range>([&] { RenderBufferObject bad(1, 1, maxSamples + 1); });
+            RejectRbo(RenderBufferObject::Create(maxSize + 1, 1), Code::Unsupported, maxSize + 1, 1, 1);
+            RejectRbo(RenderBufferObject::Create(1, 1, maxSamples + 1), Code::Unsupported, 1, 1, maxSamples + 1);
             Check(Observer::attempts == attempts, "Invalid RBO request generated a name");
-            owners.front().Resize(20, 24, samples);
+            Check(owners.front().Resize(20, 24, samples).has_value(), "Recovery failed");
             Check(!glIsRenderbuffer(name), "Successful RBO resize retained old owner");
-            Storage(owners.front(), 20, 24, samples);
+            Storage(owners.front(), Bound(GL_RENDERBUFFER_BINDING), 20, 24, samples);
 #if GENGINE_RENDER_COUNTERS
             Check(RenderCounters::Current().liveNames[5] == Observer::renderbuffers.size(), "Live RBO counters differ");
 #endif
             owners.front() = std::move(moved);
-            Check(!owners.front().GetID() && !owners.front().GetWidth() && !owners.front().GetSamples(), "Empty RBO assignment retained state");
+            Check(!owners.front() && !owners.front().GetWidth() && !owners.front().GetSamples(), "Empty RBO assignment retained state");
         }
-        std::cout << "[PASS] RBO single/multisample moves/relocation/resize/failure/recovery\n";
+        std::cout << "[PASS] RBO typed-errors/diagnostics/binding/partial-cleanup/moves/recovery\n";
     }
 
     void Targets()
@@ -294,8 +462,8 @@ namespace
     void RejectThread(std::string_view mode)
     {
         using Buffer = UniformBufferObject<UniformType::VEC4F>;
-        auto buffer = std::make_unique<Buffer>(1);
-        auto renderbuffer = std::make_unique<RenderBufferObject>(2, 2);
+        auto buffer = std::make_unique<Buffer>(TakeUniform(Buffer::Create(1)));
+        auto renderbuffer = std::make_unique<RenderBufferObject>(TakeRbo(RenderBufferObject::Create(2, 2)));
         glad_glDeleteBuffers = ForbiddenDelete; glad_glDeleteRenderbuffers = ForbiddenDelete;
         std::thread worker([&]
         {
@@ -331,7 +499,7 @@ int main(int argc, char** argv)
                 Observer observer;
                 Uniforms<UniformType::VEC2F>(); Uniforms<UniformType::VEC3F>(); Uniforms<UniformType::VEC4F>();
                 Uniforms<UniformType::MATRIX_2_2>(); Uniforms<UniformType::MATRIX_3_3>(); Uniforms<UniformType::MATRIX_4_4>();
-                Renderbuffers(); Targets(); observer.Verify();
+                RangedUniformBindings(); Renderbuffers(); Targets(); observer.Verify();
             }
             Check(diagnostics.markers == 1 && !diagnostics.errors && glGetError() == GL_NO_ERROR, "Unexpected GL diagnostics/errors");
             std::cout << "[INFO] successful-renderbuffer-allocation-notices=" << diagnostics.allocationNotices << '\n';
@@ -342,3 +510,6 @@ int main(int argc, char** argv)
     }
     catch (const std::exception& error) { std::cerr << "[FAIL] " << error.what() << '\n'; return 1; }
 }
+
+#endif // UBO_STARTUP_PROBE
+#endif

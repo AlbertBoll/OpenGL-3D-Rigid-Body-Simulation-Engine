@@ -1,3 +1,7 @@
+#include <concepts>
+#include <functional>
+#include <cstdlib>
+#include <iostream>
 #include "Renderer/RenderExtraction.h"
 #include "Renderer/RenderVisibility.h"
 #include <type_traits>
@@ -82,6 +86,29 @@ namespace
     RenderExtractionConfig selectedConfig;
     int checks{};
     const char* lastCheck = "startup";
+    // Test-only preparation for bounded Scene value/void result migrations.
+    template<std::invocable Operation>
+    auto SceneOperationChecked(Operation&& operation)
+    {
+        using Result = std::remove_cvref_t<std::invoke_result_t<Operation>>;
+        if constexpr (std::is_void_v<Result>) {
+            std::invoke(std::forward<Operation>(operation));
+        } else {
+            auto result = std::invoke(std::forward<Operation>(operation));
+            if constexpr (requires { typename Result::error_type; typename Result::value_type; }) {
+                if (!result) {
+                    const auto& error = result.error();
+                    std::cerr << "[FAIL] Valid Scene fixture: operation=" << error.operation
+                        << " code=" << static_cast<unsigned>(error.code) << " entity=" << error.entity
+                        << ": " << error.message << '\n';
+                    std::exit(1);
+                }
+                if constexpr (std::is_void_v<typename Result::value_type>) return;
+                else return std::move(*result);
+            } else return result;
+        }
+    }
+
     template<class T> void Check(const T& value, const char* message)
     {
         lastCheck = message; ++checks;
@@ -89,6 +116,7 @@ namespace
     }
     bool AllocationFailure(const RenderExtractionError& error)
     {
+        if (const auto* transform=std::get_if<TransformError>(&error.cause)) return transform->code==TransformErrorCode::AllocationFailed;
         if (const auto* frame=std::get_if<FrameError>(&error.cause)) return frame->code==FrameErrorCode::AllocationFailed;
         if (const auto* work=std::get_if<RenderWorkError>(&error.cause)) return work->code==RenderWorkCode::Allocation;
         return false;
@@ -146,14 +174,14 @@ namespace
         }
         std::pair<_Entity, EntityRenderId> Entity(std::uint64_t uuid, std::uint32_t submesh = 0)
         {
-            auto entity = scene.CreateEntityWithUUID(UUID(uuid));
+            auto entity = SceneOperationChecked([&] { return scene.CreateEntityWithUUID(UUID(uuid)); });
             auto id = scene.RenderData().Identify(entity).value();
             Check(scene.RenderData().Add(id, MeshRendererComponent{mesh, material, submesh}), "Author mesh intent");
             return {entity, id};
         }
         std::pair<_Entity, EntityRenderId> Light(std::uint64_t uuid, RenderLightKind kind)
         {
-            auto entity = scene.CreateEntityWithUUID(UUID(uuid));
+            auto entity = SceneOperationChecked([&] { return scene.CreateEntityWithUUID(UUID(uuid)); });
             auto id = scene.RenderData().Identify(entity).value();
             RenderLightComponent intent; intent.kind = kind;
             Check(scene.RenderData().Add(id, intent), "Author typed light intent without mesh");
@@ -282,8 +310,9 @@ namespace
         {
             Allocations::arrays = 0; Allocations::failArray = failure; Allocations::active = true;
             result = f.Extract(stats, {&camera,1}, {&line,1}); Allocations::active = false;
+            std::println(stderr, "[FAULT] array={} attempts={} success={} cause={}", failure, Allocations::arrays.load(), bool(result), result ? -1 : int(result.error().cause.index()));
             Check(!result && AllocationFailure(result.error()),
-                "Frame array allocation failure propagates without a partial frame");
+                "Extraction allocation failure propagates without a partial frame");
             Check(f.scene.RenderData().Replace(id, intent), "Failure releases extraction freeze");
         }
         Allocations::failArray = -1;
@@ -379,7 +408,7 @@ namespace
         auto removed = f.Extract(stats);
         Check(removed && removed->SpotLights().empty() && removed->LightRevision() > aggregate,
             "Legacy light components alone do not become a second extraction source");
-        f.scene.DestroyEntity(spot); f.scene.DestroyEntity(point); f.scene.DestroyEntity(directional);
+        SceneOperationChecked([&] { return f.scene.DestroyEntity(spot); }); SceneOperationChecked([&] { return f.scene.DestroyEntity(point); }); SceneOperationChecked([&] { return f.scene.DestroyEntity(directional); });
         auto gone = f.Extract(stats); Check(gone && gone->LightRevision() > removed->LightRevision()
             && gone->DirectionalLights().empty() && gone->PointLights().empty(), "Entity removal visible in empty-frame revision");
         const auto packet = ConsumeLights(*mixed);
@@ -755,11 +784,17 @@ int main(int argc, char** argv)
     auto* window = SDL_CreateWindow("Serial extraction validation",0,0,32,32,SDL_WINDOW_OPENGL|SDL_WINDOW_HIDDEN);
     Check(window, "Hidden window"); auto context = SDL_GL_CreateContext(window); Check(context, "Context");
     Check(gladLoadGLLoader(SDL_GL_GetProcAddress), "GL loader");
+    if (argc>1 && std::string_view(argv[1])=="--scene-contract") {
+        // Bounded Scene caller/error/lifetime validation excludes historical allocation/timing loops.
+        Basic(window,context); Failures(); Lights(window,context);
+        LightValidation(); LightLimitsAndBuilder(); Retention(window,context);
+    } else {
     Basic(window,context); Many(window,context); Failures(); Lights(window,context); LightValidation(); LightLimitsAndBuilder(); Retention(window,context);
     Parallel(window,context); MergeContract();
     for (unsigned workers:{1u,2u,8u}) { selectedConfig={{workers},0}; Failures(); Lights(window,context); LightValidation(); LightLimitsAndBuilder(); Retention(window,context); }
     selectedConfig={};
     if (argc>1 && std::string_view(argv[1])=="--benchmark") Benchmark(window,context);
+    }
     Check(glGetError() == GL_NO_ERROR, "No GL errors");
     SDL_GL_DeleteContext(context); SDL_DestroyWindow(window); SDL_Quit();
     std::println("[PASS] render-extraction checks={}", checks);

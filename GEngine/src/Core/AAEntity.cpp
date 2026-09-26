@@ -11,7 +11,7 @@ namespace GEngine
 
 		BindVAO();
 
-		BindTexture(GetMaterial()->GetTextureTarget());
+		BindTextures();
 
 		UpdateRenderSettings();
 

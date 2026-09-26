@@ -1,7 +1,8 @@
+#pragma once
+#include <expected>
 #include <string>
+#include <string_view>
 #include"Math/Math.h"
-
-enum FMOD_STUDIO_PLAYBACK_STATE;
 
 namespace GEngine::Audio
 {
@@ -14,6 +15,25 @@ namespace GEngine::Audio
 		PLAYBACK_STARTING,              /* Start has been called but the instance is not fully started yet. */
 		PLAYBACK_STOPPING,
 	};
+
+    enum class PlaybackStateErrorCode { QueryFailed, InvalidState };
+    struct PlaybackStateError
+    {
+        PlaybackStateErrorCode code;
+        unsigned int eventId;
+        std::string operation;
+        std::string message;
+    };
+    using PlaybackStateResult = std::expected<AUDIO_PLAYBACK_STATE, PlaybackStateError>;
+    constexpr std::string_view PlaybackStateErrorLabel(PlaybackStateErrorCode code)
+    {
+        switch (code)
+        {
+        case PlaybackStateErrorCode::QueryFailed: return "QueryFailed";
+        case PlaybackStateErrorCode::InvalidState: return "InvalidState";
+        }
+        return "UnknownPlaybackStateError";
+    }
 
 	class AudioSystem;
 
@@ -37,7 +57,7 @@ namespace GEngine::Audio
 		void SetVolume(float value) const;
 		void SetPitch(float value) const;
 		void SetParameter(const std::string& name, float value) const;
-		AUDIO_PLAYBACK_STATE GetPlayState()const;
+        [[nodiscard]] PlaybackStateResult GetPlayState() const;
 
 
 		// Getters

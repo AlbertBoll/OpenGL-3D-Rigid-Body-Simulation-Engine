@@ -114,7 +114,7 @@ namespace
         {std::ofstream bad(folder/"empty.tga");}
         std::error_code linkError;std::filesystem::create_hard_link(folder/"rgb.tga",folder/"alias.tga",linkError);
         Check(!linkError,"hard-link fixture");
-        auto& pub=root.AssetPublications();TextureRegistry registry(pub);
+        auto& pub=root.SceneServices().value().publication;TextureRegistry registry(pub);
         auto loader=Take(AsyncTextureLoader::Create(pub,registry,folder,Limits()),"async texture loader");
         TextureDesc rgb;rgb.format=TextureFormat::RGB8;rgb.colorSpace=TextureColorSpace::Linear;rgb.mips=TextureMipIntent::None;rgb.orientation=ImageOrientation::TopLeft;
         const auto initialUpload=uploadCalls;

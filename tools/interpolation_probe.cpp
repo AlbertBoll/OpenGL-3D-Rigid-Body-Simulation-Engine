@@ -1,4 +1,20 @@
+#include <concepts>
+#include <functional>
+#include <cstdlib>
+#ifdef RETAINED_SUBMISSION_SCHEMA_ONLY
+#include "Core/RenderSystem.h"
+#include <type_traits>
+static_assert(std::is_same_v<decltype(std::declval<::GEngine::_Scene&>().GetRenderTransform(std::declval<const ::GEngine::_Entity&>())),
+    std::expected<::GEngine::_Scene::RenderTransform, ::GEngine::RenderTransformQueryError>>);
+static_assert(std::is_same_v<decltype(::GEngine::RenderSystem::SceneRender(nullptr, std::declval<::GEngine::Camera::_EditorCamera&>())),
+    ::GEngine::RenderSystemResult>);
+#else
+#ifdef RETAINED_SUBMISSION_INTERNAL_PROBE
+// Compile the unchanged implementation directly only for exact private range-helper coverage.
+#include "../GEngine/include/GEngine/Core/RenderSystem.cpp"
+#endif
 #include "../GEngine/src/Assets/ShaderBackend.h"
+#include "../GEngine/src/Scene/SceneBackend.h"
 // Production scene/renderer interpolation checks; run through test_interpolation.py.
 #include "gepch.h"
 #include "Core/BaseApp.h"
@@ -27,6 +43,63 @@ namespace
         ++checks;
         if (!ok) throw std::runtime_error(message);
     }
+    // Test-only preparation for bounded Scene value/void result migrations.
+    template<std::invocable Operation>
+    auto SceneOperationChecked(Operation&& operation)
+    {
+        using Result = std::remove_cvref_t<std::invoke_result_t<Operation>>;
+        if constexpr (std::is_void_v<Result>) {
+            std::invoke(std::forward<Operation>(operation));
+        } else {
+            auto result = std::invoke(std::forward<Operation>(operation));
+            if constexpr (requires { typename Result::error_type; typename Result::value_type; }) {
+                if (!result) {
+                    const auto& error = result.error();
+                    std::cerr << "[FAIL] Valid Scene fixture: operation=" << error.operation
+                        << " code=" << static_cast<unsigned>(error.code) << " entity=" << error.entity
+                        << ": " << error.message << '\n';
+                    std::exit(1);
+                }
+                if constexpr (std::is_void_v<typename Result::value_type>) return;
+                else return std::move(*result);
+            } else return result;
+        }
+    }
+
+    // Test-only bridge while bounded callers precede the Scene typed-return migration.
+    template<std::invocable Start>
+    void StartRuntimeChecked(Start&& start)
+    {
+        if constexpr (std::is_void_v<std::invoke_result_t<Start>>)
+            std::invoke(std::forward<Start>(start));
+        else
+        {
+            auto result=std::invoke(std::forward<Start>(start));
+            if(!result)
+            {
+                std::cerr << "[FAIL] Valid fixture runtime startup: operation=" << result.error().operation
+                    << " code=" << static_cast<unsigned>(result.error().code)
+                    << " entity=" << result.error().entity << " radius=" << result.error().radius
+                    << " points=" << result.error().pointCount << ": " << result.error().message << '\n';
+                std::exit(1);
+            }
+        }
+    }
+    template<class T, class E> T Take(std::expected<T,E> value)
+    { Check(value.has_value(), "Expected typed query/submission success"); return std::move(*value); }
+    void Submitted(::GEngine::RenderSystemResult result)
+    { Check(result.has_value(), "Expected retained submission success"); }
+    void QueryRejected(const ::GEngine::RenderTransformQueryError& error)
+    {
+        Check(error.code==::GEngine::TransformErrorCode::InvalidEntity
+            && error.operation=="_Scene::GetRenderTransform"
+            && error.message=="Render transform requires a live entity in this scene", "Typed query lost diagnostics");
+    }
+    void SubmissionRejected(const ::GEngine::RenderSystemResult& result)
+    {
+        Check(!result && std::holds_alternative<::GEngine::RenderTransformQueryError>(result.error()), "Submission lost typed query failure");
+        QueryRejected(std::get<::GEngine::RenderTransformQueryError>(result.error()));
+    }
     bool Near(const Mat4& a, const Mat4& b, float tolerance = 2e-5f)
     {
         for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r)
@@ -43,12 +116,12 @@ namespace
         {
             if (dynamic)
             {
-                auto ground = scene.CreateEntity("static ground sphere");
+                auto ground = SceneOperationChecked([&] { return scene.CreateEntity("static ground sphere"); });
                 ground.Transform().Translation = Vec3f(0, -10, 0);
                 ground.AddComponent<RigidBody3DComponent>().Type = BodyType::Static;
                 ground.AddComponent<SphereFixture3DComponent>().Radius = 10;
             }
-            entity = scene.CreateEntity("interpolated body");
+            entity = SceneOperationChecked([&] { return scene.CreateEntity("interpolated body"); });
             entity.AddComponent<RigidBody3DComponent>().Type = dynamic ? BodyType::Dynamic : BodyType::Kinematic;
             if (dynamic) entity.Transform().Translation.y = 2;
             entity.AddComponent<SphereFixture3DComponent>().Radius = .1f;
@@ -56,13 +129,13 @@ namespace
         }
         void Start()
         {
-            scene.OnRuntimeStart();
+            StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });
             for (auto* body : scene.GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies())
                 shapes.emplace_back(body->m_Shape);
             Body()->m_LinearVelocity = Vec3f(6, 0, 0);
         }
         RigidBody3D* Body() { return entity.GetComponent<RigidBody3DComponent>().RuntimeBody; }
-        _Scene::RenderTransform Sample() { return scene.GetRenderTransform(entity); }
+        _Scene::RenderTransform Sample() { return Take(scene.GetRenderTransform(entity)); }
     };
 
     void EndpointsAndDiscontinuities()
@@ -111,7 +184,7 @@ namespace
         rotation.scene.Update(Timestep(dt));
         Check(!Near(rotation.Sample().matrix, rotation.entity.Transform().GetTransform()),
             "Reparent fixture needs distinct interpolated and current poses");
-        auto parent = rotation.scene.CreateEntity("organizational parent");
+        auto parent = SceneOperationChecked([&] { return rotation.scene.CreateEntity("organizational parent"); });
         parent.Transform().SetTranslation(Vec3f(100, 200, 300));
         parent.Transform().Scale = Vec3f(2, 4, 7);
         parent.Transform().SetRotation(Vec3f(.4f, .6f, .8f));
@@ -151,18 +224,26 @@ namespace
         }
         const auto stale = f.entity;
         const auto revision = f.Sample().revision;
-        f.scene.DestroyEntity(stale);
-        bool rejected = false;
-        try { (void)f.scene.GetRenderTransform(stale); } catch (const std::invalid_argument&) { rejected = true; }
-        Check(rejected && !stale, "Destroyed entity retained a presentation sample");
-        auto replacement = f.scene.CreateEntity("replacement");
+        SceneOperationChecked([&] { return f.scene.DestroyEntity(stale); });
+        const auto staleResult=f.scene.GetRenderTransform(stale);
+        Check(!staleResult && !stale, "Destroyed entity retained a presentation sample");
+        QueryRejected(staleResult.error());
+        auto replacement = SceneOperationChecked([&] { return f.scene.CreateEntity("replacement"); });
         replacement.Transform().Translation = Vec3f(33, 0, 0);
-        const auto sample = f.scene.GetRenderTransform(replacement);
+        const auto sample = Take(f.scene.GetRenderTransform(replacement));
         Check(sample.matrix[3].x == 33 && sample.revision > revision, "Reused entity slot inherited stale pose/revision");
         _Scene other;
-        rejected = false;
-        try { (void)other.GetRenderTransform(replacement); } catch (const std::invalid_argument&) { rejected = true; }
-        Check(rejected, "Cross-scene presentation query was accepted");
+        const auto foreignResult=other.GetRenderTransform(replacement);
+        Check(!foreignResult, "Cross-scene presentation query was accepted");
+        QueryRejected(foreignResult.error());
+        const auto invalidResult=other.GetRenderTransform(_Entity{});
+        Check(!invalidResult, "Invalid presentation query was accepted"); QueryRejected(invalidResult.error());
+        auto missing=SceneOperationChecked([&] { return other.CreateEntity("missing transform"); }); missing.RemoveComponent<Transform3DComponent>();
+        const auto missingResult=other.GetRenderTransform(missing);
+        Check(!missingResult, "Missing transform query was accepted"); QueryRejected(missingResult.error());
+        Check(Take(f.scene.GetRenderTransform(replacement)).revision==sample.revision,
+            "Rejected queries changed the valid presentation revision");
+        std::cout << "[PASS] typed presentation invalid/stale/foreign/missing-transform diagnostics/revision\n";
         MovingScene restarted;
         restarted.scene.Update(Timestep(1.5 * dt));
         restarted.scene.OnRuntimeStop();
@@ -170,14 +251,14 @@ namespace
         restarted.Start();
         Check(restarted.scene.GetPhysicsTiming().totalSteps == 0
             && Near(restarted.Sample().matrix, restarted.entity.Transform().GetTransform()), "Restart reused old endpoints");
-        auto duplicate = restarted.scene.DuplicateEntity(restarted.entity);
-        Check(Near(restarted.scene.GetRenderTransform(duplicate).matrix, duplicate.Transform().GetTransform()),
+        auto duplicate = SceneOperationChecked([&] { return restarted.scene.DuplicateEntity(restarted.entity); });
+        Check(Near(Take(restarted.scene.GetRenderTransform(duplicate)).matrix, duplicate.Transform().GetTransform()),
             "Duplicate copied runtime presentation history");
         restarted.scene.Update(Timestep(1.5 * dt));
         auto borrowed = RefPtr<_Scene>(&restarted.scene, [](_Scene*) {});
-        auto copied = _Scene::Copy(borrowed);
+        auto copied = SceneOperationChecked([&] { return _Scene::Copy(borrowed); });
         auto copiedEntity = copied->GetEntityByUUID(restarted.entity.GetUUID());
-        Check(Near(copied->GetRenderTransform(copiedEntity).matrix, copiedEntity.Transform().GetTransform())
+        Check(Near(Take(copied->GetRenderTransform(copiedEntity)).matrix, copiedEntity.Transform().GetTransform())
             && copied->GetPhysicsTiming().totalSteps == 0, "Scene copy inherited simulation/interpolation history");
         std::cout << "[PASS] catch-up endpoints, clamp/drain, destruction/reuse, cross-scene and restart\n";
     }
@@ -290,7 +371,7 @@ namespace
                 f.entity.AddComponent<PreRenderPassComponent>().Shader = &shader;
                 f.entity.AddComponent<MeshComponent>(&geometry);
                 f.entity.AddComponent<TexturesComponent>();
-                f.scene.PushToRenderList(f.entity);
+                SceneOperationChecked([&] { return f.scene.PushToRenderList(f.entity); });
                 Camera::_EditorCamera camera;
                 glViewport(0, 0, 128, 128); glDisable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE);
                 glClearColor(0, 0, 0, 1);
@@ -301,22 +382,73 @@ namespace
                     if (sample) f.scene.Update(Timestep(dt * (sample == 1 ? .5 : .49)));
                     const auto expected = f.Sample();
                     glClear(GL_COLOR_BUFFER_BIT);
-                    RenderSystem::SceneRender(&f.scene, camera);
+                    Submitted(RenderSystem::SceneRender(&f.scene, camera));
                     UniformMatches(shader, expected.matrix); centers[sample] = PixelCenter();
-                    shader.Bind(); RenderSystem::MousePickPreRender(&f.scene, camera, &shader); UniformMatches(shader, expected.matrix);
-                    shader.Bind(); RenderSystem::CascadedShadowPreRender(&f.scene); UniformMatches(shader, expected.matrix);
-                    shader.Bind(); RenderSystem::PointShadowPreRender(&f.scene, &shader, {}, Vec3f(0), 100); UniformMatches(shader, expected.matrix);
-                    RenderSystem::CascadedShadowSceneRender(&f.scene, camera, {}, 100); UniformMatches(shader, expected.matrix);
-                    RenderSystem::SkyBoxRender(f.entity, camera); UniformMatches(shader, expected.matrix);
+                    shader.Bind(); Submitted(RenderSystem::MousePickPreRender(&f.scene, camera, &shader)); UniformMatches(shader, expected.matrix);
+                    shader.Bind(); Submitted(RenderSystem::CascadedShadowPreRender(&f.scene)); UniformMatches(shader, expected.matrix);
+                    shader.Bind(); Submitted(RenderSystem::PointShadowPreRender(&f.scene, &shader, {}, Vec3f(0), 100)); UniformMatches(shader, expected.matrix);
+                    Submitted(RenderSystem::CascadedShadowSceneRender(&f.scene, camera, {}, 100)); UniformMatches(shader, expected.matrix);
+                    Submitted(RenderSystem::SkyBoxRender(f.entity, camera)); UniformMatches(shader, expected.matrix);
                     Check(f.Sample().revision == expected.revision && f.scene.GetPhysicsTiming().totalSteps == 1,
                         "Multiple render passes changed presentation or simulation state");
                 }
                 Check(centers[1] - centers[0] > 8 && centers[2] - centers[1] > 8,
                     "Actual rendered pixels did not move between physics ticks");
                 f.entity.AddComponent<PointLightComponent>();
-                f.scene.PushToRenderList(f.entity);
-                RenderSystem::PointLightsVisualize(&f.scene, camera, &shader); UniformMatches(shader, f.Sample().matrix);
-                shader.Bind(); RenderSystem::MousePickPreRender(&f.scene, camera, &shader); UniformMatches(shader, f.Sample().matrix);
+                SceneOperationChecked([&] { return f.scene.PushToRenderList(f.entity); });
+                Submitted(RenderSystem::PointLightsVisualize(&f.scene, camera, &shader)); UniformMatches(shader, f.Sample().matrix);
+                shader.Bind(); Submitted(RenderSystem::MousePickPreRender(&f.scene, camera, &shader)); UniformMatches(shader, f.Sample().matrix);
+
+                _Scene foreignScene;
+                auto foreign=SceneOperationChecked([&] { return foreignScene.CreateEntity("foreign renderer entity"); });
+                foreign.AddComponent<RenderComponent>().Shader=&shader;
+                foreign.AddComponent<PreRenderPassComponent>().Shader=&shader;
+                foreign.AddComponent<MeshComponent>(&geometry);
+                foreign.AddComponent<TexturesComponent>();
+                SceneDetail::BackendAccess::Groups(f.scene).clear(); SceneDetail::BackendAccess::Lights(f.scene).clear();
+                SceneDetail::BackendAccess::Groups(f.scene)[Asset::ShaderBackendAccess::Program(shader)]={foreign};
+                const auto before=RenderSystem::GetRenderStats();
+                SubmissionRejected(RenderSystem::SceneRender(&f.scene,camera));
+                SubmissionRejected(RenderSystem::MousePickPreRender(&f.scene,camera,&shader));
+                SubmissionRejected(RenderSystem::CascadedShadowPreRender(&f.scene));
+                SubmissionRejected(RenderSystem::PointShadowPreRender(&f.scene,&shader,{},Vec3f(0),100));
+                SubmissionRejected(RenderSystem::CascadedShadowSceneRender(&f.scene,camera,{},100));
+                auto cascade=Take(CascadeShadowFrameBuffer::Create(32,32,0));
+                auto point=Take(PointShadowFrameBuffer::Create(32,32));
+                auto picking=Take(MousePickFrameBuffer::Create(32,32));
+                SubmissionRejected(RenderSystem::CascadedShadowPass(&f.scene,&shader,cascade));
+                GLint bound=0,cull=0;
+                glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&bound); glGetIntegerv(GL_CULL_FACE_MODE,&cull);
+                Check(bound==0 && cull==GL_BACK,"Failed cascade pass did not release framebuffer/cull state");
+                SubmissionRejected(RenderSystem::PointShadowPass(&f.scene,&shader,point,Vec3f(0),.1f,100));
+                SubmissionRejected(RenderSystem::MousePickPass(&f.scene,camera,&shader,picking));
+                SubmissionRejected(RenderSystem::MousePickPass(&f.scene,camera,&shader,picking,Vec2f(0),Vec2f(32)));
+                glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&bound);
+                Check(bound==0,"Failed point/picking pass did not release framebuffer");
+                foreign.RemoveComponent<Transform3DComponent>();
+                glDepthFunc(GL_LESS);
+                SubmissionRejected(RenderSystem::SkyBoxRender(foreign,camera));
+                GLint depth=0; glGetIntegerv(GL_DEPTH_FUNC,&depth);
+                Check(depth==GL_LESS,"Rejected skybox changed depth state");
+                auto missingPoint=SceneOperationChecked([&] { return f.scene.CreateEntity("missing point transform"); });
+                missingPoint.AddComponent<PointLightComponent>(); missingPoint.AddComponent<MeshComponent>(&geometry);
+                missingPoint.AddComponent<RenderComponent>().Shader=&shader;
+                missingPoint.RemoveComponent<Transform3DComponent>();
+                SceneDetail::BackendAccess::Lights(f.scene)[Asset::ShaderBackendAccess::Program(shader)]={missingPoint};
+                // Remove the otherwise valid point so the failure test observes no earlier successful draws.
+                f.entity.RemoveComponent<PointLightComponent>();
+                SubmissionRejected(RenderSystem::PointLightsVisualize(&f.scene,camera,&shader));
+                const auto after=RenderSystem::GetRenderStats();
+                Check(before.m_ArrayDrawCall==after.m_ArrayDrawCall && before.m_ElementsDrawCall==after.m_ElementsDrawCall,
+                    "Rejected transform issued a draw");
+                FrameBufferSpecification wrongDescription;
+                wrongDescription.Width=wrongDescription.Height=32;
+                wrongDescription.Colors[0]=FramebufferFormat::RGBA8; wrongDescription.ColorCount=1;
+                const_cast<FrameBuffer&>(picking.Buffer())=Take(FrameBuffer::Create(wrongDescription));
+                auto failedClear=RenderSystem::MousePickPass(&f.scene,camera,&shader,picking);
+                Check(!failedClear && std::holds_alternative<FramebufferError>(failedClear.error()),"Picking clear error was swallowed");
+                glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&bound); Check(bound==0,"Failed clear retained framebuffer binding");
+                std::cout << "[PASS] retained submission typed-query/no-post-failure-draw/pass-state/clear-error\n";
                 std::cout << "[PASS] GPU pixels cycle=" << cycle << " centers=" << centers[0] << ',' << centers[1] << ',' << centers[2]
                     << " fixed-ticks=1 scene/picking/shadow/skybox-matrices=equal\n";
             }
@@ -325,6 +457,36 @@ namespace
         }
     }
 
+
+#ifdef RETAINED_SUBMISSION_INTERNAL_PROBE
+    void RangeChecks()
+    {
+        for (float value:{-1.f,std::numeric_limits<float>::infinity(),-std::numeric_limits<float>::infinity(),
+            std::numeric_limits<float>::quiet_NaN(),2147483648.f})
+        {
+            const auto result=::GEngine::ViewportExtent(value,"range fixture",1);
+            Check(!result && result.error().code==RenderSystemRangeCode::ViewportExtent
+                && result.error().operation=="range fixture" && result.error().axis==1
+                && (result.error().extent==value || (std::isnan(result.error().extent)&&std::isnan(value)))
+                && result.error().message=="Framebuffer extent is not representable as GLsizei", "Viewport rejection lost diagnostics");
+        }
+        Check(Take(::GEngine::ViewportExtent(0,"range fixture",0))==0
+            && Take(::GEngine::ViewportExtent(13.75f,"range fixture",0))==13
+            && Take(::GEngine::ViewportExtent(2147483520.f,"range fixture",0))==2147483520,"Viewport truncation/boundary changed");
+        auto second=::GEngine::ViewportSize(Vec2f(32,-1),"second axis");
+        Check(!second && second.error().axis==1,"Height error lost axis");
+        const auto limit=static_cast<std::size_t>(std::numeric_limits<GLsizei>::max());
+        Check(Take(::GEngine::VertexCount(0))==0 && Take(::GEngine::VertexCount(limit))==limit,"Vertex count success changed");
+        for(auto count:{limit+1,std::numeric_limits<std::size_t>::max()})
+        {
+            auto result=::GEngine::VertexCount(count);
+            Check(!result && result.error().code==RenderSystemRangeCode::VertexCount && result.error().vertexCount==count
+                && result.error().operation=="RenderSystem::KDTreeVisualize"
+                && result.error().message=="Debug line vertex count exceeds GLsizei","Vertex count error lost diagnostics");
+        }
+        std::cout << "[PASS] retained range boundaries/diagnostics/no-context\n";
+    }
+#endif
     class SuspensionApp final : public BaseApp
     {
     public:
@@ -409,6 +571,9 @@ int main(int argc, char** argv)
             EndpointsAndDiscontinuities(); LifetimeAndBacklog(); RefreshAndDeterminism();
         }
         else if (mode == "--gl") GLChecks();
+#ifdef RETAINED_SUBMISSION_INTERNAL_PROBE
+        else if (mode == "--ranges") RangeChecks();
+#endif
         else if (mode == "--suspension") SuspensionChecks();
         else throw std::invalid_argument("Expected --cpu, --gl or --suspension");
         std::cout << "[PASS] interpolation " << mode << " checks=" << checks << '\n';
@@ -420,3 +585,5 @@ int main(int argc, char** argv)
         return 1;
     }
 }
+
+#endif // RETAINED_SUBMISSION_SCHEMA_ONLY

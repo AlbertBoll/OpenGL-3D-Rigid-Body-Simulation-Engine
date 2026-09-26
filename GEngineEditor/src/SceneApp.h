@@ -6,6 +6,7 @@
 #include "Audio/SoundEvent.h"
 #include "Audio/AudioSystem.h"
 #include "Animation/AnimationSystem.h"
+#include <array>
 //#include <GEngine/Camera/PlayerCamera.h>
 
 
@@ -64,6 +65,11 @@ private:
 
 private:
 	ScopedPtr<SceneHierarchyPanel> m_Panel{};
+	// Pending initialization owners transfer only at the existing scene handoffs.
+	ScopedPtr<Actor> m_PendingEditorCamera;
+	ScopedPtr<Entity> m_PendingBarrel;
+	ScopedPtr<Geometry> m_TerrainGeometry;
+	std::array<ScopedPtr<Actor>, 6> m_LightOwners{};
 	CameraRig* m_CameraRig{};
 	
 	Grid* m_Grid{};

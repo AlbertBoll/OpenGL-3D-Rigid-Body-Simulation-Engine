@@ -7,6 +7,9 @@ static_assert(!std::is_copy_constructible_v<RenderTaskFrame> && !std::is_move_co
 static_assert(!std::is_copy_constructible_v<RenderMutationQueue>);
 static_assert(std::same_as<decltype(std::declval<const RenderTaskFrame&>().Inputs()), std::span<const FrozenRenderEntity>>);
 #ifndef TASK_SCHEMA_ONLY
+#include <concepts>
+#include <functional>
+#include <iostream>
 #include "Scene/_Entity.h"
 #include "Core/GEngine.h"
 #include "Core/RuntimeAssets.h"
@@ -24,9 +27,12 @@ static_assert(std::same_as<decltype(std::declval<const RenderTaskFrame&>().Input
 #include <cstring>
 #undef _beginthreadex
 #include <process.h>
-namespace Injection { bool denyArray{}; std::atomic<int> launchCount{0}; int failLaunch=-1; }
+namespace Injection { bool denyArray{}, trackArrays{}; int arrayCalls=0, failArray=-1; std::atomic<int> launchCount{0}; int failLaunch=-1; }
 void* operator new[](std::size_t size, const std::nothrow_t&) noexcept
-{ return Injection::denyArray ? nullptr : ::operator new(size, std::nothrow); }
+{
+    if (Injection::denyArray || (Injection::trackArrays && Injection::arrayCalls++ == Injection::failArray)) return nullptr;
+    return ::operator new(size, std::nothrow);
+}
 void operator delete[](void* p) noexcept { ::operator delete(p); }
 void operator delete[](void* p, std::size_t) noexcept { ::operator delete(p); }
 void operator delete[](void* p, const std::nothrow_t&) noexcept { ::operator delete(p); }
@@ -43,6 +49,29 @@ extern "C" uintptr_t __cdecl TaskProbeBeginThread(void* security, unsigned stack
 #endif
 namespace
 {
+    // Test-only preparation for bounded Scene value/void result migrations.
+    template<std::invocable Operation>
+    auto SceneOperationChecked(Operation&& operation)
+    {
+        using Result = std::remove_cvref_t<std::invoke_result_t<Operation>>;
+        if constexpr (std::is_void_v<Result>) {
+            std::invoke(std::forward<Operation>(operation));
+        } else {
+            auto result = std::invoke(std::forward<Operation>(operation));
+            if constexpr (requires { typename Result::error_type; typename Result::value_type; }) {
+                if (!result) {
+                    const auto& error = result.error();
+                    std::cerr << "[FAIL] Valid Scene fixture: operation=" << error.operation
+                        << " code=" << static_cast<unsigned>(error.code) << " entity=" << error.entity
+                        << ": " << error.message << '\n';
+                    std::exit(1);
+                }
+                if constexpr (std::is_void_v<typename Result::value_type>) return;
+                else return std::move(*result);
+            } else return result;
+        }
+    }
+
     int checks{};
     template<class T> void Check(const T& value, const char* message)
     { ++checks; if (!static_cast<bool>(value)) { std::println(stderr,"[FAIL] {}",message); std::exit(1); } }
@@ -99,14 +128,14 @@ namespace
         }
         std::pair<_Entity, EntityRenderId> Entity(std::uint64_t uuid, std::uint32_t submesh = 0)
         {
-            auto entity = scene.CreateEntityWithUUID(UUID(uuid));
+            auto entity = SceneOperationChecked([&] { return scene.CreateEntityWithUUID(UUID(uuid)); });
             auto id = scene.RenderData().Identify(entity).value();
             Check(scene.RenderData().Add(id, MeshRendererComponent{mesh, material, submesh}), "Author mesh intent");
             return {entity, id};
         }
         std::pair<_Entity, EntityRenderId> Light(std::uint64_t uuid, RenderLightKind kind)
         {
-            auto entity = scene.CreateEntityWithUUID(UUID(uuid));
+            auto entity = SceneOperationChecked([&] { return scene.CreateEntityWithUUID(UUID(uuid)); });
             auto id = scene.RenderData().Identify(entity).value();
             RenderLightComponent intent; intent.kind = kind;
             Check(scene.RenderData().Add(id, intent), "Author typed light intent without mesh");
@@ -266,10 +295,10 @@ namespace
             Check(!result && result.error().code==RenderWorkCode::Cancelled && !work.entered,"Pre-start cancellation launches no callback");
         }
         Queue(*queue,[&](auto& scene,const auto&)->std::expected<void,RenderWorkError>{
-            scene.DestroyEntity(scene.GetEntityByUUID(UUID(1)));applied.push_back(2);
+            SceneOperationChecked([&] { return scene.DestroyEntity(scene.GetEntityByUUID(UUID(1))); });applied.push_back(2);
             std::thread completion([&]{
                 std::unique_ptr<RenderMutation> later=std::make_unique<Command>([&](auto& laterScene,const auto&)->std::expected<void,RenderWorkError>{
-                    laterScene.CreateEntityWithUUID(UUID(999));applied.push_back(3);return {};
+                    SceneOperationChecked([&] { return laterScene.CreateEntityWithUUID(UUID(999)); });applied.push_back(3);return {};
                 });if (!queue->Enqueue(later)) std::abort();
             });completion.join();return {};
         });
@@ -290,10 +319,23 @@ namespace
         Check(!zero->Enqueue(command) && command,"Full queue preserves caller payload");
         Injection::denyArray=true;
         Check(!RenderMutationQueue::Create(2),"Queue storage allocation failure is typed");
-        { auto access=f.publication.BeginFrame();auto failed=Prepare(f,access);
-          Check(!failed && failed.error().code==RenderWorkCode::Allocation && !f.scene.RenderData().IsExtracting(),
-              "Snapshot allocation failure releases ECS freeze and publication pin"); }
         Injection::denyArray=false;
+        Injection::trackArrays=true;Injection::arrayCalls=0;
+        { auto access=f.publication.BeginFrame();auto ready=Prepare(f,access);Check(ready,"Prepare array fault fixture"); }
+        const int sites=Injection::arrayCalls;Check(sites>0,"Preparation has faultable array owners");
+        for(int site=0;site<sites;++site) {
+            Injection::arrayCalls=0;Injection::failArray=site;
+            { auto access=f.publication.BeginFrame();auto failed=Prepare(f,access);
+              Check(!failed,"Every preparation array failure returns no partial task frame");
+              const auto* cause=std::get_if<TransformError>(&failed.error().cause);
+              Check(failed.error().code==RenderWorkCode::Allocation
+                  || (failed.error().code==RenderWorkCode::InvalidInput && cause
+                      && cause->code==TransformErrorCode::AllocationFailed),"Complete typed preparation allocation error");
+              Check(!f.scene.RenderData().IsExtracting(),"Snapshot allocation failure releases ECS freeze"); }
+            Check(f.publication.CanPublish(),"Failed preparation releases publication pin");
+        }
+        Injection::failArray=-1;Injection::trackArrays=false;
+        { auto access=f.publication.BeginFrame();Check(Prepare(f,access),"Retry after preparation allocation failure"); }
     }
     void Faults(Fixture& f)
     {
@@ -322,7 +364,7 @@ namespace
         if (!std::strcmp(mode,"lazy")) (void)f.scene.GetRenderTransform(entity);
         if (!std::strcmp(mode,"view")) (void)f.scene.GetAllEntitiesWith<Transform3DComponent>();
         if (!std::strcmp(mode,"value")) (void)entity.GetComponent<Transform3DComponent>();
-        if (!std::strcmp(mode,"structure")) f.scene.CreateEntity();
+        if (!std::strcmp(mode,"structure")) SceneOperationChecked([&] { return f.scene.CreateEntity(); });
         if (!std::strcmp(mode,"settings")) f.scene.SetRenderInterpolationEnabled(false);
         if (!std::strcmp(mode,"physics")) f.scene.SetPaused(true);
         if (!std::strcmp(mode,"publication")) (void)f.publication.BeginPublication();
@@ -350,7 +392,7 @@ int main(int argc,char** argv)
         properties.m_MinWidth=properties.m_MinHeight=64;properties.m_IsVsync=false;
         Check(root->Initialize({properties}),"Root initialization");
         {
-            Fixture fixture(root->AssetPublications());
+            Fixture fixture(root->SceneServices().value().publication);
             if (argc>1) Negative(fixture,argv[1],root);
 #ifdef TASK_LAUNCH_FAULTS
             Faults(fixture);

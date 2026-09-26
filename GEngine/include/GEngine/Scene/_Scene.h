@@ -1,27 +1,27 @@
 #pragma once
 #include"entt/entt.hpp"
 #include "Scene/RenderEcs.h"
+#include "Scene/SceneError.h"
 #include "Scene/RenderState.h"
+#include "Physics/PhysicsShapeError.h"
 #include <Core/Timestep.h>
 #include <cstdint>
+#include <expected>
+#include <concepts>
+#include <utility>
+#include <string_view>
 #include <map>
 #include "Core/UUID.h"
 #include <Camera/EditorCamera.h>
 
 namespace GEngine
 {
-	enum class TransformErrorCode
-	{
-		InvalidEntity, ForeignEntity, InvalidParent, Cycle, MissingTransform,
-		NonFiniteTransform, InvalidRotation, IdentityExhausted, NonFiniteRenderData,
-		AllocationFailed, CapacityOverflow
-	};
-	struct TransformError
-	{
-		TransformErrorCode code;
-		UUID entity{0};
-		UUID parent{0};
-	};
+    struct RenderTransformQueryError
+    {
+        TransformErrorCode code = TransformErrorCode::InvalidEntity;
+        std::string_view operation = "_Scene::GetRenderTransform";
+        std::string_view message = "Render transform requires a live entity in this scene";
+    };
 	struct WorldTransform
 	{
 		EntityRenderId entity;
@@ -35,6 +35,7 @@ namespace GEngine
 		std::size_t recomputed{};
 	};
 	class _Entity;
+    namespace SceneDetail { struct BackendAccess; }
 	class PhysicsWorld;
 	class PhysicsSystem;
 	//using namespace Camera;
@@ -43,19 +44,21 @@ namespace GEngine
 	{
 		
 		friend class _Entity;
+        friend class RenderSystem;
+        friend struct SceneDetail::BackendAccess;
 
 	public:
 
 		_Scene();
 		~_Scene();
-		static RefPtr<_Scene> Copy(RefPtr<_Scene> other);
+		[[nodiscard]] static std::expected<RefPtr<_Scene>, SceneError> Copy(RefPtr<_Scene> other);
 
-		_Entity CreateEntity(const std::string& name = std::string());
-		_Entity CreateEntityWithUUID(UUID uuid, const std::string& name = std::string());
+		[[nodiscard]] std::expected<_Entity, SceneError> CreateEntity(const std::string& name = std::string());
+		[[nodiscard]] std::expected<_Entity, SceneError> CreateEntityWithUUID(UUID uuid, const std::string& name = std::string());
 		// Handles/relationships are non-owning. Explicit destruction includes descendants
 		// unless excludeChildren detaches them; legacy first is retained for source compatibility.
-		void DestroyEntity(_Entity entity, bool excludeChildren = false, bool first = true);
-		void DestroyEntity(UUID entityID, bool excludeChildren = false, bool first = true);
+		[[nodiscard]] std::expected<void, SceneError> DestroyEntity(_Entity entity, bool excludeChildren = false, bool first = true);
+		[[nodiscard]] std::expected<void, SceneError> DestroyEntity(UUID entityID, bool excludeChildren = false, bool first = true);
 
 		// Scene owns the application physics clock; PhysicsSystem remains one tick.
 		static constexpr Seconds PhysicsStep{1.0 / 60.0};
@@ -94,7 +97,7 @@ namespace GEngine
 			std::uint64_t simulationRevision{}; // Current scene fixed-update count.
 		};
 		double GetRenderInterpolationAlpha() const;
-		RenderTransform GetRenderTransform(const _Entity& entity);
+		[[nodiscard]] std::expected<RenderTransform, RenderTransformQueryError> GetRenderTransform(const _Entity& entity);
 		std::expected<void, TransformError> ResetRenderInterpolation(const _Entity& entity);
 		void SetRenderInterpolationEnabled(bool enabled) { m_RenderData.RequireMutable(); m_RenderInterpolationEnabled = enabled; }
 		bool IsRenderInterpolationEnabled() const { return m_RenderInterpolationEnabled; }
@@ -104,7 +107,9 @@ namespace GEngine
 		RenderEcs& RenderData() { return m_RenderData; }
 		const RenderEcs& RenderData() const { return m_RenderData; }
 
-		void OnRuntimeStart();
+        // Successful startup retains the existing caller-owned shape handoff.
+        // Failure retires pending bodies/shapes and disconnects their scale callbacks.
+        [[nodiscard]] std::expected<void, PhysicsShapeError> OnRuntimeStart();
 		void OnRuntimeStop();
 
 		void OnSimulationStart();
@@ -114,7 +119,7 @@ namespace GEngine
 
 		void OnViewportResize(uint32_t width, uint32_t height);
 
-		_Entity DuplicateEntity(_Entity entity);
+		[[nodiscard]] std::expected<_Entity, SceneError> DuplicateEntity(_Entity entity);
 	
 
 		_Entity FindEntityByName(std::string_view name);
@@ -129,13 +134,19 @@ namespace GEngine
 
 		void Step(int frames = 1);
 
-		void PushToRenderList(_Entity entity);
+		[[nodiscard]] std::expected<void, SceneError> PushToRenderList(_Entity entity);
 
-		template<typename...Entities>
-		void PushToRenderList(Entities&& ... entities)
-		{
-			(PushToRenderList(entities), ...);
-		}
+        template<typename... Entities>
+            requires (sizeof...(Entities) != 1 && (std::convertible_to<Entities, _Entity> && ...))
+        [[nodiscard]] std::expected<void, SceneError> PushToRenderList(Entities&&... entities)
+        {
+            std::expected<void, SceneError> result;
+            auto push = [&](auto&& entity) {
+                if (result) result = PushToRenderList(std::forward<decltype(entity)>(entity));
+            };
+            (push(std::forward<Entities>(entities)), ...);
+            return result;
+        }
 
 		template<typename... Components>
 		auto GetAllEntitiesWith()
@@ -151,8 +162,6 @@ namespace GEngine
 			return m_Registry.view<IncludeComponent>(entt::exclude<ExcludeComponents...>);
 		}
 
-		auto& GetGroupEntities() { m_RenderData.RequireMutable(); return m_GroupEntities; }
-		auto& GetLightEntities() { m_RenderData.RequireMutable(); return m_LightEntities; }
 		
 		template<typename...Components>
 		auto& View()
@@ -161,8 +170,6 @@ namespace GEngine
 			return m_Registry.view<Components...>();
 		}
 
-		// A program name is an associative key, never an engine array index.
-		const std::vector<_Entity>& GetLightEntitiesWithRenderID(unsigned int id) const;
 
 		PhysicsSystem* GetPhysicsSystem()
 		{
@@ -171,6 +178,10 @@ namespace GEngine
 		}
 
 	private:
+		auto& GetGroupEntities() { m_RenderData.RequireMutable(); return m_GroupEntities; }
+		auto& GetLightEntities() { m_RenderData.RequireMutable(); return m_LightEntities; }
+		const std::vector<_Entity>& GetLightEntitiesWithRenderID(unsigned int id) const;
+
 		void RemoveFromRenderLists(const _Entity& entity);
         RenderPresentationInput ObserveRenderPresentation(entt::entity entity) const;
         static Mat4 EvaluateRenderPresentation(const RenderPresentationInput&);
@@ -179,7 +190,7 @@ namespace GEngine
 		template<typename T>
 		void OnComponentAdded(_Entity entity, T& component);
 
-		void OnPhysics3DStart();//)PhysicsSystem* physics_system);
+        [[nodiscard]] std::expected<void, PhysicsShapeError> OnPhysics3DStart();
 		void OnPhysics3DStop();
 
 	private:

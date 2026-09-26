@@ -97,10 +97,11 @@ namespace GEngine
 
 
         // Sort points by the current dimension
+        // Private recursion starts at zero and halves the point set; this axis is always 0..2.
         int axis = depth % 3;
 		size_t mid = points.size() / 2;
         std::nth_element(points.begin(), points.begin() + mid, points.end(), [axis](const Point3D<float>& a, const Point3D<float>& b) {
-            return a[axis] < b[axis];
+            return *a[axis] < *b[axis];
         });
        /* std::sort(points.begin(), points.end(), [axis](const Point3D<float>& a, const Point3D<float>& b) {
             return a[axis] < b[axis];
@@ -114,8 +115,8 @@ namespace GEngine
         // Recursively build the left and right subtrees
         std::vector<Point3D<float>> leftPoints(points.begin(), points.begin() + medianIndex);
         std::vector<Point3D<float>> rightPoints(points.begin() + medianIndex + 1, points.end());
-        Vec3f leftMax = max_bound; leftMax[axis] = node->m_Point[axis];
-        Vec3f rightMin = min_bound; rightMin[axis] = node->m_Point[axis];
+        Vec3f leftMax = max_bound; leftMax[axis] = *node->m_Point[axis];
+        Vec3f rightMin = min_bound; rightMin[axis] = *node->m_Point[axis];
         node->m_Left = Build(leftPoints, min_bound, leftMax, depth + 1);
         node->m_Right = Build(rightPoints, rightMin, max_bound, depth + 1);
 		return node;
@@ -140,6 +141,7 @@ namespace GEngine
         CollectBoxesImpl(n->m_Right, boxes);*/
 
         if (!n) return;
+        // Reachable nodes retain the 0..2 axis assigned by Build.
         int axis = n->m_Axis;
       
         Vec3f min = n->m_MinBounds;
@@ -147,22 +149,22 @@ namespace GEngine
 
         Vec3f corners[4];
         if (axis == 0) {
-            corners[0] = Vec3f(n->m_Point[axis], min.y, min.z);
-            corners[1] = Vec3f(n->m_Point[axis], max.y, min.z);
-            corners[2] = Vec3f(n->m_Point[axis], max.y, max.z);
-            corners[3] = Vec3f(n->m_Point[axis], min.y, max.z);
+            corners[0] = Vec3f(*n->m_Point[axis], min.y, min.z);
+            corners[1] = Vec3f(*n->m_Point[axis], max.y, min.z);
+            corners[2] = Vec3f(*n->m_Point[axis], max.y, max.z);
+            corners[3] = Vec3f(*n->m_Point[axis], min.y, max.z);
         }
         else if (axis == 1) {
-            corners[0] = Vec3f(min.x, n->m_Point[axis], min.z);
-            corners[1] = Vec3f(max.x, n->m_Point[axis], min.z);
-            corners[2] = Vec3f(max.x, n->m_Point[axis], max.z);
-            corners[3] = Vec3f(min.x, n->m_Point[axis], max.z);
+            corners[0] = Vec3f(min.x, *n->m_Point[axis], min.z);
+            corners[1] = Vec3f(max.x, *n->m_Point[axis], min.z);
+            corners[2] = Vec3f(max.x, *n->m_Point[axis], max.z);
+            corners[3] = Vec3f(min.x, *n->m_Point[axis], max.z);
         }
         else {
-            corners[0] = Vec3f(min.x, min.y, n->m_Point[axis]);
-            corners[1] = Vec3f(max.x, min.y, n->m_Point[axis]);
-            corners[2] = Vec3f(max.x, max.y, n->m_Point[axis]);
-            corners[3] = Vec3f(min.x, max.y, n->m_Point[axis]);
+            corners[0] = Vec3f(min.x, min.y, *n->m_Point[axis]);
+            corners[1] = Vec3f(max.x, min.y, *n->m_Point[axis]);
+            corners[2] = Vec3f(max.x, max.y, *n->m_Point[axis]);
+            corners[3] = Vec3f(min.x, max.y, *n->m_Point[axis]);
         }
 
         // Rectangle edges

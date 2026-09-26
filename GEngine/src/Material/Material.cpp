@@ -10,6 +10,7 @@
 namespace GEngine
 {
 	using namespace Manager;
+    RenderSetting::RenderSetting() : m_TexTarget(GL_TEXTURE_2D) {}
 	Material::Material(Construction& construction, const std::string& vertexFileName, const std::string& fragFileName)
 	{
 		auto resolve = [](const std::string& file, Asset::ShaderStage stage) -> std::expected<std::string, Asset::ShaderError>
@@ -116,15 +117,5 @@ namespace GEngine
 
 
     unsigned int Material::GetShaderID() const { return GetShaderRef(); }
-    template <>
-    void Material::SetUniforms<std::pair<unsigned, std::pair<unsigned, unsigned>>>(
-        const std::map<std::string, std::pair<unsigned, std::pair<unsigned, unsigned>>>& uniforms)
-    {
-        UseProgram();
-        for (const auto& [name, binding] : uniforms)
-        {
-            Asset::ShaderBackendAccess::BindTexture(*m_Shader, name.c_str(), binding.first, binding.second.first, binding.second.second);
-            m_TextureList.emplace(binding);
-        }
-    }
+
 }

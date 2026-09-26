@@ -1,7 +1,9 @@
 #pragma once
 #include <span>
+#include <vector>
+#include "Core/Utility.h"
 
-namespace GEngine { class GpuMesh; }
+namespace GEngine { class GpuMesh; namespace IndexBufferDetail { struct BackendAccess; } }
 
 namespace GEngine::Buffer
 {
@@ -18,7 +20,6 @@ namespace GEngine::Buffer
 		IndexBuffer& operator = (IndexBuffer&& other) noexcept;
 
 		IndexBuffer(const std::vector<unsigned int>& data);
-		unsigned int GetBufferRef()const { return m_IndexBufferRef; }
 
 		void AddIndexData(const std::vector<unsigned int>& data);
 
@@ -33,6 +34,8 @@ namespace GEngine::Buffer
 		~IndexBuffer();
 
 	private:
+		friend struct ::GEngine::IndexBufferDetail::BackendAccess;
+		unsigned int GetBufferRef()const { return m_IndexBufferRef; }
 		friend class ::GEngine::GpuMesh;
 		unsigned int m_IndexBufferRef{};
 		std::vector<unsigned int> m_Data;

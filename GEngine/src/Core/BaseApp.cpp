@@ -29,11 +29,52 @@ namespace GEngine
 {
     void ReportApplicationError(const ApplicationInitializationError& error)
     {
-        if (const auto* framebuffer = std::get_if<FramebufferError>(&error)) ReportFramebufferError("application startup", *framebuffer);
+        if (const auto* uniform = std::get_if<UniformBufferError>(&error))
+            Log::GetCoreLogger()->error("Application uniform buffer operation={} code={} count={} binding={} stride={}: {}",
+                uniform->operation, static_cast<unsigned>(uniform->code), uniform->elementCount,
+                uniform->bindingPoint, uniform->elementBytes, uniform->message);
+        else if (const auto* model = std::get_if<ModelImportError>(&error))
+            Log::GetCoreLogger()->error("Application model import operation={} code={} source={}: {}",
+                model->operation, static_cast<unsigned>(model->code), model->source, model->message);
+        else if (const auto* shape = std::get_if<ShapeRegistrationError>(&error))
+            Log::GetCoreLogger()->error("Application shape registration operation={} code={} name={}: {}",
+                shape->operation, static_cast<unsigned>(shape->code), shape->name, shape->message);
+        else if (const auto* physics = std::get_if<PhysicsShapeError>(&error))
+            Log::GetCoreLogger()->error("Application physics shape operation={} code={} entity={} radius={} points={}: {}",
+                physics->operation, static_cast<unsigned>(physics->code), physics->entity,
+                physics->radius, physics->pointCount, physics->message);
+        else if (const auto* scene = std::get_if<SceneError>(&error))
+        {
+            if (scene->transform)
+                Log::GetCoreLogger()->error("Application scene operation={} code={} entity={}: {} transform-code={} transform-entity={} transform-parent={}",
+                    scene->operation, static_cast<unsigned>(scene->code), scene->entity, scene->message,
+                    static_cast<unsigned>(scene->transform->code), static_cast<std::uint64_t>(scene->transform->entity),
+                    static_cast<std::uint64_t>(scene->transform->parent));
+            else
+                Log::GetCoreLogger()->error("Application scene operation={} code={} entity={}: {}",
+                    scene->operation, static_cast<unsigned>(scene->code), scene->entity, scene->message);
+        }
+        else if (const auto* framebuffer = std::get_if<FramebufferError>(&error)) ReportFramebufferError("application startup", *framebuffer);
         else if (const auto* platform = std::get_if<PlatformError>(&error)) ReportPlatformError(*platform);
         else if (const auto* shader = std::get_if<Asset::ShaderError>(&error)) Asset::ReportShaderError(*shader);
         else if (const auto* texture = std::get_if<Asset::TextureError>(&error))
-            GENGINE_CORE_ERROR("Application texture {}: {}", texture->source, texture->message);
+            Log::GetCoreLogger()->error("Application texture code={} source={} system-category={} system-code={} system-message={} registry={}: {}",
+                static_cast<unsigned>(texture->code), texture->source, texture->system.category().name(),
+                texture->system.value(), texture->system.message(), static_cast<unsigned>(texture->registry), texture->message);
+    }
+
+    void ReportApplicationError(const ApplicationRuntimeError& error)
+    {
+        // Runtime failures must remain visible in Release through the engine logger.
+        Log::GetCoreLogger()->error("Application runtime failure category={} subsystem={} code={} operation={} context={}: {}",
+            static_cast<unsigned>(error.code), error.subsystem, error.subsystemCode,
+            error.operation, error.context, error.message);
+    }
+
+    void BaseApp::FailRuntime(ApplicationRuntimeError error)
+    {
+        if (!m_RuntimeFailure) m_RuntimeFailure = std::move(error);
+        m_Running = false;
     }
 
     using namespace Manager;
@@ -156,7 +197,9 @@ namespace GEngine
         {
             auto shadowQuality=ShadowQualityFromEnvironment();
             if(!shadowQuality) return std::unexpected(shadowQuality.error());
-            if (auto initialized = m_EngineContext.Initialize(WindowsPropertyList); !initialized) return std::unexpected(initialized.error());
+            if (auto initialized = m_EngineContext.Initialize(WindowsPropertyList); !initialized)
+                return std::visit([](const auto& error) -> ApplicationInitializationResult
+                    { return std::unexpected(error); }, initialized.error());
             m_Window = m_EngineContext.MainWindow();
             const GLDebug::Group initialization("Application render resources");
         
@@ -274,7 +317,13 @@ namespace GEngine
             m_MousePickFrameBuffer = std::move(MousePickFrameBufferCandidateOwner);
             m_FinalFrameBuffer = std::move(FinalFrameBufferCandidateOwner);
 
-			m_UniformBufferObject = CreateScopedPtr<UniformBufferObject<UniformType::MATRIX_4_4>>(16);
+            using ApplicationUniformBuffer = UniformBufferObject<UniformType::MATRIX_4_4>;
+            auto uniformBuffer = ApplicationUniformBuffer::Create(16);
+            if (!uniformBuffer) return std::unexpected(uniformBuffer.error());
+            ScopedPtr<ApplicationUniformBuffer> uniformOwner(new (std::nothrow) ApplicationUniformBuffer(std::move(*uniformBuffer)));
+            if (!uniformOwner) return std::unexpected(UniformBufferError{UniformBufferErrorCode::Allocation,
+                "application initialization", "Uniform buffer owner allocation failed", 16, 0, sizeof(Math::Mat4)});
+            m_UniformBufferObject = std::move(uniformOwner);
             m_Initialize = true;
 
 
@@ -419,7 +468,7 @@ namespace GEngine
 
     }
 
-    void BaseApp::Run()
+    ApplicationRunResult BaseApp::Run()
     {
 #ifdef GENGINE_RENDER_BASELINE
         RenderBaseline::Session baseline;
@@ -458,7 +507,12 @@ namespace GEngine
                 // adaptive -1) owns pacing when active; otherwise use the manual cap.
                 // Anchor to measured frame starts, so work/oversleep counts toward
                 // the next interval and a missed deadline creates no pacing backlog.
-                if (auto current = m_Window->BeginRender(); !current) { ReportPlatformError(current.error()); ShutDown(); break; }
+                if (auto current = m_Window->BeginRender(); !current) {
+                    FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Platform",
+                        std::to_string(static_cast<unsigned>(current.error().code)), current.error().operation,
+                        {}, current.error().message});
+                    break;
+                }
                 if (m_Window->GetSwapInterval() == 0 && m_ManualFrameRateLimit != 0)
                     std::this_thread::sleep_until(clock.LastSample() + Seconds(1.0 / m_ManualFrameRateLimit));
                 m_FrameTime = clock.Tick();
@@ -502,16 +556,19 @@ namespace GEngine
 #endif
                 
 
+                if (m_RuntimeFailure) break;
+
                 //Render scene
                 {
                     //Timeit(Render)
                     const GLDebug::Group submission("Application render");
                     Render();
                 }
+                if (m_RuntimeFailure) break;
                 RenderCounters::EndFrame();
 #ifdef GENGINE_RENDER_BASELINE
                 if (auto captured = baseline.CaptureScene(m_RenderTarget.get()); !captured)
-                { ReportFramebufferError("scene capture", captured.error()); return; }
+                { ReportFramebufferError("scene capture", captured.error()); return {}; }
                 if (baseline.End()) ShutDown();
 #endif
             }
@@ -520,8 +577,8 @@ namespace GEngine
 #if GENGINE_RENDER_COUNTERS
         if (reportCounters) RenderCounters::ReportLastFrame();
 #endif
-
-        
+        if (m_RuntimeFailure) return std::unexpected(*m_RuntimeFailure);
+        return {};
     }
 
     void BaseApp::Render()
@@ -540,7 +597,9 @@ namespace GEngine
         }};
         context.editorUI={this,[](void* user)->ScheduleResult { static_cast<BaseApp*>(user)->ImGuiRender(); return {}; }};
         if(auto result=FrameScheduler::Render(context);!result) {
-            GENGINE_CORE_ERROR("{}",DescribeScheduleError(result.error())); ShutDown();
+            FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Rendering",
+                std::to_string(static_cast<unsigned>(result.error().stage)), "render frame", {},
+                DescribeScheduleError(result.error())});
         }
     }
 

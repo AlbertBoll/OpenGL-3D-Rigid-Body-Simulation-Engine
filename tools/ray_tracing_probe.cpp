@@ -1,9 +1,29 @@
+#ifdef IMAGE_OWNER_SCHEMA_ONLY
+#include "Core/Image.h"
+#include "UI/FramebufferImage.h"
+#include <type_traits>
+static_assert(std::same_as<decltype(GEngine::UI::RasterImage(std::declval<const GEngine::Image&>(),1.f,1.f)),GEngine::ImageResult>);
+template<class T> concept ExposesTextureName=requires(const T& image){image.GetTexID();};
+static_assert(!std::is_copy_constructible_v<GEngine::Image>);
+static_assert(!std::is_copy_assignable_v<GEngine::Image>);
+static_assert(std::is_nothrow_move_constructible_v<GEngine::Image>);
+static_assert(std::is_nothrow_move_assignable_v<GEngine::Image>);
+static_assert(!ExposesTextureName<GEngine::Image>);
+#else
+#ifdef RAY_RENDERER_SCHEMA_ONLY
+#include "Core/SimpleRenderer.h"
+#include <type_traits>
+static_assert(std::same_as<decltype(std::declval<GEngine::SimpleRenderer&>().OnResize(1,1)),GEngine::ImageResult>);
+static_assert(std::same_as<decltype(std::declval<GEngine::SimpleRenderer&>().Render(std::declval<const GEngine::RayTracingScene&>(),std::declval<const GEngine::RayTracingCamera&>())),GEngine::ImageResult>);
+#else
 #include "gepch.h"
 #include "Core/SimpleRenderer.h"
 #include "Core/RayTracingScene.h"
 #include "Camera/RayTracingCamera.h"
 #include "Core/GLDebug.h"
+#include "UI/FramebufferImage.h"
 #include <array>
+#include <set>
 #include <atomic>
 #include <stdexcept>
 #ifdef _DEBUG
@@ -19,15 +39,29 @@ namespace
         ++checks;
         if (!condition) throw std::runtime_error(message);
     }
+    void RayChecked(ImageResult result) { Require(bool(result), "Unexpected typed Ray failure"); }
     static_assert(!std::is_copy_constructible_v<SimpleRenderer>);
     static_assert(!std::is_copy_assignable_v<SimpleRenderer>);
     static_assert(std::is_nothrow_move_constructible_v<SimpleRenderer>);
     static_assert(std::is_nothrow_move_assignable_v<SimpleRenderer>);
 
+    struct ImageNameTag { using type=uint32_t Image::*;friend type ImageNameMember(ImageNameTag); };
+    template<class Tag,typename Tag::type Member> struct RevealImageMember {
+        friend typename Tag::type ImageNameMember(Tag) { return Member; }
+    };
+    template struct RevealImageMember<ImageNameTag,&Image::m_TexID>;
+    uint32_t ImageName(const Image& image) { return image.*ImageNameMember(ImageNameTag{}); }
+
     struct GLCalls
     {
         inline static SDL_threadID owner;
         inline static std::atomic<unsigned> wrongThread{0}, allocations{0}, updates{0}, deletes{0};
+        inline static std::set<GLuint> live;
+        inline static unsigned generated{},retired{};
+        inline static bool failAllocation{},failGeneration{},failUpdate{};
+        inline static GLenum pendingError=GL_NO_ERROR;
+        inline static PFNGLGETERRORPROC getError;
+        static GLenum APIENTRY Error() {if(pendingError!=GL_NO_ERROR)return std::exchange(pendingError,GL_NO_ERROR);return getError();}
         inline static PFNGLBINDTEXTUREPROC bind;
         inline static PFNGLGENTEXTURESPROC generate;
         inline static PFNGLDELETETEXTURESPROC destroy;
@@ -35,17 +69,23 @@ namespace
         inline static PFNGLTEXSUBIMAGE2DPROC update;
         static void Check() { if (SDL_ThreadID() != owner) ++wrongThread; }
         static void APIENTRY Bind(GLenum target, GLuint texture) { Check(); bind(target, texture); }
-        static void APIENTRY Generate(GLsizei count, GLuint* names) { Check(); generate(count, names); }
-        static void APIENTRY Delete(GLsizei count, const GLuint* names) { Check(); deletes += count; destroy(count, names); }
+        static void APIENTRY Generate(GLsizei count, GLuint* names) {
+            Check();if(failGeneration){failGeneration=false;std::fill_n(names,count,0);return;}
+            generate(count,names);for(int i=0;i<count;++i)if(names[i]){Require(live.insert(names[i]).second,"Texture generated twice");++generated;}
+        }
+        static void APIENTRY Delete(GLsizei count, const GLuint* names) {
+            Check();deletes+=count;for(int i=0;i<count;++i)if(names[i]){Require(live.erase(names[i])==1,"Texture retired without unique owner");++retired;}destroy(count,names);
+        }
         static void APIENTRY Allocate(GLenum target, GLint level, GLint format, GLsizei width,
             GLsizei height, GLint border, GLenum source, GLenum type, const void* data)
-        { Check(); ++allocations; allocate(target, level, format, width, height, border, source, type, data); }
+        { Check(); ++allocations; if(failAllocation){failAllocation=false;pendingError=GL_OUT_OF_MEMORY;return;} allocate(target, level, format, width, height, border, source, type, data); }
         static void APIENTRY Update(GLenum target, GLint level, GLint x, GLint y, GLsizei width,
             GLsizei height, GLenum format, GLenum type, const void* data)
-        { Check(); ++updates; update(target, level, x, y, width, height, format, type, data); }
+        { Check(); ++updates; if(failUpdate){failUpdate=false;pendingError=GL_OUT_OF_MEMORY;return;} update(target, level, x, y, width, height, format, type, data); }
         GLCalls()
         {
             owner = SDL_ThreadID(); wrongThread = allocations = updates = deletes = 0;
+            Require(live.empty(),"Prior context texture survived");generated=retired=0;getError=glad_glGetError;glad_glGetError=Error;
             bind = glad_glBindTexture; generate = glad_glGenTextures; destroy = glad_glDeleteTextures;
             allocate = glad_glTexImage2D; update = glad_glTexSubImage2D;
             glad_glBindTexture = Bind; glad_glGenTextures = Generate; glad_glDeleteTextures = Delete;
@@ -53,6 +93,9 @@ namespace
         }
         ~GLCalls()
         {
+            Require(live.empty() && generated==retired,"Image texture ownership did not drain");
+            std::cout<<"[PASS] texture owners generated="<<generated<<" retired="<<retired<<" live=0\n";
+            glad_glGetError=getError;
             glad_glBindTexture = bind; glad_glGenTextures = generate; glad_glDeleteTextures = destroy;
             glad_glTexImage2D = allocate; glad_glTexSubImage2D = update;
         }
@@ -69,8 +112,8 @@ namespace
     std::vector<uint8_t> Read(const SimpleRenderer& renderer)
     {
         const auto& image = renderer.GetFinalImage();
-        Require(image && image->GetTexID(), "No uploaded final image");
-        glBindTexture(GL_TEXTURE_2D, image->GetTexID());
+        Require(image && ImageName(*image), "No uploaded final image");
+        glBindTexture(GL_TEXTURE_2D, ImageName(*image));
         GLint width = 0, height = 0;
         glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
         glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
@@ -92,7 +135,7 @@ namespace
         renderer.GetSettings().Acculmate = true;
         renderer.GetSettings().Seed = 1234567;
         renderer.GetBounces() = 6;
-        renderer.OnResize(width, height);
+        RayChecked(renderer.OnResize(width, height));
         camera.OnResize(width, height);
     }
 
@@ -105,7 +148,7 @@ namespace
             Configure(renderer, camera);
             renderer.GetNumOfThread() = workers;
             for (int frame = 0; frame < 4; ++frame) {
-                renderer.Render(scene, camera);
+                RayChecked(renderer.Render(scene, camera));
                 auto bytes = Read(renderer);
                 if (workers == 1 && repeat == 0) reference[frame] = bytes;
                 Require(bytes == reference[frame], "Serial/parallel/repeated sample output differs");
@@ -113,16 +156,16 @@ namespace
                     << " value=" << Checksum(bytes) << '\n';
             }
             renderer.ResetFrameIndex();
-            renderer.Render(scene, camera);
+            RayChecked(renderer.Render(scene, camera));
             Require(Read(renderer) == reference[0], "Reset did not restart the deterministic sample stream");
-            renderer.Render(scene, camera);
+            RayChecked(renderer.Render(scene, camera));
             renderer.GetSettings().Acculmate = false;
             for (int i = 0; i < 3; ++i) {
-                renderer.Render(scene, camera);
+                RayChecked(renderer.Render(scene, camera));
                 Require(Read(renderer) == reference[0], "Disabled accumulation retained old samples");
             }
             renderer.GetSettings().Seed++;
-            renderer.Render(scene, camera);
+            RayChecked(renderer.Render(scene, camera));
             Require(Read(renderer) != reference[0], "Changing seed did not change stochastic output");
         }
         Require(reference[0] != reference[1] && reference[1] != reference[3], "Samples do not advance");
@@ -147,14 +190,14 @@ namespace
             {
                 SimpleRenderer renderer;
                 RayTracingCamera camera(45.0f, 0.1f, 100.0f);
-                renderer.RenderBegin(); renderer.Render(scene, camera); // Before any resize.
+                renderer.RenderBegin(); RayChecked(renderer.Render(scene, camera)); // Before any resize.
                 for (const auto size : std::array<std::array<uint32_t, 2>, 5>{{{31, 17}, {1, 1}, {0, 0}, {19, 0}, {23, 13}}}) {
                     Configure(renderer, camera, size[0], size[1]);
                     renderer.GetNumOfThread() = repeat % 2 ? 3 : 1;
-                    renderer.OnResize(size[0], size[1]); // Repeated resize must retain pending allocation.
+                    RayChecked(renderer.OnResize(size[0], size[1])); // Repeated resize must retain pending allocation.
                     glBindTexture(GL_TEXTURE_2D, unrelated);
                     const unsigned before = GLCalls::allocations;
-                    renderer.RenderBegin(); renderer.Render(scene, camera);
+                    renderer.RenderBegin(); RayChecked(renderer.Render(scene, camera));
                     if (size[0] == 0 || size[1] == 0) {
                         Require(!renderer.GetFinalImage() && camera.GetRayDirections().empty(), "Zero size did not suspend/release storage");
                         Require(GLCalls::allocations == before, "Zero size allocated a texture");
@@ -165,21 +208,21 @@ namespace
                     SimpleRenderer fresh;
                     Configure(fresh, camera, size[0], size[1]);
                     fresh.GetNumOfThread() = 1;
-                    fresh.Render(scene, camera);
+                    RayChecked(fresh.Render(scene, camera));
                     Require(first == Read(fresh), "Resize retained old accumulation");
                     const unsigned uploads = GLCalls::updates;
                     glBindTexture(GL_TEXTURE_2D, unrelated);
-                    renderer.Render(scene, camera); // No OnResize call required between frames.
+                    RayChecked(renderer.Render(scene, camera)); // No OnResize call required between frames.
                     Require(GLCalls::updates == uploads + 1, "Second frame did not update existing texture");
                     glBindTexture(GL_TEXTURE_2D, unrelated);
                     std::array<uint8_t, 24> actual{};
                     glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, actual.data());
                     Require(actual == guard, "Ray upload overwrote another bound texture");
                 }
-                finalTexture = renderer.GetFinalImage()->GetTexID();
+                finalTexture = ImageName(*renderer.GetFinalImage());
                 SimpleRenderer moved(std::move(renderer));
-                Require(!renderer.GetFinalImage() && moved.GetFinalImage()->GetTexID() == finalTexture, "Move duplicated image ownership");
-                renderer.OnResize(0, 0);
+                Require(!renderer.GetFinalImage() && ImageName(*moved.GetFinalImage()) == finalTexture, "Move duplicated image ownership");
+                RayChecked(renderer.OnResize(0, 0));
                 renderer = std::move(moved);
                 Require(!moved.GetFinalImage(), "Move assignment did not transfer image");
             }
@@ -191,16 +234,81 @@ namespace
         RayTracingCamera camera(45.0f, 0.1f, 100.0f);
         Configure(renderer, camera, 8, 4);
         camera.OnResize(4, 8);
-        bool rejected = false;
-        try { renderer.Render(scene, camera); } catch (const std::invalid_argument&) { rejected = true; }
-        Require(rejected, "Camera/image dimension mismatch was accepted");
-        rejected = false;
-        try { renderer.OnResize(UINT32_MAX, UINT32_MAX); } catch (const std::length_error&) { rejected = true; }
-        Require(rejected, "Overflowing/unsupported dimensions were accepted");
+        const auto allocationsBefore=GLCalls::allocations.load(), updatesBefore=GLCalls::updates.load();
+        const auto mismatch=renderer.Render(scene,camera);
+        Require(!mismatch,"Camera/image dimension mismatch was accepted");
+        const auto copied=mismatch;auto moved=std::move(copied);
+        const auto& error=moved.error();
+        Require(error.code==ImageErrorCode::CameraMismatch && error.operation=="SimpleRenderer::Render"
+            && error.message=="Ray camera must be resized before rendering" && error.width==8 && error.height==4
+            && error.sourceWidth==4 && error.sourceHeight==8 && error.expectedElements==32
+            && error.actualElements==32 && error.format==ImageFormat::RGBA && error.backendCode==0,
+            "Camera mismatch diagnostic lost fields");
+        const auto overflow=renderer.OnResize(UINT32_MAX,UINT32_MAX);
+        Require(!overflow,"Overflowing/unsupported dimensions were accepted");
+        const auto& extent=overflow.error();
+        Require(extent.code==ImageErrorCode::InvalidExtent && extent.operation=="SimpleRenderer::OnResize"
+            && extent.message=="Ray image dimensions exceed supported storage" && extent.width==UINT32_MAX
+            && extent.height==UINT32_MAX && extent.sourceWidth==8 && extent.sourceHeight==4
+            && extent.actualElements==uint64_t(UINT32_MAX)*UINT32_MAX && extent.expectedElements>0
+            && extent.format==ImageFormat::RGBA && extent.backendCode==0,"Extent diagnostic lost fields");
+        Require(GLCalls::allocations==allocationsBefore && GLCalls::updates==updatesBefore,
+            "Rejected input allocated or uploaded GPU storage");
+        std::cout<<"[PASS] typed extent/camera errors complete; no rejected upload; previous storage retained\n";
         camera.OnResize(8, 4);
-        renderer.Render(scene, camera);
+        RayChecked(renderer.Render(scene, camera));
         Require(Read(renderer).size() == 8 * 4 * 4, "Rejected resize damaged previous storage");
         std::cout << "[PASS] resize/zero/restore/pending-upload/binding/move/close stress\n";
+    }
+
+    void ImageOwnership()
+    {
+        const std::array<uint8_t,16> pixels{31,63,127,255,255,0,0,255,0,255,0,255,0,0,255,255};
+        auto invalid=Image::Create(0,2,ImageFormat::RGBA);Require(!invalid && invalid.error().code==ImageErrorCode::InvalidExtent,"Zero Image extent accepted");
+        auto format=Image::Create(2,2,ImageFormat::None);Require(!format && format.error().code==ImageErrorCode::InvalidFormat,"Invalid Image format accepted");
+        for(auto kind:{ImageFormat::RGBA,ImageFormat::RGBA32F}) {
+            auto created=Image::Create(2,2,kind,pixels);Require(bool(created),"Typed Image creation");
+            Image first=std::move(*created);const GLuint name=ImageName(first);
+            Require(name && !ImageName(*created),"Image move duplicated texture");
+            auto badUI=UI::RasterImage(first,0,4);
+            Require(!badUI && badUI.error().code==ImageErrorCode::InvalidExtent && badUI.error().operation=="UI::RasterImage","Invalid UI size accepted");
+            auto noUI=UI::RasterImage(first,4,4);
+            Require(!noUI && noUI.error().code==ImageErrorCode::Context,"Image presentation accepted no active UI frame");
+            auto empty=Image::Create(2,2,kind);Require(bool(empty),"Metadata-only Image creation");
+            auto unavailable=UI::RasterImage(*empty,4,4);
+            Require(!unavailable && unavailable.error().code==ImageErrorCode::Unavailable,"Unallocated image presented");
+            const auto before=GLCalls::allocations.load();
+            auto shortData=first.UpdateData(std::span(pixels).first(4));
+            Require(!shortData && shortData.error().code==ImageErrorCode::InvalidData && shortData.error().expectedElements==16
+                && shortData.error().actualElements==4 && GLCalls::allocations==before,"Short Image bytes not rejected completely");
+            auto read=[&] {std::array<uint8_t,16> actual{};glBindTexture(GL_TEXTURE_2D,ImageName(first));glGetTexImage(GL_TEXTURE_2D,0,GL_RGBA,GL_UNSIGNED_BYTE,actual.data());return actual;};
+            Require(read()==pixels,"Image upload changed existing byte-source format semantics");
+            GLCalls::failAllocation=true;auto failed=first.SetData(pixels);
+            Require(!failed && failed.error().code==ImageErrorCode::Backend && failed.error().backendCode==GL_OUT_OF_MEMORY
+                && failed.error().operation=="Image::SetData" && failed.error().sourceWidth==2 && failed.error().sourceHeight==2
+                && failed.error().expectedElements==16 && failed.error().actualElements==16 && ImageName(first)==name && read()==pixels,
+                "Failed allocation did not retain prior texture/data and complete error");
+            GLCalls::failGeneration=true;auto noName=first.SetData(pixels);
+            Require(!noName && noName.error().code==ImageErrorCode::Allocation && ImageName(first)==name,"Missing native allocation lost owner");
+            GLCalls::failUpdate=true;auto update=first.UpdateData(pixels);
+            Require(!update && update.error().code==ImageErrorCode::Backend && update.error().operation=="Image::UpdateData"
+                && update.error().backendCode==GL_OUT_OF_MEMORY && read()==pixels,"Failed update lost error/pixels");
+            auto* window=SDL_GL_GetCurrentWindow();auto context=SDL_GL_GetCurrentContext();
+            Require(SDL_GL_MakeCurrent(window,nullptr)==0,"Detach Image context");auto detached=first.UpdateData(pixels);
+            Require(!detached && detached.error().code==ImageErrorCode::Context,"Detached Image upload accepted");
+            Require(SDL_GL_MakeCurrent(window,context)==0,"Restore Image context");
+            ImageResult worker;
+            std::thread task([&]{worker=first.UpdateData(pixels);});task.join();
+            Require(!worker && worker.error().code==ImageErrorCode::Context && GLCalls::wrongThread==0,"Image worker issued GL");
+            auto other=Image::Create(2,2,kind,pixels);Require(bool(other),"Move assignment target");const auto replaced=ImageName(*other);
+            *other=std::move(first);Require(!ImageName(first) && ImageName(*other)==name && !glIsTexture(replaced),"Image move assignment retirement");
+            *other=std::move(*other);Require(ImageName(*other)==name,"Image self move lost owner");
+            RayChecked(other->Resize(3,2));auto stale=other->UpdateData(std::array<uint8_t,24>{});
+            Require(!stale && stale.error().code==ImageErrorCode::Unavailable,"Resized image accepted stale storage update");
+            RayChecked(other->SetData(std::array<uint8_t,24>{}));Require(!glIsTexture(name),"Resize old storage survived publication");
+        }
+        Require(GLCalls::live.empty(),"Image fixture leaked texture names");
+        std::cout<<"[PASS] Image typed data/context/backend errors; allocation rollback; move-only exact retirement; byte formats preserved\n";
     }
 
     void StorageLifetime(const RayTracingScene& scene)
@@ -212,10 +320,10 @@ namespace
             for (int i = 0; i < 24; ++i) {
                 SimpleRenderer renderer;
                 renderer.GetNumOfThread() = 1;
-                renderer.OnResize(37, 29);
-                renderer.Render(scene, camera);
+                RayChecked(renderer.OnResize(37, 29));
+                RayChecked(renderer.Render(scene, camera));
                 renderer.ResetFrameIndex();
-                renderer.Render(scene, camera);
+                RayChecked(renderer.Render(scene, camera));
             }
         };
         churn(); // Warm driver/logging state before exact application CRT comparison.
@@ -296,6 +404,7 @@ int main(int argc, char** argv)
                 Determinism(scene);
                 ResizeAndClose(scene);
                 StorageLifetime(scene);
+                ImageOwnership();
                 Require(GLCalls::wrongThread == 0, "Texture GL work escaped the context thread");
                 Require(diagnostics.errors == 0 && diagnostics.markers == 1 && glGetError() == GL_NO_ERROR,
                     "GL error or diagnostic failure");
@@ -310,3 +419,7 @@ int main(int argc, char** argv)
         return 1;
     }
 }
+
+#endif
+
+#endif

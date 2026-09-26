@@ -1,9 +1,19 @@
 #pragma once
 #include <type_traits>
+#include <expected>
+#include <string_view>
 #include <Math/Math.h>
 
 namespace GEngine
 {
+    enum class PointCoordinateErrorCode { IndexOutOfRange };
+    struct PointCoordinateError
+    {
+        PointCoordinateErrorCode code;
+        int index;
+        std::string_view operation;
+        std::string_view message;
+    };
 	using namespace Math;
 	template<typename T>
 	concept FloatOrDouble = std::is_same_v<T, float> || std::is_same_v<T, double>;
@@ -17,14 +27,15 @@ namespace GEngine
 		Point3D() = default;
 		Point3D(const Vec3f& position) : m_Position(position){}
 
-		float operator[](int index) const
+		[[nodiscard]] std::expected<float, PointCoordinateError> operator[](int index) const
 		{
 			switch (index)
 			{
 			case 0: return m_Position.x;
 			case 1: return m_Position.y;
 			case 2: return m_Position.z;
-			default: throw std::out_of_range("Index out of range for Point3D");
+			default: return std::unexpected(PointCoordinateError{PointCoordinateErrorCode::IndexOutOfRange,
+                index, "Point3D::operator[]", "Index out of range for Point3D"});
 			}
 		}
 

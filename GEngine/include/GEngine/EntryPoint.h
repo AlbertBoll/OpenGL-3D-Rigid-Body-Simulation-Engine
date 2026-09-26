@@ -39,7 +39,8 @@ int main(int argc, char* args[])
 		ScopedPtr<BaseApp> app(CreateApp());
 		auto initialized = app->Initialize({ winProp });
         if (!initialized) { ReportApplicationError(initialized.error()); exitCode = 1; }
-        else app->Run();
+        else if (auto running = app->Run(); !running)
+        { ReportApplicationError(running.error()); exitCode = 1; }
 	}
 	catch (const std::exception& error)
 	{

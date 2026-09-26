@@ -3,18 +3,17 @@
 #include "ShapeSphere.h"
 
 #include <cmath>
-#include <stdexcept>
 
 
 namespace GEngine
 {
-	ShapeSphere::ShapeSphere(float radius) : m_Radius(radius), m_BaseRadius(radius)
-	{
-		if (!IsValid()) {
-			throw std::invalid_argument("ShapeSphere requires a finite positive radius");
-		}
-		m_ShapeType = ShapeType::Sphere;
-	}
+    std::expected<ShapeSphere, PhysicsShapeError> ShapeSphere::Create(float radius)
+    {
+        if (!std::isfinite(radius) || radius <= 0.0f)
+            return std::unexpected(PhysicsShapeError{PhysicsShapeErrorCode::InvalidRadius,
+                "ShapeSphere::Create", "ShapeSphere requires a finite positive radius", radius});
+        return ShapeSphere(radius, ValidatedRadius{});
+    }
 
 	bool ShapeSphere::IsValid() const
 	{

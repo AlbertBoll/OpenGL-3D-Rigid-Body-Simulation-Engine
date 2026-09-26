@@ -2,7 +2,6 @@
 #include "Core/RenderTarget.h"
 #include <cmath>
 #include <limits>
-#include <stdexcept>
 #include <utility>
 
 namespace GEngine
@@ -175,11 +174,15 @@ namespace GEngine
         return Reconfigure(desc);
     }
 
-    // Unchanged standalone UBO/RBO legacy contracts: residual error-model owner Phase 66.
-	RenderBufferObject::RenderBufferObject(unsigned int width, unsigned int height, unsigned int samples)
-	{
-		Resize(width, height, samples);
-	}
+    // Standalone renderbuffer and uniform-buffer owners use typed failure transport.
+    std::expected<RenderBufferObject, FramebufferError> RenderBufferObject::Create(
+        unsigned int width, unsigned int height, unsigned int samples)
+    {
+        RenderBufferObject candidate;
+        if (auto resized = candidate.Resize(width, height, samples); !resized)
+            return std::unexpected(resized.error());
+        return candidate;
+    }
 
 	RenderBufferObject::~RenderBufferObject()
 	{
@@ -209,109 +212,131 @@ namespace GEngine
 		return *this;
 	}
 
-	void RenderBufferObject::Resize(unsigned int width, unsigned int height, unsigned int samples)
-	{
-		if (!width || !height || !samples)
-			throw std::invalid_argument("Renderbuffer dimensions and sample count must be positive");
-		GLint maxSize = 0, maxSamples = 0, previous = 0;
-		glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, &maxSize);
-		glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
-		if (maxSize <= 0 || maxSamples <= 0 || width > static_cast<unsigned int>(maxSize)
-			|| height > static_cast<unsigned int>(maxSize) || samples > static_cast<unsigned int>(maxSamples))
-			throw std::out_of_range("Renderbuffer dimensions or samples exceed context limits");
-		glGetIntegerv(GL_RENDERBUFFER_BINDING, &previous);
-		RenderBufferObject candidate;
-		try
-		{
-			glGenRenderbuffers(1, &candidate.m_ID);
-			if (!candidate.m_ID) throw std::runtime_error("Renderbuffer name allocation failed");
-			glBindRenderbuffer(GL_RENDERBUFFER, candidate.m_ID);
-			if (samples > 1)
-				glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples, GL_DEPTH24_STENCIL8, width, height);
-			else
-				glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
-			GLint actualWidth = 0, actualHeight = 0, actualSamples = 0, format = 0;
-			glGetNamedRenderbufferParameteriv(candidate.m_ID, GL_RENDERBUFFER_WIDTH, &actualWidth);
-			glGetNamedRenderbufferParameteriv(candidate.m_ID, GL_RENDERBUFFER_HEIGHT, &actualHeight);
-			glGetNamedRenderbufferParameteriv(candidate.m_ID, GL_RENDERBUFFER_SAMPLES, &actualSamples);
-			glGetNamedRenderbufferParameteriv(candidate.m_ID, GL_RENDERBUFFER_INTERNAL_FORMAT, &format);
-			// Query the fresh allocation: unrelated pending GL errors remain observable.
-			// Implementations may round multisample counts upward.
-			if (actualWidth != static_cast<GLint>(width) || actualHeight != static_cast<GLint>(height)
-				|| format != GL_DEPTH24_STENCIL8 || (samples > 1 ? actualSamples < static_cast<GLint>(samples) : actualSamples != 0))
-				throw std::runtime_error("Renderbuffer storage allocation failed");
-		}
-		catch (...)
-		{
-			glBindRenderbuffer(GL_RENDERBUFFER, previous);
-			throw; // candidate retires any generated name, even during constructor failure.
-		}
-		candidate.m_Width = width;
-		candidate.m_Height = height;
-		candidate.m_Samples = samples;
-		Swap(candidate); // Only a complete allocation replaces the old owner.
-	}
+    FramebufferResult RenderBufferObject::Resize(unsigned int width, unsigned int height, unsigned int samples)
+    {
+        const auto reject = [&](FramebufferErrorCode code, const char* message) {
+            return std::unexpected(FramebufferError{code, message, width, height, samples});
+        };
+        if (!width || !height || !samples)
+            return reject(FramebufferErrorCode::InvalidDescription, "Renderbuffer dimensions and sample count must be positive");
+        GLint maxSize = 0, maxSamples = 0, previous = 0;
+        glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, &maxSize);
+        glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
+        if (maxSize <= 0 || maxSamples <= 0 || width > static_cast<unsigned int>(maxSize)
+            || height > static_cast<unsigned int>(maxSize) || samples > static_cast<unsigned int>(maxSamples))
+            return reject(FramebufferErrorCode::Unsupported, "Renderbuffer dimensions or samples exceed context limits");
+        glGetIntegerv(GL_RENDERBUFFER_BINDING, &previous);
+        RenderBufferObject candidate;
+        struct RestoreBinding
+        {
+            GLint previous;
+            bool committed = false;
+            ~RestoreBinding() { if (!committed) glBindRenderbuffer(GL_RENDERBUFFER, previous); }
+        } restore{previous};
+        glGenRenderbuffers(1, &candidate.m_ID);
+        if (!candidate.m_ID)
+            return reject(FramebufferErrorCode::Allocation, "Renderbuffer name allocation failed");
+        glBindRenderbuffer(GL_RENDERBUFFER, candidate.m_ID);
+        GLint bound = 0;
+        glGetIntegerv(GL_RENDERBUFFER_BINDING, &bound);
+        if (static_cast<unsigned int>(bound) != candidate.m_ID)
+            return reject(FramebufferErrorCode::InvalidOperation, "Renderbuffer binding failed");
+        if (samples > 1)
+            glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples, GL_DEPTH24_STENCIL8, width, height);
+        else
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+        GLint actualWidth = 0, actualHeight = 0, actualSamples = 0, format = 0;
+        glGetNamedRenderbufferParameteriv(candidate.m_ID, GL_RENDERBUFFER_WIDTH, &actualWidth);
+        glGetNamedRenderbufferParameteriv(candidate.m_ID, GL_RENDERBUFFER_HEIGHT, &actualHeight);
+        glGetNamedRenderbufferParameteriv(candidate.m_ID, GL_RENDERBUFFER_SAMPLES, &actualSamples);
+        glGetNamedRenderbufferParameteriv(candidate.m_ID, GL_RENDERBUFFER_INTERNAL_FORMAT, &format);
+        // Preserve pending driver errors for the existing diagnostics. Query the
+        // fresh allocation, allowing implementations to round sample counts up.
+        if (actualWidth != static_cast<GLint>(width) || actualHeight != static_cast<GLint>(height)
+            || format != GL_DEPTH24_STENCIL8 || (samples > 1 ? actualSamples < static_cast<GLint>(samples) : actualSamples != 0))
+            return reject(FramebufferErrorCode::Storage, "Renderbuffer storage allocation failed");
+        candidate.m_Width = width;
+        candidate.m_Height = height;
+        candidate.m_Samples = samples;
+        Swap(candidate);
+        restore.committed = true;
+        return {};
+    }
 
-	template<UniformType Type>
-	UniformBufferObject<Type>::UniformBufferObject(unsigned int max_size, unsigned int bind_point)
-		: m_MaxSize(max_size), m_BindingPoint(bind_point)
-	{
-		using namespace Math;
-		if constexpr (Type == UniformType::VEC2F)
-		{
-			m_UniformTypeSize = sizeof(Vec2f);
-		}
-		else if constexpr (Type == UniformType::VEC3F)
-		{
-			m_UniformTypeSize = sizeof(Vec3f);
-		}
-		else if constexpr (Type == UniformType::VEC4F)
-		{
-			m_UniformTypeSize = sizeof(Vec4f);
-		}
-		else if constexpr (Type == UniformType::MATRIX_2_2)
-		{
-			m_UniformTypeSize = sizeof(Mat2);
-		}
-		else if constexpr (Type == UniformType::MATRIX_3_3)
-		{
-			m_UniformTypeSize = sizeof(Mat3);
-		}
-		else if constexpr (Type == UniformType::MATRIX_4_4)
-		{
-			m_UniformTypeSize = sizeof(Mat4);
-		}
-		if (!max_size || !m_UniformTypeSize)
-			throw std::invalid_argument("Uniform buffer element count and type must be valid");
-		if (max_size > static_cast<std::size_t>((std::numeric_limits<GLsizeiptr>::max)()) / m_UniformTypeSize)
-			throw std::length_error("Uniform buffer size exceeds the GL byte-size limit");
-		const auto bytes = static_cast<GLsizeiptr>(max_size) * m_UniformTypeSize;
-		GLint maxBindings = 0, previous = 0;
-		glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &maxBindings);
-		if (maxBindings <= 0 || bind_point >= static_cast<unsigned int>(maxBindings))
-			throw std::out_of_range("Uniform buffer binding point exceeds context limits");
-		glGetIntegerv(GL_UNIFORM_BUFFER_BINDING, &previous);
-		try
-		{
-			glGenBuffers(1, &m_UBO);
-			if (!m_UBO) throw std::runtime_error("Uniform buffer name allocation failed");
-			glBindBuffer(GL_UNIFORM_BUFFER, m_UBO);
-			glBufferData(GL_UNIFORM_BUFFER, bytes, nullptr, GL_STATIC_DRAW);
-			GLint64 allocatedBytes = 0;
-			glGetBufferParameteri64v(GL_UNIFORM_BUFFER, GL_BUFFER_SIZE, &allocatedBytes);
-			if (allocatedBytes != bytes) throw std::runtime_error("Uniform buffer storage allocation failed");
-			// Publish the indexed binding only after storage is known to exist.
-			glBindBufferBase(GL_UNIFORM_BUFFER, m_BindingPoint, m_UBO);
-			glBindBuffer(GL_UNIFORM_BUFFER, 0);
-		}
-		catch (...)
-		{
-			glBindBuffer(GL_UNIFORM_BUFFER, previous);
-			if (m_UBO) glDeleteBuffers(1, &m_UBO);
-			m_UBO = 0;
-			throw; // A failed constructor will not run this class's destructor.
-		}
-	}
+    template<UniformType Type>
+    std::expected<UniformBufferObject<Type>, UniformBufferError> UniformBufferObject<Type>::Create(
+        unsigned int max_size, unsigned int bind_point)
+    {
+        using namespace Math;
+        UniformBufferObject candidate;
+        candidate.m_MaxSize = max_size;
+        candidate.m_BindingPoint = bind_point;
+        if constexpr (Type == UniformType::VEC2F) candidate.m_UniformTypeSize = sizeof(Vec2f);
+        else if constexpr (Type == UniformType::VEC3F) candidate.m_UniformTypeSize = sizeof(Vec3f);
+        else if constexpr (Type == UniformType::VEC4F) candidate.m_UniformTypeSize = sizeof(Vec4f);
+        else if constexpr (Type == UniformType::MATRIX_2_2) candidate.m_UniformTypeSize = sizeof(Mat2);
+        else if constexpr (Type == UniformType::MATRIX_3_3) candidate.m_UniformTypeSize = sizeof(Mat3);
+        else if constexpr (Type == UniformType::MATRIX_4_4) candidate.m_UniformTypeSize = sizeof(Mat4);
+        const auto reject = [&](UniformBufferErrorCode code, const char* message) {
+            return std::unexpected(UniformBufferError{code, "UniformBufferObject::Create", message,
+                max_size, bind_point, candidate.m_UniformTypeSize});
+        };
+        if (!max_size || !candidate.m_UniformTypeSize)
+            return reject(UniformBufferErrorCode::InvalidDescription, "Uniform buffer element count and type must be valid");
+        if (max_size > static_cast<std::size_t>((std::numeric_limits<GLsizeiptr>::max)()) / candidate.m_UniformTypeSize)
+            return reject(UniformBufferErrorCode::SizeOverflow, "Uniform buffer size exceeds the GL byte-size limit");
+        const auto bytes = static_cast<GLsizeiptr>(max_size) * candidate.m_UniformTypeSize;
+        GLint maxBindings = 0, previous = 0, previousIndexed = 0;
+        GLint64 previousStart = 0, previousSize = 0;
+        glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &maxBindings);
+        if (maxBindings <= 0 || bind_point >= static_cast<unsigned int>(maxBindings))
+            return reject(UniformBufferErrorCode::InvalidBinding, "Uniform buffer binding point exceeds context limits");
+        glGetIntegerv(GL_UNIFORM_BUFFER_BINDING, &previous);
+        glGetIntegeri_v(GL_UNIFORM_BUFFER_BINDING, bind_point, &previousIndexed);
+        glGetInteger64i_v(GL_UNIFORM_BUFFER_START, bind_point, &previousStart);
+        glGetInteger64i_v(GL_UNIFORM_BUFFER_SIZE, bind_point, &previousSize);
+        struct RestoreBindings
+        {
+            unsigned int point;
+            GLint generic, indexed;
+            GLint64 start, size;
+            bool publishing = false, committed = false;
+            ~RestoreBindings()
+            {
+                if (committed) return;
+                if (publishing)
+                {
+                    if (indexed && size) glBindBufferRange(GL_UNIFORM_BUFFER, point, indexed, start, size);
+                    else glBindBufferBase(GL_UNIFORM_BUFFER, point, indexed);
+                }
+                glBindBuffer(GL_UNIFORM_BUFFER, generic);
+            }
+        } restore{bind_point, previous, previousIndexed, previousStart, previousSize};
+        glGenBuffers(1, &candidate.m_UBO);
+        if (!candidate.m_UBO)
+            return reject(UniformBufferErrorCode::Allocation, "Uniform buffer name allocation failed");
+        glBindBuffer(GL_UNIFORM_BUFFER, candidate.m_UBO);
+        GLint bound = 0;
+        glGetIntegerv(GL_UNIFORM_BUFFER_BINDING, &bound);
+        if (static_cast<unsigned>(bound) != candidate.m_UBO)
+            return reject(UniformBufferErrorCode::Binding, "Uniform buffer binding failed");
+        glBufferData(GL_UNIFORM_BUFFER, bytes, nullptr, GL_STATIC_DRAW);
+        GLint64 allocatedBytes = 0;
+        glGetBufferParameteri64v(GL_UNIFORM_BUFFER, GL_BUFFER_SIZE, &allocatedBytes);
+        if (allocatedBytes != bytes)
+            return reject(UniformBufferErrorCode::Storage, "Uniform buffer storage allocation failed");
+        restore.publishing = true;
+        glBindBufferBase(GL_UNIFORM_BUFFER, bind_point, candidate.m_UBO);
+        glGetIntegeri_v(GL_UNIFORM_BUFFER_BINDING, bind_point, &bound);
+        if (static_cast<unsigned>(bound) != candidate.m_UBO)
+            return reject(UniformBufferErrorCode::Binding, "Uniform buffer indexed binding failed");
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+        glGetIntegerv(GL_UNIFORM_BUFFER_BINDING, &bound);
+        if (bound != 0)
+            return reject(UniformBufferErrorCode::Binding, "Uniform buffer unbind failed");
+        restore.committed = true;
+        return candidate;
+    }
 
 	template<UniformType Type>
 	UniformBufferObject<Type>::~UniformBufferObject()

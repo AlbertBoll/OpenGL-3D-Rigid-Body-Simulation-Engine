@@ -60,11 +60,14 @@ namespace GEngine
 
         void BindTextures() const;
 
-        void BindTexture(int TexTarget = 0x0DE1) const
+
+
+    private:
+        void BindTexture(int TexTarget) const
         {
             m_Material->BindTextureUniforms(TexTarget);
         }
-
+    public:
         void SetMaterial(const RefPtr<Material>& material)
         {
             m_Material = material;
@@ -80,7 +83,7 @@ namespace GEngine
 
         void UnBindVAO()const;
 
-        template <typename T>
+        template<Asset::ShaderUniform T>
         void SetUniforms(const std::map<std::string, T>& uniforms)const
         {
             m_Material->SetUniforms(uniforms);

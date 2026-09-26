@@ -82,7 +82,11 @@ ApplicationInitializationResult GameLevel::Initialize(std::vector<std::vector<un
     if (!blockSolidMaterialResult) return std::unexpected(blockSolidMaterialResult.error());
     auto blockSolidMaterial = std::move(*blockSolidMaterialResult);
 
-    auto blockGeo = ShapeManager::GetShape("SpriteGeometry");
+    auto blockGeoResult = ShapeManager::FindShape("SpriteGeometry");
+        if (!blockGeoResult) return std::unexpected(blockGeoResult.error());
+        if (!*blockGeoResult) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+            "GameLevel::Initialize", "Required SpriteGeometry shape is unavailable"});
+        auto* blockGeo = *blockGeoResult;
 
     Vec3f color(1.0f); // original: white
     ScopedPtr<SpriteEntity> obj = nullptr;

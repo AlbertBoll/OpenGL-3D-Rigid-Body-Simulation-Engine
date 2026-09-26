@@ -6,6 +6,7 @@
 #include <filesystem>
 #include "Audio/AudioSystem.h"
 #include "Physics/PhysicsSystem.h"
+#include "Physics/Shape.h"
 #include <SpatialPartition/KDTree.h>
 #include "Renderer/FrameSubmission.h"
 #include "Assets/Textures/AsyncTexture.h"
@@ -42,7 +43,7 @@ private:
 	void UI_Toolbar();
 	void OnMouseClicked();
 	void FilledKDTreePoints();
-	void UpdateImportedMesh();
+	[[nodiscard]] std::expected<void, SceneError> UpdateImportedMesh();
 	void OnViewportResize(int viewport_x, int viewport_y);
 
 
@@ -68,6 +69,8 @@ private:
 	_Entity m_PointLightEntity;
 	
 	_EditorCamera m_EditorCamera_;
+	// Successful runtime shapes outlive their scene/body borrowers.
+	std::vector<std::unique_ptr<PhysicalShape>> m_PhysicsShapes;
 	RefPtr<_Scene> m_ActiveScene;
 	RefPtr<_Scene> m_EditorScene;
 	std::filesystem::path m_EditorScenePath;

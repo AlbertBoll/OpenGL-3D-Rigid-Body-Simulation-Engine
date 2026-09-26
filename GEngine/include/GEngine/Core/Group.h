@@ -100,10 +100,7 @@ namespace GEngine
 		void SetMaterial(Material* mat) { m_Material = mat; }
 		void SetGeometry(Geometry* geo) { m_Geometry = geo; }
 
-		unsigned int GetProgramID()const
-		{
-			return m_Material->GetShaderID();
-		}
+
 
 		Collections& GetCollections() { return m_Group; }
 
@@ -116,6 +113,10 @@ namespace GEngine
 		}*/
 
 	private:
+		unsigned int GetProgramID()const
+		{
+			return m_Material->GetShaderID();
+		}
 		Collections m_Group;
 		Material* m_Material{};
 		Geometry* m_Geometry{};

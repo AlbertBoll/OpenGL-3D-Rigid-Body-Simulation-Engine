@@ -1,4 +1,5 @@
 #include "../GEngine/src/Assets/ShaderBackend.h"
+#include "../GEngine/src/Material/MaterialBackend.h"
 // Production-library sampler/cache/material checks; run through test_sampler.py.
 #include "gepch.h"
 #include "Assets/Samplers/Sampler.h"
@@ -235,7 +236,7 @@ namespace
             Check(image.Bind(1) && Bound(1) == 0, "Texture-only consumer inherited a previous material sampler");
             glDeleteVertexArrays(1,&vao);
             GLint imageName = 0; image.Bind(7).value(); glGetIntegerv(GL_TEXTURE_BINDING_2D,&imageName);
-            material.GetTextureList().emplace(GL_TEXTURE_2D,std::pair{static_cast<unsigned>(imageName),3u});
+            MaterialDetail::BackendAccess::LegacyTextures(material).emplace(GL_TEXTURE_2D,std::pair{static_cast<unsigned>(imageName),3u});
             material.BindTextureUniforms(); Check(Bound(3) == 0, "Legacy target retained unrelated sampler");
         }
         { auto p = publication.BeginPublication(); Check(images.Close(p), "Image leases escaped material"); }
@@ -272,12 +273,12 @@ int main(int argc, char** argv)
                 worker.join();
             }
             else if (mode == "--reject-live-lease")
-            { auto cache = std::make_unique<SamplerCache>(root->AssetPublications()); auto lease = cache->Resolve(cache->Get({}).value()).value(); cache.reset(); }
+            { auto cache = std::make_unique<SamplerCache>(root->SceneServices().value().publication); auto lease = cache->Resolve(cache->Get({}).value()).value(); cache.reset(); }
             return 89;
         }
-        OwnershipAndFailures(root->AssetPublications());
-        Anisotropy(root->AssetPublications());
-        SamplingAndMaterial(root->AssetPublications());
+        OwnershipAndFailures(root->SceneServices().value().publication);
+        Anisotropy(root->SceneServices().value().publication);
+        SamplingAndMaterial(root->SceneServices().value().publication);
         root.reset();
         Check(Observer::correct && Observer::live.empty() && Observer::created == Observer::deleted && !SDL_GL_GetCurrentContext(), "Sampler exact-once/context retirement");
         std::println("[PASS] sampler created={} deleted={}", Observer::created, Observer::deleted);

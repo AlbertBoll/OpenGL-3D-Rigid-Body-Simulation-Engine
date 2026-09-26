@@ -5,7 +5,7 @@
 #include "Managers/AssetsManager.h"
 #include "Managers/ShaderManager.h"
 #include "Windows/SDLWindow.h"
-#include <stdexcept>
+#include <string>
 
 
 
@@ -23,28 +23,38 @@ namespace GEngine
 
     EngineContext::EngineContext() : m_OwnerThread(std::this_thread::get_id())
     {
-        if (s_Current) throw std::logic_error("Only one live EngineContext is supported");
-        s_Current = this;
+        if (!s_Current) s_Current = this;
+        else m_State = State::Failed; // Initialize reports registration failure without acquiring ownership.
     }
 
     EngineContext::~EngineContext()
     {
         if (std::this_thread::get_id() != m_OwnerThread) std::terminate();
         Release();
-        s_Current = nullptr;
+        if (s_Current == this) s_Current = nullptr;
+    }
+
+    std::expected<EngineContext*, PlatformError> EngineContext::TryCurrent()
+    {
+        if (!s_Current) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+            "root lookup", "No live application EngineContext"});
+        if (std::this_thread::get_id() != s_Current->m_OwnerThread)
+            return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+                "root lookup", "EngineContext access requires its owner thread"});
+        return s_Current;
     }
 
     EngineContext& EngineContext::Current()
     {
-        if (!s_Current) throw std::logic_error("No live application EngineContext");
+        // This retained reference accessor is only for callbacks inside the owner lifetime.
+        Asset::AssetDetail::RequireInvariant(s_Current != nullptr);
         s_Current->RequireOwnerThread();
         return *s_Current;
     }
 
     void EngineContext::RequireOwnerThread() const
     {
-        if (std::this_thread::get_id() != m_OwnerThread)
-            throw std::logic_error("EngineContext access requires its owner thread");
+        GLContextThread::RequireOwner(m_OwnerThread, "legacy engine callback access");
     }
 
     GEngine& EngineContext::LegacyEngine()
@@ -53,26 +63,42 @@ namespace GEngine
         return m_LegacyEngine;
     }
 
-    void EngineContext::RequireManagers()
+    PlatformResult EngineContext::RequireManagers()
     {
-        RequireOwnerThread();
+        if (std::this_thread::get_id() != m_OwnerThread)
+            return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+                "manager access", "EngineContext access requires its owner thread"});
         if ((m_State != State::Ready && m_State != State::Initializing)
             || !m_MainWindow || !m_Assets || !m_Shaders || !m_Shapes)
-            throw std::logic_error("EngineContext managers are not available");
-        // Compatibility access may follow a secondary window render. Every cache
-        // operation still belongs to the main owning context, including uploads.
-        if (!m_MainWindow->IsCurrent()) { auto current = m_MainWindow->BeginRender(); if (!current) ReportPlatformError(current.error()); }
+            return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+                "manager access", "EngineContext managers are not available"});
+        // Compatibility access can follow a secondary window render. Caches still
+        // belong to the main context; preserve its complete activation diagnostic.
         if (!m_MainWindow->IsCurrent())
-            throw std::runtime_error("Unable to activate manager owning context");
+            if (auto current = m_MainWindow->BeginRender(); !current) return current;
+        if (!m_MainWindow->IsCurrent())
+            return std::unexpected(PlatformError{PlatformErrorCode::ContextActivation,
+                "manager access", "Unable to activate manager owning context"});
+        return {};
+    }
+
+    namespace
+    {
+        std::string PlatformDiagnostic(const PlatformError& error)
+        {
+            return "Platform operation=" + error.operation + " code="
+                + std::to_string(static_cast<unsigned>(error.code)) + ": " + error.message;
+        }
     }
 
     std::expected<Manager::AssetsManager*, Asset::TextureError> EngineContext::TryAssets()
     {
-        Asset::AssetDetail::RequireInvariant(std::this_thread::get_id() == m_OwnerThread);
+        if (std::this_thread::get_id() != m_OwnerThread)
+            return std::unexpected(Asset::TextureError{Asset::TextureErrorCode::ContextUnavailable, {}, "Texture services require the owner thread"});
         if ((m_State != State::Ready && m_State != State::Initializing) || !m_Assets || !m_MainWindow)
             return std::unexpected(Asset::TextureError{Asset::TextureErrorCode::ContextUnavailable, {}, "Texture services are unavailable"});
         if (auto current = m_MainWindow->BeginRender(); !current)
-            return std::unexpected(Asset::TextureError{Asset::TextureErrorCode::ContextUnavailable, {}, current.error().message});
+            return std::unexpected(Asset::TextureError{Asset::TextureErrorCode::ContextUnavailable, {}, PlatformDiagnostic(current.error())});
         return m_Assets.get();
     }
 
@@ -83,16 +109,43 @@ namespace GEngine
         if ((m_State != State::Ready && m_State != State::Initializing) || !m_Shaders || !m_MainWindow)
             return std::unexpected(Asset::ShaderError{Asset::ShaderErrorCode::ContextUnavailable, {}, {}, "Shader services are unavailable"});
         if (auto current = m_MainWindow->BeginRender(); !current)
-            return std::unexpected(Asset::ShaderError{Asset::ShaderErrorCode::ContextUnavailable, {}, {}, current.error().message});
+            return std::unexpected(Asset::ShaderError{Asset::ShaderErrorCode::ContextUnavailable, {}, {}, PlatformDiagnostic(current.error())});
         return m_Shaders.get();
     }
-    Manager::AssetsManager& EngineContext::Assets() { RequireManagers(); return *m_Assets; }
-    Manager::ShapeManager& EngineContext::Shapes() { RequireManagers(); return *m_Shapes; }
-    Asset::AssetPublication& EngineContext::AssetPublications() { RequireManagers(); return m_AssetPublication; }
+    std::expected<Manager::ShapeManager*, PlatformError> EngineContext::TryShapes()
+    {
+        if (std::this_thread::get_id() != m_OwnerThread)
+            return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+                "shape registration", "EngineContext access requires its owner thread"});
+        if ((m_State != State::Ready && m_State != State::Initializing) || !m_Shapes || !m_MainWindow)
+            return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+                "shape registration", "Shape services are unavailable"});
+        if (!m_MainWindow->IsCurrent())
+            if (auto current = m_MainWindow->BeginRender(); !current) return std::unexpected(current.error());
+        return m_Shapes.get();
+    }
+
+    std::expected<Manager::AssetsManager*, PlatformError> EngineContext::Assets()
+    {
+        if (auto ready = RequireManagers(); !ready) return std::unexpected(ready.error());
+        return m_Assets.get();
+    }
+    std::expected<Manager::ShapeManager*, PlatformError> EngineContext::Shapes()
+    {
+        if (auto ready = RequireManagers(); !ready) return std::unexpected(ready.error());
+        return m_Shapes.get();
+    }
+    std::expected<Asset::AssetPublication*, PlatformError> EngineContext::AssetPublications()
+    {
+        if (auto ready = RequireManagers(); !ready) return std::unexpected(ready.error());
+        return &m_AssetPublication;
+    }
 
     std::expected<SceneResourceServices, PlatformError> EngineContext::SceneServices()
     {
-        Asset::AssetDetail::RequireInvariant(std::this_thread::get_id() == m_OwnerThread);
+        if (std::this_thread::get_id() != m_OwnerThread)
+            return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+                "scene resources", "Scene resources require the owner thread"});
         if (m_State != State::Ready || !m_MainWindow || !m_Shapes || !m_Assets)
             return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
                 "scene resources", "Scene resources require the initialized owner context"});
@@ -101,9 +154,14 @@ namespace GEngine
         return SceneResourceServices{m_AssetPublication, *m_Shapes};
     }
 
-    PlatformResult EngineContext::Initialize(const std::initializer_list<WindowProperties>& properties)
+    EngineInitializationResult EngineContext::Initialize(const std::initializer_list<WindowProperties>& properties)
     {
-        GLContextThread::RequireOwner(m_OwnerThread, "platform initialization");
+        if (std::this_thread::get_id() != m_OwnerThread)
+            return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+                "platform initialization", "Initialization requires the owner thread"});
+        if (!Log::GetCoreLogger()) Log::Initialize();
+        if (s_Current != this) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+            "root registration", "Only one live EngineContext is supported"});
         if (m_InitializationAttempted) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
             "platform initialization", "Initialization may only be attempted once"});
         m_InitializationAttempted = true;
@@ -114,17 +172,17 @@ namespace GEngine
             EngineContext* owner; bool committed = false;
             ~Rollback() { if (!committed) { owner->Release(); owner->m_State = State::Failed; } }
         } rollback{this};
-        if (auto initialized = m_LegacyEngine.Initialize(properties); !initialized) return initialized;
+        if (auto initialized = m_LegacyEngine.Initialize(properties); !initialized) return std::unexpected(initialized.error());
         auto& windows = m_LegacyEngine.GetWindowManager()->GetWindows();
         m_MainWindow = std::min_element(windows.begin(), windows.end(),
             [](const auto& left, const auto& right) { return left.first < right.first; })->second.get();
-        if (auto current = m_MainWindow->BeginRender(); !current) return current;
+        if (auto current = m_MainWindow->BeginRender(); !current) return std::unexpected(current.error());
         auto images = RuntimeAssets::TryFile("Images");
         if (!images) return std::unexpected(images.error());
         m_Assets.reset(new Manager::AssetsManager(m_AssetPublication, *images));
         m_Shaders.reset(new Manager::ShaderManager);
         m_Shapes.reset(new Manager::ShapeManager);
-        m_Shapes->Initialize();
+        if (auto shapes = m_Shapes->Initialize(); !shapes) return std::unexpected(shapes.error());
         m_State = State::Ready;
         rollback.committed = true;
         return {};
@@ -132,7 +190,9 @@ namespace GEngine
 
     PlatformResult EngineContext::MakeCurrent()
     {
-        GLContextThread::RequireOwner(m_OwnerThread, "activate platform context");
+        if (std::this_thread::get_id() != m_OwnerThread)
+            return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+                "activate platform context", "Context activation requires the owner thread"});
         if (!IsReady()) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
             "activate platform context", "Rendering services are not initialized"});
         return m_MainWindow->BeginRender();

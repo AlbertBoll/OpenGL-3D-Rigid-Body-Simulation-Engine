@@ -1,6 +1,8 @@
 #pragma once
 #include "Math/Math.h"
 
+namespace GEngine { class Geometry; namespace GeometryDetail { struct BackendAccess; } }
+
 namespace GEngine::Buffer
 {
 
@@ -13,7 +15,12 @@ namespace GEngine::Buffer
 
 	public:
 		std::vector<T> m_Data;
+	private:
+        friend class ::GEngine::Geometry;
+        friend struct ::GEngine::GeometryDetail::BackendAccess;
 		unsigned int m_BufferRef{};
+		[[nodiscard]] unsigned int GetBufferRef()const { return m_BufferRef; }
+	public:
 		bool b_Normalized = false;
 	
 
@@ -23,8 +30,6 @@ namespace GEngine::Buffer
 		Attribute();
 		Attribute(std::vector<T> data);
 	
-
-		[[nodiscard]] unsigned int GetBufferRef()const { return m_BufferRef; }
 
 		void LoadData() const;
 		void LoadAABBNullData() const;

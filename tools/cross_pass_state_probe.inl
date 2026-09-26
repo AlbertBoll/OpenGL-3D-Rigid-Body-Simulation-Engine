@@ -89,13 +89,13 @@ namespace CrossPassState
         FrameSubmissionDesc desc{target,picking,point,cascade,resources->Pipelines(),splits,glm::radians(45.f),1,.1f,20,.1f,100};
         auto submission=Take(FrameSubmission::Create(),"cross-pass submission");EntityPickTable picks;
         _Scene scene;const auto camera=Camera(scene);
-        auto sun=scene.CreateEntity("cross-pass sun");RenderLightComponent sunlight;sunlight.castShadows=true;
+        auto sun=SceneOperationChecked([&] { return scene.CreateEntity("cross-pass sun"); });RenderLightComponent sunlight;sunlight.castShadows=true;
         sun.AddComponent<RenderLightComponent>(sunlight);
         sun.Transform().QuatRotation=glm::rotation(glm::vec3(0,0,-1),-glm::normalize(glm::vec3(20,50,20)));
-        auto bulb=scene.CreateEntity("cross-pass bulb");RenderLightComponent pointlight;pointlight.kind=RenderLightKind::Point;
+        auto bulb=SceneOperationChecked([&] { return scene.CreateEntity("cross-pass bulb"); });RenderLightComponent pointlight;pointlight.kind=RenderLightKind::Point;
         pointlight.castShadows=true;pointlight.range=20;bulb.AddComponent<RenderLightComponent>(pointlight);bulb.Transform().Translation={0,3,2};
         auto make=[&](const char* name,MeshHandle mesh,MaterialInstanceHandle material,glm::vec3 position) {
-            auto entity=scene.CreateEntity(name);entity.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,material});
+            auto entity=SceneOperationChecked([&] { return scene.CreateEntity(name); });entity.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,material});
             entity.AddComponent<VisibilityComponent>();entity.Transform().Translation=position;return entity;
         };
         std::array entities{make("sky",skyMesh,sky,{0,0,0}),make("alpha",box,transparent,{.5f,0,0}),

@@ -81,7 +81,9 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
     m_EditorCamera_ = _EditorCamera(45.0f, 1280.f, 720.f, 0.1f, 1000.f);
     float cameraFarClip = m_EditorCamera_.GetFarClip();
     m_ShadowCascadeLevels = {cameraFarClip / 50.f, cameraFarClip / 25.f, cameraFarClip / 10.f, cameraFarClip / 2.f, cameraFarClip};
-    m_FrameCameraEntity = m_ActiveScene->CreateEntity("Editor frame camera");
+    auto createdSceneEntity0 = m_ActiveScene->CreateEntity("Editor frame camera");
+    if (!createdSceneEntity0) return std::unexpected(createdSceneEntity0.error());
+    m_FrameCameraEntity = *createdSceneEntity0;
     m_FrameCameraEntity.AddOrReplaceComponent<RenderCameraComponent>();
     auto sphereMeshResult = m_FrameResources->PublishShape("Sphere");
     if (!sphereMeshResult) return failure(sphereMeshResult.error());
@@ -204,8 +206,12 @@ auto sphere_albedoResult = AssetsManager::GetTextureOrFallback("PBR/rustediron/r
     if (!boxMaterialResult) return failure(boxMaterialResult.error());
     auto boxMaterial = *boxMaterialResult;
     m_AsyncBoxMaterial = boxMaterial;
-    auto ambientLightEntity = m_ActiveScene->CreateEntity("ambient_light");
-    m_PointLightEntity = m_ActiveScene->CreateEntity("point_light");
+    auto createdSceneEntity1 = m_ActiveScene->CreateEntity("ambient_light");
+    if (!createdSceneEntity1) return std::unexpected(createdSceneEntity1.error());
+    auto ambientLightEntity = *createdSceneEntity1;
+    auto createdSceneEntity2 = m_ActiveScene->CreateEntity("point_light");
+    if (!createdSceneEntity2) return std::unexpected(createdSceneEntity2.error());
+    m_PointLightEntity = *createdSceneEntity2;
     m_LightDirection = glm::normalize(Vec3f{20,50,20});
     m_LightPos = {0,15,-10};
     RenderLightComponent direction;
@@ -234,7 +240,9 @@ RigidBody3DComponent rigidBodyComp;
 
 	#if activate_sphere_diamond
 	sphereFixtureComp.Property.m_LinearVelocity = { -80.f, 0.f, 0.f };
-	_Entity woodSphereEntity = m_ActiveScene->CreateEntity("wood_sphere_0");
+	auto createdSceneEntity3 = m_ActiveScene->CreateEntity("wood_sphere_0");
+	if (!createdSceneEntity3) return std::unexpected(createdSceneEntity3.error());
+	_Entity woodSphereEntity = *createdSceneEntity3;
 
 	woodSphereEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 30.f, 5.0f, 0.f });
 
@@ -251,8 +259,10 @@ RigidBody3DComponent rigidBodyComp;
 	convexFixtureComp.Property.m_Friction = 0.5f;
 	convexFixtureComp.Property.m_InvMass = 1.f;
 	convexFixtureComp.Property.m_AngularVelocity = { 5.f, 0.f, 5.f };
-	convexFixtureComp.Property.m_LinearVelocity = { 80.f, 0.f, 0.f };
-	_Entity DiamondEntity = m_ActiveScene->CreateEntity("Diamond");
+	convexFixtureComp.Property.m_LinearVelocity = { 100.f, 0.f, 0.f };
+	auto createdSceneEntity4 = m_ActiveScene->CreateEntity("Diamond");
+	if (!createdSceneEntity4) return std::unexpected(createdSceneEntity4.error());
+	_Entity DiamondEntity = *createdSceneEntity4;
 	DiamondEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ -30, 5.f, 0 });
 
 	convexFixtureComp.Property.m_Position = DiamondEntity.GetComponent<Transform3DComponent>().Translation;
@@ -276,7 +286,9 @@ RigidBody3DComponent rigidBodyComp;
 				float yy = float(z - 1) * sphereFixtureComp.Radius * 2.f;
 				float xx = float(x - 1) * sphereFixtureComp.Radius * 2.f;
 				float zz = float(y - 1) * sphereFixtureComp.Radius * 2.f;
-				_Entity woodSphereEntity = m_ActiveScene->CreateEntity("wood_sphere" + std::to_string(i++));
+				auto createdSceneEntity5 = m_ActiveScene->CreateEntity("wood_sphere" + std::to_string(i++));
+				if (!createdSceneEntity5) return std::unexpected(createdSceneEntity5.error());
+				_Entity woodSphereEntity = *createdSceneEntity5;
 				woodSphereEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ xx, 10.f + yy, zz });
 
 				sphereFixtureComp.Property.m_Position = woodSphereEntity.GetComponent<Transform3DComponent>().Translation;
@@ -305,7 +317,9 @@ RigidBody3DComponent rigidBodyComp;
 		for (int x = 0; x < 4; x++)
 		{
 
-			_Entity woodBoxEntity = m_ActiveScene->CreateEntity("wood_box");
+			auto createdSceneEntity6 = m_ActiveScene->CreateEntity("wood_box");
+			if (!createdSceneEntity6) return std::unexpected(createdSceneEntity6.error());
+			_Entity woodBoxEntity = *createdSceneEntity6;
 
 			woodBoxEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ x * (offset+0.01f), 1.5f + y * offset, 0.f }, Vec3f{0.f}, Vec3f{2.f});
 
@@ -327,7 +341,9 @@ RigidBody3DComponent rigidBodyComp;
 		for (int x = 0; x < 4; x++)
 		{
 
-			_Entity woodBoxEntity = m_ActiveScene->CreateEntity("wood_box");
+			auto createdSceneEntity7 = m_ActiveScene->CreateEntity("wood_box");
+			if (!createdSceneEntity7) return std::unexpected(createdSceneEntity7.error());
+			_Entity woodBoxEntity = *createdSceneEntity7;
 
 			woodBoxEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ x * (offset + 0.01f), 1.5f + y * offset, 0.f }, Vec3f{ 0.f }, Vec3f{ 2.f });
 
@@ -341,7 +357,9 @@ RigidBody3DComponent rigidBodyComp;
 	}
 
 	sphereFixtureComp.Property.m_LinearVelocity = { 0.f, 0.f, 40.f };
-	_Entity woodSphereEntity = m_ActiveScene->CreateEntity("wood_sphere_0");
+	auto createdSceneEntity8 = m_ActiveScene->CreateEntity("wood_sphere_0");
+	if (!createdSceneEntity8) return std::unexpected(createdSceneEntity8.error());
+	_Entity woodSphereEntity = *createdSceneEntity8;
 
 	woodSphereEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 3.5f, 5.0f, -20.f });
 
@@ -361,7 +379,9 @@ RigidBody3DComponent rigidBodyComp;
     if (!gridMesh) return failure(gridMesh.error());
     auto gridMaterial = material(SceneMaterialKind::Helper, {}, helperParameters, true);
     if (!gridMaterial) return failure(gridMaterial.error());
-    m_GridEntity = m_ActiveScene->CreateEntity("grid");
+    auto createdSceneEntity9 = m_ActiveScene->CreateEntity("grid");
+    if (!createdSceneEntity9) return std::unexpected(createdSceneEntity9.error());
+    m_GridEntity = *createdSceneEntity9;
     m_GridEntity.AddOrReplaceComponent<MeshRendererComponent>(MeshRendererComponent{*gridMesh,*gridMaterial,0,false,false,true});
     m_GridEntity.AddOrReplaceComponent<VisibilityComponent>(VisibilityComponent{false});
     m_GridEntity.GetComponent<Transform3DComponent>().SetRotation({Math::Pi/2.f,0,0});
@@ -369,7 +389,9 @@ RigidBody3DComponent rigidBodyComp;
     if (!axisMesh) return failure(axisMesh.error());
     auto axisMaterial = material(SceneMaterialKind::Helper, {}, helperParameters, true, 3.f);
     if (!axisMaterial) return failure(axisMaterial.error());
-    m_AxisEntity = m_ActiveScene->CreateEntity("axis");
+    auto createdSceneEntity10 = m_ActiveScene->CreateEntity("axis");
+    if (!createdSceneEntity10) return std::unexpected(createdSceneEntity10.error());
+    m_AxisEntity = *createdSceneEntity10;
     m_AxisEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{0,1,0});
     m_AxisEntity.AddOrReplaceComponent<MeshRendererComponent>(MeshRendererComponent{*axisMesh,*axisMaterial,0,false,false,true});
     TextureDesc info;
@@ -381,11 +403,15 @@ RigidBody3DComponent rigidBodyComp;
     if (!skyMesh) return failure(skyMesh.error());
     auto skyMaterial = material(SceneMaterialKind::Sky, {*skyTexture}, {}, true);
     if (!skyMaterial) return failure(skyMaterial.error());
-    m_SkyBoxEntity = m_ActiveScene->CreateEntity("Environment_SkyBox");
+    auto createdSceneEntity11 = m_ActiveScene->CreateEntity("Environment_SkyBox");
+    if (!createdSceneEntity11) return std::unexpected(createdSceneEntity11.error());
+    m_SkyBoxEntity = *createdSceneEntity11;
     m_SkyBoxEntity.AddOrReplaceComponent<MeshRendererComponent>(MeshRendererComponent{*skyMesh,*skyMaterial,0,false,false,false});
 rigidBodyComp.Type = BodyType::Static;
 
-	_Entity planeEntity = m_ActiveScene->CreateEntity("wood_plane");
+	auto createdSceneEntity12 = m_ActiveScene->CreateEntity("wood_plane");
+	if (!createdSceneEntity12) return std::unexpected(createdSceneEntity12.error());
+	_Entity planeEntity = *createdSceneEntity12;
 	const auto planeGeo = boxMesh;
 	BoxFixture3DComponent planeFixtureComp;
 	planeFixtureComp.Property.m_InvMass = 0.f;
@@ -398,7 +424,9 @@ rigidBodyComp.Type = BodyType::Static;
 	planeFixtureComp.Property.m_Orientation = planeEntity.GetComponent<Transform3DComponent>().QuatRotation;
 	planeEntity.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
 
-	_Entity wallEntity_1 = m_ActiveScene->CreateEntity("wall_entity_1");
+	auto createdSceneEntity13 = m_ActiveScene->CreateEntity("wall_entity_1");
+	if (!createdSceneEntity13) return std::unexpected(createdSceneEntity13.error());
+	_Entity wallEntity_1 = *createdSceneEntity13;
 	if (auto authored = renderable(wallEntity_1, planeGeo, wallMaterial, "Box"); !authored) return authored;
 	wallEntity_1.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
 	wallEntity_1.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ -49.5f, 4.5f, 0.f }, Vec3f{0, glm::pi<float>() / 2.0f, 0}, Vec3f{100, 10, 1});
@@ -406,7 +434,9 @@ rigidBodyComp.Type = BodyType::Static;
 	planeFixtureComp.Property.m_Orientation = wallEntity_1.GetComponent<Transform3DComponent>().QuatRotation;
 	wallEntity_1.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
 
-	_Entity wallEntity_2 = m_ActiveScene->CreateEntity("wall_entity_2");
+	auto createdSceneEntity14 = m_ActiveScene->CreateEntity("wall_entity_2");
+	if (!createdSceneEntity14) return std::unexpected(createdSceneEntity14.error());
+	_Entity wallEntity_2 = *createdSceneEntity14;
 	if (auto authored = renderable(wallEntity_2, planeGeo, wallMaterial, "Box"); !authored) return authored;
 	wallEntity_2.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
 	wallEntity_2.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 49.5f, 4.5f, 0.f }, Vec3f{ 0, glm::pi<float>() / 2.0f, 0 }, Vec3f{ 100, 10, 1});
@@ -414,7 +444,9 @@ rigidBodyComp.Type = BodyType::Static;
 	planeFixtureComp.Property.m_Orientation = wallEntity_2.GetComponent<Transform3DComponent>().QuatRotation;
 	wallEntity_2.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
 
-	_Entity wallEntity_3 = m_ActiveScene->CreateEntity("wall_entity_3");
+	auto createdSceneEntity15 = m_ActiveScene->CreateEntity("wall_entity_3");
+	if (!createdSceneEntity15) return std::unexpected(createdSceneEntity15.error());
+	_Entity wallEntity_3 = *createdSceneEntity15;
 	if (auto authored = renderable(wallEntity_3, planeGeo, wallMaterial, "Box"); !authored) return authored;
 	wallEntity_3.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
 	wallEntity_3.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 0.f, 4.5f, 49.5f }, Vec3f{}, Vec3f{ 100, 10, 1 });
@@ -422,7 +454,9 @@ rigidBodyComp.Type = BodyType::Static;
 	planeFixtureComp.Property.m_Orientation = wallEntity_3.GetComponent<Transform3DComponent>().QuatRotation;
 	wallEntity_3.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
 
-	_Entity wallEntity_4 = m_ActiveScene->CreateEntity("wall_entity_4");
+	auto createdSceneEntity16 = m_ActiveScene->CreateEntity("wall_entity_4");
+	if (!createdSceneEntity16) return std::unexpected(createdSceneEntity16.error());
+	_Entity wallEntity_4 = *createdSceneEntity16;
 	if (auto authored = renderable(wallEntity_4, planeGeo, wallMaterial, "Box"); !authored) return authored;
 	wallEntity_4.AddOrReplaceComponent<RigidBody3DComponent>(rigidBodyComp);
 	wallEntity_4.AddOrReplaceComponent<Transform3DComponent>(Vec3f{ 0.f, 4.5f, -49.5f }, Vec3f{}, Vec3f{ 100, 10, 1 });
@@ -431,7 +465,11 @@ rigidBodyComp.Type = BodyType::Static;
 	wallEntity_4.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
 
 
-    m_ActiveScene->OnRuntimeStart();
+    // Reserve before the Scene hands successful runtime shape ownership to this caller.
+    m_PhysicsShapes.reserve(m_ActiveScene->GetAllEntitiesWith<RigidBody3DComponent>().size());
+    if (auto started = m_ActiveScene->OnRuntimeStart(); !started) return std::unexpected(started.error());
+    for (auto* body : m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies())
+        m_PhysicsShapes.emplace_back(body->m_Shape);
 
 	auto AppPauseEvent = new Events<void()>("AppPause");
 	auto AppResumeEvent = new Events<void()>("AppResume");
@@ -564,43 +602,46 @@ void RigidBodySimulationApp::Update(Timestep ts)
 	//}
 }
 
-void RigidBodySimulationApp::UpdateImportedMesh()
+std::expected<void, SceneError> RigidBodySimulationApp::UpdateImportedMesh()
 {
-    if (m_BarrelSettled) return;
+    if (m_BarrelSettled) return {};
     auto failed = [&](const AsyncMeshError& error) {
         Log::GetCoreLogger()->warn("Barrel mesh: {}", DescribeAsyncMeshError(error));
         m_BarrelSettled = true;
     };
     if (!m_BarrelRequest) {
         auto request = m_MeshLoads->Request("barrel.obj");
-        if (!request) { failed(request.error()); return; }
+        if (!request) { failed(request.error()); return {}; }
         m_BarrelRequest = *request;
-        return;
+        return {};
     }
     auto status = m_MeshLoads->Status(m_BarrelRequest);
-    if (!status) { failed(status.error()); return; }
+    if (!status) { failed(status.error()); return {}; }
     if (status->state == AsyncAssetState::Failed || status->state == AsyncAssetState::Cancelled) {
         if (status->error) failed(*status->error);
         m_BarrelSettled = true;
-        return;
+        return {};
     }
-    if (status->state != AsyncAssetState::Ready) return;
+    if (status->state != AsyncAssetState::Ready) return {};
     std::size_t submeshes{};
     {
         auto access = m_FrameResources->Publication().BeginFrame();
         auto mesh = m_FrameResources->Meshes().Acquire(access, status->mesh);
-        if (!mesh) { failed(GpuMeshError{GpuMeshErrorCode::Registry, "Imported mesh resolution", 0, mesh.error()}); return; }
+        if (!mesh) { failed(GpuMeshError{GpuMeshErrorCode::Registry, "Imported mesh resolution", 0, mesh.error()}); return {}; }
         submeshes = (*mesh)->Submeshes().size();
     }
     // This callback runs after upload and before frame extraction. No physics
     // component is authored; imported submeshes share the existing lit material.
     for (std::size_t part = 0; part < submeshes; ++part) {
-        auto entity = m_ActiveScene->CreateEntity(std::format("Imported barrel {}", part));
+        auto createdSceneEntity17 = m_ActiveScene->CreateEntity(std::format("Imported barrel {}", part));
+        if (!createdSceneEntity17) return std::unexpected(createdSceneEntity17.error());
+        auto entity = *createdSceneEntity17;
         entity.AddOrReplaceComponent<MeshRendererComponent>(MeshRendererComponent{status->mesh, m_AsyncBoxMaterial, static_cast<std::uint32_t>(part)});
         entity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{-6.f, 0.f, 0.f});
     }
     m_BarrelSettled = true;
     Log::GetCoreLogger()->info("Async barrel mesh published: {} submeshes", submeshes);
+    return {};
 }
 
 void RigidBodySimulationApp::Render()
@@ -629,7 +670,10 @@ void RigidBodySimulationApp::Render()
         context.uploads = m_MeshLoads ? &m_MeshLoads->Queue() : &m_TextureLoads->Queue();
         context.updateResources = {this, [](void* user) -> ScheduleResult {
             auto& app = *static_cast<RigidBodySimulationApp*>(user);
-            if (app.m_MeshLoads) app.UpdateImportedMesh();
+            if (app.m_MeshLoads) {
+                if (auto updated = app.UpdateImportedMesh(); !updated)
+                    return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources, updated.error()});
+            }
             if (app.m_WoodSettled) return {};
             auto failure = [](const auto& cause) -> ScheduleResult {
                 if constexpr (std::same_as<std::decay_t<decltype(cause)>, UploadError>)
@@ -697,8 +741,15 @@ void RigidBodySimulationApp::Render()
         return FrameScheduler::Render(context,&input);
     };
     if(auto result=render();!result) {
-        Log::GetCoreLogger()->error("{}",DescribeScheduleError(result.error()));
-        ShutDown();
+        if (const auto* sceneError = std::get_if<SceneError>(&result.error().cause))
+            FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Scene",
+                std::to_string(static_cast<unsigned>(sceneError->code)), std::string(sceneError->operation),
+                std::format("entity={}", sceneError->entity), DescribeScheduleError(result.error())});
+        else {
+            FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Rendering",
+                std::to_string(static_cast<unsigned>(result.error().stage)), "render frame", {},
+                DescribeScheduleError(result.error())});
+        }
     }
 }
 

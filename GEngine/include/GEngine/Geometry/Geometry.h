@@ -1,21 +1,25 @@
 #pragma once
+#include "Core/Utility.h"
+#include <vector>
 #include "Mesh/MeshAsset.h"
 #include <Mesh/IndexBuffer.h>
 #include <Mesh/Attribute.h>
 #include <unordered_map>
 #include <variant>
-#include "Core/Utility.h"
 #include <Physics/Bounds.h>
 
 
 namespace GEngine
 {
+    namespace GeometryDetail { struct BackendAccess; }
 	using namespace Buffer;
 	class Geometry
 	{
 
 	private:
 
+		friend struct GeometryDetail::BackendAccess;
+		unsigned int GetVAO()const { return m_Vao; }
 		friend class Entity;
 		friend class SpriteEntity;
 		friend struct MeshComponent;
@@ -68,7 +72,6 @@ namespace GEngine
         // into fixed engine semantic slots. Legacy native APIs stay in this header;
         // normal application consumers use SceneRenderResources instead.
         [[nodiscard]] std::expected<MeshAsset, MeshError> ExportCpuMesh() const;
-		unsigned int GetVAO()const { return m_Vao; }
 		void BindVAO()const;
 		void UnBindVAO()const;
 		void BindVBO()const;

@@ -15,7 +15,6 @@
 #include "Core/Renderer.h"
 #include "Core/Scene.h"
 #include "Audio/AudioSystem.h"
-#include <fmod/fmod_studio.hpp>
 //using namespace GEngine::BreakoutApp;
 
 static constexpr ::GEngine::RuntimeAssets::Directory levelPath{ "Breakout/levels/" };
@@ -91,7 +90,15 @@ namespace GEngine
 
 
 		auto backgroundMusic = m_MusicEvent.GetPlayState();
-		if (backgroundMusic == Audio::PLAYBACK_STOPPING)
+		if (!backgroundMusic)
+		{
+		    const auto& error = backgroundMusic.error();
+		    FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Audio",
+		        std::string(Audio::PlaybackStateErrorLabel(error.code)), error.operation,
+		        "event=" + std::to_string(error.eventId), error.message});
+		    return;
+		}
+		if (*backgroundMusic == Audio::PLAYBACK_STOPPING)
 			m_MusicEvent.Restart();
 		
 	}
@@ -206,7 +213,11 @@ namespace GEngine
 		auto backgroundMaterialResult = Material::Create<SpriteMaterial>(backgroundTex);
 		if (!backgroundMaterialResult) return std::unexpected(backgroundMaterialResult.error());
 		auto backgroundMaterial = std::move(*backgroundMaterialResult);
-		auto spriteGeo = ShapeManager::GetShape("SpriteGeometry");
+		auto spriteGeoResult = ShapeManager::FindShape("SpriteGeometry");
+        if (!spriteGeoResult) return std::unexpected(spriteGeoResult.error());
+        if (!*spriteGeoResult) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+            "BreakoutApp::Initialize", "Required SpriteGeometry shape is unavailable"});
+        auto* spriteGeo = *spriteGeoResult;
 		m_Background = new SpriteEntity(spriteGeo, backgroundMaterial);
 		m_Background->SetSpriteComponent(sprite);
 		m_Background->SetScale({ m_Width, m_Height, 0 });
@@ -267,7 +278,7 @@ namespace GEngine
 			
 	
 
-		m_GroupsLookUp[backgroundMaterial->GetShaderID()] = { {m_Background}, {m_Player}, bricks, {m_Ball} };
+		m_GroupsLookUp.Set(*backgroundMaterial, { {m_Background}, {m_Player}, bricks, {m_Ball} });
 
 		m_MusicEvent = m_AudioSystem->PlayEvent("event:/EnteringValley");
 		

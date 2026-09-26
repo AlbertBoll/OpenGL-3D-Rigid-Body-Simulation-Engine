@@ -1,3 +1,6 @@
+#include <concepts>
+#include <functional>
+#include <cstdlib>
 #include "Phase32ExactBoxWorld.h"
 #include <GEngine/Core/Log.h>
 #include <GEngine/Math/Math.h>
@@ -33,6 +36,56 @@
 
 namespace
 {
+    // Test-only preparation for bounded Scene value/void result migrations.
+    template<std::invocable Operation>
+    auto SceneOperationChecked(Operation&& operation)
+    {
+        using Result = std::remove_cvref_t<std::invoke_result_t<Operation>>;
+        if constexpr (std::is_void_v<Result>) {
+            std::invoke(std::forward<Operation>(operation));
+        } else {
+            auto result = std::invoke(std::forward<Operation>(operation));
+            if constexpr (requires { typename Result::error_type; typename Result::value_type; }) {
+                if (!result) {
+                    const auto& error = result.error();
+                    std::cerr << "[FAIL] Valid Scene fixture: operation=" << error.operation
+                        << " code=" << static_cast<unsigned>(error.code) << " entity=" << error.entity
+                        << ": " << error.message << '\n';
+                    std::exit(1);
+                }
+                if constexpr (std::is_void_v<typename Result::value_type>) return;
+                else return std::move(*result);
+            } else return result;
+        }
+    }
+
+    // Valid test inputs use the same typed construction contract as production callers.
+    template<class Shape, class... Args>
+        requires requires(Args&&... args) {
+            { Shape::Create(std::forward<Args>(args)...) } -> std::same_as<std::expected<Shape, GEngine::PhysicsShapeError>>;
+        }
+    Shape MakeFixtureShape(Args&&... args)
+    {
+        auto result = Shape::Create(std::forward<Args>(args)...);
+        if (!result) {
+            const auto& error = result.error();
+            std::cerr << "[FAIL] Valid shape fixture: operation=" << error.operation
+                << " code=" << static_cast<unsigned>(error.code) << " entity=" << error.entity
+                << " radius=" << error.radius << " points=" << error.pointCount << ": " << error.message << '\n';
+            std::exit(1);
+        }
+        return std::move(*result);
+    }
+
+    template<class Shape>
+        requires (std::same_as<Shape, GEngine::ShapeBox> || std::same_as<Shape, GEngine::ShapeConvex>)
+    Shape MakePointFixture(const std::vector<GEngine::Vec3f>& points)
+    {
+        if constexpr (std::same_as<Shape, GEngine::ShapeBox>) return MakeFixtureShape<Shape>(points);
+        else return Shape(points);
+    }
+
+
 	// Keep focused lifetime-state inspection in the test translation unit without adding a production API.
 	template<typename Tag, typename Tag::Type Member>
 	struct PrivateMemberAccess
@@ -116,6 +169,25 @@ namespace
 		}
 	}
 
+    // Test-only bridge while bounded callers precede the Scene typed-return migration.
+    template<std::invocable Start>
+    void StartRuntimeChecked(Start&& start)
+    {
+        if constexpr (std::is_void_v<std::invoke_result_t<Start>>)
+            std::invoke(std::forward<Start>(start));
+        else
+        {
+            auto result=std::invoke(std::forward<Start>(start));
+            if(!result)
+            {
+                std::cerr << "[FAIL] Valid fixture runtime startup: operation=" << result.error().operation
+                    << " code=" << static_cast<unsigned>(result.error().code)
+                    << " entity=" << result.error().entity << " radius=" << result.error().radius
+                    << " points=" << result.error().pointCount << ": " << result.error().message << '\n';
+                std::exit(1);
+            }
+        }
+    }
 	bool Near(float actual, float expected, float tolerance = 1.0e-5f)
 	{
 		return std::isfinite(actual) && std::fabs(actual - expected) <= tolerance;
@@ -314,7 +386,7 @@ namespace
 		static_assert(sizeof(SolverMath::Matrix<3, 12>) == 36 * sizeof(float));
 		auto points = UnitBoxPoints();
 		for (auto& point : points) point *= Vec3f(1, 2, 3);
-		ShapeBox shapeA(UnitBoxPoints()), shapeB(points);
+		ShapeBox shapeA(MakeFixtureShape<ShapeBox>(UnitBoxPoints())), shapeB(MakeFixtureShape<ShapeBox>(points));
 		std::uint64_t fingerprint = 14695981039346656037ull;
 		const auto hash = [&](auto value) {
 			unsigned char bytes[sizeof(value)];
@@ -510,7 +582,7 @@ namespace
 			Near(defaultSphere.Support(direction, GEngine::Vec3f(0.0f), identity, 0.0f), direction),
 			"default sphere has finite analytic inertia, bounds, and support");
 
-		GEngine::ShapeSphere sphere(2.5f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(2.5f));
 		Expect(sphere.IsValid() && sphere.GetShapeType() == GEngine::ShapeType::Sphere &&
 			sphere.GetRadius() == 2.5f && sphere.GetRevision() == 0 &&
 			Near(sphere.GetCenterOfMass(), GEngine::Vec3f(0.0f), 0.0f) &&
@@ -522,15 +594,13 @@ namespace
 		const float invalidRadii[] = { 0.0f, -0.0f, -1.0f, nan, infinity, -infinity };
 		for (float radius : invalidRadii)
 		{
-			bool rejected = false;
-			try
-			{
-				GEngine::ShapeSphere invalidSphere(radius);
-			}
-			catch (const std::invalid_argument&)
-			{
-				rejected = true;
-			}
+            auto invalidSphere = GEngine::ShapeSphere::Create(radius);
+            const bool rejected = !invalidSphere
+                && invalidSphere.error().code == GEngine::PhysicsShapeErrorCode::InvalidRadius
+                && invalidSphere.error().operation == "ShapeSphere::Create"
+                && invalidSphere.error().message == "ShapeSphere requires a finite positive radius"
+                && invalidSphere.error().entity == 0 && invalidSphere.error().pointCount == 0
+                && (invalidSphere.error().radius == radius || (std::isnan(radius) && std::isnan(invalidSphere.error().radius)));
 			Expect(rejected, "sphere construction rejects each zero, negative, NaN, or infinite radius");
 		}
 
@@ -589,7 +659,7 @@ namespace
 	void TestAbsoluteSphereScaling()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(2.0f);
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(2.0f));
 		PhysicalShape& shape = sphere; // Match virtual dispatch through the scale callback.
 		RigidBody3D body;
 		ConfigureSphereBody(body, sphere, Vec3f(4, 2, -3));
@@ -643,7 +713,7 @@ namespace
 		using namespace GEngine;
 		const Vec3f halfExtents(1, 2, 3);
 		auto input = BoxPoints(halfExtents);
-		Shape shape(input);
+		Shape shape(MakePointFixture<Shape>(input));
 		input[0] = Vec3f(999); // The source is owned by the shape, not by the caller.
 		PhysicalShape& physical = shape;
 		RigidBody3D body;
@@ -665,7 +735,7 @@ namespace
 				"successful point-shape scale rebuild publishes one geometry revision");
 			Expect(Near(shape.GetBounds().mins, -extent, 0) && Near(shape.GetBounds().maxs, extent, 0),
 				"box and convex absolute scales do not compound, including repeat, signed and nonuniform scales");
-			Shape reference(BoxPoints(extent));
+			Shape reference(MakePointFixture<Shape>(BoxPoints(extent)));
 			Expect(Near(shape.GetCenterOfMass(), reference.GetCenterOfMass(), 2e-4f),
 				"scaled point-shape centroid agrees with fresh geometry under existing mass-property sampling");
 			const Vec3f worldExtent = glm::abs(rotation[0]) * extent.x +
@@ -719,7 +789,8 @@ namespace
 		class ThrowingRebuildShape : public ShapeBox
 		{
 		public:
-			using ShapeBox::ShapeBox;
+			explicit ThrowingRebuildShape(const std::vector<GEngine::Vec3f>& points)
+                : ShapeBox(MakeFixtureShape<ShapeBox>(points)) {}
 			bool failBuild = true;
 			void Build(const std::vector<Vec3f>& points) override
 			{
@@ -755,7 +826,7 @@ namespace
 
 	void TestSphereContacts()
 	{
-		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 		GEngine::RigidBody3D bodyA;
 		GEngine::RigidBody3D bodyB;
 		ConfigureSphereBody(bodyA, sphere, GEngine::Vec3f(0.0f));
@@ -800,7 +871,7 @@ namespace
 
 	void TestZeroQuaternionBodyUpdate()
 	{
-		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 		GEngine::RigidBody3D body;
 		ConfigureSphereBody(body, sphere, GEngine::Vec3f(0.0f));
 		body.m_Orientation = GEngine::Quat(0.0f, 0.0f, 0.0f, 0.0f);
@@ -821,7 +892,7 @@ namespace
 
 	void TestBodyRemovalLifetimeRegression()
 	{
-		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 		GEngine::PhysicsSystem system;
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
 		system.SetPhysicsWorld(world);
@@ -888,7 +959,7 @@ namespace
 
 	void TestMultiManifoldBodyRemovalRegression()
 	{
-		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 		GEngine::PhysicsSystem system;
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
 		system.SetPhysicsWorld(world);
@@ -933,7 +1004,7 @@ namespace
 
 	void TestTransientContactBodyRemovalRegression()
 	{
-		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 		GEngine::PhysicsSystem system;
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
 		system.SetPhysicsWorld(world);
@@ -1083,7 +1154,7 @@ namespace
 
 	void TestContactPairOrderRegression()
 	{
-		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 		GEngine::RigidBody3D bodyA;
 		GEngine::RigidBody3D bodyB;
 		ConfigureSphereBody(bodyA, sphere, GEngine::Vec3f(0.0f));
@@ -1146,8 +1217,8 @@ namespace
 
 	void TestCollisionContactConvention()
 	{
-		GEngine::ShapeSphere sphere(1.0f);
-		GEngine::ShapeBox box(UnitBoxPoints());
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
+		GEngine::ShapeBox box(MakeFixtureShape<GEngine::ShapeBox>(UnitBoxPoints()));
 		for (int pairType = 0; pairType < 3; ++pairType)
 		{
 			for (const bool rotated : { false, true })
@@ -1222,7 +1293,7 @@ namespace
 
 	void TestContactImpulsePermutation()
 	{
-		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 		const GEngine::Quat rotation = glm::angleAxis(0.6f,
 			glm::normalize(GEngine::Vec3f(1.0f, 2.0f, 3.0f)));
 		const GEngine::Vec3f axis = rotation * GEngine::Vec3f(1.0f, 0.0f, 0.0f);
@@ -1277,7 +1348,7 @@ namespace
 
 	void TestPersistentContactPermutation()
 	{
-		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 		const GEngine::Quat rotation = glm::angleAxis(0.6f,
 			glm::normalize(GEngine::Vec3f(1.0f, 2.0f, 3.0f)));
 		const GEngine::Vec3f axis = rotation * GEngine::Vec3f(1.0f, 0.0f, 0.0f);
@@ -1526,7 +1597,7 @@ namespace
 
 	void TestPhysicsWorldResetAndRestartRegression()
 	{
-		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 		GEngine::PhysicsSystem system;
 
 		auto* firstWorld = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
@@ -1562,8 +1633,8 @@ namespace
 	void TestRuntimePoseApi()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(1.0f);
-		ShapeBox box(BoxPoints(Vec3f(1.0f, 2.0f, 3.0f)));
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
+		ShapeBox box(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(1.0f, 2.0f, 3.0f))));
 		PhysicsSystem system;
 		auto* world = new PhysicsWorld(Vec3f(0.0f));
 		system.SetPhysicsWorld(world);
@@ -1672,7 +1743,7 @@ namespace
 		std::vector<_Entity> entities;
 		for (int i = 0; i < 3; ++i)
 		{
-			auto entity = scene.CreateEntity("pose authority");
+			auto entity = SceneOperationChecked([&] { return scene.CreateEntity("pose authority"); });
 			entity.AddOrReplaceComponent<RigidBody3DComponent>().Type = types[i];
 			auto& fixture = entity.AddOrReplaceComponent<SphereFixture3DComponent>();
 			fixture.Radius = 0.5f;
@@ -1689,7 +1760,7 @@ namespace
 			for (auto entity : entities)
 				shapes.emplace_back(entity.GetComponent<RigidBody3DComponent>().RuntimeBody->m_Shape);
 		};
-		scene.OnRuntimeStart();
+		StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });
 		captureShapes();
 		scene.GetPhysicsSystem()->GetPhysicsWorld()->SetGravity(Vec3f(0.0f));
 		for (int i = 0; i < 3; ++i)
@@ -1756,16 +1827,16 @@ namespace
 		scene.OnRuntimeStop();
 		entities[2].GetComponent<Transform3DComponent>().SetTranslation(Vec3f(90.0f, 40.0f, 0.0f));
 		scene.Update(Timestep(0.0f));
-		scene.OnRuntimeStart();
+		StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });
 		captureShapes();
 		Expect(entities[2].GetComponent<RigidBody3DComponent>().RuntimeBody->m_Position == Vec3f(90.0f, 40.0f, 0.0f),
 			"restart imports the current transform without replaying stale fixture poses");
 		scene.OnRuntimeStop();
-		auto invalid = scene.CreateEntity("invalid startup pose");
+		auto invalid = SceneOperationChecked([&] { return scene.CreateEntity("invalid startup pose"); });
 		invalid.AddOrReplaceComponent<RigidBody3DComponent>();
 		invalid.AddOrReplaceComponent<SphereFixture3DComponent>();
 		invalid.GetComponent<Transform3DComponent>().SetRotation(Quat(0.0f, 0.0f, 0.0f, 0.0f));
-		scene.OnRuntimeStart();
+		StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });
 		captureShapes();
 		Expect(invalid.GetComponent<RigidBody3DComponent>().RuntimeBody == nullptr &&
 			scene.GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies().size() == 3,
@@ -1809,7 +1880,7 @@ namespace
 			for (auto& point : points) input >> point.x >> point.y >> point.z;
 			valid = valid && input.good() && shapeType == int(ShapeType::Box) && pointsCount == 36;
 			body->Type = BodyType(type);
-			shapes.push_back(std::make_unique<ShapeBox>(points)); body->m_Shape = shapes.back().get();
+			shapes.push_back(std::make_unique<ShapeBox>(MakeFixtureShape<ShapeBox>(points))); body->m_Shape = shapes.back().get();
 		}
 		Expect(valid, "scheduling comparison loads the exact approved application export in creation order");
 	}
@@ -1877,7 +1948,7 @@ namespace
 		scene.Update(Timestep(10));
 		Expect(scene.GetPhysicsTiming().totalSteps == 0 && scene.GetPhysicsTiming().pendingSeconds == 0,
 			"a scene without a runtime world does not accumulate elapsed time");
-		scene.OnRuntimeStart(); independent.OnRuntimeStart();
+		StartRuntimeChecked([&] { return scene.OnRuntimeStart(); }); StartRuntimeChecked([&] { return independent.OnRuntimeStart(); });
 		scene.Update(Timestep(dt / 2));
 		Expect(scene.GetPhysicsTiming().stepsLastUpdate == 0 && scene.GetPhysicsTiming().pendingSeconds == dt / 2,
 			"a fractional tick remains pending without advancing physics");
@@ -1912,7 +1983,7 @@ namespace
 		scene.OnRuntimeStop();
 		Expect(scene.GetPhysicsTiming().totalSteps == 0 && scene.GetPhysicsTiming().pendingSeconds == 0 &&
 			scene.GetPhysicsTiming().totalDiscardedSeconds == 0, "runtime stop resets all clock state");
-		scene.OnRuntimeStart(); scene.Update(Timestep(dt / 2));
+		StartRuntimeChecked([&] { return scene.OnRuntimeStart(); }); scene.Update(Timestep(dt / 2));
 		Expect(scene.GetPhysicsTiming().totalSteps == 0 && scene.GetPhysicsTiming().pendingSeconds == dt / 2,
 			"restart has no stale catch-up debt");
 		scene.GetPhysicsSystem()->SetPhysicsWorld(new PhysicsWorld()); scene.Update(Timestep(dt / 2));
@@ -1921,7 +1992,7 @@ namespace
 		scene.GetPhysicsSystem()->OnExit(); scene.Update(Timestep(dt));
 		Expect(scene.GetPhysicsTiming().pendingSeconds == 0 && scene.GetPhysicsTiming().totalSteps == 0,
 			"an absent world clears pending time even after external shutdown");
-		scene.OnRuntimeStart();
+		StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });
 		for (int i = 0; i < 2; ++i) scene.Update(Timestep(std::numeric_limits<double>::max()));
 		const auto huge = scene.GetPhysicsTiming();
 		Expect(huge.stepsLastUpdate == 2 && std::isfinite(huge.pendingSeconds) && std::isfinite(huge.discardedSeconds) &&
@@ -1929,7 +2000,7 @@ namespace
 			"huge finite stalls retain bounded work and saturate the lifetime discard diagnostic without infinity");
 
 		// Deterministic model of expensive ticks feeding their cost into the next frame.
-		scene.OnRuntimeStart(); double elapsed = .016, supplied = 0;
+		StartRuntimeChecked([&] { return scene.OnRuntimeStart(); }); double elapsed = .016, supplied = 0;
 		bool bounded = true, conserved = true;
 		for (int frame = 0; frame < 600; ++frame) {
 			scene.Update(Timestep(elapsed)); supplied += elapsed;
@@ -1946,9 +2017,9 @@ namespace
 	{
 		using namespace GEngine; using namespace GEngine::Component;
 		std::vector<std::unique_ptr<PhysicalShape>> shapes;
-		_Scene scene; auto entity = scene.CreateEntity("paused pose edit");
+		_Scene scene; auto entity = SceneOperationChecked([&] { return scene.CreateEntity("paused pose edit"); });
 		entity.AddOrReplaceComponent<RigidBody3DComponent>().Type = BodyType::Dynamic;
-		entity.AddOrReplaceComponent<SphereFixture3DComponent>(); scene.OnRuntimeStart();
+		entity.AddOrReplaceComponent<SphereFixture3DComponent>(); StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });
 		auto* body = entity.GetComponent<RigidBody3DComponent>().RuntimeBody;
 		shapes.emplace_back(body->m_Shape); body->m_LinearVelocity = Vec3f(2, 0, 0);
 		scene.Update(Timestep(_Scene::PhysicsStepSeconds / 2)); scene.SetPaused(true);
@@ -1982,8 +2053,8 @@ namespace
 	{
 		{
 			GEngine::_Scene scene;
-			GEngine::_Entity bodyEntityA = scene.CreateEntity("runtime sphere A");
-			GEngine::_Entity bodyEntityB = scene.CreateEntity("runtime sphere B");
+			GEngine::_Entity bodyEntityA = SceneOperationChecked([&] { return scene.CreateEntity("runtime sphere A"); });
+			GEngine::_Entity bodyEntityB = SceneOperationChecked([&] { return scene.CreateEntity("runtime sphere B"); });
 			bodyEntityA.AddOrReplaceComponent<GEngine::Component::RigidBody3DComponent>().Type =
 				GEngine::Component::BodyType::Dynamic;
 			bodyEntityB.AddOrReplaceComponent<GEngine::Component::RigidBody3DComponent>().Type =
@@ -1998,7 +2069,7 @@ namespace
 			bodyEntityA.GetComponent<GEngine::Component::Transform3DComponent>().SetTranslation(fixtureA.Property.m_Position);
 			bodyEntityB.GetComponent<GEngine::Component::Transform3DComponent>().SetTranslation(fixtureB.Property.m_Position);
 
-			scene.OnRuntimeStart();
+			StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });
 			GEngine::RigidBody3D* firstBodyA =
 				bodyEntityA.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody;
 			GEngine::RigidBody3D* firstBodyB =
@@ -2030,7 +2101,7 @@ namespace
 				bodyEntityB.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == nullptr,
 				"updating the stopped scene does not restore or dereference cleared runtime bodies");
 
-			scene.OnRuntimeStart();
+			StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });
 			GEngine::RigidBody3D* restartedBodyA =
 				bodyEntityA.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody;
 			GEngine::RigidBody3D* restartedBodyB =
@@ -2114,18 +2185,15 @@ namespace
 
 	void TestBoxConstructionInvariant()
 	{
-		bool rejectedEmptyGeometry = false;
-		try
-		{
-			GEngine::ShapeBox invalidBox(std::vector<GEngine::Vec3f>{});
-		}
-		catch (const std::invalid_argument&)
-		{
-			rejectedEmptyGeometry = true;
-		}
+        auto invalidBox = GEngine::ShapeBox::Create(std::vector<GEngine::Vec3f>{});
+        const bool rejectedEmptyGeometry = !invalidBox
+            && invalidBox.error().code == GEngine::PhysicsShapeErrorCode::InvalidPointSet
+            && invalidBox.error().operation == "ShapeBox::Create"
+            && invalidBox.error().message == "ShapeBox requires finite points with non-zero extents"
+            && invalidBox.error().entity == 0 && invalidBox.error().pointCount == 0 && invalidBox.error().radius == 0;
 		Expect(rejectedEmptyGeometry, "empty box geometry is rejected before support mapping");
 
-		GEngine::ShapeBox box(UnitBoxPoints());
+		GEngine::ShapeBox box(MakeFixtureShape<GEngine::ShapeBox>(UnitBoxPoints()));
 		const GEngine::Vec3f supportBefore = box.Support(GEngine::Vec3f(1.0f, 0.0f, 0.0f),
 			GEngine::Vec3f(0.0f), GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f), 0.0f);
 		box.Build({});
@@ -2161,7 +2229,7 @@ namespace
 			const Vec3f localOffset = Vec3f(4, -5, 6) * scale;
 			auto points = BoxPoints(halfExtents);
 			for (Vec3f& point : points) point += localOffset;
-			ShapeBox box(points);
+			ShapeBox box(MakeFixtureShape<ShapeBox>(points));
 			const Vec3f position = Vec3f(7, 8, -9) * scale;
 			for (const Quat& orientation : rotations) {
 				const Mat3 rotation = glm::toMat3(orientation);
@@ -2205,7 +2273,7 @@ namespace
 	void TestBoxFaceSelectionAndRebuild()
 	{
 		using namespace GEngine;
-		ShapeBox box(UnitBoxPoints());
+		ShapeBox box(MakeFixtureShape<ShapeBox>(UnitBoxPoints()));
 		const Quat identity(1, 0, 0, 0);
 		struct Selection { Vec3f direction; BoxFaceId expected; };
 		const Selection cases[] = {
@@ -2245,7 +2313,7 @@ namespace
 		auto shuffled = UnitBoxPoints();
 		std::reverse(shuffled.begin(), shuffled.end());
 		shuffled.push_back(shuffled.front());
-		ShapeBox reordered(shuffled);
+		ShapeBox reordered(MakeFixtureShape<ShapeBox>(shuffled));
 		BoxFaceFeature reorderedFace;
 		Expect(reordered.GetContactFace(direction, Vec3f(2, -3, 4), rotation, reorderedFace) &&
 			SameBoxFace(face, reorderedFace), "input corner ordering and duplicate points do not alter face identity or winding");
@@ -2269,7 +2337,7 @@ namespace
 	void TestBoxContactFeaturePairs()
 	{
 		using namespace GEngine;
-		ShapeBox box(UnitBoxPoints());
+		ShapeBox box(MakeFixtureShape<ShapeBox>(UnitBoxPoints()));
 		PhysicsWorld world;
 		RigidBody3D* a = world.CreateRigidBody3D();
 		RigidBody3D* b = world.CreateRigidBody3D();
@@ -2349,7 +2417,7 @@ namespace
 	void TestBoxFeatureFailureSafety()
 	{
 		using namespace GEngine;
-		ShapeBox box(UnitBoxPoints());
+		ShapeBox box(MakeFixtureShape<ShapeBox>(UnitBoxPoints()));
 		const Quat identity(1, 0, 0, 0);
 		BoxFaceFeature sentinel;
 		Expect(box.GetContactFace(Vec3f(0, 0, -1), Vec3f(0), identity, sentinel), "failure tests begin with valid output");
@@ -2372,7 +2440,7 @@ namespace
 				"nonfinite positions and world-coordinate face collapse fail transactionally");
 		}
 		const float largest = std::numeric_limits<float>::max();
-		ShapeBox largeBox(BoxPoints(Vec3f(largest * 0.25f)));
+		ShapeBox largeBox(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(largest * 0.25f))));
 		BoxFaceFeature largeFace;
 		Expect(largeBox.GetContactFace(Vec3f(1, 0, 0), Vec3f(0), identity, largeFace) &&
 			largeFace.id == BoxFaceId::PositiveX, "large finite face areas do not overflow extraction validation");
@@ -2403,7 +2471,7 @@ namespace
 		b->m_Shape = nullptr;
 		Expect(!ExtractBoxContactFeatures(*a, *b, Vec3f(0, 1, 0), pair) && SameBoxFeatures(pair, pairSentinel),
 			"null shape fails safely");
-		ShapeSphere sphere(1.0f);
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		b->m_Shape = &sphere;
 		Expect(!ExtractBoxContactFeatures(*a, *b, Vec3f(0, 1, 0), pair) && SameBoxFeatures(pair, pairSentinel),
 			"non-box shape fails safely");
@@ -2434,8 +2502,8 @@ namespace
 
 	void TestBoxContactRegression()
 	{
-		GEngine::ShapeBox box(UnitBoxPoints());
-		GEngine::ShapeBox floor(BoxPoints(GEngine::Vec3f(5.0f, 0.5f, 5.0f)));
+		GEngine::ShapeBox box(MakeFixtureShape<GEngine::ShapeBox>(UnitBoxPoints()));
+		GEngine::ShapeBox floor(MakeFixtureShape<GEngine::ShapeBox>(BoxPoints(GEngine::Vec3f(5.0f, 0.5f, 5.0f))));
 		GEngine::RigidBody3D bodyA;
 		GEngine::RigidBody3D bodyB;
 
@@ -2480,7 +2548,7 @@ namespace
 						const Vec3f modelOffset = scale * Vec3f(0.3f, -0.2f, 0.4f);
 						auto corners = BoxPoints(Vec3f(scale));
 						for (Vec3f& corner : corners) corner += modelOffset;
-						ShapeBox box(corners);
+						ShapeBox box(MakeFixtureShape<ShapeBox>(corners));
 						PhysicsWorld world(Vec3f(0));
 						auto* a = world.CreateRigidBody3D();
 						auto* b = world.CreateRigidBody3D();
@@ -2542,7 +2610,7 @@ namespace
 	void TestBoxFaceClippingBoundaries()
 	{
 		using namespace GEngine;
-		ShapeBox box(UnitBoxPoints());
+		ShapeBox box(MakeFixtureShape<ShapeBox>(UnitBoxPoints()));
 		PhysicsWorld world(Vec3f(0));
 		auto* a = world.CreateRigidBody3D();
 		auto* b = world.CreateRigidBody3D();
@@ -2588,7 +2656,7 @@ namespace
 		const float angle = 0.2f;
 		b->m_Orientation = glm::angleAxis(angle, Vec3f(0, 0, 1));
 		b->m_Position = Vec3f(0, 1 + std::cos(angle), 0);
-		ShapeBox wide(BoxPoints(Vec3f(3, 1, 3)));
+		ShapeBox wide(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(3, 1, 3))));
 		a->m_Shape = &wide;
 		count = BuildBoxFaceContacts(seed(), contacts);
 		Expect(count == 4, "tilted face clips at the reference depth plane to four contacts");
@@ -2651,7 +2719,7 @@ namespace
 		b->m_Orientation = Quat(0, 0, 0, 0);
 		expectFallback(invalid);
 		b->m_Orientation = Quat(1, 0, 0, 0);
-		ShapeSphere sphere(1);
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
 		b->m_Shape = &sphere;
 		expectFallback(invalid);
 	}
@@ -2662,8 +2730,8 @@ namespace
 		for (bool reversed : { false, true }) {
 			for (float angle : { 0.0f, glm::quarter_pi<float>() }) {
 				for (float floorWidth : { 1.0f, 5.0f }) {
-					ShapeBox box(UnitBoxPoints());
-					ShapeBox floor(BoxPoints(Vec3f(floorWidth, 0.5f, floorWidth)));
+					ShapeBox box(MakeFixtureShape<ShapeBox>(UnitBoxPoints()));
+					ShapeBox floor(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(floorWidth, 0.5f, floorWidth))));
 					PhysicsSystem system;
 					auto* world = new PhysicsWorld(Vec3f(0.0f));
 					system.SetPhysicsWorld(world);
@@ -2724,8 +2792,8 @@ namespace
 		for (int iterations : { 1, 8 }) {
 			for (bool reversed : { false, true }) {
 				for (float angle : { 0.0f, glm::quarter_pi<float>() }) {
-					ShapeBox box(UnitBoxPoints());
-					ShapeBox floor(BoxPoints(Vec3f(5, 0.5f, 5)));
+					ShapeBox box(MakeFixtureShape<ShapeBox>(UnitBoxPoints()));
+					ShapeBox floor(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(5, 0.5f, 5))));
 					PhysicsSystem system;
 					system.SetSolverIterations(iterations);
 					auto* world = new PhysicsWorld(Vec3f(0, -12, 0));
@@ -2788,7 +2856,7 @@ namespace
 		using namespace GEngine;
 		// Observe warm-start impulses without exposing the manifold's private solver state.
 		for (bool reverse : { false, true }) {
-			ShapeSphere sphere(1);
+			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
 			RigidBody3D a, b;
 			ConfigureSphereBody(a, sphere, Vec3f(0));
 			ConfigureSphereBody(b, sphere, Vec3f(0, 2, 0));
@@ -2828,7 +2896,7 @@ namespace
 		}
 
 		for (int mutation = 0; mutation < 4; ++mutation) {
-			ShapeSphere sphere(1), replacement(1);
+			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1)), replacement(MakeFixtureShape<ShapeSphere>(1));
 			PhysicsWorld world(Vec3f(0));
 			auto* a = world.CreateRigidBody3D();
 			auto* b = world.CreateRigidBody3D();
@@ -2859,7 +2927,7 @@ namespace
 	void TestPersistenceBasisAndGuards()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(1);
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
 		RigidBody3D a, b;
 		ConfigureSphereBody(a, sphere, Vec3f(0));
 		ConfigureSphereBody(b, sphere, Vec3f(0));
@@ -2940,7 +3008,7 @@ namespace
 	void TestPersistenceLifetimeAndQueryMetadata()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(1);
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
 		PhysicsSystem system;
 		auto* world = new PhysicsWorld(Vec3f(0));
 		system.SetPhysicsWorld(world);
@@ -2976,7 +3044,7 @@ namespace
 		using namespace GEngine;
 		for (float scale : { 0.001f, 1.0f, 1000.0f }) {
 			for (float yaw : { 0.0f, glm::quarter_pi<float>() }) {
-				ShapeBox box(BoxPoints(Vec3f(scale)));
+				ShapeBox box(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(scale))));
 				PhysicsWorld world(Vec3f(0));
 				auto* a = world.CreateRigidBody3D();
 				auto* b = world.CreateRigidBody3D();
@@ -3059,7 +3127,7 @@ namespace
 	{
 		using namespace GEngine;
 		for (bool reversed : { false, true }) {
-			ShapeBox box(UnitBoxPoints());
+			ShapeBox box(MakeFixtureShape<ShapeBox>(UnitBoxPoints()));
 			PhysicsWorld world(Vec3f(0));
 			auto* a = world.CreateRigidBody3D();
 			auto* b = world.CreateRigidBody3D();
@@ -3114,7 +3182,7 @@ namespace
 		for (int passes : { 1, 8 }) {
 			std::vector<Vec3f> reference;
 			for (bool permuted : { false, true }) {
-				ShapeBox box(UnitBoxPoints());
+				ShapeBox box(MakeFixtureShape<ShapeBox>(UnitBoxPoints()));
 				PhysicsWorld world(Vec3f(0));
 				auto* a = world.CreateRigidBody3D();
 				auto* b = world.CreateRigidBody3D();
@@ -3170,7 +3238,7 @@ namespace
 
 	struct SolverChainFixture
 	{
-		GEngine::ShapeSphere sphere{ 1.0f };
+		GEngine::ShapeSphere sphere{MakeFixtureShape<GEngine::ShapeSphere>( 1.0f )};
 		GEngine::PhysicsSystem system;
 		std::array<GEngine::RigidBody3D*, 3> bodies{};
 
@@ -3313,7 +3381,7 @@ namespace
 	{
 		using namespace GEngine;
 		using Component::BodyType;
-		ShapeBox box(BoxPoints(Vec3f(1.0f, 2.0f, 3.0f)));
+		ShapeBox box(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(1.0f, 2.0f, 3.0f))));
 		const Quat rotation = glm::angleAxis(0.63f, glm::normalize(Vec3f(1.0f, 2.0f, 3.0f)));
 		const Vec3f axis = rotation * Vec3f(0.0f, 1.0f, 0.0f);
 		for (const bool reversed : { false, true })
@@ -3386,7 +3454,7 @@ namespace
 	void TestPositionStabilizationWorld()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(1.0f);
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		for (const int iterations : { 1, 8, 32 })
 		{
 			PhysicsSystem system;
@@ -3421,8 +3489,8 @@ namespace
 	void TestPenetratedStackPositionStabilization()
 	{
 		using namespace GEngine;
-		ShapeBox box(UnitBoxPoints());
-		ShapeBox floor(BoxPoints(Vec3f(50.0f, 0.5f, 50.0f)));
+		ShapeBox box(MakeFixtureShape<ShapeBox>(UnitBoxPoints()));
+		ShapeBox floor(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(50.0f, 0.5f, 50.0f))));
 		std::array<Vec3f, 16> reference{};
 		for (int repeat = 0; repeat < 2; ++repeat)
 		{
@@ -3483,7 +3551,7 @@ namespace
 	void TestPositionCorrectionGuardsAndFriction()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(1.0f);
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		for (int scenario = 0; scenario < 7; ++scenario)
 		{
 			RigidBody3D a, b;
@@ -3554,8 +3622,8 @@ namespace
 
 	void TestSmallBoxStackRegression()
 	{
-		GEngine::ShapeBox box(UnitBoxPoints());
-		GEngine::ShapeBox floor(BoxPoints(GEngine::Vec3f(5.0f, 0.5f, 5.0f)));
+		GEngine::ShapeBox box(MakeFixtureShape<GEngine::ShapeBox>(UnitBoxPoints()));
+		GEngine::ShapeBox floor(MakeFixtureShape<GEngine::ShapeBox>(BoxPoints(GEngine::Vec3f(5.0f, 0.5f, 5.0f))));
 		GEngine::PhysicsSystem physics;
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
 		physics.SetPhysicsWorld(world);
@@ -3591,7 +3659,7 @@ namespace
 	void TestGoldenRotations()
 	{
 		constexpr float halfPi = 1.57079632679489661923f;
-		GEngine::ShapeBox box(UnitBoxPoints());
+		GEngine::ShapeBox box(MakeFixtureShape<GEngine::ShapeBox>(UnitBoxPoints()));
 		GEngine::RigidBody3D body;
 		const GEngine::Vec3f position(3.0f, -2.0f, 5.0f);
 		const GEngine::Vec3f localPoint(0.25f, -0.5f, 0.75f);
@@ -3626,7 +3694,7 @@ namespace
 			{ -2.0f, -1.0f,  0.5f }, { 2.0f, -1.0f,  0.5f },
 			{ -2.0f,  1.0f,  0.5f }, { 2.0f,  1.0f,  0.5f }
 		};
-		GEngine::ShapeBox box(points);
+		GEngine::ShapeBox box(MakeFixtureShape<GEngine::ShapeBox>(points));
 		const GEngine::Quat rotation = glm::angleAxis(halfPi, GEngine::Vec3f(0.0f, 0.0f, 1.0f));
 		GEngine::RigidBody3D body;
 		ConfigureBoxBody(body, box, GEngine::Vec3f(0.0f), rotation);
@@ -3704,7 +3772,7 @@ namespace
 		{
 			point *= GEngine::Vec3f(1.0f, 2.0f, 3.0f);
 		}
-		GEngine::ShapeBox box(points);
+		GEngine::ShapeBox box(MakeFixtureShape<GEngine::ShapeBox>(points));
 		const GEngine::Quat identity(1.0f, 0.0f, 0.0f, 0.0f);
 		const GEngine::Quat rotated = glm::angleAxis(0.73f,
 			glm::normalize(GEngine::Vec3f(1.0f, -2.0f, 3.0f)));
@@ -3755,7 +3823,7 @@ namespace
 				"halving the timestep reduces both ten-second invariant errors by at least 40%");
 		}
 
-		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 		GEngine::RigidBody3D sphericalBody;
 		ConfigureSphereBody(sphericalBody, sphere, GEngine::Vec3f(0.0f));
 		sphericalBody.m_InvMass = 0.25f;
@@ -3800,7 +3868,7 @@ namespace
 		{
 			point *= GEngine::Vec3f(1.0f, 2.0f, 3.0f);
 		}
-		GEngine::ShapeBox box(points);
+		GEngine::ShapeBox box(MakeFixtureShape<GEngine::ShapeBox>(points));
 		for (const auto type : { GEngine::Component::BodyType::Static, GEngine::Component::BodyType::Kinematic })
 		{
 			for (float inverseMass : { 0.0f, 0.37f, 4.0f })
@@ -3836,13 +3904,13 @@ namespace
 			{
 				point *= GEngine::Vec3f(1.0f, 2.0f, 3.0f);
 			}
-			GEngine::ShapeBox box(points);
+			GEngine::ShapeBox box(MakeFixtureShape<GEngine::ShapeBox>(points));
 			std::vector<GEngine::Vec3f> replacementPoints = points;
 			for (GEngine::Vec3f& point : replacementPoints)
 			{
 				point *= GEngine::Vec3f(1.5f, 0.75f, 1.25f);
 			}
-			GEngine::ShapeBox replacement(replacementPoints);
+			GEngine::ShapeBox replacement(MakeFixtureShape<GEngine::ShapeBox>(replacementPoints));
 			GEngine::RigidBody3D body;
 			ConfigureBoxBody(body, box, GEngine::Vec3f(0.0f), rotation);
 			body.m_InvMass = inverseMass;
@@ -3918,7 +3986,7 @@ namespace
 		{
 			point *= GEngine::Vec3f(1.0f, 2.0f, 3.0f);
 		}
-		GEngine::ShapeBox box(points);
+		GEngine::ShapeBox box(MakeFixtureShape<GEngine::ShapeBox>(points));
 		GEngine::RigidBody3D initial;
 		ConfigureBoxBody(initial, box, GEngine::Vec3f(1.0f, 2.0f, 3.0f),
 			glm::angleAxis(0.73f, glm::normalize(GEngine::Vec3f(1.0f, -2.0f, 3.0f))));
@@ -3991,7 +4059,7 @@ namespace
 			{ 0.0f, 0.0f, 0.0f }, { 2.0f, 0.0f, 0.0f }, { 0.0f, 4.0f, 0.0f }, { 2.0f, 4.0f, 0.0f },
 			{ 0.0f, 0.0f, 6.0f }, { 2.0f, 0.0f, 6.0f }, { 0.0f, 4.0f, 6.0f }, { 2.0f, 4.0f, 6.0f }
 		};
-		GEngine::ShapeBox box(offsetPoints);
+		GEngine::ShapeBox box(MakeFixtureShape<GEngine::ShapeBox>(offsetPoints));
 		GEngine::RigidBody3D body;
 		ConfigureBoxBody(body, box, GEngine::Vec3f(10.0f, 20.0f, 30.0f),
 			glm::angleAxis(1.57079632679489661923f, GEngine::Vec3f(0.0f, 0.0f, 1.0f)));
@@ -4109,7 +4177,7 @@ namespace
 
 	void TestSphereRadiusInvalidationContract()
 	{
-		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 		GEngine::RigidBody3D body;
 		ConfigureSphereBody(body, sphere, GEngine::Vec3f(4.0f, 0.0f, 0.0f));
 		body.GetWorldBounds();
@@ -4142,7 +4210,7 @@ namespace
 
 	void TestConstraintDenominators()
 	{
-		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 		GEngine::RigidBody3D bodyA;
 		GEngine::RigidBody3D bodyB;
 		ConfigureSphereBody(bodyA, sphere, GEngine::Vec3f(0.0f));
@@ -4182,7 +4250,7 @@ namespace
 	// Coincident centers and anchors isolate ballistic impulse equations from lever-arm coupling.
 	struct BallisticFixture
 	{
-		GEngine::ShapeSphere sphere{ 1.0f };
+		GEngine::ShapeSphere sphere{MakeFixtureShape<GEngine::ShapeSphere>( 1.0f )};
 		GEngine::RigidBody3D body, support;
 		GEngine::contact_t contact{};
 
@@ -4446,9 +4514,9 @@ namespace
 		for (const bool reversed : { false, true })
 		for (const bool highDrop : { false, true })
 		{
-			GEngine::ShapeSphere sphere(1.0f);
+			GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 			// Match the established audit single-sphere floor geometry.
-			GEngine::ShapeBox floor(BoxPoints(GEngine::Vec3f(50.0f, 0.5f, 50.0f)));
+			GEngine::ShapeBox floor(MakeFixtureShape<GEngine::ShapeBox>(BoxPoints(GEngine::Vec3f(50.0f, 0.5f, 50.0f))));
 			GEngine::PhysicsSystem system;
 			auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
 			system.SetPhysicsWorld(world);
@@ -4553,7 +4621,7 @@ namespace
 	// Zero-lever-arm fixture isolates the impulse disk from angular/normal coupling.
 	struct FrictionFixture
 	{
-		GEngine::ShapeSphere sphere{ 1.0f };
+		GEngine::ShapeSphere sphere{MakeFixtureShape<GEngine::ShapeSphere>( 1.0f )};
 		GEngine::RigidBody3D body, support;
 		GEngine::ConstraintPenetration constraint;
 
@@ -4659,7 +4727,7 @@ namespace
 				"two dynamic spheres conserve angular momentum while relative rolling decays");
 		}
 		for(float length : {0.05f,100.0f}) {
-			FrictionFixture f(0);ShapeBox box(BoxPoints(Vec3f(1,2,3)));f.body.m_Shape=&box;
+			FrictionFixture f(0);ShapeBox box(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(1,2,3))));f.body.m_Shape=&box;
 			f.body.m_Orientation=glm::angleAxis(0.7f,glm::normalize(Vec3f(1,1,1)));
 			f.body.SetRollingResistanceLength(length);f.support.SetRollingResistanceLength(length);
 			f.body.m_LinearVelocity=Vec3f(0,-1,0);f.body.m_AngularVelocity=Vec3f(3,2,4);
@@ -4695,7 +4763,7 @@ namespace
 		for (float length : {0.05f, 100.0f}) {
 			const auto run = [&](bool reversed) {
 				FrictionFixture f(0);
-				ShapeBox shapeA(BoxPoints(Vec3f(1,2,3))), shapeB(BoxPoints(Vec3f(1.4f,0.75f,2.2f)));
+				ShapeBox shapeA(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(1,2,3)))), shapeB(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(1.4f,0.75f,2.2f))));
 				f.body.m_Shape=&shapeA;f.support.m_Shape=&shapeB;
 				f.support.SetBodyTypeAndInverseMass(BodyType::Dynamic,0.5f);
 				f.body.m_Orientation=glm::angleAxis(0.7f,glm::normalize(Vec3f(1,1,1)));
@@ -4756,7 +4824,7 @@ namespace
 		double stopping[2]{};int index=0;
 		for(int rate : {60,120}) {
 			for(bool enabled : {false,true}) {
-				ShapeSphere sphere(1);ShapeBox floor(BoxPoints(Vec3f(30,0.5f,30)));
+				ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));ShapeBox floor(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(30,0.5f,30))));
 				PhysicsSystem system;auto*world=new PhysicsWorld();system.SetPhysicsWorld(world);system.SetSleepingEnabled(false);
 				auto*support=world->CreateRigidBody3D();auto*body=world->CreateRigidBody3D();
 				ConfigureBoxBody(*support,floor,Vec3f(0),Quat(1,0,0,0));support->SetBodyTypeAndInverseMass(BodyType::Static,0);
@@ -4787,7 +4855,7 @@ namespace
 				if(enabled) stopping[index]=stop;
 			}
 			++index;
-			ShapeSphere sphere(1);PhysicsSystem system;auto*world=new PhysicsWorld(Vec3f(0));system.SetPhysicsWorld(world);
+			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));PhysicsSystem system;auto*world=new PhysicsWorld(Vec3f(0));system.SetPhysicsWorld(world);
 			auto*body=world->CreateRigidBody3D();auto*reference=world->CreateRigidBody3D();
 			ConfigureSphereBody(*body,sphere,Vec3f(0,20,0));ConfigureSphereBody(*reference,sphere,Vec3f(100,20,0));
 			body->SetRollingResistanceLength(0.05f);
@@ -4802,7 +4870,7 @@ namespace
 	void TestRollingMaterialAndWake()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(1);
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
 		PhysicsSystem system; auto* world=new PhysicsWorld(); system.SetPhysicsWorld(world);
 		auto* support=world->CreateRigidBody3D(); auto* body=world->CreateRigidBody3D();
 		ConfigureSphereBody(*support,sphere,Vec3f(0)); support->SetBodyTypeAndInverseMass(BodyType::Static,0);
@@ -4924,7 +4992,7 @@ namespace
 		}
 		// A rotated anisotropic inertia changes omega in multiple axes for a normal-axis torque.
 		FrictionFixture f(0.0f);
-		ShapeBox box(BoxPoints(Vec3f(1,2,3)));
+		ShapeBox box(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(1,2,3))));
 		f.body.m_Shape=&box;
 		f.body.m_Orientation=glm::angleAxis(0.7f,glm::normalize(Vec3f(1,1,1)));
 		f.body.SetSpinResistanceLength(100); f.support.SetSpinResistanceLength(100);
@@ -4942,7 +5010,7 @@ namespace
 	void TestSpinMaterialAndWake()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(1);
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
 		PhysicsSystem system; auto* world=new PhysicsWorld(); system.SetPhysicsWorld(world);
 		auto* support=world->CreateRigidBody3D(); auto* body=world->CreateRigidBody3D();
 		ConfigureSphereBody(*support,sphere,Vec3f(0)); support->SetBodyTypeAndInverseMass(BodyType::Static,0);
@@ -4980,7 +5048,7 @@ namespace
 		int rateIndex=0;
 		for(int rate : {60,120}) {
 			for(bool enabled : {false,true}) {
-				ShapeSphere sphere(1); ShapeBox floor(BoxPoints(Vec3f(20,0.5f,20)));
+				ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1)); ShapeBox floor(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(20,0.5f,20))));
 				PhysicsSystem system; auto* world=new PhysicsWorld(); system.SetPhysicsWorld(world);
 				system.SetSleepingEnabled(false); // Measure physical decay before sleep truncation.
 				auto* support=world->CreateRigidBody3D(); auto* body=world->CreateRigidBody3D();
@@ -5014,7 +5082,7 @@ namespace
 				if(enabled) stopped[rateIndex]=stop;
 			}
 			++rateIndex;
-			ShapeSphere sphere(1);PhysicsSystem system;auto* world=new PhysicsWorld(Vec3f(0));system.SetPhysicsWorld(world);
+			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));PhysicsSystem system;auto* world=new PhysicsWorld(Vec3f(0));system.SetPhysicsWorld(world);
 			auto* body=world->CreateRigidBody3D();ConfigureSphereBody(*body,sphere,Vec3f(0,20,0));
 			body->SetSpinResistanceLength(1);body->m_AngularVelocity=Vec3f(1,4,2);
 			auto* reference=world->CreateRigidBody3D();ConfigureSphereBody(*reference,sphere,Vec3f(100,20,0));
@@ -5232,7 +5300,7 @@ namespace
 	void TestManifoldNormalConvergence()
 	{
 		using namespace GEngine;
-		ShapeBox box(UnitBoxPoints());
+		ShapeBox box(MakeFixtureShape<ShapeBox>(UnitBoxPoints()));
 		for (const bool dynamicSupport : { false, true })
 		for (const bool permuted : { false, true })
 		for (const int rate : { 60, 120 })
@@ -5289,7 +5357,7 @@ namespace
 	void TestContactFrictionConvergence()
 	{
 		using namespace GEngine;
-		ShapeBox box(UnitBoxPoints());
+		ShapeBox box(MakeFixtureShape<ShapeBox>(UnitBoxPoints()));
 		for (const int rate : { 60, 120 })
 		for (const float inverseMass : { 0.5f, 1.0f, 2.0f })
 		for (const bool swapped : { false, true })
@@ -5372,7 +5440,7 @@ namespace
 				body->SetSpinResistanceLength(spinLength);
 				body->SetRollingResistanceLength(rollingLength);
 				body->Type = BodyType(type);
-				shapes.push_back(std::make_unique<ShapeBox>(points));
+				shapes.push_back(std::make_unique<ShapeBox>(MakeFixtureShape<ShapeBox>(points)));
 				body->m_Shape = shapes.back().get();
 			}
 			struct Window {
@@ -5485,7 +5553,7 @@ namespace
 
 	void TestGravityAndInverseMass()
 	{
-		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 		GEngine::PhysicsSystem system;
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
 		system.SetPhysicsWorld(world);
@@ -5515,10 +5583,10 @@ namespace
 	void TestBodyTypeInvariants()
 	{
 		using GEngine::Component::BodyType;
-		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 		std::vector<GEngine::Vec3f> points = UnitBoxPoints();
 		for (auto& point : points) point *= GEngine::Vec3f(1.0f, 2.0f, 3.0f);
-		GEngine::ShapeBox box(points);
+		GEngine::ShapeBox box(MakeFixtureShape<GEngine::ShapeBox>(points));
 		const GEngine::Vec3f velocity(0.25f, -0.5f, 0.75f), omega(0.7f, 1.1f, 1.6f);
 		const GEngine::Quat orientation = glm::angleAxis(0.73f,
 			glm::normalize(GEngine::Vec3f(1.0f, -2.0f, 3.0f)));
@@ -5586,7 +5654,7 @@ namespace
 	void TestBodyTypeContacts()
 	{
 		using GEngine::Component::BodyType;
-		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 		for (const auto type : { BodyType::Static, BodyType::Kinematic })
 		{
 			for (const bool ballistic : { false, true })
@@ -5657,8 +5725,8 @@ namespace
 	void TestBodyTypePrediction()
 	{
 		using GEngine::Component::BodyType;
-		GEngine::ShapeSphere sphere(1.0f);
-		GEngine::ShapeBox box(UnitBoxPoints());
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
+		GEngine::ShapeBox box(MakeFixtureShape<GEngine::ShapeBox>(UnitBoxPoints()));
 		for (const bool generic : { false, true })
 		{
 			for (const auto type : { BodyType::Static, BodyType::Kinematic })
@@ -5695,7 +5763,8 @@ namespace
 	class ObservedPredictionBox final : public GEngine::ShapeBox
 	{
 	public:
-		using ShapeBox::ShapeBox;
+		explicit ObservedPredictionBox(const std::vector<GEngine::Vec3f>& points)
+                : ShapeBox(MakeFixtureShape<ShapeBox>(points)) {}
 		const PredictionBodySnapshot* liveA{};
 		const PredictionBodySnapshot* liveB{};
 		mutable bool liveUnchanged = true;
@@ -5731,8 +5800,8 @@ namespace
 		for (auto& point : points) point += Vec3f(0.2f, 0.1f, -0.15f);
 		ObservedPredictionBox box(points);
 		ShapeConvex convex(points);
-		ShapeBox wall(BoxPoints(Vec3f(1.0f, 10.0f, 10.0f)));
-		ShapeSphere sphere(1.0f);
+		ShapeBox wall(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(1.0f, 10.0f, 10.0f))));
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		for (int shape = 0; shape < 3; ++shape)
 		for (int cache = 0; cache < 3; ++cache)
 		for (int scenario = 0; scenario < 4; ++scenario)
@@ -5810,7 +5879,7 @@ namespace
 	void TestPredictionAnchorsAndOrder()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(1.0f);
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		for (const auto type : { Component::BodyType::Static, Component::BodyType::Kinematic,
 			Component::BodyType::Dynamic })
 		{
@@ -5847,7 +5916,7 @@ namespace
 			}
 		}
 		// Successful generic sweeps with an independent constant-pose/linear-motion reference.
-		ShapeBox unitBox(UnitBoxPoints());
+		ShapeBox unitBox(MakeFixtureShape<ShapeBox>(UnitBoxPoints()));
 		ShapeConvex unitConvex(UnitBoxPoints());
 		for (PhysicalShape* shape : { static_cast<PhysicalShape*>(&unitBox), static_cast<PhysicalShape*>(&unitConvex) })
 		for (bool reversed : { false, true })
@@ -5881,7 +5950,7 @@ namespace
 			}
 		}
 
-		ShapeBox box(BoxPoints(Vec3f(1, 2, 3)));
+		ShapeBox box(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(1, 2, 3))));
 		PhysicsWorld world;
 		auto* a = world.CreateRigidBody3D();
 		auto* b = world.CreateRigidBody3D();
@@ -5919,7 +5988,7 @@ namespace
 
 	struct ToiWorldFixture
 	{
-		GEngine::ShapeSphere sphere{ 1.0f };
+		GEngine::ShapeSphere sphere{MakeFixtureShape<GEngine::ShapeSphere>( 1.0f )};
 		GEngine::PhysicsSystem system;
 		std::array<GEngine::RigidBody3D*, 3> bodies{};
 		explicit ToiWorldFixture(bool reversed)
@@ -6096,7 +6165,8 @@ namespace
 	class ToiObservedBox final : public GEngine::ShapeBox
 	{
 	public:
-		using ShapeBox::ShapeBox;
+		explicit ToiObservedBox(const std::vector<GEngine::Vec3f>& points)
+                : ShapeBox(MakeFixtureShape<ShapeBox>(points)) {}
 		const GEngine::RigidBody3D* movingBody{};
 		bool failAtImpact = false;
 		mutable bool queriedAtImpact = false;
@@ -6334,7 +6404,7 @@ namespace
 	void TestSleepPhysicalStateAndLifetime()
 	{
 		using GEngine::Component::BodyType;
-		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 		GEngine::RigidBody3D body;
 		ConfigureSphereBody(body, sphere, GEngine::Vec3f(1.0f, 2.0f, 3.0f));
 		body.m_LinearVelocity = GEngine::Vec3f(0.02f, 0.0f, 0.0f);
@@ -6429,7 +6499,7 @@ namespace
 	void TestContactIslandConnectivity()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(1);
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
 		PhysicsWorld world(Vec3f(0));
 		std::vector<RigidBody3D*> bodies;
 		for (int i = 0; i < 8; ++i)
@@ -6486,7 +6556,7 @@ namespace
 	void TestContactIslandGraphOracle()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(1);
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
 		PhysicsWorld world(Vec3f(0));
 		constexpr int count = 32, dynamicCount = 24;
 		std::vector<RigidBody3D*> bodies;
@@ -6554,7 +6624,7 @@ namespace
 	void TestContactIslandStorageRebuild()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(1);
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
 		PhysicsWorld world(Vec3f(0));
 		for (int i = 0; i < 2048; ++i)
 		{
@@ -6617,7 +6687,7 @@ namespace
 	void TestContactIslandIdentityLifetime()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(1);
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
 		PhysicsWorld world(Vec3f(0));
 		auto* a = world.CreateRigidBody3D();
 		auto* b = world.CreateRigidBody3D();
@@ -6649,7 +6719,7 @@ namespace
 	void TestContactIslandSystemLifecycle()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(1);
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
 		PhysicsSystem system;
 		Expect(system.GetContactIslands().empty(), "new system has no island snapshot");
 		auto* world = new PhysicsWorld(Vec3f(0));
@@ -6720,7 +6790,7 @@ namespace
 		Manifold empty;
 		empty.Solve(); empty.PostSolve(); empty.PreSolve(1.0f/60);
 		Expect(empty.GetNumContacts()==0, "sleep activity guards preserve safe no-op operations on an empty manifold");
-		ShapeSphere sphere(1.0f);
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		PhysicsSystem system;
 		auto* world = new PhysicsWorld(Vec3f(0));
 		system.SetPhysicsWorld(world);
@@ -6750,7 +6820,7 @@ namespace
 	{
 		using namespace GEngine;
 		for (int mutation = 0; mutation < 13; ++mutation) {
-			ShapeSphere sphere(1);
+			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
 			PhysicsSystem system;
 			auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
 			auto* a = world->CreateRigidBody3D(); auto* b = world->CreateRigidBody3D();
@@ -6779,7 +6849,7 @@ namespace
 				"public edits, explicit wake and impulses wake the connected island while preserving unrelated sleep");
 		}
 		for (int mutation = 0; mutation < 6; ++mutation) {
-			ShapeSphere boundaryShape(1), sphere(1);
+			ShapeSphere boundaryShape(MakeFixtureShape<ShapeSphere>(1)), sphere(MakeFixtureShape<ShapeSphere>(1));
 			PhysicsSystem system; auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
 			auto* boundary = world->CreateRigidBody3D();
 			auto* a = world->CreateRigidBody3D(); auto* b = world->CreateRigidBody3D();
@@ -6804,7 +6874,7 @@ namespace
 	void TestSleepEligibilityAndInteraction()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(1);
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
 		PhysicsSystem system; auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
 		auto* a = world->CreateRigidBody3D(); auto* b = world->CreateRigidBody3D();
 		ConfigureSphereBody(*a, sphere, Vec3f(0)); ConfigureSphereBody(*b, sphere, Vec3f(2,0,0));
@@ -6855,7 +6925,7 @@ namespace
 		using namespace GEngine;
 		{
 			struct ObservedValiditySphere : ShapeSphere {
-				ObservedValiditySphere() : ShapeSphere(1) {}
+				ObservedValiditySphere() : ShapeSphere() {}
 				mutable int queries{};
 				bool IsValid() const override { ++queries; return ShapeSphere::IsValid(); }
 			} shape;
@@ -6872,7 +6942,7 @@ namespace
 		// A quiet body's reused eligibility must accumulate exactly like the primitive,
 		// and even a below-threshold public mutation must restart its dwell.
 		{
-			ShapeSphere shape(1);
+			ShapeSphere shape(MakeFixtureShape<ShapeSphere>(1));
 			PhysicsSystem system; auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
 			auto* body = world->CreateRigidBody3D(); ConfigureSphereBody(*body, shape, Vec3f(0));
 			system.Update(Timestep(1.0f/60));
@@ -6896,7 +6966,7 @@ namespace
 					"small explicit mutations invalidate a partially accumulated sleep dwell");
 			}
 		}
-		ShapeSphere sphere(1);
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
 		PhysicsSystem first, second;
 		for (auto* system : {&first,&second}) {
 			auto* world = new PhysicsWorld(Vec3f(0)); system->SetPhysicsWorld(world);
@@ -6984,7 +7054,7 @@ namespace
 	void TestBodyTypeConfigurationAndTransitions()
 	{
 		using GEngine::Component::BodyType;
-		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 		GEngine::RigidBody3D body;
 		body.m_Shape = &sphere;
 		Expect(body.Type == BodyType::Static && body.m_InvMass == 0.0f && body.GetInverseMass() == 0.0f,
@@ -7061,7 +7131,7 @@ namespace
 	void TestBodyTypeWorldContacts()
 	{
 		using GEngine::Component::BodyType;
-		GEngine::ShapeSphere sphere(1.0f);
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
 		for (const auto type : { BodyType::Static, BodyType::Kinematic })
 		{
 			GEngine::PhysicsSystem system;
@@ -7154,7 +7224,7 @@ namespace
 
 	void TestBroadphaseCorrectnessAndFiltering()
 	{
-		GEngine::ShapeBox box(UnitBoxPoints());
+		GEngine::ShapeBox box(MakeFixtureShape<GEngine::ShapeBox>(UnitBoxPoints()));
 		GEngine::SweepAndPruneBroadphase broadphase;
 		std::vector<GEngine::collisionPair_t> pairs;
 
@@ -7202,7 +7272,7 @@ namespace
 
 	void TestBroadphasePersistenceAndTemporalCoherence()
 	{
-		GEngine::ShapeBox box(UnitBoxPoints());
+		GEngine::ShapeBox box(MakeFixtureShape<GEngine::ShapeBox>(UnitBoxPoints()));
 		std::array<GEngine::RigidBody3D, 3> bodyStorage;
 		for (std::size_t index = 0; index < bodyStorage.size(); ++index)
 		{
@@ -7240,7 +7310,7 @@ namespace
 
 	void TestBroadphaseAgainstBruteForce()
 	{
-		GEngine::ShapeBox box(UnitBoxPoints());
+		GEngine::ShapeBox box(MakeFixtureShape<GEngine::ShapeBox>(UnitBoxPoints()));
 		std::array<GEngine::RigidBody3D, 24> bodyStorage;
 		std::vector<GEngine::RigidBody3D*> bodies;
 		bodies.reserve(bodyStorage.size());
@@ -7306,7 +7376,7 @@ namespace
 		{
 			auto points = BoxPoints(Vec3f(4.0f, 0.5f, 0.25f) * scale);
 			for (Vec3f& point : points) point += Vec3f(2, -3, 0.4f) * scale;
-			ShapeBox box(points); ShapeConvex convex(points);
+			ShapeBox box(MakeFixtureShape<ShapeBox>(points)); ShapeConvex convex(points);
 			for (PhysicalShape* shape : { static_cast<PhysicalShape*>(&box), static_cast<PhysicalShape*>(&convex) })
 			for (const BodyType type : { BodyType::Dynamic, BodyType::Kinematic })
 			for (const float angle : { 0.0f, 0.8f })
@@ -7353,8 +7423,8 @@ namespace
 	{
 		using namespace GEngine;
 		using BodyType = Component::BodyType;
-		ShapeBox rod(BoxPoints(Vec3f(4, 0.15f, 0.15f)));
-		ShapeSphere sphere(0.25f);
+		ShapeBox rod(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(4, 0.15f, 0.15f))));
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(0.25f));
 		RigidBody3D a, b;
 		ConfigureBoxBody(a, rod, Vec3f(0), Quat(1, 0, 0, 0));
 		ConfigureSphereBody(b, sphere, Vec3f(0, 3.5f, 0));
@@ -7398,7 +7468,8 @@ namespace
 	class AngularSpeedProbe : public Base
 	{
 	public:
-		using Base::Base;
+		explicit AngularSpeedProbe(const std::vector<GEngine::Vec3f>& points)
+            : Base(MakePointFixture<Base>(points)) {}
 		mutable bool called = false;
 		mutable GEngine::Vec3f firstOmega{}, firstDirection{};
 		mutable float firstSpeed = 0;
@@ -7457,8 +7528,8 @@ namespace
 		for (const bool reversed : { false, true })
 		for (const float angle : { 0.0f, 0.35f })
 		{
-			ShapeBox rod(BoxPoints(Vec3f(4, 0.15f, 0.15f)));
-			ShapeSphere sphere(0.25f);
+			ShapeBox rod(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(4, 0.15f, 0.15f))));
+			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(0.25f));
 			PhysicsSystem system;
 			auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
 			auto* first = world->CreateRigidBody3D(); auto* second = world->CreateRigidBody3D();
@@ -7486,7 +7557,7 @@ namespace
 	{
 		using namespace GEngine;
 		for (float scale : { 0.1f, 1.0f, 10.0f, 100.0f }) {
-			ShapeBox box(BoxPoints(Vec3f(scale)));
+			ShapeBox box(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(scale))));
 			for (float offset : { 0.4f, 1.2f, 1.999f, 2.0f, 2.1f }) {
 				RigidBody3D a, b;
 				ConfigureBoxBody(a, box, Vec3f(0), Quat(1, 0, 0, 0));
@@ -7512,7 +7583,7 @@ namespace
 	{
 		using namespace GEngine;
 		for (float scale : { 0.1f, 0.5f, 1.0f, 10.0f, 100.0f }) {
-			ShapeSphere sphere(scale);
+			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(scale));
 			for (const Vec3f offset : { Vec3f(3, 0, 0), Vec3f(4, 3, 2), Vec3f(1, 7, -3) }) {
 				RigidBody3D a, b;
 				ConfigureSphereBody(a, sphere, scale * Vec3f(3, -2, 1));
@@ -7535,7 +7606,7 @@ namespace
 			return static_cast<float>(seed >> 8) / 16777216.0f;
 		};
 		for (float scale : { 0.1f, 1.0f, 10.0f, 100.0f }) {
-			ShapeBox box(BoxPoints(Vec3f(scale)));
+			ShapeBox box(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(scale))));
 			for (int sample = 0; sample < 64; ++sample) {
 				const bool overlap = (sample % 2) == 0;
 				const Vec3f axis(random(), random(), random());
@@ -7563,7 +7634,7 @@ namespace
 	public:
 		mutable unsigned calls{};
 		unsigned failAt{};
-		using ShapeSphere::ShapeSphere;
+		explicit GjkSupportFixture(float radius) : ShapeSphere(MakeFixtureShape<ShapeSphere>(radius)) {}
 
 		GEngine::Vec3f Support(const GEngine::Vec3f& direction, const GEngine::Vec3f& position,
 			const GEngine::Quat& orientation, float bias) const override
@@ -7576,7 +7647,7 @@ namespace
 	void TestGjkTerminationContract()
 	{
 		using namespace GEngine;
-		ShapeBox box(UnitBoxPoints());
+		ShapeBox box(MakeFixtureShape<ShapeBox>(UnitBoxPoints()));
 		RigidBody3D a, b;
 		const Quat identity(1, 0, 0, 0);
 		ConfigureBoxBody(a, box, Vec3f(0), identity);
@@ -7658,7 +7729,7 @@ namespace
 	void TestEpaTerminationContract()
 	{
 		using namespace GEngine;
-		ShapeBox box(UnitBoxPoints());
+		ShapeBox box(MakeFixtureShape<ShapeBox>(UnitBoxPoints()));
 		RigidBody3D a, b;
 		ConfigureBoxBody(a, box, Vec3f(0), Quat(1, 0, 0, 0));
 		ConfigureBoxBody(b, box, Vec3f(1.2f, 0.3f, 0.2f), Quat(1, 0, 0, 0));
@@ -7755,9 +7826,9 @@ namespace
 			}
 		};
 		for (float scale : { 0.1f, 1.0f, 10.0f, 100.0f }) {
-			ShapeBox box(BoxPoints(Vec3f(scale)));
+			ShapeBox box(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(scale))));
 			ShapeConvex convex(BoxPoints(Vec3f(scale, 0.7f * scale, 0.5f * scale)));
-			ShapeSphere sphere(scale);
+			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(scale));
 			PhysicalShape* shapes[] = { &box, &convex, &sphere };
 			for (int sample = 0; sample < 300; ++sample) {
 				RigidBody3D a, b;
@@ -7841,7 +7912,7 @@ namespace
 		using namespace GEngine;
 		for (float scale : { 0.1f, 1.0f, 10.0f, 100.0f }) {
 			for (float thickness : { 1e-4f, 1e-3f, 1e-2f }) {
-				ShapeBox box(BoxPoints(scale * Vec3f(1, 1, thickness)));
+				ShapeBox box(MakeFixtureShape<ShapeBox>(BoxPoints(scale * Vec3f(1, 1, thickness))));
 				Expect(box.IsValid(), "thin EPA regression starts from valid shape geometry");
 				RigidBody3D a, b;
 				const Quat rotation = glm::angleAxis(0.37f, Math::NormalizeOr(Vec3f(1, 2, 3)));

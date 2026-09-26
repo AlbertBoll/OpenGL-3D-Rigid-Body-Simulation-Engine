@@ -1,40 +1,42 @@
 #include "gepch.h"
 #include "Core/RawModel.h"
-#include "assimp/Importer.hpp"
-#include <Assimp/scene.h>
-#include <Assimp/postprocess.h>
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 #include "Geometry/Geometry.h"
+#include <new>
 
 namespace GEngine
 {
+    namespace
+    {
+        ModelImportError ImportError(ModelImportErrorCode code, const std::string& path, std::string message)
+        { return {code, "RawModel::Create", path, std::move(message)}; }
 
-
-	RawModel::RawModel(const std::string& path)
-	{
-		LoadModelGeometry(path);
-	}
-
-	void RawModel::LoadModelGeometry(const std::string& path)
-	{
-		Assimp::Importer importer;
-		const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_CalcTangentSpace);
-		// check for errors
-		ASSERT(!(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode), std::string("ERROR::ASSIMP:: ") + importer.GetErrorString());
-		//auto node = scene->mRootNode;
-		//aiMesh* mesh = scene->mMeshes[node->mMeshes[0]];
-		//return ProcessMesh(mesh, scene);
-
-			// retrieve the directory path of the filepath
-			//m_Directory = path.substr(0, path.find_last_of('/'));
-			//ProcessNode(scene->mRootNode, scene);
-		ProcessNode(scene->mRootNode, scene);
-	};
-
-
-	Geometry* RawModel::ProcessMesh(aiMesh* mesh, const aiScene* scene)
-	{
-
-		auto ModelGeometry = new Geometry;
+        std::expected<std::unique_ptr<Geometry>, ModelImportError> ProcessMesh(
+            const aiMesh& source, const std::string& path)
+        {
+            const auto* mesh = &source;
+            if (!mesh->mNumVertices || !mesh->mVertices
+                || (mesh->mNumFaces && !mesh->mFaces)
+                || (mesh->mTextureCoords[0] && (!mesh->mTangents || !mesh->mBitangents)))
+                return std::unexpected(ImportError(ModelImportErrorCode::InvalidData, path,
+                    "Model mesh has incomplete vertex, face or tangent data"));
+            for (unsigned i = 0; i < mesh->mNumFaces; ++i)
+            {
+                const auto& face = mesh->mFaces[i];
+                if (face.mNumIndices && !face.mIndices)
+                    return std::unexpected(ImportError(ModelImportErrorCode::InvalidData, path,
+                        "Model face has no index data"));
+                for (unsigned j = 0; j < face.mNumIndices; ++j)
+                    if (face.mIndices[j] >= mesh->mNumVertices)
+                        return std::unexpected(ImportError(ModelImportErrorCode::InvalidData, path,
+                            "Model face index is outside its vertex data"));
+            }
+            std::unique_ptr<Geometry> ModelGeometry(new (std::nothrow) Geometry);
+            if (!ModelGeometry)
+                return std::unexpected(ImportError(ModelImportErrorCode::Allocation, path,
+                    "Unable to allocate model geometry"));
 		std::vector<Vec3f> vertexPosition;
 		std::vector<Vec2f> vertexUV;
 		std::vector<Vec3f> vertexNormal;
@@ -101,52 +103,67 @@ namespace GEngine
 		ModelGeometry->AddIndices(vertexIndices);
 		return ModelGeometry;
 
-	}
+        }
 
-	void RawModel::ProcessNode(aiNode* node, const aiScene* scene)
-	{
-		// process each mesh located at the current node
-		for (unsigned int i = 0; i < node->mNumMeshes; i++)
-		{
-			// the node object only contains indices to index the actual objects in the scene. 
-			// the scene contains all the data, node is just to keep stuff organized (like relations between nodes).
-			aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-			m_Geometries.push_back(ProcessMesh(mesh, scene));
-		}
+        std::expected<void, ModelImportError> ProcessNode(const aiNode& node, const aiScene& scene,
+            const std::string& path, std::vector<std::unique_ptr<Geometry>>& output)
+        {
+            if ((node.mNumMeshes && !node.mMeshes) || (node.mNumChildren && !node.mChildren))
+                return std::unexpected(ImportError(ModelImportErrorCode::InvalidData, path,
+                    "Model node has incomplete mesh or child data"));
+            for (unsigned i = 0; i < node.mNumMeshes; ++i)
+            {
+                const auto index = node.mMeshes[i];
+                if (index >= scene.mNumMeshes || !scene.mMeshes || !scene.mMeshes[index])
+                    return std::unexpected(ImportError(ModelImportErrorCode::InvalidData, path,
+                        "Model node references an invalid mesh"));
+                auto mesh = ProcessMesh(*scene.mMeshes[index], path);
+                if (!mesh) return std::unexpected(mesh.error());
+                output.push_back(std::move(*mesh));
+            }
+            for (unsigned i = 0; i < node.mNumChildren; ++i)
+            {
+                if (!node.mChildren[i])
+                    return std::unexpected(ImportError(ModelImportErrorCode::InvalidData, path,
+                        "Model node references a missing child"));
+                if (auto child = ProcessNode(*node.mChildren[i], scene, path, output); !child) return child;
+            }
+            return {};
+        }
 
-		// after we've processed all of the meshes (if any) we then recursively process each of the children nodes
-		for (unsigned int i = 0; i < node->mNumChildren; i++)
-		{
-			ProcessNode(node->mChildren[i], scene);
-		}
-	}
+        std::expected<std::vector<std::unique_ptr<Geometry>>, ModelImportError> BuildModel(
+            const aiScene& scene, const std::string& path)
+        {
+            if ((scene.mFlags & AI_SCENE_FLAGS_INCOMPLETE) || !scene.mRootNode)
+                return std::unexpected(ImportError(ModelImportErrorCode::InvalidScene, path,
+                    "ERROR::ASSIMP:: Model scene is incomplete or has no root node"));
+            std::vector<std::unique_ptr<Geometry>> geometries;
+            if (auto nodes = ProcessNode(*scene.mRootNode, scene, path, geometries); !nodes)
+                return std::unexpected(nodes.error());
+            if (geometries.empty())
+                return std::unexpected(ImportError(ModelImportErrorCode::NoGeometry, path,
+                    "Model contains no geometry: " + path));
+            return geometries;
+        }
+    }
 
-	Geometry* RawModel::GetGeometry(int index)
-	{
-		return m_Geometries[index];
-	}
+    std::expected<RawModel, ModelImportError> RawModel::Create(const std::string& path)
+    {
+        Assimp::Importer importer;
+        const aiScene* scene = importer.ReadFile(path,
+            aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_CalcTangentSpace);
+        if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || !scene->mRootNode)
+            return std::unexpected(ImportError(!scene ? ModelImportErrorCode::ImportFailed : ModelImportErrorCode::InvalidScene,
+                path, std::string("ERROR::ASSIMP:: ") + importer.GetErrorString()));
+        auto geometries = BuildModel(*scene, path);
+        if (!geometries) return std::unexpected(geometries.error());
+        RawModel model;
+        model.m_Geometries = std::move(*geometries);
+        return model;
+    }
 
-	//void RawModel::ProcessNode(aiNode* node, const aiScene* scene)
-	//{
-		// process each mesh located at the current node
-		//for (unsigned int i = 0; i < node->mNumMeshes; i++)
-		//{
-			// the node object only contains indices to index the actual objects in the scene. 
-			// the scene contains all the data, node is just to keep stuff organized (like relations between nodes).
-			//aiMesh* mesh = scene->mMeshes[node->mMeshes[0]];
-			//return ProcessMesh(mesh, scene)
-			//m_Geometries.push_back(ProcessMesh(mesh, scene));
-		//}
-
-		// after we've processed all of the meshes (if any) we then recursively process each of the children nodes
-		//for (unsigned int i = 0; i < node->mNumChildren; i++)
-		//{
-			//ProcessNode(node->mChildren[i], scene);
-		//}
-	//}
-
-	
-
-
-
+    RawModel::RawModel(RawModel&&) noexcept = default;
+    RawModel& RawModel::operator=(RawModel&&) noexcept = default;
+    RawModel::~RawModel() = default;
+    std::vector<std::unique_ptr<Geometry>> RawModel::TakeGeometries() && { return std::move(m_Geometries); }
 }

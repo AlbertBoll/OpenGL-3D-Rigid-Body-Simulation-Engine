@@ -3,7 +3,7 @@
 #include <fmod/fmod_studio.hpp>
 #include"Audio/AudioSystem.h"
 #include"Math/Matrix.h"
-#include <stdexcept>
+#include <fmod/fmod_errors.h>
 
 
 namespace GEngine::Audio
@@ -78,16 +78,28 @@ namespace GEngine::Audio
 		}
 	}
 
-	AUDIO_PLAYBACK_STATE SoundEvent::GetPlayState()const
+	PlaybackStateResult SoundEvent::GetPlayState() const
 	{
 		if (auto event = m_AudioSystem ? m_AudioSystem->GetEventInstance(m_ID) : nullptr; event)
 		{
-			FMOD_STUDIO_PLAYBACK_STATE state;
-			if (event->getPlaybackState(&state) != FMOD_OK)
-			{
-				throw std::runtime_error("FMOD playback state query failed");
-			}
-			return static_cast<AUDIO_PLAYBACK_STATE>(state);
+            FMOD_STUDIO_PLAYBACK_STATE state;
+            const auto result = event->getPlaybackState(&state);
+            if (result != FMOD_OK)
+                return std::unexpected(PlaybackStateError{PlaybackStateErrorCode::QueryFailed, m_ID,
+                    "SoundEvent::GetPlayState", "FMOD playback state query failed (result=" +
+                    std::to_string(static_cast<int>(result)) + "): " + FMOD_ErrorString(result)});
+            switch (state)
+            {
+            case FMOD_STUDIO_PLAYBACK_PLAYING: return PLAYBACK_PLAYING;
+            case FMOD_STUDIO_PLAYBACK_SUSTAINING: return PLAYBACK_SUSTAINING;
+            case FMOD_STUDIO_PLAYBACK_STOPPED: return PLAYBACK_STOPPED;
+            case FMOD_STUDIO_PLAYBACK_STARTING: return PLAYBACK_STARTING;
+            case FMOD_STUDIO_PLAYBACK_STOPPING: return PLAYBACK_STOPPING;
+            default:
+                return std::unexpected(PlaybackStateError{PlaybackStateErrorCode::InvalidState, m_ID,
+                    "SoundEvent::GetPlayState", "FMOD returned an unknown playback state: " +
+                    std::to_string(static_cast<int>(state))});
+            }
 		}
 		// Default handles and events removed after stopping have no active playback.
 		return PLAYBACK_STOPPED;

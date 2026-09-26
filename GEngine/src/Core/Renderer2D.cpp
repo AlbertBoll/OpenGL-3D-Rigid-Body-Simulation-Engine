@@ -1,5 +1,6 @@
 #include "gepch.h"
 #include "Core/Renderer2D.h"
+#include "../Assets/ShaderBackend.h"
 #include <Assets/Textures/Texture.h>
 #include "Sprite/SpriteEntity.h"
 #include "Core/RenderTarget.h"
@@ -7,6 +8,11 @@
 
 namespace GEngine
 {
+    void Renderer2D::Groups::Set(const Material& material, std::vector<std::vector<SpriteEntity*>> groups)
+    {
+        m_Groups[Asset::ShaderBackendAccess::Program(*material.m_Shader)] = std::move(groups);
+    }
+
 	void Renderer2D::Render(SpriteEntity* entity, CameraBase* camera)
 	{
 		entity->Render(camera);
@@ -59,10 +65,10 @@ namespace GEngine
 	}
 
 
-	void Renderer2D::Render(const std::unordered_map<unsigned int, std::vector<std::vector<SpriteEntity*>>>& groupsLookUp, CameraBase* camera)
+	void Renderer2D::Render(const Groups& groupsLookUp, CameraBase* camera)
 	{
 		SpriteComponent m_SpriteComp;
-		for (auto& [id, groups] : groupsLookUp)
+		for (auto& [id, groups] : groupsLookUp.m_Groups)
 		{
 			glUseProgram(id);
 			groups[0][0]->BindVAO();

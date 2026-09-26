@@ -53,7 +53,7 @@ namespace GEngine
 
 		void Set2DTransform(const Vec2f& pos, const Vec2f& size, float rotation = 0);
 
-		template <typename T>
+		template<Asset::ShaderUniform T>
 		void SetUniforms(const std::map<std::string, T>& uniforms)const
 		{
 			m_Material->SetUniforms(uniforms);

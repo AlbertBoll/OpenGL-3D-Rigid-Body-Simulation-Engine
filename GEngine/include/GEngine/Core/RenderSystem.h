@@ -8,6 +8,18 @@ namespace GEngine
 	class _Scene;
 	
 
+    enum class RenderSystemRangeCode { ViewportExtent, VertexCount };
+    struct RenderSystemRangeError
+    {
+        RenderSystemRangeCode code;
+        std::string_view operation, message;
+        float extent = 0;
+        unsigned axis = 0;
+        std::size_t vertexCount = 0;
+    };
+    using RenderSystemError = std::variant<RenderTransformQueryError, RenderSystemRangeError, FramebufferError>;
+    using RenderSystemResult = std::expected<void, RenderSystemError>;
+
 	struct RenderStats_
 	{
 		int m_ArrayDrawCall{};
@@ -49,19 +61,19 @@ namespace GEngine
 	{
 	public:
 
-		static void CascadedShadowPreRender(_Scene* scene);
-		static void PointShadowPreRender(_Scene* scene, Shader* point_shadow_depth_shader, const std::vector<Mat4>& shadowTransforms, const Vec3f& lightPos, float far_plane);
-		static void MousePickPreRender(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader);
+		[[nodiscard]] static RenderSystemResult CascadedShadowPreRender(_Scene* scene);
+		[[nodiscard]] static RenderSystemResult PointShadowPreRender(_Scene* scene, Shader* point_shadow_depth_shader, const std::vector<Mat4>& shadowTransforms, const Vec3f& lightPos, float far_plane);
+		[[nodiscard]] static RenderSystemResult MousePickPreRender(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader);
 	
-		static void CascadedShadowSceneRender(_Scene* scene, _EditorCamera& camera, const std::vector<float>& shadowCascadeLevels, float far_plane);
-		static void SceneRender(_Scene* scene, _EditorCamera& camera);
+		[[nodiscard]] static RenderSystemResult CascadedShadowSceneRender(_Scene* scene, _EditorCamera& camera, const std::vector<float>& shadowCascadeLevels, float far_plane);
+		[[nodiscard]] static RenderSystemResult SceneRender(_Scene* scene, _EditorCamera& camera);
 		static void BeginFinalRender(_EditorCamera& camera, RenderTarget* target = nullptr, const Vec4f& color = { 0.1f, 0.1f, 0.1f, 1.f });
 		static void BeginRender(_EditorCamera& camera, const Vec4f& color = {0.1f, 0.1f, 0.1f, 1.f});
 		static void Initialize(const Vec3f& clearColor = { 0.1f, 0.1f, 0.1f });
 		static void Set(const RenderParam_& param);
 		static void Clear(const Vec3f& clearColor = { 0.1f, 0.1f, 0.1f });
-		static void OnMouseClicked(_Scene* scene, const MousePickFrameBuffer& fb);
-		static void OnMouseClicked(_Scene* scene, const MousePickFrameBuffer& fb, const Vec2f& min_bound, const Vec2f& max_bound);
+		[[nodiscard]] static RenderSystemResult OnMouseClicked(_Scene* scene, const MousePickFrameBuffer& fb);
+		[[nodiscard]] static RenderSystemResult OnMouseClicked(_Scene* scene, const MousePickFrameBuffer& fb, const Vec2f& min_bound, const Vec2f& max_bound);
 		static void OnMouseClicked(_Scene* scene, const RenderTarget& fb, const Vec2f& min_bound, const Vec2f& max_bound);
 		static void VisualizeDebugBoundingVolume(_Scene* scene, _EditorCamera& camera, Shader* debug_shader, DebugAABBBoundingBoxComponent& debug_bounding_box);
 		static void VisualizeDebugBoundingVolume(_Scene* scene, _EditorCamera& camera);
@@ -72,17 +84,13 @@ namespace GEngine
 			m_WindowHeight = new_height;
 		}
 
-		static void SkyBoxRender(_Entity skybox, _EditorCamera& camera);
+		[[nodiscard]] static RenderSystemResult SkyBoxRender(_Entity skybox, _EditorCamera& camera);
 
-		static void ArraysDraw(unsigned int mode, int count, int first = 0);
 	
-		static void ElementsDraw(unsigned int mode, int count, unsigned int type = 0x1405, const void* indice = 0);
 
 		//To do element instance draw
-		static void ElementsInstancedDraw(unsigned int mode, int count, int instancecount, unsigned int type = 0x1405,  const void* indices = nullptr);
 	
 		//To do array instance draw
-		static void ArraysInstancedDraw(unsigned int mode, int count, int instancecount, int first = 0);
 		
 		static std::vector<Vec4f> GetFrustumCornersWorldSpace(const Mat4& projview);
 
@@ -105,17 +113,17 @@ namespace GEngine
 		static void UpdateRenderSetting(const PointSetting_& pointSetting);
 		static void UpdateRenderSetting(const LineSetting_& lineSetting);
 		static void UpdateRenderSetting(const SurfaceSetting_& SurfaceSetting);
-		static void CascadedShadowScenePass(_Scene* scene, _EditorCamera& camera, Shader* cascade_shader, const std::vector<float>& shadowCascadeLevels, const FinalFrameBuffer& fb);
-		static void CascadedShadowPass(_Scene* scene, Shader* depth_shader, const CascadeShadowFrameBuffer& fb);
-		static void PointShadowPass(_Scene* scene, Shader* depth_shader, const PointShadowFrameBuffer& fb, const Vec3f& lightPos, float near_plane, float far_plane);
-		static void MousePickPass(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader, const MousePickFrameBuffer& fb);
-		static void MousePickPass(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader, const MousePickFrameBuffer& fb, const Vec2f& min_bound, const Vec2f& max_bound);
+		[[nodiscard]] static RenderSystemResult CascadedShadowScenePass(_Scene* scene, _EditorCamera& camera, Shader* cascade_shader, const std::vector<float>& shadowCascadeLevels, const FinalFrameBuffer& fb);
+		[[nodiscard]] static RenderSystemResult CascadedShadowPass(_Scene* scene, Shader* depth_shader, const CascadeShadowFrameBuffer& fb);
+		[[nodiscard]] static RenderSystemResult PointShadowPass(_Scene* scene, Shader* depth_shader, const PointShadowFrameBuffer& fb, const Vec3f& lightPos, float near_plane, float far_plane);
+		[[nodiscard]] static RenderSystemResult MousePickPass(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader, const MousePickFrameBuffer& fb);
+		[[nodiscard]] static RenderSystemResult MousePickPass(_Scene* scene, const _EditorCamera& camera, Shader* mouse_pick_shader, const MousePickFrameBuffer& fb, const Vec2f& min_bound, const Vec2f& max_bound);
 		static void FinalPassBegin(_EditorCamera& camera, RenderTarget* target);
 		template<typename uniformbuffer>
 		static void SetupUBO(const uniformbuffer& ubo, const _EditorCamera& camera, const Vec3f& lightDir, const std::vector<float>& shadowCascadeLevels);
 
-		static void KDTreeVisualize(_Scene* scene, _EditorCamera& camera, Shader* debug_shader, std::vector<Vec3f>& m_Points, const DebugKDTreeVisualizer& debug_kd_tree_visualizer);
-		static void PointLightsVisualize(_Scene* scene, const _EditorCamera& camera, Shader* point_light_shader);
+		[[nodiscard]] static RenderSystemResult KDTreeVisualize(_Scene* scene, _EditorCamera& camera, Shader* debug_shader, std::vector<Vec3f>& m_Points, const DebugKDTreeVisualizer& debug_kd_tree_visualizer);
+		[[nodiscard]] static RenderSystemResult PointLightsVisualize(_Scene* scene, const _EditorCamera& camera, Shader* point_light_shader);
 
 
 	private:

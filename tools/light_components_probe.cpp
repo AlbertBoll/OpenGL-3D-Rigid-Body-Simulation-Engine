@@ -1,3 +1,7 @@
+#include <concepts>
+#include <functional>
+#include <cstdlib>
+#include <iostream>
 #include "../GEngine/src/Assets/ShaderBackend.h"
 // Exercise real scene dispatch and driver uniform storage through GEngine.lib.
 #include "gepch.h"
@@ -13,6 +17,29 @@ namespace
     using namespace GEngine;
     using namespace GEngine::Component;
     int checks = 0;
+    // Test-only preparation for bounded Scene value/void result migrations.
+    template<std::invocable Operation>
+    auto SceneOperationChecked(Operation&& operation)
+    {
+        using Result = std::remove_cvref_t<std::invoke_result_t<Operation>>;
+        if constexpr (std::is_void_v<Result>) {
+            std::invoke(std::forward<Operation>(operation));
+        } else {
+            auto result = std::invoke(std::forward<Operation>(operation));
+            if constexpr (requires { typename Result::error_type; typename Result::value_type; }) {
+                if (!result) {
+                    const auto& error = result.error();
+                    std::cerr << "[FAIL] Valid Scene fixture: operation=" << error.operation
+                        << " code=" << static_cast<unsigned>(error.code) << " entity=" << error.entity
+                        << ": " << error.message << '\n';
+                    std::exit(1);
+                }
+                if constexpr (std::is_void_v<typename Result::value_type>) return;
+                else return std::move(*result);
+            } else return result;
+        }
+    }
+
     void Require(bool condition, const char* message)
     {
         ++checks;
@@ -94,10 +121,10 @@ namespace
 
     void AddReceiver(_Scene& scene, Geometry& geometry, Asset::Shader& shader)
     {
-        auto receiver = scene.CreateEntity("receiver");
+        auto receiver = SceneOperationChecked([&] { return scene.CreateEntity("receiver"); });
         receiver.AddComponent<RenderComponent>().Shader = &shader;
         receiver.AddComponent<MeshComponent>(&geometry);
-        scene.PushToRenderList(receiver);
+        SceneOperationChecked([&] { return scene.PushToRenderList(receiver); });
     }
 
     void SceneCases(Asset::Shader& shader, Geometry& geometry, bool cascaded)
@@ -110,10 +137,10 @@ namespace
             for (int type = 1; type <= (separate ? 4 : 1); type *= 2) {
                 const int components = separate ? (mask & type) : mask;
                 if (components == 0) continue;
-                auto light = scene.CreateEntity("light");
+                auto light = SceneOperationChecked([&] { return scene.CreateEntity("light"); });
                 light.AddComponent<RenderComponent>().Shader = &shader;
                 AddLights(light, components);
-                scene.PushToRenderList(light);
+                SceneOperationChecked([&] { return scene.PushToRenderList(light); });
             }
             Reset(shader);
             Render(scene, cascaded);
@@ -124,10 +151,10 @@ namespace
         for (int type : {1, 2, 4}) {
             _Scene scene;
             AddReceiver(scene, geometry, shader);
-            auto light = scene.CreateEntity("removed/re-enabled light");
+            auto light = SceneOperationChecked([&] { return scene.CreateEntity("removed/re-enabled light"); });
             light.AddComponent<RenderComponent>().Shader = &shader;
             AddLights(light, type);
-            scene.PushToRenderList(light);
+            SceneOperationChecked([&] { return scene.PushToRenderList(light); });
             Reset(shader); Render(scene, cascaded); ExpectMask(shader, type);
             if (type == 1) light.RemoveComponent<DirectionalLightComponent>();
             if (type == 2) light.RemoveComponent<PointLightComponent>();
@@ -136,7 +163,7 @@ namespace
             Reset(shader); Render(scene, cascaded); ExpectMask(shader, 0);
             AddLights(light, type);
             Reset(shader); Render(scene, cascaded); ExpectMask(shader, type);
-            scene.DestroyEntity(light);
+            SceneOperationChecked([&] { return scene.DestroyEntity(light); });
             Reset(shader); Render(scene, cascaded); ExpectMask(shader, 0);
         }
 
@@ -145,7 +172,7 @@ namespace
         {
             _Scene scene;
             AddReceiver(scene, geometry, shader);
-            auto light = scene.CreateEntity("unpublished");
+            auto light = SceneOperationChecked([&] { return scene.CreateEntity("unpublished"); });
             AddLights(light, 7);
             Reset(shader); Render(scene, cascaded); ExpectMask(shader, 0);
         }
@@ -153,10 +180,10 @@ namespace
         for (int type : {1, 2}) {
             _Scene scene;
             AddReceiver(scene, geometry, shader);
-            auto light = scene.CreateEntity("zero intensity");
+            auto light = SceneOperationChecked([&] { return scene.CreateEntity("zero intensity"); });
             light.AddComponent<RenderComponent>().Shader = &shader;
             AddLights(light, type);
-            scene.PushToRenderList(light);
+            SceneOperationChecked([&] { return scene.PushToRenderList(light); });
             Render(scene, cascaded);
             if (type == 1) light.GetComponent<DirectionalLightComponent>().ambient.Data = Vec3f(0);
             else light.GetComponent<PointLightComponent>().ambient.Data = Vec3f(0);
@@ -220,11 +247,11 @@ namespace
     {
         _Scene scene;
         for (int type : {1, 2, 4}) {
-            auto light = scene.CreateEntity("visual light");
+            auto light = SceneOperationChecked([&] { return scene.CreateEntity("visual light"); });
             light.AddComponent<RenderComponent>().Shader = &shader;
             light.AddComponent<MeshComponent>(&geometry);
             AddLights(light, type);
-            scene.PushToRenderList(light);
+            SceneOperationChecked([&] { return scene.PushToRenderList(light); });
         }
         Camera::_EditorCamera camera;
         Reset(shader);

@@ -2,46 +2,92 @@
 #include "Animation/AnimatedModel.h"
 #include <assimp/postprocess.h>
 #include <assimp/Importer.hpp>
-#include <Assimp/scene.h>
+#include <assimp/scene.h>
 #include "Geometry/Geometry.h"
 #include "Extras/AssimpGLMHelpers.h"
+#include <limits>
+#include <new>
 
 namespace GEngine
 {
-	AnimatedModel::AnimatedModel(const std::string& path)
-	{
-		LoadModel(path);
-	}
-	void AnimatedModel::LoadModel(const std::string& path)
-	{
+    namespace
+    {
+        struct AnimatedImportState
+        {
+            std::unordered_map<std::string, BoneInfo> bones;
+            std::vector<std::unique_ptr<Geometry>> geometries;
+            int boneCount = 0;
+        };
+        ModelImportError AnimatedImportError(ModelImportErrorCode code, const std::string& path, std::string message)
+        { return {code, "AnimatedModel::Create", path, std::move(message)}; }
 
-		// read file via ASSIMP
-		Assimp::Importer importer;
-		const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace);
-		ASSERT(!(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode), std::string("ERROR::ASSIMP:: ") + importer.GetErrorString());
+        std::expected<void, ModelImportError> ReadBoneWeights(std::vector<Vec4i>& boneIds,
+            std::vector<Vec4f>& weights, const aiMesh& mesh, AnimatedImportState& state, const std::string& path)
+        {
+            if (mesh.mNumBones && !mesh.mBones)
+                return std::unexpected(AnimatedImportError(ModelImportErrorCode::InvalidData, path, "Model mesh has no bone data"));
+            for (unsigned boneIndex = 0; boneIndex < mesh.mNumBones; ++boneIndex)
+            {
+                const auto* bone = mesh.mBones[boneIndex];
+                if (!bone || (bone->mNumWeights && !bone->mWeights))
+                    return std::unexpected(AnimatedImportError(ModelImportErrorCode::InvalidData, path, "Model bone has incomplete weight data"));
+                const std::string boneName = bone->mName.C_Str();
+                int boneID;
+                const auto found = state.bones.find(boneName);
+                if (found == state.bones.end())
+                {
+                    if (state.boneCount == (std::numeric_limits<int>::max)())
+                        return std::unexpected(AnimatedImportError(ModelImportErrorCode::InvalidData, path, "Model bone identifier exceeds its supported range"));
+                    BoneInfo info;
+                    info.id = state.boneCount;
+                    info.offset = AssimpGLMHelpers::ConvertMatrixToGLMFormat(bone->mOffsetMatrix);
+                    state.bones.emplace(boneName, info);
+                    boneID = state.boneCount++;
+                }
+                else boneID = found->second.id;
+                if (boneID < 0)
+                    return std::unexpected(AnimatedImportError(ModelImportErrorCode::InvalidData, path, "Model bone has an invalid identifier: " + boneName));
+                for (unsigned weightIndex = 0; weightIndex < bone->mNumWeights; ++weightIndex)
+                {
+                    const auto vertexID = bone->mWeights[weightIndex].mVertexId;
+                    if (vertexID >= boneIds.size())
+                        return std::unexpected(AnimatedImportError(ModelImportErrorCode::InvalidData, path,
+                            "Model bone weight vertex is outside its mesh: bone=" + boneName
+                            + " vertex=" + std::to_string(vertexID) + " vertices=" + std::to_string(boneIds.size())));
+                    // Preserve the existing first-four-influence selection and weight values.
+                    for (int slot = 0; slot < MAX_BONE_INFLUENCE; ++slot)
+                        if (boneIds[vertexID][slot] < 0)
+                        {
+                            weights[vertexID][slot] = bone->mWeights[weightIndex].mWeight;
+                            boneIds[vertexID][slot] = boneID;
+                            break;
+                        }
+                }
+            }
+            return {};
+        }
 
-		ProcessNode(scene->mRootNode, scene);
-	}
-
-	void AnimatedModel::ProcessNode(aiNode* node, const aiScene* scene)
-	{
-		for (unsigned int i = 0; i < node->mNumMeshes; ++i)
-		{
-			aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-			m_Geometries.push_back(ProcessMesh(mesh, scene));
-		}
-
-		// after we've processed all of the meshes (if any) we then recursively process each of the children nodes
-		for (unsigned int i = 0; i < node->mNumChildren; i++)
-		{
-			ProcessNode(node->mChildren[i], scene);
-		}
-	}
-
-	Geometry* AnimatedModel::ProcessMesh(aiMesh* mesh, const aiScene* scene)
-	{
-		auto ModelGeometry = new Geometry;
-
+        std::expected<std::unique_ptr<Geometry>, ModelImportError> ReadAnimatedMesh(
+            const aiMesh& source, AnimatedImportState& state, const std::string& path)
+        {
+            const auto* mesh = &source;
+            if (!mesh->mNumVertices || !mesh->mVertices || !mesh->mNormals
+                || (mesh->mNumFaces && !mesh->mFaces)
+                || (mesh->mTextureCoords[0] && (!mesh->mTangents || !mesh->mBitangents)))
+                return std::unexpected(AnimatedImportError(ModelImportErrorCode::InvalidData, path,
+                    "Model mesh has incomplete vertex, normal, face or tangent data"));
+            for (unsigned i = 0; i < mesh->mNumFaces; ++i)
+            {
+                const auto& face = mesh->mFaces[i];
+                if (face.mNumIndices && !face.mIndices)
+                    return std::unexpected(AnimatedImportError(ModelImportErrorCode::InvalidData, path, "Model face has no index data"));
+                for (unsigned j = 0; j < face.mNumIndices; ++j)
+                    if (face.mIndices[j] >= mesh->mNumVertices)
+                        return std::unexpected(AnimatedImportError(ModelImportErrorCode::InvalidData, path, "Model face index is outside its vertex data"));
+            }
+            std::unique_ptr<Geometry> ModelGeometry(new (std::nothrow) Geometry);
+            if (!ModelGeometry)
+                return std::unexpected(AnimatedImportError(ModelImportErrorCode::Allocation, path, "Unable to allocate model geometry"));
 		auto size = mesh->mNumVertices;
 
 		std::vector<Vec3f> vertexPosition;
@@ -84,70 +130,66 @@ namespace GEngine
 				vertexIndices.push_back(face.mIndices[j]);
 		}
 
-		ExtractBoneWeightForVertices(boneIds, weights, mesh);
+		if (auto bones = ReadBoneWeights(boneIds, weights, *mesh, state, path); !bones)
+			return std::unexpected(bones.error());
 		ModelGeometry->AddAttributes(vertexPosition, vertexUV, vertexNormal, vertexTangent, vertexBiTangent, boneIds, weights);
 		ModelGeometry->AddIndices(vertexIndices);
 		return ModelGeometry;
 
-	}
+        }
 
-	void AnimatedModel::ExtractBoneWeightForVertices(std::vector<Vec4i>& bone_ids, std::vector<Vec4f>& weights, aiMesh* mesh)
-	{
-		auto& boneInfoMap = m_BoneInfo;
-		int& boneCount = m_BoneCounter;
+        std::expected<void, ModelImportError> ReadAnimatedNode(const aiNode& node, const aiScene& scene,
+            AnimatedImportState& state, const std::string& path)
+        {
+            if ((node.mNumMeshes && !node.mMeshes) || (node.mNumChildren && !node.mChildren))
+                return std::unexpected(AnimatedImportError(ModelImportErrorCode::InvalidData, path, "Model node has incomplete mesh or child data"));
+            for (unsigned i = 0; i < node.mNumMeshes; ++i)
+            {
+                const auto index = node.mMeshes[i];
+                if (index >= scene.mNumMeshes || !scene.mMeshes || !scene.mMeshes[index])
+                    return std::unexpected(AnimatedImportError(ModelImportErrorCode::InvalidData, path, "Model node references an invalid mesh"));
+                auto mesh = ReadAnimatedMesh(*scene.mMeshes[index], state, path);
+                if (!mesh) return std::unexpected(mesh.error());
+                state.geometries.push_back(std::move(*mesh));
+            }
+            for (unsigned i = 0; i < node.mNumChildren; ++i)
+            {
+                if (!node.mChildren[i])
+                    return std::unexpected(AnimatedImportError(ModelImportErrorCode::InvalidData, path, "Model node references a missing child"));
+                if (auto child = ReadAnimatedNode(*node.mChildren[i], scene, state, path); !child) return child;
+            }
+            return {};
+        }
 
-		for (unsigned int boneIndex = 0; boneIndex < mesh->mNumBones; ++boneIndex)
-		{
-			int boneID = -1;
-			std::string boneName = mesh->mBones[boneIndex]->mName.C_Str();
-			if (boneInfoMap.find(boneName) == boneInfoMap.end())
-			{
-				BoneInfo newBoneInfo;
-				newBoneInfo.id = boneCount;
-				newBoneInfo.offset = AssimpGLMHelpers::ConvertMatrixToGLMFormat(mesh->mBones[boneIndex]->mOffsetMatrix);
-				boneInfoMap[boneName] = newBoneInfo;
-				boneID = boneCount++;
-				//boneCount++;
-			}
+        std::expected<AnimatedImportState, ModelImportError> BuildAnimatedModel(const aiScene& scene, const std::string& path)
+        {
+            if ((scene.mFlags & AI_SCENE_FLAGS_INCOMPLETE) || !scene.mRootNode)
+                return std::unexpected(AnimatedImportError(ModelImportErrorCode::InvalidScene, path, "ERROR::ASSIMP:: Model scene is incomplete or has no root node"));
+            AnimatedImportState state;
+            if (auto nodes = ReadAnimatedNode(*scene.mRootNode, scene, state, path); !nodes) return std::unexpected(nodes.error());
+            if (state.geometries.empty())
+                return std::unexpected(AnimatedImportError(ModelImportErrorCode::NoGeometry, path, "Model contains no geometry: " + path));
+            return state;
+        }
+    }
 
-			else
-			{
-				boneID = boneInfoMap[boneName].id;
-			}
-
-			ASSERT(boneID != -1);
-
-			auto _weights = mesh->mBones[boneIndex]->mWeights;
-			int numWeights = mesh->mBones[boneIndex]->mNumWeights;
-
-			for (int weightIndex = 0; weightIndex < numWeights; ++weightIndex)
-			{
-				int vertexId = _weights[weightIndex].mVertexId;
-				float weight = _weights[weightIndex].mWeight;
-				ASSERT(vertexId <= bone_ids.size());
-
-				//auto& boneID = bone_ids[vertexId];
-				//auto& weight = weights[vertexId];
-				SetVertexBoneData(bone_ids, weights, vertexId, boneID, weight);
-
-
-			}
-		}
-
-
-	}
-
-	void GEngine::AnimatedModel::SetVertexBoneData(std::vector<Vec4i>& bone_ids, std::vector<Vec4f>& weights, int vertexID, int boneID, float weight)
-	{
-		for (int i = 0; i < MAX_BONE_INFLUENCE; ++i)
-		{
-			if (bone_ids[vertexID][i] < 0)
-			{
-				weights[vertexID][i] = weight;
-				bone_ids[vertexID][i] = boneID;
-				break;
-			}
-		}
-	}
-
+    std::expected<AnimatedModel, ModelImportError> AnimatedModel::Create(const std::string& path)
+    {
+        Assimp::Importer importer;
+        const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace);
+        if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || !scene->mRootNode)
+            return std::unexpected(AnimatedImportError(!scene ? ModelImportErrorCode::ImportFailed : ModelImportErrorCode::InvalidScene,
+                path, std::string("ERROR::ASSIMP:: ") + importer.GetErrorString()));
+        auto state = BuildAnimatedModel(*scene, path);
+        if (!state) return std::unexpected(state.error());
+        AnimatedModel model;
+        model.m_BoneInfo = std::move(state->bones);
+        model.m_BoneCounter = state->boneCount;
+        model.m_Geometries = std::move(state->geometries);
+        return model;
+    }
+    AnimatedModel::AnimatedModel(AnimatedModel&&) = default;
+    AnimatedModel& AnimatedModel::operator=(AnimatedModel&&) = default;
+    AnimatedModel::~AnimatedModel() = default;
+    std::vector<std::unique_ptr<Geometry>> AnimatedModel::TakeGeometries() && { return std::move(m_Geometries); }
 }

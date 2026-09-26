@@ -1,3 +1,7 @@
+#include <concepts>
+#include <functional>
+#include <cstdlib>
+#include <iostream>
 #include "Renderer/FrameSubmission.h"
 #include "Renderer/RenderExtraction.h"
 #include "Renderer/FrameScheduler.h"
@@ -16,6 +20,7 @@ static_assert(!std::is_copy_constructible_v<RenderFrame>);
 static_assert(std::same_as<decltype(std::declval<const RenderFrame&>().Draws()),std::span<const DrawItem>>);
 
 #ifndef SUBMISSION_SCHEMA_ONLY
+#include "Geometry/Geometry.h"
 #include "Core/BaseApp.h"
 #include "Core/Window.h"
 #include "Core/RuntimeAssets.h"
@@ -115,6 +120,48 @@ namespace
         }
 #endif
         return result;
+    }
+    // Test-only preparation for bounded Scene value/void result migrations.
+    template<std::invocable Operation>
+    auto SceneOperationChecked(Operation&& operation)
+    {
+        using Result = std::remove_cvref_t<std::invoke_result_t<Operation>>;
+        if constexpr (std::is_void_v<Result>) {
+            std::invoke(std::forward<Operation>(operation));
+        } else {
+            auto result = std::invoke(std::forward<Operation>(operation));
+            if constexpr (requires { typename Result::error_type; typename Result::value_type; }) {
+                if (!result) {
+                    const auto& error = result.error();
+                    std::cerr << "[FAIL] Valid Scene fixture: operation=" << error.operation
+                        << " code=" << static_cast<unsigned>(error.code) << " entity=" << error.entity
+                        << ": " << error.message << '\n';
+                    std::exit(1);
+                }
+                if constexpr (std::is_void_v<typename Result::value_type>) return;
+                else return std::move(*result);
+            } else return result;
+        }
+    }
+
+    // Test-only bridge while bounded callers precede the Scene typed-return migration.
+    template<std::invocable Start>
+    void StartRuntimeChecked(Start&& start)
+    {
+        if constexpr (std::is_void_v<std::invoke_result_t<Start>>)
+            std::invoke(std::forward<Start>(start));
+        else
+        {
+            auto result=std::invoke(std::forward<Start>(start));
+            if(!result)
+            {
+                std::cerr << "[FAIL] Valid fixture runtime startup: operation=" << result.error().operation
+                    << " code=" << static_cast<unsigned>(result.error().code)
+                    << " entity=" << result.error().entity << " radius=" << result.error().radius
+                    << " points=" << result.error().pointCount << ": " << result.error().message << '\n';
+                std::exit(1);
+            }
+        }
     }
     void CheckShadowReuse(const FrameSubmissionStats& previous,const FrameSubmissionStats& cached)
     {
@@ -477,7 +524,7 @@ namespace
     }
     FrameCamera Camera(_Scene& scene)
     {
-        auto entity=scene.CreateEntity("camera");
+        auto entity=SceneOperationChecked([&] { return scene.CreateEntity("camera"); });
         entity.AddComponent<RenderCameraComponent>();
         auto id=Take(scene.RenderData().Identify(entity),"camera identity");
         return {id,glm::lookAt(glm::vec3(0,2,8),glm::vec3(0,0,0),glm::vec3(0,1,0)),
@@ -590,14 +637,14 @@ namespace
             });
             // Empty cached shadow targets keep all declared texture bindings
             // complete; synchronous Debug warnings must not pollute CPU timing.
-            auto sun=scene.CreateEntityWithUUID(UUID(1),"sort sun");
+            auto sun=SceneOperationChecked([&] { return scene.CreateEntityWithUUID(UUID(1),"sort sun"); });
             RenderLightComponent light;light.castShadows=true;sun.AddComponent<RenderLightComponent>(light);
-            auto bulb=scene.CreateEntityWithUUID(UUID(2),"sort bulb");
+            auto bulb=SceneOperationChecked([&] { return scene.CreateEntityWithUUID(UUID(2),"sort bulb"); });
             light.kind=RenderLightKind::Point;light.range=100;bulb.AddComponent<RenderLightComponent>(light);
             bulb.GetComponent<Transform3DComponent>().Translation={0,3,5};
             unsigned sourceOrdinal=100;
             for(auto i:order) {
-                auto entity=scene.CreateEntityWithUUID(UUID(sourceOrdinal++),"sort "+std::to_string(i));
+                auto entity=SceneOperationChecked([&] { return scene.CreateEntityWithUUID(UUID(sourceOrdinal++),"sort "+std::to_string(i)); });
                 entity.AddComponent<MeshRendererComponent>(MeshRendererComponent{(i/8+i)%2?box:sphere,materials[i%8],0,false,false,false});
                 auto& pose=entity.GetComponent<Transform3DComponent>();
                 // 32 overlapping pairs at distinct depths exercise depth equivalence.
@@ -656,7 +703,7 @@ namespace
             camera.projection=glm::ortho(-2.f,2.f,-2.f,2.f,.1f,20.f);camera.worldPosition={0,0,8};
             for(unsigned j=0;j<2;++j) {
                 const unsigned i=reverse?1-j:j;if(!(mask&(1u<<i))) continue;
-                auto entity=scene.CreateEntityWithUUID(UUID(100+j),"alpha "+std::to_string(i));
+                auto entity=SceneOperationChecked([&] { return scene.CreateEntityWithUUID(UUID(100+j),"alpha "+std::to_string(i)); });
                 entity.AddComponent<MeshRendererComponent>(MeshRendererComponent{box,i?farMaterial:nearMaterial,0,false,false,false});
                 entity.GetComponent<Transform3DComponent>().Translation.z=i?-.75f:nearZ;
             }
@@ -689,7 +736,7 @@ namespace
         auto debugImage=[&](bool reverse) {
             _Scene scene;const auto camera=Camera(scene);
             for(unsigned j=0;j<2;++j) {
-                const auto i=reverse?1-j:j;auto entity=scene.CreateEntityWithUUID(UUID(100+j),"debug "+std::to_string(i));
+                const auto i=reverse?1-j:j;auto entity=SceneOperationChecked([&] { return scene.CreateEntityWithUUID(UUID(100+j),"debug "+std::to_string(i)); });
                 entity.AddComponent<MeshRendererComponent>(MeshRendererComponent{box,i?greenHelper:redHelper,0,false,false,false});
             }
             auto access=resources.Publication().BeginFrame();auto frame=Take(Extract(scene,resources,access,camera),"debug extraction");
@@ -742,7 +789,7 @@ namespace
         _Scene scene;auto camera=Camera(scene);
         std::vector<_Entity> bodies;
         for(unsigned i=0;i<32;++i) {
-            auto body=scene.CreateEntity("upload body");
+            auto body=SceneOperationChecked([&] { return scene.CreateEntity("upload body"); });
             body.AddComponent<VisibilityComponent>();
             body.AddComponent<MeshRendererComponent>(MeshRendererComponent{i<16?box:sphere,materials[i%16],0,false,false,false});
             bodies.push_back(body);
@@ -876,15 +923,15 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
                 Check(!failed && std::get<SubmissionCode>(failed.error().cause)==SubmissionCode::Driver,"material upload failure stays typed");}
             {UploadCalls::Observe uploads;Take(submitter.Submit(dirty,desc,picks),"material upload retry");
                 Check(UploadCalls::buffers==1 && UploadCalls::bufferBytes==exactBytes,"failed material storage retried as one complete batch");}
-            auto sun=scene.CreateEntity("upload sun");RenderLightComponent light;light.castShadows=false;
+            auto sun=SceneOperationChecked([&] { return scene.CreateEntity("upload sun"); });RenderLightComponent light;light.castShadows=false;
             sun.AddComponent<RenderLightComponent>(light);auto oneLight=extract();
             {UploadCalls::Observe uploads;Take(submitter.Submit(oneLight,desc,picks),"one packed light");
                 Check(UploadCalls::buffers==1 && UploadCalls::bufferBytes==sizeof(PackedFrame),"one light changes only frame block");}
-            auto bulb=scene.CreateEntity("upload bulb");light.kind=RenderLightKind::Point;light.range=20;
+            auto bulb=SceneOperationChecked([&] { return scene.CreateEntity("upload bulb"); });light.kind=RenderLightKind::Point;light.range=20;
             bulb.AddComponent<RenderLightComponent>(light);auto twoLights=extract();
             {UploadCalls::Observe uploads;Take(submitter.Submit(twoLights,desc,picks),"two packed lights");
                 Check(UploadCalls::buffers==1 && UploadCalls::bufferBytes==sizeof(PackedFrame),"multiple supported lights share one upload");}
-            auto extra=scene.CreateEntity("upload extra directional");light.kind=RenderLightKind::Directional;
+            auto extra=SceneOperationChecked([&] { return scene.CreateEntity("upload extra directional"); });light.kind=RenderLightKind::Directional;
             extra.AddComponent<RenderLightComponent>(light);auto excess=extract();
             {UploadCalls::Observe uploads;auto failed=submitter.Submit(excess,desc,picks);
                 Check(!failed && std::get<SubmissionCode>(failed.error().cause)==SubmissionCode::UnsupportedLights && UploadCalls::buffers==0,
@@ -912,7 +959,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             auto source=std::find_if(geometry.begin(),geometry.end(),[&](const auto& entry){return entry.first==draw.mesh;});
             Check(source!=geometry.end(),"legacy CPU/GPU fixture mapping");
             const auto entity=Take(scene.RenderData().Resolve(draw.entity),"legacy transform entity");
-            const auto pose=scene.GetRenderTransform(_Entity{entity,&scene});
+            const auto pose=Take(scene.GetRenderTransform(_Entity{entity,&scene}),"legacy presentation query");
             Check(pose.matrix==draw.worldTransform,"legacy presentation transform parity");
             shader.SetUniform("u_model",pose.matrix);
             shader.SetUniform("u_EntityID",Take(table.Encode(draw.entity),"reference generation pixel"));
@@ -1082,7 +1129,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         std::array<_Entity,4> bodies;
         std::array<EntityRenderId,4> ids;
         for(unsigned i=0;i<4;++i) {
-            bodies[i]=scene.CreateEntity("pick quadrant "+std::to_string(i));
+            bodies[i]=SceneOperationChecked([&] { return scene.CreateEntity("pick quadrant "+std::to_string(i)); });
             bodies[i].AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,material});
             bodies[i].Transform().Translation={i%2?2.f:-2.f,i/2?1.f:-1.f,0};
             bodies[i].Transform().Scale={.4f,.4f,.4f};
@@ -1131,7 +1178,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         }
         Check(run(true,{0,0,0}).pixel==EntityPickTable::InvalidPixel,"background sentinel");
         auto oldTable=table;const auto oldPixel=run(true).pixel;
-        scene.DestroyEntity(bodies[0]);bodies[0]=scene.CreateEntity("reused slot");
+        SceneOperationChecked([&] { return scene.DestroyEntity(bodies[0]); });bodies[0]=SceneOperationChecked([&] { return scene.CreateEntity("reused slot"); });
         bodies[0].AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,material});
         bodies[0].Transform().Translation={-2,-1,0};bodies[0].Transform().Scale={.4f,.4f,.4f};
         const auto reused=Take(scene.RenderData().Identify(bodies[0]),"replacement generation");
@@ -1174,12 +1221,12 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             && scene.GetPhysicsTiming().totalSteps==ticks,"tickless camera interpolation invalidates selection");
         bodies[0].AddComponent<RigidBody3DComponent>().Type=BodyType::Kinematic;
         bodies[0].AddComponent<SphereFixture3DComponent>().Radius=.1f;
-        scene.OnRuntimeStart();auto* body=bodies[0].GetComponent<RigidBody3DComponent>().RuntimeBody;
+        StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });auto* body=bodies[0].GetComponent<RigidBody3DComponent>().RuntimeBody;
         std::unique_ptr<PhysicalShape> shape(body->m_Shape);body->m_LinearVelocity={6,0,0};
         scene.Update(Timestep(_Scene::PhysicsStepSeconds));run(true);
         const auto pose=bodies[0].Transform().GetTransform();const auto fixedTicks=scene.GetPhysicsTiming().totalSteps;
         scene.Update(Timestep(_Scene::PhysicsStepSeconds*.5));
-        const auto presentation=scene.GetRenderTransform(bodies[0]).matrix;
+        const auto presentation=Take(scene.GetRenderTransform(bodies[0]),"interpolated presentation query").matrix;
         run(false);auto interpolated=run(true,glm::vec3(presentation[3]));
         Check(HasDirtyReason(interpolated.stats.decisions[2].reasons,PassDirtyReason::Transform)
             && Take(scene.RenderData().ResolvePick(table,interpolated.pixel),"interpolated pick")==reused
@@ -1190,7 +1237,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             Check(color.OnResize(1280,640) && picking.OnResize(1280,640),"measurement target extent");
             camera.viewportWidth=1280;camera.viewportHeight=640;
             for(unsigned i=4;i<64;++i) {
-                auto entity=scene.CreateEntity("readback workload "+std::to_string(i));
+                auto entity=SceneOperationChecked([&] { return scene.CreateEntity("readback workload "+std::to_string(i)); });
                 entity.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,material});
                 entity.Transform().Translation={-3.5f+float(i%8),-1.75f+.5f*float(i/8),-.5f};
                 entity.Transform().Scale={.2f,.2f,.2f};
@@ -1215,10 +1262,10 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
     {
         auto submitter=Take(FrameSubmission::Create(),"invalidation submitter");
         _Scene scene; auto camera=Camera(scene);
-        auto body=scene.CreateEntity("cached body");
+        auto body=SceneOperationChecked([&] { return scene.CreateEntity("cached body"); });
         body.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,material});
         body.AddComponent<VisibilityComponent>();
-        auto sun=scene.CreateEntity("cached sun"),bulb=scene.CreateEntity("cached bulb");
+        auto sun=SceneOperationChecked([&] { return scene.CreateEntity("cached sun"); }),bulb=SceneOperationChecked([&] { return scene.CreateEntity("cached bulb"); });
         RenderLightComponent light;light.castShadows=true;
         sun.AddComponent<RenderLightComponent>(light);
         sun.GetComponent<Transform3DComponent>().QuatRotation=glm::rotation(glm::vec3(0,0,-1),-glm::normalize(glm::vec3(20,50,20)));
@@ -1252,7 +1299,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             // Identical geometry/material shared by 64 overlapping draws; no
             // simulation/extraction/readback/presentation inside timed Submit.
             for(unsigned i=1;i<64;++i) {
-                auto copy=scene.CreateEntity("repeated state "+std::to_string(i));
+                auto copy=SceneOperationChecked([&] { return scene.CreateEntity("repeated state "+std::to_string(i)); });
                 copy.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,material});
             }
             auto access=resources.Publication().BeginFrame();
@@ -1391,7 +1438,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         body.GetComponent<VisibilityComponent>().enabled=true;
         expect(PassDirtyReason::SceneMembership,7);
         {
-            auto cpu=Take(root.Shapes().ExportMesh("Box"),"replacement mesh export");
+            auto cpu=Take(root.SceneServices().value().shapes.ExportMesh("Box"),"replacement mesh export");
             auto gpu=Take(GpuMesh::Create(cpu),"replacement GPU mesh");
             auto publication=resources.Publication().BeginPublication();
             Check(resources.Meshes().Replace(publication,mesh,std::move(gpu)),"same-handle mesh publication");
@@ -1479,8 +1526,8 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             Check(meshError && meshError->code==GpuMeshErrorCode::Driver,"submission preserves the originating mesh driver diagnostic");
         }
         expect(PassDirtyReason::RetryAfterFailure,7);expect(PassDirtyReason::None,0);
-        const auto oldId=Take(scene.RenderData().Identify(body),"old entity lifetime");scene.DestroyEntity(body);
-        body=scene.CreateEntity("new generation");body.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,material});
+        const auto oldId=Take(scene.RenderData().Identify(body),"old entity lifetime");SceneOperationChecked([&] { return scene.DestroyEntity(body); });
+        body=SceneOperationChecked([&] { return scene.CreateEntity("new generation"); });body.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,material});
         Check(Take(scene.RenderData().Identify(body),"new entity lifetime")!=oldId,"entity recreation changes generation");
         expect(PassDirtyReason::SceneMembership,7);
         const MaterialParameterDecl helperParameters[]{
@@ -1556,7 +1603,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         TextureDesc td;td.width=td.height=1;td.mips=TextureMipIntent::None;
         const std::byte white[]{std::byte{255},std::byte{255},std::byte{255},std::byte{255}};
         auto texture=Take(TextureResource::Create(td,{white}),"shadow alpha fallback");
-        auto cpu=Take(root.Shapes().ExportMesh("Box"),"shadow private mesh source");
+        auto cpu=Take(root.SceneServices().value().shapes.ExportMesh("Box"),"shadow private mesh source");
         auto gpu=Take(GpuMesh::Create(cpu),"shadow private GPU mesh");
         TextureHandle image;MeshHandle mesh;
         { auto publication=resources.Publication().BeginPublication();
@@ -1573,13 +1620,13 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         FrameSubmissionDesc targets{base.color,base.picking,point,cascade,resources.Pipelines(),base.cascadeSplits,
             base.cameraFov,base.cameraAspect,base.cameraNear,base.cameraFar,base.pointNear,base.pointFar,false};
         _Scene scene;auto camera=Camera(scene);EntityPickTable picks;
-        auto caster=scene.CreateEntity("shadow changing caster");
+        auto caster=SceneOperationChecked([&] { return scene.CreateEntity("shadow changing caster"); });
         caster.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,masked});
-        auto nonCaster=scene.CreateEntity("shadow non-caster");
+        auto nonCaster=SceneOperationChecked([&] { return scene.CreateEntity("shadow non-caster"); });
         nonCaster.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,masked});
         nonCaster.GetComponent<MeshRendererComponent>().castShadows=false;
         nonCaster.Transform().Translation={2,0,0};
-        auto sun=scene.CreateEntity("shadow sun"),bulb=scene.CreateEntity("shadow bulb");
+        auto sun=SceneOperationChecked([&] { return scene.CreateEntity("shadow sun"); }),bulb=SceneOperationChecked([&] { return scene.CreateEntity("shadow bulb"); });
         RenderLightComponent light;light.castShadows=true;
         sun.AddComponent<RenderLightComponent>(light);
         sun.Transform().QuatRotation=glm::rotation(glm::vec3(0,0,-1),-glm::normalize(glm::vec3(20,50,20)));
@@ -1719,7 +1766,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         // Exercise the real fixed-step presentation path, without changing its equations.
         caster.AddComponent<RigidBody3DComponent>().Type=BodyType::Kinematic;
         caster.AddComponent<SphereFixture3DComponent>().Radius=.1f;
-        scene.OnRuntimeStart();auto* body=caster.GetComponent<RigidBody3DComponent>().RuntimeBody;
+        StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });auto* body=caster.GetComponent<RigidBody3DComponent>().RuntimeBody;
         std::unique_ptr<PhysicalShape> shape(body->m_Shape);body->m_LinearVelocity={60,0,0};
         scene.Update(Timestep(_Scene::PhysicsStepSeconds));run();const auto beforeInterpolation=depth();
         const auto pose=caster.Transform().GetTransform();const auto ticks=scene.GetPhysicsTiming().totalSteps;
@@ -1796,14 +1843,14 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
     {
         ShadowCullingBounds();
         _Scene scene;auto camera=Camera(scene);EntityPickTable picks;
-        auto sun=scene.CreateEntity("culling sun"),bulb=scene.CreateEntity("culling bulb");
+        auto sun=SceneOperationChecked([&] { return scene.CreateEntity("culling sun"); }),bulb=SceneOperationChecked([&] { return scene.CreateEntity("culling bulb"); });
         RenderLightComponent light;light.castShadows=true;sun.AddComponent<RenderLightComponent>(light);
         sun.Transform().QuatRotation=glm::rotation(glm::vec3(0,0,-1),-glm::normalize(glm::vec3(2,5,3)));
         light.kind=RenderLightKind::Point;light.range=12;bulb.AddComponent<RenderLightComponent>(light);
         bulb.Transform().Translation={0,3,2};
         std::vector<_Entity> entities;
         for(unsigned i=0;i<64;++i) {
-            auto body=scene.CreateEntityWithUUID(UUID(100+i),"culling caster "+std::to_string(i));
+            auto body=SceneOperationChecked([&] { return scene.CreateEntityWithUUID(UUID(100+i),"culling caster "+std::to_string(i)); });
             body.AddComponent<MeshRendererComponent>(MeshRendererComponent{i<16?box:sphere,material});
             body.Transform().Translation=i<16 ? glm::vec3(float(i%4)-1.5f,float(i/4)-1.5f,0)
                 : glm::vec3(300.f+float(i),0,0);
@@ -1909,12 +1956,12 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
     {
         _Scene scene;const auto camera=Camera(scene);
         for(unsigned i=0;i<2;++i) {
-            auto entity=scene.CreateEntity("reference caster");entity.AddComponent<MeshRendererComponent>(MeshRendererComponent{box,material});
+            auto entity=SceneOperationChecked([&] { return scene.CreateEntity("reference caster"); });entity.AddComponent<MeshRendererComponent>(MeshRendererComponent{box,material});
             entity.Transform().Translation={i?0.f:-1.f,i?-1.f:0.f,0};entity.Transform().Scale=i?glm::vec3(4,.1f,4):glm::vec3(1);
         }
-        auto sun=scene.CreateEntity("reference sun");RenderLightComponent light;light.castShadows=true;sun.AddComponent<RenderLightComponent>(light);
+        auto sun=SceneOperationChecked([&] { return scene.CreateEntity("reference sun"); });RenderLightComponent light;light.castShadows=true;sun.AddComponent<RenderLightComponent>(light);
         sun.Transform().QuatRotation=glm::rotation(glm::vec3(0,0,-1),-glm::normalize(glm::vec3(20,50,20)));
-        auto point=scene.CreateEntity("reference point");light.kind=RenderLightKind::Point;light.range=100;point.AddComponent<RenderLightComponent>(light);point.Transform().Translation={0,3,2};
+        auto point=SceneOperationChecked([&] { return scene.CreateEntity("reference point"); });light.kind=RenderLightKind::Point;light.range=100;point.AddComponent<RenderLightComponent>(light);point.Transform().Translation={0,3,2};
         auto access=resources.Publication().BeginFrame();auto frame=Take(Extract(scene,resources,access,camera),"shadow quality reference extraction");
         auto submitter=Take(FrameSubmission::Create(),"shadow quality reference submitter");EntityPickTable picks;
         std::vector<std::byte> high;
@@ -1950,9 +1997,9 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         for(const auto mesh:{sphere,box}) {
             _Scene scene;
             const auto camera=Camera(scene);
-            auto caster=scene.CreateEntity("contact depth occluder");
+            auto caster=SceneOperationChecked([&] { return scene.CreateEntity("contact depth occluder"); });
             caster.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,material});
-            auto sun=scene.CreateEntity("contact depth sun");
+            auto sun=SceneOperationChecked([&] { return scene.CreateEntity("contact depth sun"); });
             RenderLightComponent light;light.castShadows=true;
             sun.AddComponent<RenderLightComponent>(light);
             // Default light transform points toward +Z; lookAt's Y up is valid.
@@ -2123,13 +2170,13 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             _Scene scene;auto camera=Camera(scene);
             camera.view=glm::lookAt(glm::vec3(0,0,12),glm::vec3(0),glm::vec3(0,1,0));
             camera.projection=glm::ortho(-4.f,4.f,-4.f,4.f,.1f,20.f);camera.worldPosition={0,0,12};
-            auto sun=scene.CreateEntity("instance sun"),bulb=scene.CreateEntity("instance bulb");
+            auto sun=SceneOperationChecked([&] { return scene.CreateEntity("instance sun"); }),bulb=SceneOperationChecked([&] { return scene.CreateEntity("instance bulb"); });
             RenderLightComponent light;light.castShadows=true;sun.AddComponent<RenderLightComponent>(light);
             sun.GetComponent<Transform3DComponent>().QuatRotation=glm::rotation(glm::vec3(0,0,-1),-glm::normalize(glm::vec3(2,5,3)));
             light.kind=RenderLightKind::Point;light.range=50;bulb.AddComponent<RenderLightComponent>(light);
             bulb.GetComponent<Transform3DComponent>().Translation={0,3,5};
             for(unsigned i=0;i<count;++i) {
-                auto entity=scene.CreateEntityWithUUID(UUID(100+i),"instance "+std::to_string(i));
+                auto entity=SceneOperationChecked([&] { return scene.CreateEntityWithUUID(UUID(100+i),"instance "+std::to_string(i)); });
                 const auto selected=variant==1 && i%2?alternate:variant==2?masked:variant==3?transparent:material;
                 entity.AddComponent<MeshRendererComponent>(MeshRendererComponent{mesh,selected});
                 auto& pose=entity.GetComponent<Transform3DComponent>();
@@ -2307,9 +2354,9 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         _Scene scene;auto camera=Camera(scene);camera.viewportWidth=camera.viewportHeight=size;
         camera.worldPosition={0,0,8};camera.view=glm::lookAt(camera.worldPosition,glm::vec3(0),glm::vec3(0,1,0));
         camera.projection=glm::ortho(-3.f,3.f,-3.f,3.f,.1f,20.f);
-        auto plate=scene.CreateEntity("reference plate");plate.AddComponent<MeshRendererComponent>(MeshRendererComponent{box,opaque});
+        auto plate=SceneOperationChecked([&] { return scene.CreateEntity("reference plate"); });plate.AddComponent<MeshRendererComponent>(MeshRendererComponent{box,opaque});
         plate.Transform().Scale={6,6,.1f};plate.Transform().Translation.z=-.05f;
-        auto lamp=scene.CreateEntity("reference light");RenderLightComponent light;light.kind=RenderLightKind::Spot;
+        auto lamp=SceneOperationChecked([&] { return scene.CreateEntity("reference light"); });RenderLightComponent light;light.kind=RenderLightKind::Spot;
         light.color={.8f,.55f,.3f};light.intensity=0;light.range=10;light.innerConeRadians=.3f;light.outerConeRadians=.7f;
         lamp.AddComponent<RenderLightComponent>(light);lamp.Transform().Translation={0,0,3};
         auto render=[&](const std::string& name) {
@@ -2373,16 +2420,16 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             Check(!result && std::get<SubmissionCode>(result.error().cause)==SubmissionCode::UnsupportedLights,"unsupported spot capability typed error");
             Check(UploadCalls::buffers==0 && DriverCalls::counts[26]==0 && DriverCalls::counts[27]==0 && read()==before,"unsupported spot leaves image/uploads/draws unchanged");
         };reject();authored.castShadows=false;
-        auto extra=scene.CreateEntity("second spot");extra.AddComponent<RenderLightComponent>(authored);reject();scene.DestroyEntity(extra);
+        auto extra=SceneOperationChecked([&] { return scene.CreateEntity("second spot"); });extra.AddComponent<RenderLightComponent>(authored);reject();SceneOperationChecked([&] { return scene.DestroyEntity(extra); });
         authored.kind=RenderLightKind::Directional;const auto directional=render("directional");Check(directional!=ambient,"directional contributes");
         // Independent additive light oracle, before the retained gamma encoding.
-        extra=scene.CreateEntity("mixed spot");auto mixed=authored;mixed.kind=RenderLightKind::Spot;extra.AddComponent<RenderLightComponent>(mixed);extra.Transform().Translation={0,0,3};
+        extra=SceneOperationChecked([&] { return scene.CreateEntity("mixed spot"); });auto mixed=authored;mixed.kind=RenderLightKind::Spot;extra.AddComponent<RenderLightComponent>(mixed);extra.Transform().Translation={0,0,3};
         const auto combined=render("mixed-lights");
         for(unsigned i=0;i<combined.size();++i) if(i%4!=3) {
             const float expected=std::pow(std::max(0.f,std::pow(float(directional[i])/255,1.8f)+std::pow(float(spot[i])/255,1.8f)-std::pow(float(ambient[i])/255,1.8f)),1/1.8f)*255;
             Check(std::abs(float(combined[i])-std::min(255.f,expected))<=2.5f,"directional and spot add before gamma");
         }
-        scene.DestroyEntity(extra);authored.intensity=2;
+        SceneOperationChecked([&] { return scene.DestroyEntity(extra); });authored.intensity=2;
         const auto alphaOpaque=render("opaque-alpha-reference");
         plate.GetComponent<MeshRendererComponent>().material=masked;const auto mask=render("masked");
         plate.GetComponent<MeshRendererComponent>().material=transparent;const auto alpha=render("transparent");
@@ -2412,14 +2459,14 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             Check(read()==fallbackPixels,"failed texture or sampler fallback equals explicitly authored reference");
         }
         // Real lit geometry, shadow images and repeated objects use the same final path.
-        scene.DestroyEntity(plate);camera.view=glm::lookAt(glm::vec3(0,2,8),glm::vec3(0),glm::vec3(0,1,0));
+        SceneOperationChecked([&] { return scene.DestroyEntity(plate); });camera.view=glm::lookAt(glm::vec3(0,2,8),glm::vec3(0),glm::vec3(0,1,0));
         camera.worldPosition={0,2,8};camera.projection=glm::perspective(glm::radians(45.f),1.f,.1f,20.f);
-        auto floor=scene.CreateEntity("reference floor");floor.AddComponent<MeshRendererComponent>(MeshRendererComponent{box,opaque});
+        auto floor=SceneOperationChecked([&] { return scene.CreateEntity("reference floor"); });floor.AddComponent<MeshRendererComponent>(MeshRendererComponent{box,opaque});
         floor.Transform().Translation={0,-1.2f,0};floor.Transform().Scale={7,.2f,7};
-        for(unsigned i=0;i<6;++i) {auto e=scene.CreateEntity("repeated sphere");e.AddComponent<MeshRendererComponent>(MeshRendererComponent{sphere,opaque});
+        for(unsigned i=0;i<6;++i) {auto e=SceneOperationChecked([&] { return scene.CreateEntity("repeated sphere"); });e.AddComponent<MeshRendererComponent>(MeshRendererComponent{sphere,opaque});
             e.Transform().Translation={-1.5f+1.5f*(i%3),-.45f,1.f-2.f*(i/3)};e.Transform().Scale=glm::vec3(.55f);}
         authored.intensity=2;authored.castShadows=true;lamp.Transform().QuatRotation=glm::rotation(glm::vec3(0,0,-1),-glm::normalize(glm::vec3(20,50,20)));
-        auto bulb=scene.CreateEntity("reference shadow point");RenderLightComponent pointLight;pointLight.kind=RenderLightKind::Point;
+        auto bulb=SceneOperationChecked([&] { return scene.CreateEntity("reference shadow point"); });RenderLightComponent pointLight;pointLight.kind=RenderLightKind::Point;
         pointLight.intensity=.1f;pointLight.range=20;pointLight.castShadows=true;bulb.AddComponent<RenderLightComponent>(pointLight);bulb.Transform().Translation={0,3,2};
         desc.instancingEnabled=false;desc.shadowCullingEnabled=false;
         const auto serial=render("directional-cascade-point-shadows-serial");const auto serialDepth=ShadowDepth(pointDepth,cascadeDepth);
@@ -2479,8 +2526,8 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         const auto axis=Take(resources->PublishShape("AxisHelper"),"axis publication");
         const auto helperMesh=Take(resources->PublishShape("PointLightHelper"),"point helper publication");
         const std::pair<MeshHandle,Geometry*> referenceGeometry[]{
-            {sphere,Manager::ShapeManager::GetShape("Sphere")},{box,Manager::ShapeManager::GetShape("Box")},
-            {diamond,Manager::ShapeManager::GetShape("Diamond")},{helperMesh,Manager::ShapeManager::GetShape("PointLightHelper")}};
+            {sphere,Manager::ShapeManager::FindShape("Sphere").value()},{box,Manager::ShapeManager::FindShape("Box").value()},
+            {diamond,Manager::ShapeManager::FindShape("Diamond").value()},{helperMesh,Manager::ShapeManager::FindShape("PointLightHelper").value()}};
         for(const auto& [handle,geometry]:referenceGeometry) {MeshComponent legacyUpload(geometry);}
         auto* pickShader=Take(Manager::ShaderManager::GetShaderProgram({RuntimeAssets::File("Shaders/mouse_pick.vert"),
             RuntimeAssets::File("Shaders/mouse_pick.frag")}),"legacy reference picking shader");
@@ -2506,16 +2553,16 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         {
             _Scene physicsScene;
             const auto physicsCamera=Camera(physicsScene);
-            auto body=physicsScene.CreateEntity("presentation body");
+            auto body=SceneOperationChecked([&] { return physicsScene.CreateEntity("presentation body"); });
             body.GetComponent<Transform3DComponent>().Translation={0,5,0};
             body.AddComponent<MeshRendererComponent>(MeshRendererComponent{sphere,material});
             RigidBody3DComponent rigid;rigid.Type=BodyType::Dynamic;
             body.AddComponent<RigidBody3DComponent>(rigid);
             SphereFixture3DComponent fixture;fixture.Radius=1;fixture.Property.m_InvMass=1;
             body.AddComponent<SphereFixture3DComponent>(fixture);
-            physicsScene.OnRuntimeStart();physicsScene.Update(Timestep(.025f));
+            StartRuntimeChecked([&] { return physicsScene.OnRuntimeStart(); });physicsScene.Update(Timestep(.025f));
             const auto authoritative=body.GetComponent<Transform3DComponent>().Translation;
-            const auto expected=physicsScene.GetRenderTransform(body).matrix;
+            const auto expected=Take(physicsScene.GetRenderTransform(body),"physics presentation query").matrix;
             auto access=resources->Publication().BeginFrame();
             auto frame=Take(Extract(physicsScene,*resources,access,physicsCamera),"physics presentation extraction");
             Check(frame.Draws().size()==1 && frame.Draws()[0].worldTransform==expected,"fixed-step presentation/interpolation parity");
@@ -2566,21 +2613,21 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         const MeshHandle meshes[]{sphere,box,diamond};
         for (int i=0;i<3;++i)
         {
-            bodies[i]=scene.CreateEntity(std::string("body-")+std::to_string(i));
+            bodies[i]=SceneOperationChecked([&] { return scene.CreateEntity(std::string("body-")+std::to_string(i)); });
             bodies[i].AddComponent<MeshRendererComponent>(MeshRendererComponent{meshes[i],material});
             bodies[i].GetComponent<Transform3DComponent>().Translation={float(i-1)*2,0,0};
         }
         Check(resources->AttachPhysicsShape(bodies[1],"Box"),"legacy physics-only geometry preserved");
-        auto axisEntity=scene.CreateEntity("axis");
+        auto axisEntity=SceneOperationChecked([&] { return scene.CreateEntity("axis"); });
         axisEntity.AddComponent<MeshRendererComponent>(MeshRendererComponent{axis,helper,0,false,false,true});
         axisEntity.AddComponent<VisibilityComponent>(VisibilityComponent{false});
-        auto sky=scene.CreateEntity("sky");
+        auto sky=SceneOperationChecked([&] { return scene.CreateEntity("sky"); });
         sky.AddComponent<MeshRendererComponent>(MeshRendererComponent{skyMesh,skyMaterial,0,false,false,false});
-        auto dir=scene.CreateEntity("directional");
+        auto dir=SceneOperationChecked([&] { return scene.CreateEntity("directional"); });
         RenderLightComponent directional;directional.color={.7f,.7f,.7f};directional.castShadows=true;
         dir.AddComponent<RenderLightComponent>(directional);
         dir.GetComponent<Transform3DComponent>().QuatRotation=glm::rotation(glm::vec3(0,0,-1),-glm::normalize(glm::vec3(20,50,20)));
-        auto point=scene.CreateEntity("point");
+        auto point=SceneOperationChecked([&] { return scene.CreateEntity("point"); });
         RenderLightComponent pointLight;pointLight.kind=RenderLightKind::Point;pointLight.color={.8f,.2f,.1f};pointLight.range=100;pointLight.castShadows=true;
         point.AddComponent<RenderLightComponent>(pointLight);
         point.GetComponent<Transform3DComponent>().Translation={0,3,2};
@@ -2668,9 +2715,9 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             Check(stats.helperDraws==2,"editor helper visible");
             Check(Pixels(target)!=original,"presentation edit changes image");
         }
-        scene.DestroyEntity(bodies[0]);scene.DestroyEntity(bodies[1]);scene.DestroyEntity(bodies[2]);
-        scene.DestroyEntity(dir);scene.DestroyEntity(point);
-        scene.DestroyEntity(sky);
+        SceneOperationChecked([&] { return scene.DestroyEntity(bodies[0]); });SceneOperationChecked([&] { return scene.DestroyEntity(bodies[1]); });SceneOperationChecked([&] { return scene.DestroyEntity(bodies[2]); });
+        SceneOperationChecked([&] { return scene.DestroyEntity(dir); });SceneOperationChecked([&] { return scene.DestroyEntity(point); });
+        SceneOperationChecked([&] { return scene.DestroyEntity(sky); });
         {
             auto access=resources->Publication().BeginFrame();
             auto stats=Take(submitter.Submit(*retained,desc,picks),"retained frame after ECS destruction");
@@ -2681,7 +2728,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             auto emptyStats=Take(submitter.Submit(frame,desc,picks),"lightless helper frame");
             Check(emptyStats.colorDraws==0 && emptyStats.shadowDraws==0,"removed draw/light contribution");
         }
-        auto replacement=scene.CreateEntity("replacement after destroy");
+        auto replacement=SceneOperationChecked([&] { return scene.CreateEntity("replacement after destroy"); });
         replacement.AddComponent<MeshRendererComponent>(MeshRendererComponent{box,material});
         const auto replacementId=Take(scene.RenderData().Identify(replacement),"replacement generation");
         for (const auto& old:retained->Draws()) Check(old.entity!=replacementId,"recreated entity has new generation identity");
@@ -2690,7 +2737,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             auto frame=Take(Extract(scene,*resources,access,camera),"new renderable after destruction");
             Check(frame.Draws().size()==2,"new renderable and visible helper extracted");
         }
-        auto spot=scene.CreateEntity("unsupported spot");
+        auto spot=SceneOperationChecked([&] { return scene.CreateEntity("unsupported spot"); });
         RenderLightComponent spotLight;spotLight.kind=RenderLightKind::Spot;spotLight.castShadows=true;
         spot.AddComponent<RenderLightComponent>(spotLight);
         {
@@ -2704,7 +2751,7 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         {
             _Scene clickScene;
             const auto clickCamera=Camera(clickScene);
-            auto a=clickScene.CreateEntity("Tag A"), b=clickScene.CreateEntity("Tag B");
+            auto a=SceneOperationChecked([&] { return clickScene.CreateEntity("Tag A"); }), b=SceneOperationChecked([&] { return clickScene.CreateEntity("Tag B"); });
             a.AddComponent<MeshRendererComponent>(MeshRendererComponent{box,material});
             b.AddComponent<MeshRendererComponent>(MeshRendererComponent{box,material});
             a.GetComponent<Transform3DComponent>().Translation={-2,0,0};
@@ -2793,9 +2840,9 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
         {
             _Scene scheduledScene;
             const auto scheduledCamera=Camera(scheduledScene);
-            auto skyEntity=scheduledScene.CreateEntity("scheduled sky");
+            auto skyEntity=SceneOperationChecked([&] { return scheduledScene.CreateEntity("scheduled sky"); });
             skyEntity.AddComponent<MeshRendererComponent>(MeshRendererComponent{skyMesh,skyMaterial,0,false,false,false});
-            auto surface=scheduledScene.CreateEntity("scheduled surface");
+            auto surface=SceneOperationChecked([&] { return scheduledScene.CreateEntity("scheduled surface"); });
             const auto scheduledOpaque=Take(resources->PublishMaterial({SceneMaterialKind::Lit,parameters,textures}),"matched opaque fixture");
             surface.AddComponent<MeshRendererComponent>(MeshRendererComponent{sphere,scheduledOpaque});
             surface.AddComponent<VisibilityComponent>(VisibilityComponent{false});
@@ -2890,10 +2937,10 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             auto maskFrame=Take(FrameScheduler::Render(context,&input),"masked color and picking");
             Check(maskFrame.submission.maskedDraws==1 && Pixels(target)==background,"masked category discards below-cutoff color");
             for(int y=0;y<64;++y) for(int x=0;x<64;++x) Check(Take(picking.ReadPixel(x,y),"masked picking read")==-1,"masked picking discards same coverage");
-            auto sun=scheduledScene.CreateEntity("scheduled directional");
+            auto sun=SceneOperationChecked([&] { return scheduledScene.CreateEntity("scheduled directional"); });
             sun.AddComponent<RenderLightComponent>(directional);
             sun.GetComponent<Transform3DComponent>().QuatRotation=glm::rotation(glm::vec3(0,0,-1),-glm::normalize(glm::vec3(20,50,20)));
-            auto bulb=scheduledScene.CreateEntity("scheduled point");bulb.AddComponent<RenderLightComponent>(pointLight);
+            auto bulb=SceneOperationChecked([&] { return scheduledScene.CreateEntity("scheduled point"); });bulb.AddComponent<RenderLightComponent>(pointLight);
             bulb.GetComponent<Transform3DComponent>().Translation={0,3,2};
             auto shadowed=Take(FrameScheduler::Render(context,&input),"masked directional and point passes");
             if(root.MainWindow()->Timings().Enabled()) {
@@ -2990,8 +3037,8 @@ void main() { passed=(pBool && pInt==-7 && pUint==4000000000u && pFloat==.25
             auto hidden=Take(FrameScheduler::Render(context,&input),"collapsed viewport preserves UI lifecycle");
             Check(!hasPass(hidden.trace,RenderPass::Opaque) && hasPass(hidden.trace,RenderPass::EditorUI) && hasPass(hidden.trace,RenderPass::Present),"collapsed optional scene skip");
             context.visible=true;
-            scheduledScene.DestroyEntity(surface);scheduledScene.DestroyEntity(skyEntity);
-            scheduledScene.DestroyEntity(sun);scheduledScene.DestroyEntity(bulb);
+            SceneOperationChecked([&] { return scheduledScene.DestroyEntity(surface); });SceneOperationChecked([&] { return scheduledScene.DestroyEntity(skyEntity); });
+            SceneOperationChecked([&] { return scheduledScene.DestroyEntity(sun); });SceneOperationChecked([&] { return scheduledScene.DestroyEntity(bulb); });
             input.targets.pickingEnabled=false;
             auto empty=Take(FrameScheduler::Render(context,&input),"empty scene scheduler");
             Check(empty.extraction.draws==0 && empty.submission.colorDraws==0 && empty.submission.shadowDraws==0

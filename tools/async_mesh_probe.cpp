@@ -161,7 +161,7 @@ namespace
     void Run(EngineContext& root,const std::filesystem::path& folder)
     {
         CpuBudget(folder);
-        auto& pub=root.AssetPublications(); MeshRegistry registry(pub);
+        auto& pub=root.SceneServices().value().publication; MeshRegistry registry(pub);
         Check(!AsyncMeshLoader::Create(pub,registry,"relative",Limits()),"invalid root rejected");
         auto loader=Take(AsyncMeshLoader::Create(pub,registry,folder,Limits()),"mesh loader");
         Check(!loader->Request({}) && !loader->Status({}),"invalid request/ticket rejected");

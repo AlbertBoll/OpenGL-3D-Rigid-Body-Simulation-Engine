@@ -18,6 +18,16 @@ namespace GEngine
             else if constexpr (std::same_as<T, Asset::UploadError>) return std::format("upload code={} detail={} system={} registry={}",
                 int(cause.code),cause.detail,cause.system.message(),cause.registry?int(*cause.registry):-1);
             else if constexpr (std::same_as<T, PlatformError>) return std::format("platform code={} operation={} message={}", int(cause.code), cause.operation, cause.message);
+            else if constexpr (std::same_as<T, SceneError>) {
+                auto message = std::format("scene code={} operation={} entity={} message={}", int(cause.code), cause.operation, cause.entity, cause.message);
+                if (cause.transform) message += std::format(" transform-code={} transform-entity={} transform-parent={}",
+                    int(cause.transform->code), static_cast<std::uint64_t>(cause.transform->entity), static_cast<std::uint64_t>(cause.transform->parent));
+                return message;
+            }
+            else if constexpr (std::same_as<T, ImageError>) return std::format(
+                "image code={} operation={} size={}x{} format={} source-size={}x{} expected-elements={} actual-elements={} backend={} message={}",
+                int(cause.code), cause.operation, cause.width, cause.height, int(cause.format),
+                cause.sourceWidth, cause.sourceHeight, cause.expectedElements, cause.actualElements, cause.backendCode, cause.message);
             else if constexpr (std::same_as<T, FramebufferError>) return std::format("framebuffer code={} size={}x{} samples={} message={}",int(cause.code),cause.width,cause.height,cause.samples,cause.message);
             else return std::format("extraction entity={}/{}/{} cause-domain={} ",cause.entity.index,cause.entity.generation,cause.entity.registry,cause.cause.index()) +
                 std::visit([](const auto& detail)->std::string {
@@ -162,12 +172,13 @@ namespace GEngine
                 RenderBackend::EstablishUIState(size.Width,size.Height);
                 if(auto ui=window->BeginUI(); !ui) return std::unexpected(ScheduleError{FrameStage::Pass,ui.error()});
                 auto authored=context.editorUI();
-                auto finished=window->EndUI(); // Balance a successful begin even if authoring fails.
+                // Balance authoring on failure without submitting its partial UI frame.
+                auto finished=window->EndUI(authored ? UIFrameDisposition::Submit : UIFrameDisposition::Discard);
                 if(!finished) return std::unexpected(ScheduleError{FrameStage::Pass,finished.error()});
+                if(!authored) return std::unexpected(authored.error());
                 auto boundary=DescribeBoundary(RenderPass::Present,context);
                 boundary.viewport={0,0,size.Width,size.Height};
                 RenderBackend::EstablishWindowState(boundary);
-                if(!authored) return std::unexpected(authored.error());
                 timing.Complete();
             }
         }

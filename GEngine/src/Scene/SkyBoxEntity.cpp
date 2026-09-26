@@ -37,8 +37,18 @@ namespace GEngine
     }
 
     std::expected<std::unique_ptr<SkyBoxEntity>, ApplicationInitializationError> SkyBoxEntity::Create(
+        const SkyBoxComponent& comp)
+    {
+        auto geometry = Manager::ShapeManager::FindShape("SkyBox");
+        if (!geometry) return std::unexpected(geometry.error());
+        return Create(comp, *geometry);
+    }
+
+    std::expected<std::unique_ptr<SkyBoxEntity>, ApplicationInitializationError> SkyBoxEntity::Create(
         const SkyBoxComponent& comp, Geometry* geometry)
     {
+        if (!geometry) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState,
+            "SkyBoxEntity::Create", "Required SkyBox geometry is unavailable"});
         auto material = GetSkyBoxMaterial(comp);
         if (!material) return std::unexpected(material.error());
         return std::unique_ptr<SkyBoxEntity>(new SkyBoxEntity(comp, geometry, *material));

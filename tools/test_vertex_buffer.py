@@ -1,102 +1,75 @@
-"""Build affected consumers and check vertex uploads and resource ownership on real GL."""
+"""Validate the Phase 66 vertex-buffer result contract and retained ownership on real GL."""
 import argparse
 import hashlib
 import json
-import os
 from pathlib import Path
-import subprocess
 import sys
-import winreg
+from test_runtime_failure import ROOT, VC, Validation
 
-from rendering_validation import ROOT, toolchain
+
+def startup_lifetimes(parent):
+    v = Validation(parent.config, parent.out / 'startup')
+    try:
+        obj = v.out / 'glad-renamed.obj'
+        v.invoke('compile-test-loader', [VC / 'bin/Hostx64/x64/cl.exe', '/nologo', '/c', '/TC',
+            '/MTd' if v.config == 'Debug' else '/MT', '/Od' if v.config == 'Debug' else '/O2',
+            '/DgladLoadGL=Phase66RealGladLoadGL', *('/I' + str(p) for p in v.includes),
+            ROOT / 'external/glad/src/glad.c', '/Fo' + str(obj)])
+        exe = v.compile('GEngineEditor', [ROOT / 'tools/uniform_renderbuffer_probe.cpp', obj], ['/DUBO_STARTUP_PROBE'])
+        for mode in ('failure', 'success'):
+            markers = ['[PASS] UBO startup ' + mode, '[OBSERVE] buffers=0 engine=0 SDL=0 TTF=0']
+            if mode == 'failure':
+                markers += ['Application uniform buffer operation=UniformBufferObject::Create code=4 count=16 binding=0 stride=64: Uniform buffer storage allocation failed']
+            log = v.invoke('startup-' + mode, [exe, mode], expected=1 if mode == 'failure' else 0,
+                markers=markers, cwd=v.out / mode)
+            if 'GEngine application failed:' in log:
+                raise RuntimeError('Startup failure used legacy exception transport')
+        v.report['result'] = 'PASS'
+    except (OSError, RuntimeError) as error:
+        v.report.update(result='FAIL', reason=str(error))
+        raise
+    finally:
+        v.save()
+        parent.report['steps'].append({'name': 'startup-lifetimes', 'result': v.report.get('result', 'FAIL'),
+            'evidence': str(v.out / 'results.json')})
+        parent.save()
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--configuration", choices=["Debug", "Release"], required=True)
-    parser.add_argument("--output", type=Path)
+    parser.add_argument('--configuration', choices=['Debug', 'Release'], required=True)
+    parser.add_argument('--output', type=Path)
+    parser.add_argument('--reuse-build', type=Path, help='Completed results after verification of unchanged production/build inputs')
+    parser.add_argument('--startup-lifetimes', action='store_true', help='Run real BaseApp/EntryPoint registration and UBO success/failure teardown gates')
     args = parser.parse_args()
-    config = args.configuration
-    out = (args.output or ROOT / "logs/rendering/phase22" / config).resolve()
-    out.mkdir(parents=True, exist_ok=True)
-    report = {"configuration": config, "steps": []}
-    env = {k: v for k, v in os.environ.items() if k.lower() != "path"}
-    env["Path"] = os.environ.get("PATH", os.environ.get("Path", ""))
-    env.pop("SDL_VIDEODRIVER", None)
-
-    def invoke(name, command, timeout=60):
-        command = [str(value) for value in command]
-        log = out / (name + ".log")
-        step = {"name": name, "command": command, "cwd": str(ROOT), "log": str(log)}
-        report["steps"].append(step)
-        try:
-            result = subprocess.run(command, cwd=ROOT, env=env, capture_output=True,
-                                    timeout=timeout, creationflags=subprocess.CREATE_NO_WINDOW)
-            log.write_bytes(result.stdout + result.stderr)
-            step["exit"] = result.returncode
-            step["result"] = "PASS" if result.returncode == 0 else "FAIL"
-            if name == "probe" and b"[PASS] vertex-buffer-upload-safety cycles=2" not in result.stdout:
-                step["result"] = "FAIL"
-            if name == "probe" and b"[PASS] vertex-resource-RAII cycles=2" not in result.stdout:
-                step["result"] = "FAIL"
-        except subprocess.TimeoutExpired as error:
-            log.write_bytes((error.stdout or b"") + (error.stderr or b""))
-            step.update(exit=None, result="FAIL", reason="Timeout; owned child terminated")
-        print(f"[{step['result']}] {name}: exit={step['exit']}", flush=True)
-        return step["result"] == "PASS"
-
-    passed = False
+    out = args.output or ROOT / 'logs/rendering/phase66/vertex-buffer' / args.configuration
+    v = Validation(args.configuration, out)
     try:
-        msbuild, vc = toolchain()  # Existing VS2022/v143 discovery and static CRT policy.
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows Kits\Installed Roots") as key:
-            sdk = Path(winreg.QueryValueEx(key, "KitsRoot10")[0])
-        sdk_version = max((p.name for p in (sdk / "Lib").iterdir()
-                           if (p / "um/x64/kernel32.lib").is_file()), key=lambda name: tuple(map(int, name.split("."))))
-        report["toolchain"] = {"msbuild": str(msbuild), "msvc": str(vc), "sdk": str(sdk), "sdk_version": sdk_version}
-        if not invoke("generate", [ROOT / "vendor/bin/premake/premake5.exe", "vs2022"], 120):
-            return 1
-        build = [msbuild, ROOT / "GEngine.sln",
-                 "/t:GEngineEditor;Breakout;RayTracing;RigidBodySimulation;PhysicsTests;PhysicsBenchmark",
-                 "/m:1", "/nr:false", "/nologo", "/v:normal",
-                 "/p:Configuration=" + config, "/p:Platform=x64", "/p:VCToolsVersion=" + vc.name,
-                 "/p:WindowsTargetPlatformVersion=" + sdk_version, "/bl:" + str(out / "build.binlog")]
-        if not invoke("build", build, 1200):
-            return 1
-        includes = [vc / "include", *(sdk / "Include" / sdk_version / part for part in ("ucrt", "shared", "um")),
-                    ROOT / "GEngine/include/GEngine", ROOT / "GEngine/include/external",
-                    *(ROOT / "external" / part / "include" for part in ("sdl2", "spdlog", "glad", "assimp", "entt", "tbb"))]
-        libraries = [vc / "lib/x64", sdk / "Lib" / sdk_version / "ucrt/x64",
-                     sdk / "Lib" / sdk_version / "um/x64",
-                     *(ROOT / "external" / part / "lib" for part in ("sdl2", "tbb", "assimp", "fmod"))]
-        executable = out / "vertex-buffer-probe.exe"
-        command = [vc / "bin/Hostx64/x64/cl.exe", "/nologo", "/std:c++20", "/EHsc", "/W3",
-                   "/MTd" if config == "Debug" else "/MT", "/Od" if config == "Debug" else "/O2",
-                   "/DSDL_MAIN_HANDLED", "/DGENGINE_PLATFORM_WINDOWS", "/DGENGINE_CONFIG_" + config.upper(),
-                   *["/I" + str(p) for p in includes], "/external:W0", "/external:templates-",
-                   *["/external:I" + str(p) for p in (ROOT / "external", ROOT / "GEngine/include/external", vc / "include")],
-                   ROOT / "tools/vertex_buffer_probe.cpp", ROOT / "tools/geometry_resource_probe.cpp",
-                   "/Fo" + str(out) + os.sep,
-                   "/Fe" + str(executable), "/link", "/SUBSYSTEM:CONSOLE",
-                   *["/LIBPATH:" + str(p) for p in libraries], ROOT / "bin" / config / "GEngine/GEngine.lib",
-                   ROOT / "external/glad/bin" / config / "glad/glad.lib", "SDL2.lib", "SDL2_ttf.lib",
-                   "tbb12.lib", "tbb12_debug.lib", "tbb.lib", "tbb_debug.lib", "assimp.lib",
-                   "fmod64_vc.lib", "fmodL64_vc.lib", "fmodstudio64_vc.lib", "fmodstudioL64_vc.lib"]
-        if not invoke("compile-probe", command, 120):
-            return 1
-        sdl = ROOT / "bin" / config / "GEngineEditor/SDL2.dll"
-        report["inputs"] = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in
-                            (executable, ROOT / "bin" / config / "GEngine/GEngine.lib", sdl)}
-        env["Path"] = str(sdl.parent) + os.pathsep + env["Path"]
-        passed = invoke("probe", [executable])
-        return 0 if passed else 1
-    except (OSError, ValueError, subprocess.SubprocessError) as error:
-        report["reason"] = str(error)
-        return 1
-    finally:
-        report.update(result="PASS" if passed else "FAIL", exit=0 if passed else 1)
-        (out / "results.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-        print(f"[{report['result']}] results: {out / 'results.json'}", flush=True)
+        if args.reuse_build:
+            prior = json.loads(args.reuse_build.read_text())
+            build = next(s for s in prior['steps'] if s['name'] == 'build')
+            if build['result'] != 'PASS' or prior['configuration'] != args.configuration:
+                raise RuntimeError('Invalid completed build evidence')
+            v.report['steps'].append(dict(build, reuse=str(args.reuse_build.resolve())))
+        else:
+            v.build(['GEngineEditor', 'Breakout', 'RayTracing', 'RigidBodySimulation'])
+        source = ROOT / 'tools/vertex_buffer_probe.cpp'
+        v.compile('vertex-header', [source], ['/DVERTEX_BUFFER_SCHEMA_ONLY'], boundary=True)
+        exe = v.compile('vertex-buffer-probe', [source, ROOT / 'tools/geometry_resource_probe.cpp'])
+        v.invoke('probe', [exe], markers=[
+            '[PASS] vertex-buffer-upload-safety cycles=2', '[PASS] vertex-resource-RAII cycles=2',
+            '[PASS] typed-driver-failures/diagnostics/binding/partial-owner-cleanup/recovery',
+            '[PASS] Geometry transform position/normal CPU+GPU payload/layout/preserved-owner exact-buffers=4',
+            '[PASS] Geometry temporary capped-shape retirement caps=6 exact-buffers=40'],
+            cwd=v.out / 'probe-run')
+        if args.startup_lifetimes:
+            startup_lifetimes(v)
+        v.smoke(['GEngineEditor', 'Breakout', 'RayTracing', 'RigidBodySimulation'])
+        v.report['result'] = 'PASS'
+        v.report['engine_library_sha256'] = hashlib.sha256((ROOT / 'bin' / args.configuration / 'GEngine/GEngine.lib').read_bytes()).hexdigest()
+        return 0
+    except (OSError, RuntimeError) as error:
+        v.report.update(result='FAIL', reason=str(error)); print(str(error), flush=True); return 1
+    finally: v.save()
 
-
-if __name__ == "__main__":
-    sys.exit(main())
+if __name__ == '__main__': sys.exit(main())

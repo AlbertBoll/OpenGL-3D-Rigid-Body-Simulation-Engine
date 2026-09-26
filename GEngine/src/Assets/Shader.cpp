@@ -7,7 +7,7 @@ namespace GEngine::Asset
 {
     void ReportShaderError(const ShaderError& error)
     {
-        GENGINE_CORE_ERROR("Shader code={} stage={} source={}: {}", static_cast<int>(error.code),
+        Log::GetCoreLogger()->error("Shader code={} stage={} source={}: {}", static_cast<int>(error.code),
             error.shaderType ? static_cast<int>(*error.shaderType) : 0, error.source, error.log);
     }
     void ShaderStorage::RequireOwner() const noexcept

@@ -3,6 +3,8 @@
 #include "Renderer/FrameSubmission.h"
 #include "Renderer/RenderExtraction.h"
 #include "Assets/AsyncUploadQueue.h"
+#include "Scene/SceneError.h"
+#include "Core/ImageError.h"
 
 namespace GEngine
 {
@@ -10,7 +12,7 @@ namespace GEngine
     namespace Manager { class WindowManager; }
     enum class ScheduleCode { Context, InvalidInput, FrameActive };
     using ScheduleCause = std::variant<ScheduleCode, SubmissionError, RenderExtractionError,
-        FramebufferError, PlatformError, SceneResourceError, Asset::UploadError>;
+        FramebufferError, PlatformError, SceneResourceError, Asset::UploadError, SceneError, ImageError>;
     struct ScheduleError { FrameStage stage; ScheduleCause cause; };
     using ScheduleResult = std::expected<void, ScheduleError>;
     std::string DescribeScheduleError(const ScheduleError&);

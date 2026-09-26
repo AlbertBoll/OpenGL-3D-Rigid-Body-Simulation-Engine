@@ -4,11 +4,13 @@
 #include "RayTracing.h"
 #include "EntryPoint.h"
 #include "Core/Window.h"
+#include "UI/FramebufferImage.h"
 #include <external/imgui/imgui.h>
 #include <Core/Log.h>
 #include "Camera/PerspectiveCamera.h"
 #include "Core/RandomGenerator.h"
 #include <Core/Timer.h>
+#include <format>
 
 namespace GEngine
 {
@@ -60,12 +62,27 @@ namespace GEngine
 
     void RayTracingAPP::Render()
     {
+        m_UIFailure.reset();
         RenderContext context{*GetWindow(),*GetWindowManager()};
         context.editorUI={this,[](void* user)->ScheduleResult {
-            static_cast<RayTracingAPP*>(user)->OnUIRender(); return {};
+            auto& app=*static_cast<RayTracingAPP*>(user);
+            app.OnUIRender();
+            if(app.m_UIFailure) return std::unexpected(*app.m_UIFailure);
+            return {};
         }};
         if(auto result=FrameScheduler::Render(context);!result) {
-            GENGINE_CORE_ERROR("{}",DescribeScheduleError(result.error())); ShutDown();
+            if(m_UIFailure) {
+                const auto& error=result.error();
+                auto code=std::format("stage={} cause={}",int(error.stage),error.cause.index());
+                std::string operation="RayTracingAPP::OnUIRender";
+                if(const auto* image=std::get_if<ImageError>(&error.cause)) {
+                    code=std::to_string(int(image->code)); operation=image->operation;
+                } else if(const auto* platform=std::get_if<PlatformError>(&error.cause)) {
+                    code=std::to_string(int(platform->code)); operation=platform->operation;
+                }
+                FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Ray UI",std::move(code),
+                    std::move(operation),std::format("viewport={}x{}",m_Width,m_Height),DescribeScheduleError(error)});
+            } else { GENGINE_CORE_ERROR("{}",DescribeScheduleError(result.error())); ShutDown(); }
         }
     }
 
@@ -252,16 +269,25 @@ namespace GEngine
         if (scale)
         {
             auto sized = SetEditorViewport(hasArea ? EditorViewportLogicalSize{extent.x, extent.y} : EditorViewportLogicalSize{}, *scale);
-            if (!sized) { ReportPlatformError(sized.error()); ImGui::End(); ImGui::PopStyleVar(); return; }
+            if (!sized) { m_UIFailure=ScheduleError{FrameStage::Pass,sized.error()}; ImGui::End(); ImGui::PopStyleVar(); return; }
         }
-        else { ReportPlatformError(scale.error()); ImGui::End(); ImGui::PopStyleVar(); return; }
+        else { m_UIFailure=ScheduleError{FrameStage::Pass,scale.error()}; ImGui::End(); ImGui::PopStyleVar(); return; }
         const auto pixels = GetEditorViewportPixelSize();
         m_Width = pixels.Width; m_Height = pixels.Height;
-		if (hasArea) GenerateImage();
+        if (hasArea) {
+            if (auto generated=GenerateImage(); !generated) {
+                m_UIFailure=ScheduleError{FrameStage::Pass,generated.error()};
+                ImGui::End(); ImGui::PopStyleVar(); return;
+            }
+        }
 
 		auto& image = m_Renderer.GetFinalImage();
-		if(hasArea && m_Renderer.GetFinalImage())
-			ImGui::Image((void*)((uint64_t)image->GetTexID()), { extent.x, extent.y }, {0.f, 1.f}, {1.f, 0.f});
+        if(hasArea && image) {
+            if(auto presented=UI::RasterImage(*image,extent.x,extent.y);!presented) {
+                m_UIFailure=ScheduleError{FrameStage::Pass,presented.error()};
+                ImGui::End();ImGui::PopStyleVar();return;
+            }
+        }
 
 		ImGui::End();
 
@@ -269,19 +295,20 @@ namespace GEngine
 		//GenerateImage();
 	}
 
-	void RayTracingAPP::GenerateImage()
+	ImageResult RayTracingAPP::GenerateImage()
 	{
 		Timer timer;
-		m_Renderer.OnResize(m_Width, m_Height);
+        if(auto resized=m_Renderer.OnResize(m_Width,m_Height);!resized) return std::unexpected(resized.error());
 		if (m_Width == 0 || m_Height == 0)
-			return;
+			return {};
 		m_Renderer.RenderBegin();
 		if (m_Camera.OnResize(m_Width, m_Height))
 		{
 			m_Renderer.ResetFrameIndex();
 		}
-		m_Renderer.Render(m_RayScene, m_Camera);
+        if(auto rendered=m_Renderer.Render(m_RayScene,m_Camera);!rendered) return std::unexpected(rendered.error());
 		m_LastRenderTime = timer.ElapsedMilliSeconds();
+        return {};
 	}
 
 

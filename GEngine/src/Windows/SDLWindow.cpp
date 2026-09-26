@@ -88,9 +88,9 @@ namespace GEngine
 		//Set Window Minimum Size
 		SDL_SetWindowMinimumSize(m_Window, winProp.m_MinWidth, winProp.m_MinHeight);
 
-		m_Context = GLDebug::CreateContext(m_Window);
-		if (!m_Context)
-			return std::unexpected(PlatformError{PlatformErrorCode::ContextCreation, "context creation", SDL_GetError()});
+        auto context = GLDebug::TryCreateContext(m_Window);
+        if (!context) return std::unexpected(context.error());
+        m_Context = *context;
 
 		SDL_SetHintWithPriority(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "1", SDL_HINT_OVERRIDE);
 		//SDL_SetHintWithPriority(SDL_HINT_MOUSE_RELATIVE_SCALING, "1", SDL_HINT_OVERRIDE);
@@ -330,9 +330,17 @@ namespace GEngine
         m_ImGuiWindow->BeginRender(this);
         return {};
     }
-    PlatformResult SDLWindow::EndUI()
+    PlatformResult SDLWindow::EndUI(UIFrameDisposition disposition)
     {
         if (!m_ImGuiWindow) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState, "end UI", "UI is unavailable"});
+        if (disposition == UIFrameDisposition::Discard) {
+            GLContextThread::RequireOwner(m_OwnerThread, "discard UI frame");
+            ImGui::SetCurrentContext(m_ImGuiWindow->GetContext());
+            ImGui::EndFrame();
+            return {};
+        }
+        if (disposition != UIFrameDisposition::Submit)
+            return std::unexpected(PlatformError{PlatformErrorCode::InvalidState, "end UI", "Unknown UI frame disposition"});
         return m_ImGuiWindow->EndRender(this);
     }
     bool SDLWindow::WantsMouse() const { return m_ImGuiWindow && m_ImGuiWindow->WantCaptureMouse(); }

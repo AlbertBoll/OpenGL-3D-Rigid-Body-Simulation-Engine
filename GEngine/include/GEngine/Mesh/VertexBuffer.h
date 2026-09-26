@@ -1,12 +1,29 @@
 #pragma once
-#include"BufferLayout.h"
 #include <cstddef>
+#include <cstdint>
+#include <expected>
 #include <span>
+#include <string>
+#include <vector>
+#include "Core/Base.h"
+#include "BufferLayout.h"
 
 namespace GEngine { class GpuMesh; }
 
 namespace GEngine::Buffer
 {
+    enum class VertexBufferErrorCode { CapacityTooLarge, PayloadTooLarge, UploadOutOfRange, Allocation, Driver };
+    struct VertexBufferError
+    {
+        VertexBufferErrorCode code;
+        std::string operation;
+        std::string message;
+        std::size_t capacityBytes{};
+        std::size_t offsetBytes{};
+        std::size_t elementCount{};
+    };
+    using VertexBufferResult = std::expected<void, VertexBufferError>;
+
 
 	class VertexBuffer
 	{
@@ -17,8 +34,8 @@ namespace GEngine::Buffer
 		VertexBuffer(VertexBuffer&& other) noexcept;
 		VertexBuffer& operator=(VertexBuffer&& other) noexcept;
 		// Allocation sizes and upload offsets are bytes; payload sizes come from the span.
-		explicit VertexBuffer(std::size_t capacityBytes);
-		explicit VertexBuffer(std::span<const float> data);
+		[[nodiscard]] static std::expected<VertexBuffer, VertexBufferError> Create(std::size_t capacityBytes);
+		[[nodiscard]] static std::expected<VertexBuffer, VertexBufferError> Create(std::span<const float> data);
 
 		~VertexBuffer();
 
@@ -32,15 +49,17 @@ namespace GEngine::Buffer
 			m_BufferLayout = layout;
 		}
 
-		// Throws std::out_of_range before GL work when the upload exceeds capacity.
+		// Rejects out-of-range input before GL work; successful uploads retain binding.
 		// Empty input is a no-op at any offset through capacity (inclusive).
-		void SetData(std::span<const float> data, std::size_t offsetBytes = 0);
+		[[nodiscard]] VertexBufferResult SetData(std::span<const float> data, std::size_t offsetBytes = 0);
 
 
 	private:
 		friend class ::GEngine::GpuMesh;
 		// Backend-only empty owner; GpuMesh performs typed creation and upload.
-		VertexBuffer() = default;
+        VertexBuffer() = default;
+        static std::expected<VertexBuffer, VertexBufferError> CreateStorage(
+            std::size_t capacityBytes, std::span<const float> data, bool dynamic);
 		unsigned int m_VertexBufferRef{};
 		std::size_t m_CapacityBytes{};
 		BufferLayout m_BufferLayout;

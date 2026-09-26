@@ -431,11 +431,18 @@ namespace
         if (rejectTextureWorker || rejectManagerWorker)
         {
             std::set_terminate([] { std::cerr << "[EXPECTED] texture worker rejected\n"; std::_Exit(86); });
-            std::thread worker([&] { std::set_terminate([] { std::cerr << "[EXPECTED] texture worker rejected\n"; std::_Exit(86); }); if (rejectManagerWorker) (void)AssetsManager::GetTexture("white"); else (void)TextureResource::Create(desc); }); worker.join(); std::_Exit(89);
+            std::thread worker([&] { std::set_terminate([] { std::cerr << "[EXPECTED] texture worker rejected\n"; std::_Exit(86); }); if (rejectManagerWorker) {
+                auto denied = AssetsManager::GetTexture("white");
+                if (!denied && denied.error().code == TextureErrorCode::ContextUnavailable
+                    && denied.error().message == "Texture services require the owner thread") {
+                    std::cerr << "[EXPECTED] texture worker rejected (typed)\n"; std::_Exit(86);
+                }
+                std::_Exit(89);
+            } else (void)TextureResource::Create(desc); }); worker.join(); std::_Exit(89);
         }
         const std::array<unsigned char, 22> rows{255,0,0, 0,255,0, 0,0,255, 77,88,
                                                4,5,6, 7,8,9, 10,11,12, 66,55};
-        auto& publication = root.AssetPublications();
+        auto& publication = root.SceneServices().value().publication;
         TextureRegistry registry(publication);
         const auto before = hooks.events.size();
         GLuint unpackBuffer = 0; glGenBuffers(1, &unpackBuffer);
@@ -593,7 +600,7 @@ namespace
         for (int cycle = 0; cycle < 2; ++cycle)
         {
             auto root = std::make_unique<EngineContext>();
-            Reject([&] { (void)root->AssetPublications(); });
+            Check(!root->SceneServices(), "Uninitialized root published services");
             WindowProperties properties;
             properties.m_Title = "Phase 25 registry";
             properties.m_Width = properties.m_Height = 64;
@@ -601,7 +608,7 @@ namespace
             properties.m_IsVsync = false;
             properties.flag = BitFlags<WindowFlags, uint8_t>{WindowFlags::INVISIBLE};
             Check(root->Initialize({properties}).has_value(), "Platform initialization failed");
-            auto& publication = root->AssetPublications();
+            auto& publication = root->SceneServices().value().publication;
             std::cout << "[GL] " << glGetString(GL_VERSION) << " renderer=" << glGetString(GL_RENDERER) << '\n';
             int startupErrors = 0; while (glGetError() != GL_NO_ERROR) ++startupErrors;
             std::cout << "[INFO] existing startup errors isolated=" << startupErrors << '\n';

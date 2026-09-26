@@ -18,12 +18,7 @@ namespace GEngine
 		~Scene()override;
 		Scene(const std::string& name): Actor(name){}
 
-		void Push(Group<Entity>* group_entity)
-		{
-			
-			m_ProgramIDLookUp[group_entity->GetProgramID()].push_back(group_entity);
-
-		}
+		void Push(Group<Entity>* group_entity);
 
 		void Push(LightEntity* entity);
 	

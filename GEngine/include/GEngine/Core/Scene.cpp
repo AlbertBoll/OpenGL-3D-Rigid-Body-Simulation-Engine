@@ -1,5 +1,6 @@
 #include "gepch.h"
 #include "Scene.h"
+#include "../../../src/Material/MaterialBackend.h"
 #include "Renderer.h"
 #include "Light/LightEntity.h"
 
@@ -21,6 +22,11 @@ GEngine::Scene::~Scene()
 	//		light = nullptr;
 	//	}
 	//}
+}
+
+void GEngine::Scene::Push(Group<Entity>* group_entity)
+{
+    m_ProgramIDLookUp[MaterialDetail::BackendAccess::Program(*group_entity->GetMaterial())].push_back(group_entity);
 }
 
 void GEngine::Scene::Push(LightEntity* entity)

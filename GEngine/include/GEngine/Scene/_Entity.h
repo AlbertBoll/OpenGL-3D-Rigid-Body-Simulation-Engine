@@ -3,9 +3,19 @@
 #include <Scene/_Scene.h>
 #include <Component/Component.h>
 #include <Core/Assert.h>
+#include <expected>
+#include <functional>
+#include <string_view>
 
 namespace GEngine
 {
+    struct EntityChildrenError
+    {
+        TransformErrorCode code = TransformErrorCode::InvalidEntity;
+        std::string_view operation = "_Entity::Children";
+        std::string_view message = "Children requires a live scene entity";
+    };
+
 	class _Entity
 	{
 	public:
@@ -113,7 +123,8 @@ namespace GEngine
 			return HasAllComponents<RelationshipComponent>() ? GetComponent<RelationshipComponent>().ParentHandle : UUID(0);
 		}
 
-		std::vector<UUID>& Children();
+		// The successful reference borrows the existing Scene-owned relationship vector.
+		[[nodiscard]] std::expected<std::reference_wrapper<std::vector<UUID>>, EntityChildrenError> Children();
 
 		const std::vector<UUID>& Children() const;
 

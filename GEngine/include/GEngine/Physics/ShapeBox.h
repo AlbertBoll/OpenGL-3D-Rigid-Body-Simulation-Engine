@@ -1,8 +1,9 @@
 #pragma once
 #include "Shape.h"
+#include "PhysicsShapeError.h"
+#include <expected>
 
 #include <array>
-#include <stdexcept>
 
 namespace GEngine
 {
@@ -28,14 +29,7 @@ namespace GEngine
 	class ShapeBox : public PhysicalShape
 	{
 	public:
-		ShapeBox() = delete;
-		explicit ShapeBox(const std::vector<Vec3f>& pts): PhysicalShape(pts) {
-			Build(pts);
-			m_ShapeType = ShapeType::Box;
-			if (!IsValid()) {
-				throw std::invalid_argument("ShapeBox requires finite points with non-zero extents");
-			}
-		}
+        [[nodiscard]] static std::expected<ShapeBox, PhysicsShapeError> Create(const std::vector<Vec3f>& pts);
 		void Build(const std::vector<Vec3f>& pts);
 		static bool IsValidPointSet(const std::vector<Vec3f>& pts);
 		bool IsValid() const override;
@@ -57,6 +51,7 @@ namespace GEngine
 		float FastestLinearSpeed(const Vec3f& angularVelocity, const Vec3f& dir) const override;
 
 	private:
+        ShapeBox() = default;
 		std::vector<Vec3f> m_points;
 		Bounds m_bounds;
 	};

@@ -1,3 +1,23 @@
+#if defined(SHAPE_REGISTRATION_SCHEMA_ONLY)
+#include "Core/GEngine.h"
+#include "Core/RenderTarget.h"
+#include "Managers/ShapeManager.h"
+#include <type_traits>
+static_assert(std::same_as<decltype(::GEngine::Manager::ShapeManager::Register({}, nullptr)),
+    ::GEngine::Manager::ShapeManager::RegistrationResult>);
+static_assert(std::same_as<::GEngine::EngineInitializationResult,
+    ::GEngine::Manager::ShapeManager::RegistrationResult>);
+#elif defined(RAW_MODEL_SCHEMA_ONLY)
+#include "Core/RawModel.h"
+#include "Managers/ShapeManager.h"
+#include <type_traits>
+static_assert(!std::is_copy_constructible_v<::GEngine::RawModel>);
+static_assert(std::is_nothrow_move_constructible_v<::GEngine::RawModel>);
+static_assert(std::is_same_v<decltype(::GEngine::RawModel::Create(std::declval<const std::string&>())),
+    std::expected<::GEngine::RawModel,::GEngine::ModelImportError>>);
+static_assert(std::is_same_v<decltype(::GEngine::Manager::ShapeManager::GetModel(std::declval<const std::string&>())),
+    ::GEngine::Manager::ShapeManager::ModelResult>);
+#else
 #include "Material/BasicMaterial.h"
 #include "Material/TextureMaterial.h"
 #include "../GEngine/src/Assets/ShaderBackend.h"
@@ -26,6 +46,32 @@
 #include <array>
 #include <type_traits>
 #include <fstream>
+#include <unordered_set>
+#include "Core/RawModel.h"
+#include "Geometry/Geometry.h"
+#ifdef RAW_MODEL_INTERNAL_PROBE
+#include "../GEngine/src/Core/RawModel.cpp"
+#endif
+
+#ifdef SHAPE_REGISTRATION_STARTUP_PROBE
+#include "Shapes/Quad.h"
+#include "Shapes/Box.h"
+static_assert(sizeof(::GEngine::Shape::Quad) == sizeof(::GEngine::Geometry));
+static_assert(sizeof(::GEngine::Shape::Box) == sizeof(::GEngine::Geometry));
+static_assert(sizeof(::GEngine::Shape::SkyBox) == sizeof(::GEngine::Geometry));
+static int denyShapeAllocation = -1;
+void* operator new(std::size_t size, const std::nothrow_t&) noexcept
+{
+    auto* root = ::GEngine::EngineContext::TryGet();
+    if (denyShapeAllocation >= 0 && size == sizeof(::GEngine::Geometry) && root && root->MainWindow()
+        && root->GetState() == ::GEngine::EngineContext::State::Initializing)
+    {
+        if (denyShapeAllocation-- == 0) return nullptr;
+    }
+    return std::malloc(size ? size : 1);
+}
+void operator delete(void* pointer, const std::nothrow_t&) noexcept { std::free(pointer); }
+#endif
 
 namespace
 {
@@ -38,6 +84,10 @@ namespace
         ++checks;
         if (!value) throw std::runtime_error(message);
     }
+    GLuint IndexedUniform(unsigned point)
+    { GLint name = 0; glGetIntegeri_v(GL_UNIFORM_BUFFER_BINDING, point, &name); return name; }
+    template<class T> T TakeUniform(std::expected<T, UniformBufferError> result)
+    { Check(result.has_value(), "Uniform creation failed"); return std::move(*result); }
     GLuint TextureName(const Asset::Texture* texture)
     { return Asset::AssetDetail::TextureBackend::Name(texture->View()).value(); }
     void Observe(bool value, const char* message)
@@ -84,7 +134,7 @@ namespace
         int rejected = 0;
         if (!AssetsManager::GetFont("unavailable.ttf")) ++rejected;
         if (!ShaderManager::GetShaderProgram({})) ++rejected;
-        try { (void)ShapeManager::GetShape("phase18"); } catch (const std::logic_error&) { ++rejected; }
+        if (!ShapeManager::FindShape("phase18")) ++rejected;
         Check(rejected == 3, "A manager remained accessible outside ready root lifetime");
     }
 
@@ -96,7 +146,7 @@ namespace
         static_assert(!std::is_default_constructible_v<ShapeManager> && !std::is_copy_constructible_v<ShapeManager>);
         Check(EngineContext::TryGet() == nullptr, "A root exists before application construction");
         bool rejected = false;
-        try { (void)BaseApp::GetEngine(); } catch (const std::logic_error&) { rejected = true; }
+        rejected = !EngineContext::TryCurrent();
         Check(rejected, "Legacy access outside an application lifetime was accepted");
         {
             BaseApp app;
@@ -110,7 +160,7 @@ namespace
             rejected = !root.MakeCurrent();
             Check(rejected, "Rendering before initialization was accepted");
             rejected = false;
-            try { BaseApp second; } catch (const std::logic_error&) { rejected = true; }
+            { BaseApp second; rejected = !second.GetEngineContext().Initialize({Properties()}); }
             Check(rejected && EngineContext::TryGet() == &root, "Second application replaced the active root");
         }
         Check(!EngineContext::TryGet(), "Uninitialized destruction retained the root");
@@ -182,7 +232,7 @@ namespace
         TextureOwner texture{1};
         ~SceneActor() override
         {
-            Observe(ShapeManager::GetShape("phase18") != nullptr, "Shared geometry died before scene borrower");
+            Observe(ShapeManager::FindShape("phase18").value() != nullptr, "Shared geometry died before scene borrower");
         }
     };
     class ProbeApp final : public BaseApp
@@ -203,9 +253,9 @@ namespace
                 // Actual owner-thread violations now terminate under invariant policy;
                 // test_viewport.py runs those calls in isolated child processes.
                 wrongThreadRejected = !GLContextThread::IsCurrentOwner();
-                // Texture access now uses invariant rejection, covered in an isolated child process.
+                // Fallible root services reject workers before native operations.
                 if (!ShaderManager::GetShaderProgram({})) ++managerThreadRejections;
-                try { (void)ShapeManager::GetShape("Box"); } catch (const std::logic_error&) { ++managerThreadRejections; }
+                if (!ShapeManager::FindShape("Box")) ++managerThreadRejections;
             });
             worker.join();
             Check(wrongThreadRejected && SDL_GL_GetCurrentContext() == static_cast<SDLWindow*>(root.MainWindow())->GetContext(),
@@ -229,7 +279,7 @@ namespace
             m_RenderTarget->UnBind();
             applicationTexture = std::make_unique<TextureOwner>(1);
             m_Scene->Add(new SceneActor);
-            Watch(Kind::Buffer, m_UniformBufferObject->GetUBO(), 2, "BaseApp uniform buffer");
+            Watch(Kind::Buffer, IndexedUniform(0), 2, "BaseApp uniform buffer");
             Watch(Kind::Framebuffer, ::GEngine::FramebufferDetail::Backend::Name(m_FinalFrameBuffer->Buffer()), 2, "FinalFrameBuffer framebuffer");
             Watch(Kind::Texture, ::GEngine::FramebufferDetail::Backend::Color(m_FinalFrameBuffer->Buffer()), 2, "FinalFrameBuffer color texture");
             Watch(Kind::Texture, ::GEngine::FramebufferDetail::Backend::Color(m_FinalFrameBuffer->Buffer(), 1), 2, "FinalFrameBuffer picking texture");
@@ -243,7 +293,7 @@ namespace
             Watch(Kind::Framebuffer, ::GEngine::FramebufferDetail::Backend::Name(m_PointShadowFrameBuffer->Buffer()), 2);
             Watch(Kind::Framebuffer, ::GEngine::FramebufferDetail::Backend::Name(m_CascadeShadowFrameBuffer->Buffer()), 2);
             Watch(Kind::Framebuffer, ::GEngine::FramebufferDetail::Backend::Name(m_RenderTarget->Buffer()), 2);
-            ShapeManager::Register("phase18", new CachedGeometry);
+            Check(ShapeManager::Register("phase18", new CachedGeometry).has_value(), "Cached shape registration failed");
             auto* text = AssetsManager::GetTextTexture("Lifecycle", RuntimeAssets::File("Fonts/OpenSans-Regular.ttf")).value();
             Watch(Kind::Texture, TextureName(text), 3, "AssetsManager cached text texture");
             AssetsManager::GetCascadedFrameBufferTexture(*m_CascadeShadowFrameBuffer).value();
@@ -457,21 +507,21 @@ namespace
         watched.clear(); lastPhase = 0;
         GLuint sourceName = 0, replacedName = 0;
         {
-            Buffer source(3, 0), target(7, 1);
-            sourceName = source.GetUBO(); replacedName = target.GetUBO();
+            auto source = TakeUniform(Buffer::Create(3, 0)); auto target = TakeUniform(Buffer::Create(7, 1));
+            sourceName = IndexedUniform(0); replacedName = IndexedUniform(1);
             Watch(Kind::Buffer, sourceName, 2); Watch(Kind::Buffer, replacedName, 2);
             const auto elementSize = source.GetUniformTypeSize();
             const std::array<GLuint, 4> data{0x01234567, 0x89abcdef, 42, 13};
             glBindBuffer(GL_UNIFORM_BUFFER, sourceName);
             glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(data), data.data());
             Buffer moved(std::move(source));
-            Check(source.GetUBO() == 0 && moved.GetUBO() == sourceName, "UBO move construction copied ownership");
+            Check(!source && moved && glIsBuffer(sourceName), "UBO move construction copied ownership");
             Check(moved.GetUniformTypeSize() == elementSize && source.GetUniformTypeSize() == 0,
                 "UBO move did not transfer/reset metadata");
             target = std::move(moved);
-            Check(moved.GetUBO() == 0 && target.GetUBO() == sourceName && !glIsBuffer(replacedName),
+            Check(!moved && target && glIsBuffer(sourceName) && !glIsBuffer(replacedName),
                 "UBO move assignment did not retire the replaced buffer");
-            glBindBuffer(GL_UNIFORM_BUFFER, target.GetUBO());
+            glBindBuffer(GL_UNIFORM_BUFFER, sourceName);
             std::array<GLuint, 4> readback{};
             glGetBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(readback), readback.data());
             GLint bytes = 0, indexed = 0;
@@ -480,11 +530,11 @@ namespace
             Check(readback == data && bytes == static_cast<GLint>(3 * elementSize)
                 && static_cast<GLuint>(indexed) == sourceName, "UBO move changed storage/data/indexed binding");
             auto* same = &target; target = std::move(*same);
-            Check(target.GetUBO() == sourceName && glIsBuffer(sourceName), "UBO self-move lost ownership");
+            Check(target && glIsBuffer(sourceName), "UBO self-move lost ownership");
             source = std::move(target);
-            Check(!target.GetUBO() && source.GetUBO() == sourceName, "Moved-from UBO could not receive ownership");
+            Check(!target && source && glIsBuffer(sourceName), "Moved-from UBO could not receive ownership");
             source = std::move(moved); // Empty source must also retire a live destination.
-            Check(!source.GetUBO() && !glIsBuffer(sourceName), "Moving an empty UBO leaked its destination");
+            Check(!source && !glIsBuffer(sourceName), "Moving an empty UBO leaked its destination");
         }
         for (const auto& item : watched) Check(item.deletes == 1, "UBO move lifetime deleted a resource incorrectly");
         Check(!glIsBuffer(sourceName) && !glIsBuffer(replacedName), "UBO move lifetime left a live GL buffer");
@@ -548,8 +598,9 @@ namespace
         {
             auto root = std::make_unique<EngineContext>();
             Check(root->Initialize({Properties(), Properties()}).has_value(), "Platform initialization failed");
-            Check(ShapeManager::GetShape("phase20-retired") == nullptr, "New manager retained a previous map");
-            Check(&root->Assets() == &root->Assets() && &root->Shapes() == &root->Shapes()
+            Check(ShapeManager::FindShape("phase20-retired").value() == nullptr, "New manager retained a previous map");
+            Check(root->Assets().has_value() && root->Assets().value() == root->Assets().value()
+                && root->Shapes().has_value() && root->Shapes().value() == root->Shapes().value()
                 && root->Shaders().has_value() && *root->Shaders() == *root->Shaders(), "Root manager instances changed during their lifetime");
             Hooks hooks;
             StartTeardownDiagnostics();
@@ -687,7 +738,7 @@ namespace
             auto root = std::make_unique<EngineContext>();
             Check(root->Initialize({Properties()}).has_value(), "Platform initialization failed");
             Check(root->GetState() == EngineContext::State::Ready, "Initialized manager root is not ready");
-            Check(ShapeManager::GetShape("phase20-retired") == nullptr, "New shape manager contains stale state");
+            Check(ShapeManager::FindShape("phase20-retired").value() == nullptr, "New shape manager contains stale state");
             int oldDestroyed = 0, duplicateDestroyed = 0, replacementDestroyed = 0;
             struct Counted final : Geometry
             {
@@ -696,22 +747,28 @@ namespace
                 ~Counted() override { ++destroyed; }
             };
             auto* old = new Counted(oldDestroyed);
-            ShapeManager::Register("phase20-retired", old);
-            ShapeManager::Register("phase20-retired", old);
-            ShapeManager::Register("phase20-retired", new Counted(duplicateDestroyed));
-            Check(duplicateDestroyed == 1 && oldDestroyed == 0 && ShapeManager::GetShape("phase20-retired") == old,
+            Check(ShapeManager::Register("phase20-retired", old).has_value(), "Shape registration failed");
+            Check(ShapeManager::Register("phase20-retired", old).has_value(), "Shape registration failed");
+            Check(ShapeManager::Register("phase20-retired", new Counted(duplicateDestroyed)).has_value(), "Shape registration failed");
+            Check(duplicateDestroyed == 1 && oldDestroyed == 0 && ShapeManager::FindShape("phase20-retired").value() == old,
                 "Duplicate registration leaked its candidate or invalidated the original borrower");
-            ExpectFailure([&] { ShapeManager::Register("alias", old); }, "Same geometry acquired two owners");
-            ShapeManager::UnRegister("phase20-retired");
-            ShapeManager::UnRegister("phase20-retired");
-            Check(!ShapeManager::GetShape("phase20-retired") && oldDestroyed == 0,
+            auto alias = ShapeManager::Register("alias", old);
+            Check(!alias && std::get<ShapeRegistrationError>(alias.error()).code == ShapeRegistrationErrorCode::AlreadyOwned,
+                "Same geometry acquired two owners");
+            Check(ShapeManager::RetireShape("phase20-retired").has_value(), "Typed shape retirement failed");
+            Check(ShapeManager::RetireShape("phase20-retired").has_value(), "Typed shape retirement failed");
+            Check(!ShapeManager::FindShape("phase20-retired").value() && oldDestroyed == 0,
                 "Unregister invalidated an existing borrower");
             auto* replacement = new Counted(replacementDestroyed);
-            ShapeManager::Register("phase20-retired", replacement);
-            Check(ShapeManager::GetShape("phase20-retired") == replacement && oldDestroyed == 0,
+            Check(ShapeManager::Register("phase20-retired", replacement).has_value(), "Shape registration failed");
+            Check(ShapeManager::FindShape("phase20-retired").value() == replacement && oldDestroyed == 0,
                 "Explicit replacement destroyed a retired borrower");
-            ExpectFailure([&] { ShapeManager::Register("alias", old); }, "Retired geometry acquired a second owner");
-            ExpectFailure([] { ShapeManager::GetModel("phase20-missing-model"); }, "Missing model was published");
+            auto retiredAlias = ShapeManager::Register("alias", old);
+            Check(!retiredAlias && std::get<ShapeRegistrationError>(retiredAlias.error()).code == ShapeRegistrationErrorCode::AlreadyOwned,
+                "Retired geometry acquired a second owner");
+            const auto missingModel = ShapeManager::GetModel("phase20-missing-model");
+            Check(!missingModel && std::holds_alternative<PlatformError>(missingModel.error()),
+                "Missing model was published or lost typed path error");
 
             const auto fontPath = std::filesystem::absolute("phase20-font.ttf");
             std::filesystem::remove(fontPath); // Fixture-owned file in the isolated runtime directory.
@@ -869,8 +926,8 @@ namespace
                 while (glGetError() != GL_NO_ERROR) {} // Existing target initialization diagnostics.
                 {
                     const std::array<float, 4> initial{1.f, 2.f, 3.f, 4.f};
-                    UniformBufferObject<UniformType::VEC4F> buffer(1);
-                    glBindBuffer(GL_UNIFORM_BUFFER, buffer.GetUBO());
+                    auto buffer = TakeUniform(UniformBufferObject<UniformType::VEC4F>::Create(1));
+                    glBindBuffer(GL_UNIFORM_BUFFER, IndexedUniform(0));
                     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(initial), initial.data());
                     const std::array<float, 2> update{8.f, 9.f};
                     glBufferSubData(GL_UNIFORM_BUFFER, sizeof(float), sizeof(update), update.data());
@@ -897,6 +954,238 @@ namespace
         }
     }
 
+
+    struct ModelNames
+    {
+        inline static PFNGLGENBUFFERSPROC genBuffers;
+        inline static PFNGLDELETEBUFFERSPROC deleteBuffers;
+        inline static PFNGLGENVERTEXARRAYSPROC genArrays;
+        inline static PFNGLDELETEVERTEXARRAYSPROC deleteArrays;
+        inline static std::unordered_set<GLuint> buffers, arrays, seenBuffers, seenArrays;
+        inline static unsigned generatedBuffers=0,retiredBuffers=0,generatedArrays=0,retiredArrays=0;
+        inline static bool valid=true;
+        inline static SDL_GLContext context=nullptr;
+        inline static SDL_threadID thread=0;
+        static void Owner(){valid &= SDL_GL_GetCurrentContext()==context && SDL_ThreadID()==thread;}
+        static void APIENTRY GenerateBuffers(GLsizei n,GLuint* names)
+        {
+            Owner();
+            genBuffers(n,names);
+            for(int i=0;i<n;++i){valid &= names[i] && buffers.insert(names[i]).second;++generatedBuffers;seenBuffers.insert(names[i]);}
+        }
+        static void APIENTRY DeleteBuffers(GLsizei n,const GLuint* names)
+        {
+            Owner();
+            for(int i=0;i<n;++i)if(buffers.erase(names[i]))++retiredBuffers;else if(names[i] && seenBuffers.contains(names[i]))valid=false;
+            deleteBuffers(n,names);
+        }
+        static void APIENTRY GenerateArrays(GLsizei n,GLuint* names)
+        {
+            Owner();
+            genArrays(n,names);
+            for(int i=0;i<n;++i){valid &= names[i] && arrays.insert(names[i]).second;++generatedArrays;seenArrays.insert(names[i]);}
+        }
+        static void APIENTRY DeleteArrays(GLsizei n,const GLuint* names)
+        {
+            Owner();
+            for(int i=0;i<n;++i)if(arrays.erase(names[i]))++retiredArrays;else if(names[i] && seenArrays.contains(names[i]))valid=false;
+            deleteArrays(n,names);
+        }
+        ModelNames()
+        {
+            context=SDL_GL_GetCurrentContext();thread=SDL_ThreadID();
+            buffers.clear();arrays.clear();seenBuffers.clear();seenArrays.clear();generatedBuffers=retiredBuffers=generatedArrays=retiredArrays=0;valid=true;
+            genBuffers=glad_glGenBuffers;deleteBuffers=glad_glDeleteBuffers;
+            genArrays=glad_glGenVertexArrays;deleteArrays=glad_glDeleteVertexArrays;
+            glad_glGenBuffers=GenerateBuffers;glad_glDeleteBuffers=DeleteBuffers;
+            glad_glGenVertexArrays=GenerateArrays;glad_glDeleteVertexArrays=DeleteArrays;
+        }
+        ~ModelNames()
+        {
+            glad_glGenBuffers=genBuffers;glad_glDeleteBuffers=deleteBuffers;
+            glad_glGenVertexArrays=genArrays;glad_glDeleteVertexArrays=deleteArrays;
+        }
+        void Empty() const
+        {Check(valid && buffers.empty() && arrays.empty() && generatedBuffers==retiredBuffers && generatedArrays==retiredArrays,
+            "Imported model resources were not retired exactly");}
+    };
+
+    struct RegistrationGeometry : Geometry
+    {
+        int& destroyed;
+        explicit RegistrationGeometry(int& count) : destroyed(count)
+        { AddAttributes(std::vector<Vec3f>{{0.f,0.f,0.f},{1.f,0.f,0.f},{0.f,1.f,0.f}}); }
+        ~RegistrationGeometry() override { ++destroyed; }
+    };
+    struct DeniedGeometry : Geometry
+    {
+        explicit DeniedGeometry(int& constructed) { ++constructed; }
+        static void* operator new(std::size_t, const std::nothrow_t&) noexcept { return nullptr; }
+        static void operator delete(void* p) noexcept { std::free(p); }
+        static void operator delete(void* p, const std::nothrow_t&) noexcept { std::free(p); }
+    };
+    void RegistrationErrors()
+    {
+        const auto noRoot = ShapeManager::Register("no-root", nullptr);
+        Check(!noRoot && std::get<PlatformError>(noRoot.error()).code == PlatformErrorCode::InvalidState,
+            "Registration outside root lifetime did not use typed context failure");
+        int unavailable = 0;
+        Check(!ShapeManager::_GetShape<RegistrationGeometry>("no-root", unavailable) && unavailable == 0,
+            "Template construction reached GPU without a root");
+        {
+            EngineContext root;
+            auto uninitialized = ShapeManager::Register("uninitialized", nullptr);
+            Check(!uninitialized && std::get<PlatformError>(uninitialized.error()).message == "Shape services are unavailable",
+                "Uninitialized registration used legacy manager access");
+        }
+        RuntimeAssets::Initialize("GEngineEditor");
+        auto app = std::make_unique<BaseApp>();
+        Check(app->Initialize(Properties()).has_value(), "Registration fixture startup failed");
+        ModelNames names;
+        auto reject = [](const ShapeManager::RegistrationResult& result, ShapeRegistrationErrorCode code, const char* name)
+        {
+            Check(!result, "Invalid registration succeeded");
+            const auto* error = std::get_if<ShapeRegistrationError>(&result.error());
+            Check(error && error->code == code && error->operation == "ShapeManager::Register" && error->name == name
+                && error->message == (code == ShapeRegistrationErrorCode::NullGeometry ? "Cannot register a null shape"
+                    : "Geometry already belongs to this manager"), "Registration diagnostic lost operation/code/name/message");
+        };
+        reject(ShapeManager::Register("null-shape", nullptr), ShapeRegistrationErrorCode::NullGeometry, "null-shape");
+        int oldDestroyed=0, duplicateDestroyed=0, replacementDestroyed=0, restoredDestroyed=0, lazyDestroyed=0;
+        auto* old = new RegistrationGeometry(oldDestroyed);
+        Check(ShapeManager::Register("retired", old).has_value(), "Initial owner transfer failed");
+        Check(ShapeManager::Register("retired", old).has_value(), "Idempotent registration failed");
+        Check(ShapeManager::Register("retired", new RegistrationGeometry(duplicateDestroyed)).has_value(), "Duplicate key failed");
+        Check(duplicateDestroyed==1 && oldDestroyed==0 && ShapeManager::FindShape("retired").value()==old,
+            "Duplicate candidate changed existing ownership");
+        reject(ShapeManager::Register("alias", old), ShapeRegistrationErrorCode::AlreadyOwned, "alias");
+        Check(ShapeManager::RetireShape("retired").has_value(), "Typed shape retirement failed");
+        reject(ShapeManager::Register("retired-alias", old), ShapeRegistrationErrorCode::AlreadyOwned, "retired-alias");
+        auto* replacement = new RegistrationGeometry(replacementDestroyed);
+        Check(ShapeManager::Register("retired", replacement).has_value() && ShapeManager::FindShape("retired").value()==replacement
+            && oldDestroyed==0, "Replacement did not preserve retired borrower");
+        auto lazy = ShapeManager::_GetShape<RegistrationGeometry>("lazy", lazyDestroyed);
+        Check(lazy.has_value(), "Typed template construction failed");
+        const auto generated = ModelNames::generatedBuffers;
+        auto cached = ShapeManager::_GetShape<RegistrationGeometry>("lazy", lazyDestroyed);
+        Check(cached && *cached==*lazy && lazyDestroyed==0
+            && ModelNames::generatedBuffers==generated, "Cached template allocated or replaced its owner");
+        int constructed=0;
+        auto denied = ShapeManager::_GetShape<DeniedGeometry>("allocation", constructed);
+        const auto* allocation = denied ? nullptr : std::get_if<ShapeRegistrationError>(&denied.error());
+        Check(allocation && allocation->code==ShapeRegistrationErrorCode::Allocation && allocation->name=="allocation"
+            && allocation->operation=="ShapeManager::_GetShape" && allocation->message=="Shape owner allocation failed"
+            && constructed==0 && !ShapeManager::FindShape("allocation").value(), "Outer allocation failure lost cause or constructed/published geometry");
+        auto* restored = new RegistrationGeometry(restoredDestroyed);
+        ShapeManager::RegistrationResult workerResult;
+        std::thread worker([&]{workerResult=ShapeManager::Register("restored", restored);}); worker.join();
+        Check(!workerResult && std::get<PlatformError>(workerResult.error()).message=="EngineContext access requires its owner thread"
+            && restoredDestroyed==0, "Foreign registration touched or consumed the GPU owner");
+        Check(static_cast<SDLWindow*>(app->GetWindow())->NullRender().has_value(), "Context detach failed");
+        Check(ShapeManager::Register("restored", restored).has_value() && app->GetWindow()->IsCurrent(),
+            "Typed registration did not restore the owning context");
+        auto models = ShapeManager::GetModels("dancing_vampire");
+        Check(models.has_value() && !models->get().empty(), "Animated model alias fixture missing");
+        reject(ShapeManager::Register("model-alias", models->get().front()), ShapeRegistrationErrorCode::AlreadyOwned, "model-alias");
+        Check(ModelNames::generatedBuffers==13 && ModelNames::generatedArrays==6,
+            "Registration/model payload ownership fixture changed unexpectedly");
+        app.reset(); names.Empty(); PlatformGone();
+        Check(oldDestroyed==1 && duplicateDestroyed==1 && replacementDestroyed==1 && restoredDestroyed==1 && lazyDestroyed==1,
+            "Registration lifetime did not retire each candidate/current/retired owner exactly once");
+        Check(!ShapeManager::Register("retired-root", nullptr), "Registration survived root retirement");
+        std::cout << "[PASS] registration typed ownership buffers=" << ModelNames::generatedBuffers << "/" << ModelNames::retiredBuffers
+            << " arrays=" << ModelNames::generatedArrays << "/" << ModelNames::retiredArrays << " owners=5 owner-context=1 root=0\n";
+    }
+
+#ifdef RAW_MODEL_INTERNAL_PROBE
+    void StaticModels()
+    {
+        const auto noRoot=ShapeManager::GetModel("barrel");
+        Check(!noRoot && std::get<PlatformError>(noRoot.error()).code==PlatformErrorCode::InvalidState,
+            "Model lookup outside root lifetime did not use typed error");
+        RuntimeAssets::Initialize("GEngineEditor");
+        auto app=std::make_unique<BaseApp>();Check(app->Initialize(Properties()).has_value(),"Static model startup failed");
+        ModelNames names;
+        const std::string fixture="two-meshes.obj";
+        {
+            std::ofstream file(fixture);
+            file << "o first\nv 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nf 1/1 2/2 3/3\n"
+                    "o second\nv 0 0 2\nv 1 0 2\nv 0 1 2\nf 4/1 5/2 6/3\n";
+            file.close();Check(!file.fail(),"Fixture write failed");
+        }
+        {
+            auto result=RawModel::Create(fixture);Check(result.has_value(),"Valid two-mesh import failed");
+            auto moved=std::move(*result);
+            auto meshes=std::move(moved).TakeGeometries();
+            Check(meshes.size()==2,"Import order/mesh count changed");
+            Check(ModelNames::buffers.size()==12 && ModelNames::arrays.size()==2,"Unexpected imported resource ownership");
+            for(unsigned i=0;i<2;++i)
+            {
+                auto& attributes=meshes[i]->GetAttributes();
+                const auto& positions=std::get<Buffer::Attribute<Vec3f>>(attributes.at(0)).m_Data;
+                const auto& uv=std::get<Buffer::Attribute<Vec2f>>(attributes.at(1)).m_Data;
+                const auto& normal=std::get<Buffer::Attribute<Vec3f>>(attributes.at(2)).m_Data;
+                Check(positions.size()==3 && positions[0]==Vec3f(0,0,float(i)*2) && positions[1]==Vec3f(1,0,float(i)*2),"Imported position payload changed");
+                Check(uv.size()==3 && uv[0]==Vec2f(0,1) && normal.size()==3 && normal[0]==Vec3f(0,0,1),"UV flip or generated normal payload changed");
+                Check(meshes[i]->GetIndicesCount()==3,"Triangle index payload changed");
+            }
+        }
+        names.Empty();
+        const auto before=ModelNames::generatedBuffers;
+        auto missing=RawModel::Create("missing-model.obj");
+        Check(!missing && missing.error().code==ModelImportErrorCode::ImportFailed && missing.error().operation=="RawModel::Create"
+            && missing.error().source=="missing-model.obj" && missing.error().message.starts_with("ERROR::ASSIMP:: ")
+            && missing.error().message.size()>16,"Import failure lost diagnostic details");
+        {std::ofstream file("malformed.obj");file<<"v not-a-number 0 0\nf missing\n";file.close();Check(!file.fail(),"Malformed fixture write failed");}
+        auto malformed=RawModel::Create("malformed.obj");Check(!malformed && !malformed.error().message.empty(),"Malformed import did not fail recoverably");
+        Check(ModelNames::generatedBuffers==before,"Rejected input created GPU resources");
+        {
+            Assimp::Importer importer;
+            auto* scene=const_cast<aiScene*>(importer.ReadFile(fixture,
+                aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_CalcTangentSpace));
+            Check(scene && scene->mRootNode && scene->mNumMeshes==2 && scene->mMeshes[1]->mNumFaces,
+                "Native fixture import failed");
+            auto* root=scene->mRootNode;
+            auto* second=scene->mMeshes[1];
+            struct Restore
+            {
+                aiScene* scene;aiNode* root;unsigned meshes,children;unsigned* index;unsigned previous;
+                ~Restore(){scene->mRootNode=root;root->mNumMeshes=meshes;root->mNumChildren=children;*index=previous;}
+            } restore{scene,root,root->mNumMeshes,root->mNumChildren,&second->mFaces[0].mIndices[0],second->mFaces[0].mIndices[0]};
+            scene->mRootNode=nullptr;
+            auto invalid=::GEngine::BuildModel(*scene,"native-invalid");
+            Check(!invalid && invalid.error().code==ModelImportErrorCode::InvalidScene,"Missing root not typed");
+            scene->mRootNode=root;root->mNumMeshes=root->mNumChildren=0;
+            auto empty=::GEngine::BuildModel(*scene,"native-empty");
+            Check(!empty && empty.error().code==ModelImportErrorCode::NoGeometry
+                && empty.error().message=="Model contains no geometry: native-empty","Empty import lost original diagnostic");
+            root->mNumMeshes=restore.meshes;root->mNumChildren=restore.children;
+            second->mFaces[0].mIndices[0]=second->mNumVertices;
+            const auto made=ModelNames::generatedBuffers;
+            auto partial=::GEngine::BuildModel(*scene,"native-partial");
+            Check(!partial && partial.error().code==ModelImportErrorCode::InvalidData
+                && partial.error().source=="native-partial" && partial.error().message=="Model face index is outside its vertex data",
+                "Partial import lost typed failure");
+            Check(ModelNames::generatedBuffers==made+6,"Partial import fixture did not allocate its first mesh");
+            names.Empty();
+        }
+
+        auto first=ShapeManager::GetModel("barrel");Check(first.has_value(),"Actual manager import failed");
+        const auto generated=ModelNames::generatedBuffers;
+        auto cached=ShapeManager::GetModel("barrel");
+        Check(cached && *cached==*first && ModelNames::generatedBuffers==generated,"Model cache borrower or allocation changed");
+        auto absent=ShapeManager::GetModel("phase66-missing-model");
+        Check(!absent && std::holds_alternative<PlatformError>(absent.error()),"Manager missing path not typed");
+        const auto retained=ModelNames::buffers.size();
+        Check(ShapeManager::RetireShape("barrel").has_value(), "Typed shape retirement failed");Check(ModelNames::buffers.size()==retained && (*first)->GetVerticesCount()>0,"Unregister destroyed existing model borrower");
+        auto replacement=ShapeManager::GetModel("barrel");Check(replacement && *replacement!=*first,"Model replacement aliased retired borrower");
+        app.reset();names.Empty();PlatformGone();
+        Check(!ShapeManager::GetModel("barrel"),"Model cache accessible after root retirement");
+        std::cout<<"[PASS] static model payload/errors/partial/cache retirement buffers="<<ModelNames::generatedBuffers
+            <<" arrays="<<ModelNames::generatedArrays<<'\n';
+    }
+#endif
+
     // Each death case runs in a disposable process. The expected termination
     // handler is installed only after valid initialization; driver sentinels exit
     // with a different code if rejection ever forwards an illegal call to GL.
@@ -921,7 +1210,7 @@ namespace
             std::set_terminate([] { std::_Exit(86); });
             GLuint id = 0;
             std::array<unsigned char, 4> pixel{};
-            if (mode == "--reject-create") { UniformBufferObject<UniformType::VEC4F> buffer(1); }
+            if (mode == "--reject-create") { auto buffer = TakeUniform(UniformBufferObject<UniformType::VEC4F>::Create(1)); }
             else if (mode == "--reject-upload") glBufferSubData(GL_ARRAY_BUFFER, 0, 1, pixel.data());
             else if (mode == "--reject-delete") glDeleteBuffers(1, &id);
             else if (mode == "--reject-submit") glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -942,6 +1231,154 @@ namespace
     }
 }
 
+#ifdef SHAPE_REGISTRATION_STARTUP_PROBE
+#define main ProductionEntryPoint
+#include "EntryPoint.h"
+#undef main
+namespace RegistrationStartup
+{
+    std::string_view mode;
+    unsigned runs=0,renders=0,destructors=0;
+    int shapeDestroyed=0;
+    std::unique_ptr<ModelNames> names;
+    class App final : public ::GEngine::BaseApp
+    {
+    public:
+        ::GEngine::ApplicationInitializationResult Initialize(const std::initializer_list<::GEngine::WindowProperties>& props) override
+        {
+            auto initialized=BaseApp::Initialize(props);
+            if(!initialized)
+            {
+                const auto* error=std::get_if<::GEngine::ShapeRegistrationError>(&initialized.error());
+                Check(mode=="allocation-failure" && denyShapeAllocation==-1 && error
+                    && error->code==::GEngine::ShapeRegistrationErrorCode::Allocation && error->name=="SkyBox"
+                    && error->operation=="ShapeManager::_GetShape" && error->message=="Shape owner allocation failed",
+                    "Default shape failure did not propagate intact through root/BaseApp");
+                return initialized;
+            }
+            auto registered=::GEngine::Manager::ShapeManager::Register("phase66-startup",
+                mode=="null-failure" ? nullptr : new RegistrationGeometry(shapeDestroyed));
+            if(!registered) return std::visit([](const auto& error)->::GEngine::ApplicationInitializationResult
+                { return std::unexpected(error); }, registered.error());
+            return {};
+        }
+        ::GEngine::ApplicationRunResult Run() override {++runs;Render();return {};}
+        void Render() override {++renders;}
+        ~App() override
+        {
+            ++destructors;
+            if(mode=="allocation-failure") Check(GetEngineContext().GetState()==::GEngine::EngineContext::State::Failed
+                && !GetWindow() && SDL_WasInit(0)==0, "Failed root did not roll back before application destruction");
+            else Check(SDL_GL_GetCurrentContext()!=nullptr, "Application owners outlived context");
+        }
+    };
+}
+extern "C" int Phase66RealGladLoadGL(void);
+extern "C" int gladLoadGL(void)
+{
+    const int result=Phase66RealGladLoadGL();
+    if(result)RegistrationStartup::names=std::make_unique<ModelNames>();
+    return result;
+}
+::GEngine::WindowProperties winProp=Properties();
+::GEngine::BaseApp* CreateApp(){return new RegistrationStartup::App;}
+int main(int argc,char** argv)
+{
+    if(argc!=2)return 2;
+    RegistrationStartup::mode=argv[1];const auto mode=RegistrationStartup::mode;
+    if(mode!="allocation-failure" && mode!="null-failure" && mode!="success")return 2;
+    if(mode=="allocation-failure")denyShapeAllocation=2;
+    SDL_SetMainReady();
+    const int status=ProductionEntryPoint(argc,argv);
+    const bool success=mode=="success";
+    Check(status==(success?0:1) && RegistrationStartup::runs==(success?1u:0u)
+        && RegistrationStartup::renders==(success?1u:0u) && RegistrationStartup::destructors==1,
+        "Startup failure did not stop Run/render or retire application");
+    Check(RegistrationStartup::names!=nullptr, "Startup loader tracking was not reached");
+    RegistrationStartup::names->Empty();RegistrationStartup::names.reset();PlatformGone();
+    Check(RegistrationStartup::shapeDestroyed==(success?1:0), "Startup candidate did not retire exactly once");
+    if(mode=="allocation-failure")Check(ModelNames::generatedBuffers==7 && ModelNames::generatedArrays==2,
+        "Default allocation injection did not preserve and retire the exact Quad/Box prefix");
+    std::cout<<"[PASS] registration startup "<<mode<<" exit="<<status<<" runs="<<RegistrationStartup::runs
+        <<" renders="<<RegistrationStartup::renders<<" buffers="<<ModelNames::generatedBuffers<<"/"<<ModelNames::retiredBuffers
+        <<" arrays="<<ModelNames::generatedArrays<<"/"<<ModelNames::retiredArrays<<" owner=1 root=0 SDL=0 TTF=0 teardown=1\n";
+    return status;
+}
+#elif defined(RAW_MODEL_STARTUP_PROBE)
+#define main ProductionEntryPoint
+#include "EntryPoint.h"
+#undef main
+namespace ModelStartup
+{
+    bool fail=false;
+    unsigned runs=0,renders=0,destructors=0;
+    std::unique_ptr<ModelNames> names;
+    spdlog::logger* logger=nullptr;
+    std::vector<spdlog::sink_ptr> sinks;
+    spdlog::level::level_enum level=spdlog::level::trace;
+    class App final : public ::GEngine::BaseApp
+    {
+    public:
+        ::GEngine::ApplicationInitializationResult Initialize(const std::initializer_list<::GEngine::WindowProperties>& props) override
+        {
+            auto initialized=BaseApp::Initialize(props);if(!initialized)return initialized;
+#ifndef PLATFORM_STARTUP_OWNERSHIP
+            names=std::make_unique<ModelNames>();
+#endif
+            auto& core=::GEngine::Log::GetCoreLogger();logger=core.get();sinks=core->sinks();level=core->level();
+            Check(core->name()=="GENGINE","Platform reporter changed logger category");
+            core->set_level(spdlog::level::critical);
+            ::GEngine::ReportPlatformError({::GEngine::PlatformErrorCode::ResourcePath,"phase66-filtered-operation","phase66-filtered-message"});
+            core->set_level(level);
+            auto model=::GEngine::Manager::ShapeManager::GetModel(fail?"phase66-missing-model":"barrel");
+            if(!model)
+            {
+                const auto* platform=std::get_if<::GEngine::PlatformError>(&model.error());
+                Check(platform && platform->code==::GEngine::PlatformErrorCode::ResourcePath
+                    && platform->operation==::GEngine::RuntimeAssets::File("Models/phase66-missing-model.obj")
+                    && platform->message=="Required platform asset is missing","Platform error type/code/source/message changed");
+                return std::visit([](const auto& error)->::GEngine::ApplicationInitializationResult {
+                return std::unexpected(::GEngine::ApplicationInitializationError{error});
+            },model.error());
+            }
+            return {};
+        }
+        ::GEngine::ApplicationRunResult Run() override {++runs;Render();return {};}
+        void Render() override {++renders;}
+        ~App() override {++destructors;Check(SDL_GL_GetCurrentContext()!=nullptr,"Model app retired after context");}
+    };
+}
+#ifdef PLATFORM_STARTUP_OWNERSHIP
+extern "C" int Phase66RealGladLoadGL(void);
+extern "C" int gladLoadGL(void)
+{
+    const int result=Phase66RealGladLoadGL();
+    if(result)ModelStartup::names=std::make_unique<ModelNames>();
+    return result;
+}
+#endif
+::GEngine::WindowProperties winProp=Properties();
+::GEngine::BaseApp* CreateApp(){return new ModelStartup::App;}
+int main(int argc,char** argv)
+{
+    if(argc!=2)return 2;
+    const std::string_view mode=argv[1];if(mode!="failure"&&mode!="success")return 2;
+    ModelStartup::fail=mode=="failure";SDL_SetMainReady();
+    const int status=ProductionEntryPoint(argc,argv);
+    Check(status==(ModelStartup::fail?1:0) && ModelStartup::runs==(ModelStartup::fail?0u:1u)
+        && ModelStartup::renders==(ModelStartup::fail?0u:1u)
+        && ModelStartup::destructors==1,"Model startup exit/Run/render/destruction contract failed");
+    Check(ModelStartup::names!=nullptr,"Actual model lookup was not reached");
+    ModelStartup::names->Empty();ModelStartup::names.reset();PlatformGone();
+    const auto& core=::GEngine::Log::GetCoreLogger();
+    Check(core.get()==ModelStartup::logger && core->name()=="GENGINE" && core->sinks()==ModelStartup::sinks
+        && core->level()==ModelStartup::level,"Platform reporting changed logger/sinks/filtering");
+    std::cout<<"[OBSERVE] platform startup exact buffers="<<ModelNames::generatedBuffers<<"/"<<ModelNames::retiredBuffers
+        <<" arrays="<<ModelNames::generatedArrays<<"/"<<ModelNames::retiredArrays<<" owner=1 root=0 SDL=0 TTF=0 renders="<<ModelStartup::renders<<'\n';
+    std::cout<<"[PASS] static model startup "<<mode<<" exit="<<status<<" runs="<<ModelStartup::runs<<" buffers=0 teardown=1\n";
+    return status;
+}
+#else
 int main(int argc, char** argv)
 {
     SDL_SetMainReady();
@@ -959,6 +1396,10 @@ int main(int argc, char** argv)
         else if (mode == "--resource-moves") ResourceMoves();
         else if (mode == "--cache-ownership") CacheOwnership();
         else if (mode == "--manager-failures") ManagerFailures();
+        else if (mode == "--shape-registration") RegistrationErrors();
+#ifdef RAW_MODEL_INTERNAL_PROBE
+        else if (mode == "--static-models") StaticModels();
+#endif
         else if (mode == "--context-thread") ContextThread();
         else if (mode.starts_with("--reject-")) WrongThread(mode);
         else throw std::invalid_argument("Unknown shutdown probe mode");
@@ -972,3 +1413,7 @@ int main(int argc, char** argv)
         return 1;
     }
 }
+
+#endif
+
+#endif

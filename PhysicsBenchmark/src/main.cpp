@@ -5,6 +5,8 @@
 #include <GEngine/Physics/ShapeBox.h>
 #include <GEngine/Physics/ShapeSphere.h>
 
+#include <concepts>
+#include <utility>
 #include <algorithm>
 #include <bit>
 #include <chrono>
@@ -20,6 +22,25 @@
 
 namespace
 {
+    // Valid test inputs use the same typed construction contract as production callers.
+    template<class Shape, class... Args>
+        requires requires(Args&&... args) {
+            { Shape::Create(std::forward<Args>(args)...) } -> std::same_as<std::expected<Shape, GEngine::PhysicsShapeError>>;
+        }
+    Shape MakeFixtureShape(Args&&... args)
+    {
+        auto result = Shape::Create(std::forward<Args>(args)...);
+        if (!result) {
+            const auto& error = result.error();
+            std::cerr << "[FAIL] Valid shape fixture: operation=" << error.operation
+                << " code=" << static_cast<unsigned>(error.code) << " entity=" << error.entity
+                << " radius=" << error.radius << " points=" << error.pointCount << ": " << error.message << '\n';
+            std::exit(1);
+        }
+        return std::move(*result);
+    }
+
+
 	using Clock = std::chrono::steady_clock;
 	using GEngine::PhysicsProfileSnapshot;
 
@@ -359,7 +380,7 @@ namespace
 
 	RegressionResult RunAsymmetricBodyRegression(int stepCount, float dtSeconds)
 	{
-		GEngine::ShapeBox shape(BoxPoints(GEngine::Vec3f(1.0f, 2.0f, 3.0f)));
+		GEngine::ShapeBox shape(MakeFixtureShape<GEngine::ShapeBox>(BoxPoints(GEngine::Vec3f(1.0f, 2.0f, 3.0f))));
 		GEngine::RigidBody3D body;
 		ConfigureProbeBody(body, shape, GEngine::Vec3f(0.0f),
 			GEngine::Component::BodyType::Dynamic, 1.0f);
@@ -402,8 +423,8 @@ namespace
 
 	RegressionResult RunBoxStackRegression(int stepCount, float dtSeconds, int solverIterations)
 	{
-		GEngine::ShapeBox box(UnitBoxPoints());
-		GEngine::ShapeBox floor(BoxPoints(GEngine::Vec3f(50.0f, 0.5f, 50.0f)));
+		GEngine::ShapeBox box(MakeFixtureShape<GEngine::ShapeBox>(UnitBoxPoints()));
+		GEngine::ShapeBox floor(MakeFixtureShape<GEngine::ShapeBox>(BoxPoints(GEngine::Vec3f(50.0f, 0.5f, 50.0f))));
 		GEngine::PhysicsSystem system;
 		system.SetSolverIterations(solverIterations);
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
@@ -432,8 +453,8 @@ namespace
 
 	RegressionResult RunSingleSphereRegression(int stepCount, float dtSeconds, int solverIterations)
 	{
-		GEngine::ShapeSphere sphere(1.0f);
-		GEngine::ShapeBox floor(BoxPoints(GEngine::Vec3f(50.0f, 0.5f, 50.0f)));
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
+		GEngine::ShapeBox floor(MakeFixtureShape<GEngine::ShapeBox>(BoxPoints(GEngine::Vec3f(50.0f, 0.5f, 50.0f))));
 		GEngine::PhysicsSystem system;
 		system.SetSolverIterations(solverIterations);
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
@@ -451,8 +472,8 @@ namespace
 
 	RegressionResult RunSphereLatticeRegression(int stepCount, float dtSeconds, int solverIterations)
 	{
-		GEngine::ShapeSphere sphere(1.0f);
-		GEngine::ShapeBox floor(BoxPoints(GEngine::Vec3f(50.0f, 0.5f, 50.0f)));
+		GEngine::ShapeSphere sphere(MakeFixtureShape<GEngine::ShapeSphere>(1.0f));
+		GEngine::ShapeBox floor(MakeFixtureShape<GEngine::ShapeBox>(BoxPoints(GEngine::Vec3f(50.0f, 0.5f, 50.0f))));
 		GEngine::PhysicsSystem system;
 		system.SetSolverIterations(solverIterations);
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
@@ -820,7 +841,7 @@ int main(int argc, char** argv)
 		{
 			return RunPhysicsRegressionBaseline(options.solverIterations);
 		}
-		GEngine::ShapeBox shape(UnitBoxPoints());
+		GEngine::ShapeBox shape(MakeFixtureShape<GEngine::ShapeBox>(UnitBoxPoints()));
 
 		std::cout << "# benchmark="
 			<< (options.steadyStateMeasuredSteps > 0

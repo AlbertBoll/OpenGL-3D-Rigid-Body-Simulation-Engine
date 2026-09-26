@@ -1,3 +1,7 @@
+#include <concepts>
+#include <functional>
+#include <cstdlib>
+#include <iostream>
 #include "Scene/_Entity.h"
 #include "Core/RenderTarget.h"
 #include "Core/GLContextThread.h"
@@ -17,8 +21,50 @@ namespace
     using namespace GEngine::Asset;
     using namespace GEngine::Component;
     int checks{};
+    // Test-only preparation for bounded Scene value/void result migrations.
+    template<std::invocable Operation>
+    auto SceneOperationChecked(Operation&& operation)
+    {
+        using Result = std::remove_cvref_t<std::invoke_result_t<Operation>>;
+        if constexpr (std::is_void_v<Result>) {
+            std::invoke(std::forward<Operation>(operation));
+        } else {
+            auto result = std::invoke(std::forward<Operation>(operation));
+            if constexpr (requires { typename Result::error_type; typename Result::value_type; }) {
+                if (!result) {
+                    const auto& error = result.error();
+                    std::cerr << "[FAIL] Valid Scene fixture: operation=" << error.operation
+                        << " code=" << static_cast<unsigned>(error.code) << " entity=" << error.entity
+                        << ": " << error.message << '\n';
+                    std::exit(1);
+                }
+                if constexpr (std::is_void_v<typename Result::value_type>) return;
+                else return std::move(*result);
+            } else return result;
+        }
+    }
+
     template<class T> void Check(const T& value, const char* message)
     { ++checks; if (!static_cast<bool>(value)) { std::println(stderr, "[FAIL] {}", message); std::exit(1); } }
+    // Test-only bridge while bounded callers precede the Scene typed-return migration.
+    template<std::invocable Start>
+    void StartRuntimeChecked(Start&& start)
+    {
+        if constexpr (std::is_void_v<std::invoke_result_t<Start>>)
+            std::invoke(std::forward<Start>(start));
+        else
+        {
+            auto result=std::invoke(std::forward<Start>(start));
+            if(!result)
+            {
+                std::cerr << "[FAIL] Valid fixture runtime startup: operation=" << result.error().operation
+                    << " code=" << static_cast<unsigned>(result.error().code)
+                    << " entity=" << result.error().entity << " radius=" << result.error().radius
+                    << " points=" << result.error().pointCount << ": " << result.error().message << '\n';
+                std::exit(1);
+            }
+        }
+    }
     const EntityRenderState& Find(const SceneRenderState& state, EntityRenderId id)
     {
         for (const auto& entry : state.entities) if (entry.entity == id) return entry;
@@ -130,7 +176,7 @@ namespace
         }
         std::pair<_Entity,EntityRenderId> Entity()
         {
-            auto entity=scene.CreateEntity(); auto id=scene.RenderData().Identify(entity).value();
+            auto entity=SceneOperationChecked([&] { return scene.CreateEntity(); }); auto id=scene.RenderData().Identify(entity).value();
             Check(scene.RenderData().Add(id,MeshRendererComponent{mesh,material}),"Add mesh component");
             return {entity,id};
         }
@@ -178,7 +224,7 @@ namespace
         Check(changed.revisions.mesh>before.mesh && changed.revisions.bounds>before.bounds && changed.revisions.transform==before.transform,"Replacement invalidates without transform write");
         Check(Find(changed,id).bounds.maximum[0]>=4 && Find(first,id).bounds.maximum[0]<2
             && Find(first,id).mesh.Revision()==1,"Old snapshot retains old mesh and bounds");
-        auto parent=f.scene.CreateEntity(); parent.Transform().Scale={2,.5f,3}; parent.Transform().SetRotation(Vec3f(.2f,.4f,.3f));
+        auto parent=SceneOperationChecked([&] { return f.scene.CreateEntity(); }); parent.Transform().Scale={2,.5f,3}; parent.Transform().SetRotation(Vec3f(.2f,.4f,.3f));
         Check(entity.SetParent(parent),"Parent mesh"); entity.Transform().Translation={1,2,3}; entity.Transform().Scale={-1,3,2};
         changed=f.Sample();
         Check(Find(changed,id).bounds.CanCull(),"Hierarchical presentation bounds");
@@ -225,11 +271,11 @@ namespace
         Check(changed.revisions.material>before.material && Find(changed,id).materialError
             && Find(changed,id).materialError->code==MaterialBindingCode::ProgramRevisionMismatch,"Program replacement has structured invalidation diagnosis");
         Check(Find(first,id).material->Program().Revision()==1,"Old snapshot keeps linked program version");
-        before=changed.revisions; f.scene.DestroyEntity(entity); changed=f.Sample();
+        before=changed.revisions; SceneOperationChecked([&] { return f.scene.DestroyEntity(entity); }); changed=f.Sample();
         Check(changed.revisions.mesh>before.mesh && changed.revisions.light>before.light && changed.revisions.camera>before.camera,"Removal propagates categories");
         auto [replacement,replacementId]=f.Entity(); (void)replacement;
         Check(replacementId!=id && f.Sample().entities.size()==2,"Slot reuse has fresh identity");
-        auto copied=_Scene::Copy(RefPtr<_Scene>(&f.scene,[](_Scene*){}));
+        auto copied=SceneOperationChecked([&] { return _Scene::Copy(RefPtr<_Scene>(&f.scene,[](_Scene*){})); });
         auto frame=f.publication.BeginFrame(); auto snapshot=copied->UpdateRenderState({frame,f.meshes,f.materials,{f.programs,f.textures,f.samplers},{}});
         Check(snapshot && snapshot->revisions.scene==1,"Copy does not inherit runtime caches");
         std::println("[PASS] revision causes, no-op writes, replacement, retention, failure and identity");
@@ -295,7 +341,10 @@ namespace
         Fixture f;std::vector<std::pair<_Entity,EntityRenderId>> entities;
         for(int i=0;i<36;++i){auto entry=f.Entity();entry.first.Transform().Translation={float(i),float(i%3),0};entities.push_back(entry);}
         auto first=MemoSample(f,"shared");auto stable=MemoSample(f,"stable");Check(first.revisions==stable.revisions,"Shared material no-op revisions");
-        Check(Find(first,entities[0].second).material->PackedWords().data()!=Find(first,entities[1].second).material->PackedWords().data(),"Per-entity value storage is independent");
+        static_assert(std::same_as<decltype(std::declval<const PreparedMaterialBinding&>().PackedWords()),
+            std::span<const std::uint32_t>>);
+        Check(std::ranges::equal(Find(first,entities[0].second).material->PackedWords(),
+            Find(first,entities[1].second).material->PackedWords()),"Equal material handles expose identical immutable packed values");
         auto distinct=MaterialInstance::Create(f.declaration).value();Check(distinct.SetParameter("roughness",.75f),"Distinct override");
         MaterialInstanceHandle distinctId;
         {auto p=f.publication.BeginPublication();distinctId=f.materials.Create(p,distinct).value();}
@@ -344,7 +393,7 @@ namespace
         auto live=MemoSample(f,"mixed-generations");
         {auto p=f.publication.BeginPublication();Check(f.targets.Replace(p,f.target,RenderTarget::Create(20,16,1).value()),"Target replacement");}
         auto target=MemoSample(f,"target");Check(target.revisions.target>live.revisions.target && target.revisions.material==live.revisions.material,"Target change does not alter material result");
-        auto parent=f.scene.CreateEntity();parent.Transform().Translation={2,3,4};Check(entities[0].first.SetParent(parent),"Shared-material hierarchy");
+        auto parent=SceneOperationChecked([&] { return f.scene.CreateEntity(); });parent.Transform().Translation={2,3,4};Check(entities[0].first.SetParent(parent),"Shared-material hierarchy");
         Check(f.scene.RenderData().Add(entities[0].second,VisibilityComponent{false,1}),"Visibility input");
         auto hierarchy=MemoSample(f,"hierarchy-visibility");Check(Find(hierarchy,entities[0].second).revisions.material==Find(target,entities[0].second).revisions.material,"Entity inputs stay outside material result");
         const auto pose=entities[0].first.Transform().GetTransform();
@@ -363,7 +412,7 @@ namespace
         entity.AddComponent<RigidBody3DComponent>().Type=BodyType::Kinematic;
         entity.AddComponent<SphereFixture3DComponent>().Radius=.1f;
         auto [child,childId]=f.Entity(); child.Transform().Translation={2,0,0}; Check(child.SetParent(entity),"Presentation child");
-        f.scene.OnRuntimeStart();
+        StartRuntimeChecked([&] { return f.scene.OnRuntimeStart(); });
         auto* body=entity.GetComponent<RigidBody3DComponent>().RuntimeBody;
         std::unique_ptr<PhysicalShape> shape(body->m_Shape); body->m_LinearVelocity={6,0,0};
         f.scene.Update(Timestep(_Scene::PhysicsStepSeconds)); auto zero=f.Sample();

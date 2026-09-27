@@ -12,13 +12,13 @@ namespace GEngine
     {
     public:
         SkyBoxMaterial(Construction& construction, const Asset::Texture& texture,
-            const std::string& vertexFileName = base_shader_dir + "skybox.vert",
-            const std::string& fragFileName = base_shader_dir + "skybox.frag");
+            const std::string& vertexFileName = "Shaders/skybox.vert",
+            const std::string& fragFileName = "Shaders/skybox.frag");
 
 
         SkyBoxMaterial(Construction& construction, const std::vector<Asset::Texture*>& textures,
-            const std::string& vertexFileName = base_shader_dir + "skybox.vert",
-            const std::string& fragFileName = base_shader_dir + "skybox.frag");
+            const std::string& vertexFileName = "Shaders/skybox.vert",
+            const std::string& fragFileName = "Shaders/skybox.frag");
 
         void UpdateRenderSettings() override;
 

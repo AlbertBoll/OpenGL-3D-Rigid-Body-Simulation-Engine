@@ -9,16 +9,16 @@ namespace GEngine
 	
 	class Terrain: public Geometry
 	{
-		inline static constexpr RuntimeAssets::Directory Image_Dir{ "Images/" };
+
 
 	public:
-		Terrain(int GridX, int GridZ, int size = 800, const std::string& heightMap = "heightmap");
-		Terrain(int size = 800, const std::string& heightMap="heightmap");
+		[[nodiscard]] static std::expected<std::unique_ptr<Terrain>, PlatformError> Create(int GridX, int GridZ, int size = 800, const std::string& heightMap = "heightmap");
+		[[nodiscard]] static std::expected<std::unique_ptr<Terrain>, PlatformError> Create(int size = 800, const std::string& heightMap = "heightmap");
 		float GetTerrainHeight(float WorldX, float WorldZ);
 
 	private:
 		float GetHeight(int x, int z);
-		bool load_image(std::vector<unsigned char>& image, const std::string& filename, int& x, int& y, int& bbp);
+		Terrain(int size, std::vector<unsigned char> pixels, int width, int height, int bpp);
 		Vec3f CalculateNormal(int x, int z);
 
 		Terrain& SetX(float x)
@@ -45,7 +45,7 @@ namespace GEngine
 		std::vector<unsigned char> m_Data;
 		int m_Width, m_Height, m_Bpp, m_Size;
 		std::vector<float> m_Heights;
-		float m_X, m_Z;
+		float m_X = 0, m_Z = 0;
 
 	};
 }

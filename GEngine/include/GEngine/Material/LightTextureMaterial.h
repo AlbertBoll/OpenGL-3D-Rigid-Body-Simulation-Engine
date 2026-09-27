@@ -13,8 +13,8 @@ namespace GEngine
     {
     public:
         LightTextureMaterial(Construction& construction, const Asset::Texture& texture,
-            const std::string& vertexFileName = base_shader_dir + "light.vert",
-            const std::string& fragFileName = base_shader_dir + "light.frag");
+            const std::string& vertexFileName = "Shaders/light.vert",
+            const std::string& fragFileName = "Shaders/light.frag");
 
 
         void UpdateRenderSettings() override;

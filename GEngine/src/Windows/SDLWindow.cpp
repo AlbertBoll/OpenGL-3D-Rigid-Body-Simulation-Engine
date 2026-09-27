@@ -142,7 +142,7 @@ namespace GEngine
 		GLContextThread::RequireOwner(m_OwnerThread, "SDLWindow::SwapBuffer");
 		GLContextThread::AssertCurrent("SDLWindow::SwapBuffer");
 #ifdef GENGINE_RENDER_BASELINE
-        RenderBaseline::Capture(m_Window);
+        RenderBaseline::Capture();
 #endif
 		SDL_GL_SwapWindow(m_Window);
 	}

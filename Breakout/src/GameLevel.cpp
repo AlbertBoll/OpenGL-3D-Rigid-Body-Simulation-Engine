@@ -10,18 +10,20 @@
 
 
 
-static constexpr ::GEngine::RuntimeAssets::Directory ImagePath{ "Breakout/images/" };
+static const std::string ImagePath = "Breakout/images/";
 static std::string ImageExtension = ".png";
 
 ApplicationInitializationResult GameLevel::Load(const std::string& file, unsigned int levelWidth, unsigned int levelHeight)
 {
-    // clear old data
+    auto resolved = file.starts_with("Breakout/") ? RuntimeAssets::TryFile(file) : std::expected<std::string, PlatformError>{file};
+    if (!resolved) return std::unexpected(resolved.error());
+    // Resolve before replacing live level contents.
     m_Bricks.clear();
     // load from file
     unsigned int tileCode;
     GameLevel level;
     std::string line;
-    std::ifstream fstream(file);
+    std::ifstream fstream(*resolved);
     std::vector<std::vector<unsigned int>> tileData;
     if (fstream)
     {
@@ -36,7 +38,7 @@ ApplicationInitializationResult GameLevel::Load(const std::string& file, unsigne
         if (tileData.size() > 0)
             return Initialize(tileData, levelWidth, levelHeight);
     }
-    return {};
+    return std::unexpected(PlatformError{PlatformErrorCode::ResourcePath, *resolved, "Missing, empty or unreadable level"});
 }
 
 void GameLevel::Render(CameraBase* camera)
@@ -69,10 +71,14 @@ ApplicationInitializationResult GameLevel::Initialize(std::vector<std::vector<un
     sprite.SpriteColor.Name = "u_spriteColor";
    
 
-    auto blockTexResult = AssetsManager::GetTextureOrFallback(ImagePath + "block" + ImageExtension);
+    auto blockPath = RuntimeAssets::ResolvePath(ImagePath + "block" + ImageExtension);
+    if (!blockPath) return std::unexpected(blockPath.error());
+    auto blockTexResult = AssetsManager::GetTextureOrFallback(*blockPath);
     if (!blockTexResult) return std::unexpected(blockTexResult.error());
     auto* blockTex = *blockTexResult;
-    auto solidBlockTexResult = AssetsManager::GetTextureOrFallback(ImagePath + "block_solid" + ImageExtension);
+    auto solidBlockPath = RuntimeAssets::ResolvePath(ImagePath + "block_solid" + ImageExtension);
+    if (!solidBlockPath) return std::unexpected(solidBlockPath.error());
+    auto solidBlockTexResult = AssetsManager::GetTextureOrFallback(*solidBlockPath);
     if (!solidBlockTexResult) return std::unexpected(solidBlockTexResult.error());
     auto* solidBlockTex = *solidBlockTexResult;
     auto blockMaterialResult = Material::Create<SpriteMaterial>(blockTex);

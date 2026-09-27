@@ -110,7 +110,7 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	GENGINE_CORE_INFO("Initialize Audio System...");
 	
 	m_AudioSystem = CreateScopedPtr<Audio::AudioSystem>();
-	m_AudioSystem->Initialize();
+	if (auto audio = m_AudioSystem->Initialize(); !audio) return std::unexpected(audio.error());
 
 	GENGINE_CORE_INFO("Initialize 3D Renderer...");
 	Renderer::Initialize();
@@ -153,8 +153,10 @@ ApplicationInitializationResult SceneApp::Initialize(const std::initializer_list
 	
 
 	
-	auto terrainGeo = new Terrain(0, -1, 900);
-	m_TerrainGeometry.reset(terrainGeo);
+	auto terrain = Terrain::Create(0, -1, 900);
+    if (!terrain) return std::unexpected(terrain.error());
+    auto* terrainGeo = terrain->get();
+    m_TerrainGeometry = std::move(*terrain);
 
 
 	

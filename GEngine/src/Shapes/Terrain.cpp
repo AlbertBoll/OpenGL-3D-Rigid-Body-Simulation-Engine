@@ -1,6 +1,8 @@
 #include "gepch.h"
 #include "Shapes/Terrain.h"
 #include <stb_image/stb_image.h>
+#include <new>
+#include <limits>
 
 
 namespace GEngine
@@ -8,20 +10,36 @@ namespace GEngine
 	static constexpr float MAX_HEIGHT = 40;
 	static constexpr float MAX_PIXEL_COLOR = 256 * 256 * 256;
 
-	Terrain::Terrain(int GridX, int GridZ, int size, const std::string& heightMap): Terrain(size, heightMap)
-	{
-		m_X = (float)GridX * size;
-		m_Z = (float)GridZ * size;
-	}
+    std::expected<std::unique_ptr<Terrain>, PlatformError> Terrain::Create(int GridX, int GridZ, int size, const std::string& heightMap)
+    {
+        auto terrain = Create(size, heightMap);
+        if (!terrain) return terrain;
+        (*terrain)->m_X = static_cast<float>(GridX) * size;
+        (*terrain)->m_Z = static_cast<float>(GridZ) * size;
+        return terrain;
+    }
 
-	Terrain::Terrain(int size, const std::string& heightMap): Geometry(), m_Size(size)
-	{
-		auto dir = Image_Dir + heightMap + ".png";
+    std::expected<std::unique_ptr<Terrain>, PlatformError> Terrain::Create(int size, const std::string& heightMap)
+    {
+        auto path = RuntimeAssets::TryFile("Images/" + heightMap + ".png");
+        if (!path) return std::unexpected(path.error());
+        if (size <= 0) return std::unexpected(PlatformError{PlatformErrorCode::InvalidSize, *path, "Terrain size must be positive"});
+        int width = 0, height = 0, bpp = 0;
+        std::unique_ptr<unsigned char, decltype(&stbi_image_free)> data(stbi_load(path->c_str(), &width, &height, &bpp, 4), stbi_image_free);
+        if (!data) return std::unexpected(PlatformError{PlatformErrorCode::ResourcePath, *path,
+            std::string("Cannot decode terrain heightmap: ") + (stbi_failure_reason() ? stbi_failure_reason() : "unknown image error")});
+        // The existing square grid uses signed indices and six indices per cell.
+        if (width != height || height < 2 || static_cast<std::uint64_t>(height) * height > std::numeric_limits<int>::max() / 6)
+            return std::unexpected(PlatformError{PlatformErrorCode::InvalidSize, *path, "Terrain heightmap must be square, at least 2x2 and within grid index limits"});
+        std::vector<unsigned char> pixels(data.get(), data.get() + static_cast<size_t>(width) * height * 4);
+        std::unique_ptr<Terrain> terrain(new (std::nothrow) Terrain(size, std::move(pixels), width, height, bpp));
+        if (!terrain) return std::unexpected(PlatformError{PlatformErrorCode::Allocation, *path, "Cannot allocate terrain owner"});
+        return terrain;
+    }
 
-		//stbi_set_flip_vertically_on_load(true);
-		bool success = load_image(m_Data, dir, m_Width, m_Height, m_Bpp);
-		ASSERT(success);
-
+    Terrain::Terrain(int size, std::vector<unsigned char> pixels, int width, int imageHeight, int bpp)
+        : Geometry(), m_Data(std::move(pixels)), m_Width(width), m_Height(imageHeight), m_Bpp(bpp), m_Size(size)
+    {
 		int VertexCount = m_Height;
 
 		int count = VertexCount * VertexCount;
@@ -98,18 +116,6 @@ namespace GEngine
 
 		return height;
 
-	}
-
-	bool Terrain::load_image(std::vector<unsigned char>& image, const std::string& filename, int& x, int& y, int& bbp)
-	{
-	
-		unsigned char* data = stbi_load(filename.c_str(), &x, &y, &bbp, 4);
-		if (data != nullptr)
-		{
-			image = std::vector<unsigned char>(data, data + x * y * 4);
-		}
-		stbi_image_free(data);
-		return (data != nullptr);
 	}
 
 	Vec3f Terrain::CalculateNormal(int x, int z)

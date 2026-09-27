@@ -471,7 +471,19 @@ namespace GEngine
     ApplicationRunResult BaseApp::Run()
     {
 #ifdef GENGINE_RENDER_BASELINE
-        RenderBaseline::Session baseline;
+        const auto failBaseline = [this](const RenderBaseline::Error& error) {
+            FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "RenderBaseline",
+                std::to_string(static_cast<unsigned>(error.code)), error.operation,
+                RenderBaseline::DescribeContext(error), error.message});
+        };
+        // Reentry after failure must not reopen or truncate the diagnostic files.
+        if (m_RuntimeFailure) return std::unexpected(*m_RuntimeFailure);
+        auto pendingBaseline = RenderBaseline::Session::Create();
+        if (!pendingBaseline) {
+            failBaseline(pendingBaseline.error());
+            return std::unexpected(*m_RuntimeFailure);
+        }
+        auto baseline = std::move(*pendingBaseline);
 #endif
 #if GENGINE_RENDER_COUNTERS
         const char* counterLog = SDL_getenv("GENGINE_RENDER_COUNTERS_LOG");
@@ -568,8 +580,9 @@ namespace GEngine
                 RenderCounters::EndFrame();
 #ifdef GENGINE_RENDER_BASELINE
                 if (auto captured = baseline.CaptureScene(m_RenderTarget.get()); !captured)
-                { ReportFramebufferError("scene capture", captured.error()); return {}; }
-                if (baseline.End()) ShutDown();
+                { failBaseline(captured.error()); break; }
+                if (auto completed = baseline.End(); !completed) { failBaseline(completed.error()); break; }
+                else if (*completed) ShutDown();
 #endif
             }
          

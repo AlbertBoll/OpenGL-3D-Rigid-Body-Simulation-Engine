@@ -17,9 +17,9 @@
 #include "Audio/AudioSystem.h"
 //using namespace GEngine::BreakoutApp;
 
-static constexpr ::GEngine::RuntimeAssets::Directory levelPath{ "Breakout/levels/" };
+static const std::string levelPath = "Breakout/levels/";
 static std::string levelFileExtension = ".lvl";
-static constexpr ::GEngine::RuntimeAssets::Directory ImagePath{ "Breakout/images/" };
+static const std::string ImagePath = "Breakout/images/";
 static std::string ImageExtension = ".png";
 
 
@@ -64,6 +64,8 @@ namespace GEngine
 	BreakoutApp::~BreakoutApp()
 	{
 		// These objects are app-owned; shared asset caches are released by BaseApp.
+        if (m_AudioSystem) m_AudioSystem->Shutdown();
+        delete m_AudioSystem;
 		if (m_Background) delete m_Background;
 		if (m_Player) delete m_Player;
 		delete m_Ball;
@@ -184,7 +186,7 @@ namespace GEngine
 
 		GENGINE_CORE_INFO("Initialize Audio System...");
 		m_AudioSystem = new Audio::AudioSystem();
-		m_AudioSystem->Initialize();
+		if (auto audio = m_AudioSystem->Initialize(); !audio) return std::unexpected(audio.error());
 
 		m_GameState = GameState::ACTIVE;
 
@@ -207,7 +209,9 @@ namespace GEngine
 		sprite.Velocity = INITIAL_BALL_VELOCITY;
 		sprite.Size = { 2 * BALL_RADIUS, 2 * BALL_RADIUS };
 
-		auto backgroundTexResult = AssetsManager::GetTextureOrFallback(ImagePath + "background" + ImageExtension);
+		auto backgroundPath = RuntimeAssets::ResolvePath(ImagePath + "background" + ImageExtension);
+		if (!backgroundPath) return std::unexpected(backgroundPath.error());
+		auto backgroundTexResult = AssetsManager::GetTextureOrFallback(*backgroundPath);
 		if (!backgroundTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", backgroundTexResult.error().source, backgroundTexResult.error().message); m_Running = false; return std::unexpected(backgroundTexResult.error()); }
 		auto* backgroundTex = *backgroundTexResult;
 		auto backgroundMaterialResult = Material::Create<SpriteMaterial>(backgroundTex);
@@ -227,7 +231,9 @@ namespace GEngine
 		
 
 
-		auto paddleTexResult = AssetsManager::GetTextureOrFallback(ImagePath + "paddle" + ImageExtension);
+		auto paddlePath = RuntimeAssets::ResolvePath(ImagePath + "paddle" + ImageExtension);
+		if (!paddlePath) return std::unexpected(paddlePath.error());
+		auto paddleTexResult = AssetsManager::GetTextureOrFallback(*paddlePath);
 		if (!paddleTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", paddleTexResult.error().source, paddleTexResult.error().message); m_Running = false; return std::unexpected(paddleTexResult.error()); }
 		auto* paddleTex = *paddleTexResult;
 		auto paddleMaterialResult = Material::Create<SpriteMaterial>(paddleTex);
@@ -242,7 +248,9 @@ namespace GEngine
 			-BALL_RADIUS * 2.0f);
 
 
-		auto ballTexResult = AssetsManager::GetTextureOrFallback(ImagePath + "awesomeface_r" + ImageExtension);
+		auto ballPath = RuntimeAssets::ResolvePath(ImagePath + "awesomeface_r" + ImageExtension);
+		if (!ballPath) return std::unexpected(ballPath.error());
+		auto ballTexResult = AssetsManager::GetTextureOrFallback(*ballPath);
 		if (!ballTexResult) { GENGINE_CORE_ERROR("Texture {}: {}", ballTexResult.error().source, ballTexResult.error().message); m_Running = false; return std::unexpected(ballTexResult.error()); }
 		auto* ballTex = *ballTexResult;
 		auto ballMaterialResult = Material::Create<SpriteMaterial>(ballTex);
@@ -355,13 +363,31 @@ namespace GEngine
 
 	}
 
-	void BreakoutApp::ResetLevel()
-	{
-		if (m_Level == 0) { auto loaded = m_Levels[0].Load(levelPath + "one" + levelFileExtension, m_Width, m_Height / 2); if (!loaded) { ReportApplicationError(loaded.error()); m_Running = false; } }
-		else if (m_Level == 1) { auto loaded = m_Levels[1].Load(levelPath + "two" + levelFileExtension, m_Width, m_Height / 2); if (!loaded) { ReportApplicationError(loaded.error()); m_Running = false; } }
-		else if (m_Level == 2) { auto loaded = m_Levels[2].Load(levelPath + "three" + levelFileExtension, m_Width, m_Height / 2); if (!loaded) { ReportApplicationError(loaded.error()); m_Running = false; } }
-		else if (m_Level == 3) { auto loaded = m_Levels[3].Load(levelPath + "four" + levelFileExtension, m_Width, m_Height / 2); if (!loaded) { ReportApplicationError(loaded.error()); m_Running = false; } }
-	}
+    void BreakoutApp::ResetLevel()
+    {
+        static constexpr std::array names{"one", "two", "three", "four"};
+        if (m_Level >= names.size()) return;
+        auto loaded = m_Levels[m_Level].Load(levelPath + names[m_Level] + levelFileExtension, m_Width, m_Height / 2);
+        if (!loaded) {
+            ReportApplicationError(loaded.error());
+            std::visit([this](const auto& error) {
+                using Error = std::decay_t<decltype(error)>;
+                if constexpr (std::same_as<Error, PlatformError>)
+                    FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Level", std::to_string(static_cast<unsigned>(error.code)),
+                        "level reset", error.operation, error.message});
+                else if constexpr (std::same_as<Error, Asset::ShaderError>)
+                    FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Shader", std::to_string(static_cast<unsigned>(error.code)),
+                        "level reset", error.source + "; stage=" + (error.shaderType ? std::to_string(static_cast<unsigned>(*error.shaderType)) : "program"), error.log});
+                else if constexpr (std::same_as<Error, Asset::TextureError>)
+                    FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Texture", std::to_string(static_cast<unsigned>(error.code)),
+                        "level reset", error.source + "; system=" + error.system.category().name() + ":" + std::to_string(error.system.value()) + ":" + error.system.message()
+                            + "; registry=" + std::to_string(static_cast<unsigned>(error.registry)), error.message});
+                else
+                    FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Level", std::to_string(static_cast<unsigned>(error.code)),
+                        "level reset", {}, std::string(error.message)});
+            }, loaded.error());
+        }
+    }
 
 
 	void BreakoutApp::ResetPlayer()

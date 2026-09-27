@@ -1,3 +1,5 @@
+#pragma once
+#include "Core/Platform.h"
 #include <unordered_map>
 #include <string>
 #include"Math/Math.h"
@@ -29,11 +31,11 @@ namespace GEngine
 			AudioSystem();
 			~AudioSystem() = default;
 
-			void Initialize();
+			[[nodiscard]] PlatformResult Initialize();
 			void Shutdown();
 
 			// Load/unload banks
-			void LoadBank(const std::string& name);
+			[[nodiscard]] PlatformResult LoadBank(const std::string& name);
 			void UnloadBank(const std::string& name);
 			void UnloadAllBanks();
 

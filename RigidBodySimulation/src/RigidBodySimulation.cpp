@@ -56,7 +56,7 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const std::in
 {
     if (auto initialized = BaseApp::Initialize(WindowsPropertyList); !initialized) return initialized;
     m_AudioSystem = CreateScopedPtr<Audio::AudioSystem>();
-    m_AudioSystem->Initialize();
+    if (auto audio = m_AudioSystem->Initialize(); !audio) return std::unexpected(audio.error());
     auto failure = [](const SceneResourceError& error) -> ApplicationInitializationResult {
         Log::GetCoreLogger()->error("{}", DescribeSceneResourceError(error));
         return std::unexpected(PlatformError{PlatformErrorCode::Initialization, "scene resources", DescribeSceneResourceError(error)});

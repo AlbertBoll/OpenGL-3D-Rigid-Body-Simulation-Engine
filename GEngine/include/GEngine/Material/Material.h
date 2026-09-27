@@ -122,8 +122,6 @@ namespace GEngine
     protected:
         std::vector<std::pair<Asset::SampledTextureBinding, std::uint32_t>> m_ImageBindings;
 
-		inline static constexpr RuntimeAssets::Directory base_shader_dir{ "Shaders/" };
-
 
 
 	public:

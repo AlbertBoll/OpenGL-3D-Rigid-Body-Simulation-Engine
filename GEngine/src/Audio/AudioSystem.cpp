@@ -6,7 +6,7 @@
 #include "fmod/fmod_errors.h"
 #include"Audio/SoundEvent.h"
 
-static constexpr ::GEngine::RuntimeAssets::Directory bankPath{ "Audio/Bank/" };
+
 
 
 namespace GEngine::Audio
@@ -18,113 +18,99 @@ namespace GEngine::Audio
 
 	}
 
-	void AudioSystem::Initialize()
-	{
-		// Initialize debug logging
-		FMOD::Debug_Initialize(
-			FMOD_DEBUG_LEVEL_ERROR, // Log only errors
-			FMOD_DEBUG_MODE_TTY // Output to stdout
-		);
+    namespace
+    {
+        PlatformError AudioFailure(const char* operation, FMOD_RESULT result, const std::string& resource = {})
+        {
+            return {PlatformErrorCode::Initialization, operation, "resource=" + resource +
+                "; audio-code=" + std::to_string(static_cast<int>(result)) + "; " + FMOD_ErrorString(result)};
+        }
+    }
+    PlatformResult AudioSystem::Initialize()
+    {
+        if (mSystem) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState, "audio startup", "Audio system is already initialized"});
+        std::array<std::string, 3> banks;
+        const std::array names{"Audio/Bank/Master Bank.strings.bank", "Audio/Bank/Master Bank.bank", "Audio/Bank/ZeldaTheme.bank"};
+        for (size_t i = 0; i < names.size(); ++i) {
+            auto path = RuntimeAssets::TryFile(names[i]);
+            if (!path) return std::unexpected(path.error());
+            banks[i] = std::move(*path);
+        }
+        // Debug logging availability is optional; device/system/bank failures are not.
+        FMOD::Debug_Initialize(FMOD_DEBUG_LEVEL_ERROR, FMOD_DEBUG_MODE_TTY);
+        struct Rollback {
+            AudioSystem& owner; bool committed = false;
+            ~Rollback() { if (!committed) owner.Shutdown(); }
+        } rollback{*this};
+        if (auto result = FMOD::Studio::System::create(&mSystem); result != FMOD_OK)
+            return std::unexpected(AudioFailure("audio system creation", result));
+        if (auto result = mSystem->initialize(512, FMOD_STUDIO_INIT_NORMAL, FMOD_INIT_NORMAL, nullptr); result != FMOD_OK)
+            return std::unexpected(AudioFailure("audio system initialization", result));
+        if (auto result = mSystem->getLowLevelSystem(&mLowLevelSystem); result != FMOD_OK)
+            return std::unexpected(AudioFailure("audio low-level system", result));
+        for (const auto& bank : banks) if (auto loaded = LoadBank(bank); !loaded) return loaded;
+        rollback.committed = true;
+        return {};
+    }
 
-	
-		FMOD_RESULT result = FMOD::Studio::System::create(&mSystem);
-		ASSERT(result == FMOD_OK, "Failed to create FMOD system: " + std::string(FMOD_ErrorString(result)));
+    void AudioSystem::Shutdown()
+    {
+        UnloadAllBanks();
+        mBuses.clear();
+        mEventInstances.clear();
+        if (mSystem) mSystem->release();
+        mSystem = nullptr;
+        mLowLevelSystem = nullptr;
+    }
 
-
-		// Initialize FMOD studio system
-		result = mSystem->initialize(
-			512, // Max number of concurrent sounds
-			FMOD_STUDIO_INIT_NORMAL, // Use default settings
-			FMOD_INIT_NORMAL, // Use default settings
-			nullptr // Usually null
-		);
-
-		ASSERT(result == FMOD_OK, "Failed to initialize FMOD system: " + std::string(FMOD_ErrorString(result)));
-
-
-		// Save the low-level system pointer
-		mSystem->getLowLevelSystem(&mLowLevelSystem);
-
-		// Load the master banks (strings first)
-		LoadBank(bankPath + "Master Bank.strings.bank");
-		LoadBank(bankPath + "Master Bank.bank");
-		//LoadBank(bankPath + "Zelda.bank");
-		LoadBank(bankPath + "ZeldaTheme.bank");
-
-	}
-
-	void AudioSystem::Shutdown()
-	{
-		// Unload all banks
-		UnloadAllBanks();
-		// Shutdown FMOD system
-		if (mSystem)
-		{
-			mSystem->release();
-		}
-	}
-
-	void AudioSystem::LoadBank(const std::string& name)
-	{
-		// Prevent double-loading
-		if (mBanks.find(name) != mBanks.end())
-		{
-			return;
-		}
-	
-		// Try to load bank
-		FMOD::Studio::Bank* bank = nullptr;
-		const FMOD_RESULT result = mSystem->loadBankFile(
-			name.c_str(), // File name of bank
-			FMOD_STUDIO_LOAD_BANK_NORMAL, // Normal loading
-			&bank // Save pointer to bank
-		);
-
-		const int maxPathLength = 512;
-		if (result == FMOD_OK)
-		{
-			// Add bank to map
-			mBanks.emplace(name, bank);
-			// Load all non-streaming sample data
-			bank->loadSampleData();
-			// Get the number of events in this bank
-			int numEvents = 0;
-			bank->getEventCount(&numEvents);
-			if (numEvents > 0)
-			{
-				// Get list of event descriptions in this bank
-				std::vector<FMOD::Studio::EventDescription*> events(numEvents);
-				bank->getEventList(events.data(), numEvents, &numEvents);
-				char eventName[maxPathLength];
-				for (int i = 0; i < numEvents; i++)
-				{
-					FMOD::Studio::EventDescription* e = events[i];
-					// Get the path of this event (like event:/Explosion2D)
-					e->getPath(eventName, maxPathLength, nullptr);
-					// Add to event map
-					mEvents.emplace(eventName, e);
-				}
-			}
-			// Get the number of buses in this bank
-			int numBuses = 0;
-			bank->getBusCount(&numBuses);
-			if (numBuses > 0)
-			{
-				// Get list of buses in this bank
-				std::vector<FMOD::Studio::Bus*> buses(numBuses);
-				bank->getBusList(buses.data(), numBuses, &numBuses);
-				char busName[512];
-				for (int i = 0; i < numBuses; i++)
-				{
-					FMOD::Studio::Bus* bus = buses[i];
-					// Get the path of this bus (like bus:/SFX)
-					bus->getPath(busName, 512, nullptr);
-					// Add to buses map
-					mBuses.emplace(busName, bus);
-				}
-			}
-		}
-	}
+    PlatformResult AudioSystem::LoadBank(const std::string& name)
+    {
+        if (!mSystem) return std::unexpected(PlatformError{PlatformErrorCode::InvalidState, "audio bank load", "Audio system is not initialized: " + name});
+        if (mBanks.contains(name)) return {};
+        FMOD::Studio::Bank* bank = nullptr;
+        if (auto result = mSystem->loadBankFile(name.c_str(), FMOD_STUDIO_LOAD_BANK_NORMAL, &bank); result != FMOD_OK)
+            return std::unexpected(AudioFailure("audio bank load", result, name));
+        struct Rollback {
+            FMOD::Studio::Bank* bank; bool committed = false;
+            ~Rollback() { if (!committed) { bank->unloadSampleData(); bank->unload(); } }
+        } rollback{bank};
+        if (auto result = bank->loadSampleData(); result != FMOD_OK)
+            return std::unexpected(AudioFailure("audio bank samples", result, name));
+        int numEvents = 0, numBuses = 0;
+        if (auto result = bank->getEventCount(&numEvents); result != FMOD_OK)
+            return std::unexpected(AudioFailure("audio event count", result, name));
+        if (auto result = bank->getBusCount(&numBuses); result != FMOD_OK)
+            return std::unexpected(AudioFailure("audio bus count", result, name));
+        std::unordered_map<std::string, FMOD::Studio::EventDescription*> pendingEvents;
+        std::unordered_map<std::string, FMOD::Studio::Bus*> pendingBuses;
+        if (numEvents > 0) {
+            std::vector<FMOD::Studio::EventDescription*> events(numEvents);
+            if (auto result = bank->getEventList(events.data(), numEvents, &numEvents); result != FMOD_OK)
+                return std::unexpected(AudioFailure("audio event list", result, name));
+            for (int i = 0; i < numEvents; ++i) {
+                char path[512]{};
+                if (auto result = events[i]->getPath(path, sizeof(path), nullptr); result != FMOD_OK)
+                    return std::unexpected(AudioFailure("audio event path", result, name));
+                pendingEvents.emplace(path, events[i]);
+            }
+        }
+        if (numBuses > 0) {
+            std::vector<FMOD::Studio::Bus*> buses(numBuses);
+            if (auto result = bank->getBusList(buses.data(), numBuses, &numBuses); result != FMOD_OK)
+                return std::unexpected(AudioFailure("audio bus list", result, name));
+            for (int i = 0; i < numBuses; ++i) {
+                char path[512]{};
+                if (auto result = buses[i]->getPath(path, sizeof(path), nullptr); result != FMOD_OK)
+                    return std::unexpected(AudioFailure("audio bus path", result, name));
+                pendingBuses.emplace(path, buses[i]);
+            }
+        }
+        mBanks.emplace(name, bank);
+        mEvents.merge(pendingEvents);
+        mBuses.merge(pendingBuses);
+        rollback.committed = true;
+        return {};
+    }
 
 	void AudioSystem::UnloadBank(const std::string& name)
 	{

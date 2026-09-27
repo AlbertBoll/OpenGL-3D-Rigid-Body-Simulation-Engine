@@ -34,10 +34,7 @@ namespace GEngine
 {
 	namespace Manager
 	{
-		static constexpr RuntimeAssets::Directory model_base_dir{ "Models/" };
 		static std::string model_extension = ".obj";
-
-		static constexpr RuntimeAssets::Directory animated_model_base_dir{ "AnimatedModels/" };
 		static std::string animated_model_extension = ".dae";
 
 		ShapeManager::RegistrationResult ShapeManager::Initialize()
@@ -60,7 +57,9 @@ namespace GEngine
             if (auto result = __Register<Torus>("Torus"); !result) return result;
             if (auto result = __Register<Cylinder>("Cylinder"); !result) return result;
             if (auto result = __Register<Sphere>("Sphere"); !result) return result;
-            if (auto result = __Register<Terrain>("Terrain"); !result) return result;
+            auto terrain = Terrain::Create();
+            if (!terrain) return std::unexpected(terrain.error());
+            Store("Terrain", std::move(*terrain));
             if (auto result = __Register<SpriteGeometry>("SpriteGeometry"); !result) return result;
             if (auto result = __Register<GridHelper>("GridHelper"); !result) return result;
             if (auto result = __Register<AxisHelper>("AxisHelper"); !result) return result;

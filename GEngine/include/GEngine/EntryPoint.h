@@ -1,132 +1,43 @@
 #pragma once
 #include "Core/RuntimeAssets.h"
-#include <filesystem>
-//#define SDL_MAIN_HANDLED
 #include "Core/BaseApp.h"
 #include "Core/RenderBaseline.h"
-//#include"Physics/ShapeSphere.h"
-#include<iostream>
+#include <filesystem>
+#include <cstdio>
 
 using namespace GEngine;
-
-//To be implemented in client app
 BaseApp* CreateApp();
-
-//define in client app
 extern WindowProperties winProp;
-
 
 int main(int argc, char* args[])
 {
-
-	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #ifdef GENGINE_RENDER_BASELINE
     RenderBaseline::Configure(winProp);
 #endif
-    try
-    {
-        RuntimeAssets::Initialize(std::filesystem::path(args[0]).stem().string());
-    }
-    catch (const std::exception& error)
-    {
-        std::cerr << error.what() << std::endl;
+    if (argc < 1 || !args || !args[0]) {
+        std::fprintf(stderr, "Runtime assets: executable path is unavailable\n");
         return 1;
     }
-	int exitCode = 0;
-	try
-	{
-		// BaseApp owns EngineContext, which outlives all application resources.
-		ScopedPtr<BaseApp> app(CreateApp());
-		auto initialized = app->Initialize({ winProp });
-        if (!initialized) { ReportApplicationError(initialized.error()); exitCode = 1; }
-        else if (auto running = app->Run(); !running)
-        { ReportApplicationError(running.error()); exitCode = 1; }
-	}
-	catch (const std::exception& error)
-	{
-		std::cerr << "GEngine application failed: " << error.what() << std::endl;
-		exitCode = 1;
-	}
-	
-	//using namespace GEngine;
-
-	//PhysicalShape* sphere = new ShapeSphere(0.5f);
-	//PhysicalShape* sphere_ = new ShapeSphere(0.4f);
-	
-
-	//std::cout << typeid(sphere).hash_code() << std::endl;
-
-	//std::cout << typeid(sphere_).hash_code() << std::endl;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	//SceneApp app{};
-	//auto f = [](float u, float v) {return Vec3f{ u, v, 1.f }; };
-	//Surface<decltype(f)> s(f);
-	//std::vector<float> vertexArcLengthData{ 0, 1 };
-	//vertexArcLengthData.reserve(10);
-
-	////std::cout << g.CountVertices() << std::endl;
-
-
-	//int i = 0;
-
-
-	//BaseApp app;
-
-
-	//WindowProperties winProp1{ .m_Title = "GEngine Editor App1",
-	//									.m_WinPos = WindowPos::Center,
-	//									.m_XPaddingToCenterY = 0,
-	//									.m_YPaddingToCenterX = 0,
-	//};
-
-	/*WindowProperties winProp2{ .m_Title = "GEngine Editor App2",
-										.m_WinPos = WindowPos::TopRight,
-										.m_XPaddingToCenterY = 5,
-										.m_YPaddingToCenterX = 20,
-	};*/
-
-	//app.Initialize(winProp1);
-
-
-
-
-	//auto& engine = app.GetEngine();
-	//engine.GetWindowManager()->AddWindows(winProp1, winProp2);
-	////Factory::ShapeFactory::RegisterShape("Box", new Shape::Box{});
-	//RegisterClass(Box, new Shape::Box);
-	//auto box = Factory::ShapeFactory::GetShape("Box");
-	//Shape::Box box;
-	//Geometry g;
-	//Geometry g_;
-	//g.m_Attributes[0] = Buffer::Attribute<Vec3f>({ {1.f, 2.f, 3.f}, {2.f, 3.f, 4.f}, {3.f, 4.f, 5.f} });
-	//g.CountVertices();
-
-	//g_.m_Attributes[0] = Buffer::Attribute<Vec3f>({ {1.f, 2.f, 3.f}, {2.f, 3.f, 4.f}, {3.f, 4.f, 5.f} });
-	//g_.CountVertices();
-	//g.Merge(&g_);
-	//app.Run();
-
-	//std::cout << "Finish" << std::endl;
-
-	return exitCode;
-
+    if (auto assets = RuntimeAssets::Initialize(std::filesystem::path(args[0]).stem().string()); !assets) {
+        // Bootstrap precedes the engine logger; preserve the complete typed diagnostic.
+        std::fprintf(stderr, "Runtime asset failure code=%u operation=%s: %s\n",
+            static_cast<unsigned>(assets.error().code), assets.error().operation.c_str(), assets.error().message.c_str());
+        return 1;
+    }
+    // BaseApp owns EngineContext, which outlives all application resources.
+    ScopedPtr<BaseApp> app(CreateApp());
+    if (!app) {
+        std::fprintf(stderr, "GEngine application allocation failed\n");
+        return 1;
+    }
+    if (auto initialized = app->Initialize({winProp}); !initialized) {
+        ReportApplicationError(initialized.error());
+        return 1;
+    }
+    if (auto running = app->Run(); !running) {
+        ReportApplicationError(running.error());
+        return 1;
+    }
+    return 0;
 }

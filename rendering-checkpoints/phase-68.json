@@ -1,0 +1,1858 @@
+{
+  "baseline": "108a0eed77d945bf68e3b9061e562aa8341ea55f",
+  "branch": "rendering/refactor",
+  "checkpoint_files": [
+    "Breakout/src/BreakoutApp.cpp",
+    "Breakout/src/GameLevel.cpp",
+    "GEngine/include/GEngine/Audio/AudioSystem.h",
+    "GEngine/include/GEngine/Core/RenderBaseline.h",
+    "GEngine/include/GEngine/Core/RuntimeAssets.h",
+    "GEngine/include/GEngine/EntryPoint.h",
+    "GEngine/include/GEngine/Material/LightTextureMaterial.h",
+    "GEngine/include/GEngine/Material/Material.h",
+    "GEngine/include/GEngine/Material/SkyBoxMaterial.h",
+    "GEngine/include/GEngine/Material/TerrainLightMaterial.h",
+    "GEngine/include/GEngine/Shapes/Terrain.h",
+    "GEngine/src/Audio/AudioSystem.cpp",
+    "GEngine/src/Core/BaseApp.cpp",
+    "GEngine/src/Core/RenderBaseline.cpp",
+    "GEngine/src/Core/RuntimeAssets.cpp",
+    "GEngine/src/Managers/ShapeManager.cpp",
+    "GEngine/src/Shapes/Terrain.cpp",
+    "GEngine/src/Windows/SDLWindow.cpp",
+    "GEngineEditor/src/SceneApp.cpp",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "rendering-checkpoints/phase-68.json",
+    "tools/RENDERING_ARCHITECTURE.md",
+    "tools/baseline_error_probe.cpp",
+    "tools/test_baseline_errors.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Zero final inventory; typed checked callers and transactional cleanup, bounded manifests recorded.",
+      "finding": "17 owned exception tokens and legacy generic path transport",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "RBS scene-dimension failure now reaches ApplicationRunResult and exit1; swap failures latch typed cause.",
+      "finding": "Capture failure was reported but returned success",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "The active Phase68 owner amendment explicitly prohibits rerunning these workflows and selects RBS-only correctness acceptance; original outcomes/thresholds remain unchanged, no new PASS claimed.",
+      "finding": "Historical Phase65 performance/scaling/async/GPU findings remain OPEN",
+      "status": "ACCEPTED_OUT_OF_SCOPE"
+    }
+  ],
+  "local_governance": [
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md",
+    "docs/rendering/RENDERING_CODE_MAP.md",
+    "docs/rendering/reviews/PHASE_68_OWNER_VALIDATION_AMENDMENT.md",
+    "docs/rendering/reviews/PHASE_68_PREREQUISITE_PROPOSAL.md",
+    "docs/rendering/reviews/PHASE_68_REVIEW.md",
+    "logs/rendering/phase68/audio-path-packet/manifest.json",
+    "logs/rendering/phase68/audit-inputs.json",
+    "logs/rendering/phase68/bootstrap-packet/manifest.json",
+    "logs/rendering/phase68/bootstrap-packet/optional-path-review.json",
+    "logs/rendering/phase68/breakout-path-packet/manifest.json",
+    "logs/rendering/phase68/comparison-inputs.json",
+    "logs/rendering/phase68/documentation-validation.json",
+    "logs/rendering/phase68/exception-audit.json",
+    "logs/rendering/phase68/exception_audit.py",
+    "logs/rendering/phase68/final-inputs.json",
+    "logs/rendering/phase68/final-source-audit/audit-inputs.json",
+    "logs/rendering/phase68/final-source-audit/exception-audit.json",
+    "logs/rendering/phase68/integration-first-inputs.json",
+    "logs/rendering/phase68/integration/debug-build-corrected/build.log",
+    "logs/rendering/phase68/integration/debug-build-corrected/results.json",
+    "logs/rendering/phase68/integration/debug-build/build.log",
+    "logs/rendering/phase68/integration/debug-build/results.json",
+    "logs/rendering/phase68/integration/debug-consumer-objects-corrected/object-BreakoutApp.log",
+    "logs/rendering/phase68/integration/debug-consumer-objects-corrected/object-GameLevel.log",
+    "logs/rendering/phase68/integration/debug-consumer-objects-corrected/results.json",
+    "logs/rendering/phase68/integration/debug-consumer-objects/compile-migrated-headers.log",
+    "logs/rendering/phase68/integration/debug-consumer-objects/object-BreakoutApp.log",
+    "logs/rendering/phase68/integration/debug-consumer-objects/object-SceneApp.log",
+    "logs/rendering/phase68/integration/debug-consumer-objects/results.json",
+    "logs/rendering/phase68/integration/debug-final-build/build.log",
+    "logs/rendering/phase68/integration/debug-final-build/results.json",
+    "logs/rendering/phase68/integration/debug-final-consumer-objects/compile-migrated-headers.log",
+    "logs/rendering/phase68/integration/debug-final-consumer-objects/object-BreakoutApp.log",
+    "logs/rendering/phase68/integration/debug-final-consumer-objects/object-GameLevel.log",
+    "logs/rendering/phase68/integration/debug-final-consumer-objects/object-rbs-no-backend.log",
+    "logs/rendering/phase68/integration/debug-final-consumer-objects/results.json",
+    "logs/rendering/phase68/integration/debug-rbs-asset-root/rbs-asset-root.log",
+    "logs/rendering/phase68/integration/debug-rbs-asset-root/results.json",
+    "logs/rendering/phase68/integration/debug-rbs-frames-open/GEngine.log",
+    "logs/rendering/phase68/integration/debug-rbs-frames-open/rbs-frames-open.log",
+    "logs/rendering/phase68/integration/debug-rbs-frames-open/results.json",
+    "logs/rendering/phase68/integration/debug-rbs-native-close/rbs-native-close/GEngine.log",
+    "logs/rendering/phase68/integration/debug-rbs-native-close/rbs-native-close/application.log",
+    "logs/rendering/phase68/integration/debug-rbs-native-close/rbs-native-close/smoke.json",
+    "logs/rendering/phase68/integration/debug-rbs-native-close/results.json",
+    "logs/rendering/phase68/integration/debug-rbs-protocol/GEngine.log",
+    "logs/rendering/phase68/integration/debug-rbs-protocol/rbs-success.log",
+    "logs/rendering/phase68/integration/debug-rbs-protocol/results.json",
+    "logs/rendering/phase68/integration/debug-rbs-success/GEngine.log",
+    "logs/rendering/phase68/integration/debug-rbs-success/rbs-success.log",
+    "logs/rendering/phase68/integration/debug-rbs-success/results.json",
+    "logs/rendering/phase68/integration/debug-rbs-success/scene-dimension-review.json",
+    "logs/rendering/phase68/integration/debug-rbs-terrain-decode/GEngine.log",
+    "logs/rendering/phase68/integration/debug-rbs-terrain-decode/rbs-terrain-decode.log",
+    "logs/rendering/phase68/integration/debug-rbs-terrain-decode/results.json",
+    "logs/rendering/phase68/integration/release-build/build.log",
+    "logs/rendering/phase68/integration/release-build/results.json",
+    "logs/rendering/phase68/integration/release-consumer-objects-corrected/compile-migrated-headers.log",
+    "logs/rendering/phase68/integration/release-consumer-objects-corrected/object-BreakoutApp.log",
+    "logs/rendering/phase68/integration/release-consumer-objects-corrected/object-GameLevel.log",
+    "logs/rendering/phase68/integration/release-consumer-objects-corrected/object-SceneApp.log",
+    "logs/rendering/phase68/integration/release-consumer-objects-corrected/results.json",
+    "logs/rendering/phase68/integration/release-final-build/build.log",
+    "logs/rendering/phase68/integration/release-final-build/results.json",
+    "logs/rendering/phase68/integration/release-final-consumer-objects/compile-migrated-headers.log",
+    "logs/rendering/phase68/integration/release-final-consumer-objects/object-BreakoutApp.log",
+    "logs/rendering/phase68/integration/release-final-consumer-objects/object-GameLevel.log",
+    "logs/rendering/phase68/integration/release-final-consumer-objects/object-rbs-no-backend.log",
+    "logs/rendering/phase68/integration/release-final-consumer-objects/results.json",
+    "logs/rendering/phase68/integration/release-rbs-asset-manifest/rbs-asset-manifest.log",
+    "logs/rendering/phase68/integration/release-rbs-asset-manifest/results.json",
+    "logs/rendering/phase68/integration/release-rbs-audio-bank/GEngine.log",
+    "logs/rendering/phase68/integration/release-rbs-audio-bank/rbs-audio-bank.log",
+    "logs/rendering/phase68/integration/release-rbs-audio-bank/results.json",
+    "logs/rendering/phase68/integration/release-rbs-image-write/GEngine.log",
+    "logs/rendering/phase68/integration/release-rbs-image-write/rbs-image-write.log",
+    "logs/rendering/phase68/integration/release-rbs-image-write/results.json",
+    "logs/rendering/phase68/integration/release-rbs-missing/GEngine.log",
+    "logs/rendering/phase68/integration/release-rbs-missing/rbs-missing.log",
+    "logs/rendering/phase68/integration/release-rbs-missing/results.json",
+    "logs/rendering/phase68/integration/release-rbs-native-close/rbs-native-close/GEngine.log",
+    "logs/rendering/phase68/integration/release-rbs-native-close/rbs-native-close/application.log",
+    "logs/rendering/phase68/integration/release-rbs-native-close/rbs-native-close/smoke.json",
+    "logs/rendering/phase68/integration/release-rbs-native-close/results.json",
+    "logs/rendering/phase68/integration/release-rbs-protocol/GEngine.log",
+    "logs/rendering/phase68/integration/release-rbs-protocol/rbs-success.log",
+    "logs/rendering/phase68/integration/release-rbs-protocol/results.json",
+    "logs/rendering/phase68/integration/rendering-boundary-objects/compile-frame_submission_probe.log",
+    "logs/rendering/phase68/integration/rendering-boundary-objects/compile-ray_boundary_probe.log",
+    "logs/rendering/phase68/integration/rendering-boundary-objects/compile-render_extraction_probe.log",
+    "logs/rendering/phase68/integration/rendering-boundary-objects/compile-retained_boundary_probe.log",
+    "logs/rendering/phase68/integration/rendering-boundary-objects/results.json",
+    "logs/rendering/phase68/material-path-packet/manifest.json",
+    "logs/rendering/phase68/measurement-packet/debug-objects/compile-baseline-header.log",
+    "logs/rendering/phase68/measurement-packet/debug-objects/object-BaseApp.log",
+    "logs/rendering/phase68/measurement-packet/debug-objects/object-RenderBaseline.log",
+    "logs/rendering/phase68/measurement-packet/debug-objects/results.json",
+    "logs/rendering/phase68/measurement-packet/preflight.json",
+    "logs/rendering/phase68/native-boundary-audit.json",
+    "logs/rendering/phase68/post-cleanup-audit/audit-inputs.json",
+    "logs/rendering/phase68/post-cleanup-audit/exception-audit.json",
+    "logs/rendering/phase68/pre-optional-path-inputs.json",
+    "logs/rendering/phase68/preflight.json",
+    "logs/rendering/phase68/preservation-final.json",
+    "logs/rendering/phase68/preservation.json",
+    "logs/rendering/phase68/protocol-review.json",
+    "logs/rendering/phase68/runtime-summary.json",
+    "logs/rendering/phase68/terrain-path-packet/manifest.json"
+  ],
+  "next_phase": "COMPLETE",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "48b3ea792e5f17938d7329500791765ceca97b2b",
+      "blob_ref": "refs/rendering-seals/056e293b2287801c/phase-68/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/48b3ea792e5f17938d7329500791765ceca97b2b",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "5633d3a106179aa998851dbae0a2dd3e819340283a1a56ad51a4cbd377abeeba"
+      },
+      "mode": "100644",
+      "validated_blob": "89dc8c02fa02b4420988fda65e9659c8e8d48bbc",
+      "validated_blob_ref": "refs/rendering-seals/056e293b2287801c/phase-68/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/89dc8c02fa02b4420988fda65e9659c8e8d48bbc"
+    }
+  },
+  "phase": "68",
+  "previous_approved_tag": "render-refactor-phase-67-approved",
+  "protected_files": [
+    ".gitignore",
+    "GEngineEditor/imgui.ini",
+    "docs/physics/PHASE_06_REVIEW.md",
+    "docs/physics/PHASE_07_REVIEW.md",
+    "docs/physics/PHASE_08_REVIEW.md",
+    "docs/physics/PHASE_09_REVIEW.md",
+    "docs/physics/PHASE_10_REVIEW.md",
+    "docs/physics/PHASE_11_REVIEW.md",
+    "docs/physics/PHASE_12_REVIEW.md",
+    "docs/physics/PHASE_13_REVIEW.md",
+    "docs/physics/PHASE_14_REVIEW.md",
+    "docs/physics/PHASE_15_REVIEW.md",
+    "docs/physics/PHASE_16_REVIEW.md",
+    "docs/physics/PHASE_17_REVIEW.md",
+    "docs/physics/PHASE_18_REVIEW.md",
+    "docs/physics/PHASE_19_REVIEW.md",
+    "docs/physics/PHASE_20_REVIEW.md",
+    "docs/physics/PHASE_21_REVIEW.md",
+    "docs/physics/PHASE_22_REVIEW.md",
+    "docs/physics/PHASE_23_REVIEW.md",
+    "docs/physics/PHASE_24_REVIEW.md",
+    "docs/physics/PHASE_25_REVIEW.md",
+    "docs/physics/PHASE_26_REVIEW.md",
+    "docs/physics/PHASE_27_REVIEW.md",
+    "docs/physics/PHASE_28_REVIEW.md",
+    "docs/physics/PHASE_29_REVIEW.md",
+    "docs/physics/PHASE_30_REVIEW.md",
+    "docs/physics/PHASE_32_REVIEW.md",
+    "docs/physics/PHASE_33_REVIEW.md",
+    "docs/physics/PHASE_34_REVIEW.md",
+    "docs/physics/PHASE_35_REVIEW.md",
+    "docs/physics/PHASE_36_REVIEW.md",
+    "docs/physics/PHASE_37_REVIEW.md",
+    "docs/physics/PHASE_38_REVIEW.md",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md",
+    "docs/physics/PHASE_39_REVIEW.md",
+    "docs/physics/PHYSICS_OPTIMIZATION.md",
+    "docs/physics/PHYSICS_REFACTOR.md",
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md",
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md",
+    "docs/physics/review/PHASE_00_REVIEW.md",
+    "docs/physics/review/PHASE_01_REVIEW.md",
+    "docs/physics/review/PHASE_02_REVIEW.md",
+    "docs/physics/review/PHASE_03_REVIEW.md",
+    "docs/physics/review/PHASE_04_REVIEW.md",
+    "tools/render_world_probe.cpp",
+    "tools/test_render_world.py"
+  ],
+  "remote": "origin",
+  "review": "docs/rendering/reviews/PHASE_68_REVIEW.md",
+  "schema": 2,
+  "summary": "Close the 17 residual owned-production exception tokens through bounded typed measurement/bootstrap/path/audio/terrain migrations; preserve the measurement protocol and validate the final candidate with minimum Debug/Release compilation/builds and RigidBodySimulation as the sole runtime workload under the owner amendment.",
+  "validation": [
+    {
+      "check": "Final owned-production zero-exception audit",
+      "command": "python logs/rendering/phase68/exception_audit.py logs/rendering/phase68/final-source-audit (exit 0)",
+      "evidence": "logs/rendering/phase68/final-source-audit/exception-audit.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Minimum GEngine/RBS Debug and Release build/link",
+      "command": "python tools/test_baseline_errors.py --configuration Debug|Release --output logs/rendering/phase68/integration/<config>-final-build --action build; exact expanded commands and exit0 in reports",
+      "evidence": "logs/rendering/phase68/integration/debug-final-build/results.json; logs/rendering/phase68/integration/release-final-build/results.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Changed headers/consumer objects and C++23 facilities",
+      "command": "Pinned cl.exe /c /std:c++23preview /MTd|/MT; no application link/launch for excluded consumers; exact commands in reports",
+      "evidence": "logs/rendering/phase68/integration/debug-final-consumer-objects/results.json; logs/rendering/phase68/integration/release-final-consumer-objects/results.json",
+      "result": "PASS",
+      "reuse_reason": "Unchanged SceneApp Debug/Release source objects reused from earlier completed checks; additive ResolvePath does not change those consumers."
+    },
+    {
+      "check": "Normal rendering/platform and RBS backend isolation",
+      "command": "Pinned compiler, native include paths removed; existing semantic contracts compiled /c; production RBS compiled Debug/Release with no PCH",
+      "evidence": "logs/rendering/phase68/native-boundary-audit.json",
+      "result": "PASS",
+      "reuse_reason": "105 owned headers in compiled closure. Existing semantic contract checks reused across addition of unused ResolvePath declaration; final changed contracts and RBS recompiled."
+    },
+    {
+      "check": "RBS collector success, exact sampling schema and settings",
+      "command": "python tools/test_baseline_errors.py --configuration Debug|Release --output logs/rendering/phase68/integration/<config>-rbs-protocol --action runtime --case success (both exit0)",
+      "evidence": "logs/rendering/phase68/protocol-review.json",
+      "result": "PASS",
+      "reuse_reason": "RenderBaseline, BaseApp, window capture and required asset functions unchanged after these runs; only an unused optional ResolvePath entry was added. Final binaries additionally validated by native close and startup failure cases."
+    },
+    {
+      "check": "RBS-only typed failure, normal runtime, GL and close behavior",
+      "command": "tools/test_baseline_errors.py with RBS-only runtime/startup/native-close actions; exact per-case commands and observed expected exits 0/1 recorded",
+      "evidence": "logs/rendering/phase68/runtime-summary.json",
+      "result": "PASS",
+      "reuse_reason": "Scene dimension error code12/exit1 reused from initial wrong success expectation; original failed runner report is retained. No claim of exhaustive allocation/capability/stream failure injection."
+    },
+    {
+      "check": "Owner-selected exclusions: full-solution/four-app suites, standalone probes, historical performance/image comparisons",
+      "command": "Owner amendment applied; prohibited executables/workflows were not run",
+      "evidence": "docs/rendering/reviews/PHASE_68_OWNER_VALIDATION_AMENDMENT.md",
+      "reason": "Owner explicitly restricts all current/final Phase68 executable validation to RBS, minimum compilation/builds and forbids historical Phase65/timing/comparison reruns. Historical findings/thresholds are retained, not passed.",
+      "result": "NOT_APPLICABLE"
+    },
+    {
+      "check": "Updated current architecture guide/cache",
+      "command": "Source-matched contract/path/link verification only",
+      "evidence": "logs/rendering/phase68/documentation-validation.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Protected work/index/approved state and validation identity",
+      "command": "Checkpoint helper fingerprints, check_hashes and index_identity against Phase68 preflight; no Git publication",
+      "evidence": "logs/rendering/phase68/preservation-final.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    "Breakout/include/BreakoutApp.h": {
+      "executable": null,
+      "sha256": "fbed1eff1c43c9af76391011abaa52cc059f1aa7fc0547e67b35029215758c42"
+    },
+    "Breakout/include/GameLevel.h": {
+      "executable": null,
+      "sha256": "bc7b7857093efa604358983b7c91a7b1a895cd2376ba984780ad32dbda75def3"
+    },
+    "Breakout/include/GameObject/BallObject.h": {
+      "executable": null,
+      "sha256": "aba35167f2993fbf66d0da5dfa6b878fb6e1c9499743913b7e676f3eafbcb0a5"
+    },
+    "Breakout/src/BreakoutApp.cpp": {
+      "executable": null,
+      "sha256": "5ee660c748aeb21ad5bbc09ee4d4bf6099615238c712bea244f5b6e496cfaa98"
+    },
+    "Breakout/src/GameLevel.cpp": {
+      "executable": null,
+      "sha256": "617c6c8b6855b74ed4b36ae5600786c6d83c4e0f2c6e6b06e64df1b9563024e5"
+    },
+    "Breakout/src/GameObject/BallObject.cpp": {
+      "executable": null,
+      "sha256": "70f8f62f9b0690462e8d8602150e250929b3ef82c39ded794ec55c8e7bdf3970"
+    },
+    "Breakout/src/main.cpp": {
+      "executable": null,
+      "sha256": "2717dbf5574b91d77a85ed43aed72a71f0d24fad8fb4911ef03b208e22e1d067"
+    },
+    "GEngine.sln": {
+      "executable": null,
+      "sha256": "bc69967ae88d485861216e225e1888d14c0c45428b73f59e6e93070c9c9b1dca"
+    },
+    "GEngine/GEngine.vcxproj": {
+      "executable": null,
+      "sha256": "0865f64bc0800fbf5aaa6e2d513984a1237d11dbd4dc66c4786028f3159c1796"
+    },
+    "GEngine/include/GEngine/Animation/AnimatedModel.h": {
+      "executable": null,
+      "sha256": "097a6eb28423ac96ac4cb9abd215ee61a1df308d7969f035da7995068d3c2e89"
+    },
+    "GEngine/include/GEngine/Animation/Animation.h": {
+      "executable": null,
+      "sha256": "0f191caf71be9d3cd8b4ca5e02a2f56b6dd24af16efa716b90feaa4efc8cfbf7"
+    },
+    "GEngine/include/GEngine/Animation/AnimationSystem.h": {
+      "executable": null,
+      "sha256": "1001fdafd38b9ebb88e95ed80ff2dd1e46e8bae4c62fef2cf39b17d936d8ff30"
+    },
+    "GEngine/include/GEngine/Animation/Bone.h": {
+      "executable": null,
+      "sha256": "d30a374aa1a5692d30ae4cd0b36c33a7f692d914bbe598e09c93d6b114ad2248"
+    },
+    "GEngine/include/GEngine/Animation/BoneInfo.h": {
+      "executable": null,
+      "sha256": "89b3e738cd0758c4f9239167a3d805bf2fc32f6eb044e48241a975ceef36652c"
+    },
+    "GEngine/include/GEngine/Assets/AssetHandle.h": {
+      "executable": null,
+      "sha256": "0c2e54fe82b781b290628fe1c520ab3cf065570fcfa699d4afd341b3d5c61e1f"
+    },
+    "GEngine/include/GEngine/Assets/AssetPublication.h": {
+      "executable": null,
+      "sha256": "76555c4f8319a5d82cb2b0ef4e2f8b14856391c5bea6871305f43719edd4b415"
+    },
+    "GEngine/include/GEngine/Assets/AssetRegistry.h": {
+      "executable": null,
+      "sha256": "54e4109ad0b728c67454af19ae09599318054c13918c1df75c191a0ad21e58b5"
+    },
+    "GEngine/include/GEngine/Assets/AsyncUploadQueue.h": {
+      "executable": null,
+      "sha256": "fe0ff121b564eaf42c9712cdfdeb7c019244b30c97905d3d0ce78ca80705e96e"
+    },
+    "GEngine/include/GEngine/Assets/Fonts/Font.h": {
+      "executable": null,
+      "sha256": "0fbb203a1aea676ff844f31aca52b522a9dc80664a9f868c87a57305139dcf62"
+    },
+    "GEngine/include/GEngine/Assets/ModelImportError.h": {
+      "executable": null,
+      "sha256": "13d394996f443b346b2c610e3bf10f4972a6bdfb5476eee57bf46589d40bb06e"
+    },
+    "GEngine/include/GEngine/Assets/Samplers/Sampler.h": {
+      "executable": null,
+      "sha256": "fb7949c2a99da229119c00931c9ba89577f3137593c0fd6b329776d8e61c5490"
+    },
+    "GEngine/include/GEngine/Assets/Shaders/Shader.h": {
+      "executable": null,
+      "sha256": "44af7fa32dc5e889fc1e971a73a54200c0c8e23655c1427ad9fc22478ff6b28c"
+    },
+    "GEngine/include/GEngine/Assets/Textures/AsyncTexture.h": {
+      "executable": null,
+      "sha256": "d15b3c01824f8324f38be3a0307c1b48498118b46824747ad6eeceede25b4e1c"
+    },
+    "GEngine/include/GEngine/Assets/Textures/TextTexture.h": {
+      "executable": null,
+      "sha256": "fd09234d50f8fa1790e30aca1a4402b9f945514ea80e98ad941934ea1a4b4f6d"
+    },
+    "GEngine/include/GEngine/Assets/Textures/Texture.h": {
+      "executable": null,
+      "sha256": "07ae78a2e14aa21832adaa84d78515b35ce030b6a13ac845baa60e9cc8139c95"
+    },
+    "GEngine/include/GEngine/Audio/AudioSystem.h": {
+      "executable": null,
+      "sha256": "f5b5c568a0b2a4053fdc5093aa46da47075c13b48f3fcd8c443564000d7cd524"
+    },
+    "GEngine/include/GEngine/Audio/SoundEvent.h": {
+      "executable": null,
+      "sha256": "a2bafa5710f1678dfee7f90092bfa2129e690dc8d51d2960ac62cec8fb7610fe"
+    },
+    "GEngine/include/GEngine/Camera/Camera.h": {
+      "executable": null,
+      "sha256": "08226676282cfd33ee5eb79e956234b0d55c04f841ab8a0c6a808cdfeca02931"
+    },
+    "GEngine/include/GEngine/Camera/EditorCamera.h": {
+      "executable": null,
+      "sha256": "69449645b56e3fdb10f227fc0ebd987aad76f24d8482c767b0872614a4306336"
+    },
+    "GEngine/include/GEngine/Camera/OrthographicCamera.h": {
+      "executable": null,
+      "sha256": "41506e588d2fbbd2426007bd55726033f3818641f55aa335d0fae4051dca8c9a"
+    },
+    "GEngine/include/GEngine/Camera/PerspectiveCamera.h": {
+      "executable": null,
+      "sha256": "124e40da0adf1698578041b5118c006f3a685e0ad520c34b9fb76a67379caf62"
+    },
+    "GEngine/include/GEngine/Camera/PlayerCamera.h": {
+      "executable": null,
+      "sha256": "45f3f2c09be2ec6eb8899af6ba0b4cc3539ac04f693fd5b5d029b5bae284678a"
+    },
+    "GEngine/include/GEngine/Camera/RayTracingCamera.h": {
+      "executable": null,
+      "sha256": "bead079507fb540faec78fc55c028fb5a65402e95d4462c591af7a1662419dfb"
+    },
+    "GEngine/include/GEngine/Camera/SceneCamera.cpp": {
+      "executable": null,
+      "sha256": "6fe493bf6594f8be81d69c6d56153b636b3a065ec4b9b37edd3df984b7fb46b6"
+    },
+    "GEngine/include/GEngine/Camera/SceneCamera.h": {
+      "executable": null,
+      "sha256": "777a4c4b21744c392db4978827402856286cc3eb417c6ce90d01dc0448c8c20c"
+    },
+    "GEngine/include/GEngine/Camera/ThirdPersonCamera.h": {
+      "executable": null,
+      "sha256": "b2da25b98f9373ad82bd7860eb4c3539d7376c2e360bb4eba303515b5df7fa78"
+    },
+    "GEngine/include/GEngine/Camera/_Camera.cpp": {
+      "executable": null,
+      "sha256": "0b5e63b34116540a7e6beeab89018c74b76bd563b48915649f60afc9f3c85616"
+    },
+    "GEngine/include/GEngine/Camera/_Camera.h": {
+      "executable": null,
+      "sha256": "e412ae85353ab27c5a66402e97fd9edf77c1e4442122d476f7383845f4d07837"
+    },
+    "GEngine/include/GEngine/Character/Character.h": {
+      "executable": null,
+      "sha256": "91a4ca9d839a6675c0d48f416834e5366e5c0980a02688df979cd52a6a0c69fb"
+    },
+    "GEngine/include/GEngine/Component/Component.h": {
+      "executable": null,
+      "sha256": "508e7adbe4eeddefb5e3210e91e1b5f531ff64bb1601cb86b289884105b3f454"
+    },
+    "GEngine/include/GEngine/Component/RenderComponents.h": {
+      "executable": null,
+      "sha256": "ce2406fd76223b4cb0cb5d2cb20ca58e18c7b67aa0871683596a1f1d33cdce5f"
+    },
+    "GEngine/include/GEngine/Component/TexturesComponent.h": {
+      "executable": null,
+      "sha256": "54c6de288a95fba548df50ec73db04b93ccbc39091d56d3c280899ae8f432cd8"
+    },
+    "GEngine/include/GEngine/Container/Array.h": {
+      "executable": null,
+      "sha256": "baa72e0af43b0d404da1916d5a052abe8fe6c6328077f8b9ee48c7b7b7c71821"
+    },
+    "GEngine/include/GEngine/Container/Array1D.h": {
+      "executable": null,
+      "sha256": "3b11381e80480b2fa9e775ce3018e07be24db7532b876902b0fe13776e0e559d"
+    },
+    "GEngine/include/GEngine/Container/Array2D.h": {
+      "executable": null,
+      "sha256": "6985145740fec7b5627de3dc0aa1926fb3730a875c14f7960bc7eccb3e04cad3"
+    },
+    "GEngine/include/GEngine/Container/Array3D.h": {
+      "executable": null,
+      "sha256": "6740271d07c1f74aa4b37aec64b724f761580f31da600ff1f9856376d1c744f0"
+    },
+    "GEngine/include/GEngine/Container/ArrayAccessor1D.h": {
+      "executable": null,
+      "sha256": "233df584af33b2036d0260c91c1ddcf2da8574c5a9e8f0f28a6ba8b9421b7fba"
+    },
+    "GEngine/include/GEngine/Container/ArrayAccessor2D.h": {
+      "executable": null,
+      "sha256": "0e0af4b2855f995945a9890a263cf932dda3ea26181503347d66148943a6de36"
+    },
+    "GEngine/include/GEngine/Container/ArrayAccessor3D.h": {
+      "executable": null,
+      "sha256": "b506814832b2f1e2c7a8570f02e937619c980d080001d8b21bb7c622fa900b79"
+    },
+    "GEngine/include/GEngine/Core/AAEntity.h": {
+      "executable": null,
+      "sha256": "1ccaba96b9bf000fc1a418e63d4403f3ab4e8790150624b44489a9db7d7d8181"
+    },
+    "GEngine/include/GEngine/Core/Actor.h": {
+      "executable": null,
+      "sha256": "55a082c5600c30c1f6a6b55e0c1b5a871766683c31cef6172f25c49aa067a38a"
+    },
+    "GEngine/include/GEngine/Core/Assert.h": {
+      "executable": null,
+      "sha256": "cc4b3d2c7f5bc84c95499cfca80812469a36f198f2aa852e31d97da70f2a228d"
+    },
+    "GEngine/include/GEngine/Core/Base.h": {
+      "executable": null,
+      "sha256": "44aeaa60979ebcb7349b962995c952b6757ea5b3d6ce58204eee9ccc2087897f"
+    },
+    "GEngine/include/GEngine/Core/BaseApp.h": {
+      "executable": null,
+      "sha256": "148b546009a2a56c29140fad5785a9bf499ffa6587ef856329a374688c9c510e"
+    },
+    "GEngine/include/GEngine/Core/Entities.h": {
+      "executable": null,
+      "sha256": "69279abc183e4e0fcc6b90d7f570244e1d07f92752fb0ff8586140d336c3fefd"
+    },
+    "GEngine/include/GEngine/Core/Entity.h": {
+      "executable": null,
+      "sha256": "6ce9d94ad0bb7bb6790800e5193ca09591262e78beecd543705d6c4eab6344aa"
+    },
+    "GEngine/include/GEngine/Core/FrameBuffer.h": {
+      "executable": null,
+      "sha256": "0da5a2d932f47e4126e7c915d1816e40ee3b63246eb279545c5aad0ca20f0b81"
+    },
+    "GEngine/include/GEngine/Core/FrameClock.h": {
+      "executable": null,
+      "sha256": "b3786a76d594762ef71f218cc5ea46ac42b265723b49dd82ab94499787d6edfc"
+    },
+    "GEngine/include/GEngine/Core/GEngine.h": {
+      "executable": null,
+      "sha256": "163a0c42d8885956eafda3b3fe36d09b66e18b748bdb16efa989b8cf487dcbcc"
+    },
+    "GEngine/include/GEngine/Core/GLContextThread.h": {
+      "executable": null,
+      "sha256": "76b5e1c90ad4eb04162f7060d36c8bd5bc8d0d37871a6af4afba65557b7be550"
+    },
+    "GEngine/include/GEngine/Core/GLDebug.h": {
+      "executable": null,
+      "sha256": "7bb9af16460e957d3021828efc57c6cd83ba656e624236a970e2598dccc822fd"
+    },
+    "GEngine/include/GEngine/Core/GameObject2D.h": {
+      "executable": null,
+      "sha256": "00e3ff3c92dc44f448c6933e6bc79a8337ebe5adde3e9e307883ca62dde0c0d1"
+    },
+    "GEngine/include/GEngine/Core/Group.h": {
+      "executable": null,
+      "sha256": "4650e6875d7b92d28f5de5e4084010ded0cf9efcbba2a155d737c945307be67f"
+    },
+    "GEngine/include/GEngine/Core/Image.h": {
+      "executable": null,
+      "sha256": "ce5f7ffce5396833d16588f2ffe99870370305c2c1ebfad8ddc72c5cd7de8abb"
+    },
+    "GEngine/include/GEngine/Core/ImageError.h": {
+      "executable": null,
+      "sha256": "8a734698e09396a5aedce346c5b6f6e2e84fc803e2440a1b250f61d6d1f0aa25"
+    },
+    "GEngine/include/GEngine/Core/Log.h": {
+      "executable": null,
+      "sha256": "26e81a47a61ce298ff382fe06467b5fcd9f55935a0bb8d00793f1b54ad9c93f5"
+    },
+    "GEngine/include/GEngine/Core/Parallel.h": {
+      "executable": null,
+      "sha256": "c067b51e893e01c58ac294c45d4ff94a97a26f4f7246c0adc5333868f621db6d"
+    },
+    "GEngine/include/GEngine/Core/Platform.h": {
+      "executable": null,
+      "sha256": "8491e398612e193d671435411e4a5ac4debfe90ce5ef76a2aa49a56b44864594"
+    },
+    "GEngine/include/GEngine/Core/Pod.h": {
+      "executable": null,
+      "sha256": "c58742f8e54b1c2415c41bc59a8085d1464395a2b112042ea58632e796dea4b4"
+    },
+    "GEngine/include/GEngine/Core/RandomGenerator.h": {
+      "executable": null,
+      "sha256": "7390b30ec2bee8c0659d779bf19f8f73d6f57f8591e2c5a6c8728944f9429fe7"
+    },
+    "GEngine/include/GEngine/Core/RawModel.h": {
+      "executable": null,
+      "sha256": "e1e7cb9029f4c93b50d5c311b393a3568a2d9e80b69424f8d5dac20cd5c898e0"
+    },
+    "GEngine/include/GEngine/Core/Ray.h": {
+      "executable": null,
+      "sha256": "3ff8f090d9eb6ad74fa8dc42a9f8a7198ec6e455308b7b45260fc80d45c0ad41"
+    },
+    "GEngine/include/GEngine/Core/RayTracingScene.h": {
+      "executable": null,
+      "sha256": "cfc74eb2b3e7b538790336ae96c097e56d9badb5355df404f6f7d63f4a282c2c"
+    },
+    "GEngine/include/GEngine/Core/RenderBaseline.h": {
+      "executable": null,
+      "sha256": "ac7233c1de0eaf9da81a50629f1f42a1d2814180164fa392084c05133653c4ca"
+    },
+    "GEngine/include/GEngine/Core/RenderCounters.h": {
+      "executable": null,
+      "sha256": "a71344420150607ecbdd7860dd8b3b3f255bcd557a5c563180cd57ef06e701cb"
+    },
+    "GEngine/include/GEngine/Core/RenderSystem.cpp": {
+      "executable": null,
+      "sha256": "e704988f529de117a855f7734611f3d620d366a094ed1a624199bb40df3d61e6"
+    },
+    "GEngine/include/GEngine/Core/RenderSystem.h": {
+      "executable": null,
+      "sha256": "0bbfa8060e9318c270cf2fa6f697b00f32b6f0320c293b8a4075d2cca81b07ff"
+    },
+    "GEngine/include/GEngine/Core/RenderTarget.h": {
+      "executable": null,
+      "sha256": "876463ea101ac6e7e8a9d6411794347a74885dc19680b33f649f75de4758b18f"
+    },
+    "GEngine/include/GEngine/Core/Renderer.h": {
+      "executable": null,
+      "sha256": "f9ba3b4c186b432d8b427a038de95e74c22ed4535c533d49d1d6d3841ea01705"
+    },
+    "GEngine/include/GEngine/Core/Renderer2D.h": {
+      "executable": null,
+      "sha256": "a12a4c45e288ca3787ff48e9ed2d9a9535ed9e7f2541b9b79ea3ebc52bdc845d"
+    },
+    "GEngine/include/GEngine/Core/RuntimeAssets.h": {
+      "executable": null,
+      "sha256": "6029280e7010a8e38226fa18081c2d18fe64516793b6281eca7ab4cb24a363c7"
+    },
+    "GEngine/include/GEngine/Core/Scene.cpp": {
+      "executable": null,
+      "sha256": "90ebea1bc1714edbe66df26c28645e4907d9b3c7032cca6c06446b814ac63e8c"
+    },
+    "GEngine/include/GEngine/Core/Scene.h": {
+      "executable": null,
+      "sha256": "5f776aac9617c8ca6d6584a0937f625cd38ac3f8dbc0b1ee2de64a2094a4bb75"
+    },
+    "GEngine/include/GEngine/Core/SceneGraph.h": {
+      "executable": null,
+      "sha256": "f1489aa0d62c58730c1da90a637ddf89143a1d4b6f88089a15f1d6afde13c9be"
+    },
+    "GEngine/include/GEngine/Core/SimpleRenderer.h": {
+      "executable": null,
+      "sha256": "9ae5f717f7121d211eb71a2428d9edb72c32e9919bf4c5b6c7eab96d3b711c38"
+    },
+    "GEngine/include/GEngine/Core/Sprite2D.h": {
+      "executable": null,
+      "sha256": "9e09ba37b302038244c46b4a4077afbfe18771bb6c5ce9e9a4f652051592defa"
+    },
+    "GEngine/include/GEngine/Core/System.h": {
+      "executable": null,
+      "sha256": "293bac5caa967b7d6ead9b148a86216dc289c34a895e6c6822ffc62a80931b9a"
+    },
+    "GEngine/include/GEngine/Core/Timer.h": {
+      "executable": null,
+      "sha256": "14995d9358faf7c2d2f4551ec809b2b4bba41806e3887c61d26eae4d79ce48d9"
+    },
+    "GEngine/include/GEngine/Core/Timestep.h": {
+      "executable": null,
+      "sha256": "1b9e2a4462863b1be49ef9fe2be1c750ac018b8957da4e87fde8706f934496c0"
+    },
+    "GEngine/include/GEngine/Core/UUID.h": {
+      "executable": null,
+      "sha256": "f90003added0eb682e01af0e632f1f09281ebb874a674ccd355f9f1d15bad055"
+    },
+    "GEngine/include/GEngine/Core/Utility.h": {
+      "executable": null,
+      "sha256": "46eb48ce31ab7a8aa31c66755799292e933fa380248e6e9a5d69083252338256"
+    },
+    "GEngine/include/GEngine/Core/Window.h": {
+      "executable": null,
+      "sha256": "7ce8dee7a8df0cab50e4fc097d5e0b9f134006a6543f84152b42981c31ca5780"
+    },
+    "GEngine/include/GEngine/EntryPoint.h": {
+      "executable": null,
+      "sha256": "54d6706d6aad4374b956bc5bab9a158bb716ee899f5bd7dbf6e9ac10588a82ef"
+    },
+    "GEngine/include/GEngine/Events/ApplicationEvent.h": {
+      "executable": null,
+      "sha256": "bf5235ba86e39b1d7655df2e9405c1dee9e5e46b0de3b8546df384b36858b32c"
+    },
+    "GEngine/include/GEngine/Events/Event.h": {
+      "executable": null,
+      "sha256": "4080d023e48ab0cdaf61fab45c1322e73fcf1c22eb63026a7701182e25b20d51"
+    },
+    "GEngine/include/GEngine/Events/GameControllerEvent.h": {
+      "executable": null,
+      "sha256": "e3da5c91b5a97841bff54bd59c50b0d9221859dc34b352d01b125d13a447ef87"
+    },
+    "GEngine/include/GEngine/Events/KeyBoardEvent.h": {
+      "executable": null,
+      "sha256": "c1bf920c603a5620181e254e303354fad3b5d53c4c3775f014e34a24d889d116"
+    },
+    "GEngine/include/GEngine/Events/MouseEvent.h": {
+      "executable": null,
+      "sha256": "8fc12dd648f59ebb0489769028177febb889e8b7fdd538c9f456243a709963b0"
+    },
+    "GEngine/include/GEngine/Events/Property.h": {
+      "executable": null,
+      "sha256": "8b5cda8e19188ea9c619fa61edb2340e9f9689807f58b9f744915f1c0a74494c"
+    },
+    "GEngine/include/GEngine/Events/Signal.h": {
+      "executable": null,
+      "sha256": "5b23d3e5d71cd638af943e5f3ec0ba3b732778723ac49d5f9e0d87c490062485"
+    },
+    "GEngine/include/GEngine/Extras/AssimpGLMHelpers.h": {
+      "executable": null,
+      "sha256": "8677eee551bf4409b1a0cdc2af52a0dd71fe6bb30750934e5973994863211a7d"
+    },
+    "GEngine/include/GEngine/Extras/Axes.h": {
+      "executable": null,
+      "sha256": "a8a30204d6a82e669c704b9547a9190e59915a2f46879569eff67bb4da8c61b6"
+    },
+    "GEngine/include/GEngine/Extras/CameraRig.h": {
+      "executable": null,
+      "sha256": "9561ff63a17b744b5adb8b8c6651a2d607f623846b0b3e1172b26953e7215d37"
+    },
+    "GEngine/include/GEngine/Extras/Grid.h": {
+      "executable": null,
+      "sha256": "9e117c80816692ff2292c12b2b1860baa2ac737de48dcc70c15a126473af9a48"
+    },
+    "GEngine/include/GEngine/Factory/ShapeFactory.h": {
+      "executable": null,
+      "sha256": "1e63e36fb139ef92a883a2fa516a50e23a105ae325b5454252e639ebf66fb806"
+    },
+    "GEngine/include/GEngine/Geometry/Curve.h": {
+      "executable": null,
+      "sha256": "933d2abba2f544b914c3049ec0eb0c73caa3530895dbe424440e84c460b302f9"
+    },
+    "GEngine/include/GEngine/Geometry/Geometry.h": {
+      "executable": null,
+      "sha256": "14927b51facb31ecfd9d001a063b4794eb5f37882f2a830576b28e42cdd05d3b"
+    },
+    "GEngine/include/GEngine/Geometry/Surface.h": {
+      "executable": null,
+      "sha256": "b101976203e4ce217a392b3a6c23e5b99018cd0328fdad2b640399d63343506f"
+    },
+    "GEngine/include/GEngine/Inputs/ControllerCodes.h": {
+      "executable": null,
+      "sha256": "7b3e772956579f42ddc599407d825491a8c04f502759c13fd6b5e3f03621b277"
+    },
+    "GEngine/include/GEngine/Inputs/KeyCodes.h": {
+      "executable": null,
+      "sha256": "11d4ca770f1b7b1da68c5868a5a6e5d24bef208227248a8ce20f2661a5ba978b"
+    },
+    "GEngine/include/GEngine/Inputs/MouseCodes.h": {
+      "executable": null,
+      "sha256": "3319f4a2930aa7876c1b391611795c84b35dc7b962538cef7fefa71cd9d97485"
+    },
+    "GEngine/include/GEngine/Light/LightEntity.h": {
+      "executable": null,
+      "sha256": "ccbd6d885da901295d22efeaab85c65ac362755a0ee22153476ce1d78af82b33"
+    },
+    "GEngine/include/GEngine/Managers/AssetsManager.h": {
+      "executable": null,
+      "sha256": "9ebd2e97f144be03305682c5f3a3f9a50e2e42f17aaf667c93852c5be6258856"
+    },
+    "GEngine/include/GEngine/Managers/EventManager.h": {
+      "executable": null,
+      "sha256": "6f38880b5ae97da5cd7695f9382a0a1a78b2c07206e9c2edd68ad5efb582cf2c"
+    },
+    "GEngine/include/GEngine/Managers/InputManager.h": {
+      "executable": null,
+      "sha256": "7b54fdf1fc2b17ebd99ef553350a04c32cddaf628f1b72b5411846775ba0017d"
+    },
+    "GEngine/include/GEngine/Managers/ManagerBase.h": {
+      "executable": null,
+      "sha256": "91db8bbebdd687e3d3f2633427040b52d1749f265fb1bfead45e3c349e5df0ba"
+    },
+    "GEngine/include/GEngine/Managers/ShaderManager.h": {
+      "executable": null,
+      "sha256": "c25f98116f98079bedd4b3359588c6b364806b9ca775a05f69c046da746f4ec4"
+    },
+    "GEngine/include/GEngine/Managers/ShapeManager.h": {
+      "executable": null,
+      "sha256": "d9cc52ba95824e257536560dac4ba6619bad261918bf6a3fa403c70add97dfb7"
+    },
+    "GEngine/include/GEngine/Managers/WindowManager.h": {
+      "executable": null,
+      "sha256": "04e586f84e8d060510de4ee0109c2690a1dfa6dd07c8dfadc0593af041dcda86"
+    },
+    "GEngine/include/GEngine/Material/AAScreenMaterial.h": {
+      "executable": null,
+      "sha256": "bb00c67da4e096a29489c09d449b1999766924df97a15bd5ad26ebd9c4d28bff"
+    },
+    "GEngine/include/GEngine/Material/AnimatedMaterial.h": {
+      "executable": null,
+      "sha256": "ed1a9d04a5e3a892b817e80d84228ba05a3e58553f3d2da4fef52af8c8997562"
+    },
+    "GEngine/include/GEngine/Material/BasicMaterial.h": {
+      "executable": null,
+      "sha256": "e1407341fcd5215aeaa640e8ad053864a3335ece0bbbb9e0ffe91e4eda611ed4"
+    },
+    "GEngine/include/GEngine/Material/LightTextureMaterial.h": {
+      "executable": null,
+      "sha256": "be86cb0e4f63272102226989f5684857c8eb4949810a46defcaebb1f45f20272"
+    },
+    "GEngine/include/GEngine/Material/LineBasicMaterial.h": {
+      "executable": null,
+      "sha256": "4a56b72cb87afa229f4d4346705e111b04d625e8927b083ea12a3e072a288bb8"
+    },
+    "GEngine/include/GEngine/Material/Material.h": {
+      "executable": null,
+      "sha256": "f2159671d60fc5a2e2b0cb6467e39a81e6fddcd6b1f35e18abd749695254d909"
+    },
+    "GEngine/include/GEngine/Material/MaterialBinding.h": {
+      "executable": null,
+      "sha256": "68f52fde9c73b150de3cc3bda8f6b127e1d6c7fe1f0a05d82427a3ec7f4d5895"
+    },
+    "GEngine/include/GEngine/Material/MaterialInstance.h": {
+      "executable": null,
+      "sha256": "20918ce27f3f1d7ff20992a997e41283e337bca02a0e1bb7defc71b613080c48"
+    },
+    "GEngine/include/GEngine/Material/MaterialTemplate.h": {
+      "executable": null,
+      "sha256": "5edaabc5984f627b12801322b50d50bed5c534324c925072fc96deb1430ca035"
+    },
+    "GEngine/include/GEngine/Material/NormalLightTextureMaterial.h": {
+      "executable": null,
+      "sha256": "4bdaf6aa7aa1d9bdf1d8a607b29bec853484c54f210477ec59893bb4e7b463ab"
+    },
+    "GEngine/include/GEngine/Material/Pipeline.h": {
+      "executable": null,
+      "sha256": "1a5338955f8b0fd1ac7af01a1a6f032816d53e18b61b002177d081b31b193e0d"
+    },
+    "GEngine/include/GEngine/Material/SkyBoxMaterial.h": {
+      "executable": null,
+      "sha256": "ba0ea1b481dbae332aaef589f7f792da4498387c6f05e010c77dbb92838047a2"
+    },
+    "GEngine/include/GEngine/Material/SpriteMaterial.h": {
+      "executable": null,
+      "sha256": "11ee4fb91b936df4d1db7fc06f748d68e6cff438f21c72b3063a9b14ae652e54"
+    },
+    "GEngine/include/GEngine/Material/TerrainLightMaterial.h": {
+      "executable": null,
+      "sha256": "80965b07c27f1b0a0b0b4926c5601eaaaec4130e1a5e488b8e42e7e1fc2e4b4b"
+    },
+    "GEngine/include/GEngine/Material/TextureMaterial.h": {
+      "executable": null,
+      "sha256": "1eaa12affd8d1576285ffc449d6ca319085fcf19c80efe1c6aaae514679ca99c"
+    },
+    "GEngine/include/GEngine/Math/Math.h": {
+      "executable": null,
+      "sha256": "556081e3f3e68157b82eed611420ea69b11a3cf69d6a1e21bcf6f34b1d1a99f8"
+    },
+    "GEngine/include/GEngine/Math/Matrix.h": {
+      "executable": null,
+      "sha256": "0aa9ee9017f35bf68e8879fc6f0447b5d6d8393f7319785de8cf375ea3af04e7"
+    },
+    "GEngine/include/GEngine/Mesh/AsyncMesh.h": {
+      "executable": null,
+      "sha256": "fb2f732a72ea37b8710634eb42970759337e8af246e96f0d72033b35fdb62b59"
+    },
+    "GEngine/include/GEngine/Mesh/Attribute.h": {
+      "executable": null,
+      "sha256": "1a2bc04d89234d3d28b3ee7b0e9d6a3906ec8512ddb7d1ffd80ca51028cf6cea"
+    },
+    "GEngine/include/GEngine/Mesh/BufferLayout.h": {
+      "executable": null,
+      "sha256": "dcc8eccc794dbeeb4e8144cdbfab62442fabbe6fc67c2da17a48091f66d39225"
+    },
+    "GEngine/include/GEngine/Mesh/GpuMesh.h": {
+      "executable": null,
+      "sha256": "2c37f96f88e9e15ee8c852d695ba79734a97b9e357784f8ae71f14c844ffc096"
+    },
+    "GEngine/include/GEngine/Mesh/IndexBuffer.h": {
+      "executable": null,
+      "sha256": "846d589013f786aed3803d03740d1117f850a699268407128e4a0e477d76b919"
+    },
+    "GEngine/include/GEngine/Mesh/Mesh.h": {
+      "executable": null,
+      "sha256": "19ef6f5bd70e2f9535d032f81077dcefd5245e3c968419daa19663e32fd93dcc"
+    },
+    "GEngine/include/GEngine/Mesh/MeshAsset.h": {
+      "executable": null,
+      "sha256": "1d0dd5e38cf6e7bbba2ce68ea3fdeb827d47440bcc78c8d7989f63a11eb23cee"
+    },
+    "GEngine/include/GEngine/Mesh/MeshImporter.h": {
+      "executable": null,
+      "sha256": "308175fc0614a6711d0908df26f249efeb3dcebba1428946fd31f77c5bfeeba6"
+    },
+    "GEngine/include/GEngine/Mesh/VertexBuffer.h": {
+      "executable": null,
+      "sha256": "dc0482261d0045c21539c3c5225414ce69e44fa6a080d9d9aaf7410135cf8479"
+    },
+    "GEngine/include/GEngine/Physics/Bounds.cpp": {
+      "executable": null,
+      "sha256": "f6bc41da206fb6c90b33a0158543e9f4ef2c05e83953d001cb8c53711200e9ca"
+    },
+    "GEngine/include/GEngine/Physics/Bounds.h": {
+      "executable": null,
+      "sha256": "c7b299abc8c8301e1bd2c7ffe095bd77e4c05c071edcc26c6d64f302996c600e"
+    },
+    "GEngine/include/GEngine/Physics/BoxContact.h": {
+      "executable": null,
+      "sha256": "e8ba9cc943523ec767b4d298cb1fd0efbcf9a81cb3e4b8ce06c32f3aa5cbd9ef"
+    },
+    "GEngine/include/GEngine/Physics/Broadphase.cpp": {
+      "executable": null,
+      "sha256": "2945e2c34fcd202f07bb06c30947a272a73c0028d641bd1c1de7b15569d9bc22"
+    },
+    "GEngine/include/GEngine/Physics/Broadphase.h": {
+      "executable": null,
+      "sha256": "3145e9abab5464f4abf75b5dcd3925e4b22200f2ab4de90372e60d241448e6df"
+    },
+    "GEngine/include/GEngine/Physics/Constraints/Constraint.cpp": {
+      "executable": null,
+      "sha256": "bf2df40095a7c3901aaccc11e71dc0cc280b29c570dcb07a29460b759504cc10"
+    },
+    "GEngine/include/GEngine/Physics/Constraints/Constraint.h": {
+      "executable": null,
+      "sha256": "dbe1ba1f410514f357525a57ac1066e235412e60563ab50b84313e7c81f6ef6e"
+    },
+    "GEngine/include/GEngine/Physics/Constraints/ConstraintPenetration.cpp": {
+      "executable": null,
+      "sha256": "88f50acc239768b6f246470d55d24beb39a4757278862444c364a0816ef6d8e3"
+    },
+    "GEngine/include/GEngine/Physics/Constraints/ConstraintPenetration.h": {
+      "executable": null,
+      "sha256": "d750a5e1319ba7d87150e4eb23def80344fa7732d0bb081e8543bac2600ce962"
+    },
+    "GEngine/include/GEngine/Physics/Constraints/SolverMath.h": {
+      "executable": null,
+      "sha256": "e6776732df397875da29bac082458283ce6a9be5c3cc41fca026bac82ef41dfb"
+    },
+    "GEngine/include/GEngine/Physics/Contact.cpp": {
+      "executable": null,
+      "sha256": "31284cc1c6ff22e65a19a4b883ecb6024a219b0a5f7bfea6eb1a6c0df9165aa6"
+    },
+    "GEngine/include/GEngine/Physics/Contact.h": {
+      "executable": null,
+      "sha256": "773e0ee7df29c76b1a17f065b67e1d467341088c52db43b0031f336ed997c328"
+    },
+    "GEngine/include/GEngine/Physics/ContactIsland.h": {
+      "executable": null,
+      "sha256": "ae0f977c4a9b88d228d013df58d8516809d8ae1ce3367f2c16fce6894c02a9ba"
+    },
+    "GEngine/include/GEngine/Physics/GJK.cpp": {
+      "executable": null,
+      "sha256": "e6c959b45e7b139c697cd6afebd3a0bed9fe93c44f65e790122eb2b60b0e843b"
+    },
+    "GEngine/include/GEngine/Physics/GJK.h": {
+      "executable": null,
+      "sha256": "490a630ca2625a3a2fa28d69bc5e3e680bea0621efe39ecace2bb11b2aacc006"
+    },
+    "GEngine/include/GEngine/Physics/Manifold.cpp": {
+      "executable": null,
+      "sha256": "7ab1dcf0afae9e9660d42dc46fda4b798290fd6c1836ece699b497e81acbcea7"
+    },
+    "GEngine/include/GEngine/Physics/Manifold.h": {
+      "executable": null,
+      "sha256": "df520ad476cdcda3afac7c445b207804e7b556b6d24f4892bb27f013012d7538"
+    },
+    "GEngine/include/GEngine/Physics/PhysicsBody.cpp": {
+      "executable": null,
+      "sha256": "15eca90ca0e150e61238f9a7d44ffe00f06a56ad5b3b9d87e533d4065caf9639"
+    },
+    "GEngine/include/GEngine/Physics/PhysicsBody.h": {
+      "executable": null,
+      "sha256": "00f2206b979647252fd7029ff673c4e99a814a4b1b9865099ad1eb9ab8e72910"
+    },
+    "GEngine/include/GEngine/Physics/PhysicsProfile.cpp": {
+      "executable": null,
+      "sha256": "bd4209ce3fd40950fba3f408f457e0896dda4800c773a57afa327261bea51a28"
+    },
+    "GEngine/include/GEngine/Physics/PhysicsProfile.h": {
+      "executable": null,
+      "sha256": "64902b8fcb2bfddd2b5e87352c91bfc8dac5fb968f731cd522e797a0aa217011"
+    },
+    "GEngine/include/GEngine/Physics/PhysicsShapeError.h": {
+      "executable": null,
+      "sha256": "94b971c7d24d1d6f3ffcd36c0c86d483e348b9c43f661ccc40f56abb4bb9927c"
+    },
+    "GEngine/include/GEngine/Physics/PhysicsSystem.cpp": {
+      "executable": null,
+      "sha256": "280667699d41348a1d5454ad61fac45a14fded91384e107b06d0a1b22d7037b4"
+    },
+    "GEngine/include/GEngine/Physics/PhysicsSystem.h": {
+      "executable": null,
+      "sha256": "8f4856a8195aad6ca4f92ddb29ae6c0082522d9dd6c4fa132a83de91726de113"
+    },
+    "GEngine/include/GEngine/Physics/PhysicsWorld.cpp": {
+      "executable": null,
+      "sha256": "6b4c34e397e0a28636e34a7fa8947caab54f335578969c929447358ef1e472a0"
+    },
+    "GEngine/include/GEngine/Physics/PhysicsWorld.h": {
+      "executable": null,
+      "sha256": "840b739f478e9686b8094540b4b893bf79efc026bc73b23af51e3c1b9c5efceb"
+    },
+    "GEngine/include/GEngine/Physics/Shape.cpp": {
+      "executable": null,
+      "sha256": "4657f8ac241de9c27845cafc7f9c5c6af87bce4274666e817c6ed1d5193378a1"
+    },
+    "GEngine/include/GEngine/Physics/Shape.h": {
+      "executable": null,
+      "sha256": "f8d76f984198ab7e50c7acc7cde8dcdca8e37c08cc152eeac4d024bbc817a32f"
+    },
+    "GEngine/include/GEngine/Physics/ShapeBox.cpp": {
+      "executable": null,
+      "sha256": "42d266c6302f002157ab5a12d02c6a44a5e500f988f9845ac97c8325b004f91a"
+    },
+    "GEngine/include/GEngine/Physics/ShapeBox.h": {
+      "executable": null,
+      "sha256": "6fb99eecb74ed01c0fd6c9d5b3cda1432a612cedcee76066acff7df6ba647d15"
+    },
+    "GEngine/include/GEngine/Physics/ShapeConvex.cpp": {
+      "executable": null,
+      "sha256": "cb59c818394cae3a2ec23f968cf25babda941527d8b8f460fd2d4671435a55a6"
+    },
+    "GEngine/include/GEngine/Physics/ShapeConvex.h": {
+      "executable": null,
+      "sha256": "b58d38474fd11e00ce444a6139a58794cd617afb21a27efc8359fe8573bcd76f"
+    },
+    "GEngine/include/GEngine/Physics/ShapeSphere.cpp": {
+      "executable": null,
+      "sha256": "acd6389a2bee45e869e27ae2d7750844fe4d399ca82364dba556c941f63cfe7b"
+    },
+    "GEngine/include/GEngine/Physics/ShapeSphere.h": {
+      "executable": null,
+      "sha256": "6d4c52470abd05f73a7aacda85ceb67efae4c2a7e973a17749941fd571ce86d7"
+    },
+    "GEngine/include/GEngine/Physics/detail/ConvexHull.h": {
+      "executable": null,
+      "sha256": "94757bf93483b27a2a7b3fbf94a89a3f9ad958d2bcaac8cec17ab9d64cf73be4"
+    },
+    "GEngine/include/GEngine/Renderer/FrameScheduler.h": {
+      "executable": null,
+      "sha256": "27c51bae87b15a205dd1e70b2e661eab4d17e3bddf56003fee6972b69f8b30c8"
+    },
+    "GEngine/include/GEngine/Renderer/FrameSubmission.h": {
+      "executable": null,
+      "sha256": "3553800aac38cfc81a2b4e1ed2d58159a037568ece7ab61d395e3f82ff6c6bba"
+    },
+    "GEngine/include/GEngine/Renderer/PassTiming.h": {
+      "executable": null,
+      "sha256": "c2b34e4f36ae4f3654ec5ac7eb28b862a529be54091a6647491945a0420ff964"
+    },
+    "GEngine/include/GEngine/Renderer/RenderExtraction.h": {
+      "executable": null,
+      "sha256": "1e585334e3a43a88759cadb224f50eb04eedb1b19ac5d14d4429ad7ff3e7d236"
+    },
+    "GEngine/include/GEngine/Renderer/RenderFrame.h": {
+      "executable": null,
+      "sha256": "249d820700d87e5b64d86c914f7b08f3706f0a7a1e269878084de92d73ba3c18"
+    },
+    "GEngine/include/GEngine/Renderer/RenderTasks.h": {
+      "executable": null,
+      "sha256": "5750da7331ca517bc5bda4c07aa82f1666bfadefc372c1bdc8f7a6a61301c547"
+    },
+    "GEngine/include/GEngine/Renderer/RenderVisibility.h": {
+      "executable": null,
+      "sha256": "acd12f7b8b34cdf46f0040ca21f822fb125fc4cdf1e6c877f69ec56c492d09b4"
+    },
+    "GEngine/include/GEngine/Renderer/SceneRenderResources.h": {
+      "executable": null,
+      "sha256": "09b9fb22ba44e6716de89ccf4e95f11a0b78db720ffff3f7b6dda2d2da5ba76b"
+    },
+    "GEngine/include/GEngine/Renderer/ShadowQuality.h": {
+      "executable": null,
+      "sha256": "c8243dc1a9ae25d75c745a92e50c8aaacf4d799170a418eca579fca323d04298"
+    },
+    "GEngine/include/GEngine/Scene/BoxEntity.h": {
+      "executable": null,
+      "sha256": "0e17107b3e5671d51338e93197d48a1ab2668a16ae58604dd20a1dfffe72be97"
+    },
+    "GEngine/include/GEngine/Scene/RenderEcs.h": {
+      "executable": null,
+      "sha256": "edb9fe00afd69538c350a0303a58ad15924ae638708f03a2e0f2a6ae6a1f39e9"
+    },
+    "GEngine/include/GEngine/Scene/RenderState.h": {
+      "executable": null,
+      "sha256": "129747aae0911e2fa439d30cb8829bd42f7165afa3ce177023628572b76c21f1"
+    },
+    "GEngine/include/GEngine/Scene/SceneError.h": {
+      "executable": null,
+      "sha256": "414cd6aae27db742f7f980113f378006bb4faecd7d7d8c76470c8d2b90afcc02"
+    },
+    "GEngine/include/GEngine/Scene/SkyBoxEntity.h": {
+      "executable": null,
+      "sha256": "5eb47564766fd1fddabf826bd97811455b51a5f3779c45689b083e9cf190331e"
+    },
+    "GEngine/include/GEngine/Scene/_Entity.h": {
+      "executable": null,
+      "sha256": "e9ec7e4d25c020132e8dbae5282394747551a839461dc375f056ed33be854243"
+    },
+    "GEngine/include/GEngine/Scene/_Scene.h": {
+      "executable": null,
+      "sha256": "303e567a082236504ce98765c823c56b196e0a45049b668233ca4e3a2691490a"
+    },
+    "GEngine/include/GEngine/Shapes/AABBBoundingBox.h": {
+      "executable": null,
+      "sha256": "9589019471c2a5dbe728bbd300940585fe560809cf89e607973d57ba33c0bf8c"
+    },
+    "GEngine/include/GEngine/Shapes/AxisHelper.h": {
+      "executable": null,
+      "sha256": "d7147ecea08a531c2b2e8839c7dcc04b4ed441308b8f811a5a46e151163e9fcf"
+    },
+    "GEngine/include/GEngine/Shapes/Box.h": {
+      "executable": null,
+      "sha256": "e6bbb8692cf0236cb0a151c5910b4b10c6e0664b99a3a2204c31211618a84b91"
+    },
+    "GEngine/include/GEngine/Shapes/Circle.h": {
+      "executable": null,
+      "sha256": "553706798b410999aa559e8df6a5bf701b9bafdaada1a8add6628dfef4e2d161"
+    },
+    "GEngine/include/GEngine/Shapes/Cone.h": {
+      "executable": null,
+      "sha256": "1d4ff7c491421149eecdbd1d280a41bd54eae8f7080aeb4291defed94a02ec74"
+    },
+    "GEngine/include/GEngine/Shapes/Convex.h": {
+      "executable": null,
+      "sha256": "26815fcb7bee76093053b0cc49dcf6ea5375401dc08995aa6f7e3b175ab492e1"
+    },
+    "GEngine/include/GEngine/Shapes/Cylinder.h": {
+      "executable": null,
+      "sha256": "e42c4e6cc56ff61f79abbe4e253be60447004e8cd86a4183d44b00ba05253778"
+    },
+    "GEngine/include/GEngine/Shapes/CylindricalShape.h": {
+      "executable": null,
+      "sha256": "72828cb1fd534fc71f2631fd07efbacad7c928357292a18c13cf7558788adabf"
+    },
+    "GEngine/include/GEngine/Shapes/Diamond.h": {
+      "executable": null,
+      "sha256": "8e82d21b960ea0ae4af5c1c0a40162cfc60f590f030896316a7828c6b38e781e"
+    },
+    "GEngine/include/GEngine/Shapes/DirectionalLightHelper.h": {
+      "executable": null,
+      "sha256": "0013e0198cd0719255b8bf597fdef70588679e0e9f6a4e787f9db50c7cea7176"
+    },
+    "GEngine/include/GEngine/Shapes/Ellipsoid.h": {
+      "executable": null,
+      "sha256": "a6ec2c4ed3e7b96ebfdb03996b8797e970f91481ac55998e0c01eeb73dfcbdf5"
+    },
+    "GEngine/include/GEngine/Shapes/GridHelper.h": {
+      "executable": null,
+      "sha256": "ee620417e900161c117eda9763263bf3f0a6c71ca54c6dd10071fc2613b58978"
+    },
+    "GEngine/include/GEngine/Shapes/Hexagon.h": {
+      "executable": null,
+      "sha256": "8ada5c3b007ebc4e7b9d9213751e884598476a8440818c90f906b8f57691633d"
+    },
+    "GEngine/include/GEngine/Shapes/Icosahedron.h": {
+      "executable": null,
+      "sha256": "06f60dd96cfa144d468cfea435ef10a7ad776a79300af33fcffa6b1e33b59165"
+    },
+    "GEngine/include/GEngine/Shapes/KDTreeVisualizer.h": {
+      "executable": null,
+      "sha256": "8c22ec68005b24f66e071c134d44290507c623dcde97f9eeaff5489b315466a7"
+    },
+    "GEngine/include/GEngine/Shapes/Line.h": {
+      "executable": null,
+      "sha256": "d3d6973e41a6ebd9d7d2fa026fabd5b67b645f9626848a604817b54cdad06302"
+    },
+    "GEngine/include/GEngine/Shapes/ParametricSurface.h": {
+      "executable": null,
+      "sha256": "369df86485fd2278048f6dd747fadcf0ed1c509bb8117721ddfe311dadc4a8f3"
+    },
+    "GEngine/include/GEngine/Shapes/Plane.h": {
+      "executable": null,
+      "sha256": "b151d6cfb58f076d4df90671b30e6c0bcb01f6a0e6be4721e85f442615cfee72"
+    },
+    "GEngine/include/GEngine/Shapes/PointLightHelper.h": {
+      "executable": null,
+      "sha256": "ff31afda4b27ba18a2debf265fdecf3c7daee653c72e4fa649028bd80c15c527"
+    },
+    "GEngine/include/GEngine/Shapes/PointLightSegments.h": {
+      "executable": null,
+      "sha256": "14816968f3856a000564177320fe5252e54e0d938219689250884a84ca3eb67b"
+    },
+    "GEngine/include/GEngine/Shapes/Points.h": {
+      "executable": null,
+      "sha256": "cce64a2842ee5b1de4ab589479dd9aae08d1c80b0cc674d1c5f4cfbfe44f8ac2"
+    },
+    "GEngine/include/GEngine/Shapes/Polygon.h": {
+      "executable": null,
+      "sha256": "7153ee8de4b3d06a125273f5c45ab107c571f694cfd87b6904a852bdae118645"
+    },
+    "GEngine/include/GEngine/Shapes/Prism.h": {
+      "executable": null,
+      "sha256": "05a8e64604496532f61fb14bac0f2454fbb1f9855f799e180aeaa532121547c7"
+    },
+    "GEngine/include/GEngine/Shapes/Pyramid.h": {
+      "executable": null,
+      "sha256": "5c8343383583d3c71469b771f3292e4daa74f8f83ae66c65b405e2323bca6b34"
+    },
+    "GEngine/include/GEngine/Shapes/Quad.h": {
+      "executable": null,
+      "sha256": "880ad013233cf3d3151fb2648b6a6dad24d4e6226429741ea0121a69b38ede07"
+    },
+    "GEngine/include/GEngine/Shapes/Rectangle.h": {
+      "executable": null,
+      "sha256": "21f447e3745424f3c4b70ea3632b0e3ae75b8c375be86dd833237f61c6842b2a"
+    },
+    "GEngine/include/GEngine/Shapes/Ring.h": {
+      "executable": null,
+      "sha256": "5504a08e9e9b56316687011434035d645c9fc55955e3a2257950611ff50c53c8"
+    },
+    "GEngine/include/GEngine/Shapes/SmoothSphere.h": {
+      "executable": null,
+      "sha256": "50ff54b55f4c9a37c8b8d5bc2fd79005eee167091f07b7e6692fd62a6fe6a444"
+    },
+    "GEngine/include/GEngine/Shapes/Sphere.h": {
+      "executable": null,
+      "sha256": "856916da66d4780288e014384e8a7d009f3068f553bea51a1ce7953ef902f2dd"
+    },
+    "GEngine/include/GEngine/Shapes/SpriteQuad.h": {
+      "executable": null,
+      "sha256": "9180ced63b0810efbd26547820004af14c9aa2bc01a2dfcee0cc17c6d86f18a1"
+    },
+    "GEngine/include/GEngine/Shapes/Terrain.h": {
+      "executable": null,
+      "sha256": "cc0d080cd8b882ff48ae799e5bc6905400715af21899353cbdbdc68e2d43bf5d"
+    },
+    "GEngine/include/GEngine/Shapes/Torus.h": {
+      "executable": null,
+      "sha256": "caf5cc0ca0c0316bf9426b28fedf5f5d3a8a16a3c6f4909b700360fcb6c1eef2"
+    },
+    "GEngine/include/GEngine/Shapes/Triangle.h": {
+      "executable": null,
+      "sha256": "0f4bbbe2916ab15ccce501ae5b68a2d07f7065796aabeccbc78f68dbd3da0ec9"
+    },
+    "GEngine/include/GEngine/Shapes/Tube.h": {
+      "executable": null,
+      "sha256": "bc1e182e9e79cc8e006763fbcdb43d642c5cc922482b487e0b1efcc2947dd9bb"
+    },
+    "GEngine/include/GEngine/SpatialPartition/KDTree.cpp": {
+      "executable": null,
+      "sha256": "2814ed6ea10e883e3902a4e495785078f818c775d9365345a358d68b50eee1c2"
+    },
+    "GEngine/include/GEngine/SpatialPartition/KDTree.h": {
+      "executable": null,
+      "sha256": "a5f368d706b3524f2d8f0ee5b60626efa956feefe11df133f7e3f34b4f2bb33d"
+    },
+    "GEngine/include/GEngine/Sprite/ParticleEntity.h": {
+      "executable": null,
+      "sha256": "e8a1c40f8a826c6b8bbf7371d35f1162196243184d8c09ed9a7b1d9f7d729cdb"
+    },
+    "GEngine/include/GEngine/Sprite/SpriteEntity.h": {
+      "executable": null,
+      "sha256": "950436d85915b8a663d10a1fd6a64360792c292c4b6ee476f224b187c03d3265"
+    },
+    "GEngine/include/GEngine/Sprite/SpriteGeometry.h": {
+      "executable": null,
+      "sha256": "97c3fa630035f1eac85ff469a4bbd118d1c318a29c68cc6029ce4fce6e9ac679"
+    },
+    "GEngine/include/GEngine/UI/FramebufferImage.h": {
+      "executable": null,
+      "sha256": "ff214621d4ef59a19675fed48a9634697303c9230ee2e5e29b9dc8d2968acb9b"
+    },
+    "GEngine/include/GEngine/UI/UICore.cpp": {
+      "executable": null,
+      "sha256": "d91ccfa31008d6dcdf378e600f044436313841930aba8fb37b041d080d2611a8"
+    },
+    "GEngine/include/GEngine/UI/UICore.h": {
+      "executable": null,
+      "sha256": "08809f4ea2e8446ad89bbf5dca780860ce6bed829c89d79ff0d6daba4429b1e9"
+    },
+    "GEngine/include/GEngine/Windows/ImGuiWindow.h": {
+      "executable": null,
+      "sha256": "dae9a9aa2e684159a110f020336b8d406216c3a4b62d8d74f76afefabfd98c4f"
+    },
+    "GEngine/include/GEngine/Windows/SDLWindow.h": {
+      "executable": null,
+      "sha256": "638df4cfb647c7e774b213e41c4e8e6feea6099a07f83e6a40b00e454966aa68"
+    },
+    "GEngine/include/GEngine/gepch.h": {
+      "executable": null,
+      "sha256": "7a4f068dc380fcea534385fe406bbbe4a8f60e2c35dd27cbbb73884c680440df"
+    },
+    "GEngine/src/Animation/AnimatedModel.cpp": {
+      "executable": null,
+      "sha256": "d2b15dbd12b7bc50bc1a89fc5651e59a052a1653771072a15cf2a3a5fa7077fe"
+    },
+    "GEngine/src/Animation/Animation.cpp": {
+      "executable": null,
+      "sha256": "58fc892acb083ca62fd9842c4693bc7bd0aaaff9d5b8078f1824b60ddb96d508"
+    },
+    "GEngine/src/Animation/AnimationSystem.cpp": {
+      "executable": null,
+      "sha256": "197e03631f9f3347e6010d9501efc9d932c92eb658472e7742b5e32cb532e4e1"
+    },
+    "GEngine/src/Assets/AsyncTexture.cpp": {
+      "executable": null,
+      "sha256": "c3aa2083f4352ffe7a3c18e2a67dd4bdd60748dff4b284469441c6a775921452"
+    },
+    "GEngine/src/Assets/AsyncUploadQueue.cpp": {
+      "executable": null,
+      "sha256": "eb6d6fb2c6e9844218e66882802ea643c8fd9530b0fae59196c680ff2a05c430"
+    },
+    "GEngine/src/Assets/Font.cpp": {
+      "executable": null,
+      "sha256": "c82072b32dd03a495e8a5a56a5e4709f953a40eba004b5ecd9af8aa817fb97c4"
+    },
+    "GEngine/src/Assets/Sampler.cpp": {
+      "executable": null,
+      "sha256": "29255e2147c3751cf855713033ab91bd7339c8d7b89fe9571ad60984607588b3"
+    },
+    "GEngine/src/Assets/Shader.cpp": {
+      "executable": null,
+      "sha256": "0fb35cfa66437a356a4bc6bd2530e384cbb4e433bc272d63ce3427c46acc5af8"
+    },
+    "GEngine/src/Assets/ShaderBackend.h": {
+      "executable": null,
+      "sha256": "4be24e68795526c4c5beb09125533ab8e0fe6f187fc535e3cef42f4bd950cc75"
+    },
+    "GEngine/src/Assets/ShaderCompilation.cpp": {
+      "executable": null,
+      "sha256": "131dedde2c9e5715c50fd7de8bf9f635f0f48b0e587362c2ff44f41232b9a30f"
+    },
+    "GEngine/src/Assets/TextTexture.cpp": {
+      "executable": null,
+      "sha256": "85e7f5bf5d3f3de30979bac2d826e88d7e52e8ce254a3cfe75719b910c60bb18"
+    },
+    "GEngine/src/Assets/Texture.cpp": {
+      "executable": null,
+      "sha256": "660a73a9383de02499535cace92bba1b48e70aab3a5eb152af94c156d2e3f2aa"
+    },
+    "GEngine/src/Assets/TextureBackend.h": {
+      "executable": null,
+      "sha256": "033b4411def331bcf045c3e4129f069c5adf9de7fdb5faf73f35697795a17934"
+    },
+    "GEngine/src/Audio/AudioSystem.cpp": {
+      "executable": null,
+      "sha256": "087e51984c6b888be0d1cb5391631df6e841cb2fafc22306bbbd587fc2232b04"
+    },
+    "GEngine/src/Audio/SoundEvent.cpp": {
+      "executable": null,
+      "sha256": "bff11d892eeadcbb7ba0ee862961da653b1adbc7b5150c2fb671369c76395088"
+    },
+    "GEngine/src/Camera/Camera.cpp": {
+      "executable": null,
+      "sha256": "342d0cf323945303baface3ef020292b030f95b52294fabf3db50d70d380bc30"
+    },
+    "GEngine/src/Camera/EditorCamera.cpp": {
+      "executable": null,
+      "sha256": "fdfc356b8b3efedf8caad0cac283048774eebff9e8f6a5312e5af439cea53fe5"
+    },
+    "GEngine/src/Camera/OrthographicCamera.cpp": {
+      "executable": null,
+      "sha256": "469ca8e07664bc4286b97c79768683525d7c6210cb99ea87a908d6b1d1b87c16"
+    },
+    "GEngine/src/Camera/PerspectiveCamera.cpp": {
+      "executable": null,
+      "sha256": "d2a8605421e9d0a43245dedd80b34e14d4e19a6da988d0cf02f2d1b89b3a9524"
+    },
+    "GEngine/src/Camera/PlayerCamera.cpp": {
+      "executable": null,
+      "sha256": "e38d74a3b7dedead69d90b269ae080552094cc78bb3a674cb362cadf10595efe"
+    },
+    "GEngine/src/Camera/RayTracingCamera.cpp": {
+      "executable": null,
+      "sha256": "1d0a111d0c4e2ae130febd39eb94baba295d6a333f21e119ba5c9a2b0bd534e8"
+    },
+    "GEngine/src/Camera/ThirdPersonCamera.cpp": {
+      "executable": null,
+      "sha256": "ef9b174eca5396acb32e9c6add0049e9aaadf256630b6769ec60f7cbd9f170a9"
+    },
+    "GEngine/src/Character/Character.cpp": {
+      "executable": null,
+      "sha256": "de2fab30fc86036d87496ffca16b486e6d620a0ab76943e85efccfe878cd5a0b"
+    },
+    "GEngine/src/Component/Component.cpp": {
+      "executable": null,
+      "sha256": "7b8630f282ff0ea7867ea443ebc131e9241b393865799ac5c1120eb630532504"
+    },
+    "GEngine/src/Core/AAEntity.cpp": {
+      "executable": null,
+      "sha256": "c6012d0de65ad76acf3fe3867f24e1818ba424a547e9b96fe8bac915b0072d87"
+    },
+    "GEngine/src/Core/Actor.cpp": {
+      "executable": null,
+      "sha256": "13b000efdd1e92b7271c412be366ceee9df2bcd6d114df382dc68a6652b7c2b9"
+    },
+    "GEngine/src/Core/BaseApp.cpp": {
+      "executable": null,
+      "sha256": "51b3fbca46eba5106c21061a9b5642b4b454ab0c0b4b826805de33425bd8f6be"
+    },
+    "GEngine/src/Core/Entities.cpp": {
+      "executable": null,
+      "sha256": "77664f86263acf547742a76dec8380b4d3fc39eace0d6b62b3e26ccd6e6486bb"
+    },
+    "GEngine/src/Core/Entity.cpp": {
+      "executable": null,
+      "sha256": "ef651b5844ddedb6f7aedcabc7b8add5d779d0d2d7c4b3d1053cadd04bcc9495"
+    },
+    "GEngine/src/Core/FrameBuffer.cpp": {
+      "executable": null,
+      "sha256": "9843a804b952eacfea33889963e111689a641ad29f27b62b08012c032a108e35"
+    },
+    "GEngine/src/Core/FramebufferBackend.h": {
+      "executable": null,
+      "sha256": "335fc12c05f60ec12c96a9a17745abfd7d2cc9e930c1df286012750cfafc066f"
+    },
+    "GEngine/src/Core/GEngine.cpp": {
+      "executable": null,
+      "sha256": "ef19047b97b978a0d0cd92f26ca6091a9a9a7a8d688662e6a1a213faf2565c7e"
+    },
+    "GEngine/src/Core/GameObject2D.cpp": {
+      "executable": null,
+      "sha256": "d9388f725ebd7da4140b1f9ac07ded7c0b6d4d47c192b6817add3cd581c02ffe"
+    },
+    "GEngine/src/Core/Image.cpp": {
+      "executable": null,
+      "sha256": "b118e5c820292a3a394a420abe31dfaa026e9cacd16538621b9b861a2d334d24"
+    },
+    "GEngine/src/Core/Log.cpp": {
+      "executable": null,
+      "sha256": "d9e615b4395ff65951abec8cf11d74c149bb3a08ec04b127c101e6555bbb8103"
+    },
+    "GEngine/src/Core/RandomGenerator.cpp": {
+      "executable": null,
+      "sha256": "48725b33448cc0c9d363bb981ad6f317c9242fea31e411e73febb16aa68605f4"
+    },
+    "GEngine/src/Core/RawModel.cpp": {
+      "executable": null,
+      "sha256": "bfa87ac79ce746f65e5a6b779b62b6d3635c9ddc2d16605ca4d039bf74b010d1"
+    },
+    "GEngine/src/Core/RenderBaseline.cpp": {
+      "executable": null,
+      "sha256": "2e4ff3c4d89338e3ed2d9e4cfe82b957eb6c0c670fff2a464264859875b23586"
+    },
+    "GEngine/src/Core/RenderTarget.cpp": {
+      "executable": null,
+      "sha256": "bdf034ad7add0d1df48116aff015ad6de3c4903c239a194d9bba51003720720b"
+    },
+    "GEngine/src/Core/Renderer.cpp": {
+      "executable": null,
+      "sha256": "9438c9b04e55beff7724410217ecd0a8173cbdd453d2b0a1f3266c204b855503"
+    },
+    "GEngine/src/Core/Renderer2D.cpp": {
+      "executable": null,
+      "sha256": "a2d2a6982a4ce30f32763ed9256a5e5702d32e579087a76a1170976bbafff254"
+    },
+    "GEngine/src/Core/RuntimeAssets.cpp": {
+      "executable": null,
+      "sha256": "cdb4a14cf3ff9bf1eeb3d06875f2a160e26f09c586ac34db3d6c6a87c9efed1a"
+    },
+    "GEngine/src/Core/SceneGraph.cpp": {
+      "executable": null,
+      "sha256": "3be167b3c6d2b8c3bcd1baa6e38a93ab30551ebdb651fd9af628a878bdeaf6fc"
+    },
+    "GEngine/src/Core/SimpleRenderer.cpp": {
+      "executable": null,
+      "sha256": "430f981ec24dcd920ce97220aeaba47d5d5345acd891d3421f12737d089d2749"
+    },
+    "GEngine/src/Core/Sprite2D.cpp": {
+      "executable": null,
+      "sha256": "e76d75df3ddf99d8a852e9bff16dce99be68dd3a95a31c493a91f1b302959562"
+    },
+    "GEngine/src/Core/UUID.cpp": {
+      "executable": null,
+      "sha256": "88c505b745882f8107cde6e7696513d18b1e1e105958fd03b98196f9cfb5963f"
+    },
+    "GEngine/src/Core/Window.cpp": {
+      "executable": null,
+      "sha256": "382165c98a16b70c5d66381ef74239506d96a8027ca2086c4390780fbe4515db"
+    },
+    "GEngine/src/Events/ApplicationEvent.cpp": {
+      "executable": null,
+      "sha256": "352ac39d6663a40ed83fee6548ff07308271ded8c304cfe52bb900eadc3c1817"
+    },
+    "GEngine/src/Events/Event.cpp": {
+      "executable": null,
+      "sha256": "47aca04e44610249da405c4bc0014a3e4d823a7ef36a2ecd845a82478736c0da"
+    },
+    "GEngine/src/Events/GameControllerEvent.cpp": {
+      "executable": null,
+      "sha256": "394d8ff46c4158f13d504641a30696eee3184648587c3d8e570409ebc06851e7"
+    },
+    "GEngine/src/Events/KeyBoardEvent.cpp": {
+      "executable": null,
+      "sha256": "1d97e0742381867d784cfe0d32f61720f0aee2ba081f82764af1e3bfce41ecc2"
+    },
+    "GEngine/src/Events/MouseEvent.cpp": {
+      "executable": null,
+      "sha256": "061158c096d4f121e760b88ee91079121983af7092734bc649ffd21dfeb93a16"
+    },
+    "GEngine/src/Extras/Axes.cpp": {
+      "executable": null,
+      "sha256": "65305168a8054dd0e39f5afb177505a6afcb282d1366dcd7952663c98a655fa3"
+    },
+    "GEngine/src/Extras/CameraRig.cpp": {
+      "executable": null,
+      "sha256": "568c8b024e6a22fd800e55f33c43c5c2ed2a437d58dcb0e520fa7da498a59ccd"
+    },
+    "GEngine/src/Extras/Grid.cpp": {
+      "executable": null,
+      "sha256": "240948e8a8667183fc126d21c9e7d6b2e853f074d4cef1815b09dde8b3437489"
+    },
+    "GEngine/src/Factory/ShapeFactory.cpp": {
+      "executable": null,
+      "sha256": "dd8b2e5fa0a01f36e038e57231b8cd03cea1b4f4bcba4288065604db68ad324b"
+    },
+    "GEngine/src/Geometry/Curve.cpp": {
+      "executable": null,
+      "sha256": "4d1e1552da37d17e7ac2052a78cbd59391bdaf6eef54d60e21b82cf7706b8028"
+    },
+    "GEngine/src/Geometry/Geometry.cpp": {
+      "executable": null,
+      "sha256": "4e6da144f94239dfa292482bfe39ea87024e1a8a1dd1a3671399a68ef0d5f300"
+    },
+    "GEngine/src/Geometry/GeometryBackend.h": {
+      "executable": null,
+      "sha256": "3177c364deea43fa18c47a85795d11b6995f2967b36a1486bfb363b8f38859bc"
+    },
+    "GEngine/src/Light/LightEntity.cpp": {
+      "executable": null,
+      "sha256": "93d9894494500e4c07af899d37c3d955571db9022a4bdcb6b66ee2144fbf0fd3"
+    },
+    "GEngine/src/Managers/AssetsManager.cpp": {
+      "executable": null,
+      "sha256": "b9051878ad2d707fa45b669b13b6b848d02f02954eea359ecd4c4489e67bfeee"
+    },
+    "GEngine/src/Managers/EventManager.cpp": {
+      "executable": null,
+      "sha256": "0c6a5040dcdd2883da4aea5f459a3f8b505cf1420162596bce60608c1b25ff7d"
+    },
+    "GEngine/src/Managers/InputManager.cpp": {
+      "executable": null,
+      "sha256": "d194429275f41f871a77e62e318995145b9965596b1207d85370093cc4b67f45"
+    },
+    "GEngine/src/Managers/ShaderManager.cpp": {
+      "executable": null,
+      "sha256": "857cf9ec66820ef40ccc601d222a6125eb79817eb4bbe3732d8ad5dc4aab3eb9"
+    },
+    "GEngine/src/Managers/ShapeManager.cpp": {
+      "executable": null,
+      "sha256": "76b431c6f426bd128e9dd77839848abc03c9311e122036e13db1827dff8e95bf"
+    },
+    "GEngine/src/Managers/WindowManager.cpp": {
+      "executable": null,
+      "sha256": "8b870965f209ccefe897973c96a3e5b4b3eeae458b9a38477f77f6e309e533dc"
+    },
+    "GEngine/src/Material/AAScreenMaterial.cpp": {
+      "executable": null,
+      "sha256": "be660106b110510a643ca9197bc4d132e586f7d01b90dc9a5a6e2317623380db"
+    },
+    "GEngine/src/Material/AnimatedMaterial.cpp": {
+      "executable": null,
+      "sha256": "2939baffa268eae08828152e9ff17d7a445ba75fad84cd1bf90c63cc4003ba09"
+    },
+    "GEngine/src/Material/BasicMaterial.cpp": {
+      "executable": null,
+      "sha256": "aaf3f30efa2b6c0a0bce84d1964f49d31f6f513d63d2c22eadfec90ca8a6612a"
+    },
+    "GEngine/src/Material/LightTextureMaterial.cpp": {
+      "executable": null,
+      "sha256": "92504341e5ae5f0bbbdda3781ffd72b7d1afd4e39cef06d4f4b5bef600ad4280"
+    },
+    "GEngine/src/Material/LineBasicMaterial.cpp": {
+      "executable": null,
+      "sha256": "5848661a0e02f16c8e8228c0d3529701a0e5fb4fa65c5572ab3a8eb2e8687fc6"
+    },
+    "GEngine/src/Material/Material.cpp": {
+      "executable": null,
+      "sha256": "514978aef8bbeab522c3d529cfb96c424491316d5a87cc45f546edc2d179b967"
+    },
+    "GEngine/src/Material/MaterialBackend.h": {
+      "executable": null,
+      "sha256": "f8700c1aa4daba289599f1e3fd1e06fea1a1e1303132dbcd439a56b1169da0b8"
+    },
+    "GEngine/src/Material/MaterialBinding.cpp": {
+      "executable": null,
+      "sha256": "6fb2f40179d1ec3fc50c94cac07e185bdbeeb7cb111c92bc29d2ef887346b2d8"
+    },
+    "GEngine/src/Material/MaterialInstance.cpp": {
+      "executable": null,
+      "sha256": "9366c693097464c91335ad79a5e79cfec4607c19da5e1e41bca14d871a47fd97"
+    },
+    "GEngine/src/Material/MaterialTemplate.cpp": {
+      "executable": null,
+      "sha256": "e7fae7c67929623aa847203ce41e202bb3a68cf71127be213be6054ea315c764"
+    },
+    "GEngine/src/Material/NormalLightTextureMaterial.cpp": {
+      "executable": null,
+      "sha256": "2cc81b1ab8a506a3ccfc8f56c35c3d4ec8487e3815d40522fe0fa111a8c619e2"
+    },
+    "GEngine/src/Material/SkyBoxMaterial.cpp": {
+      "executable": null,
+      "sha256": "89ad3472dd6097c771d344503edc910977d387d3c118897add0b5d8c9bff3775"
+    },
+    "GEngine/src/Material/SpriteMaterial.cpp": {
+      "executable": null,
+      "sha256": "fe56e2bf814ffcef253e585ee392e4ccd26ec96b436e1400059e120d02c26e2e"
+    },
+    "GEngine/src/Material/TerrainLightMaterial.cpp": {
+      "executable": null,
+      "sha256": "3bfddef9c932d8085b2aa1e118337a076558f487d0fef2d9110f7338e9b2ee21"
+    },
+    "GEngine/src/Material/TextureMaterial.cpp": {
+      "executable": null,
+      "sha256": "41a61223d11690b9cfb150b81f7b6de9bb53694396db45154e87123785bba831"
+    },
+    "GEngine/src/Math/Math.cpp": {
+      "executable": null,
+      "sha256": "609b30b61c76e31ce70b0beb9c410094826149563c6a0499f8307a5bfb532b1f"
+    },
+    "GEngine/src/Mesh/AsyncMesh.cpp": {
+      "executable": null,
+      "sha256": "f5db3c19e87be948d75cebaaa757f1ed17746fb7ce47a32ac5399f905b7c9576"
+    },
+    "GEngine/src/Mesh/Attribute.cpp": {
+      "executable": null,
+      "sha256": "006b6626229e97e7d5d7fc1b63ccd9bbfe3a26c8c91791cf6d0512509a1d703e"
+    },
+    "GEngine/src/Mesh/BufferLayout.cpp": {
+      "executable": null,
+      "sha256": "14b28b19994a1ed94b29c18cb71ceba28a6e04e3a1a052ff24e2157a93a09ae8"
+    },
+    "GEngine/src/Mesh/GpuMesh.cpp": {
+      "executable": null,
+      "sha256": "d20cc31fa9446f43d891f48c802641f7b5db46303a6d473b32359a027e572de9"
+    },
+    "GEngine/src/Mesh/IndexBuffer.cpp": {
+      "executable": null,
+      "sha256": "4f1e760bcefa79cd3c48abe53e98b93fd4cd0753b80df1136084f13f5601ec87"
+    },
+    "GEngine/src/Mesh/IndexBufferBackend.h": {
+      "executable": null,
+      "sha256": "db4392e2a2d0480cbd5f6f9eca88dc3f7a83f4407786875f0ba7554083d0e867"
+    },
+    "GEngine/src/Mesh/Mesh.cpp": {
+      "executable": null,
+      "sha256": "0d9df281faa89071f5505fa15abfd736f8a3a0cea211cb5eed30549af44ada17"
+    },
+    "GEngine/src/Mesh/MeshAsset.cpp": {
+      "executable": null,
+      "sha256": "43332cc15e9d498daaf06e962ef7ac89ea7a57e626db14d7a122d054524c1e79"
+    },
+    "GEngine/src/Mesh/MeshImportNormalization.cpp": {
+      "executable": null,
+      "sha256": "4bfc301c90cb40b26d72990b6e47351afd1e917cba72295e7cfa084a4163c47f"
+    },
+    "GEngine/src/Mesh/MeshImporter.cpp": {
+      "executable": null,
+      "sha256": "1bd6a958a33c37b403db9810204af92092f05c30faafe4e19d50ffc9e4c99eb4"
+    },
+    "GEngine/src/Mesh/VertexBuffer.cpp": {
+      "executable": null,
+      "sha256": "a38930774bcd5c5dda0df3be9f527e7c81b25e82685e953df9054a566ed856f1"
+    },
+    "GEngine/src/Renderer/DrawOrdering.h": {
+      "executable": null,
+      "sha256": "fbcde9c8511004e1f0d0d96ccdab813ac1fb29ad7d2393ae22b4c751fb696e09"
+    },
+    "GEngine/src/Renderer/FrameScheduler.cpp": {
+      "executable": null,
+      "sha256": "a88d12510a79818be7f44c5bab96c66347f47ee85369776d2a1e83b8fe260446"
+    },
+    "GEngine/src/Renderer/FrameSubmission.cpp": {
+      "executable": null,
+      "sha256": "48509a56e1e6ce609d0d0c2727b6df33c1eb8ebd4f0175cb248454be0c05c495"
+    },
+    "GEngine/src/Renderer/GLPassState.h": {
+      "executable": null,
+      "sha256": "e0bc2e59a3f5810236c5436b5792005f59d87c231843e554bce51ce360a998c9"
+    },
+    "GEngine/src/Renderer/GLStateCache.h": {
+      "executable": null,
+      "sha256": "7c4d84007c67574200f1407ba5f76443e87ba84cd3a6ca9422f2617f91acd708"
+    },
+    "GEngine/src/Renderer/PassTiming.cpp": {
+      "executable": null,
+      "sha256": "1d826d6dbb92dc9be6ac1d0d63269f45eb4d3ccda13d5a273cb2514fc71f6405"
+    },
+    "GEngine/src/Renderer/RenderCpuBacking.h": {
+      "executable": null,
+      "sha256": "2c2000bc7922254178d5605b699a40abf80867adc7bb89322ab57367f26a6e4c"
+    },
+    "GEngine/src/Renderer/RenderExtraction.cpp": {
+      "executable": null,
+      "sha256": "5859d8e77edb5668ad6b765efa0ffe5c971672c9e881d6ef70926d95f167afaf"
+    },
+    "GEngine/src/Renderer/RenderFrame.cpp": {
+      "executable": null,
+      "sha256": "837e939e4107b1c0838bd91e7efe3a9e2645fefc4a71074b0c9cfce13f466a0e"
+    },
+    "GEngine/src/Renderer/RenderTasks.cpp": {
+      "executable": null,
+      "sha256": "446e20e5bcba13dea67fec4a6dc5f81bcf93b616c72c49c05c21e4d4fda86b08"
+    },
+    "GEngine/src/Renderer/RenderVisibility.cpp": {
+      "executable": null,
+      "sha256": "2348f33e357b840f68f9d7fbbfc804db18e81607710e53b3f4273c6060fa504b"
+    },
+    "GEngine/src/Renderer/SceneRenderResources.cpp": {
+      "executable": null,
+      "sha256": "ce578293ac5b5fb9e5e0f7afab3da803c04c9f9337e5af9a8c7a250ccf81d991"
+    },
+    "GEngine/src/Renderer/ShadowCulling.h": {
+      "executable": null,
+      "sha256": "39f43bccde48b16dd3070afa37abd335f990e23a7d3abcfddf6cb7882a625a6d"
+    },
+    "GEngine/src/Renderer/ShadowQuality.cpp": {
+      "executable": null,
+      "sha256": "d8caf00f379b6b9a630e6f8e8bf11ba8b69283ac9b76d0918987bb90ee3df582"
+    },
+    "GEngine/src/Renderer/SubmissionGpuLayout.h": {
+      "executable": null,
+      "sha256": "e2857494b8d4e86398d59972aa27b5e6bf7ea9c804f715b02dbc14f48a50e296"
+    },
+    "GEngine/src/Renderer/SubmissionUploads.h": {
+      "executable": null,
+      "sha256": "91ed862fd189575046d364187b378ff6e722872f63581a6abd7d3b15c6afaeb4"
+    },
+    "GEngine/src/Scene/BoxEntity.cpp": {
+      "executable": null,
+      "sha256": "e926624fbabe43c141edb924bc37e1c8ccfd6079cd2aadcdf744ccbc515660bb"
+    },
+    "GEngine/src/Scene/RenderState.cpp": {
+      "executable": null,
+      "sha256": "7065924cfbb1157722c5051b8d0fd4348c50f23da4b94916bba894cf6cd0af32"
+    },
+    "GEngine/src/Scene/SceneBackend.h": {
+      "executable": null,
+      "sha256": "0ac874c460503d7149eb79cdeac3378ad748c6f5e382d9fe090d771f66f70e67"
+    },
+    "GEngine/src/Scene/SkyBoxEntity.cpp": {
+      "executable": null,
+      "sha256": "ff85c6bb95da10df04d11eb22c774b7e49b34f4a0f32654e42c64be2494ec2c8"
+    },
+    "GEngine/src/Scene/_Entity.cpp": {
+      "executable": null,
+      "sha256": "19b85faaefefdc116fb06d83fd9a5269f08b64a240ca676b477c898d6c74b533"
+    },
+    "GEngine/src/Scene/_Scene.cpp": {
+      "executable": null,
+      "sha256": "61cff48ffd95b00a4715ded0934d9d8c3bd6586413e2ac7e4c3190107cd878f1"
+    },
+    "GEngine/src/Shapes/Box.cpp": {
+      "executable": null,
+      "sha256": "9ba69a28b44697db575b9660a276ab1843a54e21dc9f59e2336886619b195029"
+    },
+    "GEngine/src/Shapes/Terrain.cpp": {
+      "executable": null,
+      "sha256": "91c5ab650da5e6c3c15612cff196cdbedae5111b6949730bd6effe469e74c1f9"
+    },
+    "GEngine/src/Sprite/SpriteEntity.cpp": {
+      "executable": null,
+      "sha256": "eabcfb839d6bc2cfc3f78813e3e11e1400977a53b7cb22429c23f1c4270cb549"
+    },
+    "GEngine/src/Windows/ImGuiWindow.cpp": {
+      "executable": null,
+      "sha256": "2549e4998ec6d853db8330ef1454c6e418dde5bc6d620b45a6ad2ce7e44d15c5"
+    },
+    "GEngine/src/Windows/SDLWindow.cpp": {
+      "executable": null,
+      "sha256": "f34289ea0a614fd7b0be410b1483af2c74eaf2afd3d0a1090af8a541e8e75819"
+    },
+    "GEngine/src/gepch.cpp": {
+      "executable": null,
+      "sha256": "d9e9f76b944a540a5b597e0ec1a2d479ee886427c9cf88deaf1d77c61fe0ba85"
+    },
+    "GEngineEditor/src/Panels/SceneHierarchyPanel.cpp": {
+      "executable": null,
+      "sha256": "194beb46a920f8339f356a7c56e38b2ada6d548c280d016ba24f68856b59e230"
+    },
+    "GEngineEditor/src/Panels/SceneHierarchyPanel.h": {
+      "executable": null,
+      "sha256": "e4424f759b5676bbd5e1048326e51f04aeef287de682e86afbde0c2560bec154"
+    },
+    "GEngineEditor/src/SceneApp.cpp": {
+      "executable": null,
+      "sha256": "3a52fb1912aec47bb68dd36e58e4297612fd31c8ce2c19fd39565c7031919cef"
+    },
+    "GEngineEditor/src/SceneApp.h": {
+      "executable": null,
+      "sha256": "d642d1a63ef517738a033bcf21d064fe6e30e80c960beab8e145beb40394b14c"
+    },
+    "GEngineEditor/src/SceneTest.cpp": {
+      "executable": null,
+      "sha256": "79e314ed2559665847196404bff21d5eadfa8dad5378894b8dadacc4fd974fe5"
+    },
+    "GEngineEditor/src/SceneTest.h": {
+      "executable": null,
+      "sha256": "917cca2e4ec0843e02df7bcd498e091dcb5810d5c25793c1c4b3ad0a041a8f9b"
+    },
+    "GEngineEditor/src/main.cpp": {
+      "executable": null,
+      "sha256": "e5bffe6554a07c074e6cf19b8318024a1dca5047cda3b865c9f1736776d1d958"
+    },
+    "GEngineEditor/src/test.cpp": {
+      "executable": null,
+      "sha256": "4ae8d62706c15c41a9b02a25bcd7d7d9b877593f58ebad248f72ae116126d5fd"
+    },
+    "RayTracing/include/RayTracing.h": {
+      "executable": null,
+      "sha256": "a1eda4a495e0a49d6b226c83f9d4b3e4d15e57da82404c505b57adcd2237b335"
+    },
+    "RayTracing/src/RayTracing.cpp": {
+      "executable": null,
+      "sha256": "22e42435715365fc9c25f97c85549827cf864206b02c5443b495845b7094a1ea"
+    },
+    "RayTracing/src/main.cpp": {
+      "executable": null,
+      "sha256": "65c19b968a720d5868115496c215e8ebf7f4bec00c2de089b17967490cbfd530"
+    },
+    "RigidBodySimulation/RigidBodySimulation.vcxproj": {
+      "executable": null,
+      "sha256": "1bc78c74bed0a5e9dcd8e52fcfd1f5312104f44f86b1bcb2b419f147bb392957"
+    },
+    "RigidBodySimulation/include/RigidBodySimulation.h": {
+      "executable": null,
+      "sha256": "4085fc8168b9c23bdb9692adabddf058e9fcb36d23162f7baa48bd8d81fd220a"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "5633d3a106179aa998851dbae0a2dd3e819340283a1a56ad51a4cbd377abeeba"
+    },
+    "RigidBodySimulation/src/main.cpp": {
+      "executable": null,
+      "sha256": "3b135dad004bfcbd567fb2985c57984d4b2bc879553f8cc3b94baab487336b19"
+    },
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md": {
+      "executable": null,
+      "sha256": "80027a00b0267eb646a21c8a35c5d9286df69460e850746aad7b12d52a64d375"
+    },
+    "docs/rendering/RENDERING_CODE_MAP.md": {
+      "executable": null,
+      "sha256": "c86931745c71d20b482578cad866a3bff07af0123653258d585c1e582feff546"
+    },
+    "external/glad/glad.vcxproj": {
+      "executable": null,
+      "sha256": "c2d99bda79ced5c30d3daf6fe2bd11a70a7bc4487f020287c8e1a8bef5a06b66"
+    },
+    "logs/rendering/phase68/exception_audit.py": {
+      "executable": null,
+      "sha256": "f2da969b7a6fcd591246525368eb0fe355373f8291a2945df128f626f1d41791"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052"
+    },
+    "tools/RENDERING_ARCHITECTURE.md": {
+      "executable": null,
+      "sha256": "8771f416feea66cd872dc289d79dfcab6faa80c8f7200fcd203300e5e3077885"
+    },
+    "tools/baseline_error_probe.cpp": {
+      "executable": null,
+      "sha256": "0130f607aea08d1efd112266b7f0b5010c29e1a19268e686bd6b4cc8600dac2a"
+    },
+    "tools/frame_submission_probe.cpp": {
+      "executable": null,
+      "sha256": "f6de17311a9105e97305e3bfef88a4d5ad661213a585ebdb63fd6984fdf2cbc2"
+    },
+    "tools/postbuild.py": {
+      "executable": null,
+      "sha256": "04a0a293c07e456537a850e07963fdae52ba1c0f12c52e568d113eb012c7037f"
+    },
+    "tools/ray_boundary_probe.cpp": {
+      "executable": null,
+      "sha256": "3ff9bcfaa36875e13230517d647858c046bab1ea5e2d094fdca76b79dd00f7be"
+    },
+    "tools/render_extraction_probe.cpp": {
+      "executable": null,
+      "sha256": "9a406c6fb3635684f4c37f4d4ba6e15053465e3b6635c9604e6cb9395ac9a9fc"
+    },
+    "tools/retained_boundary_probe.cpp": {
+      "executable": null,
+      "sha256": "2821f110046f50473d05bf58aee761abf7591f6504c18fa388938b9205b09a98"
+    },
+    "tools/test_baseline_errors.py": {
+      "executable": null,
+      "sha256": "28c30832851d16a17f06841d7e4a95ed918e317857bd336ef891ca31437c7b55"
+    },
+    "tools/test_frame_submission.py": {
+      "executable": null,
+      "sha256": "64e2342d7b23f1a3152dec695e34fcef4c49845ab592e938c70cb3a609773d0f"
+    },
+    "tools/test_runtime_failure.py": {
+      "executable": null,
+      "sha256": "51867fad21f8135e5d9f3238bb874c4c4c313787476f8e0d6e1d5d7f0ce8b5a6"
+    }
+  }
+}

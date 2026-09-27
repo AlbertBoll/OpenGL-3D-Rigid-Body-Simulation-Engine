@@ -1,23 +1,16 @@
 #pragma once
-
-#include <string>
 #include "Core/Platform.h"
+#include <string>
 #include <string_view>
 
 namespace GEngine::RuntimeAssets
 {
-    // Called once by the graphical entry point, before application/platform initialization.
-    void Initialize(const std::string& executableName);
-    std::string File(std::string_view relative);
-    std::expected<std::string, PlatformError> TryFile(std::string_view relative);
-
-    // Existing prefix+filename expressions resolve lazily, after Initialize.
-    struct Directory
-    {
-        const char* relative;
-        std::string operator+(std::string_view suffix) const
-        {
-            return File(std::string(relative) + std::string(suffix));
-        }
-    };
+    // Validate the complete startup package before publishing a new root.
+    // Failure leaves any previously initialized root usable.
+    [[nodiscard]] PlatformResult Initialize(const std::string& executableName);
+    // Resolve a package-relative name without requiring existence. Optional asset
+    // consumers retain their explicit logged fallback policy after resolution.
+    [[nodiscard]] std::expected<std::string, PlatformError> ResolvePath(std::string_view relative);
+    // Files and package directories share the same checked relative-path contract.
+    [[nodiscard]] std::expected<std::string, PlatformError> TryFile(std::string_view relative);
 }

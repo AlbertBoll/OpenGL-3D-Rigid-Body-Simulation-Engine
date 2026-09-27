@@ -13,16 +13,16 @@ namespace GEngine
     {
     public:
         TerrainLightMaterial(Construction& construction, const Asset::Texture& texture,
-            const std::string& vertexFileName = base_shader_dir + "terrain.vert",
-            const std::string& fragFileName = base_shader_dir + "terrain.frag");
+            const std::string& vertexFileName = "Shaders/terrain.vert",
+            const std::string& fragFileName = "Shaders/terrain.frag");
 
         void UpdateRenderSettings() override;
 
         void UploadUniforms() override;
 
         TerrainLightMaterial(Construction& construction, std::vector<Asset::Texture*> textures,
-            const std::string& vertexFileName = base_shader_dir + "terrain.vert",
-            const std::string& fragFileName = base_shader_dir + "terrain.frag");
+            const std::string& vertexFileName = "Shaders/terrain.vert",
+            const std::string& fragFileName = "Shaders/terrain.frag");
 
         TerrainLightMaterial& SetLightComponent(const Component::LightComponents& light)
         {

@@ -1,8 +1,8 @@
 # GEngine rendering architecture
 
-Source-verified for Rendering Phase 67 against approved Phase 66, commit
-`e5b51b597ace4d4a9030c21063409655db1866d8`. This describes the implementation and
-its limits; it does not declare the final architecture gate passed. Paths below
+Updated for the Rendering Phase 68 candidate based on approved Phase 67,
+commit `108a0eed77d945bf68e3b9061e562aa8341ea55f`. This describes current source;
+phase approval is established by its checkpoint, not this guide. Paths below
 are relative to the repository root. Public header shorthand is relative to
 `GEngine/include/GEngine/`.
 
@@ -61,24 +61,34 @@ sinks and filtering remain centralized. Prefer meaningful C++20 concepts and
 keep `static_assert` for layout, ABI, representation and invariants. Do not add
 templates solely to modernize syntax.
 
-The engine-wide zero-explicit-exception policy is **not yet a statement of current
-global compliance**. Phase 66's approved amended scope left the following OPEN for
-the post-Rendering Code Quality Baseline:
+Phase 68's owner-authorized cleanup removes the 17 explicit exception tokens,
+three stream exception masks and eight `RuntimeAssets::Directory` declarations
+retained at the Phase 67 checkpoint. The exact owned-production audit now has
+zero explicit exception syntax, exception transport or custom exception classes.
+The attributed Barak Shoshany implementation at `Core/ThreadPool.h` remains a
+third-party boundary; dependency sources remain excluded.
 
-| Existing debt | Current source |
-| --- | --- |
-| 1 explicit throw | `GEngine/src/Core/RuntimeAssets.cpp` |
-| 12 explicit throws and 3 stream exception masks | `GEngine/include/GEngine/Core/RenderBaseline.h` |
-| 2 try blocks and 2 catches | `GEngine/include/GEngine/EntryPoint.h` |
-| 8 qualified generic `RuntimeAssets::Directory` calls | BreakoutApp (2), GameLevel, Material, Terrain, AudioSystem, ShapeManager (2) |
+`RuntimeAssets::Initialize` validates a candidate package before publishing its
+root and returns a typed `PlatformResult`. `TryFile` checks required resources;
+`ResolvePath` validates a package-relative name while preserving an optional
+consumer's explicit logged fallback. Terrain and audio startup now return typed
+failures and retire partial owners. Materials resolve default package-relative
+shader names inside their existing fallible factory. EntryPoint checks startup,
+initialization and runtime results and returns a nonzero exit for failure.
 
-The 17 tokens are GEngine-owned debt, not third-party exclusions. The attributed
-Barak Shoshany implementation at `GEngine/include/GEngine/Core/ThreadPool.h` is an
-existing third-party boundary despite its location; `external/` and `vendor/` also
-contain dependency source. Keep those classifications distinct. Phase 67 changes
-no source and grants no exception waiver to the final gate. The approved record is
-[Phase 66's receipt](../rendering-checkpoints/phase-66.json); local execution
-inventories retain exact sites and amendment history.
+`Core/RenderBaseline.h` exposes only semantic errors and a move-only session.
+SDL/OpenGL collection lives in `GEngine/src/Core/RenderBaseline.cpp`. The window
+swap callback retains the first capture failure; BaseApp returns it through the
+existing runtime error channel. The Phase 13 protocol, counters, 1280x720 size,
+VSYNC=0, 120 warmup frames and 240 samples are unchanged. File output uses explicit
+stream-state checks, and failed captures restore readback state before returning.
+
+The active Phase 68 owner amendment permits only RigidBodySimulation as an
+executable acceptance workload, minimum affected header/object compilation and
+GEngine/RBS Debug/Release builds. Other applications, standalone runtime probes,
+full-solution rebuilds and historical performance/comparison workflows are not
+run. Existing Phase 65 performance findings and thresholds remain unchanged;
+functional collector checks do not constitute new performance acceptance.
 
 ## Normal contracts and backend implementation
 

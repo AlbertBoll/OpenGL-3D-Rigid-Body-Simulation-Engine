@@ -1,5 +1,17 @@
 # Legacy renderer policy - Phase 64
 
+> **Historical Phase 64 decision and inventory.** The selected freeze/deprecation
+> policy remains in force. The implementation inventory, future-tense Phase 66
+> assignments and validation observations below describe that earlier checkpoint.
+> For current contracts and limitations, use the
+> [Phase 67 architecture guide](RENDERING_ARCHITECTURE.md). Approved Phase 66 moved
+> retained native access behind implementation boundaries and migrated Scene,
+> model/animation, root and Ray/Image failures to typed results. Ray image
+> presentation now uses `UI::RasterImage`, not the historical `Image::GetTexID`
+> handoff. Retained frontends were not deleted. Phase 66's amended scope left
+> explicitly OPEN generic/bootstrap exception debt; this decision record is not
+> evidence of engine-wide zero exceptions or final-surface compliance.
+
 Owner-selected policy: **freeze/deprecate legacy raster APIs; maintain existing applications**. The owner selected this option during Phase 64 execution: "Freeze/deprecate legacy raster APIs; maintain existing applications (Recommended)". This is an explicit product choice, not a formal deferral. Phase checkpoint approval remains separate. No application migration, deprecation attribute, removal, or backend implementation is part of Phase 64.
 
 Inventory baseline: `03f6cdb674625b68d96e0f042f6e4b1f165dd6e5`, tag `render-refactor-phase-63-approved`, branch `rendering/refactor`. The repository remains on the approved C++23, MSVC v143, Premake/VS2022, static CRT and existing dependency policy.

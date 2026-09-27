@@ -1,5 +1,27 @@
 # Rendering validation
 
+## Current entry points and historical records
+
+The [rendering architecture guide](../tools/RENDERING_ARCHITECTURE.md) describes
+the current contracts, ownership, pass order, capability limits and build/runtime
+prerequisites, verified against approved Phase 66 during Phase 67.
+
+The independent `tools/rendering_validation.py` harness supports Debug/Release
+via `--configuration`, plus `--gl`, `--counters`, `--asan`, `--no-build` and `--output`.
+Check `python tools/rendering_validation.py --help` before use. It does not replace
+application acceptance. `tools/test_rbs_phase66.py` additionally requires a local
+pinned loader object; it is not a self-contained clean-checkout test.
+
+**Historical reference:** all phase sections below retain their original test
+scope, commands and observations. They are not a current all-target validation
+matrix. C++20 descriptions predate the approved Phase 26 C++23 gate; old
+exception/native-getter examples and "current" defects belong to their stated
+phase. Confirm a runner's current source/prerequisites before reusing a recipe.
+Phase 66's final acceptance used the owner-amended RBS-only workload and retained
+OPEN exception debt; its [receipt](../rendering-checkpoints/phase-66.json) records
+the checkpoint. Phase 67 ran documentation checks only. Earlier evidence is not
+relabeled, refreshed or broadened by this index.
+
 ## Phase 13 frozen safety/performance baseline
 
 `python tools/rendering_baseline.py build --configuration Release --output logs/rendering/phase13/build`

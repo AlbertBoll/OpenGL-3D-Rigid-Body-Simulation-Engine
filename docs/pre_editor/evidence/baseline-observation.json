@@ -1,0 +1,2233 @@
+{
+  "kind": "READ_ONLY_AUDIT_OBSERVATION_NOT_A_RECEIPT",
+  "status": "PROPOSED / NOT_STARTED",
+  "observed_utc": "2026-09-27T19:02:59.869462+00:00",
+  "head": "9995074e7af161db76c5bf79a5ede030702fb4ca",
+  "phase68_commit": "9995074e7af161db76c5bf79a5ede030702fb4ca",
+  "tag": "render-refactor-phase-68-approved",
+  "tag_object": "48dbfd3430413492120eb551e761028b94c6f9c6",
+  "destination": "https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine.git",
+  "approval_journal": "C:\\dev\\GEngine\\.git\\worktrees\\GEngine-rendering\\rendering-approval\\PHASE_68.json",
+  "journal_fingerprint": {
+    "sha256": "ee5f07723598def2ee30ba94b8b2f5f15c463aab6f142349843c35f08587fdba",
+    "bytes": 110813
+  },
+  "journal_status": "COMPLETE",
+  "branch_pushed": true,
+  "tag_pushed": true,
+  "completed_journal_count": 68,
+  "unfinished_journals": [],
+  "state_matches_completed_transaction": true,
+  "status_before": "# branch.oid 9995074e7af161db76c5bf79a5ede030702fb4ca\n# branch.head rendering/refactor\n# branch.upstream origin/rendering/refactor\n# branch.ab +0 -0\n1 .M N... 100644 100644 100644 64e9f234202e9a8b806457f5e155b55618d25b49 64e9f234202e9a8b806457f5e155b55618d25b49 .gitignore\n1 .M N... 100644 100644 100644 12330310ae6e3a2040a89c7188ac29af3498e98d 12330310ae6e3a2040a89c7188ac29af3498e98d GEngineEditor/imgui.ini\n1 .D N... 100644 100644 000000 e2199d1515239c157f07a9bf5270027c8477f19e e2199d1515239c157f07a9bf5270027c8477f19e docs/physics/PHASE_06_REVIEW.md\n1 .D N... 100644 100644 000000 e38774b6704cd7cdbb16a35a314f71bbdf8748d3 e38774b6704cd7cdbb16a35a314f71bbdf8748d3 docs/physics/PHASE_07_REVIEW.md\n1 .D N... 100644 100644 000000 cc3cc3a4d6f09516195ae80b8969d53d90f1b88a cc3cc3a4d6f09516195ae80b8969d53d90f1b88a docs/physics/PHASE_08_REVIEW.md\n1 .D N... 100644 100644 000000 9a2ea8fdb5a0370cae35208a5d48d7b99411e309 9a2ea8fdb5a0370cae35208a5d48d7b99411e309 docs/physics/PHASE_09_REVIEW.md\n1 .D N... 100644 100644 000000 bec09a71a64c6c0b794654d1188fa854612718a6 bec09a71a64c6c0b794654d1188fa854612718a6 docs/physics/PHASE_10_REVIEW.md\n1 .D N... 100644 100644 000000 d77af6ae84bce8f76b8f946b279ce8a56ba5c691 d77af6ae84bce8f76b8f946b279ce8a56ba5c691 docs/physics/PHASE_11_REVIEW.md\n1 .D N... 100644 100644 000000 d16c0e6ce27fe11cfaec0aa2bb885a9c6483e47d d16c0e6ce27fe11cfaec0aa2bb885a9c6483e47d docs/physics/PHASE_12_REVIEW.md\n1 .D N... 100644 100644 000000 71e05e398baf4ca85082a8e361de18a790c225d0 71e05e398baf4ca85082a8e361de18a790c225d0 docs/physics/PHASE_13_REVIEW.md\n1 .D N... 100644 100644 000000 a62c6d2052a4f26df9caf1640713d52dcb52b104 a62c6d2052a4f26df9caf1640713d52dcb52b104 docs/physics/PHASE_14_REVIEW.md\n1 .D N... 100644 100644 000000 f430bc83fd606a64950366eff749ba4b5506c63b f430bc83fd606a64950366eff749ba4b5506c63b docs/physics/PHASE_15_REVIEW.md\n1 .D N... 100644 100644 000000 5b41047c84391f87a552b5732fd3663e019dc667 5b41047c84391f87a552b5732fd3663e019dc667 docs/physics/PHASE_16_REVIEW.md\n1 .D N... 100644 100644 000000 bd7ef67144b1c541198e7c3405ea728430d342a3 bd7ef67144b1c541198e7c3405ea728430d342a3 docs/physics/PHASE_17_REVIEW.md\n1 .D N... 100644 100644 000000 b5a1f8ed6957481157c832dc0574de2bdb0b442d b5a1f8ed6957481157c832dc0574de2bdb0b442d docs/physics/PHASE_18_REVIEW.md\n1 .D N... 100644 100644 000000 a87bf550768028bbc7f14e109eb909a316d5eff0 a87bf550768028bbc7f14e109eb909a316d5eff0 docs/physics/PHASE_19_REVIEW.md\n1 .D N... 100644 100644 000000 4fd42d54503939fd99ad7258182a8c08199adc0f 4fd42d54503939fd99ad7258182a8c08199adc0f docs/physics/PHASE_20_REVIEW.md\n1 .D N... 100644 100644 000000 4d819beadbab07fda2c16c3331da1b67f29e2a81 4d819beadbab07fda2c16c3331da1b67f29e2a81 docs/physics/PHASE_21_REVIEW.md\n1 .D N... 100644 100644 000000 c735bc85af072bf01999fe0189f740d767568249 c735bc85af072bf01999fe0189f740d767568249 docs/physics/PHASE_22_REVIEW.md\n1 .D N... 100644 100644 000000 28064ffdee2f4cb0bc83e33c3306d32e5a4a6b0c 28064ffdee2f4cb0bc83e33c3306d32e5a4a6b0c docs/physics/PHASE_23_REVIEW.md\n1 .D N... 100644 100644 000000 4e4e9f7c7d330fd711f9114318b44a9ffb7de058 4e4e9f7c7d330fd711f9114318b44a9ffb7de058 docs/physics/PHASE_24_REVIEW.md\n1 .D N... 100644 100644 000000 9513fb868ce4e582c233d572e21d9e7274087c41 9513fb868ce4e582c233d572e21d9e7274087c41 docs/physics/PHASE_25_REVIEW.md\n1 .D N... 100644 100644 000000 86937efc37d97bd7c3f36746db597b2724812ad5 86937efc37d97bd7c3f36746db597b2724812ad5 docs/physics/PHASE_26_REVIEW.md\n1 .D N... 100644 100644 000000 f7f2ed8efc142d8ae6724a59e49e9c96306eb612 f7f2ed8efc142d8ae6724a59e49e9c96306eb612 docs/physics/PHASE_27_REVIEW.md\n1 .D N... 100644 100644 000000 5f2577f06d2651ad8398715dfbf38e72033ad71f 5f2577f06d2651ad8398715dfbf38e72033ad71f docs/physics/PHASE_28_REVIEW.md\n1 .D N... 100644 100644 000000 fd28d938d16d7bf1a1323f006a8d32a03da224f9 fd28d938d16d7bf1a1323f006a8d32a03da224f9 docs/physics/PHASE_29_REVIEW.md\n1 .D N... 100644 100644 000000 32bca142d1d1569ac3319259a5a3f315911397a0 32bca142d1d1569ac3319259a5a3f315911397a0 docs/physics/PHASE_30_REVIEW.md\n1 .D N... 100644 100644 000000 9e8d32edf2c9a6363feb5cf9ef896440a7de5631 9e8d32edf2c9a6363feb5cf9ef896440a7de5631 docs/physics/PHASE_32_REVIEW.md\n1 .D N... 100644 100644 000000 073e22c531dd07122ccca8f9a14d0a52cfbacbdc 073e22c531dd07122ccca8f9a14d0a52cfbacbdc docs/physics/PHASE_33_REVIEW.md\n1 .D N... 100644 100644 000000 3fbad2ecb6ecf86e4633c998a9da13cb37a4c0c3 3fbad2ecb6ecf86e4633c998a9da13cb37a4c0c3 docs/physics/PHASE_34_REVIEW.md\n1 .D N... 100644 100644 000000 37f4af3773072e44cc28b72d5a7120f28d0f8e66 37f4af3773072e44cc28b72d5a7120f28d0f8e66 docs/physics/PHASE_35_REVIEW.md\n1 .D N... 100644 100644 000000 e4265d4f457e006d1efd9ecc2fc2bf000fc8bbff e4265d4f457e006d1efd9ecc2fc2bf000fc8bbff docs/physics/PHASE_36_REVIEW.md\n1 .D N... 100644 100644 000000 045404db8da0d20c66b551fab008bc8cbc008a91 045404db8da0d20c66b551fab008bc8cbc008a91 docs/physics/PHASE_37_REVIEW.md\n1 .D N... 100644 100644 000000 a5968cffa91e6395801496e7a579c52afd6e61ea a5968cffa91e6395801496e7a579c52afd6e61ea docs/physics/PHASE_38_REVIEW.md\n1 .D N... 100644 100644 000000 a4befd55298092909250bff98e0937c5c08c66b7 a4befd55298092909250bff98e0937c5c08c66b7 docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md\n1 .D N... 100644 100644 000000 503108dbc213a5754bd7f1c8a04ef420ca8f48bb 503108dbc213a5754bd7f1c8a04ef420ca8f48bb docs/physics/PHASE_39_REVIEW.md\n1 .D N... 100644 100644 000000 e0af663bdf97cd295e327bd492d04d831a1e5c23 e0af663bdf97cd295e327bd492d04d831a1e5c23 docs/physics/PHYSICS_OPTIMIZATION.md\n1 .D N... 100644 100644 000000 82502a6a61dc191169efa974b9d1f296bc41b234 82502a6a61dc191169efa974b9d1f296bc41b234 docs/physics/PHYSICS_REFACTOR.md\n1 .D N... 100644 100644 000000 57e15bc9f49f0158b97481b6fe6d75575c85f329 57e15bc9f49f0158b97481b6fe6d75575c85f329 docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md\n1 .D N... 100644 100644 000000 0d39d53e2ffb9a54378a7fec9b48ecf98010e0b0 0d39d53e2ffb9a54378a7fec9b48ecf98010e0b0 docs/physics/PHYSICS_REFACTOR_PLAN.md\n1 .D N... 100644 100644 000000 9067e3733878c23ca07f7e97783c2f958a67a316 9067e3733878c23ca07f7e97783c2f958a67a316 docs/physics/review/PHASE_00_REVIEW.md\n1 .D N... 100644 100644 000000 90793a3744bf7bd81937cc38473adbf353a824aa 90793a3744bf7bd81937cc38473adbf353a824aa docs/physics/review/PHASE_01_REVIEW.md\n1 .D N... 100644 100644 000000 81fed5b28dda27d3c5d104f03a47aecea6b7360a 81fed5b28dda27d3c5d104f03a47aecea6b7360a docs/physics/review/PHASE_02_REVIEW.md\n1 .D N... 100644 100644 000000 e16ff68c2c30121f38909befad14f9c8a559faf9 e16ff68c2c30121f38909befad14f9c8a559faf9 docs/physics/review/PHASE_03_REVIEW.md\n1 .D N... 100644 100644 000000 66c2381a14ae042b1119f5b6698b97d78f9aa139 66c2381a14ae042b1119f5b6698b97d78f9aa139 docs/physics/review/PHASE_04_REVIEW.md\n? docs/pre_editor/POST_RENDERING_HANDOFF_FINAL_INSTRUCTIONS.md\n? tools/render_world_probe.cpp\n? tools/test_render_world.py\n",
+  "index_path": "C:\\dev\\GEngine\\.git\\worktrees\\GEngine-rendering\\index",
+  "index_before": {
+    "sha256": "6b8a0d0b94ec358a838f358758f6e7e77d450f5126c38740aa1addddc75e8c49",
+    "bytes": 208344
+  },
+  "index_entries_sha256": "d75a0c01d1d43e09a592aaf3804d6dc2843f44b78ddd73bdfc3503c53347105e",
+  "staged_diff": "",
+  "worktrees": "worktree C:/dev/GEngine\nHEAD 2829cfa7fa9e22e096c5b72ab1fd4e9ce5100aef\nbranch refs/heads/feature/imgui_editor\n\nworktree C:/dev/GEngine-build\nHEAD 12e8fac8dc5c49d1eaedc7728595ba26ff78fa07\nbranch refs/heads/build/cmake-conan-migration\n\nworktree C:/dev/GEngine-physics\nHEAD 89030282c1b2fd21a55eae2934e7f080eff7950d\nbranch refs/heads/physics/refactor\n\nworktree C:/dev/GEngine-renderer-refactor\nHEAD 6b8bf4b902249f5ab70f0f755d12301800675c3f\nbranch refs/heads/feature/rendering-refactor\nprunable gitdir file points to non-existent location\n\nworktree C:/dev/GEngine-rendering\nHEAD 9995074e7af161db76c5bf79a5ede030702fb4ca\nbranch refs/heads/rendering/refactor\n\n",
+  "before_files": {
+    ".agents/skills/rendering-phase-approval/SKILL.md": {
+      "sha256": "ee5f73cce7e81af77b3ed940dc9869386187818af82241e725eca392d09007b4",
+      "bytes": 5925
+    },
+    ".agents/skills/rendering-phase-approval/references/recovery.md": {
+      "sha256": "1a72023255d2f25e16a847c9de8165e132368e91f643c4d2e2f1ac52ed392df4",
+      "bytes": 5233
+    },
+    ".agents/skills/rendering-phase-execution/SKILL.md": {
+      "sha256": "09d4b346fcb254561132d664cf38ba2e44ca8d45366732424111b0de8b0d95d4",
+      "bytes": 5537
+    },
+    ".agents/skills/rendering-phase-execution/references/snapshot.md": {
+      "sha256": "6172e9746603e42d2f39528ae54d9c4bc2a66e56e08648a45b27e6444f4d9a30",
+      "bytes": 6212
+    },
+    ".agents/skills/rendering-phase-rejection/SKILL.md": {
+      "sha256": "788518599066975421fdf0c07dd02474fec0c50d77efbbb9764947c8bbdcf690",
+      "bytes": 1841
+    },
+    ".clang-format": {
+      "absent": true
+    },
+    ".codex/tools/checkpoint_spec.example.json": {
+      "sha256": "e4ff04490c98786531e02c3dde5239e1310bc2e495ce08b81a9c55cc5fa4c61c",
+      "bytes": 894
+    },
+    ".codex/tools/rendering_checkpoint.py": {
+      "sha256": "ed54ae106408db8c9e912b1354ac6c76293b5b32565ff4f417487a47f38193f7",
+      "bytes": 40574
+    },
+    ".codex/tools/test_rendering_checkpoint.py": {
+      "sha256": "625f80e10acf2aa582088256ea8bd02a9498dc74d5947c79d3b0405cbe262f68",
+      "bytes": 63449
+    },
+    ".codex/tools/validate_rendering_governance.py": {
+      "sha256": "82f9c5dc46d0693c8613abfbeeb1d01506d0c540ab297a45671f54b306c98380",
+      "bytes": 10782
+    },
+    ".gitignore": {
+      "sha256": "b49d7141809a3c97b0825f9e155f94f7a8936851917e4cf76667e8cf6235dd8b",
+      "bytes": 500
+    },
+    "AGENTS.md": {
+      "sha256": "98eb4375ccca5d958267cb648e48be683f5d5db38ef85dd17a282b8c0e54f005",
+      "bytes": 11012
+    },
+    "Breakout/include/BreakoutApp.h": {
+      "sha256": "fbed1eff1c43c9af76391011abaa52cc059f1aa7fc0547e67b35029215758c42",
+      "bytes": 1678
+    },
+    "Breakout/include/GameLevel.h": {
+      "sha256": "bc7b7857093efa604358983b7c91a7b1a895cd2376ba984780ad32dbda75def3",
+      "bytes": 884
+    },
+    "Breakout/include/GameObject/BallObject.h": {
+      "sha256": "aba35167f2993fbf66d0da5dfa6b878fb6e1c9499743913b7e676f3eafbcb0a5",
+      "bytes": 716
+    },
+    "Breakout/src/BreakoutApp.cpp": {
+      "sha256": "5ee660c748aeb21ad5bbc09ee4d4bf6099615238c712bea244f5b6e496cfaa98",
+      "bytes": 16802
+    },
+    "Breakout/src/GameLevel.cpp": {
+      "sha256": "617c6c8b6855b74ed4b36ae5600786c6d83c4e0f2c6e6b06e64df1b9563024e5",
+      "bytes": 6289
+    },
+    "Breakout/src/GameObject/BallObject.cpp": {
+      "sha256": "70f8f62f9b0690462e8d8602150e250929b3ef82c39ded794ec55c8e7bdf3970",
+      "bytes": 1171
+    },
+    "Breakout/src/main.cpp": {
+      "sha256": "2717dbf5574b91d77a85ed43aed72a71f0d24fad8fb4911ef03b208e22e1d067",
+      "bytes": 407
+    },
+    "GEngine.sln": {
+      "sha256": "bc69967ae88d485861216e225e1888d14c0c45428b73f59e6e93070c9c9b1dca",
+      "bytes": 4566
+    },
+    "GEngine/GEngine.vcxproj": {
+      "sha256": "0865f64bc0800fbf5aaa6e2d513984a1237d11dbd4dc66c4786028f3159c1796",
+      "bytes": 54115
+    },
+    "GEngine/include/GEngine/Animation/AnimatedModel.h": {
+      "sha256": "097a6eb28423ac96ac4cb9abd215ee61a1df308d7969f035da7995068d3c2e89",
+      "bytes": 1082
+    },
+    "GEngine/include/GEngine/Animation/Animation.h": {
+      "sha256": "0f191caf71be9d3cd8b4ca5e02a2f56b6dd24af16efa716b90feaa4efc8cfbf7",
+      "bytes": 1185
+    },
+    "GEngine/include/GEngine/Animation/AnimationSystem.h": {
+      "sha256": "1001fdafd38b9ebb88e95ed80ff2dd1e46e8bae4c62fef2cf39b17d936d8ff30",
+      "bytes": 804
+    },
+    "GEngine/include/GEngine/Animation/Bone.h": {
+      "sha256": "d30a374aa1a5692d30ae4cd0b36c33a7f692d914bbe598e09c93d6b114ad2248",
+      "bytes": 6174
+    },
+    "GEngine/include/GEngine/Animation/BoneInfo.h": {
+      "sha256": "89b3e738cd0758c4f9239167a3d805bf2fc32f6eb044e48241a975ceef36652c",
+      "bytes": 280
+    },
+    "GEngine/include/GEngine/Assets/AssetHandle.h": {
+      "sha256": "0c2e54fe82b781b290628fe1c520ab3cf065570fcfa699d4afd341b3d5c61e1f",
+      "bytes": 3060
+    },
+    "GEngine/include/GEngine/Assets/AssetPublication.h": {
+      "sha256": "76555c4f8319a5d82cb2b0ef4e2f8b14856391c5bea6871305f43719edd4b415",
+      "bytes": 5528
+    },
+    "GEngine/include/GEngine/Assets/AssetRegistry.h": {
+      "sha256": "54e4109ad0b728c67454af19ae09599318054c13918c1df75c191a0ad21e58b5",
+      "bytes": 12539
+    },
+    "GEngine/include/GEngine/Assets/AsyncUploadQueue.h": {
+      "sha256": "fe0ff121b564eaf42c9712cdfdeb7c019244b30c97905d3d0ce78ca80705e96e",
+      "bytes": 5996
+    },
+    "GEngine/include/GEngine/Assets/Fonts/Font.h": {
+      "sha256": "0fbb203a1aea676ff844f31aca52b522a9dc80664a9f868c87a57305139dcf62",
+      "bytes": 725
+    },
+    "GEngine/include/GEngine/Assets/ModelImportError.h": {
+      "sha256": "13d394996f443b346b2c610e3bf10f4972a6bdfb5476eee57bf46589d40bb06e",
+      "bytes": 376
+    },
+    "GEngine/include/GEngine/Assets/Samplers/Sampler.h": {
+      "sha256": "fb7949c2a99da229119c00931c9ba89577f3137593c0fd6b329776d8e61c5490",
+      "bytes": 4835
+    },
+    "GEngine/include/GEngine/Assets/Shaders/Shader.h": {
+      "sha256": "44af7fa32dc5e889fc1e971a73a54200c0c8e23655c1427ad9fc22478ff6b28c",
+      "bytes": 4499
+    },
+    "GEngine/include/GEngine/Assets/Textures/AsyncTexture.h": {
+      "sha256": "d15b3c01824f8324f38be3a0307c1b48498118b46824747ad6eeceede25b4e1c",
+      "bytes": 3271
+    },
+    "GEngine/include/GEngine/Assets/Textures/TextTexture.h": {
+      "sha256": "fd09234d50f8fa1790e30aca1a4402b9f945514ea80e98ad941934ea1a4b4f6d",
+      "bytes": 287
+    },
+    "GEngine/include/GEngine/Assets/Textures/Texture.h": {
+      "sha256": "07ae78a2e14aa21832adaa84d78515b35ce030b6a13ac845baa60e9cc8139c95",
+      "bytes": 4729
+    },
+    "GEngine/include/GEngine/Audio/AudioSystem.h": {
+      "sha256": "f5b5c568a0b2a4053fdc5093aa46da47075c13b48f3fcd8c443564000d7cd524",
+      "bytes": 2010
+    },
+    "GEngine/include/GEngine/Audio/SoundEvent.h": {
+      "sha256": "a2bafa5710f1678dfee7f90092bfa2129e690dc8d51d2960ac62cec8fb7610fe",
+      "bytes": 2383
+    },
+    "GEngine/include/GEngine/Camera/Camera.h": {
+      "sha256": "08226676282cfd33ee5eb79e956234b0d55c04f841ab8a0c6a808cdfeca02931",
+      "bytes": 2826
+    },
+    "GEngine/include/GEngine/Camera/EditorCamera.h": {
+      "sha256": "69449645b56e3fdb10f227fc0ebd987aad76f24d8482c767b0872614a4306336",
+      "bytes": 4529
+    },
+    "GEngine/include/GEngine/Camera/OrthographicCamera.h": {
+      "sha256": "41506e588d2fbbd2426007bd55726033f3818641f55aa335d0fae4051dca8c9a",
+      "bytes": 581
+    },
+    "GEngine/include/GEngine/Camera/PerspectiveCamera.h": {
+      "sha256": "124e40da0adf1698578041b5118c006f3a685e0ad520c34b9fb76a67379caf62",
+      "bytes": 2452
+    },
+    "GEngine/include/GEngine/Camera/PlayerCamera.h": {
+      "sha256": "45f3f2c09be2ec6eb8899af6ba0b4cc3539ac04f693fd5b5d029b5bae284678a",
+      "bytes": 1483
+    },
+    "GEngine/include/GEngine/Camera/RayTracingCamera.h": {
+      "sha256": "bead079507fb540faec78fc55c028fb5a65402e95d4462c591af7a1662419dfb",
+      "bytes": 1614
+    },
+    "GEngine/include/GEngine/Camera/SceneCamera.cpp": {
+      "sha256": "6fe493bf6594f8be81d69c6d56153b636b3a065ec4b9b37edd3df984b7fb46b6",
+      "bytes": 1436
+    },
+    "GEngine/include/GEngine/Camera/SceneCamera.h": {
+      "sha256": "777a4c4b21744c392db4978827402856286cc3eb417c6ce90d01dc0448c8c20c",
+      "bytes": 2068
+    },
+    "GEngine/include/GEngine/Camera/ThirdPersonCamera.h": {
+      "sha256": "b2da25b98f9373ad82bd7860eb4c3539d7376c2e360bb4eba303515b5df7fa78",
+      "bytes": 571
+    },
+    "GEngine/include/GEngine/Camera/_Camera.cpp": {
+      "sha256": "0b5e63b34116540a7e6beeab89018c74b76bd563b48915649f60afc9f3c85616",
+      "bytes": 526
+    },
+    "GEngine/include/GEngine/Camera/_Camera.h": {
+      "sha256": "e412ae85353ab27c5a66402e97fd9edf77c1e4442122d476f7383845f4d07837",
+      "bytes": 1734
+    },
+    "GEngine/include/GEngine/Character/Character.h": {
+      "sha256": "91a4ca9d839a6675c0d48f416834e5366e5c0980a02688df979cd52a6a0c69fb",
+      "bytes": 914
+    },
+    "GEngine/include/GEngine/Component/Component.h": {
+      "sha256": "508e7adbe4eeddefb5e3210e91e1b5f531ff64bb1601cb86b289884105b3f454",
+      "bytes": 13252
+    },
+    "GEngine/include/GEngine/Component/RenderComponents.h": {
+      "sha256": "ce2406fd76223b4cb0cb5d2cb20ca58e18c7b67aa0871683596a1f1d33cdce5f",
+      "bytes": 2824
+    },
+    "GEngine/include/GEngine/Component/TexturesComponent.h": {
+      "sha256": "54c6de288a95fba548df50ec73db04b93ccbc39091d56d3c280899ae8f432cd8",
+      "bytes": 1042
+    },
+    "GEngine/include/GEngine/Container/Array.h": {
+      "sha256": "baa72e0af43b0d404da1916d5a052abe8fe6c6328077f8b9ee48c7b7b7c71821",
+      "bytes": 800
+    },
+    "GEngine/include/GEngine/Container/Array1D.h": {
+      "sha256": "3b11381e80480b2fa9e775ce3018e07be24db7532b876902b0fe13776e0e559d",
+      "bytes": 10149
+    },
+    "GEngine/include/GEngine/Container/Array2D.h": {
+      "sha256": "6985145740fec7b5627de3dc0aa1926fb3730a875c14f7960bc7eccb3e04cad3",
+      "bytes": 7658
+    },
+    "GEngine/include/GEngine/Container/Array3D.h": {
+      "sha256": "6740271d07c1f74aa4b37aec64b724f761580f31da600ff1f9856376d1c744f0",
+      "bytes": 8840
+    },
+    "GEngine/include/GEngine/Container/ArrayAccessor1D.h": {
+      "sha256": "233df584af33b2036d0260c91c1ddcf2da8574c5a9e8f0f28a6ba8b9421b7fba",
+      "bytes": 14189
+    },
+    "GEngine/include/GEngine/Container/ArrayAccessor2D.h": {
+      "sha256": "0e0af4b2855f995945a9890a263cf932dda3ea26181503347d66148943a6de36",
+      "bytes": 8945
+    },
+    "GEngine/include/GEngine/Container/ArrayAccessor3D.h": {
+      "sha256": "b506814832b2f1e2c7a8570f02e937619c980d080001d8b21bb7c622fa900b79",
+      "bytes": 13637
+    },
+    "GEngine/include/GEngine/Core/AAEntity.h": {
+      "sha256": "1ccaba96b9bf000fc1a418e63d4403f3ab4e8790150624b44489a9db7d7d8181",
+      "bytes": 302
+    },
+    "GEngine/include/GEngine/Core/Actor.h": {
+      "sha256": "55a082c5600c30c1f6a6b55e0c1b5a871766683c31cef6172f25c49aa067a38a",
+      "bytes": 6359
+    },
+    "GEngine/include/GEngine/Core/Assert.h": {
+      "sha256": "cc4b3d2c7f5bc84c95499cfca80812469a36f198f2aa852e31d97da70f2a228d",
+      "bytes": 1561
+    },
+    "GEngine/include/GEngine/Core/Base.h": {
+      "sha256": "44aeaa60979ebcb7349b962995c952b6757ea5b3d6ce58204eee9ccc2087897f",
+      "bytes": 905
+    },
+    "GEngine/include/GEngine/Core/BaseApp.h": {
+      "sha256": "148b546009a2a56c29140fad5785a9bf499ffa6587ef856329a374688c9c510e",
+      "bytes": 6204
+    },
+    "GEngine/include/GEngine/Core/Entities.h": {
+      "sha256": "69279abc183e4e0fcc6b90d7f570244e1d07f92752fb0ff8586140d336c3fefd",
+      "bytes": 73
+    },
+    "GEngine/include/GEngine/Core/Entity.h": {
+      "sha256": "6ce9d94ad0bb7bb6790800e5193ca09591262e78beecd543705d6c4eab6344aa",
+      "bytes": 2433
+    },
+    "GEngine/include/GEngine/Core/FrameBuffer.h": {
+      "sha256": "0da5a2d932f47e4126e7c915d1816e40ee3b63246eb279545c5aad0ca20f0b81",
+      "bytes": 4437
+    },
+    "GEngine/include/GEngine/Core/FrameClock.h": {
+      "sha256": "b3786a76d594762ef71f218cc5ea46ac42b265723b49dd82ab94499787d6edfc",
+      "bytes": 1357
+    },
+    "GEngine/include/GEngine/Core/GEngine.h": {
+      "sha256": "163a0c42d8885956eafda3b3fe36d09b66e18b748bdb16efa989b8cf487dcbcc",
+      "bytes": 4755
+    },
+    "GEngine/include/GEngine/Core/GLContextThread.h": {
+      "sha256": "76b5e1c90ad4eb04162f7060d36c8bd5bc8d0d37871a6af4afba65557b7be550",
+      "bytes": 24021
+    },
+    "GEngine/include/GEngine/Core/GLDebug.h": {
+      "sha256": "7bb9af16460e957d3021828efc57c6cd83ba656e624236a970e2598dccc822fd",
+      "bytes": 5999
+    },
+    "GEngine/include/GEngine/Core/GameObject2D.h": {
+      "sha256": "00e3ff3c92dc44f448c6933e6bc79a8337ebe5adde3e9e307883ca62dde0c0d1",
+      "bytes": 1013
+    },
+    "GEngine/include/GEngine/Core/Group.h": {
+      "sha256": "4650e6875d7b92d28f5de5e4084010ded0cf9efcbba2a155d737c945307be67f",
+      "bytes": 3557
+    },
+    "GEngine/include/GEngine/Core/Image.h": {
+      "sha256": "ce5f7ffce5396833d16588f2ffe99870370305c2c1ebfad8ddc72c5cd7de8abb",
+      "bytes": 1951
+    },
+    "GEngine/include/GEngine/Core/ImageError.h": {
+      "sha256": "8a734698e09396a5aedce346c5b6f6e2e84fc803e2440a1b250f61d6d1f0aa25",
+      "bytes": 782
+    },
+    "GEngine/include/GEngine/Core/Log.h": {
+      "sha256": "26e81a47a61ce298ff382fe06467b5fcd9f55935a0bb8d00793f1b54ad9c93f5",
+      "bytes": 2611
+    },
+    "GEngine/include/GEngine/Core/Parallel.h": {
+      "sha256": "c067b51e893e01c58ac294c45d4ff94a97a26f4f7246c0adc5333868f621db6d",
+      "bytes": 7781
+    },
+    "GEngine/include/GEngine/Core/Platform.h": {
+      "sha256": "8491e398612e193d671435411e4a5ac4debfe90ce5ef76a2aa49a56b44864594",
+      "bytes": 4406
+    },
+    "GEngine/include/GEngine/Core/Pod.h": {
+      "sha256": "c58742f8e54b1c2415c41bc59a8085d1464395a2b112042ea58632e796dea4b4",
+      "bytes": 1290
+    },
+    "GEngine/include/GEngine/Core/RandomGenerator.h": {
+      "sha256": "7390b30ec2bee8c0659d779bf19f8f73d6f57f8591e2c5a6c8728944f9429fe7",
+      "bytes": 1192
+    },
+    "GEngine/include/GEngine/Core/RawModel.h": {
+      "sha256": "e1e7cb9029f4c93b50d5c311b393a3568a2d9e80b69424f8d5dac20cd5c898e0",
+      "bytes": 823
+    },
+    "GEngine/include/GEngine/Core/Ray.h": {
+      "sha256": "3ff8f090d9eb6ad74fa8dc42a9f8a7198ec6e455308b7b45260fc80d45c0ad41",
+      "bytes": 152
+    },
+    "GEngine/include/GEngine/Core/RayTracingScene.h": {
+      "sha256": "cfc74eb2b3e7b538790336ae96c097e56d9badb5355df404f6f7d63f4a282c2c",
+      "bytes": 488
+    },
+    "GEngine/include/GEngine/Core/RenderBaseline.h": {
+      "sha256": "ac7233c1de0eaf9da81a50629f1f42a1d2814180164fa392084c05133653c4ca",
+      "bytes": 2190
+    },
+    "GEngine/include/GEngine/Core/RenderCounters.h": {
+      "sha256": "a71344420150607ecbdd7860dd8b3b3f255bcd557a5c563180cd57ef06e701cb",
+      "bytes": 15271
+    },
+    "GEngine/include/GEngine/Core/RenderSystem.cpp": {
+      "sha256": "e704988f529de117a855f7734611f3d620d366a094ed1a624199bb40df3d61e6",
+      "bytes": 41567
+    },
+    "GEngine/include/GEngine/Core/RenderSystem.h": {
+      "sha256": "0bbfa8060e9318c270cf2fa6f697b00f32b6f0320c293b8a4075d2cca81b07ff",
+      "bytes": 5992
+    },
+    "GEngine/include/GEngine/Core/RenderTarget.h": {
+      "sha256": "876463ea101ac6e7e8a9d6411794347a74885dc19680b33f649f75de4758b18f",
+      "bytes": 12716
+    },
+    "GEngine/include/GEngine/Core/Renderer.h": {
+      "sha256": "f9ba3b4c186b432d8b427a038de95e74c22ed4535c533d49d1d6d3841ea01705",
+      "bytes": 1761
+    },
+    "GEngine/include/GEngine/Core/Renderer2D.h": {
+      "sha256": "a12a4c45e288ca3787ff48e9ed2d9a9535ed9e7f2541b9b79ea3ebc52bdc845d",
+      "bytes": 1543
+    },
+    "GEngine/include/GEngine/Core/RuntimeAssets.h": {
+      "sha256": "6029280e7010a8e38226fa18081c2d18fe64516793b6281eca7ab4cb24a363c7",
+      "bytes": 795
+    },
+    "GEngine/include/GEngine/Core/Scene.cpp": {
+      "sha256": "90ebea1bc1714edbe66df26c28645e4907d9b3c7032cca6c06446b814ac63e8c",
+      "bytes": 1588
+    },
+    "GEngine/include/GEngine/Core/Scene.h": {
+      "sha256": "5f776aac9617c8ca6d6584a0937f625cd38ac3f8dbc0b1ee2de64a2094a4bb75",
+      "bytes": 928
+    },
+    "GEngine/include/GEngine/Core/SceneGraph.h": {
+      "sha256": "f1489aa0d62c58730c1da90a637ddf89143a1d4b6f88089a15f1d6afde13c9be",
+      "bytes": 405
+    },
+    "GEngine/include/GEngine/Core/SimpleRenderer.h": {
+      "sha256": "9ae5f717f7121d211eb71a2428d9edb72c32e9919bf4c5b6c7eab96d3b711c38",
+      "bytes": 2275
+    },
+    "GEngine/include/GEngine/Core/Sprite2D.h": {
+      "sha256": "9e09ba37b302038244c46b4a4077afbfe18771bb6c5ce9e9a4f652051592defa",
+      "bytes": 157
+    },
+    "GEngine/include/GEngine/Core/System.h": {
+      "sha256": "293bac5caa967b7d6ead9b148a86216dc289c34a895e6c6822ffc62a80931b9a",
+      "bytes": 258
+    },
+    "GEngine/include/GEngine/Core/Timer.h": {
+      "sha256": "14995d9358faf7c2d2f4551ec809b2b4bba41806e3887c61d26eae4d79ce48d9",
+      "bytes": 1176
+    },
+    "GEngine/include/GEngine/Core/Timestep.h": {
+      "sha256": "1b9e2a4462863b1be49ef9fe2be1c750ac018b8957da4e87fde8706f934496c0",
+      "bytes": 1201
+    },
+    "GEngine/include/GEngine/Core/UUID.h": {
+      "sha256": "f90003added0eb682e01af0e632f1f09281ebb874a674ccd355f9f1d15bad055",
+      "bytes": 450
+    },
+    "GEngine/include/GEngine/Core/Utility.h": {
+      "sha256": "46eb48ce31ab7a8aa31c66755799292e933fa380248e6e9a5d69083252338256",
+      "bytes": 3867
+    },
+    "GEngine/include/GEngine/Core/Window.h": {
+      "sha256": "7ce8dee7a8df0cab50e4fc097d5e0b9f134006a6543f84152b42981c31ca5780",
+      "bytes": 3544
+    },
+    "GEngine/include/GEngine/EntryPoint.h": {
+      "sha256": "54d6706d6aad4374b956bc5bab9a158bb716ee899f5bd7dbf6e9ac10588a82ef",
+      "bytes": 1535
+    },
+    "GEngine/include/GEngine/Events/ApplicationEvent.h": {
+      "sha256": "bf5235ba86e39b1d7655df2e9405c1dee9e5e46b0de3b8546df384b36858b32c",
+      "bytes": 269
+    },
+    "GEngine/include/GEngine/Events/Event.h": {
+      "sha256": "4080d023e48ab0cdaf61fab45c1322e73fcf1c22eb63026a7701182e25b20d51",
+      "bytes": 3643
+    },
+    "GEngine/include/GEngine/Events/GameControllerEvent.h": {
+      "sha256": "e3da5c91b5a97841bff54bd59c50b0d9221859dc34b352d01b125d13a447ef87",
+      "bytes": 94
+    },
+    "GEngine/include/GEngine/Events/KeyBoardEvent.h": {
+      "sha256": "c1bf920c603a5620181e254e303354fad3b5d53c4c3775f014e34a24d889d116",
+      "bytes": 302
+    },
+    "GEngine/include/GEngine/Events/MouseEvent.h": {
+      "sha256": "8fc12dd648f59ebb0489769028177febb889e8b7fdd538c9f456243a709963b0",
+      "bytes": 411
+    },
+    "GEngine/include/GEngine/Events/Property.h": {
+      "sha256": "8b5cda8e19188ea9c619fa61edb2340e9f9689807f58b9f744915f1c0a74494c",
+      "bytes": 2160
+    },
+    "GEngine/include/GEngine/Events/Signal.h": {
+      "sha256": "5b23d3e5d71cd638af943e5f3ec0ba3b732778723ac49d5f9e0d87c490062485",
+      "bytes": 15249
+    },
+    "GEngine/include/GEngine/Extras/AssimpGLMHelpers.h": {
+      "sha256": "8677eee551bf4409b1a0cdc2af52a0dd71fe6bb30750934e5973994863211a7d",
+      "bytes": 989
+    },
+    "GEngine/include/GEngine/Extras/Axes.h": {
+      "sha256": "a8a30204d6a82e669c704b9547a9190e59915a2f46879569eff67bb4da8c61b6",
+      "bytes": 505
+    },
+    "GEngine/include/GEngine/Extras/CameraRig.h": {
+      "sha256": "9561ff63a17b744b5adb8b8c6651a2d607f623846b0b3e1172b26953e7215d37",
+      "bytes": 1232
+    },
+    "GEngine/include/GEngine/Extras/Grid.h": {
+      "sha256": "9e117c80816692ff2292c12b2b1860baa2ac737de48dcc70c15a126473af9a48",
+      "bytes": 940
+    },
+    "GEngine/include/GEngine/Factory/ShapeFactory.h": {
+      "sha256": "1e63e36fb139ef92a883a2fa516a50e23a105ae325b5454252e639ebf66fb806",
+      "bytes": 504
+    },
+    "GEngine/include/GEngine/Geometry/Curve.h": {
+      "sha256": "933d2abba2f544b914c3049ec0eb0c73caa3530895dbe424440e84c460b302f9",
+      "bytes": 4514
+    },
+    "GEngine/include/GEngine/Geometry/Geometry.h": {
+      "sha256": "14927b51facb31ecfd9d001a063b4794eb5f37882f2a830576b28e42cdd05d3b",
+      "bytes": 3747
+    },
+    "GEngine/include/GEngine/Geometry/Surface.h": {
+      "sha256": "b101976203e4ce217a392b3a6c23e5b99018cd0328fdad2b640399d63343506f",
+      "bytes": 2391
+    },
+    "GEngine/include/GEngine/Inputs/ControllerCodes.h": {
+      "sha256": "7b3e772956579f42ddc599407d825491a8c04f502759c13fd6b5e3f03621b277",
+      "bytes": 1208
+    },
+    "GEngine/include/GEngine/Inputs/KeyCodes.h": {
+      "sha256": "11d4ca770f1b7b1da68c5868a5a6e5d24bef208227248a8ce20f2661a5ba978b",
+      "bytes": 15382
+    },
+    "GEngine/include/GEngine/Inputs/MouseCodes.h": {
+      "sha256": "3319f4a2930aa7876c1b391611795c84b35dc7b962538cef7fefa71cd9d97485",
+      "bytes": 333
+    },
+    "GEngine/include/GEngine/Light/LightEntity.h": {
+      "sha256": "ccbd6d885da901295d22efeaab85c65ac362755a0ee22153476ce1d78af82b33",
+      "bytes": 1372
+    },
+    "GEngine/include/GEngine/Managers/AssetsManager.h": {
+      "sha256": "9ebd2e97f144be03305682c5f3a3f9a50e2e42f17aaf667c93852c5be6258856",
+      "bytes": 4766
+    },
+    "GEngine/include/GEngine/Managers/EventManager.h": {
+      "sha256": "6f38880b5ae97da5cd7695f9382a0a1a78b2c07206e9c2edd68ad5efb582cf2c",
+      "bytes": 1260
+    },
+    "GEngine/include/GEngine/Managers/InputManager.h": {
+      "sha256": "7b54fdf1fc2b17ebd99ef553350a04c32cddaf628f1b72b5411846775ba0017d",
+      "bytes": 5111
+    },
+    "GEngine/include/GEngine/Managers/ManagerBase.h": {
+      "sha256": "91db8bbebdd687e3d3f2633427040b52d1749f265fb1bfead45e3c349e5df0ba",
+      "bytes": 516
+    },
+    "GEngine/include/GEngine/Managers/ShaderManager.h": {
+      "sha256": "c25f98116f98079bedd4b3359588c6b364806b9ca775a05f69c046da746f4ec4",
+      "bytes": 2050
+    },
+    "GEngine/include/GEngine/Managers/ShapeManager.h": {
+      "sha256": "d9cc52ba95824e257536560dac4ba6619bad261918bf6a3fa403c70add97dfb7",
+      "bytes": 5537
+    },
+    "GEngine/include/GEngine/Managers/WindowManager.h": {
+      "sha256": "04e586f84e8d060510de4ee0109c2690a1dfa6dd07c8dfadc0593af041dcda86",
+      "bytes": 1744
+    },
+    "GEngine/include/GEngine/Material/AAScreenMaterial.h": {
+      "sha256": "bb00c67da4e096a29489c09d449b1999766924df97a15bd5ad26ebd9c4d28bff",
+      "bytes": 1074
+    },
+    "GEngine/include/GEngine/Material/AnimatedMaterial.h": {
+      "sha256": "ed1a9d04a5e3a892b817e80d84228ba05a3e58553f3d2da4fef52af8c8997562",
+      "bytes": 1522
+    },
+    "GEngine/include/GEngine/Material/BasicMaterial.h": {
+      "sha256": "e1407341fcd5215aeaa640e8ad053864a3335ece0bbbb9e0ffe91e4eda611ed4",
+      "bytes": 672
+    },
+    "GEngine/include/GEngine/Material/LightTextureMaterial.h": {
+      "sha256": "be86cb0e4f63272102226989f5684857c8eb4949810a46defcaebb1f45f20272",
+      "bytes": 1555
+    },
+    "GEngine/include/GEngine/Material/LineBasicMaterial.h": {
+      "sha256": "4a56b72cb87afa229f4d4346705e111b04d625e8927b083ea12a3e072a288bb8",
+      "bytes": 544
+    },
+    "GEngine/include/GEngine/Material/Material.h": {
+      "sha256": "f2159671d60fc5a2e2b0cb6467e39a81e6fddcd6b1f35e18abd749695254d909",
+      "bytes": 7578
+    },
+    "GEngine/include/GEngine/Material/MaterialBinding.h": {
+      "sha256": "68f52fde9c73b150de3cc3bda8f6b127e1d6c7fe1f0a05d82427a3ec7f4d5895",
+      "bytes": 4142
+    },
+    "GEngine/include/GEngine/Material/MaterialInstance.h": {
+      "sha256": "20918ce27f3f1d7ff20992a997e41283e337bca02a0e1bb7defc71b613080c48",
+      "bytes": 2649
+    },
+    "GEngine/include/GEngine/Material/MaterialTemplate.h": {
+      "sha256": "5edaabc5984f627b12801322b50d50bed5c534324c925072fc96deb1430ca035",
+      "bytes": 3757
+    },
+    "GEngine/include/GEngine/Material/NormalLightTextureMaterial.h": {
+      "sha256": "4bdaf6aa7aa1d9bdf1d8a607b29bec853484c54f210477ec59893bb4e7b463ab",
+      "bytes": 1594
+    },
+    "GEngine/include/GEngine/Material/Pipeline.h": {
+      "sha256": "1a5338955f8b0fd1ac7af01a1a6f032816d53e18b61b002177d081b31b193e0d",
+      "bytes": 2721
+    },
+    "GEngine/include/GEngine/Material/SkyBoxMaterial.h": {
+      "sha256": "ba0ea1b481dbae332aaef589f7f792da4498387c6f05e010c77dbb92838047a2",
+      "bytes": 1119
+    },
+    "GEngine/include/GEngine/Material/SpriteMaterial.h": {
+      "sha256": "11ee4fb91b936df4d1db7fc06f748d68e6cff438f21c72b3063a9b14ae652e54",
+      "bytes": 360
+    },
+    "GEngine/include/GEngine/Material/TerrainLightMaterial.h": {
+      "sha256": "80965b07c27f1b0a0b0b4926c5601eaaaec4130e1a5e488b8e42e7e1fc2e4b4b",
+      "bytes": 1479
+    },
+    "GEngine/include/GEngine/Material/TextureMaterial.h": {
+      "sha256": "1eaa12affd8d1576285ffc449d6ca319085fcf19c80efe1c6aaae514679ca99c",
+      "bytes": 489
+    },
+    "GEngine/include/GEngine/Math/Math.h": {
+      "sha256": "556081e3f3e68157b82eed611420ea69b11a3cf69d6a1e21bcf6f34b1d1a99f8",
+      "bytes": 38528
+    },
+    "GEngine/include/GEngine/Math/Matrix.h": {
+      "sha256": "0aa9ee9017f35bf68e8879fc6f0447b5d6d8393f7319785de8cf375ea3af04e7",
+      "bytes": 7122
+    },
+    "GEngine/include/GEngine/Mesh/AsyncMesh.h": {
+      "sha256": "fb2f732a72ea37b8710634eb42970759337e8af246e96f0d72033b35fdb62b59",
+      "bytes": 3473
+    },
+    "GEngine/include/GEngine/Mesh/Attribute.h": {
+      "sha256": "1a2bc04d89234d3d28b3ee7b0e9d6a3906ec8512ddb7d1ffd80ca51028cf6cea",
+      "bytes": 1010
+    },
+    "GEngine/include/GEngine/Mesh/BufferLayout.h": {
+      "sha256": "dcc8eccc794dbeeb4e8144cdbfab62442fabbe6fc67c2da17a48091f66d39225",
+      "bytes": 3699
+    },
+    "GEngine/include/GEngine/Mesh/GpuMesh.h": {
+      "sha256": "2c37f96f88e9e15ee8c852d695ba79734a97b9e357784f8ae71f14c844ffc096",
+      "bytes": 3589
+    },
+    "GEngine/include/GEngine/Mesh/IndexBuffer.h": {
+      "sha256": "846d589013f786aed3803d03740d1117f850a699268407128e4a0e477d76b919",
+      "bytes": 1020
+    },
+    "GEngine/include/GEngine/Mesh/Mesh.h": {
+      "sha256": "19ef6f5bd70e2f9535d032f81077dcefd5245e3c968419daa19663e32fd93dcc",
+      "bytes": 1176
+    },
+    "GEngine/include/GEngine/Mesh/MeshAsset.h": {
+      "sha256": "1d0dd5e38cf6e7bbba2ce68ea3fdeb827d47440bcc78c8d7989f63a11eb23cee",
+      "bytes": 7027
+    },
+    "GEngine/include/GEngine/Mesh/MeshImporter.h": {
+      "sha256": "308175fc0614a6711d0908df26f249efeb3dcebba1428946fd31f77c5bfeeba6",
+      "bytes": 5340
+    },
+    "GEngine/include/GEngine/Mesh/VertexBuffer.h": {
+      "sha256": "dc0482261d0045c21539c3c5225414ce69e44fa6a080d9d9aaf7410135cf8479",
+      "bytes": 2096
+    },
+    "GEngine/include/GEngine/Physics/Bounds.cpp": {
+      "sha256": "f6bc41da206fb6c90b33a0158543e9f4ef2c05e83953d001cb8c53711200e9ca",
+      "bytes": 1846
+    },
+    "GEngine/include/GEngine/Physics/Bounds.h": {
+      "sha256": "c7b299abc8c8301e1bd2c7ffe095bd77e4c05c071edcc26c6d64f302996c600e",
+      "bytes": 812
+    },
+    "GEngine/include/GEngine/Physics/BoxContact.h": {
+      "sha256": "e8ba9cc943523ec767b4d298cb1fd0efbcf9a81cb3e4b8ce06c32f3aa5cbd9ef",
+      "bytes": 9925
+    },
+    "GEngine/include/GEngine/Physics/Broadphase.cpp": {
+      "sha256": "2945e2c34fcd202f07bb06c30947a272a73c0028d641bd1c1de7b15569d9bc22",
+      "bytes": 7266
+    },
+    "GEngine/include/GEngine/Physics/Broadphase.h": {
+      "sha256": "3145e9abab5464f4abf75b5dcd3925e4b22200f2ab4de90372e60d241448e6df",
+      "bytes": 2099
+    },
+    "GEngine/include/GEngine/Physics/Constraints/Constraint.cpp": {
+      "sha256": "bf2df40095a7c3901aaccc11e71dc0cc280b29c570dcb07a29460b759504cc10",
+      "bytes": 3474
+    },
+    "GEngine/include/GEngine/Physics/Constraints/Constraint.h": {
+      "sha256": "dbe1ba1f410514f357525a57ac1066e235412e60563ab50b84313e7c81f6ef6e",
+      "bytes": 832
+    },
+    "GEngine/include/GEngine/Physics/Constraints/ConstraintPenetration.cpp": {
+      "sha256": "88f50acc239768b6f246470d55d24beb39a4757278862444c364a0816ef6d8e3",
+      "bytes": 19915
+    },
+    "GEngine/include/GEngine/Physics/Constraints/ConstraintPenetration.h": {
+      "sha256": "d750a5e1319ba7d87150e4eb23def80344fa7732d0bb081e8543bac2600ce962",
+      "bytes": 1279
+    },
+    "GEngine/include/GEngine/Physics/Constraints/SolverMath.h": {
+      "sha256": "e6776732df397875da29bac082458283ce6a9be5c3cc41fca026bac82ef41dfb",
+      "bytes": 2261
+    },
+    "GEngine/include/GEngine/Physics/Contact.cpp": {
+      "sha256": "31284cc1c6ff22e65a19a4b883ecb6024a219b0a5f7bfea6eb1a6c0df9165aa6",
+      "bytes": 47
+    },
+    "GEngine/include/GEngine/Physics/Contact.h": {
+      "sha256": "773e0ee7df29c76b1a17f065b67e1d467341088c52db43b0031f336ed997c328",
+      "bytes": 996
+    },
+    "GEngine/include/GEngine/Physics/ContactIsland.h": {
+      "sha256": "ae0f977c4a9b88d228d013df58d8516809d8ae1ce3367f2c16fce6894c02a9ba",
+      "bytes": 2215
+    },
+    "GEngine/include/GEngine/Physics/GJK.cpp": {
+      "sha256": "e6c959b45e7b139c697cd6afebd3a0bed9fe93c44f65e790122eb2b60b0e843b",
+      "bytes": 47785
+    },
+    "GEngine/include/GEngine/Physics/GJK.h": {
+      "sha256": "490a630ca2625a3a2fa28d69bc5e3e680bea0621efe39ecace2bb11b2aacc006",
+      "bytes": 3432
+    },
+    "GEngine/include/GEngine/Physics/Manifold.cpp": {
+      "sha256": "7ab1dcf0afae9e9660d42dc46fda4b798290fd6c1836ece699b497e81acbcea7",
+      "bytes": 19796
+    },
+    "GEngine/include/GEngine/Physics/Manifold.h": {
+      "sha256": "df520ad476cdcda3afac7c445b207804e7b556b6d24f4892bb27f013012d7538",
+      "bytes": 2153
+    },
+    "GEngine/include/GEngine/Physics/PhysicsBody.cpp": {
+      "sha256": "15eca90ca0e150e61238f9a7d44ffe00f06a56ad5b3b9d87e533d4065caf9639",
+      "bytes": 13287
+    },
+    "GEngine/include/GEngine/Physics/PhysicsBody.h": {
+      "sha256": "00f2206b979647252fd7029ff673c4e99a814a4b1b9865099ad1eb9ab8e72910",
+      "bytes": 8434
+    },
+    "GEngine/include/GEngine/Physics/PhysicsProfile.cpp": {
+      "sha256": "bd4209ce3fd40950fba3f408f457e0896dda4800c773a57afa327261bea51a28",
+      "bytes": 1726
+    },
+    "GEngine/include/GEngine/Physics/PhysicsProfile.h": {
+      "sha256": "64902b8fcb2bfddd2b5e87352c91bfc8dac5fb968f731cd522e797a0aa217011",
+      "bytes": 5346
+    },
+    "GEngine/include/GEngine/Physics/PhysicsShapeError.h": {
+      "sha256": "94b971c7d24d1d6f3ffcd36c0c86d483e348b9c43f661ccc40f56abb4bb9927c",
+      "bytes": 447
+    },
+    "GEngine/include/GEngine/Physics/PhysicsSystem.cpp": {
+      "sha256": "280667699d41348a1d5454ad61fac45a14fded91384e107b06d0a1b22d7037b4",
+      "bytes": 53301
+    },
+    "GEngine/include/GEngine/Physics/PhysicsSystem.h": {
+      "sha256": "8f4856a8195aad6ca4f92ddb29ae6c0082522d9dd6c4fa132a83de91726de113",
+      "bytes": 4186
+    },
+    "GEngine/include/GEngine/Physics/PhysicsWorld.cpp": {
+      "sha256": "6b4c34e397e0a28636e34a7fa8947caab54f335578969c929447358ef1e472a0",
+      "bytes": 2483
+    },
+    "GEngine/include/GEngine/Physics/PhysicsWorld.h": {
+      "sha256": "840b739f478e9686b8094540b4b893bf79efc026bc73b23af51e3c1b9c5efceb",
+      "bytes": 1319
+    },
+    "GEngine/include/GEngine/Physics/Shape.cpp": {
+      "sha256": "4657f8ac241de9c27845cafc7f9c5c6af87bce4274666e817c6ed1d5193378a1",
+      "bytes": 797
+    },
+    "GEngine/include/GEngine/Physics/Shape.h": {
+      "sha256": "f8d76f984198ab7e50c7acc7cde8dcdca8e37c08cc152eeac4d024bbc817a32f",
+      "bytes": 2316
+    },
+    "GEngine/include/GEngine/Physics/ShapeBox.cpp": {
+      "sha256": "42d266c6302f002157ab5a12d02c6a44a5e500f988f9845ac97c8325b004f91a",
+      "bytes": 9356
+    },
+    "GEngine/include/GEngine/Physics/ShapeBox.h": {
+      "sha256": "6fb99eecb74ed01c0fd6c9d5b3cda1432a612cedcee76066acff7df6ba647d15",
+      "bytes": 2146
+    },
+    "GEngine/include/GEngine/Physics/ShapeConvex.cpp": {
+      "sha256": "cb59c818394cae3a2ec23f968cf25babda941527d8b8f460fd2d4671435a55a6",
+      "bytes": 19721
+    },
+    "GEngine/include/GEngine/Physics/ShapeConvex.h": {
+      "sha256": "b58d38474fd11e00ce444a6139a58794cd617afb21a27efc8359fe8573bcd76f",
+      "bytes": 1241
+    },
+    "GEngine/include/GEngine/Physics/ShapeSphere.cpp": {
+      "sha256": "acd6389a2bee45e869e27ae2d7750844fe4d399ca82364dba556c941f63cfe7b",
+      "bytes": 1787
+    },
+    "GEngine/include/GEngine/Physics/ShapeSphere.h": {
+      "sha256": "6d4c52470abd05f73a7aacda85ceb67efae4c2a7e973a17749941fd571ce86d7",
+      "bytes": 1225
+    },
+    "GEngine/include/GEngine/Physics/detail/ConvexHull.h": {
+      "sha256": "94757bf93483b27a2a7b3fbf94a89a3f9ad958d2bcaac8cec17ab9d64cf73be4",
+      "bytes": 341
+    },
+    "GEngine/include/GEngine/Renderer/FrameScheduler.h": {
+      "sha256": "27c51bae87b15a205dd1e70b2e661eab4d17e3bddf56003fee6972b69f8b30c8",
+      "bytes": 2842
+    },
+    "GEngine/include/GEngine/Renderer/FrameSubmission.h": {
+      "sha256": "3553800aac38cfc81a2b4e1ed2d58159a037568ece7ab61d395e3f82ff6c6bba",
+      "bytes": 8149
+    },
+    "GEngine/include/GEngine/Renderer/PassTiming.h": {
+      "sha256": "c2b34e4f36ae4f3654ec5ac7eb28b862a529be54091a6647491945a0420ff964",
+      "bytes": 3552
+    },
+    "GEngine/include/GEngine/Renderer/RenderExtraction.h": {
+      "sha256": "1e585334e3a43a88759cadb224f50eb04eedb1b19ac5d14d4429ad7ff3e7d236",
+      "bytes": 4610
+    },
+    "GEngine/include/GEngine/Renderer/RenderFrame.h": {
+      "sha256": "249d820700d87e5b64d86c914f7b08f3706f0a7a1e269878084de92d73ba3c18",
+      "bytes": 13367
+    },
+    "GEngine/include/GEngine/Renderer/RenderTasks.h": {
+      "sha256": "5750da7331ca517bc5bda4c07aa82f1666bfadefc372c1bdc8f7a6a61301c547",
+      "bytes": 8238
+    },
+    "GEngine/include/GEngine/Renderer/RenderVisibility.h": {
+      "sha256": "acd12f7b8b34cdf46f0040ca21f822fb125fc4cdf1e6c877f69ec56c492d09b4",
+      "bytes": 5263
+    },
+    "GEngine/include/GEngine/Renderer/SceneRenderResources.h": {
+      "sha256": "09b9fb22ba44e6716de89ccf4e95f11a0b78db720ffff3f7b6dda2d2da5ba76b",
+      "bytes": 3800
+    },
+    "GEngine/include/GEngine/Renderer/ShadowQuality.h": {
+      "sha256": "c8243dc1a9ae25d75c745a92e50c8aaacf4d799170a418eca579fca323d04298",
+      "bytes": 2594
+    },
+    "GEngine/include/GEngine/Scene/BoxEntity.h": {
+      "sha256": "0e17107b3e5671d51338e93197d48a1ab2668a16ae58604dd20a1dfffe72be97",
+      "bytes": 344
+    },
+    "GEngine/include/GEngine/Scene/RenderEcs.h": {
+      "sha256": "edb9fe00afd69538c350a0303a58ad15924ae638708f03a2e0f2a6ae6a1f39e9",
+      "bytes": 10978
+    },
+    "GEngine/include/GEngine/Scene/RenderState.h": {
+      "sha256": "129747aae0911e2fa439d30cb8829bd42f7165afa3ce177023628572b76c21f1",
+      "bytes": 7098
+    },
+    "GEngine/include/GEngine/Scene/SceneError.h": {
+      "sha256": "414cd6aae27db742f7f980113f378006bb4faecd7d7d8c76470c8d2b90afcc02",
+      "bytes": 809
+    },
+    "GEngine/include/GEngine/Scene/SkyBoxEntity.h": {
+      "sha256": "5eb47564766fd1fddabf826bd97811455b51a5f3779c45689b083e9cf190331e",
+      "bytes": 1054
+    },
+    "GEngine/include/GEngine/Scene/_Entity.h": {
+      "sha256": "e9ec7e4d25c020132e8dbae5282394747551a839461dc375f056ed33be854243",
+      "bytes": 5183
+    },
+    "GEngine/include/GEngine/Scene/_Scene.h": {
+      "sha256": "303e567a082236504ce98765c823c56b196e0a45049b668233ca4e3a2691490a",
+      "bytes": 8426
+    },
+    "GEngine/include/GEngine/Shapes/AABBBoundingBox.h": {
+      "sha256": "9589019471c2a5dbe728bbd300940585fe560809cf89e607973d57ba33c0bf8c",
+      "bytes": 309
+    },
+    "GEngine/include/GEngine/Shapes/AxisHelper.h": {
+      "sha256": "d7147ecea08a531c2b2e8839c7dcc04b4ed441308b8f811a5a46e151163e9fcf",
+      "bytes": 716
+    },
+    "GEngine/include/GEngine/Shapes/Box.h": {
+      "sha256": "e6bbb8692cf0236cb0a151c5910b4b10c6e0664b99a3a2204c31211618a84b91",
+      "bytes": 4767
+    },
+    "GEngine/include/GEngine/Shapes/Circle.h": {
+      "sha256": "553706798b410999aa559e8df6a5bf701b9bafdaada1a8add6628dfef4e2d161",
+      "bytes": 200
+    },
+    "GEngine/include/GEngine/Shapes/Cone.h": {
+      "sha256": "1d4ff7c491421149eecdbd1d280a41bd54eae8f7080aeb4291defed94a02ec74",
+      "bytes": 350
+    },
+    "GEngine/include/GEngine/Shapes/Convex.h": {
+      "sha256": "26815fcb7bee76093053b0cc49dcf6ea5375401dc08995aa6f7e3b175ab492e1",
+      "bytes": 331
+    },
+    "GEngine/include/GEngine/Shapes/Cylinder.h": {
+      "sha256": "e42c4e6cc56ff61f79abbe4e253be60447004e8cd86a4183d44b00ba05253778",
+      "bytes": 439
+    },
+    "GEngine/include/GEngine/Shapes/CylindricalShape.h": {
+      "sha256": "72828cb1fd534fc71f2631fd07efbacad7c928357292a18c13cf7558788adabf",
+      "bytes": 1408
+    },
+    "GEngine/include/GEngine/Shapes/Diamond.h": {
+      "sha256": "8e82d21b960ea0ae4af5c1c0a40162cfc60f590f030896316a7828c6b38e781e",
+      "bytes": 2053
+    },
+    "GEngine/include/GEngine/Shapes/DirectionalLightHelper.h": {
+      "sha256": "0013e0198cd0719255b8bf597fdef70588679e0e9f6a4e787f9db50c7cea7176",
+      "bytes": 354
+    },
+    "GEngine/include/GEngine/Shapes/Ellipsoid.h": {
+      "sha256": "a6ec2c4ed3e7b96ebfdb03996b8797e970f91481ac55998e0c01eeb73dfcbdf5",
+      "bytes": 537
+    },
+    "GEngine/include/GEngine/Shapes/GridHelper.h": {
+      "sha256": "ee620417e900161c117eda9763263bf3f0a6c71ca54c6dd10071fc2613b58978",
+      "bytes": 1829
+    },
+    "GEngine/include/GEngine/Shapes/Hexagon.h": {
+      "sha256": "8ada5c3b007ebc4e7b9d9213751e884598476a8440818c90f906b8f57691633d",
+      "bytes": 175
+    },
+    "GEngine/include/GEngine/Shapes/Icosahedron.h": {
+      "sha256": "06f60dd96cfa144d468cfea435ef10a7ad776a79300af33fcffa6b1e33b59165",
+      "bytes": 2164
+    },
+    "GEngine/include/GEngine/Shapes/KDTreeVisualizer.h": {
+      "sha256": "8c22ec68005b24f66e071c134d44290507c623dcde97f9eeaff5489b315466a7",
+      "bytes": 299
+    },
+    "GEngine/include/GEngine/Shapes/Line.h": {
+      "sha256": "d3d6973e41a6ebd9d7d2fa026fabd5b67b645f9626848a604817b54cdad06302",
+      "bytes": 727
+    },
+    "GEngine/include/GEngine/Shapes/ParametricSurface.h": {
+      "sha256": "369df86485fd2278048f6dd747fadcf0ed1c509bb8117721ddfe311dadc4a8f3",
+      "bytes": 4691
+    },
+    "GEngine/include/GEngine/Shapes/Plane.h": {
+      "sha256": "b151d6cfb58f076d4df90671b30e6c0bcb01f6a0e6be4721e85f442615cfee72",
+      "bytes": 387
+    },
+    "GEngine/include/GEngine/Shapes/PointLightHelper.h": {
+      "sha256": "ff31afda4b27ba18a2debf265fdecf3c7daee653c72e4fa649028bd80c15c527",
+      "bytes": 512
+    },
+    "GEngine/include/GEngine/Shapes/PointLightSegments.h": {
+      "sha256": "14816968f3856a000564177320fe5252e54e0d938219689250884a84ca3eb67b",
+      "bytes": 2185
+    },
+    "GEngine/include/GEngine/Shapes/Points.h": {
+      "sha256": "cce64a2842ee5b1de4ab589479dd9aae08d1c80b0cc674d1c5f4cfbfe44f8ac2",
+      "bytes": 250
+    },
+    "GEngine/include/GEngine/Shapes/Polygon.h": {
+      "sha256": "7153ee8de4b3d06a125273f5c45ab107c571f694cfd87b6904a852bdae118645",
+      "bytes": 1495
+    },
+    "GEngine/include/GEngine/Shapes/Prism.h": {
+      "sha256": "05a8e64604496532f61fb14bac0f2454fbb1f9855f799e180aeaa532121547c7",
+      "bytes": 755
+    },
+    "GEngine/include/GEngine/Shapes/Pyramid.h": {
+      "sha256": "5c8343383583d3c71469b771f3292e4daa74f8f83ae66c65b405e2323bca6b34",
+      "bytes": 4965
+    },
+    "GEngine/include/GEngine/Shapes/Quad.h": {
+      "sha256": "880ad013233cf3d3151fb2648b6a6dad24d4e6226429741ea0121a69b38ede07",
+      "bytes": 607
+    },
+    "GEngine/include/GEngine/Shapes/Rectangle.h": {
+      "sha256": "21f447e3745424f3c4b70ea3632b0e3ae75b8c375be86dd833237f61c6842b2a",
+      "bytes": 2952
+    },
+    "GEngine/include/GEngine/Shapes/Ring.h": {
+      "sha256": "5504a08e9e9b56316687011434035d645c9fc55955e3a2257950611ff50c53c8",
+      "bytes": 2312
+    },
+    "GEngine/include/GEngine/Shapes/SmoothSphere.h": {
+      "sha256": "50ff54b55f4c9a37c8b8d5bc2fd79005eee167091f07b7e6692fd62a6fe6a444",
+      "bytes": 2486
+    },
+    "GEngine/include/GEngine/Shapes/Sphere.h": {
+      "sha256": "856916da66d4780288e014384e8a7d009f3068f553bea51a1ce7953ef902f2dd",
+      "bytes": 286
+    },
+    "GEngine/include/GEngine/Shapes/SpriteQuad.h": {
+      "sha256": "9180ced63b0810efbd26547820004af14c9aa2bc01a2dfcee0cc17c6d86f18a1",
+      "bytes": 415
+    },
+    "GEngine/include/GEngine/Shapes/Terrain.h": {
+      "sha256": "cc0d080cd8b882ff48ae799e5bc6905400715af21899353cbdbdc68e2d43bf5d",
+      "bytes": 1139
+    },
+    "GEngine/include/GEngine/Shapes/Torus.h": {
+      "sha256": "caf5cc0ca0c0316bf9426b28fedf5f5d3a8a16a3c6f4909b700360fcb6c1eef2",
+      "bytes": 592
+    },
+    "GEngine/include/GEngine/Shapes/Triangle.h": {
+      "sha256": "0f4bbbe2916ab15ccce501ae5b68a2d07f7065796aabeccbc78f68dbd3da0ec9",
+      "bytes": 179
+    },
+    "GEngine/include/GEngine/Shapes/Tube.h": {
+      "sha256": "bc1e182e9e79cc8e006763fbcdb43d642c5cc922482b487e0b1efcc2947dd9bb",
+      "bytes": 2352
+    },
+    "GEngine/include/GEngine/SpatialPartition/KDTree.cpp": {
+      "sha256": "2814ed6ea10e883e3902a4e495785078f818c775d9365345a358d68b50eee1c2",
+      "bytes": 6230
+    },
+    "GEngine/include/GEngine/SpatialPartition/KDTree.h": {
+      "sha256": "a5f368d706b3524f2d8f0ee5b60626efa956feefe11df133f7e3f34b4f2bb33d",
+      "bytes": 2843
+    },
+    "GEngine/include/GEngine/Sprite/ParticleEntity.h": {
+      "sha256": "e8a1c40f8a826c6b8bbf7371d35f1162196243184d8c09ed9a7b1d9f7d729cdb",
+      "bytes": 1039
+    },
+    "GEngine/include/GEngine/Sprite/SpriteEntity.h": {
+      "sha256": "950436d85915b8a663d10a1fd6a64360792c292c4b6ee476f224b187c03d3265",
+      "bytes": 1538
+    },
+    "GEngine/include/GEngine/Sprite/SpriteGeometry.h": {
+      "sha256": "97c3fa630035f1eac85ff469a4bbd118d1c318a29c68cc6029ce4fce6e9ac679",
+      "bytes": 1053
+    },
+    "GEngine/include/GEngine/UI/FramebufferImage.h": {
+      "sha256": "ff214621d4ef59a19675fed48a9634697303c9230ee2e5e29b9dc8d2968acb9b",
+      "bytes": 531
+    },
+    "GEngine/include/GEngine/UI/UICore.cpp": {
+      "sha256": "d91ccfa31008d6dcdf378e600f044436313841930aba8fb37b041d080d2611a8",
+      "bytes": 6332
+    },
+    "GEngine/include/GEngine/UI/UICore.h": {
+      "sha256": "08809f4ea2e8446ad89bbf5dca780860ce6bed829c89d79ff0d6daba4429b1e9",
+      "bytes": 3961
+    },
+    "GEngine/include/GEngine/Windows/ImGuiWindow.h": {
+      "sha256": "dae9a9aa2e684159a110f020336b8d406216c3a4b62d8d74f76afefabfd98c4f",
+      "bytes": 920
+    },
+    "GEngine/include/GEngine/Windows/SDLWindow.h": {
+      "sha256": "638df4cfb647c7e774b213e41c4e8e6feea6099a07f83e6a40b00e454966aa68",
+      "bytes": 2563
+    },
+    "GEngine/include/GEngine/gepch.h": {
+      "sha256": "7a4f068dc380fcea534385fe406bbbe4a8f60e2c35dd27cbbb73884c680440df",
+      "bytes": 1262
+    },
+    "GEngine/src/Animation/AnimatedModel.cpp": {
+      "sha256": "d2b15dbd12b7bc50bc1a89fc5651e59a052a1653771072a15cf2a3a5fa7077fe",
+      "bytes": 10387
+    },
+    "GEngine/src/Animation/Animation.cpp": {
+      "sha256": "58fc892acb083ca62fd9842c4693bc7bd0aaaff9d5b8078f1824b60ddb96d508",
+      "bytes": 7356
+    },
+    "GEngine/src/Animation/AnimationSystem.cpp": {
+      "sha256": "197e03631f9f3347e6010d9501efc9d932c92eb658472e7742b5e32cb532e4e1",
+      "bytes": 1880
+    },
+    "GEngine/src/Assets/AsyncTexture.cpp": {
+      "sha256": "c3aa2083f4352ffe7a3c18e2a67dd4bdd60748dff4b284469441c6a775921452",
+      "bytes": 21095
+    },
+    "GEngine/src/Assets/AsyncUploadQueue.cpp": {
+      "sha256": "eb6d6fb2c6e9844218e66882802ea643c8fd9530b0fae59196c680ff2a05c430",
+      "bytes": 15840
+    },
+    "GEngine/src/Assets/Font.cpp": {
+      "sha256": "c82072b32dd03a495e8a5a56a5e4709f953a40eba004b5ecd9af8aa817fb97c4",
+      "bytes": 3648
+    },
+    "GEngine/src/Assets/Sampler.cpp": {
+      "sha256": "29255e2147c3751cf855713033ab91bd7339c8d7b89fe9571ad60984607588b3",
+      "bytes": 13156
+    },
+    "GEngine/src/Assets/Shader.cpp": {
+      "sha256": "0fb35cfa66437a356a4bc6bd2530e384cbb4e433bc272d63ce3427c46acc5af8",
+      "bytes": 3724
+    },
+    "GEngine/src/Assets/ShaderBackend.h": {
+      "sha256": "4be24e68795526c4c5beb09125533ab8e0fe6f187fc535e3cef42f4bd950cc75",
+      "bytes": 1445
+    },
+    "GEngine/src/Assets/ShaderCompilation.cpp": {
+      "sha256": "131dedde2c9e5715c50fd7de8bf9f635f0f48b0e587362c2ff44f41232b9a30f",
+      "bytes": 9776
+    },
+    "GEngine/src/Assets/TextTexture.cpp": {
+      "sha256": "85e7f5bf5d3f3de30979bac2d826e88d7e52e8ce254a3cfe75719b910c60bb18",
+      "bytes": 486
+    },
+    "GEngine/src/Assets/Texture.cpp": {
+      "sha256": "660a73a9383de02499535cace92bba1b48e70aab3a5eb152af94c156d2e3f2aa",
+      "bytes": 14775
+    },
+    "GEngine/src/Assets/TextureBackend.h": {
+      "sha256": "033b4411def331bcf045c3e4129f069c5adf9de7fdb5faf73f35697795a17934",
+      "bytes": 781
+    },
+    "GEngine/src/Audio/AudioSystem.cpp": {
+      "sha256": "087e51984c6b888be0d1cb5391631df6e841cb2fafc22306bbbd587fc2232b04",
+      "bytes": 11434
+    },
+    "GEngine/src/Audio/SoundEvent.cpp": {
+      "sha256": "bff11d892eeadcbb7ba0ee862961da653b1adbc7b5150c2fb671369c76395088",
+      "bytes": 5461
+    },
+    "GEngine/src/Camera/Camera.cpp": {
+      "sha256": "342d0cf323945303baface3ef020292b030f95b52294fabf3db50d70d380bc30",
+      "bytes": 54
+    },
+    "GEngine/src/Camera/EditorCamera.cpp": {
+      "sha256": "fdfc356b8b3efedf8caad0cac283048774eebff9e8f6a5312e5af439cea53fe5",
+      "bytes": 16737
+    },
+    "GEngine/src/Camera/OrthographicCamera.cpp": {
+      "sha256": "469ca8e07664bc4286b97c79768683525d7c6210cb99ea87a908d6b1d1b87c16",
+      "bytes": 1718
+    },
+    "GEngine/src/Camera/PerspectiveCamera.cpp": {
+      "sha256": "d2a8605421e9d0a43245dedd80b34e14d4e19a6da988d0cf02f2d1b89b3a9524",
+      "bytes": 3667
+    },
+    "GEngine/src/Camera/PlayerCamera.cpp": {
+      "sha256": "e38d74a3b7dedead69d90b269ae080552094cc78bb3a674cb362cadf10595efe",
+      "bytes": 3124
+    },
+    "GEngine/src/Camera/RayTracingCamera.cpp": {
+      "sha256": "1d0a111d0c4e2ae130febd39eb94baba295d6a333f21e119ba5c9a2b0bd534e8",
+      "bytes": 4550
+    },
+    "GEngine/src/Camera/ThirdPersonCamera.cpp": {
+      "sha256": "ef9b174eca5396acb32e9c6add0049e9aaadf256630b6769ec60f7cbd9f170a9",
+      "bytes": 480
+    },
+    "GEngine/src/Character/Character.cpp": {
+      "sha256": "de2fab30fc86036d87496ffca16b486e6d620a0ab76943e85efccfe878cd5a0b",
+      "bytes": 2060
+    },
+    "GEngine/src/Component/Component.cpp": {
+      "sha256": "7b8630f282ff0ea7867ea443ebc131e9241b393865799ac5c1120eb630532504",
+      "bytes": 8829
+    },
+    "GEngine/src/Core/AAEntity.cpp": {
+      "sha256": "c6012d0de65ad76acf3fe3867f24e1818ba424a547e9b96fe8bac915b0072d87",
+      "bytes": 237
+    },
+    "GEngine/src/Core/Actor.cpp": {
+      "sha256": "13b000efdd1e92b7271c412be366ceee9df2bcd6d114df382dc68a6652b7c2b9",
+      "bytes": 11941
+    },
+    "GEngine/src/Core/BaseApp.cpp": {
+      "sha256": "51b3fbca46eba5106c21061a9b5642b4b454ab0c0b4b826805de33425bd8f6be",
+      "bytes": 29494
+    },
+    "GEngine/src/Core/Entities.cpp": {
+      "sha256": "77664f86263acf547742a76dec8380b4d3fc39eace0d6b62b3e26ccd6e6486bb",
+      "bytes": 75
+    },
+    "GEngine/src/Core/Entity.cpp": {
+      "sha256": "ef651b5844ddedb6f7aedcabc7b8add5d779d0d2d7c4b3d1053cadd04bcc9495",
+      "bytes": 3721
+    },
+    "GEngine/src/Core/FrameBuffer.cpp": {
+      "sha256": "9843a804b952eacfea33889963e111689a641ad29f27b62b08012c032a108e35",
+      "bytes": 28372
+    },
+    "GEngine/src/Core/FramebufferBackend.h": {
+      "sha256": "335fc12c05f60ec12c96a9a17745abfd7d2cc9e930c1df286012750cfafc066f",
+      "bytes": 446
+    },
+    "GEngine/src/Core/GEngine.cpp": {
+      "sha256": "ef19047b97b978a0d0cd92f26ca6091a9a9a7a8d688662e6a1a213faf2565c7e",
+      "bytes": 15218
+    },
+    "GEngine/src/Core/GameObject2D.cpp": {
+      "sha256": "d9388f725ebd7da4140b1f9ac07ded7c0b6d4d47c192b6817add3cd581c02ffe",
+      "bytes": 236
+    },
+    "GEngine/src/Core/Image.cpp": {
+      "sha256": "b118e5c820292a3a394a420abe31dfaa026e9cacd16538621b9b861a2d334d24",
+      "bytes": 8724
+    },
+    "GEngine/src/Core/Log.cpp": {
+      "sha256": "d9e615b4395ff65951abec8cf11d74c149bb3a08ec04b127c101e6555bbb8103",
+      "bytes": 1032
+    },
+    "GEngine/src/Core/RandomGenerator.cpp": {
+      "sha256": "48725b33448cc0c9d363bb981ad6f317c9242fea31e411e73febb16aa68605f4",
+      "bytes": 82
+    },
+    "GEngine/src/Core/RawModel.cpp": {
+      "sha256": "bfa87ac79ce746f65e5a6b779b62b6d3635c9ddc2d16605ca4d039bf74b010d1",
+      "bytes": 7809
+    },
+    "GEngine/src/Core/RenderBaseline.cpp": {
+      "sha256": "2e4ff3c4d89338e3ed2d9e4cfe82b957eb6c0c670fff2a464264859875b23586",
+      "bytes": 21243
+    },
+    "GEngine/src/Core/RenderTarget.cpp": {
+      "sha256": "bdf034ad7add0d1df48116aff015ad6de3c4903c239a194d9bba51003720720b",
+      "bytes": 20775
+    },
+    "GEngine/src/Core/Renderer.cpp": {
+      "sha256": "9438c9b04e55beff7724410217ecd0a8173cbdd453d2b0a1f3266c204b855503",
+      "bytes": 3735
+    },
+    "GEngine/src/Core/Renderer2D.cpp": {
+      "sha256": "a2d2a6982a4ce30f32763ed9256a5e5702d32e579087a76a1170976bbafff254",
+      "bytes": 2229
+    },
+    "GEngine/src/Core/RuntimeAssets.cpp": {
+      "sha256": "cdb4a14cf3ff9bf1eeb3d06875f2a160e26f09c586ac34db3d6c6a87c9efed1a",
+      "bytes": 5905
+    },
+    "GEngine/src/Core/SceneGraph.cpp": {
+      "sha256": "3be167b3c6d2b8c3bcd1baa6e38a93ab30551ebdb651fd9af628a878bdeaf6fc",
+      "bytes": 780
+    },
+    "GEngine/src/Core/SimpleRenderer.cpp": {
+      "sha256": "430f981ec24dcd920ce97220aeaba47d5d5345acd891d3421f12737d089d2749",
+      "bytes": 10212
+    },
+    "GEngine/src/Core/Sprite2D.cpp": {
+      "sha256": "e76d75df3ddf99d8a852e9bff16dce99be68dd3a95a31c493a91f1b302959562",
+      "bytes": 45
+    },
+    "GEngine/src/Core/UUID.cpp": {
+      "sha256": "88c505b745882f8107cde6e7696513d18b1e1e105958fd03b98196f9cfb5963f",
+      "bytes": 468
+    },
+    "GEngine/src/Core/Window.cpp": {
+      "sha256": "382165c98a16b70c5d66381ef74239506d96a8027ca2086c4390780fbe4515db",
+      "bytes": 805
+    },
+    "GEngine/src/Events/ApplicationEvent.cpp": {
+      "sha256": "352ac39d6663a40ed83fee6548ff07308271ded8c304cfe52bb900eadc3c1817",
+      "bytes": 664
+    },
+    "GEngine/src/Events/Event.cpp": {
+      "sha256": "47aca04e44610249da405c4bc0014a3e4d823a7ef36a2ecd845a82478736c0da",
+      "bytes": 53
+    },
+    "GEngine/src/Events/GameControllerEvent.cpp": {
+      "sha256": "394d8ff46c4158f13d504641a30696eee3184648587c3d8e570409ebc06851e7",
+      "bytes": 61
+    },
+    "GEngine/src/Events/KeyBoardEvent.cpp": {
+      "sha256": "1d97e0742381867d784cfe0d32f61720f0aee2ba081f82764af1e3bfce41ecc2",
+      "bytes": 662
+    },
+    "GEngine/src/Events/MouseEvent.cpp": {
+      "sha256": "061158c096d4f121e760b88ee91079121983af7092734bc649ffd21dfeb93a16",
+      "bytes": 2591
+    },
+    "GEngine/src/Extras/Axes.cpp": {
+      "sha256": "65305168a8054dd0e39f5afb177505a6afcb282d1366dcd7952663c98a655fa3",
+      "bytes": 1777
+    },
+    "GEngine/src/Extras/CameraRig.cpp": {
+      "sha256": "568c8b024e6a22fd800e55f33c43c5c2ed2a437d58dcb0e520fa7da498a59ccd",
+      "bytes": 7598
+    },
+    "GEngine/src/Extras/Grid.cpp": {
+      "sha256": "240948e8a8667183fc126d21c9e7d6b2e853f074d4cef1815b09dde8b3437489",
+      "bytes": 3591
+    },
+    "GEngine/src/Factory/ShapeFactory.cpp": {
+      "sha256": "dd8b2e5fa0a01f36e038e57231b8cd03cea1b4f4bcba4288065604db68ad324b",
+      "bytes": 748
+    },
+    "GEngine/src/Geometry/Curve.cpp": {
+      "sha256": "4d1e1552da37d17e7ac2052a78cbd59391bdaf6eef54d60e21b82cf7706b8028",
+      "bytes": 76
+    },
+    "GEngine/src/Geometry/Geometry.cpp": {
+      "sha256": "4e6da144f94239dfa292482bfe39ea87024e1a8a1dd1a3671399a68ef0d5f300",
+      "bytes": 9265
+    },
+    "GEngine/src/Geometry/GeometryBackend.h": {
+      "sha256": "3177c364deea43fa18c47a85795d11b6995f2967b36a1486bfb363b8f38859bc",
+      "bytes": 502
+    },
+    "GEngine/src/Light/LightEntity.cpp": {
+      "sha256": "93d9894494500e4c07af899d37c3d955571db9022a4bdcb6b66ee2144fbf0fd3",
+      "bytes": 1311
+    },
+    "GEngine/src/Managers/AssetsManager.cpp": {
+      "sha256": "b9051878ad2d707fa45b669b13b6b848d02f02954eea359ecd4c4489e67bfeee",
+      "bytes": 15697
+    },
+    "GEngine/src/Managers/EventManager.cpp": {
+      "sha256": "0c6a5040dcdd2883da4aea5f459a3f8b505cf1420162596bce60608c1b25ff7d",
+      "bytes": 10903
+    },
+    "GEngine/src/Managers/InputManager.cpp": {
+      "sha256": "d194429275f41f871a77e62e318995145b9965596b1207d85370093cc4b67f45",
+      "bytes": 11354
+    },
+    "GEngine/src/Managers/ShaderManager.cpp": {
+      "sha256": "857cf9ec66820ef40ccc601d222a6125eb79817eb4bbe3732d8ad5dc4aab3eb9",
+      "bytes": 1230
+    },
+    "GEngine/src/Managers/ShapeManager.cpp": {
+      "sha256": "76b431c6f426bd128e9dd77839848abc03c9311e122036e13db1827dff8e95bf",
+      "bytes": 11914
+    },
+    "GEngine/src/Managers/WindowManager.cpp": {
+      "sha256": "8b870965f209ccefe897973c96a3e5b4b3eeae458b9a38477f77f6e309e533dc",
+      "bytes": 1997
+    },
+    "GEngine/src/Material/AAScreenMaterial.cpp": {
+      "sha256": "be660106b110510a643ca9197bc4d132e586f7d01b90dc9a5a6e2317623380db",
+      "bytes": 3368
+    },
+    "GEngine/src/Material/AnimatedMaterial.cpp": {
+      "sha256": "2939baffa268eae08828152e9ff17d7a445ba75fad84cd1bf90c63cc4003ba09",
+      "bytes": 2246
+    },
+    "GEngine/src/Material/BasicMaterial.cpp": {
+      "sha256": "aaf3f30efa2b6c0a0bce84d1964f49d31f6f513d63d2c22eadfec90ca8a6612a",
+      "bytes": 57
+    },
+    "GEngine/src/Material/LightTextureMaterial.cpp": {
+      "sha256": "92504341e5ae5f0bbbdda3781ffd72b7d1afd4e39cef06d4f4b5bef600ad4280",
+      "bytes": 2390
+    },
+    "GEngine/src/Material/LineBasicMaterial.cpp": {
+      "sha256": "5848661a0e02f16c8e8228c0d3529701a0e5fb4fa65c5572ab3a8eb2e8687fc6",
+      "bytes": 593
+    },
+    "GEngine/src/Material/Material.cpp": {
+      "sha256": "514978aef8bbeab522c3d529cfb96c424491316d5a87cc45f546edc2d179b967",
+      "bytes": 4459
+    },
+    "GEngine/src/Material/MaterialBackend.h": {
+      "sha256": "f8700c1aa4daba289599f1e3fd1e06fea1a1e1303132dbcd439a56b1169da0b8",
+      "bytes": 979
+    },
+    "GEngine/src/Material/MaterialBinding.cpp": {
+      "sha256": "6fb2f40179d1ec3fc50c94cac07e185bdbeeb7cb111c92bc29d2ef887346b2d8",
+      "bytes": 5277
+    },
+    "GEngine/src/Material/MaterialInstance.cpp": {
+      "sha256": "9366c693097464c91335ad79a5e79cfec4607c19da5e1e41bca14d871a47fd97",
+      "bytes": 4911
+    },
+    "GEngine/src/Material/MaterialTemplate.cpp": {
+      "sha256": "e7fae7c67929623aa847203ce41e202bb3a68cf71127be213be6054ea315c764",
+      "bytes": 8747
+    },
+    "GEngine/src/Material/NormalLightTextureMaterial.cpp": {
+      "sha256": "2cc81b1ab8a506a3ccfc8f56c35c3d4ec8487e3815d40522fe0fa111a8c619e2",
+      "bytes": 3268
+    },
+    "GEngine/src/Material/SkyBoxMaterial.cpp": {
+      "sha256": "89ad3472dd6097c771d344503edc910977d387d3c118897add0b5d8c9bff3775",
+      "bytes": 2768
+    },
+    "GEngine/src/Material/SpriteMaterial.cpp": {
+      "sha256": "fe56e2bf814ffcef253e585ee392e4ccd26ec96b436e1400059e120d02c26e2e",
+      "bytes": 1479
+    },
+    "GEngine/src/Material/TerrainLightMaterial.cpp": {
+      "sha256": "3bfddef9c932d8085b2aa1e118337a076558f487d0fef2d9110f7338e9b2ee21",
+      "bytes": 3116
+    },
+    "GEngine/src/Material/TextureMaterial.cpp": {
+      "sha256": "41a61223d11690b9cfb150b81f7b6de9bb53694396db45154e87123785bba831",
+      "bytes": 1512
+    },
+    "GEngine/src/Math/Math.cpp": {
+      "sha256": "609b30b61c76e31ce70b0beb9c410094826149563c6a0499f8307a5bfb532b1f",
+      "bytes": 8237
+    },
+    "GEngine/src/Mesh/AsyncMesh.cpp": {
+      "sha256": "f5db3c19e87be948d75cebaaa757f1ed17746fb7ce47a32ac5399f905b7c9576",
+      "bytes": 17559
+    },
+    "GEngine/src/Mesh/Attribute.cpp": {
+      "sha256": "006b6626229e97e7d5d7fc1b63ccd9bbfe3a26c8c91791cf6d0512509a1d703e",
+      "bytes": 6892
+    },
+    "GEngine/src/Mesh/BufferLayout.cpp": {
+      "sha256": "14b28b19994a1ed94b29c18cb71ceba28a6e04e3a1a052ff24e2157a93a09ae8",
+      "bytes": 334
+    },
+    "GEngine/src/Mesh/GpuMesh.cpp": {
+      "sha256": "d20cc31fa9446f43d891f48c802641f7b5db46303a6d473b32359a027e572de9",
+      "bytes": 18246
+    },
+    "GEngine/src/Mesh/IndexBuffer.cpp": {
+      "sha256": "4f1e760bcefa79cd3c48abe53e98b93fd4cd0753b80df1136084f13f5601ec87",
+      "bytes": 1458
+    },
+    "GEngine/src/Mesh/IndexBufferBackend.h": {
+      "sha256": "db4392e2a2d0480cbd5f6f9eca88dc3f7a83f4407786875f0ba7554083d0e867",
+      "bytes": 352
+    },
+    "GEngine/src/Mesh/Mesh.cpp": {
+      "sha256": "0d9df281faa89071f5505fa15abfd736f8a3a0cea211cb5eed30549af44ada17",
+      "bytes": 4208
+    },
+    "GEngine/src/Mesh/MeshAsset.cpp": {
+      "sha256": "43332cc15e9d498daaf06e962ef7ac89ea7a57e626db14d7a122d054524c1e79",
+      "bytes": 12541
+    },
+    "GEngine/src/Mesh/MeshImportNormalization.cpp": {
+      "sha256": "4bfc301c90cb40b26d72990b6e47351afd1e917cba72295e7cfa084a4163c47f",
+      "bytes": 13561
+    },
+    "GEngine/src/Mesh/MeshImporter.cpp": {
+      "sha256": "1bd6a958a33c37b403db9810204af92092f05c30faafe4e19d50ffc9e4c99eb4",
+      "bytes": 10550
+    },
+    "GEngine/src/Mesh/VertexBuffer.cpp": {
+      "sha256": "a38930774bcd5c5dda0df3be9f527e7c81b25e82685e953df9054a566ed856f1",
+      "bytes": 6570
+    },
+    "GEngine/src/Renderer/DrawOrdering.h": {
+      "sha256": "fbcde9c8511004e1f0d0d96ccdab813ac1fb29ad7d2393ae22b4c751fb696e09",
+      "bytes": 1731
+    },
+    "GEngine/src/Renderer/FrameScheduler.cpp": {
+      "sha256": "a88d12510a79818be7f44c5bab96c66347f47ee85369776d2a1e83b8fe260446",
+      "bytes": 14565
+    },
+    "GEngine/src/Renderer/FrameSubmission.cpp": {
+      "sha256": "48509a56e1e6ce609d0d0c2727b6df33c1eb8ebd4f0175cb248454be0c05c495",
+      "bytes": 56726
+    },
+    "GEngine/src/Renderer/GLPassState.h": {
+      "sha256": "e0bc2e59a3f5810236c5436b5792005f59d87c231843e554bce51ce360a998c9",
+      "bytes": 3751
+    },
+    "GEngine/src/Renderer/GLStateCache.h": {
+      "sha256": "7c4d84007c67574200f1407ba5f76443e87ba84cd3a6ca9422f2617f91acd708",
+      "bytes": 9431
+    },
+    "GEngine/src/Renderer/PassTiming.cpp": {
+      "sha256": "1d826d6dbb92dc9be6ac1d0d63269f45eb4d3ccda13d5a273cb2514fc71f6405",
+      "bytes": 11404
+    },
+    "GEngine/src/Renderer/RenderCpuBacking.h": {
+      "sha256": "2c2000bc7922254178d5605b699a40abf80867adc7bb89322ab57367f26a6e4c",
+      "bytes": 13682
+    },
+    "GEngine/src/Renderer/RenderExtraction.cpp": {
+      "sha256": "5859d8e77edb5668ad6b765efa0ffe5c971672c9e881d6ef70926d95f167afaf",
+      "bytes": 20076
+    },
+    "GEngine/src/Renderer/RenderFrame.cpp": {
+      "sha256": "837e939e4107b1c0838bd91e7efe3a9e2645fefc4a71074b0c9cfce13f466a0e",
+      "bytes": 24945
+    },
+    "GEngine/src/Renderer/RenderTasks.cpp": {
+      "sha256": "446e20e5bcba13dea67fec4a6dc5f81bcf93b616c72c49c05c21e4d4fda86b08",
+      "bytes": 12516
+    },
+    "GEngine/src/Renderer/RenderVisibility.cpp": {
+      "sha256": "2348f33e357b840f68f9d7fbbfc804db18e81607710e53b3f4273c6060fa504b",
+      "bytes": 16085
+    },
+    "GEngine/src/Renderer/SceneRenderResources.cpp": {
+      "sha256": "ce578293ac5b5fb9e5e0f7afab3da803c04c9f9337e5af9a8c7a250ccf81d991",
+      "bytes": 15035
+    },
+    "GEngine/src/Renderer/ShadowCulling.h": {
+      "sha256": "39f43bccde48b16dd3070afa37abd335f990e23a7d3abcfddf6cb7882a625a6d",
+      "bytes": 5862
+    },
+    "GEngine/src/Renderer/ShadowQuality.cpp": {
+      "sha256": "d8caf00f379b6b9a630e6f8e8bf11ba8b69283ac9b76d0918987bb90ee3df582",
+      "bytes": 8611
+    },
+    "GEngine/src/Renderer/SubmissionGpuLayout.h": {
+      "sha256": "e2857494b8d4e86398d59972aa27b5e6bf7ea9c804f715b02dbc14f48a50e296",
+      "bytes": 10610
+    },
+    "GEngine/src/Renderer/SubmissionUploads.h": {
+      "sha256": "91ed862fd189575046d364187b378ff6e722872f63581a6abd7d3b15c6afaeb4",
+      "bytes": 7905
+    },
+    "GEngine/src/Scene/BoxEntity.cpp": {
+      "sha256": "e926624fbabe43c141edb924bc37e1c8ccfd6079cd2aadcdf744ccbc515660bb",
+      "bytes": 608
+    },
+    "GEngine/src/Scene/RenderState.cpp": {
+      "sha256": "7065924cfbb1157722c5051b8d0fd4348c50f23da4b94916bba894cf6cd0af32",
+      "bytes": 34597
+    },
+    "GEngine/src/Scene/SceneBackend.h": {
+      "sha256": "0ac874c460503d7149eb79cdeac3378ad748c6f5e382d9fe090d771f66f70e67",
+      "bytes": 359
+    },
+    "GEngine/src/Scene/SkyBoxEntity.cpp": {
+      "sha256": "ff85c6bb95da10df04d11eb22c774b7e49b34f4a0f32654e42c64be2494ec2c8",
+      "bytes": 3805
+    },
+    "GEngine/src/Scene/_Entity.cpp": {
+      "sha256": "19b85faaefefdc116fb06d83fd9a5269f08b64a240ca676b477c898d6c74b533",
+      "bytes": 4571
+    },
+    "GEngine/src/Scene/_Scene.cpp": {
+      "sha256": "61cff48ffd95b00a4715ded0934d9d8c3bd6586413e2ac7e4c3190107cd878f1",
+      "bytes": 44961
+    },
+    "GEngine/src/Shapes/Box.cpp": {
+      "sha256": "9ba69a28b44697db575b9660a276ab1843a54e21dc9f59e2336886619b195029",
+      "bytes": 47
+    },
+    "GEngine/src/Shapes/Terrain.cpp": {
+      "sha256": "91c5ab650da5e6c3c15612cff196cdbedae5111b6949730bd6effe469e74c1f9",
+      "bytes": 6140
+    },
+    "GEngine/src/Sprite/SpriteEntity.cpp": {
+      "sha256": "eabcfb839d6bc2cfc3f78813e3e11e1400977a53b7cb22429c23f1c4270cb549",
+      "bytes": 2306
+    },
+    "GEngine/src/Windows/ImGuiWindow.cpp": {
+      "sha256": "2549e4998ec6d853db8330ef1454c6e418dde5bc6d620b45a6ad2ce7e44d15c5",
+      "bytes": 9669
+    },
+    "GEngine/src/Windows/SDLWindow.cpp": {
+      "sha256": "f34289ea0a614fd7b0be410b1483af2c74eaf2afd3d0a1090af8a541e8e75819",
+      "bytes": 14717
+    },
+    "GEngine/src/gepch.cpp": {
+      "sha256": "d9e9f76b944a540a5b597e0ec1a2d479ee886427c9cf88deaf1d77c61fe0ba85",
+      "bytes": 24
+    },
+    "GEngineEditor/imgui.ini": {
+      "sha256": "c86d6a50f0f4bcda7f2770ca3eceb999f5d5816144dbc8d54ea783eec126cf8d",
+      "bytes": 5674
+    },
+    "GEngineEditor/src/Panels/SceneHierarchyPanel.cpp": {
+      "sha256": "194beb46a920f8339f356a7c56e38b2ada6d548c280d016ba24f68856b59e230",
+      "bytes": 11670
+    },
+    "GEngineEditor/src/Panels/SceneHierarchyPanel.h": {
+      "sha256": "e4424f759b5676bbd5e1048326e51f04aeef287de682e86afbde0c2560bec154",
+      "bytes": 596
+    },
+    "GEngineEditor/src/SceneApp.cpp": {
+      "sha256": "3a52fb1912aec47bb68dd36e58e4297612fd31c8ce2c19fd39565c7031919cef",
+      "bytes": 43630
+    },
+    "GEngineEditor/src/SceneApp.h": {
+      "sha256": "d642d1a63ef517738a033bcf21d064fe6e30e80c960beab8e145beb40394b14c",
+      "bytes": 2728
+    },
+    "GEngineEditor/src/SceneTest.cpp": {
+      "sha256": "79e314ed2559665847196404bff21d5eadfa8dad5378894b8dadacc4fd974fe5",
+      "bytes": 126
+    },
+    "GEngineEditor/src/SceneTest.h": {
+      "sha256": "917cca2e4ec0843e02df7bcd498e091dcb5810d5c25793c1c4b3ad0a041a8f9b",
+      "bytes": 178
+    },
+    "GEngineEditor/src/main.cpp": {
+      "sha256": "e5bffe6554a07c074e6cf19b8318024a1dca5047cda3b865c9f1736776d1d958",
+      "bytes": 427
+    },
+    "GEngineEditor/src/test.cpp": {
+      "sha256": "4ae8d62706c15c41a9b02a25bcd7d7d9b877593f58ebad248f72ae116126d5fd",
+      "bytes": 11638
+    },
+    "RayTracing/include/RayTracing.h": {
+      "sha256": "a1eda4a495e0a49d6b226c83f9d4b3e4d15e57da82404c505b57adcd2237b335",
+      "bytes": 1049
+    },
+    "RayTracing/src/RayTracing.cpp": {
+      "sha256": "22e42435715365fc9c25f97c85549827cf864206b02c5443b495845b7094a1ea",
+      "bytes": 10655
+    },
+    "RayTracing/src/main.cpp": {
+      "sha256": "65c19b968a720d5868115496c215e8ebf7f4bec00c2de089b17967490cbfd530",
+      "bytes": 412
+    },
+    "RigidBodySimulation/RigidBodySimulation.vcxproj": {
+      "sha256": "1bc78c74bed0a5e9dcd8e52fcfd1f5312104f44f86b1bcb2b419f147bb392957",
+      "bytes": 8541
+    },
+    "RigidBodySimulation/include/RigidBodySimulation.h": {
+      "sha256": "4085fc8168b9c23bdb9692adabddf058e9fcb36d23162f7baa48bd8d81fd220a",
+      "bytes": 3320
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "sha256": "5633d3a106179aa998851dbae0a2dd3e819340283a1a56ad51a4cbd377abeeba",
+      "bytes": 57784
+    },
+    "RigidBodySimulation/src/main.cpp": {
+      "sha256": "3b135dad004bfcbd567fb2985c57984d4b2bc879553f8cc3b94baab487336b19",
+      "bytes": 426
+    },
+    "docs/physics/PHASE_06_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_07_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_08_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_09_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_10_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_11_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_12_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_13_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_14_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_15_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_16_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_17_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_18_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_19_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_20_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_21_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_22_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_23_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_24_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_25_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_26_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_27_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_28_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_29_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_30_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_32_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_33_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_34_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_35_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_36_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_37_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_38_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md": {
+      "absent": true
+    },
+    "docs/physics/PHASE_39_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_OPTIMIZATION.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_REFACTOR.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md": {
+      "absent": true
+    },
+    "docs/physics/PHYSICS_REFACTOR_PLAN.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_00_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_01_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_02_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_03_REVIEW.md": {
+      "absent": true
+    },
+    "docs/physics/review/PHASE_04_REVIEW.md": {
+      "absent": true
+    },
+    "docs/pre_editor/POST_RENDERING_HANDOFF_FINAL_INSTRUCTIONS.md": {
+      "sha256": "214fb6444395f98366f25e94e47035d0196cefdc9c33c5adaf68b48d28433a6a",
+      "bytes": 81348
+    },
+    "docs/rendering/PUBLICATION_POLICY.json": {
+      "sha256": "ebb244b7df52990b29953c7c1fd543a126775d885e3abc1522614126e6766cbe",
+      "bytes": 200
+    },
+    "docs/rendering/REFACTOR_STATE.md": {
+      "sha256": "409d111faae58faaef7ec5b8b4d96b18cbdfbf216ff37fcedf2019d1a96be244",
+      "bytes": 2531
+    },
+    "docs/rendering/RENDERING_ARCHITECTURE_STATE.md": {
+      "sha256": "80027a00b0267eb646a21c8a35c5d9286df69460e850746aad7b12d52a64d375",
+      "bytes": 12468
+    },
+    "docs/rendering/RENDERING_CODE_MAP.md": {
+      "sha256": "c86931745c71d20b482578cad866a3bff07af0123653258d585c1e582feff546",
+      "bytes": 9874
+    },
+    "docs/rendering/VALIDATION_POLICY.md": {
+      "sha256": "4a37ed0bfe3a03db9d13c6503b35d076f5dc6535291da7f43ee7b42460b3be43",
+      "bytes": 8073
+    },
+    "docs/rendering/phases/PHASE_68.md": {
+      "sha256": "b5456413b149e005deaeffedc514e18049d94322a0d85854c48190e300e7010b",
+      "bytes": 2946
+    },
+    "docs/rendering/reviews/PHASE_68_OWNER_VALIDATION_AMENDMENT.md": {
+      "sha256": "a88111449aaa84ae3f2cdb628f33ffc112c5cd744f267940f3b02c104ce7a046",
+      "bytes": 1805
+    },
+    "docs/rendering/reviews/PHASE_68_PREREQUISITE_PROPOSAL.md": {
+      "sha256": "347fb38adcc61f90e0aabc22b315943232ad87eae949264ed1ab1f02ed2e4d63",
+      "bytes": 5080
+    },
+    "docs/rendering/reviews/PHASE_68_REVIEW.md": {
+      "sha256": "416440da4e7d2967413c07de7329cdd21980fa7084ebafe2a82c44e94b8f73ba",
+      "bytes": 9510
+    },
+    "external/glad/glad.vcxproj": {
+      "sha256": "c2d99bda79ced5c30d3daf6fe2bd11a70a7bc4487f020287c8e1a8bef5a06b66",
+      "bytes": 4632
+    },
+    "logs/rendering/phase68/audio-path-packet/manifest.json": {
+      "sha256": "ea445cd1608d876d05009f87bf4dc408429337ebeda1611925b900beaa6d9fbb",
+      "bytes": 1077
+    },
+    "logs/rendering/phase68/audit-inputs.json": {
+      "sha256": "c46751f81f29056ef0154bf5162a2cf61f88a55686a71ffb1054f9f995c215a9",
+      "bytes": 60714
+    },
+    "logs/rendering/phase68/bootstrap-packet/manifest.json": {
+      "sha256": "9dbaafe20d77f9d0761af456fe7f90c878ccc65da6d5dd27e6796892a0e488e9",
+      "bytes": 761
+    },
+    "logs/rendering/phase68/bootstrap-packet/optional-path-review.json": {
+      "sha256": "3fceb9060b2a75e1e839c977492e2ef1de625f539339bbd345b484d03e7003a4",
+      "bytes": 712
+    },
+    "logs/rendering/phase68/breakout-path-packet/manifest.json": {
+      "sha256": "61a1174c7b23748d0493e8844ccf5604e2d8d11cd44003d71be684bfdeb0a718",
+      "bytes": 585
+    },
+    "logs/rendering/phase68/comparison-inputs.json": {
+      "sha256": "0ce9ddeea230296f291f8ec32012cff1669477a4b06e63b55672b3c1913b8d9a",
+      "bytes": 22738
+    },
+    "logs/rendering/phase68/documentation-validation.json": {
+      "sha256": "5ea25033423878473bae5e905d582d1a8322e879c54f8d3783315a7680989742",
+      "bytes": 433
+    },
+    "logs/rendering/phase68/exception-audit.json": {
+      "sha256": "1192ac44c1d94c56a86d9ee1ed9385afbfd7a07ec3b62d3c7334fda6082c2472",
+      "bytes": 54736
+    },
+    "logs/rendering/phase68/exception_audit.py": {
+      "sha256": "f2da969b7a6fcd591246525368eb0fe355373f8291a2945df128f626f1d41791",
+      "bytes": 3623
+    },
+    "logs/rendering/phase68/final-inputs.json": {
+      "sha256": "e86137539734c9f978bea7d0916aca0aa4492a2f3d8dffbf3b1ba46afe7954ba",
+      "bytes": 63439
+    },
+    "logs/rendering/phase68/final-source-audit/audit-inputs.json": {
+      "sha256": "9f251f0f97f9e7cc9f456d8b57e99866a27d1525933d3caee94da480fa83eeb6",
+      "bytes": 60871
+    },
+    "logs/rendering/phase68/final-source-audit/exception-audit.json": {
+      "sha256": "aa8e1fab83e83c5a5a15546bcea16a42104635e2872a066e3622999ddf50445e",
+      "bytes": 48440
+    },
+    "logs/rendering/phase68/integration-first-inputs.json": {
+      "sha256": "5c74df0e8944da7ab40ec4837435a228f29998878813d21c67552bb470fb54b3",
+      "bytes": 62054
+    },
+    "logs/rendering/phase68/integration/debug-build-corrected/build.log": {
+      "sha256": "2da68ab855a78a8de19f2154f647ce6123962c56ca246ddad7a6113c994591db",
+      "bytes": 239651
+    },
+    "logs/rendering/phase68/integration/debug-build-corrected/results.json": {
+      "sha256": "622f8f50b1e594fd55ebda0309af600db6be2454e7bdb5d65b679996c79ff5f5",
+      "bytes": 1387
+    },
+    "logs/rendering/phase68/integration/debug-build/build.log": {
+      "sha256": "aa1eead25784d92531a166bf454b310b75e7ff123306dce2ecbf48e6e28c0c39",
+      "bytes": 2164
+    },
+    "logs/rendering/phase68/integration/debug-build/results.json": {
+      "sha256": "f96088ce656cb3f30d403ccf52e7b79862d9dee26f85f6c89062fd641c442da0",
+      "bytes": 1487
+    },
+    "logs/rendering/phase68/integration/debug-consumer-objects-corrected/object-BreakoutApp.log": {
+      "sha256": "f79280975a8f82cb54943ff6a6586f961e7ed74e7dea2641066e854cf7c5f00f",
+      "bytes": 61570
+    },
+    "logs/rendering/phase68/integration/debug-consumer-objects-corrected/object-GameLevel.log": {
+      "sha256": "7cb28a73f58c1619794e2794f7a809e7bb0695e684469143c2ec6e13cb27094e",
+      "bytes": 61568
+    },
+    "logs/rendering/phase68/integration/debug-consumer-objects-corrected/results.json": {
+      "sha256": "6c005267da32f49ce6eead239016f11115815a6d6a48e6255f5982e5f523bdff",
+      "bytes": 5691
+    },
+    "logs/rendering/phase68/integration/debug-consumer-objects/compile-migrated-headers.log": {
+      "sha256": "5d126e84ad687131cfcb7f5057cd95a5d3b3f0603986d3e8208dec2d3f6ca9b0",
+      "bytes": 128992
+    },
+    "logs/rendering/phase68/integration/debug-consumer-objects/object-BreakoutApp.log": {
+      "sha256": "82d7f92bf54226cc04c8ac7f2f318a09ca99c0684cb72aec441fd194a0587025",
+      "bytes": 17862
+    },
+    "logs/rendering/phase68/integration/debug-consumer-objects/object-SceneApp.log": {
+      "sha256": "8e2eb78b8c6fcc8beaea15fd3309c8f1f4c5f1afe632d11b3c3babc9c7de4ebb",
+      "bytes": 61567
+    },
+    "logs/rendering/phase68/integration/debug-consumer-objects/results.json": {
+      "sha256": "44d456282a87ecaff08d6c24005b3720610061fb8a2c4ae4d3c224d55d4e0e56",
+      "bytes": 7896
+    },
+    "logs/rendering/phase68/integration/debug-final-build/build.log": {
+      "sha256": "df5eae611a98148436afb9f10e79ef889c2712377ee02b352419c4a0074b3afe",
+      "bytes": 121533
+    },
+    "logs/rendering/phase68/integration/debug-final-build/results.json": {
+      "sha256": "31eb082ccec89bc18db48b5bff3f4d2c225d925ec163303b8b3c08212101f994",
+      "bytes": 1379
+    },
+    "logs/rendering/phase68/integration/debug-final-consumer-objects/compile-migrated-headers.log": {
+      "sha256": "0f210eb35961ef6cc6e3394ada65e96671492539a9216adaa091dcce1b816aa8",
+      "bytes": 129111
+    },
+    "logs/rendering/phase68/integration/debug-final-consumer-objects/object-BreakoutApp.log": {
+      "sha256": "f79280975a8f82cb54943ff6a6586f961e7ed74e7dea2641066e854cf7c5f00f",
+      "bytes": 61570
+    },
+    "logs/rendering/phase68/integration/debug-final-consumer-objects/object-GameLevel.log": {
+      "sha256": "7cb28a73f58c1619794e2794f7a809e7bb0695e684469143c2ec6e13cb27094e",
+      "bytes": 61568
+    },
+    "logs/rendering/phase68/integration/debug-final-consumer-objects/object-rbs-no-backend.log": {
+      "sha256": "84ab337c2faa4616e32f9e726348089091187a6b5eb185d7eef7d3e0822ddd8c",
+      "bytes": 137272
+    },
+    "logs/rendering/phase68/integration/debug-final-consumer-objects/results.json": {
+      "sha256": "cf91bb0846c6ede4dd55a93df400aa7a1e04e1cf0dcd12207b5b3c89e8c1523e",
+      "bytes": 10236
+    },
+    "logs/rendering/phase68/integration/debug-rbs-asset-root/rbs-asset-root.log": {
+      "sha256": "5c43984f9de06090458c16adb73fb6e90e44fc3afec71b644fd4a704dd177cec",
+      "bytes": 375
+    },
+    "logs/rendering/phase68/integration/debug-rbs-asset-root/results.json": {
+      "sha256": "2e030d321e52c13b2387dc877aa96182002a4fcc0b87923e10b3061eba56bdca",
+      "bytes": 1115
+    },
+    "logs/rendering/phase68/integration/debug-rbs-frames-open/GEngine.log": {
+      "sha256": "036a219500ef54c7abac62262655e53922837fbbd71a8cbcc6dfa29938593398",
+      "bytes": 1465
+    },
+    "logs/rendering/phase68/integration/debug-rbs-frames-open/rbs-frames-open.log": {
+      "sha256": "77ee1d032012b3ddca1d8070276d0ca23b0c82c23c638fe97f474ef9012a87a1",
+      "bytes": 1737
+    },
+    "logs/rendering/phase68/integration/debug-rbs-frames-open/results.json": {
+      "sha256": "6d5d815fbb6770cb7624a8f424966ace8ebbed1ce1ff8ebf42171fa910d740d6",
+      "bytes": 1186
+    },
+    "logs/rendering/phase68/integration/debug-rbs-native-close/rbs-native-close/GEngine.log": {
+      "sha256": "18b96f7434e08ab3552cc9aab56558d2c5e385262eb2a6b73690320d3c88f3ae",
+      "bytes": 3138
+    },
+    "logs/rendering/phase68/integration/debug-rbs-native-close/rbs-native-close/application.log": {
+      "sha256": "c826a32f75dc2bd0100af28f5ccfbee761548098372d1e477710313cd74dc9c6",
+      "bytes": 32123
+    },
+    "logs/rendering/phase68/integration/debug-rbs-native-close/rbs-native-close/smoke.json": {
+      "sha256": "9d756d25f49b12157b2e509f7fdf3167f8720ff032198e4fbeb8b0f0750579c3",
+      "bytes": 3450
+    },
+    "logs/rendering/phase68/integration/debug-rbs-native-close/results.json": {
+      "sha256": "b82b0e17d13a3bde52d2183fa66defe816587c38ebbda00c62f3bb7f657b0a7c",
+      "bytes": 4019
+    },
+    "logs/rendering/phase68/integration/debug-rbs-protocol/GEngine.log": {
+      "sha256": "a168dbe367ed5958e7351ad1833629bb688344da6c9c5ac7029b6f23db0c9c5b",
+      "bytes": 1266
+    },
+    "logs/rendering/phase68/integration/debug-rbs-protocol/rbs-success.log": {
+      "sha256": "5c0e08254e5c9f60b7bd5e66a822a6ed1a45e3750244a50e541b6eef622f9c5f",
+      "bytes": 3316
+    },
+    "logs/rendering/phase68/integration/debug-rbs-protocol/results.json": {
+      "sha256": "5806dac5bc5b0b32ad7e471b58eb1581ee0f759df55c43406e1e0ab8a9023394",
+      "bytes": 1163
+    },
+    "logs/rendering/phase68/integration/debug-rbs-success/GEngine.log": {
+      "sha256": "c0af5ae02af07f84a8abe7b05a869a99b6329a89adeef9768cdfa41498d33c1d",
+      "bytes": 1469
+    },
+    "logs/rendering/phase68/integration/debug-rbs-success/rbs-success.log": {
+      "sha256": "4ff5e80c90b63f193af0e82396d75d83e9e4be05a17c989975908e2bc19494f5",
+      "bytes": 3511
+    },
+    "logs/rendering/phase68/integration/debug-rbs-success/results.json": {
+      "sha256": "5c41f4ce442f8f2d4ab4c05107f699b1f5990e62ed608c69d29e63a4628e69a6",
+      "bytes": 1130
+    },
+    "logs/rendering/phase68/integration/debug-rbs-success/scene-dimension-review.json": {
+      "sha256": "0c6df3bbd9b9ee50b5446e720dcd51343027ddc9088605151108e283497dcbf9",
+      "bytes": 553
+    },
+    "logs/rendering/phase68/integration/debug-rbs-terrain-decode/GEngine.log": {
+      "sha256": "502db5fceb25246423708446dea352ba78721d2c080a11c98e680f18a699dc51",
+      "bytes": 908
+    },
+    "logs/rendering/phase68/integration/debug-rbs-terrain-decode/rbs-terrain-decode.log": {
+      "sha256": "a70e0384e5719233c70b31b37db67729f4b7a29ca3a8fc0ba48b8b20f50b278f",
+      "bytes": 1081
+    },
+    "logs/rendering/phase68/integration/debug-rbs-terrain-decode/results.json": {
+      "sha256": "967d88e1effd89b68e73e4ec05a67c6a68215ec488bebdf2b4d7972d2535a8dc",
+      "bytes": 6590
+    },
+    "logs/rendering/phase68/integration/release-build/build.log": {
+      "sha256": "fadc43805a0332e0739deb0b76eaca8c5f0457631e91d54d700cb57fda208b9a",
+      "bytes": 7492
+    },
+    "logs/rendering/phase68/integration/release-build/results.json": {
+      "sha256": "1da8b39aeaa4ee931082ceeac19ca79a597bd94d11e907579270621c0ea242d5",
+      "bytes": 1374
+    },
+    "logs/rendering/phase68/integration/release-consumer-objects-corrected/compile-migrated-headers.log": {
+      "sha256": "f55ac28054c9ede85fb3ffc0ca6f15b9ed20623f396d15f4fc04ff7d05518dcb",
+      "bytes": 67439
+    },
+    "logs/rendering/phase68/integration/release-consumer-objects-corrected/object-BreakoutApp.log": {
+      "sha256": "154a653e1b54afed4030406e491a9eae0a1ac7dc1d9f9b4860d0f66cfaaa3ed1",
+      "bytes": 17
+    },
+    "logs/rendering/phase68/integration/release-consumer-objects-corrected/object-GameLevel.log": {
+      "sha256": "12969781418ad40f10b523bf8d33844c2c23b6359a5799d7dbbcbcbc1a5dac67",
+      "bytes": 15
+    },
+    "logs/rendering/phase68/integration/release-consumer-objects-corrected/object-SceneApp.log": {
+      "sha256": "965c23ce04dcf9ee1f2cdf4cf29555541cd2a43d8a856aee1f8a45246188fd67",
+      "bytes": 14
+    },
+    "logs/rendering/phase68/integration/release-consumer-objects-corrected/results.json": {
+      "sha256": "7c61230e3f4a37fb01024d50f33a4743c3029d2d5869e2dcfc6f80fc01f93f24",
+      "bytes": 10723
+    },
+    "logs/rendering/phase68/integration/release-final-build/build.log": {
+      "sha256": "03f41d316323cb6eb3b6dda303adc4c4bc3e54f07710c03ef2abf31bd1b5e737",
+      "bytes": 1978
+    },
+    "logs/rendering/phase68/integration/release-final-build/results.json": {
+      "sha256": "cbbbe06a1cf4238d5068536cea0190d5cb0c8438da260b92872830395224f6bf",
+      "bytes": 1386
+    },
+    "logs/rendering/phase68/integration/release-final-consumer-objects/compile-migrated-headers.log": {
+      "sha256": "04f7a3bb9b1c81622cdfb8f933a8b123553b48e12981981a37ee37072589d136",
+      "bytes": 67558
+    },
+    "logs/rendering/phase68/integration/release-final-consumer-objects/object-BreakoutApp.log": {
+      "sha256": "154a653e1b54afed4030406e491a9eae0a1ac7dc1d9f9b4860d0f66cfaaa3ed1",
+      "bytes": 17
+    },
+    "logs/rendering/phase68/integration/release-final-consumer-objects/object-GameLevel.log": {
+      "sha256": "12969781418ad40f10b523bf8d33844c2c23b6359a5799d7dbbcbcbc1a5dac67",
+      "bytes": 15
+    },
+    "logs/rendering/phase68/integration/release-final-consumer-objects/object-rbs-no-backend.log": {
+      "sha256": "f6497798051fb4c0f178acc0c1caa04731928987c2618592e9203c7dc67b1bc3",
+      "bytes": 75719
+    },
+    "logs/rendering/phase68/integration/release-final-consumer-objects/results.json": {
+      "sha256": "b1a6fda8e8c524940308df326c4d4f35c0a10e925f0bb3690f265e851bd31a58",
+      "bytes": 10265
+    },
+    "logs/rendering/phase68/integration/release-rbs-asset-manifest/rbs-asset-manifest.log": {
+      "sha256": "770ead74bd442c020debfa1e8aaf57af7a7e2a9a76a239d82446347c97778b3d",
+      "bytes": 687
+    },
+    "logs/rendering/phase68/integration/release-rbs-asset-manifest/results.json": {
+      "sha256": "da1c9835bca14c5597c7176344bbebad37f7352ffec92759e5d986481df83485",
+      "bytes": 1125
+    },
+    "logs/rendering/phase68/integration/release-rbs-audio-bank/GEngine.log": {
+      "sha256": "844d748b0c41ca1c47079f35bc17008c60b41d66eb90c0efdcdfe3f3e3128797",
+      "bytes": 265
+    },
+    "logs/rendering/phase68/integration/release-rbs-audio-bank/rbs-audio-bank.log": {
+      "sha256": "50a4fe6b6c622270cb5fa8933d33dbeb9bfedd7ed41c18f3dd266eb01fc2eee0",
+      "bytes": 449
+    },
+    "logs/rendering/phase68/integration/release-rbs-audio-bank/results.json": {
+      "sha256": "9c4b3c9fc669e869ec7c0fc2d8853ae2b143701416d9ce179c51b67b9d4d9ba1",
+      "bytes": 6596
+    },
+    "logs/rendering/phase68/integration/release-rbs-image-write/GEngine.log": {
+      "sha256": "a3029baa500581823d39f53646df62f2fea2d5f98d0822a1340b02dd35a78a4b",
+      "bytes": 455
+    },
+    "logs/rendering/phase68/integration/release-rbs-image-write/rbs-image-write.log": {
+      "sha256": "2bf848531aaa08a17e2cd2f4a9933abb7a76199a8cd410be812e4ba200dcf28a",
+      "bytes": 579
+    },
+    "logs/rendering/phase68/integration/release-rbs-image-write/results.json": {
+      "sha256": "3f641f2b5441bb4c1bb17c6a876fb64d7a081a85d0f1bd5dd4ab7a3cf3bfa1a4",
+      "bytes": 1194
+    },
+    "logs/rendering/phase68/integration/release-rbs-missing/GEngine.log": {
+      "sha256": "ac39aafff02f3cf5e6a6d589b58b3ddff7260b742e1067ac97da5777f738f058",
+      "bytes": 414
+    },
+    "logs/rendering/phase68/integration/release-rbs-missing/rbs-missing.log": {
+      "sha256": "5887f1fca2e28710f04f2d3b19e8ff18ec0ca9211204e5eb311e80d3475fe755",
+      "bytes": 545
+    },
+    "logs/rendering/phase68/integration/release-rbs-missing/results.json": {
+      "sha256": "cde64ea15096cdb242b47222ba9007fed1b523c2333a8de013c99e28ce6ea5ea",
+      "bytes": 1177
+    },
+    "logs/rendering/phase68/integration/release-rbs-native-close/rbs-native-close/GEngine.log": {
+      "sha256": "9395843c9c72ffacef9b3bbb75c1bedc94ea9bf60437da84aa655d01a542b50b",
+      "bytes": 77
+    },
+    "logs/rendering/phase68/integration/release-rbs-native-close/rbs-native-close/application.log": {
+      "sha256": "4282282b095dfdc8fe5532bf87f0113967ed8d495b3768b89bec53adcc5a60ac",
+      "bytes": 246
+    },
+    "logs/rendering/phase68/integration/release-rbs-native-close/rbs-native-close/smoke.json": {
+      "sha256": "f4feccb1ec057064715d55fd344580156922ea477cdb3ab3ab390d8ab37c1c84",
+      "bytes": 3460
+    },
+    "logs/rendering/phase68/integration/release-rbs-native-close/results.json": {
+      "sha256": "f3091c0530658fc0ec4b56b32fdeadf35df327933cf2df4617dd7f474e781a1c",
+      "bytes": 4030
+    },
+    "logs/rendering/phase68/integration/release-rbs-protocol/GEngine.log": {
+      "sha256": "3ba8468fe024b9964edcb59a1baeb6a065329977906668b3318ff162071ff30e",
+      "bytes": 77
+    },
+    "logs/rendering/phase68/integration/release-rbs-protocol/rbs-success.log": {
+      "sha256": "dc2fbe2df10622de14ca55c63655ec8a03df7cd2bf2b4a7632b437c2c7239c3c",
+      "bytes": 209
+    },
+    "logs/rendering/phase68/integration/release-rbs-protocol/results.json": {
+      "sha256": "92926a0d3e3521e53e75e96e6f0f103a45fb97b2d2741a2d64a08e2ba5a0b827",
+      "bytes": 1170
+    },
+    "logs/rendering/phase68/integration/rendering-boundary-objects/compile-frame_submission_probe.log": {
+      "sha256": "b15ea54bc5b738a6ac3408e95fba758e6a25fab1d762945d7941e7e967a3ea91",
+      "bytes": 132205
+    },
+    "logs/rendering/phase68/integration/rendering-boundary-objects/compile-ray_boundary_probe.log": {
+      "sha256": "06c27ce8e2b15d5a8e77f60ee754a83c03198b2382bc2eb0c27b31dd5965cbfb",
+      "bytes": 132288
+    },
+    "logs/rendering/phase68/integration/rendering-boundary-objects/compile-render_extraction_probe.log": {
+      "sha256": "5ff2828cd67eebdfbd9513e188e996a3bcf7ee4fbec92301f5075b0f0080216c",
+      "bytes": 131057
+    },
+    "logs/rendering/phase68/integration/rendering-boundary-objects/compile-retained_boundary_probe.log": {
+      "sha256": "9074cc960586e8687e1a8397e7023bc18c6c4cdf5e80048a28233ace076b0bc5",
+      "bytes": 132366
+    },
+    "logs/rendering/phase68/integration/rendering-boundary-objects/results.json": {
+      "sha256": "2d835e5b53bf5d3d155d730790fcb2941db28f37f303471d7c7411ba7267df52",
+      "bytes": 9681
+    },
+    "logs/rendering/phase68/material-path-packet/manifest.json": {
+      "sha256": "2c2bbd6ecfa0b17fbd49603e379667ff65602cd774354cc2c1a7bc1fc42f6035",
+      "bytes": 976
+    },
+    "logs/rendering/phase68/measurement-packet/debug-objects/compile-baseline-header.log": {
+      "sha256": "ee2d089869fdaa723f84ad79167ba0bdcba649a2759d0a04479b539d24f17970",
+      "bytes": 22998
+    },
+    "logs/rendering/phase68/measurement-packet/debug-objects/object-BaseApp.log": {
+      "sha256": "a007a2cb933a1b1b7d4becab0f743e253489dcbffd90c427d394bc0e6d1f99b9",
+      "bytes": 61566
+    },
+    "logs/rendering/phase68/measurement-packet/debug-objects/object-RenderBaseline.log": {
+      "sha256": "0a2e28de6300a2fced261700123d446d08a9d4a6b56157515f6b98b1f5050722",
+      "bytes": 61573
+    },
+    "logs/rendering/phase68/measurement-packet/debug-objects/results.json": {
+      "sha256": "62802ee339565f709201c3e6480e1d9b444717e4ff11a61fd7a157d76d04bfbc",
+      "bytes": 7787
+    },
+    "logs/rendering/phase68/measurement-packet/preflight.json": {
+      "sha256": "97ded4e0c303d6f708e5a9f5a662f842c0c7e9eff41924ff23c66a6d2fa5a11e",
+      "bytes": 577
+    },
+    "logs/rendering/phase68/native-boundary-audit.json": {
+      "sha256": "38d73788d9a25e3f7f31df96bb198a3f06834df29b4f0ed1d0e3e266012a353c",
+      "bytes": 7840
+    },
+    "logs/rendering/phase68/post-cleanup-audit/audit-inputs.json": {
+      "sha256": "526b7a4aa872d24e5aed9badc94410e2e99801acd38c579d1f726c73287cd481",
+      "bytes": 60871
+    },
+    "logs/rendering/phase68/post-cleanup-audit/exception-audit.json": {
+      "sha256": "4127cfb7310f38fd29aa9ff6def8bb1b294280a07058f0a5678efd50e397cce9",
+      "bytes": 48440
+    },
+    "logs/rendering/phase68/pre-optional-path-inputs.json": {
+      "sha256": "c2392b3c59113b6505077926762be219377069e9bf7e8df95220aa2d23cdb68e",
+      "bytes": 62820
+    },
+    "logs/rendering/phase68/preflight.json": {
+      "sha256": "6c32d3b7a7b29c78bfab5b9e30efe7f6a7f772f905e55d0ab3f2c7ad31c45ac5",
+      "bytes": 8398
+    },
+    "logs/rendering/phase68/preservation-final.json": {
+      "sha256": "1aa3bfb4e403c502bb054416e12888b7515627db6c28554ace61fbf683659c96",
+      "bytes": 345
+    },
+    "logs/rendering/phase68/preservation.json": {
+      "sha256": "502f584447f70064f0120b5c7fd9e4e25479f5eae1fb0158a38a3f0708258e38",
+      "bytes": 491
+    },
+    "logs/rendering/phase68/protocol-review.json": {
+      "sha256": "b0ed38b0aa711f98cf494f8913ce87ebe7a411e4fded3a99b237f15e1121360c",
+      "bytes": 844
+    },
+    "logs/rendering/phase68/runtime-summary.json": {
+      "sha256": "f98ee7558e6cc3f65acf78f8e42c99f43b85d7c3eb59297448e0d8b0db70f792",
+      "bytes": 7644
+    },
+    "logs/rendering/phase68/terrain-path-packet/manifest.json": {
+      "sha256": "902df56c17cd6f21725e6ea5f5cc8f74f230233463dccb29e14456bde0e05883",
+      "bytes": 927
+    },
+    "premake5.lua": {
+      "sha256": "a041564d53b076af65a2c7b818ecf0e9cd80e5c274fd00c37ffb0db74a787052",
+      "bytes": 17308
+    },
+    "rendering-checkpoints/phase-68.json": {
+      "sha256": "63d1fda3fdf1c4c45141edea923b8862fbff512b8ade57b6629825e7b352b581",
+      "bytes": 83009
+    },
+    "tools/RENDERING_ARCHITECTURE.md": {
+      "sha256": "8771f416feea66cd872dc289d79dfcab6faa80c8f7200fcd203300e5e3077885",
+      "bytes": 23236
+    },
+    "tools/baseline_error_probe.cpp": {
+      "sha256": "0130f607aea08d1efd112266b7f0b5010c29e1a19268e686bd6b4cc8600dac2a",
+      "bytes": 1892
+    },
+    "tools/frame_submission_probe.cpp": {
+      "sha256": "f6de17311a9105e97305e3bfef88a4d5ad661213a585ebdb63fd6984fdf2cbc2",
+      "bytes": 242110
+    },
+    "tools/postbuild.py": {
+      "sha256": "04a0a293c07e456537a850e07963fdae52ba1c0f12c52e568d113eb012c7037f",
+      "bytes": 8008
+    },
+    "tools/ray_boundary_probe.cpp": {
+      "sha256": "3ff9bcfaa36875e13230517d647858c046bab1ea5e2d094fdca76b79dd00f7be",
+      "bytes": 17121
+    },
+    "tools/render_extraction_probe.cpp": {
+      "sha256": "9a406c6fb3635684f4c37f4d4ba6e15053465e3b6635c9604e6cb9395ac9a9fc",
+      "bytes": 55757
+    },
+    "tools/render_world_probe.cpp": {
+      "sha256": "2ae212d888319403403961fb9339ebcec97185fddc3af4ea6f9439277f589aea",
+      "bytes": 3142
+    },
+    "tools/retained_boundary_probe.cpp": {
+      "sha256": "2821f110046f50473d05bf58aee761abf7591f6504c18fa388938b9205b09a98",
+      "bytes": 5141
+    },
+    "tools/test_baseline_errors.py": {
+      "sha256": "28c30832851d16a17f06841d7e4a95ed918e317857bd336ef891ca31437c7b55",
+      "bytes": 8536
+    },
+    "tools/test_frame_submission.py": {
+      "sha256": "64e2342d7b23f1a3152dec695e34fcef4c49845ab592e938c70cb3a609773d0f",
+      "bytes": 56639
+    },
+    "tools/test_render_world.py": {
+      "sha256": "aaab2c398a106462e08d3d8b08dff7a5b8321c12e1f276fcd72eead7c26af677",
+      "bytes": 4261
+    },
+    "tools/test_runtime_failure.py": {
+      "sha256": "51867fad21f8135e5d9f3238bb874c4c4c313787476f8e0d6e1d5d7f0ce8b5a6",
+      "bytes": 9262
+    }
+  },
+  "remote_observation": "refs/heads/rendering/refactor=9995074e7af161db76c5bf79a5ede030702fb4ca; refs/tags/render-refactor-phase-68-approved=48dbfd3430413492120eb551e761028b94c6f9c6; peeled=9995074e7af161db76c5bf79a5ede030702fb4ca; git ls-remote origin succeeded during this audit"
+}

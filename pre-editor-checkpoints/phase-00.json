@@ -1,0 +1,293 @@
+{
+  "baseline": "9995074e7af161db76c5bf79a5ede030702fb4ca",
+  "branch": "pre-editor/refactor",
+  "checkpoint_files": [
+    ".gitignore",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "docs/pre_editor/ACTIVATION_PROPOSAL.md",
+    "docs/pre_editor/FINDINGS.md",
+    "docs/pre_editor/HANDOFF_AUDIT.md",
+    "docs/pre_editor/PERFORMANCE_RESIDUALS.md",
+    "docs/pre_editor/POST_RENDERING_HANDOFF_FINAL_INSTRUCTIONS.md",
+    "docs/pre_editor/PRE_EDITOR_PLAN.md",
+    "docs/pre_editor/PROPOSAL_MANIFEST.json",
+    "docs/pre_editor/VALIDATION_CONTRACTS.md",
+    "docs/pre_editor/evidence/baseline-observation.json",
+    "docs/pre_editor/evidence/final-preservation.json",
+    "docs/pre_editor/evidence/package-files.json",
+    "docs/pre_editor/evidence/revision-01.json",
+    "docs/pre_editor/evidence/source-observation.json",
+    "docs/pre_editor/phases/PHASE_00.md",
+    "docs/pre_editor/phases/PHASE_01.md",
+    "docs/pre_editor/phases/PHASE_02.md",
+    "docs/pre_editor/phases/PHASE_03.md",
+    "docs/pre_editor/phases/PHASE_04.md",
+    "docs/pre_editor/phases/PHASE_05.md",
+    "docs/pre_editor/phases/PHASE_06.md",
+    "docs/pre_editor/phases/PHASE_07.md",
+    "docs/pre_editor/phases/PHASE_08.md",
+    "docs/pre_editor/phases/PHASE_09.md",
+    "docs/pre_editor/phases/PHASE_10.md",
+    "docs/pre_editor/phases/PHASE_11.md",
+    "docs/pre_editor/phases/PHASE_12.md",
+    "docs/pre_editor/phases/PHASE_13.md",
+    "docs/pre_editor/phases/PHASE_14.md",
+    "docs/pre_editor/phases/PHASE_15.md",
+    "docs/pre_editor/phases/PHASE_16.md",
+    "docs/pre_editor/phases/PHASE_17.md",
+    "docs/pre_editor/phases/PHASE_18.md",
+    "docs/pre_editor/phases/PHASE_19.md",
+    "docs/pre_editor/phases/PHASE_20.md",
+    "docs/pre_editor/phases/PHASE_21.md",
+    "docs/pre_editor/phases/PHASE_22.md",
+    "docs/pre_editor/phases/PHASE_23.md",
+    "docs/pre_editor/phases/PHASE_24.md",
+    "docs/pre_editor/phases/PHASE_25.md",
+    "docs/pre_editor/phases/PHASE_26.md",
+    "docs/pre_editor/phases/PHASE_27.md",
+    "docs/pre_editor/phases/PHASE_28.md",
+    "docs/pre_editor/phases/PHASE_29.md",
+    "docs/pre_editor/phases/PHASE_30.md",
+    "docs/pre_editor/phases/PHASE_31.md",
+    "docs/pre_editor/phases/PHASE_32.md",
+    "docs/pre_editor/phases/PHASE_33.md",
+    "docs/pre_editor/phases/PHASE_34.md",
+    "docs/pre_editor/phases/PHASE_35.md",
+    "docs/pre_editor/phases/PHASE_36.md",
+    "docs/pre_editor/phases/PHASE_37.md",
+    "docs/pre_editor/phases/PHASE_38.md",
+    "docs/pre_editor/phases/PHASE_39.md",
+    "docs/pre_editor/phases/PHASE_40.md",
+    "docs/pre_editor/phases/PHASE_41.md",
+    "docs/pre_editor/phases/PHASE_42.md",
+    "docs/pre_editor/phases/PHASE_43.md",
+    "docs/pre_editor/phases/PHASE_44.md",
+    "docs/pre_editor/phases/PHASE_45.md",
+    "docs/pre_editor/phases/PHASE_46.md",
+    "docs/pre_editor/phases/PHASE_47.md",
+    "docs/pre_editor/phases/PHASE_48.md",
+    "docs/pre_editor/phases/PHASE_49.md",
+    "docs/pre_editor/phases/PHASE_50.md",
+    "docs/pre_editor/phases/PHASE_51.md",
+    "docs/pre_editor/phases/PHASE_52.md",
+    "docs/pre_editor/phases/PHASE_53.md",
+    "docs/pre_editor/phases/PHASE_54.md",
+    "docs/pre_editor/phases/PHASE_55.md",
+    "docs/pre_editor/proposals/CODING_STYLE.proposed.md",
+    "docs/pre_editor/proposals/clang-format.proposed",
+    "docs/pre_editor/revisions/REVISION_01.md",
+    "pre-editor-checkpoints/phase-00.json"
+  ],
+  "eligible": true,
+  "findings": [],
+  "local_governance": [
+    ".agents/skills/pre-editor-phase-approval/SKILL.md",
+    ".agents/skills/pre-editor-phase-execution/SKILL.md",
+    ".agents/skills/pre-editor-phase-rejection/SKILL.md",
+    ".codex/tools/rendering_checkpoint.py",
+    "AGENTS.md",
+    "docs/pre_editor/active/ACTIVATION.json",
+    "docs/pre_editor/active/OUTPUT_PATHS.json",
+    "docs/pre_editor/active/PHASE_00_REVIEW.md",
+    "docs/pre_editor/active/PHASE_00_SCOPE.json",
+    "docs/pre_editor/active/PUBLICATION_GRANT.json",
+    "docs/pre_editor/active/PUBLICATION_POLICY.json",
+    "logs/pre_editor/phase-00/allowlist.json",
+    "logs/pre_editor/phase-00/checkpoint-spec.json",
+    "logs/pre_editor/phase-00/discovery.json",
+    "logs/pre_editor/phase-00/entry.json",
+    "logs/pre_editor/phase-00/helper-reuse.diff",
+    "logs/pre_editor/phase-00/publication-policy-revision/allowlist.json",
+    "logs/pre_editor/phase-00/publication-policy-revision/candidate.diff",
+    "logs/pre_editor/phase-00/publication-policy-revision/checkpoint-spec.json",
+    "logs/pre_editor/phase-00/publication-policy-revision/discovery.json",
+    "logs/pre_editor/phase-00/publication-policy-revision/entry.json",
+    "logs/pre_editor/phase-00/publication-policy-revision/validation-inputs.json",
+    "logs/pre_editor/phase-00/publication-policy-revision/verification.json",
+    "logs/pre_editor/phase-00/three-skill-revision/allowlist.json",
+    "logs/pre_editor/phase-00/three-skill-revision/candidate.diff",
+    "logs/pre_editor/phase-00/three-skill-revision/checkpoint-spec.json",
+    "logs/pre_editor/phase-00/three-skill-revision/discovery.json",
+    "logs/pre_editor/phase-00/three-skill-revision/entry.json",
+    "logs/pre_editor/phase-00/three-skill-revision/validation-inputs.json",
+    "logs/pre_editor/phase-00/three-skill-revision/verification.json",
+    "logs/pre_editor/phase-00/transfer.json",
+    "logs/pre_editor/phase-00/validation-inputs.json",
+    "logs/pre_editor/phase-00/verification.json"
+  ],
+  "next_phase": "01",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "48b3ea792e5f17938d7329500791765ceca97b2b",
+      "blob_ref": "refs/pre-editor-seals/132ea79b7cc6541e/phase-00/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/48b3ea792e5f17938d7329500791765ceca97b2b",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "5633d3a106179aa998851dbae0a2dd3e819340283a1a56ad51a4cbd377abeeba"
+      },
+      "mode": "100644",
+      "validated_blob": "89dc8c02fa02b4420988fda65e9659c8e8d48bbc",
+      "validated_blob_ref": "refs/pre-editor-seals/132ea79b7cc6541e/phase-00/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/89dc8c02fa02b4420988fda65e9659c8e8d48bbc"
+    }
+  },
+  "phase": "00",
+  "previous_approved_tag": "render-refactor-phase-68-approved",
+  "protected_files": [
+    "docs/pre_editor.zip"
+  ],
+  "remote": "origin",
+  "review": "docs/pre_editor/active/PHASE_00_REVIEW.md",
+  "schema": 2,
+  "summary": "Complete isolated PRE_EDITOR setup with three skills, six governance files and single-call approval.",
+  "validation": [
+    {
+      "check": "Phase 68 and manually created worktree identities",
+      "command": "Read-only git rev-parse/worktree/status/ls-remote; completed-journal/state comparison and retained blob verification",
+      "evidence": "logs/pre_editor/phase-00/entry.json",
+      "result": "PASS",
+      "reuse_reason": "Three-skill governance split leaves baseline, planning transfer, source/build/output and activation inputs unchanged; focused preservation proof is in three-skill-revision/verification.json."
+    },
+    {
+      "check": "Exact reviewed package transfer",
+      "command": "SHA-256 and size check of all inventoried sources and destinations; source mtime preservation",
+      "evidence": "logs/pre_editor/phase-00/transfer.json",
+      "result": "PASS",
+      "reuse_reason": "Three-skill governance split leaves baseline, planning transfer, source/build/output and activation inputs unchanged; focused preservation proof is in three-skill-revision/verification.json."
+    },
+    {
+      "check": "Output and workflow namespace isolation",
+      "command": "Static current Premake/postbuild/runtime path inspection; existing Phase 68 generated path metadata; reparse/containment and local tracking checks",
+      "evidence": "docs/pre_editor/active/OUTPUT_PATHS.json",
+      "result": "PASS",
+      "reuse_reason": "Three-skill governance split leaves baseline, planning transfer, source/build/output and activation inputs unchanged; focused preservation proof is in three-skill-revision/verification.json."
+    },
+    {
+      "check": "Builds/tests/application runs/benchmarks",
+      "command": "None executed under Phase 00 setup-only authorization",
+      "evidence": "docs/pre_editor/phases/PHASE_00.md",
+      "reason": "Owner expressly forbids these operations for Phase 00.",
+      "result": "NOT_APPLICABLE",
+      "reuse_reason": "Three-skill governance split leaves baseline, planning transfer, source/build/output and activation inputs unchanged; focused preservation proof is in three-skill-revision/verification.json."
+    },
+    {
+      "check": "Three skills, six-file scope and exact ignore rules",
+      "command": "Inspect current scope, exact routing/ignore entries, skill frontmatter and receipt membership",
+      "evidence": "logs/pre_editor/phase-00/three-skill-revision/verification.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Actual three-skill instruction discovery",
+      "command": "Installed codex debug prompt-input; no model, agent or phase execution",
+      "evidence": "logs/pre_editor/phase-00/three-skill-revision/discovery.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Single-finish approval and unchanged policy/helper integrity",
+      "command": "Inspect applicable-context limits and sole approval command; compare helper/policy/grant hashes; reuse matched policy evidence",
+      "evidence": "logs/pre_editor/phase-00/three-skill-revision/verification.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Protected archive and source/index/record preservation",
+      "command": "SHA-256/mtime and Git index/ref/worktree comparisons; existing helper hash/canonical guards",
+      "evidence": "logs/pre_editor/phase-00/three-skill-revision/verification.json",
+      "result": "PASS"
+    }
+  ],
+  "validation_input_hashes": {
+    ".agents/skills/pre-editor-phase-approval/SKILL.md": {
+      "executable": null,
+      "sha256": "c2922e86b34438571dda46b1355caea7532c6207243722a9c175c5170e63d7e1"
+    },
+    ".agents/skills/pre-editor-phase-execution/SKILL.md": {
+      "executable": null,
+      "sha256": "a9b843213b034c8205c90f866b1e63b2d1a602a25a2a3a32328c777677a28808"
+    },
+    ".agents/skills/pre-editor-phase-rejection/SKILL.md": {
+      "executable": null,
+      "sha256": "fa2f3c70cd22284474640ec22ef8a0ac9eddc0908bc92ec958d696b4a13e1b1b"
+    },
+    ".agents/skills/pre-editor-workflow/SKILL.md": {
+      "absent": true
+    },
+    ".codex/tools/rendering_checkpoint.py": {
+      "executable": null,
+      "sha256": "bf50e1c5df98962c10648e5cb9f3cb85560fab8491bfa129d9c0dfc9f7b940d9"
+    },
+    ".gitignore": {
+      "executable": null,
+      "sha256": "3dfd061cb4ad5f6cb4fb611f5f4b1cc14ad79d7d3bf077ee4f888b1e58bbb7e4"
+    },
+    "AGENTS.md": {
+      "executable": null,
+      "sha256": "159c37b93ccf0d3d45551944dc7032bd8d8f215feddbeef92bc3cfb24fb77919"
+    },
+    "GEngine/include/external/imgui/imgui.cpp": {
+      "executable": null,
+      "sha256": "2e4830713ea1c2c48b1a638282bc29dba9a51cc15b73f3c3cb09aa48a51aa3c6"
+    },
+    "GEngine/src/Core/Log.cpp": {
+      "executable": null,
+      "sha256": "d9e615b4395ff65951abec8cf11d74c149bb3a08ec04b127c101e6555bbb8103"
+    },
+    "GEngine/src/Core/RenderBaseline.cpp": {
+      "executable": null,
+      "sha256": "2e4ff3c4d89338e3ed2d9e4cfe82b957eb6c0c670fff2a464264859875b23586"
+    },
+    "GEngine/src/Core/RuntimeAssets.cpp": {
+      "executable": null,
+      "sha256": "cdb4a14cf3ff9bf1eeb3d06875f2a160e26f09c586ac34db3d6c6a87c9efed1a"
+    },
+    "GEngine/src/Windows/ImGuiWindow.cpp": {
+      "executable": null,
+      "sha256": "2549e4998ec6d853db8330ef1454c6e418dde5bc6d620b45a6ad2ce7e44d15c5"
+    },
+    "RigidBodySimulation/postbuild.py": {
+      "executable": null,
+      "sha256": "d0d0fd0382fd599f06d0a2751187d6d744493ab50dde121a6240790b30fd17a4"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "5633d3a106179aa998851dbae0a2dd3e819340283a1a56ad51a4cbd377abeeba"
+    },
+    "docs/pre_editor.zip": {
+      "executable": null,
+      "sha256": "ff62918449c7df28d33a8415e7ffbc6813bccc7c94dc10dd1dab719a9686bbc9"
+    },
+    "docs/pre_editor/active/ACTIVATION.json": {
+      "executable": null,
+      "sha256": "146d5e8441204c9a4cbd41e086ee512317ddc40d43fc552f0422ed568dba4081"
+    },
+    "docs/pre_editor/active/OUTPUT_PATHS.json": {
+      "executable": null,
+      "sha256": "b8d868fda409d2b0bb386d5a943239c10503d54862259b3a84193beab969ceb1"
+    },
+    "docs/pre_editor/active/PHASE_00_REVIEW.md": {
+      "executable": null,
+      "sha256": "e382cf64024b65e9b8fb713c6272205d99c43ed15e153acaa72de79874c0152f"
+    },
+    "docs/pre_editor/active/PHASE_00_SCOPE.json": {
+      "executable": null,
+      "sha256": "a432b0e785615c9886339cb7ab2d0dca4ae2aa6e4486256bb33a4d438e1b02ac"
+    },
+    "docs/pre_editor/active/PUBLICATION_GRANT.json": {
+      "executable": null,
+      "sha256": "0e30b43e67b450a07d77893f4784e32dae38135219610151ef3fd48e4beebe60"
+    },
+    "docs/pre_editor/active/PUBLICATION_POLICY.json": {
+      "executable": null,
+      "sha256": "b563638703dc657ecc06a321e435bb15da2eba5f04537d903b28fb40ea31a1cd"
+    },
+    "external/glad/premake5.lua": {
+      "executable": null,
+      "sha256": "881406fa3a22afd5865e2dd84ab76e29b5b7cb6c2c9e94542be20849f308962c"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "56b0ad50acdc98158f01ebbd85b952d54b4095332904212a3164c4b2a2b5970e"
+    },
+    "tools/postbuild.py": {
+      "executable": null,
+      "sha256": "be62655eda56bd2d57950231815fdbc625eb0235d4eff34b30e28621e533fc48"
+    }
+  }
+}

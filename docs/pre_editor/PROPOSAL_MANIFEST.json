@@ -1,0 +1,411 @@
+﻿{
+  "kind": "AUDIT_PROPOSAL_INDEX_NOT_WORKFLOW_STATE_OR_RECEIPT",
+  "status": "PROPOSED / NOT_STARTED",
+  "audit_completion": "COMPLETE_FOR_REVIEW",
+  "plan_readiness": "READY_FOR_HUMAN_REVIEW",
+  "milestone_a_readiness": "NOT_READY",
+  "workflow_activated": false,
+  "phase_started": null,
+  "new_application_executions": 0,
+  "new_builds_tests_benchmarks": 0,
+  "master": {
+    "path": "POST_RENDERING_HANDOFF_FINAL_INSTRUCTIONS.md",
+    "use": "Initial audit read; later use active phase plus listed stable section IDs."
+  },
+  "baseline": {
+    "rendering_commit": "9995074e7af161db76c5bf79a5ede030702fb4ca",
+    "rendering_tag": "render-refactor-phase-68-approved",
+    "tag_object": "48dbfd3430413492120eb551e761028b94c6f9c6",
+    "branch": "rendering/refactor",
+    "repository": "AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine",
+    "approval_status": "COMPLETE",
+    "branch_and_tag_publication_verified": true,
+    "unfinished_approval_journals": 0,
+    "pre_editor_entry_commit": "9995074e7af161db76c5bf79a5ede030702fb4ca",
+    "physics_authoritative_tree": "829629515a5363bdcf23d6f1654e7714a5fa9f18",
+    "physics_approved_ancestor": "89030282c1b2fd21a55eae2934e7f080eff7950d",
+    "physics_other_worktree": "C:/dev/GEngine-physics",
+    "physics_other_head": "89030282c1b2fd21a55eae2934e7f080eff7950d",
+    "physics_other_tree": "cc0fad3decd658c8ec6cfd55ce6a3103cda420bb",
+    "physics_other_dirty_work": "Unapproved; not imported",
+    "rejected_physics_phase40": "Diagnostic attribution only; implementation rejected/rolled back"
+  },
+  "documents": {
+    "entry": "PRE_EDITOR_PLAN.md",
+    "audit": "HANDOFF_AUDIT.md",
+    "findings": "FINDINGS.md",
+    "performance_residuals": "PERFORMANCE_RESIDUALS.md",
+    "validation": "VALIDATION_CONTRACTS.md",
+    "activation": "ACTIVATION_PROPOSAL.md",
+    "style": "proposals/CODING_STYLE.proposed.md",
+    "formatter": "proposals/clang-format.proposed",
+    "latest_revision": "revisions/REVISION_01.md"
+  },
+  "observations": {
+    "entry": "evidence/baseline-observation.json",
+    "source": "evidence/source-observation.json",
+    "final_preservation": "evidence/final-preservation.json",
+    "file_inventory": "evidence/package-files.json",
+    "revision_01": "evidence/revision-01.json"
+  },
+  "coverage": [
+    {
+      "topic": "Phase 68 entry/publication/workflow",
+      "sections": [
+        "1",
+        "3"
+      ],
+      "disposition": "VERIFIED",
+      "evidence": "HANDOFF_AUDIT.md / baseline observation"
+    },
+    {
+      "topic": "Rendering completed invariants and retained legacy",
+      "sections": [
+        "4",
+        "17"
+      ],
+      "disposition": "VERIFIED",
+      "limit": "Matching approved input-specific evidence and traced paths; no fresh engine-wide runtime claim"
+    },
+    {
+      "topic": "Complexity/managers/resource services/operations",
+      "sections": [
+        "5",
+        "6",
+        "6.1",
+        "6.2",
+        "6.3",
+        "6.4",
+        "6.5"
+      ],
+      "disposition": "GAP_FOUND",
+      "findings": [
+        "API-01",
+        "API-02",
+        "API-03",
+        "API-04",
+        "API-05"
+      ]
+    },
+    {
+      "topic": "Code Quality",
+      "sections": [
+        "7"
+      ],
+      "disposition": "GAP_FOUND",
+      "findings": [
+        "CQ-01",
+        "CQ-02"
+      ]
+    },
+    {
+      "topic": "Five original performance residual families",
+      "sections": [
+        "8"
+      ],
+      "disposition": "EVIDENCE_INSUFFICIENT",
+      "limit": "Closure unproven; historical accepted carry-forward preserved"
+    },
+    {
+      "topic": "A resource/shader/material/geometry",
+      "sections": [
+        "9",
+        "A.1",
+        "A.2",
+        "A.3",
+        "A.4",
+        "A.5"
+      ],
+      "disposition": "GAP_FOUND",
+      "phases": "04-12"
+    },
+    {
+      "topic": "B events/input/camera and successful runtime change",
+      "sections": [
+        "10",
+        "B.1",
+        "B.2"
+      ],
+      "disposition": "GAP_FOUND",
+      "phases": "13-17"
+    },
+    {
+      "topic": "C approved versus experimental provenance",
+      "sections": [
+        "3",
+        "C.1"
+      ],
+      "disposition": "VERIFIED",
+      "evidence": "source-observation.json"
+    },
+    {
+      "topic": "C core rest/impact stability and cost",
+      "sections": [
+        "C.2",
+        "C.3",
+        "C.4",
+        "C.12"
+      ],
+      "disposition": "EVIDENCE_INSUFFICIENT",
+      "findings": [
+        "PHY-01",
+        "PHY-03"
+      ]
+    },
+    {
+      "topic": "C APIs/poses/debug/constraints/chain/hinge/limits/passive ragdoll",
+      "sections": [
+        "C.5",
+        "C.6",
+        "C.7",
+        "C.8",
+        "C.9",
+        "C.10",
+        "C.11"
+      ],
+      "disposition": "GAP_FOUND",
+      "phases": "18,22-24,26-29"
+    },
+    {
+      "topic": "D existing Directional/Point shadows and independent visibility",
+      "sections": [
+        "D.5",
+        "D.6"
+      ],
+      "disposition": "VERIFIED",
+      "limit": "Existing capability only; broader quality and tails unproven"
+    },
+    {
+      "topic": "D shared Direct PBR/three lights/Spot shadow/GPU light data",
+      "sections": [
+        "D.1",
+        "D.2",
+        "D.3",
+        "D.4",
+        "D.5",
+        "D.6",
+        "D.7"
+      ],
+      "disposition": "GAP_FOUND",
+      "phases": "30-34"
+    },
+    {
+      "topic": "D IBL/color/HDR/physically based Bloom/exposure/tone/display",
+      "sections": [
+        "D.8",
+        "D.9",
+        "D.10",
+        "D.11",
+        "D.12",
+        "D.13"
+      ],
+      "disposition": "GAP_FOUND",
+      "phases": "35-39"
+    },
+    {
+      "topic": "D quality/temporal/performance/scaling/tails/default/reference",
+      "sections": [
+        "D.14",
+        "D.15",
+        "D.16",
+        "D.17",
+        "D.18",
+        "D.19"
+      ],
+      "disposition": "EVIDENCE_INSUFFICIENT",
+      "phases": "30-40"
+    },
+    {
+      "topic": "E authoring/Project/IDs/persistence/database/import/property/transactions/Undo/dirty/lifecycle/isolation/notifications/diagnostics/tasks/debug/multi-object",
+      "sections": [
+        "E.1",
+        "E.2",
+        "E.3",
+        "E.4",
+        "E.5",
+        "E.6",
+        "E.7",
+        "E.8",
+        "E.9",
+        "E.10",
+        "E.11",
+        "E.12",
+        "E.13",
+        "E.14",
+        "E.15",
+        "E.16",
+        "E.17"
+      ],
+      "disposition": "GAP_FOUND",
+      "phases": "41-51"
+    },
+    {
+      "topic": "F maintained integration and Core Editor handoff",
+      "sections": [
+        "14"
+      ],
+      "disposition": "GAP_FOUND",
+      "phases": "52-55"
+    },
+    {
+      "topic": "Core Editor UI/topology, Area lights/shadows, motors/active ragdoll/animation, auto exposure and speculative advanced lighting",
+      "sections": [
+        "A.3",
+        "B.2",
+        "C.9",
+        "C.10",
+        "D.12",
+        "D.16",
+        "D.19",
+        "E.17"
+      ],
+      "disposition": "NOT_APPLICABLE_WITH_REASON",
+      "reason": "Explicitly deferred/excluded from requested baseline"
+    },
+    {
+      "topic": "Findings/governance/isolation/provider order/validation/readiness/stop",
+      "sections": [
+        "15",
+        "16",
+        "16.1",
+        "17",
+        "18",
+        "18.1",
+        "18.2",
+        "19",
+        "20"
+      ],
+      "disposition": "VERIFIED",
+      "limit": "Proposal completeness; no activation or implementation"
+    }
+  ],
+  "performance": [
+    {
+      "id": "PERF65-01",
+      "technical": "OPEN",
+      "historical_gate": "ACCEPTED_OUT_OF_SCOPE",
+      "proposed_owner": "52",
+      "proposed_gate": "BLOCKS_CORE_EDITOR_HANDOFF"
+    },
+    {
+      "id": "PERF65-02",
+      "technical": "OPEN",
+      "historical_gate": "ACCEPTED_OUT_OF_SCOPE",
+      "proposed_owner": "53",
+      "proposed_gate": "BLOCKS_CORE_EDITOR_HANDOFF"
+    },
+    {
+      "id": "PERF65-03",
+      "technical": "OPEN",
+      "historical_gate": "ACCEPTED_OUT_OF_SCOPE",
+      "proposed_owner": "12",
+      "proposed_gate": "BLOCKS_MILESTONE_EXIT:A"
+    },
+    {
+      "id": "PERF65-04",
+      "technical": "OPEN",
+      "historical_gate": "ACCEPTED_OUT_OF_SCOPE",
+      "proposed_owner": "40",
+      "proposed_gate": "BLOCKS_MILESTONE_EXIT:D"
+    },
+    {
+      "id": "PERF65-05-06",
+      "technical": "OPEN",
+      "historical_gate": "ACCEPTED_OUT_OF_SCOPE",
+      "proposed_owner": "53",
+      "proposed_gate": "BLOCKS_CORE_EDITOR_HANDOFF"
+    }
+  ],
+  "pre_a_performance_phases": [],
+  "phase_count": 56,
+  "activation": {
+    "authorized": false,
+    "branch": "pre-editor/refactor",
+    "worktree": "C:/dev/GEngine-pre-editor",
+    "requires": "Owner plan acceptance, then separate explicit activation/minimal-setup authorization; publication policy/grant reviewed separately"
+  },
+  "next_action": "Owner accepts or revises phase/dependency/gate plan; no execution command is currently activated",
+  "routine_load": [
+    "This compact index/current future state",
+    "Applicable activated workflow instructions",
+    "Active phase contract",
+    "Relevant C0/V0/M0/D0 and open decisions",
+    "Targeted source/evidence only"
+  ],
+  "revision_history": [
+    {
+      "id": "01",
+      "kind": "DOCUMENTATION_ONLY",
+      "status": "PROPOSED / NOT_STARTED",
+      "entry_observed_utc": "2026-09-27T22:11:34.6033175+00:00",
+      "record": "revisions/REVISION_01.md",
+      "evidence": "evidence/revision-01.json",
+      "corrections": [
+        "Phase 00 bootstrap entry exception",
+        "Supported Transform scale and collider bridge semantics",
+        "Phase 52-53 staged diagnostic and comparative measurement admission"
+      ],
+      "phase_numbering_milestone_scope_residual_ownership_unchanged": true,
+      "activation_authorized": false
+    }
+  ],
+  "phases": [
+    {"phase":"00","milestone":"Setup","title":"Minimal isolated activation and workflow setup","contract":"phases/PHASE_00.md","predecessor":"rendering:68","providers":[],"findings":[],"master_sections":["16","16.1","18"],"open_decisions":["OD-01","OD-02"],"entry_clarification":"Verified Rendering Phase 68 completion, owner acceptance of plan, and separate explicit activation/minimal-setup authorization; Phase 00 creates isolated setup and stops for review. Already activated worktree required from Phase 01."},
+    {"phase":"01","milestone":"Code Quality","title":"Adopt scoped Code Quality policy","contract":"phases/PHASE_01.md","predecessor":"00","providers":["00"],"findings":["CQ-01","CQ-02"],"master_sections":["7","18"],"open_decisions":[]},
+    {"phase":"02","milestone":"Code Quality","title":"Mechanical formatting of initial A touchpoints","contract":"phases/PHASE_02.md","predecessor":"01","providers":["01"],"findings":["CQ-01"],"master_sections":["7","18"],"open_decisions":[]},
+    {"phase":"03","milestone":"Code Quality","title":"Bounded resource and RBS readability cleanup","contract":"phases/PHASE_03.md","predecessor":"02","providers":["02"],"findings":["CQ-01","CQ-02"],"master_sections":["5","7","18"],"open_decisions":[]},
+    {"phase":"04","milestone":"A","title":"Minimum runtime Scene operations and shared assignment","contract":"phases/PHASE_04.md","predecessor":"03","providers":["03"],"findings":["API-05","API-01","API-02"],"master_sections":["A.1","A.3","A.5","18.1"],"open_decisions":["OD-03"]},
+    {"phase":"05","milestone":"A","title":"Resource ownership and renderer-private frame preparation","contract":"phases/PHASE_05.md","predecessor":"04","providers":["04"],"findings":["API-01","API-03"],"master_sections":["6","A.1","18.1"],"open_decisions":["OD-03"]},
+    {"phase":"06","milestone":"A","title":"CPU simple geometry templates and canonical sharing","contract":"phases/PHASE_06.md","predecessor":"05","providers":["04","05"],"findings":["API-02"],"master_sections":["A.3","A.5"],"open_decisions":["OD-03"]},
+    {"phase":"07","milestone":"A","title":"Parametric curved geometry templates","contract":"phases/PHASE_07.md","predecessor":"06","providers":["06"],"findings":["API-02"],"master_sections":["A.3","A.5"],"open_decisions":["OD-03"]},
+    {"phase":"08","milestone":"A","title":"Explicit geometry copy, MakeUnique and dimension/Bake semantics","contract":"phases/PHASE_08.md","predecessor":"07","providers":["04","06","07"],"findings":["API-02"],"master_sections":["A.3","A.5","18.1"],"open_decisions":["OD-03"],"clarification_reference":"HANDOFF_AUDIT.md#scale-mutation-and-collider-behavior-s22"},
+    {"phase":"09","milestone":"A","title":"Typed standard material templates","contract":"phases/PHASE_09.md","predecessor":"08","providers":["04","05"],"findings":["API-04","API-03"],"master_sections":["A.4","A.5","18.1"],"open_decisions":["OD-03"]},
+    {"phase":"10","milestone":"A","title":"Shader descriptions, reflection and bounded variants","contract":"phases/PHASE_10.md","predecessor":"09","providers":["05","09"],"findings":["API-03"],"master_sections":["A.2","6.3"],"open_decisions":["OD-03"]},
+    {"phase":"11","milestone":"A","title":"Explicit shader/material reload and atomic replacement","contract":"phases/PHASE_11.md","predecessor":"10","providers":["05","09","10"],"findings":["API-03"],"master_sections":["A.2"],"open_decisions":["OD-03"]},
+    {"phase":"12","milestone":"A","title":"Async resource adoption and upload-stall evidence","contract":"phases/PHASE_12.md","predecessor":"11","providers":["04","05","06","07","08","09","10","11"],"findings":["API-01","PERF65-03"],"master_sections":["8","A.1","A.5","18.2"],"open_decisions":["OD-04"]},
+    {"phase":"13","milestone":"B","title":"Typed subscriptions, lifetime and dispatch semantics","contract":"phases/PHASE_13.md","predecessor":"12","providers":["12"],"findings":["EVT-01"],"master_sections":["B.1","18.1"],"open_decisions":["OD-05"],"clarification_reference":"HANDOFF_AUDIT.md#scale-mutation-and-collider-behavior-s22"},
+    {"phase":"14","milestone":"B","title":"Authoritative runtime Transform mutation and successful-change notifications","contract":"phases/PHASE_14.md","predecessor":"13","providers":["04","08","13"],"findings":["TRN-01","EVT-01"],"master_sections":["B.1","B.2","C.7","18.1"],"open_decisions":["OD-05"],"clarification_reference":"HANDOFF_AUDIT.md#scale-mutation-and-collider-behavior-s22"},
+    {"phase":"15","milestone":"B","title":"Complete typed input state and routing","contract":"phases/PHASE_15.md","predecessor":"14","providers":["13","14"],"findings":["INP-01"],"master_sections":["B.1"],"open_decisions":["OD-05"]},
+    {"phase":"16","milestone":"B","title":"Unified semantic camera snapshot and conversions","contract":"phases/PHASE_16.md","predecessor":"15","providers":["14","15"],"findings":["CAM-01"],"master_sections":["B.2","18.1"],"open_decisions":["OD-05"]},
+    {"phase":"17","milestone":"B","title":"Scene Camera and Editor view lifecycle adoption","contract":"phases/PHASE_17.md","predecessor":"16","providers":["15","16"],"findings":["CAM-01","INP-01"],"master_sections":["B.2"],"open_decisions":["OD-05"]},
+    {"phase":"18","milestone":"C","title":"Shared semantic debug rendering foundation","contract":"phases/PHASE_18.md","predecessor":"17","providers":["12","17"],"findings":["DBG-01"],"master_sections":["C.11","18.1","E.16"],"open_decisions":["OD-06"]},
+    {"phase":"19","milestone":"C","title":"Resting-contact and impact diagnosis in RBS","contract":"phases/PHASE_19.md","predecessor":"18","providers":["18"],"findings":["PHY-01"],"master_sections":["C.1","C.2","C.3","C.12","18.2"],"open_decisions":["OD-06"]},
+    {"phase":"20","milestone":"C","title":"Bounded resting-contact and impact ownership correction","contract":"phases/PHASE_20.md","predecessor":"19","providers":["19"],"findings":["PHY-01"],"master_sections":["C.2","C.3","C.12"],"open_decisions":["OD-06","OD-07"]},
+    {"phase":"21","milestone":"C","title":"Convergence, sleep and fixed-step qualification","contract":"phases/PHASE_21.md","predecessor":"20","providers":["20"],"findings":["PHY-01","PHY-03"],"master_sections":["C.2","C.3","C.12"],"open_decisions":["OD-06","OD-07"]},
+    {"phase":"22","milestone":"C","title":"Typed Physics world and body API ownership","contract":"phases/PHASE_22.md","predecessor":"21","providers":["14","21"],"findings":["PHY-02"],"master_sections":["C.5","C.6"],"open_decisions":["OD-06"]},
+    {"phase":"23","milestone":"C","title":"Independent collision shapes including Capsule","contract":"phases/PHASE_23.md","predecessor":"22","providers":["22"],"findings":["PHY-02","PHY-05"],"master_sections":["C.5","C.10"],"open_decisions":["OD-06","OD-08"]},
+    {"phase":"24","milestone":"C","title":"Physics, Scene and Rendering Transform contract","contract":"phases/PHASE_24.md","predecessor":"23","providers":["14","16","22","23"],"findings":["PHY-02","TRN-01"],"master_sections":["C.6","C.7","18.1"],"open_decisions":["OD-06"],"clarification_reference":"HANDOFF_AUDIT.md#scale-mutation-and-collider-behavior-s22"},
+    {"phase":"25","milestone":"C","title":"Physics CPU and scaling acceptance","contract":"phases/PHASE_25.md","predecessor":"24","providers":["21","24"],"findings":["PHY-03"],"master_sections":["C.4","C.12","18.2"],"open_decisions":["OD-07"]},
+    {"phase":"26","milestone":"C","title":"Managed distance constraints and representative chain","contract":"phases/PHASE_26.md","predecessor":"25","providers":["18","21","22","23","24","25"],"findings":["PHY-04"],"master_sections":["C.8","C.9","C.12"],"open_decisions":["OD-08"]},
+    {"phase":"27","milestone":"C","title":"Ball-and-socket constraints","contract":"phases/PHASE_27.md","predecessor":"26","providers":["26"],"findings":["PHY-04"],"master_sections":["C.8","C.9"],"open_decisions":["OD-08"]},
+    {"phase":"28","milestone":"C","title":"Hinge constraints and angular limits","contract":"phases/PHASE_28.md","predecessor":"27","providers":["26","27"],"findings":["PHY-04"],"master_sections":["C.9","C.10"],"open_decisions":["OD-08"]},
+    {"phase":"29","milestone":"C","title":"Passive ragdoll composition and C exit","contract":"phases/PHASE_29.md","predecessor":"28","providers":["18","21","23","24","25","26","27","28"],"findings":["PHY-05","PHY-04","PHY-03","DBG-01"],"master_sections":["C.10","C.11","C.12","14"],"open_decisions":["OD-06","OD-07","OD-08"]},
+    {"phase":"30","milestone":"D","title":"Shared material/light semantics and GPU representation","contract":"phases/PHASE_30.md","predecessor":"29","providers":["09","16","29"],"findings":["LIT-01","API-04"],"master_sections":["D.1","D.2","D.3","D.4","D.7","18.1"],"open_decisions":["OD-09","OD-11"]},
+    {"phase":"31","milestone":"D","title":"Shared Direct PBR and light-specific evaluation","contract":"phases/PHASE_31.md","predecessor":"30","providers":["30"],"findings":["LIT-01"],"master_sections":["D.1","D.2","D.3","D.4","D.6"],"open_decisions":["OD-09","OD-11"]},
+    {"phase":"32","milestone":"D","title":"Directional and Point shadow quality and invalidation","contract":"phases/PHASE_32.md","predecessor":"31","providers":["16","31"],"findings":["LIT-02","LIT-05","PERF65-04"],"master_sections":["D.5","D.6","D.15","D.16"],"open_decisions":["OD-09","OD-11"]},
+    {"phase":"33","milestone":"D","title":"Spot shadow projection and owned resources","contract":"phases/PHASE_33.md","predecessor":"32","providers":["30","32"],"findings":["LIT-02"],"master_sections":["D.4","D.5","D.6"],"open_decisions":["OD-09","OD-11"]},
+    {"phase":"34","milestone":"D","title":"Spot caster pass and per-light shadow visibility","contract":"phases/PHASE_34.md","predecessor":"33","providers":["31","33"],"findings":["LIT-02","LIT-05"],"master_sections":["D.4","D.5","D.6"],"open_decisions":["OD-09","OD-11"]},
+    {"phase":"35","milestone":"D","title":"IBL environment processing and resource publication","contract":"phases/PHASE_35.md","predecessor":"34","providers":["05","10","31","34"],"findings":["LIT-03"],"master_sections":["D.8","D.9"],"open_decisions":["OD-09","OD-11"]},
+    {"phase":"36","milestone":"D","title":"Indirect PBR integration","contract":"phases/PHASE_36.md","predecessor":"35","providers":["30","31","35"],"findings":["LIT-03","LIT-01"],"master_sections":["D.1","D.6","D.8","D.9"],"open_decisions":["OD-09","OD-11"]},
+    {"phase":"37","milestone":"D","title":"Linear HDR scene color and resolve","contract":"phases/PHASE_37.md","predecessor":"36","providers":["31","34","36"],"findings":["LIT-04"],"master_sections":["D.9","D.10"],"open_decisions":["OD-10","OD-11"]},
+    {"phase":"38","milestone":"D","title":"Energy-aware multiresolution Bloom","contract":"phases/PHASE_38.md","predecessor":"37","providers":["37"],"findings":["LIT-04","LIT-05"],"master_sections":["D.11","D.15","D.16"],"open_decisions":["OD-10","OD-11"]},
+    {"phase":"39","milestone":"D","title":"Manual exposure, tone mapping and final display","contract":"phases/PHASE_39.md","predecessor":"38","providers":["16","37","38"],"findings":["LIT-04"],"master_sections":["D.12","D.13","D.9"],"open_decisions":["OD-10","OD-11"]},
+    {"phase":"40","milestone":"D","title":"Lighting/shadow default profile and D acceptance","contract":"phases/PHASE_40.md","predecessor":"39","providers":["30","31","32","33","34","35","36","37","38","39"],"findings":["LIT-01","LIT-02","LIT-03","LIT-04","LIT-05","PERF65-04"],"master_sections":["D.14","D.15","D.16","D.17","D.18","D.19","14"],"open_decisions":["OD-09","OD-10","OD-11"]},
+    {"phase":"41","milestone":"E","title":"Complete Scene/ECS authoring and hierarchy lifecycle","contract":"phases/PHASE_41.md","predecessor":"40","providers":["04","14","24","40"],"findings":["AUT-01","TRN-01"],"master_sections":["E.1","E.11","E.17"],"open_decisions":["OD-13"]},
+    {"phase":"42","milestone":"E","title":"Project roots and persistent identity","contract":"phases/PHASE_42.md","predecessor":"41","providers":["41"],"findings":["AUT-02"],"master_sections":["E.2","E.3"],"open_decisions":["OD-13"]},
+    {"phase":"43","milestone":"E","title":"Shared property metadata and structured authoring diagnostics","contract":"phases/PHASE_43.md","predecessor":"42","providers":["09","13","29","40","41","42"],"findings":["AUT-03"],"master_sections":["E.7","E.14","18.1"],"open_decisions":["OD-13"]},
+    {"phase":"44","milestone":"E","title":"Scene/component persistence and semantic round trip","contract":"phases/PHASE_44.md","predecessor":"43","providers":["41","42","43"],"findings":["AUT-03"],"master_sections":["E.4","E.7","E.11"],"open_decisions":["OD-13"]},
+    {"phase":"45","milestone":"E","title":"Constraint and ragdoll persistence extensions","contract":"phases/PHASE_45.md","predecessor":"44","providers":["26","27","28","29","44"],"findings":["AUT-03","PHY-04","PHY-05"],"master_sections":["E.4","C.9","C.10"],"open_decisions":["OD-13"]},
+    {"phase":"46","milestone":"E","title":"AssetDatabase, import settings and observable tasks","contract":"phases/PHASE_46.md","predecessor":"45","providers":["12","42","43","44"],"findings":["AUT-02","AUT-03"],"master_sections":["E.5","E.6","E.15"],"open_decisions":["OD-13"]},
+    {"phase":"47","milestone":"E","title":"Reimport dependencies, rollback and last-valid notifications","contract":"phases/PHASE_47.md","predecessor":"46","providers":["11","13","46"],"findings":["AUT-03"],"master_sections":["E.6","E.13","E.15"],"open_decisions":["OD-13"]},
+    {"phase":"48","milestone":"E","title":"Authoritative transactions and grouped mutations","contract":"phases/PHASE_48.md","predecessor":"47","providers":["13","14","41","43","44","45","47"],"findings":["AUT-04"],"master_sections":["E.8","E.13","E.17"],"open_decisions":["OD-13"]},
+    {"phase":"49","milestone":"E","title":"Undo/Redo and dirty/saved revisions","contract":"phases/PHASE_49.md","predecessor":"48","providers":["44","45","48"],"findings":["AUT-04"],"master_sections":["E.9","E.10"],"open_decisions":["OD-13"]},
+    {"phase":"50","milestone":"E","title":"Edit/Play state and resource isolation","contract":"phases/PHASE_50.md","predecessor":"49","providers":["13","24","41","47","48","49"],"findings":["AUT-05"],"master_sections":["E.11","E.12"],"open_decisions":["OD-13"]},
+    {"phase":"51","milestone":"E","title":"Extend shared authoring/debug visualization and E exit","contract":"phases/PHASE_51.md","predecessor":"50","providers":["18","29","40","41","43","50"],"findings":["DBG-01","AUT-01","AUT-03"],"master_sections":["E.16","E.17","14"],"open_decisions":["OD-13"]},
+    {"phase":"52","milestone":"F","title":"RBS admission and qualification of original C scaling residual","contract":"phases/PHASE_52.md","predecessor":"51","providers":["12","40","51"],"findings":["PERF65-01"],"master_sections":["8","14","18.2"],"open_decisions":["OD-12"],"admission_reference":"VALIDATION_CONTRACTS.md#performance-admission-p0","admission_stages":["Before START: approve bounded scope, equivalence/lineage criteria, protocol, original applicable thresholds and execution limits","During phase: establish equivalence or lineage evidence","Before comparative measurement: verify and admit comparability","If not established: OPEN / INCONCLUSIVE and explicit owner disposition; no threshold weakening or indefinite retries"]},
+    {"phase":"53","milestone":"F","title":"Historical CPU lineage and causal attribution","contract":"phases/PHASE_53.md","predecessor":"52","providers":["52"],"findings":["PERF65-02","PERF65-05-06"],"master_sections":["8","14","18.2"],"open_decisions":["OD-12"],"admission_reference":"VALIDATION_CONTRACTS.md#performance-admission-p0","admission_stages":["Before START: approve bounded scope, equivalence/lineage criteria, protocol, original applicable thresholds and execution limits","During phase: establish equivalence or lineage evidence","Before comparative measurement: verify and admit comparability","If not established: OPEN / INCONCLUSIVE and explicit owner disposition; no threshold weakening or indefinite retries"]},
+    {"phase":"54","milestone":"F","title":"Full RBS authoring-to-runtime integration","contract":"phases/PHASE_54.md","predecessor":"53","providers":["12","17","29","40","51","52","53"],"findings":["INT-01"],"master_sections":["14"],"open_decisions":["OD-14"]},
+    {"phase":"55","milestone":"F","title":"Core Editor handoff contract and final acceptance","contract":"phases/PHASE_55.md","predecessor":"54","providers":["54"],"findings":["INT-01"],"master_sections":["14","15","19","20"],"open_decisions":["OD-14"]}
+  ]
+}
+

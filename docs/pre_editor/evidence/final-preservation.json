@@ -1,0 +1,53 @@
+﻿{
+    "kind":  "READ_ONLY_AUDIT_PRESERVATION_OBSERVATION_NOT_A_RECEIPT",
+    "status":  "PROPOSED / NOT_STARTED",
+    "observed_utc":  "2026-09-27T19:52:56.6652534+00:00",
+    "baseline_observation":  "baseline-observation.json",
+    "head":  "9995074e7af161db76c5bf79a5ede030702fb4ca",
+    "phase68_commit":  "9995074e7af161db76c5bf79a5ede030702fb4ca",
+    "tag_commit":  "9995074e7af161db76c5bf79a5ede030702fb4ca",
+    "tag_object":  "48dbfd3430413492120eb551e761028b94c6f9c6",
+    "head_and_tag_unchanged":  true,
+    "before_file_count":  561,
+    "changed_paths":  [
+
+                      ],
+    "sealed_protected_path_count":  47,
+    "phase68_validation_input_count":  392,
+    "validation_input_mismatches":  [
+
+                                    ],
+    "raw_index_sha256":  "6b8a0d0b94ec358a838f358758f6e7e77d450f5126c38740aa1addddc75e8c49",
+    "raw_index_unchanged":  true,
+    "index_entries_unchanged_by_identical_raw_index":  true,
+    "staged_diff_unchanged":  true,
+    "phase68_journal_sha256":  "ee5f07723598def2ee30ba94b8b2f5f15c463aab6f142349843c35f08587fdba",
+    "phase68_journal_unchanged":  true,
+    "phase68_journal_status":  "COMPLETE",
+    "owner_mutable_sealed_refs_and_blobs_valid":  true,
+    "owner_mutable_worktree_sha256":  "5633d3a106179aa998851dbae0a2dd3e819340283a1a56ad51a4cbd377abeeba",
+    "non_proposal_git_status_differences":  [
+
+                                            ],
+    "documentation_consistency":  {
+                                      "phase_contracts":  56,
+                                      "canonical_findings":  33,
+                                      "finding_owners":  33,
+                                      "existing_file_links_checked":  779,
+                                      "forward_dependency_count":  0,
+                                      "issues":  [
+
+                                                 ],
+                                      "final_inventory_links":  "Checked after this record and package inventory are created"
+                                  },
+    "operations":  {
+                       "production_shader_asset_test_build_dependency_edits":  0,
+                       "live_governance_edits":  0,
+                       "application_runs":  0,
+                       "builds_tests_benchmarks_probes_captures":  0,
+                       "stage_commit_tag_push":  0,
+                       "worktree_branch_creation_or_switch":  0,
+                       "agents_spawned":  0
+                   },
+    "scope_of_proof":  "Exact entry fingerprint set (including protected local files, sealed sources/governance and 103 log/evidence files), raw index, Git identities and retained RBS objects. No executable ran or output writer targeted sealed directories; no fresh performance or exhaustive runtime certification."
+}

@@ -1,0 +1,676 @@
+﻿{
+  "kind": "DOCUMENTATION_REVISION_OBSERVATION_NOT_A_RECEIPT_OR_SEAL",
+  "revision": "01",
+  "status": "PROPOSED / NOT_STARTED",
+  "authorized_scope": "Documentation-only corrections to Phase 00 bootstrap, supported scale/collider behavior, and Phase 52-53 staged admission. No activation authorization.",
+  "entry_observed_utc": "2026-09-27T22:11:34.6033175+00:00",
+  "verification_observed_utc": "2026-09-27T22:26:47.6829032+00:00",
+  "provenance": "revisions/REVISION_01.md",
+  "original_observations": [
+    {
+      "path": "docs/pre_editor/evidence/baseline-observation.json",
+      "sha256": "606c921ad5abec7f716c95e2103e0f6e8dff6d34796e137586d0e11411109e13",
+      "unchanged": true
+    },
+    {
+      "path": "docs/pre_editor/evidence/source-observation.json",
+      "sha256": "fde0ba6d4ee603810736eeb6485d6ce2bb73826be946ea9400c2271ce994fb4a",
+      "unchanged": true
+    },
+    {
+      "path": "docs/pre_editor/evidence/final-preservation.json",
+      "sha256": "282cdbc319e3d885b85e1ea64d4291abcae77ffdf839e8c8c0d29b3afc6537d6",
+      "unchanged": true
+    },
+    {
+      "path": "docs/pre_editor/POST_RENDERING_HANDOFF_FINAL_INSTRUCTIONS.md",
+      "sha256": "214fb6444395f98366f25e94e47035d0196cefdc9c33c5adaf68b48d28433a6a",
+      "unchanged": true
+    }
+  ],
+  "original_inventory_sha256": "59da6e6384168178327453e42bb46f5238d502876b9f19b9c9aef353ac11e2c5",
+  "original_inventory": {
+    "kind": "AUDIT_DOCUMENT_TRANSFER_ALLOWLIST_NOT_A_SEAL_OR_RECEIPT",
+    "status": "PROPOSED / NOT_STARTED",
+    "origin_worktree": "C:/dev/GEngine-rendering",
+    "origin_commit": "9995074e7af161db76c5bf79a5ede030702fb4ca",
+    "created_utc": "2026-09-27T19:53:34.3563330+00:00",
+    "file_count": 70,
+    "new_file_count": 69,
+    "preexisting_modified_count": 0,
+    "future_transfer_requires": "Plan acceptance plus separate explicit activation/minimal-setup authorization; exact allowlist and source/destination hash verification",
+    "files": [
+      {
+        "path": "docs/pre_editor/ACTIVATION_PROPOSAL.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 6511,
+        "sha256": "9660af88a4d867240aa7c675b37d9c5d17c5aec329b5e0aeb46535c8c7751ff5"
+      },
+      {
+        "path": "docs/pre_editor/evidence/baseline-observation.json",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 100762,
+        "sha256": "606c921ad5abec7f716c95e2103e0f6e8dff6d34796e137586d0e11411109e13"
+      },
+      {
+        "path": "docs/pre_editor/evidence/final-preservation.json",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 2887,
+        "sha256": "282cdbc319e3d885b85e1ea64d4291abcae77ffdf839e8c8c0d29b3afc6537d6"
+      },
+      {
+        "path": "docs/pre_editor/evidence/source-observation.json",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 6768,
+        "sha256": "fde0ba6d4ee603810736eeb6485d6ce2bb73826be946ea9400c2271ce994fb4a"
+      },
+      {
+        "path": "docs/pre_editor/FINDINGS.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 15676,
+        "sha256": "83c1171d9a8f325ca60009f4ed28f7bccee141b35bf4edaf4efcb677956a16ac"
+      },
+      {
+        "path": "docs/pre_editor/HANDOFF_AUDIT.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 26181,
+        "sha256": "a456a84fea1b0b6cd80fe158d4794be0157bec7444f16c0c8b7d02e3c87a609c"
+      },
+      {
+        "path": "docs/pre_editor/PERFORMANCE_RESIDUALS.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 13678,
+        "sha256": "060aaa6db8acda05abd920f1b0ae952afc2bd949e7278b5cf652a39c894217a7"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_00.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4237,
+        "sha256": "3743a994f701cf440611c8c64d572f96d7db8c5188a26e168615ed9a49747f13"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_01.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 3713,
+        "sha256": "a1aa1e742c07d0a16146cc5013cca7f3f112f6a6c6c57dfe0f078dd1823f4e50"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_02.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 3797,
+        "sha256": "483cc8a2d2537a596cbb4c857e43d69676c308ac810baae2e6e30607de6e2b31"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_03.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 3766,
+        "sha256": "eda1eb9fdc8de50cce6450d205385ab9f634eb47a1ac9385ca01c046da53ba0a"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_04.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4116,
+        "sha256": "d4d52f08ba2c9f9dc00aad9538e63cbd0991260f84f5f9626f55f0a19d10f215"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_05.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4248,
+        "sha256": "d0e65f86a7507af86c813779d963f51411a990dc55cb2ac6f7d722b1ecf6f2bf"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_06.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 3928,
+        "sha256": "33822880c476ba3598d1bf3a87dc3a201cbf7675abec7e601d8877ee6a7e43f0"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_07.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 3648,
+        "sha256": "2a6ad437b4914dcc46d4f58ce0fd9d4f5afe469747084d831c1eaad47c673eb2"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_08.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4282,
+        "sha256": "48a86530444fd47d0255f2d84ba03af1f3cf9e6d4fc705a039a22e060a644518"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_09.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4474,
+        "sha256": "3744cc7d720786625588b2383a3d2d465fa0211ec7adbf74b9df4479e4806b60"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_10.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4119,
+        "sha256": "43d6001a014c066134e3792b59d0a64d52b67c5db163404775c4c07fb51c0dd1"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_11.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4021,
+        "sha256": "2a46ac2ce8795010f7c1ca100a5c75e29c6c31502989af4a85b872e336849bf6"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_12.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4393,
+        "sha256": "6de72c492f99807bc2706f26ba7a24327c110dfc773699c8fe39d8fa15c475bc"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_13.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4325,
+        "sha256": "a15bb686213ddac787b490ad019cbc560973ca4facf84220623be75e453bf9f4"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_14.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4236,
+        "sha256": "f8cc4860fc819c02ee622178ffc636b320b7624fbf5f295384728cb14751a546"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_15.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4177,
+        "sha256": "b9ebaf74cafe84114e7222e7e32e6198648bbedbe0d54bddee428c0a85806ed4"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_16.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4202,
+        "sha256": "9074898588c4af25fbcdc29d02e1f64520c495159d8e1f5fa0728ef32276d5f8"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_17.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 3874,
+        "sha256": "96211a8471b2c64ebe3b4e78d6e55bd7a06dc89ef3267546f53bd80bafd6260d"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_18.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4004,
+        "sha256": "2f2b8b5718bb8d10304163511a8c5b1d10678dd8876f1560f9191c64c8c6b5b4"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_19.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4411,
+        "sha256": "a48e41e02f4d8aea144665eab36812d113d8b98d76f1811cbbc529db62e312d9"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_20.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4112,
+        "sha256": "1466be35fa0857fa0513c52940a47c84441377b6d314c4079994702918c9adf7"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_21.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4062,
+        "sha256": "241425d50b3ea3097528666bd1c5e0ece001e310490e1afd918d6264fa34f9ef"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_22.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4038,
+        "sha256": "dfd81c217cd2c6c82bb8692f60af70ea08305a2a450a17735fa745e6a43a5dee"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_23.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4150,
+        "sha256": "e363571e6a41008b7daede56f8a7aa05d62132aded936ba34e08b3398cd4b81b"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_24.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4165,
+        "sha256": "b9e8757dc115d03302f94f4be069f7f2c8a1ff16adbc382a07f47fab10f61a4d"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_25.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 3999,
+        "sha256": "c5a6ae7a047dc924ddb2d6ded058419d7d0daf5cc698133e726d7d701f76a5f2"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_26.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4476,
+        "sha256": "fe7d97cfd38bcf5948c1bc8ecb52bcd7868163b18806ac0a5e94804841e91978"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_27.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 3805,
+        "sha256": "168ffdbd39e2f9f39af3f3930810c6e8f49f6168d6467080b211f2325e8270e5"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_28.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 3960,
+        "sha256": "9494be6ac48d8abb415dd9a771a062ee03c4582845761db49dfd99e138a23f1a"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_29.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4280,
+        "sha256": "3c946f7b4cb72870b14aa68940570172650130861e298627657c4a4e1c7aa768"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_30.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4575,
+        "sha256": "0c577b466b15f120f3cfbcf451a79d78bb5b34ad21b16c8767e68dc70620fba4"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_31.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4618,
+        "sha256": "279c778b0cf960e02e3db8949b68e68f9126a9acd20d36c8c713889799b40e3c"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_32.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4739,
+        "sha256": "8f1cb14676776d3822ffea9fac90fc7241d57dcde50a1d6a0aa5e311da2fc900"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_33.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4536,
+        "sha256": "c2ebf821d0265e578e7ed1b08b9b6effee85476436ea578c6a2f8919ef14b88b"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_34.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4485,
+        "sha256": "ef0c54284d4fb4517d0c0c243223ac989803adbcd963a8d9da5ab2db67e8f508"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_35.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4560,
+        "sha256": "1a5de7e073974d4769caaaa054e8ee8e013ac1e2cf6a9d6bca9904e07ce4b7d4"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_36.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4348,
+        "sha256": "653d6aa1765019be9ad4c5a9253e0b777651db9c9ef189e435629dcdb38567a2"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_37.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4554,
+        "sha256": "fd68befb45eb7afcf00c8bbca6a988c58287d228db980c7f3500642d08cb62fb"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_38.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4429,
+        "sha256": "0ea4c12361dc3e2c7f8976d8270d1c5f506cabedd033e8545df21ce1914f1ef8"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_39.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4523,
+        "sha256": "14aca6ce0bf5a9237bf02dca1132dbf31a020074d2fceea11f4cc6e1cee89ab1"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_40.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 5099,
+        "sha256": "dad1ee623fca2ba9f3d9534c589d3899fc8e4f4d03dffc7f01dc89f63b47d879"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_41.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4137,
+        "sha256": "962e3b1f6822f1cbc5799f74705ededfd4de4670900dbd1a79348a40b14a3869"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_42.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4039,
+        "sha256": "566974a650e7d35ffb79fb6f5cb12c13c3413f20c406d8d355e95fcbe552f5f3"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_43.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4388,
+        "sha256": "723ba090e1e2ce36e3d1f2ea9ae5fc473895acb451df50a7c0fd2c17e1cc69ad"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_44.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4310,
+        "sha256": "57104321a5403c8658e1180fb6bc0109c8e921ef25b24e20fe680342546eaa21"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_45.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4219,
+        "sha256": "14eeb8da570dc82fc8e0537e3285d2f881b423e257128060d3a489dbf00ee000"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_46.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4296,
+        "sha256": "01d0ccaeee70d5181b3b274f3c99fe8c364b57b7ae9ebc276de20437876ec574"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_47.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4193,
+        "sha256": "cf4683f46e689675b19ff70c351f8715dbec55dc07b5cb5b2461b3fef4bbc293"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_48.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4205,
+        "sha256": "33f8a9e0ff5b2311ed3a1f05d98e2a4468d075a0beeff286c951da5f55a36863"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_49.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 3890,
+        "sha256": "bdf7a6ff8eeb4a99d603b0ce80a5c5d897122f8453568f0bec343e4a8b7ee1fc"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_50.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4179,
+        "sha256": "4b19b01a890bef5ebffd4e965394b7e11e68833a22528445d4c521c0dc8be7e9"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_51.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4143,
+        "sha256": "50fe4fe8b2d5a340bf472ed9f4d98b087a87573117f0ab51dbf08e3357c2c281"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_52.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4091,
+        "sha256": "c0efe2378e42f7e1855eaefb1d29ed5956595754937c7b5aa1b739a15e38689a"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_53.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4149,
+        "sha256": "44491a2412e6607b45ceb334f46b964f79a76679c0e257aac72172515ed50f87"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_54.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4597,
+        "sha256": "f3ec138fb8ceb94fa1e351cada2cf468b4d0b51d3c694fbe384efc20ac654942"
+      },
+      {
+        "path": "docs/pre_editor/phases/PHASE_55.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 4047,
+        "sha256": "ea5a78584dc8c4032f4a859af50d2d34c44334de4b0d1cdabac98b14deed4e70"
+      },
+      {
+        "path": "docs/pre_editor/POST_RENDERING_HANDOFF_FINAL_INSTRUCTIONS.md",
+        "change": "PREEXISTING_UNCHANGED",
+        "bytes": 81348,
+        "sha256": "214fb6444395f98366f25e94e47035d0196cefdc9c33c5adaf68b48d28433a6a"
+      },
+      {
+        "path": "docs/pre_editor/PRE_EDITOR_PLAN.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 20018,
+        "sha256": "97e103874989a409a4b14d9488e54f016e05bd8d5a839e5073c75e71e3914c7a"
+      },
+      {
+        "path": "docs/pre_editor/PROPOSAL_MANIFEST.json",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 24039,
+        "sha256": "68cd349c2c5e6d03130aaae7dd8c1718c66222a044fba8cce1c6d88ec23097c6"
+      },
+      {
+        "path": "docs/pre_editor/proposals/clang-format.proposed",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 398,
+        "sha256": "69ffce46f5f366e722cd43b4762e395bd58a6e7fb8834e21f7646aa3381879c6"
+      },
+      {
+        "path": "docs/pre_editor/proposals/CODING_STYLE.proposed.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 3012,
+        "sha256": "4d37a80da1d5f697e94b9bd62a839f716bdb235079081a895f0507826890b8ec"
+      },
+      {
+        "path": "docs/pre_editor/VALIDATION_CONTRACTS.md",
+        "change": "CREATED_BY_AUDIT",
+        "bytes": 22775,
+        "sha256": "29892684544e03d1e0a5a32da7ec04a7157a8db37587b98a1a7525a257e0a3c2"
+      },
+      {
+        "path": "docs/pre_editor/evidence/package-files.json",
+        "change": "CREATED_BY_AUDIT",
+        "sha256": null,
+        "reason": "Self inventory is enumerated but not recursively hashed; record the delivered file hash at later authorized transfer."
+      }
+    ]
+  },
+  "source_inspection": [
+    {
+      "path": "GEngine/include/GEngine/Component/Component.h",
+      "sha256": "508e7adbe4eeddefb5e3210e91e1b5f531ff64bb1601cb86b289884105b3f454",
+      "inspection": "READ_ONLY_SOURCE_NOT_EXECUTED"
+    },
+    {
+      "path": "GEngine/src/Scene/_Scene.cpp",
+      "sha256": "61cff48ffd95b00a4715ded0934d9d8c3bd6586413e2ac7e4c3190107cd878f1",
+      "inspection": "READ_ONLY_SOURCE_NOT_EXECUTED"
+    },
+    {
+      "path": "GEngine/src/Geometry/Geometry.cpp",
+      "sha256": "4e6da144f94239dfa292482bfe39ea87024e1a8a1dd1a3671399a68ef0d5f300",
+      "inspection": "READ_ONLY_SOURCE_NOT_EXECUTED"
+    },
+    {
+      "path": "GEngine/include/GEngine/Physics/Shape.h",
+      "sha256": "f8d76f984198ab7e50c7acc7cde8dcdca8e37c08cc152eeac4d024bbc817a32f",
+      "inspection": "READ_ONLY_SOURCE_NOT_EXECUTED"
+    },
+    {
+      "path": "GEngine/include/GEngine/Physics/Shape.cpp",
+      "sha256": "4657f8ac241de9c27845cafc7f9c5c6af87bce4274666e817c6ed1d5193378a1",
+      "inspection": "READ_ONLY_SOURCE_NOT_EXECUTED"
+    },
+    {
+      "path": "GEngine/include/GEngine/Physics/ShapeSphere.cpp",
+      "sha256": "acd6389a2bee45e869e27ae2d7750844fe4d399ca82364dba556c941f63cfe7b",
+      "inspection": "READ_ONLY_SOURCE_NOT_EXECUTED"
+    },
+    {
+      "path": "GEngine/include/GEngine/Physics/ShapeBox.cpp",
+      "sha256": "42d266c6302f002157ab5a12d02c6a44a5e500f988f9845ac97c8325b004f91a",
+      "inspection": "READ_ONLY_SOURCE_NOT_EXECUTED"
+    },
+    {
+      "path": "GEngine/include/GEngine/Physics/ShapeConvex.cpp",
+      "sha256": "cb59c818394cae3a2ec23f968cf25babda941527d8b8f460fd2d4671435a55a6",
+      "inspection": "READ_ONLY_SOURCE_NOT_EXECUTED"
+    },
+    {
+      "path": "GEngine/include/GEngine/Physics/PhysicsBody.cpp",
+      "sha256": "15eca90ca0e150e61238f9a7d44ffe00f06a56ad5b3b9d87e533d4065caf9639",
+      "inspection": "READ_ONLY_SOURCE_NOT_EXECUTED"
+    },
+    {
+      "path": "GEngine/include/GEngine/Physics/PhysicsSystem.cpp",
+      "sha256": "280667699d41348a1d5454ad61fac45a14fded91384e107b06d0a1b22d7037b4",
+      "inspection": "READ_ONLY_SOURCE_NOT_EXECUTED"
+    },
+    {
+      "path": "GEngine/src/Core/Actor.cpp",
+      "sha256": "13b000efdd1e92b7271c412be366ceee9df2bcd6d114df382dc68a6652b7c2b9",
+      "inspection": "READ_ONLY_SOURCE_NOT_EXECUTED"
+    },
+    {
+      "path": "GEngineEditor/src/SceneApp.cpp",
+      "sha256": "3a52fb1912aec47bb68dd36e58e4297612fd31c8ce2c19fd39565c7031919cef",
+      "inspection": "READ_ONLY_SOURCE_NOT_EXECUTED"
+    },
+    {
+      "path": "RigidBodySimulation/src/RigidBodySimulation.cpp",
+      "sha256": "5633d3a106179aa998851dbae0a2dd3e819340283a1a56ad51a4cbd377abeeba",
+      "inspection": "READ_ONLY_SOURCE_NOT_EXECUTED"
+    },
+    {
+      "path": "PhysicsTests/src/main.cpp",
+      "sha256": "44844488d97e4892d57546c48c0e315230228c6fecca573c601e74a6d7bab3f8",
+      "inspection": "READ_ONLY_SOURCE_NOT_EXECUTED"
+    }
+  ],
+  "changed_existing_documents": [
+    {
+      "path": "docs/pre_editor/ACTIVATION_PROPOSAL.md",
+      "sha256_before": "9660af88a4d867240aa7c675b37d9c5d17c5aec329b5e0aeb46535c8c7751ff5",
+      "sha256_after": "88269d1b59732ee24e580b4f0a69b30e24feb9741b31eaa0623a07eb7fffaadb",
+      "bytes_after": 6908
+    },
+    {
+      "path": "docs/pre_editor/FINDINGS.md",
+      "sha256_before": "83c1171d9a8f325ca60009f4ed28f7bccee141b35bf4edaf4efcb677956a16ac",
+      "sha256_after": "48ee1ab6a2acf017d109ad17dd54e4c8734f17ba543703d229a57c07160391fa",
+      "bytes_after": 16021
+    },
+    {
+      "path": "docs/pre_editor/HANDOFF_AUDIT.md",
+      "sha256_before": "a456a84fea1b0b6cd80fe158d4794be0157bec7444f16c0c8b7d02e3c87a609c",
+      "sha256_after": "2c2fe867a87f49b8c7535897ab7aa33b52a1c4ff1c183a69d604e9ce77469526",
+      "bytes_after": 30484
+    },
+    {
+      "path": "docs/pre_editor/PERFORMANCE_RESIDUALS.md",
+      "sha256_before": "060aaa6db8acda05abd920f1b0ae952afc2bd949e7278b5cf652a39c894217a7",
+      "sha256_after": "8ddca4bdc06f44cac0cd3675d6cc029a59c6dc85c102e5b00af78e7ff1bc881f",
+      "bytes_after": 14906
+    },
+    {
+      "path": "docs/pre_editor/phases/PHASE_00.md",
+      "sha256_before": "3743a994f701cf440611c8c64d572f96d7db8c5188a26e168615ed9a49747f13",
+      "sha256_after": "cf9cebd4611efa1381fef4f11cffa75f6aa48ba7d04ade928e2396186fe6b384",
+      "bytes_after": 4664
+    },
+    {
+      "path": "docs/pre_editor/phases/PHASE_08.md",
+      "sha256_before": "48a86530444fd47d0255f2d84ba03af1f3cf9e6d4fc705a039a22e060a644518",
+      "sha256_after": "80c43226520993854ce911e2f05c0af7be3f5c5c06319a2b0e1a7df45f92fb67",
+      "bytes_after": 5146
+    },
+    {
+      "path": "docs/pre_editor/phases/PHASE_13.md",
+      "sha256_before": "a15bb686213ddac787b490ad019cbc560973ca4facf84220623be75e453bf9f4",
+      "sha256_after": "f2801b8524c918beed0f285ba7d5589dd6ac37815cfc7cc56b2e107ae1fea3cc",
+      "bytes_after": 4911
+    },
+    {
+      "path": "docs/pre_editor/phases/PHASE_14.md",
+      "sha256_before": "f8cc4860fc819c02ee622178ffc636b320b7624fbf5f295384728cb14751a546",
+      "sha256_after": "4bebc5ef4d22a1740269bf32db56406871255f9697a02b0a77d2790e8d8cc5a4",
+      "bytes_after": 5022
+    },
+    {
+      "path": "docs/pre_editor/phases/PHASE_24.md",
+      "sha256_before": "b9e8757dc115d03302f94f4be069f7f2c8a1ff16adbc382a07f47fab10f61a4d",
+      "sha256_after": "18cb0476960f10571275f9f1a55bccf375bc6cfbe573f567d39cf9e15f72f8a9",
+      "bytes_after": 5035
+    },
+    {
+      "path": "docs/pre_editor/phases/PHASE_52.md",
+      "sha256_before": "c0efe2378e42f7e1855eaefb1d29ed5956595754937c7b5aa1b739a15e38689a",
+      "sha256_after": "24fa8f4b66b6b93508d03e610bda53013171a8d6c56b1fe8ddd832953a8d1fe7",
+      "bytes_after": 4859
+    },
+    {
+      "path": "docs/pre_editor/phases/PHASE_53.md",
+      "sha256_before": "44491a2412e6607b45ceb334f46b964f79a76679c0e257aac72172515ed50f87",
+      "sha256_after": "14ced965047cb73b044c493bf8c659589c5a2d8c5fcce71b7991dad0e4f937ba",
+      "bytes_after": 5026
+    },
+    {
+      "path": "docs/pre_editor/PRE_EDITOR_PLAN.md",
+      "sha256_before": "97e103874989a409a4b14d9488e54f016e05bd8d5a839e5073c75e71e3914c7a",
+      "sha256_after": "f2f8b5470abb0906716628c5694ffa6c67cc0a620456bb80a8475bbdd3d4fd2a",
+      "bytes_after": 21582
+    },
+    {
+      "path": "docs/pre_editor/PROPOSAL_MANIFEST.json",
+      "sha256_before": "68cd349c2c5e6d03130aaae7dd8c1718c66222a044fba8cce1c6d88ec23097c6",
+      "sha256_after": "dfd740633e697adc02f340f33583110db2129ca914d00c779ecaa3416c6c29c3",
+      "bytes_after": 26298
+    },
+    {
+      "path": "docs/pre_editor/VALIDATION_CONTRACTS.md",
+      "sha256_before": "29892684544e03d1e0a5a32da7ec04a7157a8db37587b98a1a7525a257e0a3c2",
+      "sha256_after": "c1e1fef342daa960bd802c992426aab9434c7135089651be035bf8048ccd61cc",
+      "bytes_after": 25522
+    }
+  ],
+  "inventory_refresh": {
+    "path": "docs/pre_editor/evidence/package-files.json",
+    "sha256_before": "59da6e6384168178327453e42bb46f5238d502876b9f19b9c9aef353ac11e2c5",
+    "original_created_utc": "2026-09-27T19:53:34.3563330+00:00",
+    "reason": "Refresh hashes/counts and append revision provenance; self inventory is not recursively hashed"
+  },
+  "new_documents": [
+    "docs/pre_editor/revisions/REVISION_01.md",
+    "docs/pre_editor/evidence/revision-01.json"
+  ],
+  "preservation": {
+    "head_before": "9995074e7af161db76c5bf79a5ede030702fb4ca",
+    "head_after": "9995074e7af161db76c5bf79a5ede030702fb4ca",
+    "head_unchanged": true,
+    "raw_index_sha256": "6b8a0d0b94ec358a838f358758f6e7e77d450f5126c38740aa1addddc75e8c49",
+    "raw_index_unchanged": true,
+    "staged_diff_unchanged": true,
+    "protected_basis": "evidence/baseline-observation.json",
+    "protected_fingerprints_checked": 561,
+    "protected_changes": [],
+    "approval_journal_sha256": "ee5f07723598def2ee30ba94b8b2f5f15c463aab6f142349843c35f08587fdba",
+    "approval_journal_unchanged": true,
+    "non_proposal_status_unchanged": true,
+    "worktrees_unchanged": true,
+    "original_audit_observations_and_timestamps_unchanged": true
+  },
+  "documentation_checks": {
+    "phase_count": 56,
+    "phase_numbering_titles_milestones_dependencies_findings_unchanged": true,
+    "residual_ownership_unchanged": true,
+    "proposal_status_unchanged": true,
+    "links_checked_before_record_creation": 806,
+    "required_clarifications_verified": true,
+    "issues": [],
+    "checker_correction": "Removed an incidental-word requirement ('associated'); verified the explicit Bake/SetScale callback sentence instead. No document or acceptance criterion was weakened.",
+    "final_inventory_link_and_hash_check": "Required after writing this observation and refreshing package-files.json"
+  },
+  "counts": {
+    "existing_documents_revised": 15,
+    "new_documents": 2,
+    "package_files_before": 70,
+    "package_files_after": 72
+  },
+  "operations": {
+    "production_shader_asset_test_build_dependency_edits": 0,
+    "live_governance_edits": 0,
+    "builds_tests_benchmarks_application_runs": 0,
+    "stage_commit_tag_push": 0,
+    "branch_worktree_creation_or_switch": 0,
+    "pre_editor_activation": 0,
+    "agents_spawned": 0
+  }
+}
+

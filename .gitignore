@@ -35,3 +35,9 @@ logs/
 /MANIFEST.md
 /RENDERING_REFACTOR_PLAN.md
 /docs/rendering/
+# Local PRE_EDITOR workflow and mutable runtime output
+/.agents/skills/pre-editor-phase-execution/
+/.agents/skills/pre-editor-phase-approval/
+/.agents/skills/pre-editor-phase-rejection/
+/docs/pre_editor/active/
+/runtime/

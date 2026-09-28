@@ -1,0 +1,14 @@
+﻿# PROPOSED / NOT_STARTED. Not a live .clang-format.
+# Adopt only in PRE_EDITOR Phase 01 after reviewing the installed formatter version.
+BasedOnStyle: LLVM
+Language: Cpp
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+BreakBeforeBraces: Allman
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+SortIncludes: Never
+

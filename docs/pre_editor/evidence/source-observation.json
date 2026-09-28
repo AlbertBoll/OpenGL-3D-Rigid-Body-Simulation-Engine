@@ -1,0 +1,78 @@
+{
+  "kind": "SOURCE_INSPECTION_NOT_RUNTIME_VALIDATION",
+  "status": "PROPOSED / NOT_STARTED",
+  "phase68_validation_input_count": 392,
+  "validation_input_mismatches": [],
+  "style_samples": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "lines": 1075,
+      "over100": 145,
+      "over120": 70,
+      "longest": 234,
+      "sha256": "5633d3a106179aa998851dbae0a2dd3e819340283a1a56ad51a4cbd377abeeba"
+    },
+    "GEngine/src/Renderer/SceneRenderResources.cpp": {
+      "lines": 254,
+      "over100": 47,
+      "over120": 11,
+      "longest": 156,
+      "sha256": "ce578293ac5b5fb9e5e0f7afab3da803c04c9f9337e5af9a8c7a250ccf81d991"
+    },
+    "GEngine/src/Renderer/FrameSubmission.cpp": {
+      "lines": 873,
+      "over100": 148,
+      "over120": 58,
+      "longest": 205,
+      "sha256": "48509a56e1e6ce609d0d0c2727b6df33c1eb8ebd4f0175cb248454be0c05c495"
+    },
+    "GEngine/src/Scene/RenderState.cpp": {
+      "lines": 574,
+      "over100": 88,
+      "over120": 27,
+      "longest": 158,
+      "sha256": "7065924cfbb1157722c5051b8d0fd4348c50f23da4b94916bba894cf6cd0af32"
+    },
+    "GEngine/src/Scene/_Scene.cpp": {
+      "lines": 1086,
+      "over100": 71,
+      "over120": 14,
+      "longest": 153,
+      "sha256": "61cff48ffd95b00a4715ded0934d9d8c3bd6586413e2ac7e4c3190107cd878f1"
+    },
+    "GEngine/include/GEngine/Events/Event.h": {
+      "lines": 167,
+      "over100": 4,
+      "over120": 2,
+      "longest": 123,
+      "sha256": "4080d023e48ab0cdaf61fab45c1322e73fcf1c22eb63026a7701182e25b20d51"
+    },
+    "GEngine/include/GEngine/Physics/PhysicsSystem.cpp": {
+      "lines": 1332,
+      "over100": 95,
+      "over120": 28,
+      "longest": 220,
+      "sha256": "280667699d41348a1d5454ad61fac45a14fded91384e107b06d0a1b22d7037b4"
+    },
+    "GEngine/include/GEngine/Managers/ShaderManager.h": {
+      "lines": 93,
+      "over100": 1,
+      "over120": 0,
+      "longest": 108,
+      "sha256": "c25f98116f98079bedd4b3359588c6b364806b9ca775a05f69c046da746f4ec4"
+    }
+  },
+  "live_clang_format_exists": false,
+  "physics_authoritative_tree": "829629515a5363bdcf23d6f1654e7714a5fa9f18",
+  "physics_branch_head": "89030282c1b2fd21a55eae2934e7f080eff7950d",
+  "physics_tag_commit": "89030282c1b2fd21a55eae2934e7f080eff7950d",
+  "physics_branch_tree": "cc0fad3decd658c8ec6cfd55ce6a3103cda420bb",
+  "physics_39_is_rendering_ancestor": true,
+  "physics_unstaged_diff": "diff --git a/GEngine/include/GEngine/Physics/PhysicsSystem.h b/GEngine/include/GEngine/Physics/PhysicsSystem.h\nindex 7c690b5..cb7903c 100644\n--- a/GEngine/include/GEngine/Physics/PhysicsSystem.h\n+++ b/GEngine/include/GEngine/Physics/PhysicsSystem.h\n@@ -57,7 +57,7 @@ namespace GEngine\n \n \t\tstatic constexpr int MinSolverIterations = 1;\n \t\tstatic constexpr int MaxSolverIterations = 32;\n-\t\tstatic constexpr int DefaultSolverIterations = 1;\n+\t\tstatic constexpr int DefaultSolverIterations = 2;\n \n \t\t// Per-system policy, retained across world replacement. Invalid requests leave it unchanged.\n \t\t// Changes take effect on the next Update; configuration and stepping are single-threaded.\ndiff --git a/GEngine/src/Scene/_Scene.cpp b/GEngine/src/Scene/_Scene.cpp\nindex e1c238b..7c9e66b 100644\n--- a/GEngine/src/Scene/_Scene.cpp\n+++ b/GEngine/src/Scene/_Scene.cpp\n@@ -180,7 +180,7 @@ namespace GEngine\n \t\t\tconst double accepted = std::min(elapsed, MaxPendingPhysicsSeconds - m_PhysicsTiming.pendingSeconds);\n \t\t\tm_PhysicsTiming.pendingSeconds += accepted;\n \t\t\tm_PhysicsTiming.discardedSeconds = elapsed - accepted;\n-\t\t\tconst double maxTotal = std::numeric_limits<double>::max();\n+\t\t\tconstexpr double maxTotal = std::numeric_limits<double>::max();\n \t\t\tm_PhysicsTiming.totalDiscardedSeconds += std::min(m_PhysicsTiming.discardedSeconds,\n \t\t\t\tmaxTotal - m_PhysicsTiming.totalDiscardedSeconds);\n \t\t\t// Only absorb roundoff at a tick boundary (less than 5e-16 seconds).",
+  "physics_status": "1 .M N... 100644 100644 100644 43ded6dd2217fabe28b80e4d79f3864a79f5e701 43ded6dd2217fabe28b80e4d79f3864a79f5e701 .gitignore\n1 .M N... 100644 100644 100644 7c690b535aedb5dc0594bfb5c72857baa22a03e5 7c690b535aedb5dc0594bfb5c72857baa22a03e5 GEngine/include/GEngine/Physics/PhysicsSystem.h\n1 .M N... 100644 100644 100644 e1c238b7833284d075964be47b22280051344750 e1c238b7833284d075964be47b22280051344750 GEngine/src/Scene/_Scene.cpp\n1 .M N... 100644 100644 100644 50fb0ba09f4510c17cc9e3a34372501728b80563 50fb0ba09f4510c17cc9e3a34372501728b80563 RigidBodySimulation/src/RigidBodySimulation.cpp\n1 .M N... 100644 100644 100644 57e15bc9f49f0158b97481b6fe6d75575c85f329 57e15bc9f49f0158b97481b6fe6d75575c85f329 docs/physics/PHYSICS_REFACTOR_OPTIMIZATION_PLAN.md\n1 .D N... 100644 100644 000000 9067e3733878c23ca07f7e97783c2f958a67a316 9067e3733878c23ca07f7e97783c2f958a67a316 docs/physics/review/PHASE_00_REVIEW.md\n1 .D N... 100644 100644 000000 90793a3744bf7bd81937cc38473adbf353a824aa 90793a3744bf7bd81937cc38473adbf353a824aa docs/physics/review/PHASE_01_REVIEW.md\n1 .D N... 100644 100644 000000 81fed5b28dda27d3c5d104f03a47aecea6b7360a 81fed5b28dda27d3c5d104f03a47aecea6b7360a docs/physics/review/PHASE_02_REVIEW.md\n1 .D N... 100644 100644 000000 e16ff68c2c30121f38909befad14f9c8a559faf9 e16ff68c2c30121f38909befad14f9c8a559faf9 docs/physics/review/PHASE_03_REVIEW.md\n1 .D N... 100644 100644 000000 66c2381a14ae042b1119f5b6698b97d78f9aa139 66c2381a14ae042b1119f5b6698b97d78f9aa139 docs/physics/review/PHASE_04_REVIEW.md\n? .agents/skills/physics-phase-approval/SKILL.md\n? .agents/skills/physics-phase-approval/agents/openai.yaml\n? .agents/skills/physics-phase-approval/scripts/Test-PhaseStagedFiles.ps1\n? .agents/skills/physics-phase-execution/SKILL.md\n? .agents/skills/physics-phase-execution/agents/openai.yaml\n? .agents/skills/physics-phase-execution/scripts/Get-PhysicsPhasePreflight.ps1\n? AGENTS.md\n? BoxStackProbe.cpp\n? docs/audit/CODEBASE_AUDIT.md\n? docs/audit/CODEBASE_AUDIT.pdf\n? docs/audit/PHYSICS_SYSTEM_AUDIT.md\n? docs/audit/PHYSICS_SYSTEM_AUDIT.pdf\n? docs/audit/RENDERING_ECS_SYSTEM_AUDIT.md\n? docs/audit/RENDERING_ECS_SYSTEM_AUDIT.pdf\n? docs/physics/PHASE_31_REVIEW.md\n? docs/physics/PHASE_40_REVIEW.md\n? docs/physics/PHASE_41_REVIEW.md\n? docs/rendering/RENDERING_REFACTOR_OPTIMIZATION_PLAN.pdf",
+  "physics_evidence_hashes": {
+    "docs/physics/PHASE_39_REVIEW.md": "8fbef2f4a1982c3a53051ef16954af090a8544db931d7f6e0228636cce9f5cad",
+    "docs/physics/PHASE_39_LATTICE_BOUNCE_DIAGNOSTIC.md": "29e16ef2d1666a6049804d5e82a51895c0aad6a9d79bf77af5b9978b7e7934fa",
+    "docs/physics/PHASE_40_REVIEW.md": "423cbb205d7e4087a4db423ae615f9bd8ac5da8f6021f3315311c0d67b29ea40"
+  },
+  "new_builds_tests_application_runs_benchmarks": 0
+}

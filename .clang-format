@@ -1,0 +1,32 @@
+# GEngine scoped C++ policy; pin clang-format 19.1.5 (see CODING_STYLE.md).
+# Apply only to the active phase's explicitly selected files or ranges.
+BasedOnStyle: LLVM
+Language: Cpp
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+BreakBeforeBraces: Allman
+NamespaceIndentation: All
+AccessModifierOffset: -4
+PointerAlignment: Left
+ReferenceAlignment: Pointer
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortLambdasOnASingleLine: None
+AllowShortEnumsOnASingleLine: false
+
+# Keep dependency order, comments, literals and syntax out of mechanical edits.
+SortIncludes: Never
+IncludeBlocks: Preserve
+SortUsingDeclarations: Never
+ReflowComments: false
+BreakStringLiterals: false
+FixNamespaceComments: false
+QualifierAlignment: Leave
+InsertBraces: false
+RemoveBracesLLVM: false
+RemoveParentheses: Leave
+RemoveSemicolon: false

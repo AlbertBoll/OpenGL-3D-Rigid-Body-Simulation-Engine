@@ -1,0 +1,251 @@
+{
+  "baseline": "6c2d044c2fe12d4c59ba0018e8f143a97928c9d7",
+  "branch": "pre-editor/refactor",
+  "checkpoint_files": [
+    ".clang-format",
+    "CODING_STYLE.md",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "pre-editor-checkpoints/phase-01.json"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Two policy files; exact four-file initial review set, narrow later selection and mechanical/semantic separation documented. CQ-01 overall remediation and CQ-02 obligations remain at their named phases.",
+      "finding": "Phase 01 policy/configuration scope and exact initial A touchpoints",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Preserved failed attempts; current metrics computed fresh, comment-aware check passes on exact stable previews. No historical numeric result reused or provenance rewritten.",
+      "finding": "Historical hash/metric reuse admission and literal-scanner false positive",
+      "status": "RESOLVED"
+    }
+  ],
+  "local_governance": [
+    "docs/pre_editor/active/PHASE_01_REVIEW.md",
+    "docs/pre_editor/active/PHASE_01_SCOPE.json"
+  ],
+  "next_phase": "02",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "48b3ea792e5f17938d7329500791765ceca97b2b",
+      "blob_ref": "refs/pre-editor-seals/132ea79b7cc6541e/phase-01/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/48b3ea792e5f17938d7329500791765ceca97b2b",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "5633d3a106179aa998851dbae0a2dd3e819340283a1a56ad51a4cbd377abeeba"
+      },
+      "mode": "100644",
+      "validated_blob": "89dc8c02fa02b4420988fda65e9659c8e8d48bbc",
+      "validated_blob_ref": "refs/pre-editor-seals/132ea79b7cc6541e/phase-01/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/89dc8c02fa02b4420988fda65e9659c8e8d48bbc"
+    }
+  },
+  "phase": "01",
+  "previous_approved_tag": "pre-editor-phase-00-approved",
+  "protected_files": [
+    "docs/pre_editor.zip"
+  ],
+  "remote": "origin",
+  "review": "docs/pre_editor/active/PHASE_01_REVIEW.md",
+  "schema": 2,
+  "summary": "Adopt scoped C++ policy and pin clang-format 19.1.5; no production edits",
+  "validation": [
+    {
+      "check": "Predecessor publication and entry identity",
+      "command": "python - (before-edit entry recorder using read-only git commands and completed PHASE_00 journal)",
+      "evidence": "logs/pre_editor/phase-01/entry.json; logs/pre_editor/phase-01/package-validation.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Pinned formatter configuration compatibility",
+      "command": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\bin\\clang-format.exe --style=file:.clang-format --fallback-style=none --Werror --dump-config",
+      "evidence": "logs/pre_editor/phase-01/attempt-03/commands.json; logs/pre_editor/phase-01/attempt-03/effective-config.stdout",
+      "result": "PASS"
+    },
+    {
+      "check": "Four deterministic and idempotent source previews with preserved literals/includes/non-whitespace sequence",
+      "command": "python logs/pre_editor/phase-01/complete-validation.py (verifies exact previews from commands.json; no additional formatter run)",
+      "evidence": "logs/pre_editor/phase-01/validation.json; logs/pre_editor/phase-01/attempt-03/commands.json; logs/pre_editor/phase-01/evidence-inventory.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Representative output and scoped policy review",
+      "command": "Read CODING_STYLE.md, .clang-format and saved source previews/diffs; inspect resource, RAII and RBS setup/error paths",
+      "evidence": "logs/pre_editor/phase-01/preview-review.json; docs/pre_editor/active/PHASE_01_REVIEW.md",
+      "result": "PASS"
+    },
+    {
+      "check": "Whitespace, exact scope, protected provenance and raw/logical index preservation",
+      "command": "python logs/pre_editor/phase-01/complete-validation.py; python logs/pre_editor/phase-01/prepare-seal.py",
+      "evidence": "logs/pre_editor/phase-01/validation.json; logs/pre_editor/phase-01/package-validation.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Builds, tests, applications and benchmarks",
+      "command": "NOT RUN under Phase 01 and C0/V0 documentation-only validation",
+      "evidence": "logs/pre_editor/phase-01/validation.json",
+      "reason": "No source/shared contract changes; active phase explicitly requires no runtime or tests. Owner acceptance remains pending.",
+      "result": "NOT_APPLICABLE"
+    }
+  ],
+  "validation_input_hashes": {
+    ".agents/skills/pre-editor-phase-execution/SKILL.md": {
+      "executable": null,
+      "sha256": "a9b843213b034c8205c90f866b1e63b2d1a602a25a2a3a32328c777677a28808"
+    },
+    ".clang-format": {
+      "executable": null,
+      "sha256": "b4f1113a0219fb6971d5a2ebb63cf265188e74cc533c1b30988189fc8a12e2e8"
+    },
+    ".codex/tools/rendering_checkpoint.py": {
+      "executable": null,
+      "sha256": "bf50e1c5df98962c10648e5cb9f3cb85560fab8491bfa129d9c0dfc9f7b940d9"
+    },
+    "AGENTS.md": {
+      "executable": null,
+      "sha256": "159c37b93ccf0d3d45551944dc7032bd8d8f215feddbeef92bc3cfb24fb77919"
+    },
+    "CODING_STYLE.md": {
+      "executable": null,
+      "sha256": "add9f5eb94fdd59d304600b10fdc822ce0a4ca72661d3d0008f276fa88cffc6b"
+    },
+    "GEngine/include/GEngine/Renderer/SceneRenderResources.h": {
+      "executable": null,
+      "sha256": "3549c4f6d48b57acb421e302dc3c20e0bf693dbd047aa7f6607ef97bba534180"
+    },
+    "GEngine/src/Managers/AssetsManager.cpp": {
+      "executable": null,
+      "sha256": "2349ad3afaafffd05cf83f876cd98aaad16c1109a1fe5340c5f59deecc18e30f"
+    },
+    "GEngine/src/Renderer/SceneRenderResources.cpp": {
+      "executable": null,
+      "sha256": "d3fb859043869b40feae6f8c0db266da73b4944033b673dbe746519f66d65ec0"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "5633d3a106179aa998851dbae0a2dd3e819340283a1a56ad51a4cbd377abeeba"
+    },
+    "docs/pre_editor/FINDINGS.md": {
+      "executable": null,
+      "sha256": "48ee1ab6a2acf017d109ad17dd54e4c8734f17ba543703d229a57c07160391fa"
+    },
+    "docs/pre_editor/HANDOFF_AUDIT.md": {
+      "executable": null,
+      "sha256": "2c2fe867a87f49b8c7535897ab7aa33b52a1c4ff1c183a69d604e9ce77469526"
+    },
+    "docs/pre_editor/POST_RENDERING_HANDOFF_FINAL_INSTRUCTIONS.md": {
+      "executable": null,
+      "sha256": "214fb6444395f98366f25e94e47035d0196cefdc9c33c5adaf68b48d28433a6a"
+    },
+    "docs/pre_editor/VALIDATION_CONTRACTS.md": {
+      "executable": null,
+      "sha256": "c1e1fef342daa960bd802c992426aab9434c7135089651be035bf8048ccd61cc"
+    },
+    "docs/pre_editor/active/OUTPUT_PATHS.json": {
+      "executable": null,
+      "sha256": "b8d868fda409d2b0bb386d5a943239c10503d54862259b3a84193beab969ceb1"
+    },
+    "docs/pre_editor/active/PHASE_01_REVIEW.md": {
+      "executable": null,
+      "sha256": "fc2a8179e2124859cbb18174178b24b48ef1a6f2e107f6eeb91745e5338461ff"
+    },
+    "docs/pre_editor/active/PHASE_01_SCOPE.json": {
+      "executable": null,
+      "sha256": "bbfd6d48995ecfecc5c3380fddfc275b639babcb74361dd39ba71e1604dad788"
+    },
+    "docs/pre_editor/evidence/source-observation.json": {
+      "executable": null,
+      "sha256": "fde0ba6d4ee603810736eeb6485d6ce2bb73826be946ea9400c2271ce994fb4a"
+    },
+    "docs/pre_editor/phases/PHASE_01.md": {
+      "executable": null,
+      "sha256": "a1aa1e742c07d0a16146cc5013cca7f3f112f6a6c6c57dfe0f078dd1823f4e50"
+    },
+    "docs/pre_editor/proposals/CODING_STYLE.proposed.md": {
+      "executable": null,
+      "sha256": "4d37a80da1d5f697e94b9bd62a839f716bdb235079081a895f0507826890b8ec"
+    },
+    "docs/pre_editor/proposals/clang-format.proposed": {
+      "executable": null,
+      "sha256": "69ffce46f5f366e722cd43b4762e395bd58a6e7fb8834e21f7646aa3381879c6"
+    },
+    "logs/pre_editor/phase-01/allowlist.json": {
+      "executable": null,
+      "sha256": "bbfd6d48995ecfecc5c3380fddfc275b639babcb74361dd39ba71e1604dad788"
+    },
+    "logs/pre_editor/phase-01/attempt-01-failure.json": {
+      "executable": null,
+      "sha256": "c33a1c2f38c23c86310794a7ae7482554e933c7cea3172ed7a91fcfcc7839b78"
+    },
+    "logs/pre_editor/phase-01/attempt-02/failure.json": {
+      "executable": null,
+      "sha256": "4b64c504c0667c603249c090d87a5a16813b81958ea3a98640a732587cce6aee"
+    },
+    "logs/pre_editor/phase-01/attempt-02/validate.py": {
+      "executable": null,
+      "sha256": "9aa8370bbb78684949acfae65606efe2979ed87846fe8fd43c455b816713e891"
+    },
+    "logs/pre_editor/phase-01/attempt-03/commands.json": {
+      "executable": null,
+      "sha256": "6607c76ba33e0090b862820eef3727f24aa048a2971dc1a086527a3c90f0b457"
+    },
+    "logs/pre_editor/phase-01/attempt-03/effective-config.stdout": {
+      "executable": null,
+      "sha256": "380c07f1edd2a908e698669935b092debf13054ab932a7b4057f628b808ccb5d"
+    },
+    "logs/pre_editor/phase-01/attempt-03/failure.json": {
+      "executable": null,
+      "sha256": "3e49709c8aa4b6845219e1e3e5bb30c6caece94a336e48d5a433bcd6d5a023b0"
+    },
+    "logs/pre_editor/phase-01/attempt-03/sample-01-preview.stdout": {
+      "executable": null,
+      "sha256": "70df5fde158552a205ba117b73da652df07180ecaf8fd8828d87133e708b6bed"
+    },
+    "logs/pre_editor/phase-01/attempt-03/sample-02-preview.stdout": {
+      "executable": null,
+      "sha256": "f13aeb123837ef7a4ea57991b65378094410a2ded07af65c1d0139a65be80032"
+    },
+    "logs/pre_editor/phase-01/attempt-03/sample-03-preview.stdout": {
+      "executable": null,
+      "sha256": "ee58ad7f328ebdf2ac03414a1086cf1096e4def6736a4503c299f4262a978d1f"
+    },
+    "logs/pre_editor/phase-01/attempt-03/sample-04-preview.stdout": {
+      "executable": null,
+      "sha256": "14011219dba5a5c7cfca33505689ccd85828121ad7bbbb6628407e8f81b89288"
+    },
+    "logs/pre_editor/phase-01/attempt-03/validate.py": {
+      "executable": null,
+      "sha256": "a0f3ff7bf6feb89ce61302e04994023bfdb3c3b1cef08f2e597fed3691042a7c"
+    },
+    "logs/pre_editor/phase-01/complete-validation.py": {
+      "executable": null,
+      "sha256": "72f26aa3a279509e8b5548f66a88b8b4695a2e10e090dd8368f3dfa23dd0f344"
+    },
+    "logs/pre_editor/phase-01/entry.json": {
+      "executable": null,
+      "sha256": "cd2766bc32f9649a5ee588aea8d5abfef73df32c132abffb002b318d40414e13"
+    },
+    "logs/pre_editor/phase-01/evidence-inventory.json": {
+      "executable": null,
+      "sha256": "e4d86fe57b3c28995db0197b707ea17a336cd65fb171d8caac953d1f0b5161ca"
+    },
+    "logs/pre_editor/phase-01/package-validation.json": {
+      "executable": null,
+      "sha256": "7f60ced72d953f9057258546336e2ba99ea237885f54d641b2c5f75a06333f6e"
+    },
+    "logs/pre_editor/phase-01/prepare-seal.py": {
+      "executable": null,
+      "sha256": "aa40123a74365dd82b8880f48d0c5596dbc8372198f49f64705f8acdad0c6b29"
+    },
+    "logs/pre_editor/phase-01/preview-review.json": {
+      "executable": null,
+      "sha256": "e90105c0b0fef40d735c003901cdba81bd5e846ceff659208a70ab9c2a1003c4"
+    },
+    "logs/pre_editor/phase-01/validate.py": {
+      "executable": null,
+      "sha256": "88b638a0e8dba6163a452cc2ae450832708a4b33b47fa8cf71494bebde489380"
+    },
+    "logs/pre_editor/phase-01/validation.json": {
+      "executable": null,
+      "sha256": "e5379267c863ed2f1962f605ca8d82f312f8a2fc0c6486ac43b9594f5bbf7c1a"
+    }
+  }
+}

@@ -24,6 +24,22 @@ namespace GEngine
 
 	}
 
+    std::expected<SceneAssignmentChange, SceneAssignmentError> _Entity::AssignRenderable(
+        const Component::MeshRendererComponent& value, const RenderStateResources& resources)
+    {
+        if (!m_Scene)
+            return std::unexpected(SceneAssignmentError::InvalidEntity);
+        return m_Scene->AssignRenderable(*this, value, resources);
+    }
+
+    std::expected<_Entity, SceneError> _Entity::Duplicate() const
+    {
+        if (!m_Scene)
+            return std::unexpected(SceneError{SceneErrorCode::InvalidScene, "_Entity::Duplicate",
+                "Duplicate requires a scene"});
+        return m_Scene->DuplicateEntity(*this);
+    }
+
 	std::expected<void, TransformError> _Entity::SetParent(_Entity parent)
 	{
 		if (!HasAllComponents<IDComponent>())

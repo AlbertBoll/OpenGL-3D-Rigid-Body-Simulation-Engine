@@ -662,12 +662,52 @@ namespace GEngine
 
 	}
 
+    std::expected<SceneAssignmentChange, SceneAssignmentError> _Scene::AssignRenderable(
+        _Entity entity, const Component::MeshRendererComponent& value,
+        const RenderStateResources& resources)
+    {
+        if (m_RenderData.IsExtracting())
+            return std::unexpected(SceneAssignmentError::ExtractionActive);
+        if (!entity.GetSceneContext())
+            return std::unexpected(SceneAssignmentError::InvalidEntity);
+        if (entity.GetSceneContext() != this)
+            return std::unexpected(SceneAssignmentError::ForeignEntity);
+        if (!m_Registry.valid(entity))
+            return std::unexpected(SceneAssignmentError::InvalidEntity);
+        if (!m_Registry.all_of<IDComponent>(entity))
+            return std::unexpected(SceneAssignmentError::MissingIdentity);
+
+        // Acquire borrows exact published versions; it cannot upload or copy assets.
+        auto mesh = resources.meshes.Acquire(resources.access, value.mesh);
+        if (!mesh)
+            return std::unexpected(SceneAssignmentError::InvalidMesh);
+        auto material = resources.materials.Acquire(resources.access, value.material);
+        if (!material)
+            return std::unexpected(SceneAssignmentError::InvalidMaterial);
+        if (value.submesh >= (*mesh)->Submeshes().size())
+            return std::unexpected(SceneAssignmentError::InvalidSubmesh);
+        const auto* previous = m_Registry.try_get<Component::MeshRendererComponent>(entity);
+        if (previous && *previous == value)
+            return SceneAssignmentChange{false, m_RenderAssignmentRevision};
+        if (m_RenderAssignmentRevision == UINT64_MAX)
+            return std::unexpected(SceneAssignmentError::RevisionExhausted);
+        auto identity = m_RenderData.Identify(entity);
+        if (!identity)
+            return std::unexpected(SceneAssignmentError::IdentityExhausted);
+
+        m_Registry.emplace_or_replace<Component::MeshRendererComponent>(entity, value);
+        return SceneAssignmentChange{true, ++m_RenderAssignmentRevision};
+    }
+
     std::expected<_Entity, SceneError> _Scene::DuplicateEntity(_Entity entity)
     {
         m_RenderData.RequireMutable();
-        if (entity.GetSceneContext() != this || !m_Registry.valid(entity))
+        if (entity.GetSceneContext() != this)
             return std::unexpected(SceneError{SceneErrorCode::ForeignEntity, "_Scene::DuplicateEntity",
                 "Duplicate requires a live entity in this scene"});
+        if (!m_Registry.valid(entity))
+            return std::unexpected(SceneError{SceneErrorCode::InvalidIdentity,
+                "_Scene::DuplicateEntity", "Duplicate requires a live entity"});
         if (!entity.HasAllComponents<IDComponent>())
             return std::unexpected(SceneError{SceneErrorCode::MissingIdentity, "_Scene::DuplicateEntity",
                 "Duplicate requires a live entity in this scene"});
@@ -705,6 +745,10 @@ namespace GEngine
                 "Duplicate could not preserve the source parent", entity.GetUUID(), parented.error()});
         if (auto published = PushToRenderList(newEntity); !published)
             return std::unexpected(published.error());
+        auto identity = m_RenderData.Identify(newEntity);
+        if (!identity)
+            return std::unexpected(SceneError{SceneErrorCode::InvalidIdentity,
+                "_Scene::DuplicateEntity", "Duplicate could not allocate a render identity"});
         rollback.complete = true;
         return newEntity;
     }

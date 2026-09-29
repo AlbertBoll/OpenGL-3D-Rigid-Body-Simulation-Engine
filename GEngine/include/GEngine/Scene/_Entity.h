@@ -103,6 +103,11 @@ namespace GEngine
 
 		operator entt::entity() const { return m_EntityHandle; }
 
+        [[nodiscard]] std::expected<SceneAssignmentChange, SceneAssignmentError>
+        AssignRenderable(const Component::MeshRendererComponent& value,
+                         const RenderStateResources& resources);
+        [[nodiscard]] std::expected<_Entity, SceneError> Duplicate() const;
+
 		_Entity GetParent() const
 		{
 			if (!HasAllComponents<RelationshipComponent>()) return {};

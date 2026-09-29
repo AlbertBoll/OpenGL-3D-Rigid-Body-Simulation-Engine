@@ -14,6 +14,7 @@
 #include "Assets/Textures/Texture.h"
 
 #include "Core/Window.h"
+#include "../tests/SceneAuthoringChecks.h"
 
 #include <Physics/ShapeBox.h>
 #include <Physics/PhysicsWorld.h>
@@ -138,11 +139,23 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     if (!boxMeshResult)
         return failure(boxMeshResult.error());
     auto boxMesh = *boxMeshResult;
+    auto assignRenderable = [&](_Entity entity, const MeshRendererComponent& value)
+        -> ApplicationInitializationResult
+    {
+        auto access = m_FrameResources->Publication().BeginFrame();
+        auto assigned = entity.AssignRenderable(value, m_FrameResources->ForFrame(access));
+        if (!assigned)
+            return std::unexpected(PlatformError{PlatformErrorCode::Initialization,
+                "scene assignment", std::format("Renderable assignment failed: {}",
+                                                 static_cast<int>(assigned.error()))});
+        return {};
+    };
     auto renderable = [&](_Entity entity, Asset::MeshHandle mesh,
                           Asset::MaterialInstanceHandle material,
                           std::string_view physicsShape = {}) -> ApplicationInitializationResult
     {
-        entity.AddOrReplaceComponent<MeshRendererComponent>(MeshRendererComponent{mesh, material});
+        if (auto assigned = assignRenderable(entity, {mesh, material}); !assigned)
+            return assigned;
         if (!physicsShape.empty())
         {
             auto attached = m_FrameResources->AttachPhysicsShape(entity, physicsShape);
@@ -321,8 +334,9 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         PublishTexturedMaterial(*m_FrameResources, SceneMaterialKind::PointLight, {}, {});
     if (!pointMaterial)
         return failure(pointMaterial.error());
-    m_PointLightEntity.AddOrReplaceComponent<MeshRendererComponent>(
-        MeshRendererComponent{*pointMesh, *pointMaterial, 0, false, false, true});
+    if (auto assigned = assignRenderable(
+            m_PointLightEntity, {*pointMesh, *pointMaterial, 0, false, false, true}); !assigned)
+        return assigned;
     RigidBody3DComponent rigidBodyComp;
     rigidBodyComp.Type = BodyType::Dynamic;
 
@@ -379,6 +393,7 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
 #if activate_sphere_lattice
     sphereFixtureComp.Property.m_LinearVelocity = {0.f, 0.f, 0.f};
     static int i = 0;
+    _Entity spherePrototype;
 
     for (int z = 1; z < 6; z++)
     {
@@ -389,11 +404,15 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
                 float yy = float(z - 1) * sphereFixtureComp.Radius * 2.f;
                 float xx = float(x - 1) * sphereFixtureComp.Radius * 2.f;
                 float zz = float(y - 1) * sphereFixtureComp.Radius * 2.f;
-                auto createdSceneEntity5 =
-                    m_ActiveScene->CreateEntity("wood_sphere" + std::to_string(i++));
+                auto createdSceneEntity5 = spherePrototype
+                    ? spherePrototype.Duplicate()
+                    : m_ActiveScene->CreateEntity("wood_sphere");
                 if (!createdSceneEntity5)
                     return std::unexpected(createdSceneEntity5.error());
                 _Entity woodSphereEntity = *createdSceneEntity5;
+                woodSphereEntity.Name() = "wood_sphere" + std::to_string(i++);
+                if (!spherePrototype)
+                    spherePrototype = woodSphereEntity;
                 woodSphereEntity.AddOrReplaceComponent<Transform3DComponent>(
                     Vec3f{xx, 10.f + yy, zz});
 
@@ -507,8 +526,9 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     if (!createdSceneEntity9)
         return std::unexpected(createdSceneEntity9.error());
     m_GridEntity = *createdSceneEntity9;
-    m_GridEntity.AddOrReplaceComponent<MeshRendererComponent>(
-        MeshRendererComponent{*gridMesh, *gridMaterial, 0, false, false, true});
+    if (auto assigned = assignRenderable(
+            m_GridEntity, {*gridMesh, *gridMaterial, 0, false, false, true}); !assigned)
+        return assigned;
     m_GridEntity.AddOrReplaceComponent<VisibilityComponent>(VisibilityComponent{false});
     m_GridEntity.GetComponent<Transform3DComponent>().SetRotation({Math::Pi / 2.f, 0, 0});
     auto axisMesh = m_FrameResources->PublishShape("AxisHelper");
@@ -523,8 +543,9 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         return std::unexpected(createdSceneEntity10.error());
     m_AxisEntity = *createdSceneEntity10;
     m_AxisEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{0, 1, 0});
-    m_AxisEntity.AddOrReplaceComponent<MeshRendererComponent>(
-        MeshRendererComponent{*axisMesh, *axisMaterial, 0, false, false, true});
+    if (auto assigned = assignRenderable(
+            m_AxisEntity, {*axisMesh, *axisMaterial, 0, false, false, true}); !assigned)
+        return assigned;
     TextureDesc info;
     info.kind = TextureKind::Cube;
     info.colorSpace = TextureColorSpace::Linear;
@@ -545,8 +566,9 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     if (!createdSceneEntity11)
         return std::unexpected(createdSceneEntity11.error());
     m_SkyBoxEntity = *createdSceneEntity11;
-    m_SkyBoxEntity.AddOrReplaceComponent<MeshRendererComponent>(
-        MeshRendererComponent{*skyMesh, *skyMaterial, 0, false, false, false});
+    if (auto assigned = assignRenderable(
+            m_SkyBoxEntity, {*skyMesh, *skyMaterial, 0, false, false, false}); !assigned)
+        return assigned;
     rigidBodyComp.Type = BodyType::Static;
 
     auto createdSceneEntity12 = m_ActiveScene->CreateEntity("wood_plane");
@@ -634,6 +656,15 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         return std::unexpected(started.error());
     for (auto* body : m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies())
         m_PhysicsShapes.emplace_back(body->m_Shape);
+
+    if (std::getenv("GENGINE_PRE_EDITOR_SCENE_AUTHORING"))
+    {
+        auto checked = PreEditorValidation::CheckSceneAuthoring(
+            *m_ActiveScene, *m_FrameResources, boxMesh, smoothSphereGeo,
+            boxMaterial, sphereMaterial);
+        if (!checked)
+            return std::unexpected(checked.error());
+    }
 
     auto AppPauseEvent = new Events<void()>("AppPause");
     auto AppResumeEvent = new Events<void()>("AppResume");
@@ -826,8 +857,15 @@ std::expected<void, SceneError> RigidBodySimulationApp::UpdateImportedMesh()
         if (!createdSceneEntity17)
             return std::unexpected(createdSceneEntity17.error());
         auto entity = *createdSceneEntity17;
-        entity.AddOrReplaceComponent<MeshRendererComponent>(MeshRendererComponent{
-            status->mesh, m_AsyncBoxMaterial, static_cast<std::uint32_t>(part)});
+        {
+            auto access = m_FrameResources->Publication().BeginFrame();
+            auto assigned = entity.AssignRenderable(
+                {status->mesh, m_AsyncBoxMaterial, static_cast<std::uint32_t>(part)},
+                m_FrameResources->ForFrame(access));
+            if (!assigned)
+                return std::unexpected(SceneError{SceneErrorCode::InvalidIdentity,
+                    "imported mesh assignment", "Imported renderable assignment failed"});
+        }
         entity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{-6.f, 0.f, 0.f});
     }
     m_BarrelSettled = true;

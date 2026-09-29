@@ -34,6 +34,20 @@ namespace GEngine
 		std::vector<WorldTransform> transforms;
 		std::size_t recomputed{};
 	};
+
+    enum class SceneAssignmentError
+    {
+        InvalidEntity, ForeignEntity, MissingIdentity, ExtractionActive,
+        InvalidMesh, InvalidMaterial, InvalidSubmesh, IdentityExhausted, RevisionExhausted
+    };
+    struct SceneAssignmentChange
+    {
+        bool changed = false;
+        // Counts successful changed assignments in this scene only. This is not
+        // a transaction notification or a revision of raw/legacy ECS mutations.
+        std::uint64_t revision = 0;
+    };
+
 	class _Entity;
     namespace SceneDetail { struct BackendAccess; }
 	class PhysicsWorld;
@@ -119,7 +133,17 @@ namespace GEngine
 
 		void OnViewportResize(uint32_t width, uint32_t height);
 
-		[[nodiscard]] std::expected<_Entity, SceneError> DuplicateEntity(_Entity entity);
+        // Single-entity sibling copy: fresh UUID/render identity, shared resources,
+        // no children or live Physics bindings. The source remains unchanged.
+        [[nodiscard]] std::expected<_Entity, SceneError> DuplicateEntity(_Entity entity);
+
+        // Owner-thread authoring before extraction. Validates entity, registry
+        // domains/liveness and submesh before changing intent. Leases are temporary;
+        // the component retains handles only. Failure/no-op preserves the revision.
+        [[nodiscard]] std::expected<SceneAssignmentChange, SceneAssignmentError>
+        AssignRenderable(_Entity entity, const Component::MeshRendererComponent& value,
+                         const RenderStateResources& resources);
+        std::uint64_t GetRenderAssignmentRevision() const { return m_RenderAssignmentRevision; }
 	
 
 		_Entity FindEntityByName(std::string_view name);
@@ -196,6 +220,7 @@ namespace GEngine
 	private:
 		bool m_RenderInterpolationEnabled = true;
 		std::uint64_t m_RenderTransformRevision{};
+        std::uint64_t m_RenderAssignmentRevision{};
 		entt::registry m_Registry;
 		RenderEcs m_RenderData{m_Registry};
 		uint32_t m_ViewportWidth = 0, m_ViewportHeight = 0;

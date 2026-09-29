@@ -8,17 +8,38 @@ namespace GEngine
 {
     class EngineContext;
     class _Entity;
-    namespace Manager { class ShapeManager; }
+    namespace Manager
+    {
+        class ShapeManager;
+    }
 
-    enum class SceneResourceCode { Allocation, MissingShape, UnsupportedShape, InvalidMaterial, InvalidEntity };
-    using SceneResourceCause = std::variant<SceneResourceCode, PlatformError, MeshError,
-        GpuMeshError, Asset::RegistryError, Asset::ShaderError, Asset::TextureError, Asset::SamplerError,
-        MaterialDeclarationError, MaterialInstanceError>;
-    struct SceneResourceError { std::string operation; SceneResourceCause cause; };
+    enum class SceneResourceCode
+    {
+        Allocation,
+        MissingShape,
+        UnsupportedShape,
+        InvalidMaterial,
+        InvalidEntity
+    };
+    using SceneResourceCause =
+        std::variant<SceneResourceCode, PlatformError, MeshError, GpuMeshError,
+                     Asset::RegistryError, Asset::ShaderError, Asset::TextureError,
+                     Asset::SamplerError, MaterialDeclarationError, MaterialInstanceError>;
+    struct SceneResourceError
+    {
+        std::string operation;
+        SceneResourceCause cause;
+    };
     // Terminal application diagnostics retain the domain/code and original details.
     std::string DescribeSceneResourceError(const SceneResourceError&);
 
-    enum class SceneMaterialKind { Lit, Helper, PointLight, Sky };
+    enum class SceneMaterialKind
+    {
+        Lit,
+        Helper,
+        PointLight,
+        Sky
+    };
     struct ScenePipeline
     {
         Asset::PipelineHandle pipeline;
@@ -46,7 +67,8 @@ namespace GEngine
     class SceneRenderResources final
     {
     public:
-        static std::expected<std::unique_ptr<SceneRenderResources>, SceneResourceError> Create(EngineContext&);
+        static std::expected<std::unique_ptr<SceneRenderResources>, SceneResourceError>
+        Create(EngineContext&);
         ~SceneRenderResources() = default;
         SceneRenderResources(const SceneRenderResources&) = delete;
         SceneRenderResources& operator=(const SceneRenderResources&) = delete;
@@ -54,12 +76,26 @@ namespace GEngine
         // Existing box/convex physics startup still reads legacy CPU Geometry.
         // Preserve that input privately; neither extraction nor submission reads it.
         std::expected<void, SceneResourceError> AttachPhysicsShape(_Entity&, std::string_view);
-        std::expected<Asset::MaterialInstanceHandle, SceneResourceError> PublishMaterial(const SceneMaterialDesc&);
-        Asset::AssetPublication& Publication() noexcept { return m_Publication; }
+        std::expected<Asset::MaterialInstanceHandle, SceneResourceError>
+        PublishMaterial(const SceneMaterialDesc&);
+        Asset::AssetPublication& Publication() noexcept
+        {
+            return m_Publication;
+        }
         RenderStateResources ForFrame(const Asset::AssetPublication::FrameAccess& access) const;
-        std::span<const ScenePipeline> Pipelines() const noexcept { return m_Roles; }
-        MeshRegistry& Meshes() noexcept { return m_Meshes; }
-        MaterialInstanceRegistry& Materials() noexcept { return m_Materials; }
+        std::span<const ScenePipeline> Pipelines() const noexcept
+        {
+            return m_Roles;
+        }
+        MeshRegistry& Meshes() noexcept
+        {
+            return m_Meshes;
+        }
+        MaterialInstanceRegistry& Materials() noexcept
+        {
+            return m_Materials;
+        }
+
     private:
         SceneRenderResources(Asset::AssetPublication&, Manager::ShapeManager&);
         Asset::AssetPublication& m_Publication;

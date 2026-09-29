@@ -36,6 +36,33 @@ using namespace ::GEngine::Asset;
 #define activate_sphere_boxes_stacking 0
 #endif
 
+namespace
+{
+    std::expected<Asset::MaterialInstanceHandle, SceneResourceError>
+    PublishTexturedMaterial(SceneRenderResources& resources, SceneMaterialKind kind,
+                            std::initializer_list<Asset::Texture*> images,
+                            std::span<const MaterialParameterDecl> parameters,
+                            bool doubleSided = false, float width = 1.f)
+    {
+        std::vector<MaterialTextureAssignment> bindings;
+        for (auto* texture : images)
+        {
+            auto sampled = AssetsManager::SampleTexture(texture->View());
+            if (!sampled)
+                return std::visit(
+                    [](const auto& cause)
+                        -> std::expected<Asset::MaterialInstanceHandle, SceneResourceError>
+                    {
+                        return std::unexpected(SceneResourceError{"material sampling", cause});
+                    },
+                    sampled.error().cause);
+            bindings.push_back({texture->GetUniformName(),
+                                {sampled->TextureIdentity(), sampled->SamplerIdentity()}});
+        }
+        return resources.PublishMaterial({kind, parameters, bindings, doubleSided, width});
+    }
+}
+
 RigidBodySimulationApp::~RigidBodySimulationApp()
 {
     if (m_AudioSystem)
@@ -125,188 +152,105 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         return {};
     };
 
-    auto m_IconPlayResult = AssetsManager::GetTextureOrFallback("Icons/PlayButton");
+    auto loadTexture =
+        [this](const std::string& path, const std::string& uniform = "u_texture",
+               const std::string& extension = ".png",
+               const TextureDesc& desc = {}) -> std::expected<Asset::Texture*, Asset::TextureError>
+    {
+        auto texture = AssetsManager::GetTextureOrFallback(path, uniform, extension, desc);
+        if (!texture)
+        {
+            Log::GetCoreLogger()->error("Texture {}: {}", texture.error().source,
+                                        texture.error().message);
+            m_Running = false;
+        }
+        return texture;
+    };
+
+    auto m_IconPlayResult = loadTexture("Icons/PlayButton");
     if (!m_IconPlayResult)
-    {
-        Log::GetCoreLogger()->error("Texture {}: {}", m_IconPlayResult.error().source,
-                                    m_IconPlayResult.error().message);
-        m_Running = false;
         return std::unexpected(m_IconPlayResult.error());
-    }
     auto* m_IconPlay = *m_IconPlayResult;
-    auto m_IconPauseResult = AssetsManager::GetTextureOrFallback("Icons/PauseButton");
+    auto m_IconPauseResult = loadTexture("Icons/PauseButton");
     if (!m_IconPauseResult)
-    {
-        Log::GetCoreLogger()->error("Texture {}: {}", m_IconPauseResult.error().source,
-                                    m_IconPauseResult.error().message);
-        m_Running = false;
         return std::unexpected(m_IconPauseResult.error());
-    }
     auto* m_IconPause = *m_IconPauseResult;
-    auto m_IconStepResult = AssetsManager::GetTextureOrFallback("Icons/StepButton");
+    auto m_IconStepResult = loadTexture("Icons/StepButton");
     if (!m_IconStepResult)
-    {
-        Log::GetCoreLogger()->error("Texture {}: {}", m_IconStepResult.error().source,
-                                    m_IconStepResult.error().message);
-        m_Running = false;
         return std::unexpected(m_IconStepResult.error());
-    }
     auto* m_IconStep = *m_IconStepResult;
-    auto m_IconSimulateResult = AssetsManager::GetTextureOrFallback("Icons/SimulateButton");
+    auto m_IconSimulateResult = loadTexture("Icons/SimulateButton");
     if (!m_IconSimulateResult)
-    {
-        Log::GetCoreLogger()->error("Texture {}: {}", m_IconSimulateResult.error().source,
-                                    m_IconSimulateResult.error().message);
-        m_Running = false;
         return std::unexpected(m_IconSimulateResult.error());
-    }
     auto* m_IconSimulate = *m_IconSimulateResult;
-    auto m_IconStopResult = AssetsManager::GetTextureOrFallback("Icons/StopButton");
+    auto m_IconStopResult = loadTexture("Icons/StopButton");
     if (!m_IconStopResult)
-    {
-        Log::GetCoreLogger()->error("Texture {}: {}", m_IconStopResult.error().source,
-                                    m_IconStopResult.error().message);
-        m_Running = false;
         return std::unexpected(m_IconStopResult.error());
-    }
     auto* m_IconStop = *m_IconStopResult;
 
     // PBR vectors and scalar data must not use the color texture sRGB transfer.
     TextureDesc dataMapDesc;
     dataMapDesc.colorSpace = TextureColorSpace::Linear;
-    auto sphere_albedoResult =
-        AssetsManager::GetTextureOrFallback("PBR/rustediron/rustediron2_basecolor", "albedoMap");
+    auto sphere_albedoResult = loadTexture("PBR/rustediron/rustediron2_basecolor", "albedoMap");
     if (!sphere_albedoResult)
-    {
-        Log::GetCoreLogger()->error("Texture {}: {}", sphere_albedoResult.error().source,
-                                    sphere_albedoResult.error().message);
-        m_Running = false;
         return std::unexpected(sphere_albedoResult.error());
-    }
     auto* sphere_albedo = *sphere_albedoResult;
-    auto sphere_normalResult = AssetsManager::GetTextureOrFallback(
-        "PBR/rustediron/rustediron2_normal", "normalMap", ".png", dataMapDesc);
+    auto sphere_normalResult =
+        loadTexture("PBR/rustediron/rustediron2_normal", "normalMap", ".png", dataMapDesc);
     if (!sphere_normalResult)
-    {
-        Log::GetCoreLogger()->error("Texture {}: {}", sphere_normalResult.error().source,
-                                    sphere_normalResult.error().message);
-        m_Running = false;
         return std::unexpected(sphere_normalResult.error());
-    }
     auto* sphere_normal = *sphere_normalResult;
-    auto sphere_metallicResult = AssetsManager::GetTextureOrFallback(
-        "PBR/rustediron/rustediron2_metallic", "metallicMap", ".png", dataMapDesc);
+    auto sphere_metallicResult =
+        loadTexture("PBR/rustediron/rustediron2_metallic", "metallicMap", ".png", dataMapDesc);
     if (!sphere_metallicResult)
-    {
-        Log::GetCoreLogger()->error("Texture {}: {}", sphere_metallicResult.error().source,
-                                    sphere_metallicResult.error().message);
-        m_Running = false;
         return std::unexpected(sphere_metallicResult.error());
-    }
     auto* sphere_metallic = *sphere_metallicResult;
-    auto sphere_roughnessResult = AssetsManager::GetTextureOrFallback(
-        "PBR/rustediron/rustediron2_roughness", "roughnessMap", ".png", dataMapDesc);
+    auto sphere_roughnessResult =
+        loadTexture("PBR/rustediron/rustediron2_roughness", "roughnessMap", ".png", dataMapDesc);
     if (!sphere_roughnessResult)
-    {
-        Log::GetCoreLogger()->error("Texture {}: {}", sphere_roughnessResult.error().source,
-                                    sphere_roughnessResult.error().message);
-        m_Running = false;
         return std::unexpected(sphere_roughnessResult.error());
-    }
     auto* sphere_roughness = *sphere_roughnessResult;
-    auto sphere_aoResult = AssetsManager::GetTextureOrFallback(
-        "PBR/subtle_black_granite/subtle-black-granite_ao", "aoMap", ".png", dataMapDesc);
+    auto sphere_aoResult = loadTexture("PBR/subtle_black_granite/subtle-black-granite_ao", "aoMap",
+                                       ".png", dataMapDesc);
     if (!sphere_aoResult)
-    {
-        Log::GetCoreLogger()->error("Texture {}: {}", sphere_aoResult.error().source,
-                                    sphere_aoResult.error().message);
-        m_Running = false;
         return std::unexpected(sphere_aoResult.error());
-    }
     auto* sphere_ao = *sphere_aoResult;
 
-    auto floor_albedoResult = AssetsManager::GetTextureOrFallback(
-        "PBR/base_white_tile/base-white-tile_albedo", "albedoMap");
+    auto floor_albedoResult =
+        loadTexture("PBR/base_white_tile/base-white-tile_albedo", "albedoMap");
     if (!floor_albedoResult)
-    {
-        Log::GetCoreLogger()->error("Texture {}: {}", floor_albedoResult.error().source,
-                                    floor_albedoResult.error().message);
-        m_Running = false;
         return std::unexpected(floor_albedoResult.error());
-    }
     auto* floor_albedo = *floor_albedoResult;
-    auto floor_normalResult = AssetsManager::GetTextureOrFallback(
-        "PBR/base_white_tile/base-white-tile_normal-dx", "normalMap", ".png", dataMapDesc);
+    auto floor_normalResult = loadTexture("PBR/base_white_tile/base-white-tile_normal-dx",
+                                          "normalMap", ".png", dataMapDesc);
     if (!floor_normalResult)
-    {
-        Log::GetCoreLogger()->error("Texture {}: {}", floor_normalResult.error().source,
-                                    floor_normalResult.error().message);
-        m_Running = false;
         return std::unexpected(floor_normalResult.error());
-    }
     auto* floor_normal = *floor_normalResult;
-    auto floor_metallicResult = AssetsManager::GetTextureOrFallback(
-        "PBR/base_white_tile/base-white-tile_metallic", "metallicMap", ".png", dataMapDesc);
+    auto floor_metallicResult = loadTexture("PBR/base_white_tile/base-white-tile_metallic",
+                                            "metallicMap", ".png", dataMapDesc);
     if (!floor_metallicResult)
-    {
-        Log::GetCoreLogger()->error("Texture {}: {}", floor_metallicResult.error().source,
-                                    floor_metallicResult.error().message);
-        m_Running = false;
         return std::unexpected(floor_metallicResult.error());
-    }
     auto* floor_metallic = *floor_metallicResult;
-    auto floor_roughnessResult = AssetsManager::GetTextureOrFallback(
-        "PBR/base_white_tile/base-white-tile_roughness", "roughnessMap", ".png", dataMapDesc);
+    auto floor_roughnessResult = loadTexture("PBR/base_white_tile/base-white-tile_roughness",
+                                             "roughnessMap", ".png", dataMapDesc);
     if (!floor_roughnessResult)
-    {
-        Log::GetCoreLogger()->error("Texture {}: {}", floor_roughnessResult.error().source,
-                                    floor_roughnessResult.error().message);
-        m_Running = false;
         return std::unexpected(floor_roughnessResult.error());
-    }
     auto* floor_roughness = *floor_roughnessResult;
-    auto floor_aoResult = AssetsManager::GetTextureOrFallback(
-        "PBR/base_white_tile/base-white-tile_ao", "aoMap", ".png", dataMapDesc);
+    auto floor_aoResult =
+        loadTexture("PBR/base_white_tile/base-white-tile_ao", "aoMap", ".png", dataMapDesc);
     if (!floor_aoResult)
-    {
-        Log::GetCoreLogger()->error("Texture {}: {}", floor_aoResult.error().source,
-                                    floor_aoResult.error().message);
-        m_Running = false;
         return std::unexpected(floor_aoResult.error());
-    }
     auto* floor_ao = *floor_aoResult;
 
-    auto material = [&](SceneMaterialKind kind, std::initializer_list<Asset::Texture*> images,
-                        std::span<const MaterialParameterDecl> parameters, bool doubleSided = false,
-                        float width =
-                            1.f) -> std::expected<Asset::MaterialInstanceHandle, SceneResourceError>
-    {
-        std::vector<MaterialTextureAssignment> bindings;
-        for (auto* texture : images)
-        {
-            auto sampled = AssetsManager::SampleTexture(texture->View());
-            if (!sampled)
-                return std::visit(
-                    [](const auto& cause)
-                        -> std::expected<Asset::MaterialInstanceHandle, SceneResourceError>
-                    {
-                        return std::unexpected(SceneResourceError{"material sampling", cause});
-                    },
-                    sampled.error().cause);
-            bindings.push_back({texture->GetUniformName(),
-                                {sampled->TextureIdentity(), sampled->SamplerIdentity()}});
-        }
-        return m_FrameResources->PublishMaterial({kind, parameters, bindings, doubleSided, width});
-    };
     const MaterialParameterDecl sphereParameters[]{
         // Dark-metal patch GGX width fit: 0.275, rounded to 0.28. Keep maps linear.
         {"roughnessScale", MaterialParameterType::Float, .9f},
         {"metalness", MaterialParameterType::Float3, std::array<float, 3>{.8f, .8f, .8f}},
         {"u_tiling", MaterialParameterType::Float2, std::array<float, 2>{1, 1}}};
-    auto sphereMaterialResult =
-        material(SceneMaterialKind::Lit,
-                 {sphere_albedo, sphere_normal, sphere_metallic, sphere_roughness, sphere_ao},
-                 sphereParameters);
+    auto sphereMaterialResult = PublishTexturedMaterial(
+        *m_FrameResources, SceneMaterialKind::Lit,
+        {sphere_albedo, sphere_normal, sphere_metallic, sphere_roughness, sphere_ao},
+        sphereParameters);
     if (!sphereMaterialResult)
         return failure(sphereMaterialResult.error());
     auto sphereMaterial = *sphereMaterialResult;
@@ -315,8 +259,8 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         {"roughnessScale", MaterialParameterType::Float, .3f},
         {"metalness", MaterialParameterType::Float3, std::array<float, 3>{.08f, .08f, .08f}},
         {"u_tiling", MaterialParameterType::Float2, std::array<float, 2>{2, 2}}};
-    auto floorMaterialResult = material(
-        SceneMaterialKind::Lit,
+    auto floorMaterialResult = PublishTexturedMaterial(
+        *m_FrameResources, SceneMaterialKind::Lit,
         {floor_albedo, floor_normal, floor_metallic, floor_roughness, floor_ao}, floorParameters);
     if (!floorMaterialResult)
         return failure(floorMaterialResult.error());
@@ -325,8 +269,8 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         {"roughnessScale", MaterialParameterType::Float, .3f},
         {"metalness", MaterialParameterType::Float3, std::array<float, 3>{.08f, .08f, .08f}},
         {"u_tiling", MaterialParameterType::Float2, std::array<float, 2>{2, .2f}}};
-    auto wallMaterialResult = material(
-        SceneMaterialKind::Lit,
+    auto wallMaterialResult = PublishTexturedMaterial(
+        *m_FrameResources, SceneMaterialKind::Lit,
         {floor_albedo, floor_normal, floor_metallic, floor_roughness, floor_ao}, wallParameters);
     if (!wallMaterialResult)
         return failure(wallMaterialResult.error());
@@ -340,8 +284,8 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         {"u_tiling", MaterialParameterType::Float2, std::array<float, 2>{1, 1}}};
     // The old box path retained the floor's PBR channels between draws. Make the
     // steady authored combination explicit so frame ordering cannot alter it.
-    auto boxMaterialResult = material(
-        SceneMaterialKind::Lit,
+    auto boxMaterialResult = PublishTexturedMaterial(
+        *m_FrameResources, SceneMaterialKind::Lit,
         {*woodResult, floor_normal, floor_metallic, floor_roughness, floor_ao}, boxParameters);
     if (!boxMaterialResult)
         return failure(boxMaterialResult.error());
@@ -373,7 +317,8 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     auto pointMesh = m_FrameResources->PublishShape("PointLightHelper");
     if (!pointMesh)
         return failure(pointMesh.error());
-    auto pointMaterial = material(SceneMaterialKind::PointLight, {}, {});
+    auto pointMaterial =
+        PublishTexturedMaterial(*m_FrameResources, SceneMaterialKind::PointLight, {}, {});
     if (!pointMaterial)
         return failure(pointMaterial.error());
     m_PointLightEntity.AddOrReplaceComponent<MeshRendererComponent>(
@@ -554,7 +499,8 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     auto gridMesh = m_FrameResources->PublishShape("GridHelper");
     if (!gridMesh)
         return failure(gridMesh.error());
-    auto gridMaterial = material(SceneMaterialKind::Helper, {}, helperParameters, true);
+    auto gridMaterial = PublishTexturedMaterial(*m_FrameResources, SceneMaterialKind::Helper, {},
+                                                helperParameters, true);
     if (!gridMaterial)
         return failure(gridMaterial.error());
     auto createdSceneEntity9 = m_ActiveScene->CreateEntity("grid");
@@ -568,7 +514,8 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     auto axisMesh = m_FrameResources->PublishShape("AxisHelper");
     if (!axisMesh)
         return failure(axisMesh.error());
-    auto axisMaterial = material(SceneMaterialKind::Helper, {}, helperParameters, true, 3.f);
+    auto axisMaterial = PublishTexturedMaterial(*m_FrameResources, SceneMaterialKind::Helper, {},
+                                                helperParameters, true, 3.f);
     if (!axisMaterial)
         return failure(axisMaterial.error());
     auto createdSceneEntity10 = m_ActiveScene->CreateEntity("axis");
@@ -590,7 +537,8 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     auto skyMesh = m_FrameResources->PublishShape("SkyBox");
     if (!skyMesh)
         return failure(skyMesh.error());
-    auto skyMaterial = material(SceneMaterialKind::Sky, {*skyTexture}, {}, true);
+    auto skyMaterial =
+        PublishTexturedMaterial(*m_FrameResources, SceneMaterialKind::Sky, {*skyTexture}, {}, true);
     if (!skyMaterial)
         return failure(skyMaterial.error());
     auto createdSceneEntity11 = m_ActiveScene->CreateEntity("Environment_SkyBox");

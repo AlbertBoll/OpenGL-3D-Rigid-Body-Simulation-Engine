@@ -1,0 +1,496 @@
+{
+  "baseline": "c1919b6257d73b7a08ccd0f67cdc4608ccc1b2f9",
+  "branch": "pre-editor/refactor",
+  "checkpoint_files": [
+    "GEngine/src/Renderer/SceneRenderResources.cpp",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "pre-editor-checkpoints/phase-03.json",
+    "tools/test_pre_editor_resource_setup.py"
+  ],
+  "eligible": true,
+  "findings": [
+    {
+      "disposition": "Named private preparation and publication helpers implemented in two source files; exact error/rollback/scene preservation inspected. Required Debug/Release builds and RBS lifecycle cases pass. Human readability acceptance remains the named owner approval gate.",
+      "finding": "CQ-01/CQ-02 bounded pre-A responsibility cleanup",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Original failed classifier result retained. Independently verified imports and diagnostic types correct the saved Debug observation without rerun; remaining cases executed once under documented corrected manifest. No application failure or lowered functional gate.",
+      "finding": "Runtime validation metadata defects",
+      "status": "RESOLVED"
+    },
+    {
+      "disposition": "Owner authorized Release-only reseal. Original mismatch and seal preserved; same inputs rebuilt under pinned configuration; outputs stable across follow-up Build and two successful Release lifecycle checks. Debug and all non-Release protected input/evidence fingerprints match; no source/scope/review/index change.",
+      "finding": "Post-seal Release build output drift blocked original approval",
+      "status": "RESOLVED"
+    }
+  ],
+  "local_governance": [
+    "docs/pre_editor/active/PHASE_03_REVIEW.md",
+    "docs/pre_editor/active/PHASE_03_SCOPE.json"
+  ],
+  "next_phase": "04",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "afb7302e96c0c6e6428b6e333ffc484f386fd8b9",
+      "blob_ref": "refs/pre-editor-seals/132ea79b7cc6541e/phase-03/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/afb7302e96c0c6e6428b6e333ffc484f386fd8b9",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "c46f0d4a5f4098185603ff8cf4846c053944c5f48688af7ce1540c441441baa4"
+      },
+      "mode": "100644",
+      "validated_blob": "4e6ae484c76f3fa06a495006dadb9e6e0f0cc7e7",
+      "validated_blob_ref": "refs/pre-editor-seals/132ea79b7cc6541e/phase-03/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/4e6ae484c76f3fa06a495006dadb9e6e0f0cc7e7"
+    }
+  },
+  "phase": "03",
+  "previous_approved_tag": "pre-editor-phase-02-approved",
+  "protected_files": [
+    "docs/pre_editor.zip"
+  ],
+  "remote": "origin",
+  "review": "docs/pre_editor/active/PHASE_03_REVIEW.md",
+  "schema": 2,
+  "summary": "Separate private shader/pipeline and RBS texture/material setup steps while preserving typed errors and resource retirement; Release-only reseal with matching Debug evidence reused",
+  "validation": [
+    {
+      "check": "Entry/predecessor, scope, protected work and index",
+      "command": "Phase 03 pre-edit entry recorder; python -B logs/pre_editor/phase-03/prepare-seal.py",
+      "evidence": "logs/pre_editor/phase-03/entry.json; logs/pre_editor/phase-03/package-validation.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Exact ownership/error/control-flow and source review",
+      "command": "git --no-optional-locks diff -- <two scoped sources>; source inspection/comparison; python -B logs/pre_editor/phase-03/prepare-seal.py",
+      "evidence": "logs/pre_editor/phase-03/source-review.json; logs/pre_editor/phase-03/candidate.diff; docs/pre_editor/active/PHASE_03_REVIEW.md",
+      "result": "PASS"
+    },
+    {
+      "check": "Debug affected RBS/GEngine/glad compile and link",
+      "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\amd64\\MSBuild.exe\" RigidBodySimulation/RigidBodySimulation.vcxproj /t:Build /m:1 /nr:false /nologo /v:normal /p:Configuration=Debug /p:Platform=x64 /p:VCToolsVersion=14.44.35207 /p:WindowsTargetPlatformVersion=10.0.26100.0 /bl:C:\\dev\\GEngine-pre-editor\\logs\\pre_editor\\phase-03\\debug\\build.binlog",
+      "evidence": "logs/pre_editor/phase-03/debug/build.log; logs/pre_editor/phase-03/build-validation.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Release affected RBS/GEngine/glad rebuild and output stability",
+      "command": "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\amd64\\MSBuild.exe\" RigidBodySimulation/RigidBodySimulation.vcxproj /t:Rebuild /m:1 /nr:false /nologo /v:normal /p:Configuration=Release /p:Platform=x64 /p:VCToolsVersion=14.44.35207 /p:WindowsTargetPlatformVersion=10.0.26100.0 /bl:C:\\dev\\GEngine-pre-editor\\logs\\pre_editor\\phase-03\\reseal-01\\release-rebuild.binlog ; \"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\amd64\\MSBuild.exe\" RigidBodySimulation/RigidBodySimulation.vcxproj /t:Build /m:1 /nr:false /nologo /v:normal /p:Configuration=Release /p:Platform=x64 /p:VCToolsVersion=14.44.35207 /p:WindowsTargetPlatformVersion=10.0.26100.0 /bl:C:\\dev\\GEngine-pre-editor\\logs\\pre_editor\\phase-03\\reseal-01\\release-stability-build.binlog",
+      "evidence": "logs/pre_editor/phase-03/reseal-01/release-build.json; logs/pre_editor/phase-03/reseal-01/release-rebuild.log; logs/pre_editor/phase-03/reseal-01/release-stability-build.log",
+      "result": "PASS"
+    },
+    {
+      "check": "Debug RBS setup/native-close and typed failure/teardown (reused exact fingerprints)",
+      "command": "No Debug rerun; verify original source/assets/tools/binary/evidence fingerprints against seal",
+      "evidence": "logs/pre_editor/phase-03/debug-setup-adjudication.json; logs/pre_editor/phase-03/runtime-continuation/debug-late-shader-failure/result.json; logs/pre_editor/phase-03/reseal-01/package-validation.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Refreshed Release RBS setup/native-close and typed late shader failure/teardown",
+      "command": "python -B tools/test_pre_editor_resource_setup.py --manifest logs/pre_editor/phase-03/reseal-01/scenario-manifest.json",
+      "evidence": "logs/pre_editor/phase-03/reseal-01/runtime/summary.json; logs/pre_editor/phase-03/reseal-01/package-validation.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Minimal reseal package/snapshot validation, unchanged protected inputs and candidate diff",
+      "command": "Inline Python reseal package/snapshot validator; git --no-optional-locks diff --check; checkpoint helper fingerprint --workflow pre-editor",
+      "evidence": "logs/pre_editor/phase-03/reseal-01/admission.json; logs/pre_editor/phase-03/reseal-01/package-validation.json; logs/pre_editor/phase-03/reseal-01/evidence-inventory.json",
+      "result": "PASS"
+    },
+    {
+      "check": "Other-app builds/runs, performance and visual comparison",
+      "command": "NOT RUN under Phase 03/C0/V0",
+      "evidence": "docs/pre_editor/active/PHASE_03_REVIEW.md",
+      "reason": "Private helper cleanup changes no public boundary; smallest required evidence is affected RBS builds and focused successful/failing lifecycle cases. No historical numerical/visual evidence relabeled.",
+      "result": "NOT_APPLICABLE"
+    }
+  ],
+  "validation_input_hashes": {
+    ".agents/skills/pre-editor-phase-execution/SKILL.md": {
+      "executable": null,
+      "sha256": "a9b843213b034c8205c90f866b1e63b2d1a602a25a2a3a32328c777677a28808"
+    },
+    ".clang-format": {
+      "executable": null,
+      "sha256": "b4f1113a0219fb6971d5a2ebb63cf265188e74cc533c1b30988189fc8a12e2e8"
+    },
+    ".codex/tools/rendering_checkpoint.py": {
+      "executable": null,
+      "sha256": "bf50e1c5df98962c10648e5cb9f3cb85560fab8491bfa129d9c0dfc9f7b940d9"
+    },
+    "AGENTS.md": {
+      "executable": null,
+      "sha256": "159c37b93ccf0d3d45551944dc7032bd8d8f215feddbeef92bc3cfb24fb77919"
+    },
+    "CODING_STYLE.md": {
+      "executable": null,
+      "sha256": "add9f5eb94fdd59d304600b10fdc822ce0a4ca72661d3d0008f276fa88cffc6b"
+    },
+    "GEngine/GEngine.vcxproj": {
+      "executable": null,
+      "sha256": "d9d4ea1787bd0b97348ea223d24b4edb3bfa43ab69bc828e99bf39a06674dbca"
+    },
+    "GEngine/src/Renderer/SceneRenderResources.cpp": {
+      "executable": null,
+      "sha256": "c62fd0aae195f20991683ee5e2363405657e1ed5d82e072fdbeebb0def8f9b1e"
+    },
+    "RigidBodySimulation/RigidBodySimulation.vcxproj": {
+      "executable": null,
+      "sha256": "fc219bf001790cfc81a265cce092416519071deb9aa53e1cb8e5fe885aa4559c"
+    },
+    "RigidBodySimulation/RigidBodySimulation.vcxproj.user": {
+      "executable": null,
+      "sha256": "c06a75b13f855a94d46616796e024c52b499f8f92cf00ccb571ddbc6ff574676"
+    },
+    "RigidBodySimulation/postbuild.py": {
+      "executable": null,
+      "sha256": "d0d0fd0382fd599f06d0a2751187d6d744493ab50dde121a6240790b30fd17a4"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "c46f0d4a5f4098185603ff8cf4846c053944c5f48688af7ce1540c441441baa4"
+    },
+    "bin/Debug/GEngine/GEngine.lib": {
+      "executable": null,
+      "sha256": "8485c58d3ff7ace09302744a52516155385a3c23cbb7cbb26dbe3007920cafe6"
+    },
+    "bin/Debug/RigidBodySimulation/RigidBodySimulation.exe": {
+      "executable": null,
+      "sha256": "82ccad0b91df031510745c03048b11c4578cafe113e66bbb025426fd9ef26926"
+    },
+    "bin/Release/GEngine/GEngine.lib": {
+      "executable": null,
+      "sha256": "94bd053d9f762c3ff5f82763061488734e613aaf5dd40f41a7dbe4a8e8ff63b1"
+    },
+    "bin/Release/RigidBodySimulation/RigidBodySimulation.exe": {
+      "executable": null,
+      "sha256": "02903dfde28f6bca5bddd5efd18fe1fdd8542042158a10b52764af2cfd803430"
+    },
+    "docs/pre_editor/VALIDATION_CONTRACTS.md": {
+      "executable": null,
+      "sha256": "c1e1fef342daa960bd802c992426aab9434c7135089651be035bf8048ccd61cc"
+    },
+    "docs/pre_editor/active/OUTPUT_PATHS.json": {
+      "executable": null,
+      "sha256": "b8d868fda409d2b0bb386d5a943239c10503d54862259b3a84193beab969ceb1"
+    },
+    "docs/pre_editor/active/PHASE_03_REVIEW.md": {
+      "executable": null,
+      "sha256": "5b511a50364af01a912f42caf406d03b33d650689375c8225a86c212d537de97"
+    },
+    "docs/pre_editor/active/PHASE_03_SCOPE.json": {
+      "executable": null,
+      "sha256": "7b642713fa47a42aa0f78f952673dd2cdb523ec489688aa881a2475484029203"
+    },
+    "docs/pre_editor/phases/PHASE_03.md": {
+      "executable": null,
+      "sha256": "eda1eb9fdc8de50cce6450d205385ab9f634eb47a1ac9385ca01c046da53ba0a"
+    },
+    "external/glad/bin/Debug/glad/glad.lib": {
+      "executable": null,
+      "sha256": "5756d03578e8cda147cc24623be4747c293efa7f80ce8207ce86e0744143a938"
+    },
+    "external/glad/bin/Release/glad/glad.lib": {
+      "executable": null,
+      "sha256": "e83ea9e54b82e920c3a0f53a25ceed3e009753ed45f4b4645d773bd79886ee8e"
+    },
+    "external/glad/glad.vcxproj": {
+      "executable": null,
+      "sha256": "c2d99bda79ced5c30d3daf6fe2bd11a70a7bc4487f020287c8e1a8bef5a06b66"
+    },
+    "external/glad/premake5.lua": {
+      "executable": null,
+      "sha256": "881406fa3a22afd5865e2dd84ab76e29b5b7cb6c2c9e94542be20849f308962c"
+    },
+    "logs/pre_editor/phase-03/allowlist.json": {
+      "executable": null,
+      "sha256": "7b642713fa47a42aa0f78f952673dd2cdb523ec489688aa881a2475484029203"
+    },
+    "logs/pre_editor/phase-03/build-candidate.py": {
+      "executable": null,
+      "sha256": "af1e3d85a8ebb04fdcc46e5280625c12e7732c70d11d1394be1501d9e573cfbb"
+    },
+    "logs/pre_editor/phase-03/build-inputs.json": {
+      "executable": null,
+      "sha256": "a8bd56b4ec1f9cb1afb7821d3d073e0d5a1e7ff1888a7d66d66c946d6e9e932e"
+    },
+    "logs/pre_editor/phase-03/build-validation.json": {
+      "executable": null,
+      "sha256": "14bf1b8369cbdf8f241774b93fbab9b55b7b00070c0ed2c2805dc22844db9137"
+    },
+    "logs/pre_editor/phase-03/candidate.diff": {
+      "executable": null,
+      "sha256": "c7fa9b8155ec056922798fce61f5702739da8bd5fa9d676374eed38c0e02c382"
+    },
+    "logs/pre_editor/phase-03/debug-setup-adjudication.json": {
+      "executable": null,
+      "sha256": "59c37c3319a5f0d708a7f591bfd0d09b7573320675d24ca46d7a4a03fce0a85c"
+    },
+    "logs/pre_editor/phase-03/debug/build.binlog": {
+      "executable": null,
+      "sha256": "9a16e4dda4ba5ee339471c4e4891475e2b44bc2c7eb852bec6ae5f33b86eecd1"
+    },
+    "logs/pre_editor/phase-03/debug/build.log": {
+      "executable": null,
+      "sha256": "085084d3556a798dff2c27ea905d20bed12c96439818e62e472115f8dad86197"
+    },
+    "logs/pre_editor/phase-03/debug/exe-dependents.txt": {
+      "executable": null,
+      "sha256": "99ecc69540b09f195fa54099163777b9ce6f699cdff151631483befcc2b74c93"
+    },
+    "logs/pre_editor/phase-03/entry.json": {
+      "executable": null,
+      "sha256": "dbfb48ed809350af00fc30c95ece746edfc2cc7b04da0b617892c9b04c747250"
+    },
+    "logs/pre_editor/phase-03/evidence-inventory.json": {
+      "executable": null,
+      "sha256": "d139c6fed6595b31a22d2016d473ffd5e5f34950a24f973f5aad7af6b99a80cd"
+    },
+    "logs/pre_editor/phase-03/fixture-provenance.json": {
+      "executable": null,
+      "sha256": "8245e241f98035f036d1db0acfcda20d518114207a60658aa4c70f24272e7d95"
+    },
+    "logs/pre_editor/phase-03/hardware.json": {
+      "executable": null,
+      "sha256": "2641141fa9a941daad9a61356555044a02fc4c92d67b73f04715af1fb80cc34a"
+    },
+    "logs/pre_editor/phase-03/package-validation.json": {
+      "executable": null,
+      "sha256": "934f1223b7e9ebd87b05b8bb2dc1eb8fd89611fa3dcf8d004356694e949f90c5"
+    },
+    "logs/pre_editor/phase-03/pre-build-fingerprints.json": {
+      "executable": null,
+      "sha256": "bf3858d7a9c157a4933939034949ec96432a931fd2ec5022badb00d5cece154b"
+    },
+    "logs/pre_editor/phase-03/pre-continuation-fingerprints.json": {
+      "executable": null,
+      "sha256": "d3655ada9cbae4ada6d335996d41d56df9ccf0d05b1edb3ec26e693372f4d291"
+    },
+    "logs/pre_editor/phase-03/pre-runtime-fingerprints.json": {
+      "executable": null,
+      "sha256": "b41ca5e4cd7b56aa91b41bdce95c71835d411ba04075cfeeca146a67530ff971"
+    },
+    "logs/pre_editor/phase-03/prepare-seal.py": {
+      "executable": null,
+      "sha256": "f9508d5c43f74d8ccc75d30c7d6a6278a005ad49c7e4247ff3f2f9422c16568a"
+    },
+    "logs/pre_editor/phase-03/release/build.binlog": {
+      "executable": null,
+      "sha256": "99ca60733b43fca7b38bf4617cdb741e22ed61a35217926b4bb4336609aa0595"
+    },
+    "logs/pre_editor/phase-03/release/build.log": {
+      "executable": null,
+      "sha256": "f8be8c4b959403794e6a44755b50aa1d60ab3ee0fbce81f9e574b61738baba18"
+    },
+    "logs/pre_editor/phase-03/release/exe-dependents.txt": {
+      "executable": null,
+      "sha256": "0855ec6a146ad6241d1c3c30066fec35a06fee866b738749a8dd207f8fb4e027"
+    },
+    "logs/pre_editor/phase-03/reseal-01/admission.json": {
+      "executable": null,
+      "sha256": "e501f8f908f9558f0b7bb127eaedb0bfc12f93a9b8f42dfce60f42c9ed168985"
+    },
+    "logs/pre_editor/phase-03/reseal-01/evidence-inventory.json": {
+      "executable": null,
+      "sha256": "eda4239144ee8acc3bb49ba99728ebd6a097f8bf61c54362eabc8a6614e14cb5"
+    },
+    "logs/pre_editor/phase-03/reseal-01/failed-approval.json": {
+      "executable": null,
+      "sha256": "b41cee63a4cc4ca9f2588f90ada53ec8a007997d53f78954cef032cdd3de614f"
+    },
+    "logs/pre_editor/phase-03/reseal-01/hardware.json": {
+      "executable": null,
+      "sha256": "2641141fa9a941daad9a61356555044a02fc4c92d67b73f04715af1fb80cc34a"
+    },
+    "logs/pre_editor/phase-03/reseal-01/original-seal/checkpoint-spec.json": {
+      "executable": null,
+      "sha256": "11d76ea3e17b6d6163365579ce1e735d8aea4d8836070b2c1edc978bebbdc632"
+    },
+    "logs/pre_editor/phase-03/reseal-01/original-seal/journal.json": {
+      "executable": null,
+      "sha256": "d5c04e3992498e1147bfe1dd52b6d657f80358684f5e8d809e2a06587b1e74fd"
+    },
+    "logs/pre_editor/phase-03/reseal-01/original-seal/receipt.json": {
+      "executable": null,
+      "sha256": "0d946a70161990e463e8245fce9cdbb6c47c623bc87f6d4ea764cd58bde431d9"
+    },
+    "logs/pre_editor/phase-03/reseal-01/original-seal/state.md": {
+      "executable": null,
+      "sha256": "aae9719fbfd9517f75a1d46be780396801501edf5c77e7c103f873bc8993f92a"
+    },
+    "logs/pre_editor/phase-03/reseal-01/package-validation.json": {
+      "executable": null,
+      "sha256": "d247b2381a6e4fcaaabc7e292cd991018f3870bb7ce401c01e0622f65c6a696f"
+    },
+    "logs/pre_editor/phase-03/reseal-01/pre-build-fingerprints.json": {
+      "executable": null,
+      "sha256": "961fde5f9768548ee20d45376025186648d142dd0b026c783f961ea8e065b6bc"
+    },
+    "logs/pre_editor/phase-03/reseal-01/pre-runtime-fingerprints.json": {
+      "executable": null,
+      "sha256": "01b7ca54b3e2e312b4139c2ca79ca0969d8e001c3e283ae8bc122b33cdaae00e"
+    },
+    "logs/pre_editor/phase-03/reseal-01/release-build.json": {
+      "executable": null,
+      "sha256": "d03e434ebac6ff913a84b4bc8bae0d440d659a4ed82c0b554021a0114567bf88"
+    },
+    "logs/pre_editor/phase-03/reseal-01/release-rebuild.binlog": {
+      "executable": null,
+      "sha256": "198ee2e3b2f809f5263648d43b87d71c4e9d37539dfb2ea6ee1041a125cc2e50"
+    },
+    "logs/pre_editor/phase-03/reseal-01/release-rebuild.log": {
+      "executable": null,
+      "sha256": "38a80fa01215515f2c6b6329d143195d2827ad5cc0e37f0252e29e43bbb25096"
+    },
+    "logs/pre_editor/phase-03/reseal-01/release-stability-build.binlog": {
+      "executable": null,
+      "sha256": "c8799d88eba678a241f9ab60d208205c7bae406486095d50da1364ed95a52a68"
+    },
+    "logs/pre_editor/phase-03/reseal-01/release-stability-build.log": {
+      "executable": null,
+      "sha256": "e1b2f38f93551018a78e0c5e4582a7a1ea6e92cc3f67b736b1b7fe469949e782"
+    },
+    "logs/pre_editor/phase-03/reseal-01/runtime/release-late-shader-failure/GEngine.log": {
+      "executable": null,
+      "sha256": "76ec19d265632c0185a39452ceafde58ed1a9560fc8b152a63dd853a67e83a00"
+    },
+    "logs/pre_editor/phase-03/reseal-01/runtime/release-late-shader-failure/application.log": {
+      "executable": null,
+      "sha256": "5027023ffc876821e73b6106fdced98c2b763f52c6d9321cc83a745b0293fb7e"
+    },
+    "logs/pre_editor/phase-03/reseal-01/runtime/release-late-shader-failure/before-GEngine.log": {
+      "executable": null,
+      "sha256": "d019c5111fbedb0250e7c2b694ac252bfe4981dc0ccab698db07e738fb5cbdfb"
+    },
+    "logs/pre_editor/phase-03/reseal-01/runtime/release-late-shader-failure/before-application.log": {
+      "executable": null,
+      "sha256": "9079d8cac2c18c70c6dfda77e8909866d24331d913e8393d2a0a346c940fef7c"
+    },
+    "logs/pre_editor/phase-03/reseal-01/runtime/release-late-shader-failure/before-imgui.ini": {
+      "executable": null,
+      "sha256": "04c0443c9522d53c73a532b6391f33e56849bd4b464362a4f48af7023a4c1e96"
+    },
+    "logs/pre_editor/phase-03/reseal-01/runtime/release-late-shader-failure/before-smoke.json": {
+      "executable": null,
+      "sha256": "437494a682d4d57205cc1f2f16460bda5d12d3b67adb9f13e9ee9d005280c6c3"
+    },
+    "logs/pre_editor/phase-03/reseal-01/runtime/release-late-shader-failure/imgui.ini": {
+      "executable": null,
+      "sha256": "4cb6d40606316760bce925a3e7290869f98c4a69779cf46424b65172af008941"
+    },
+    "logs/pre_editor/phase-03/reseal-01/runtime/release-late-shader-failure/result.json": {
+      "executable": null,
+      "sha256": "1ebaef311bb534e95bec946f5407636d2c53ff9cd457adf25a5fd858f95b5ae8"
+    },
+    "logs/pre_editor/phase-03/reseal-01/runtime/release-setup-native-close/GEngine.log": {
+      "executable": null,
+      "sha256": "d019c5111fbedb0250e7c2b694ac252bfe4981dc0ccab698db07e738fb5cbdfb"
+    },
+    "logs/pre_editor/phase-03/reseal-01/runtime/release-setup-native-close/application.log": {
+      "executable": null,
+      "sha256": "9079d8cac2c18c70c6dfda77e8909866d24331d913e8393d2a0a346c940fef7c"
+    },
+    "logs/pre_editor/phase-03/reseal-01/runtime/release-setup-native-close/before-GEngine.log": {
+      "executable": null,
+      "sha256": "760a92f9007e478cad4693ed86cc898b2f2a8fecfea840746d711351ad90a250"
+    },
+    "logs/pre_editor/phase-03/reseal-01/runtime/release-setup-native-close/before-application.log": {
+      "executable": null,
+      "sha256": "ef3cc31ecdfd3a0b016132b3a55a8ea6fe3a0188e1c06db1ae17d361a40d45a2"
+    },
+    "logs/pre_editor/phase-03/reseal-01/runtime/release-setup-native-close/before-imgui.ini": {
+      "executable": null,
+      "sha256": "4cb6d40606316760bce925a3e7290869f98c4a69779cf46424b65172af008941"
+    },
+    "logs/pre_editor/phase-03/reseal-01/runtime/release-setup-native-close/before-smoke.json": {
+      "executable": null,
+      "sha256": "d660a91009facfc07f3eddac9a47e79c887ca905f20b554a30a7d7c2382cb9a2"
+    },
+    "logs/pre_editor/phase-03/reseal-01/runtime/release-setup-native-close/imgui.ini": {
+      "executable": null,
+      "sha256": "04c0443c9522d53c73a532b6391f33e56849bd4b464362a4f48af7023a4c1e96"
+    },
+    "logs/pre_editor/phase-03/reseal-01/runtime/release-setup-native-close/result.json": {
+      "executable": null,
+      "sha256": "6ac2dfbb33813e2a73ad016e1864dbc0383e15d0ac1eb83b8e83915d3a2e763f"
+    },
+    "logs/pre_editor/phase-03/reseal-01/runtime/summary.json": {
+      "executable": null,
+      "sha256": "91243972745a88c4f1dcdb7d28feb6a0dc61559564f1e4d94aac55bcd63a2641"
+    },
+    "logs/pre_editor/phase-03/reseal-01/scenario-manifest.json": {
+      "executable": null,
+      "sha256": "5a9608364aafe3f079d02e7d3b436d7d36b69b6cc4133ef918856b58bb6cdbda"
+    },
+    "logs/pre_editor/phase-03/reseal-01/summary.json": {
+      "executable": null,
+      "sha256": "03406263e9c3e195bd8d78233144f84578c3bf674d5a124cdb784c5398c4e70f"
+    },
+    "logs/pre_editor/phase-03/reseal-01/summary.md": {
+      "executable": null,
+      "sha256": "d33594c402d55133284fa3d17919938a6fc8895a4e217b48e40d093821a7b106"
+    },
+    "logs/pre_editor/phase-03/runtime-check-correction.json": {
+      "executable": null,
+      "sha256": "514bd7939b5465cce906cad6f06c1b2957b6bb941b1654afb399be1bde7b2492"
+    },
+    "logs/pre_editor/phase-03/runtime-continuation/debug-late-shader-failure/result.json": {
+      "executable": null,
+      "sha256": "f2eac9d1426474f29743a8422d9e54ef2b2d18d1334b1f99b9c730b13d537ab5"
+    },
+    "logs/pre_editor/phase-03/runtime-continuation/release-late-shader-failure/result.json": {
+      "executable": null,
+      "sha256": "b1e0bddb3d376ce8fb303882ce49578e1298cdad2f422af5e0a7980b9f902a52"
+    },
+    "logs/pre_editor/phase-03/runtime-continuation/release-setup-native-close/result.json": {
+      "executable": null,
+      "sha256": "e32722777f792fea2766ada8bc778bb3c8d95881b0b9f89a6d9d313aef68faad"
+    },
+    "logs/pre_editor/phase-03/runtime-continuation/summary.json": {
+      "executable": null,
+      "sha256": "a5ec9465975f18eaa2e4794b1edef4bd200155c1092255af817942e4c8929a36"
+    },
+    "logs/pre_editor/phase-03/runtime/debug-setup-native-close/result.json": {
+      "executable": null,
+      "sha256": "7d09a0eea540a005e0902c4112ad98179abeb80ffcd4f8b03a1d9d7b8d0405a8"
+    },
+    "logs/pre_editor/phase-03/runtime/summary.json": {
+      "executable": null,
+      "sha256": "58802a16639656ba624f9093c8e57642f33533ce126d6146a8460a14fdf39f55"
+    },
+    "logs/pre_editor/phase-03/scenario-manifest-v2.json": {
+      "executable": null,
+      "sha256": "135725cd27dbcddad384ef39195853ecfd514efe1ddf895dbc9dbd698207baeb"
+    },
+    "logs/pre_editor/phase-03/scenario-manifest.json": {
+      "executable": null,
+      "sha256": "c1d05ddb4029866e560eb6860293c311517a58133d9322b72fc038865ceb2658"
+    },
+    "logs/pre_editor/phase-03/source-review.json": {
+      "executable": null,
+      "sha256": "44250491c57ef8a07f1981145b7fcc890c52d1bcea256b36bfbf686e43b53ba1"
+    },
+    "logs/pre_editor/phase-03/summary.json": {
+      "executable": null,
+      "sha256": "d41b233db8eb69a4df499e4d3c86b96460a75ec16ab28029fde3709fcffe65ac"
+    },
+    "pre-editor-checkpoints/phase-02.json": {
+      "executable": null,
+      "sha256": "44cdc50bcff21236658cfb700f57a44b81d1d003a20a86160e3706ed01cb8d51"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "56b0ad50acdc98158f01ebbd85b952d54b4095332904212a3164c4b2a2b5970e"
+    },
+    "tools/postbuild.py": {
+      "executable": null,
+      "sha256": "be62655eda56bd2d57950231815fdbc625eb0235d4eff34b30e28621e533fc48"
+    },
+    "tools/runtime_assets.json": {
+      "executable": null,
+      "sha256": "de0f15f505442f26238e622fef1ca6d3ec794abf0875250b837344f804fce70c"
+    },
+    "tools/test_pre_editor_resource_setup.py": {
+      "executable": null,
+      "sha256": "6fd5970136d358283ce9aba77daeec788d02b81935d68259115e3b91f83a756d"
+    }
+  }
+}

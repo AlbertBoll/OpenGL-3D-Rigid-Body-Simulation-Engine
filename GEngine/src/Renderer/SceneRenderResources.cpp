@@ -38,8 +38,50 @@ out vec3 color;
 void main() { gl_Position = u_projection * u_view * u_model * vec4(vertexPosition, 1.0); color = vertexColor; }
 )";
 
+        void ApplyLitCoverage(std::string& source)
+        {
+            // Preserve the lighting implementation and wrap only fragment coverage.
+            source.insert(source.find('\n') + 1, "#define main frameLightingMain\n");
+            source += R"(
+#undef main
+uniform int frameAlphaMode;
+uniform float frameAlphaCutoff, frameOpacity;
+uniform bool framePremultiplied;
+void main() {
+    float coverage = texture(albedoMap, fs_in.TexCoords * u_tiling).a * frameOpacity;
+    if (frameAlphaMode == 1 && coverage < frameAlphaCutoff) discard;
+    frameLightingMain();
+    FragColor.a = frameAlphaMode == 2 ? coverage : 1.0;
+    if (frameAlphaMode == 2 && framePremultiplied) FragColor.rgb *= coverage;
+}
+)";
+        }
+
         std::expected<Asset::Shader, SceneResourceError>
-        Program(SceneMaterialKind kind, std::span<const MaterialParameterDecl> parameters)
+        CreatePackedProgram(const char* vertex, const std::string& source, const char* fragment,
+                            SceneMaterialKind kind,
+                            std::span<const MaterialParameterDecl> parameters)
+        {
+            auto packedVertex = RenderBackend::PackedStage(vertex, kind == SceneMaterialKind::Sky,
+                                                           parameters, Asset::ShaderStage::Vertex);
+            if (!packedVertex)
+                return std::unexpected(packedVertex.error());
+            auto packedFragment = RenderBackend::PackedStage(source, false, parameters);
+            if (!packedFragment)
+                return std::unexpected(packedFragment.error());
+            const Asset::ShaderSource stages[]{
+                {Asset::ShaderStage::Vertex, *packedVertex,
+                 "semantic vertex / packed frame-material input"},
+                {Asset::ShaderStage::Fragment, *packedFragment, fragment}};
+            auto shader = Asset::Shader::Create({stages});
+            if (!shader)
+                return std::unexpected(SceneResourceError{"program creation", shader.error()});
+            return std::move(*shader);
+        }
+
+        std::expected<Asset::Shader, SceneResourceError>
+        CreateSceneProgram(SceneMaterialKind kind,
+                           std::span<const MaterialParameterDecl> parameters)
         {
             const char* fragment = kind == SceneMaterialKind::Lit      ? "pbr_cascade_shadow.frag"
                                    : kind == SceneMaterialKind::Helper ? "basic.frag"
@@ -62,23 +104,7 @@ void main() { gl_Position = u_projection * u_view * u_model * vec4(vertexPositio
                                                       Asset::ShaderStage::Fragment, *path,
                                                       "Cannot read shader source"}});
             if (kind == SceneMaterialKind::Lit)
-            {
-                // Preserve the lighting implementation and wrap only fragment coverage.
-                source.insert(source.find('\n') + 1, "#define main frameLightingMain\n");
-                source += R"(
-#undef main
-uniform int frameAlphaMode;
-uniform float frameAlphaCutoff, frameOpacity;
-uniform bool framePremultiplied;
-void main() {
-    float coverage = texture(albedoMap, fs_in.TexCoords * u_tiling).a * frameOpacity;
-    if (frameAlphaMode == 1 && coverage < frameAlphaCutoff) discard;
-    frameLightingMain();
-    FragColor.a = frameAlphaMode == 2 ? coverage : 1.0;
-    if (frameAlphaMode == 2 && framePremultiplied) FragColor.rgb *= coverage;
-}
-)";
-            }
+                ApplyLitCoverage(source);
             std::string sky;
             const char* vertex = kind == SceneMaterialKind::Helper ? HelperVertex : LitVertex;
             if (kind == SceneMaterialKind::Sky)
@@ -100,21 +126,22 @@ void main() {
                                                               "Cannot read shader source"}});
                 vertex = sky.c_str();
             }
-            auto packedVertex = RenderBackend::PackedStage(vertex, kind == SceneMaterialKind::Sky,
-                                                           parameters, Asset::ShaderStage::Vertex);
-            if (!packedVertex)
-                return std::unexpected(packedVertex.error());
-            auto packedFragment = RenderBackend::PackedStage(source, false, parameters);
-            if (!packedFragment)
-                return std::unexpected(packedFragment.error());
-            const Asset::ShaderSource stages[]{
-                {Asset::ShaderStage::Vertex, *packedVertex,
-                 "semantic vertex / packed frame-material input"},
-                {Asset::ShaderStage::Fragment, *packedFragment, fragment}};
-            auto shader = Asset::Shader::Create({stages});
-            if (!shader)
-                return std::unexpected(SceneResourceError{"program creation", shader.error()});
-            return std::move(*shader);
+            return CreatePackedProgram(vertex, source, fragment, kind, parameters);
+        }
+
+        PipelineDesc DescribePipeline(const SceneMaterialDesc& desc,
+                                      Asset::ShaderProgramHandle program)
+        {
+            PipelineDesc pipeline;
+            pipeline.program = program;
+            pipeline.programRevision = 1;
+            pipeline.cull = desc.doubleSided ? CullMode::None : CullMode::Back;
+            pipeline.alpha = desc.alpha;
+            pipeline.alphaCutoff = desc.alphaCutoff;
+            pipeline.transparentBlend = desc.transparentBlend;
+            if (desc.kind == SceneMaterialKind::Sky)
+                pipeline.depthCompare = DepthCompare::LessEqual;
+            return pipeline;
         }
     }
 
@@ -246,7 +273,7 @@ void main() {
             (desc.kind != SceneMaterialKind::Lit && desc.alpha != AlphaMode::Opaque))
             return std::unexpected(
                 SceneResourceError{"material description", SceneResourceCode::InvalidMaterial});
-        auto shader = Program(desc.kind, desc.parameters);
+        auto shader = CreateSceneProgram(desc.kind, desc.parameters);
         if (!shader)
             return std::unexpected(shader.error());
         // Every failure (including standard container unwinding) retires only this
@@ -284,15 +311,7 @@ void main() {
             if (!program)
                 return std::unexpected(SceneResourceError{"program publication", program.error()});
             rollback.program = *program;
-            PipelineDesc pipeline;
-            pipeline.program = *program;
-            pipeline.programRevision = 1;
-            pipeline.cull = desc.doubleSided ? CullMode::None : CullMode::Back;
-            pipeline.alpha = desc.alpha;
-            pipeline.alphaCutoff = desc.alphaCutoff;
-            pipeline.transparentBlend = desc.transparentBlend;
-            if (desc.kind == SceneMaterialKind::Sky)
-                pipeline.depthCompare = DepthCompare::LessEqual;
+            const auto pipeline = DescribePipeline(desc, *program);
             auto state = PipelineState::Create(pipeline);
             if (!state)
                 return std::unexpected(SceneResourceError{"pipeline", state.error()});

@@ -62,6 +62,14 @@ namespace GEngine
         std::uint32_t materialSlot = 0;
     };
 
+    // CPU authoring facts, independent of GPU storage and frame leases. Current
+    // authoring needs only range validation; heavy mesh payload is never copied.
+    struct MeshAuthoringMetadata
+    {
+        std::size_t submeshCount = 0;
+        bool operator==(const MeshAuthoringMetadata&) const = default;
+    };
+
     struct LocalBounds
     {
         bool empty = true;
@@ -141,6 +149,10 @@ namespace GEngine
         { return {m_Indices.get(), m_IndexBytes}; }
         std::span<const SubmeshRange> Submeshes() const noexcept
         { return {m_Submeshes.get(), m_SubmeshCount}; }
+        MeshAuthoringMetadata AuthoringMetadata() const noexcept
+        {
+            return {m_SubmeshCount};
+        }
         std::size_t VertexCount() const noexcept { return m_VertexCount; }
         std::size_t IndexCount() const noexcept { return m_IndexCount; }
         MeshIndexFormat IndexFormat() const noexcept { return m_IndexFormat; }

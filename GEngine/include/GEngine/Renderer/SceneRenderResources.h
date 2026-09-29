@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Scene/RenderState.h"
+#include "Mesh/AsyncMesh.h"
 #include <string_view>
 #include <variant>
 
@@ -8,6 +9,8 @@ namespace GEngine
 {
     class EngineContext;
     class _Entity;
+    enum class SceneAssignmentError;
+    struct SceneAssignmentChange;
     namespace Manager
     {
         class ShapeManager;
@@ -19,11 +22,12 @@ namespace GEngine
         MissingShape,
         UnsupportedShape,
         InvalidMaterial,
-        InvalidEntity
+        InvalidEntity,
+        PublicationBusy
     };
     using SceneResourceCause =
-        std::variant<SceneResourceCode, PlatformError, MeshError, GpuMeshError,
-                     Asset::RegistryError, Asset::ShaderError, Asset::TextureError,
+        std::variant<SceneResourceCode, SceneAssignmentError, PlatformError, MeshError,
+                     GpuMeshError, Asset::RegistryError, Asset::ShaderError, Asset::TextureError,
                      Asset::SamplerError, MaterialDeclarationError, MaterialInstanceError>;
     struct SceneResourceError
     {
@@ -78,6 +82,21 @@ namespace GEngine
         std::expected<void, SceneResourceError> AttachPhysicsShape(_Entity&, std::string_view);
         std::expected<Asset::MaterialInstanceHandle, SceneResourceError>
         PublishMaterial(const SceneMaterialDesc&);
+        // Normal authoring passes CPU values/handles. These synchronous operations
+        // publish only at the serial safe point; they never advance a frame.
+        std::expected<SceneAssignmentChange, SceneResourceError>
+        AssignRenderable(_Entity, const Component::MeshRendererComponent&);
+        std::expected<MeshAuthoringMetadata, Asset::RegistryError>
+            MeshMetadata(Asset::MeshHandle) const;
+        std::expected<bool, SceneResourceError> SetMaterialTexture(Asset::MaterialInstanceHandle,
+                                                                   std::string_view,
+                                                                   MaterialTextureValue);
+        std::expected<std::unique_ptr<Asset::AsyncMeshLoader>, Asset::AsyncMeshError>
+            CreateMeshLoader(std::filesystem::path, Asset::AsyncMeshLimits = {});
+
+        // Renderer/diagnostic compatibility only. FrameScheduler owns normal frame
+        // preparation; application authoring uses the operations above. Root service
+        // access stays in construction/legacy adapters, not in the authoring chain.
         Asset::AssetPublication& Publication() noexcept
         {
             return m_Publication;

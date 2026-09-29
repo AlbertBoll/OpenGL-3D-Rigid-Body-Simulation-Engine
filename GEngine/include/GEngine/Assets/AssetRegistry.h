@@ -28,19 +28,44 @@ namespace GEngine::Asset
         std::uint64_t maxRevision = (std::numeric_limits<std::uint64_t>::max)();
     };
 
+    namespace AssetDetail
+    {
+        struct NoAuthoringMetadata
+        {
+        };
+        template <class Resource> auto CaptureAuthoringMetadata(const Resource& resource) noexcept
+        {
+            if constexpr (requires {
+                              { resource.AuthoringMetadata() } noexcept;
+                          })
+                return resource.AuthoringMetadata();
+            else
+                return NoAuthoringMetadata{};
+        }
+    }
+
     template<class Tag, class Resource>
     class AssetRegistry<AssetHandle<Tag>, Resource> final
     {
         static_assert(std::is_nothrow_destructible_v<Resource>, "Registry resources need noexcept destruction");
         using Handle = AssetHandle<Tag>;
+        using NoAuthoringMetadata = AssetDetail::NoAuthoringMetadata;
+        using Metadata =
+            decltype(AssetDetail::CaptureAuthoringMetadata(std::declval<const Resource&>()));
+        static_assert(std::is_trivially_copyable_v<Metadata>);
         struct Version
         {
-            template<class... Args>
+            template <class... Args>
             explicit Version(std::uint64_t number, Args&&... args)
-                : revision(number), fences(0), resource(std::forward<Args>(args)...) {}
+                : revision(number), fences(0), resource(std::forward<Args>(args)...),
+                  metadata(AssetDetail::CaptureAuthoringMetadata(resource))
+            {
+            }
             std::uint64_t revision;
             std::vector<std::unique_ptr<AssetRetirementFence>> fences;
             Resource resource;
+            // Same version/identity as the resource. No second registry or lookup cache.
+            Metadata metadata;
         };
         struct Slot
         {
@@ -66,6 +91,12 @@ namespace GEngine::Asset
             const Resource* operator->() const { return &**this; }
             Handle Identity() const noexcept { return m_Handle; }
             std::uint64_t Revision() const noexcept { return m_Version ? m_Version->revision : 0; }
+            Metadata ReadMetadata() const noexcept
+                requires(!std::same_as<Metadata, NoAuthoringMetadata>)
+            {
+                return m_Version ? m_Version->metadata : Metadata{};
+            }
+
         private:
             friend class AssetRegistry;
             Lease(Handle handle, std::shared_ptr<Version> version) : m_Handle(handle), m_Version(std::move(version)) {}
@@ -126,6 +157,20 @@ namespace GEngine::Asset
             return Lease(handle, slot->current);
         }
 
+        // Owner-thread CPU lookup: no FrameAccess, resource lease or native call.
+        // A by-value result cannot borrow GPU storage or observe later replacement.
+        [[nodiscard]] std::expected<Metadata, RegistryError> ReadMetadata(Handle handle) const
+            requires(!std::same_as<Metadata, NoAuthoringMetadata>)
+        {
+            m_Publication.RequireOwner();
+            if (m_Mutating)
+                return std::unexpected(RegistryError::Busy);
+            const auto* slot = Find(handle);
+            if (!slot)
+                return std::unexpected(RegistryError::InvalidHandle);
+            return slot->current->metadata;
+        }
+
         template<class... Args>
         requires std::constructible_from<Resource, Args...>
         std::expected<void, RegistryError> Replace(const AssetPublication::Publication& access, Handle handle, Args&&... args)
@@ -178,7 +223,12 @@ namespace GEngine::Asset
             if (slot->current->revision == m_Limits.maxRevision)
                 return std::unexpected(RegistryError::RevisionExhausted);
             auto result = std::invoke(std::forward<Operation>(operation), slot->current->resource);
-            if (result) ++slot->current->revision;
+            if (result)
+            {
+                slot->current->metadata =
+                    AssetDetail::CaptureAuthoringMetadata(slot->current->resource);
+                ++slot->current->revision;
+            }
             return result;
         }
 

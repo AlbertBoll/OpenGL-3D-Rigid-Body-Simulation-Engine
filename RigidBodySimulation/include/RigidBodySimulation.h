@@ -49,8 +49,8 @@ private:
 
 private:
 	// Scenes release presentation-cache leases before the resource publisher.
-	std::unique_ptr<SceneRenderResources> m_FrameResources;
-	std::optional<FrameSubmission> m_FrameSubmission;
+    std::unique_ptr<SceneRenderResources> m_SceneResources;
+    std::optional<FrameSubmission> m_FrameSubmission;
 	EntityPickTable m_PickTable;
     Asset::AsyncTextureLoader* m_TextureLoads{}; // Borrowed root-owned service.
     Asset::UploadTicket m_WoodRequest{};

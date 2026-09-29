@@ -1,5 +1,6 @@
 #include "gepch.h"
 #include "Renderer/SceneRenderResources.h"
+#include "Scene/_Entity.h"
 #include "Core/GEngine.h"
 #include "Core/RuntimeAssets.h"
 #include "Managers/ShapeManager.h"
@@ -155,7 +156,9 @@ void main() {
                        if constexpr (std::is_enum_v<T>)
                            return std::format("domain={} code={}",
                                               std::same_as<T, SceneResourceCode> ? "scene-resource"
-                                                                                 : "registry",
+                                              : std::same_as<T, SceneAssignmentError>
+                                                  ? "scene-assignment"
+                                                  : "registry",
                                               static_cast<int>(cause));
                        else if constexpr (std::same_as<T, Asset::ShaderError>)
                            return std::format("shader code={} stage={} source={} log={}",
@@ -219,6 +222,72 @@ void main() {
         return result;
     }
 
+    std::expected<MeshAuthoringMetadata, Asset::RegistryError>
+    SceneRenderResources::MeshMetadata(Asset::MeshHandle handle) const
+    {
+        return m_Meshes.ReadMetadata(handle);
+    }
+
+    std::expected<SceneAssignmentChange, SceneResourceError>
+    SceneRenderResources::AssignRenderable(_Entity entity,
+                                           const Component::MeshRendererComponent& value)
+    {
+        if (!m_Publication.CanPublish())
+            return std::unexpected(
+                SceneResourceError{"renderable assignment", SceneResourceCode::PublicationBusy});
+        auto access = m_Publication.BeginFrame();
+        auto assigned = entity.AssignRenderable(value, ForFrame(access));
+        if (!assigned)
+            return std::unexpected(SceneResourceError{"renderable assignment", assigned.error()});
+        return *assigned;
+    }
+
+    std::expected<std::unique_ptr<Asset::AsyncMeshLoader>, Asset::AsyncMeshError>
+    SceneRenderResources::CreateMeshLoader(std::filesystem::path root,
+                                           Asset::AsyncMeshLimits limits)
+    {
+        if (!m_Publication.CanPublish())
+            return std::unexpected(
+                Asset::AsyncMeshError{Asset::UploadError{Asset::UploadCode::PublicationBusy}});
+        return Asset::AsyncMeshLoader::Create(m_Publication, m_Meshes, std::move(root), limits);
+    }
+
+    std::expected<bool, SceneResourceError>
+    SceneRenderResources::SetMaterialTexture(Asset::MaterialInstanceHandle handle,
+                                             std::string_view name, MaterialTextureValue value)
+    {
+        if (!m_Publication.CanPublish())
+            return std::unexpected(
+                SceneResourceError{"material texture", SceneResourceCode::PublicationBusy});
+        std::optional<MaterialInstance> candidate;
+        {
+            auto access = m_Publication.BeginFrame();
+            auto previous = m_Materials.Acquire(access, handle);
+            if (!previous)
+                return std::unexpected(SceneResourceError{"material lookup", previous.error()});
+            candidate = **previous;
+            const auto revision = candidate->Revision();
+            if (auto changed = candidate->SetTexture(name, value); !changed)
+                return std::unexpected(SceneResourceError{"material texture", changed.error()});
+            auto texture = m_Bindings->textures.Acquire(access, value.texture);
+            if (!texture)
+                return std::unexpected(
+                    SceneResourceError{"material texture identity", texture.error()});
+            auto sampler = m_Bindings->samplers.Acquire(access, value.sampler);
+            if (!sampler)
+                return std::unexpected(
+                    SceneResourceError{"material sampler identity", sampler.error()});
+            if (candidate->Revision() == revision)
+                return false;
+        }
+        auto publication = m_Publication.BeginPublication();
+        auto replaced = m_Materials.Replace(publication, handle, std::move(*candidate));
+        if (!replaced)
+            return std::unexpected(SceneResourceError{"material replacement", replaced.error()});
+        m_Materials.Collect(publication);
+        return true;
+    }
+
     RenderStateResources
     SceneRenderResources::ForFrame(const Asset::AssetPublication::FrameAccess& access) const
     {
@@ -234,6 +303,9 @@ void main() {
     std::expected<Asset::MeshHandle, SceneResourceError>
     SceneRenderResources::PublishShape(std::string_view name)
     {
+        if (!m_Publication.CanPublish())
+            return std::unexpected(
+                SceneResourceError{"shape publication", SceneResourceCode::PublicationBusy});
         for (const auto& [key, handle] : m_SharedShapes)
             if (key == name)
                 return handle;
@@ -267,6 +339,9 @@ void main() {
     std::expected<Asset::MaterialInstanceHandle, SceneResourceError>
     SceneRenderResources::PublishMaterial(const SceneMaterialDesc& desc)
     {
+        if (!m_Publication.CanPublish())
+            return std::unexpected(
+                SceneResourceError{"material publication", SceneResourceCode::PublicationBusy});
         if (desc.kind < SceneMaterialKind::Lit || desc.kind > SceneMaterialKind::Sky ||
             !std::isfinite(desc.lineWidth) || desc.lineWidth <= 0 || !std::isfinite(desc.opacity) ||
             desc.opacity < 0 || desc.opacity > 1 ||

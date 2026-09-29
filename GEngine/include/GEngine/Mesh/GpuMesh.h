@@ -42,6 +42,12 @@ namespace GEngine
         GpuMesh& operator=(GpuMesh&&) noexcept;
         static std::expected<GpuMesh, GpuMeshError> Create(const MeshAsset&);
         explicit operator bool() const noexcept;
+        // Publication copies this CPU-origin value into its registry version.
+        // Normal authoring reads the registry metadata, never this GPU adapter.
+        MeshAuthoringMetadata AuthoringMetadata() const noexcept
+        {
+            return m_AuthoringMetadata;
+        }
         VertexLayout Layout() const noexcept;
         std::span<const SubmeshRange> Submeshes() const noexcept;
         std::size_t VertexCount() const noexcept;
@@ -67,6 +73,7 @@ namespace GEngine
     private:
         struct Storage;
         std::unique_ptr<Storage> m_Storage;
+        MeshAuthoringMetadata m_AuthoringMetadata;
     };
 
     using MeshRegistry = Asset::AssetRegistry<Asset::MeshHandle, GpuMesh>;

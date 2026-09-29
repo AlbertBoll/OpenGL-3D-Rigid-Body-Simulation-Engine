@@ -86,9 +86,20 @@ namespace GEngine
 
     GpuMesh::GpuMesh() noexcept = default;
     GpuMesh::~GpuMesh() = default;
-    GpuMesh::GpuMesh(GpuMesh&&) noexcept = default;
+    GpuMesh::GpuMesh(GpuMesh&& other) noexcept
+        : m_Storage(std::move(other.m_Storage)),
+          m_AuthoringMetadata(std::exchange(other.m_AuthoringMetadata, {}))
+    {
+    }
     GpuMesh& GpuMesh::operator=(GpuMesh&& other) noexcept
-    { if (this != &other) m_Storage = std::move(other.m_Storage); return *this; }
+    {
+        if (this != &other)
+        {
+            m_Storage = std::move(other.m_Storage);
+            m_AuthoringMetadata = std::exchange(other.m_AuthoringMetadata, {});
+        }
+        return *this;
+    }
     GpuMesh::operator bool() const noexcept { return bool(m_Storage); }
     VertexLayout GpuMesh::Layout() const noexcept
     { return m_Storage ? VertexLayout{m_Storage->stride, {m_Storage->attributes.data(), m_Storage->attributeCount}} : VertexLayout{}; }
@@ -122,6 +133,7 @@ namespace GEngine
                 return Error(Code::DeviceLimit, "Unsupported attribute format or slot", a.slot);
 
         GpuMesh result;
+        result.m_AuthoringMetadata = source.AuthoringMetadata();
         result.m_Storage.reset(new (std::nothrow) Storage);
         if (!result.m_Storage) return Error(Code::Allocation, "Mesh owner allocation failed");
         auto& s = *result.m_Storage;

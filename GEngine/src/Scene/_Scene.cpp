@@ -677,14 +677,15 @@ namespace GEngine
         if (!m_Registry.all_of<IDComponent>(entity))
             return std::unexpected(SceneAssignmentError::MissingIdentity);
 
-        // Acquire borrows exact published versions; it cannot upload or copy assets.
-        auto mesh = resources.meshes.Acquire(resources.access, value.mesh);
+        // Range validation reads CPU metadata paired with the published identity.
+        // It does not acquire a GpuMesh merely to inspect authoring facts.
+        auto mesh = resources.meshes.ReadMetadata(value.mesh);
         if (!mesh)
             return std::unexpected(SceneAssignmentError::InvalidMesh);
         auto material = resources.materials.Acquire(resources.access, value.material);
         if (!material)
             return std::unexpected(SceneAssignmentError::InvalidMaterial);
-        if (value.submesh >= (*mesh)->Submeshes().size())
+        if (value.submesh >= mesh->submeshCount)
             return std::unexpected(SceneAssignmentError::InvalidSubmesh);
         const auto* previous = m_Registry.try_get<Component::MeshRendererComponent>(entity);
         if (previous && *previous == value)

@@ -15,6 +15,7 @@
 
 #include "Core/Window.h"
 #include "../tests/SceneAuthoringChecks.h"
+#include "../tests/ResourceOwnershipChecks.h"
 
 #include <Physics/ShapeBox.h>
 #include <Physics/PhysicsWorld.h>
@@ -68,7 +69,7 @@ RigidBodySimulationApp::~RigidBodySimulationApp()
 {
     if (m_AudioSystem)
         m_AudioSystem->Shutdown();
-    if (m_FrameResources)
+    if (m_SceneResources)
     {
         if (auto current = GetEngineContext().MakeCurrent(); !current)
         {
@@ -79,15 +80,28 @@ RigidBodySimulationApp::~RigidBodySimulationApp()
         m_ActiveScene.reset();
         m_EditorScene.reset();
         m_FrameSubmission.reset();
-        m_FrameResources.reset();
+        m_SceneResources.reset();
     }
 }
 
 ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     const std::initializer_list<WindowProperties>& WindowsPropertyList)
 {
+    std::size_t cpuMetadataChecks = 0;
+    if (std::getenv("GENGINE_PRE_EDITOR_RESOURCE_OWNERSHIP"))
+    {
+        auto checked = PreEditorValidation::CheckCpuMeshMetadata();
+        if (!checked)
+            return std::unexpected(PlatformError{
+                PlatformErrorCode::Initialization,
+                "Phase 05 CPU metadata before platform initialization", checked.error()});
+        cpuMetadataChecks = *checked;
+    }
     if (auto initialized = BaseApp::Initialize(WindowsPropertyList); !initialized)
         return initialized;
+    if (cpuMetadataChecks)
+        Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_05_CPU_PASS checks={} before_platform=true",
+                                   cpuMetadataChecks);
     m_AudioSystem = CreateScopedPtr<Audio::AudioSystem>();
     if (auto audio = m_AudioSystem->Initialize(); !audio)
         return std::unexpected(audio.error());
@@ -100,7 +114,7 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     auto resources = SceneRenderResources::Create(GetEngineContext());
     if (!resources)
         return failure(resources.error());
-    m_FrameResources = std::move(*resources);
+    m_SceneResources = std::move(*resources);
     auto meshRoot = RuntimeAssets::TryFile("Models");
     if (!meshRoot)
         return std::unexpected(meshRoot.error());
@@ -127,27 +141,27 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         return std::unexpected(createdSceneEntity0.error());
     m_FrameCameraEntity = *createdSceneEntity0;
     m_FrameCameraEntity.AddOrReplaceComponent<RenderCameraComponent>();
-    auto sphereMeshResult = m_FrameResources->PublishShape("Sphere");
+    auto sphereMeshResult = m_SceneResources->PublishShape("Sphere");
     if (!sphereMeshResult)
         return failure(sphereMeshResult.error());
     auto smoothSphereGeo = *sphereMeshResult;
-    auto diamondMeshResult = m_FrameResources->PublishShape("Diamond");
+    auto diamondMeshResult = m_SceneResources->PublishShape("Diamond");
     if (!diamondMeshResult)
         return failure(diamondMeshResult.error());
     auto DiamondGeo = *diamondMeshResult;
-    auto boxMeshResult = m_FrameResources->PublishShape("Box");
+    auto boxMeshResult = m_SceneResources->PublishShape("Box");
     if (!boxMeshResult)
         return failure(boxMeshResult.error());
     auto boxMesh = *boxMeshResult;
-    auto assignRenderable = [&](_Entity entity, const MeshRendererComponent& value)
-        -> ApplicationInitializationResult
+    auto assignRenderable =
+        [&](_Entity entity, const MeshRendererComponent& value) -> ApplicationInitializationResult
     {
-        auto access = m_FrameResources->Publication().BeginFrame();
-        auto assigned = entity.AssignRenderable(value, m_FrameResources->ForFrame(access));
+        auto assigned = m_SceneResources->AssignRenderable(entity, value);
         if (!assigned)
-            return std::unexpected(PlatformError{PlatformErrorCode::Initialization,
-                "scene assignment", std::format("Renderable assignment failed: {}",
-                                                 static_cast<int>(assigned.error()))});
+            return std::unexpected(
+                PlatformError{PlatformErrorCode::Initialization, "scene assignment",
+                              std::format("Renderable assignment failed: {}",
+                                          DescribeSceneResourceError(assigned.error()))});
         return {};
     };
     auto renderable = [&](_Entity entity, Asset::MeshHandle mesh,
@@ -158,7 +172,7 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
             return assigned;
         if (!physicsShape.empty())
         {
-            auto attached = m_FrameResources->AttachPhysicsShape(entity, physicsShape);
+            auto attached = m_SceneResources->AttachPhysicsShape(entity, physicsShape);
             if (!attached)
                 return failure(attached.error());
         }
@@ -261,7 +275,7 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         {"metalness", MaterialParameterType::Float3, std::array<float, 3>{.8f, .8f, .8f}},
         {"u_tiling", MaterialParameterType::Float2, std::array<float, 2>{1, 1}}};
     auto sphereMaterialResult = PublishTexturedMaterial(
-        *m_FrameResources, SceneMaterialKind::Lit,
+        *m_SceneResources, SceneMaterialKind::Lit,
         {sphere_albedo, sphere_normal, sphere_metallic, sphere_roughness, sphere_ao},
         sphereParameters);
     if (!sphereMaterialResult)
@@ -273,7 +287,7 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         {"metalness", MaterialParameterType::Float3, std::array<float, 3>{.08f, .08f, .08f}},
         {"u_tiling", MaterialParameterType::Float2, std::array<float, 2>{2, 2}}};
     auto floorMaterialResult = PublishTexturedMaterial(
-        *m_FrameResources, SceneMaterialKind::Lit,
+        *m_SceneResources, SceneMaterialKind::Lit,
         {floor_albedo, floor_normal, floor_metallic, floor_roughness, floor_ao}, floorParameters);
     if (!floorMaterialResult)
         return failure(floorMaterialResult.error());
@@ -283,7 +297,7 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         {"metalness", MaterialParameterType::Float3, std::array<float, 3>{.08f, .08f, .08f}},
         {"u_tiling", MaterialParameterType::Float2, std::array<float, 2>{2, .2f}}};
     auto wallMaterialResult = PublishTexturedMaterial(
-        *m_FrameResources, SceneMaterialKind::Lit,
+        *m_SceneResources, SceneMaterialKind::Lit,
         {floor_albedo, floor_normal, floor_metallic, floor_roughness, floor_ao}, wallParameters);
     if (!wallMaterialResult)
         return failure(wallMaterialResult.error());
@@ -298,7 +312,7 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     // The old box path retained the floor's PBR channels between draws. Make the
     // steady authored combination explicit so frame ordering cannot alter it.
     auto boxMaterialResult = PublishTexturedMaterial(
-        *m_FrameResources, SceneMaterialKind::Lit,
+        *m_SceneResources, SceneMaterialKind::Lit,
         {*woodResult, floor_normal, floor_metallic, floor_roughness, floor_ao}, boxParameters);
     if (!boxMaterialResult)
         return failure(boxMaterialResult.error());
@@ -327,11 +341,11 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     point.castShadows = true;
     m_PointLightEntity.AddOrReplaceComponent<RenderLightComponent>(point);
     m_PointLightEntity.AddOrReplaceComponent<Transform3DComponent>(m_LightPos);
-    auto pointMesh = m_FrameResources->PublishShape("PointLightHelper");
+    auto pointMesh = m_SceneResources->PublishShape("PointLightHelper");
     if (!pointMesh)
         return failure(pointMesh.error());
     auto pointMaterial =
-        PublishTexturedMaterial(*m_FrameResources, SceneMaterialKind::PointLight, {}, {});
+        PublishTexturedMaterial(*m_SceneResources, SceneMaterialKind::PointLight, {}, {});
     if (!pointMaterial)
         return failure(pointMaterial.error());
     if (auto assigned = assignRenderable(
@@ -515,10 +529,10 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     const MaterialParameterDecl helperParameters[]{
         {"u_baseColor", MaterialParameterType::Float4, std::array<float, 4>{1, 1, 1, 1}},
         {"u_useVertexColor", MaterialParameterType::Boolean, true}};
-    auto gridMesh = m_FrameResources->PublishShape("GridHelper");
+    auto gridMesh = m_SceneResources->PublishShape("GridHelper");
     if (!gridMesh)
         return failure(gridMesh.error());
-    auto gridMaterial = PublishTexturedMaterial(*m_FrameResources, SceneMaterialKind::Helper, {},
+    auto gridMaterial = PublishTexturedMaterial(*m_SceneResources, SceneMaterialKind::Helper, {},
                                                 helperParameters, true);
     if (!gridMaterial)
         return failure(gridMaterial.error());
@@ -531,10 +545,10 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         return assigned;
     m_GridEntity.AddOrReplaceComponent<VisibilityComponent>(VisibilityComponent{false});
     m_GridEntity.GetComponent<Transform3DComponent>().SetRotation({Math::Pi / 2.f, 0, 0});
-    auto axisMesh = m_FrameResources->PublishShape("AxisHelper");
+    auto axisMesh = m_SceneResources->PublishShape("AxisHelper");
     if (!axisMesh)
         return failure(axisMesh.error());
-    auto axisMaterial = PublishTexturedMaterial(*m_FrameResources, SceneMaterialKind::Helper, {},
+    auto axisMaterial = PublishTexturedMaterial(*m_SceneResources, SceneMaterialKind::Helper, {},
                                                 helperParameters, true, 3.f);
     if (!axisMaterial)
         return failure(axisMaterial.error());
@@ -555,11 +569,11 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         AssetsManager::GetTextureOrFallback("SkyBox/Day/", "u_skyBoxDay", ".png", info);
     if (!skyTexture)
         return std::unexpected(skyTexture.error());
-    auto skyMesh = m_FrameResources->PublishShape("SkyBox");
+    auto skyMesh = m_SceneResources->PublishShape("SkyBox");
     if (!skyMesh)
         return failure(skyMesh.error());
     auto skyMaterial =
-        PublishTexturedMaterial(*m_FrameResources, SceneMaterialKind::Sky, {*skyTexture}, {}, true);
+        PublishTexturedMaterial(*m_SceneResources, SceneMaterialKind::Sky, {*skyTexture}, {}, true);
     if (!skyMaterial)
         return failure(skyMaterial.error());
     auto createdSceneEntity11 = m_ActiveScene->CreateEntity("Environment_SkyBox");
@@ -659,9 +673,17 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
 
     if (std::getenv("GENGINE_PRE_EDITOR_SCENE_AUTHORING"))
     {
-        auto checked = PreEditorValidation::CheckSceneAuthoring(
-            *m_ActiveScene, *m_FrameResources, boxMesh, smoothSphereGeo,
-            boxMaterial, sphereMaterial);
+        auto checked =
+            PreEditorValidation::CheckSceneAuthoring(*m_ActiveScene, *m_SceneResources, boxMesh,
+                                                     smoothSphereGeo, boxMaterial, sphereMaterial);
+        if (!checked)
+            return std::unexpected(checked.error());
+    }
+
+    if (std::getenv("GENGINE_PRE_EDITOR_RESOURCE_OWNERSHIP"))
+    {
+        auto checked = PreEditorValidation::CheckResourceOwnership(
+            *m_SceneResources, boxMesh, smoothSphereGeo, boxMaterial, sphereMaterial);
         if (!checked)
             return std::unexpected(checked.error());
     }
@@ -836,18 +858,13 @@ std::expected<void, SceneError> RigidBodySimulationApp::UpdateImportedMesh()
     }
     if (status->state != AsyncAssetState::Ready)
         return {};
-    std::size_t submeshes{};
+    auto metadata = m_SceneResources->MeshMetadata(status->mesh);
+    if (!metadata)
     {
-        auto access = m_FrameResources->Publication().BeginFrame();
-        auto mesh = m_FrameResources->Meshes().Acquire(access, status->mesh);
-        if (!mesh)
-        {
-            failed(GpuMeshError{GpuMeshErrorCode::Registry, "Imported mesh resolution", 0,
-                                mesh.error()});
-            return {};
-        }
-        submeshes = (*mesh)->Submeshes().size();
+        failed(UploadError{UploadCode::UploadFailed, {}, metadata.error()});
+        return {};
     }
+    const auto submeshes = metadata->submeshCount;
     // This callback runs after upload and before frame extraction. No physics
     // component is authored; imported submeshes share the existing lit material.
     for (std::size_t part = 0; part < submeshes; ++part)
@@ -858,10 +875,8 @@ std::expected<void, SceneError> RigidBodySimulationApp::UpdateImportedMesh()
             return std::unexpected(createdSceneEntity17.error());
         auto entity = *createdSceneEntity17;
         {
-            auto access = m_FrameResources->Publication().BeginFrame();
-            auto assigned = entity.AssignRenderable(
-                {status->mesh, m_AsyncBoxMaterial, static_cast<std::uint32_t>(part)},
-                m_FrameResources->ForFrame(access));
+            auto assigned = m_SceneResources->AssignRenderable(
+                entity, {status->mesh, m_AsyncBoxMaterial, static_cast<std::uint32_t>(part)});
             if (!assigned)
                 return std::unexpected(SceneError{SceneErrorCode::InvalidIdentity,
                     "imported mesh assignment", "Imported renderable assignment failed"});
@@ -904,8 +919,7 @@ void RigidBodySimulationApp::Render()
         // only the active service needs draining. This is not a second scheduler.
         if (m_LoadBarrel && m_WoodSettled && !m_MeshLoads && !m_BarrelSettled)
         {
-            auto meshLoads = AsyncMeshLoader::Create(m_FrameResources->Publication(),
-                                                     m_FrameResources->Meshes(), m_MeshRoot);
+            auto meshLoads = m_SceneResources->CreateMeshLoader(m_MeshRoot);
             if (meshLoads)
                 m_MeshLoads = std::move(*meshLoads);
             else
@@ -966,26 +980,12 @@ void RigidBodySimulationApp::Render()
                 auto sampled = AssetsManager::SampleTexture(*view);
                 if (!sampled)
                     return std::visit(failure, sampled.error().cause);
-                std::optional<MaterialInstance> material;
-                {
-                    auto access = app.m_FrameResources->Publication().BeginFrame();
-                    auto previous =
-                        app.m_FrameResources->Materials().Acquire(access, app.m_AsyncBoxMaterial);
-                    if (!previous)
-                        return failure(previous.error());
-                    material = **previous;
-                }
-                if (auto changed = material->SetTexture(
-                        "albedoMap", {sampled->TextureIdentity(), sampled->SamplerIdentity()});
-                    !changed)
-                    return failure(changed.error());
-                {
-                    auto publication = app.m_FrameResources->Publication().BeginPublication();
-                    if (auto replaced = app.m_FrameResources->Materials().Replace(
-                            publication, app.m_AsyncBoxMaterial, std::move(*material));
-                        !replaced)
-                        return failure(replaced.error());
-                }
+                auto changed = app.m_SceneResources->SetMaterialTexture(
+                    app.m_AsyncBoxMaterial, "albedoMap",
+                    {sampled->TextureIdentity(), sampled->SamplerIdentity()});
+                if (!changed)
+                    return std::unexpected(
+                        ScheduleError{FrameStage::UpdateFrameResources, changed.error()});
                 app.m_WoodSettled = true;
                 Log::GetCoreLogger()->info("Async wood texture published: {}x{}",
                                            status->description.width, status->description.height);
@@ -1010,7 +1010,7 @@ void RigidBodySimulationApp::Render()
                                     *m_MousePickFrameBuffer,
                                     *m_PointShadowFrameBuffer,
                                     *m_CascadeShadowFrameBuffer,
-                                    m_FrameResources->Pipelines(),
+                                    {}, // FrameScheduler supplies current renderer pipeline roles.
                                     m_ShadowCascadeLevels,
                                     m_EditorCamera_.GetFOV(),
                                     m_EditorCamera_.GetAspectRatio(),
@@ -1026,7 +1026,7 @@ void RigidBodySimulationApp::Render()
             ViewportPixelAt(mouse.x - m_ViewportBounds[0].x, mouse.y - m_ViewportBounds[0].y,
                             GetEditorViewportLogicalSize(), {pickStorage.Width, pickStorage.Height})
                 .has_value();
-        FrameSceneInput input{*m_ActiveScene, *m_FrameResources, *m_FrameSubmission,
+        FrameSceneInput input{*m_ActiveScene, *m_SceneResources, *m_FrameSubmission,
                               targets,        m_PickTable,       {&camera, 1}};
         // Preserve Phase 45's input/viewport snapshot: read this frame's IDs
         // before BeginUI refreshes ImGui mouse state or authors new panel bounds.

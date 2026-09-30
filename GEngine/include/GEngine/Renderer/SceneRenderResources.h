@@ -2,6 +2,7 @@
 
 #include "Scene/RenderState.h"
 #include "Mesh/AsyncMesh.h"
+#include "Mesh/GeometryTemplates.h"
 #include <string_view>
 #include <variant>
 
@@ -23,12 +24,14 @@ namespace GEngine
         UnsupportedShape,
         InvalidMaterial,
         InvalidEntity,
-        PublicationBusy
+        PublicationBusy,
+        TemplateCapacity
     };
     using SceneResourceCause =
         std::variant<SceneResourceCode, SceneAssignmentError, PlatformError, MeshError,
-                     GpuMeshError, Asset::RegistryError, Asset::ShaderError, Asset::TextureError,
-                     Asset::SamplerError, MaterialDeclarationError, MaterialInstanceError>;
+                     GpuMeshError, GeometryTemplates::Error, Asset::RegistryError,
+                     Asset::ShaderError, Asset::TextureError, Asset::SamplerError,
+                     MaterialDeclarationError, MaterialInstanceError>;
     struct SceneResourceError
     {
         std::string operation;
@@ -77,6 +80,8 @@ namespace GEngine
         SceneRenderResources(const SceneRenderResources&) = delete;
         SceneRenderResources& operator=(const SceneRenderResources&) = delete;
         std::expected<Asset::MeshHandle, SceneResourceError> PublishShape(std::string_view);
+        std::expected<Asset::MeshHandle, SceneResourceError>
+        PublishGeometry(const GeometryTemplates::Request&);
         // Existing box/convex physics startup still reads legacy CPU Geometry.
         // Preserve that input privately; neither extraction nor submission reads it.
         std::expected<void, SceneResourceError> AttachPhysicsShape(_Entity&, std::string_view);
@@ -128,5 +133,9 @@ namespace GEngine
         std::optional<MaterialBindingResources> m_Bindings;
         std::vector<std::pair<std::string, Asset::MeshHandle>> m_SharedShapes;
         std::vector<ScenePipeline> m_Roles;
+        std::array<std::pair<GeometryTemplates::Key, Asset::MeshHandle>,
+                   GeometryTemplates::MaximumSharedTemplates>
+            m_SharedTemplates{};
+        std::size_t m_SharedTemplateCount = 0;
     };
 }

@@ -16,6 +16,7 @@
 #include "Core/Window.h"
 #include "../tests/SceneAuthoringChecks.h"
 #include "../tests/ResourceOwnershipChecks.h"
+#include "../tests/GeometryTemplateChecks.h"
 
 #include <Physics/ShapeBox.h>
 #include <Physics/PhysicsWorld.h>
@@ -97,11 +98,24 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
                 "Phase 05 CPU metadata before platform initialization", checked.error()});
         cpuMetadataChecks = *checked;
     }
+    std::size_t cpuGeometryChecks = 0;
+    if (std::getenv("GENGINE_PRE_EDITOR_GEOMETRY_TEMPLATES"))
+    {
+        auto checked = PreEditorValidation::CheckCpuGeometryTemplates();
+        if (!checked)
+            return std::unexpected(PlatformError{
+                PlatformErrorCode::Initialization,
+                "Phase 06 CPU geometry before platform initialization", checked.error()});
+        cpuGeometryChecks = *checked;
+    }
     if (auto initialized = BaseApp::Initialize(WindowsPropertyList); !initialized)
         return initialized;
     if (cpuMetadataChecks)
         Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_05_CPU_PASS checks={} before_platform=true",
                                    cpuMetadataChecks);
+    if (cpuGeometryChecks)
+        Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_06_CPU_PASS checks={} before_platform=true",
+                                   cpuGeometryChecks);
     m_AudioSystem = CreateScopedPtr<Audio::AudioSystem>();
     if (auto audio = m_AudioSystem->Initialize(); !audio)
         return std::unexpected(audio.error());
@@ -149,7 +163,7 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     if (!diamondMeshResult)
         return failure(diamondMeshResult.error());
     auto DiamondGeo = *diamondMeshResult;
-    auto boxMeshResult = m_SceneResources->PublishShape("Box");
+    auto boxMeshResult = m_SceneResources->PublishGeometry(GeometryTemplates::Cube{});
     if (!boxMeshResult)
         return failure(boxMeshResult.error());
     auto boxMesh = *boxMeshResult;
@@ -664,6 +678,30 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         wallEntity_4.GetComponent<Transform3DComponent>().QuatRotation;
     wallEntity_4.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
 
+    // Render-only template examples; transform scale remains independent of dimensions.
+    struct TemplateFixture
+    {
+        const char* name;
+        GeometryTemplates::Request request;
+        Vec3f position;
+    };
+    const TemplateFixture fixtures[]{
+        {"Template Plane", GeometryTemplates::Plane{3, 3}, {-8, 1, 0}},
+        {"Template Quad", GeometryTemplates::Quad{2, 2}, {0, 3, -8}},
+        {"Template Grid", GeometryTemplates::Grid{3, 3, 4, 4}, {8, 1, 0}}};
+    for (const auto& fixture : fixtures)
+    {
+        auto mesh = m_SceneResources->PublishGeometry(fixture.request);
+        if (!mesh)
+            return failure(mesh.error());
+        auto created = m_ActiveScene->CreateEntity(fixture.name);
+        if (!created)
+            return std::unexpected(created.error());
+        created->AddOrReplaceComponent<Transform3DComponent>(fixture.position, Vec3f{}, Vec3f{1});
+        if (auto authored = renderable(*created, *mesh, floorMaterial); !authored)
+            return authored;
+    }
+
     // Reserve before the Scene hands successful runtime shape ownership to this caller.
     m_PhysicsShapes.reserve(m_ActiveScene->GetAllEntitiesWith<RigidBody3DComponent>().size());
     if (auto started = m_ActiveScene->OnRuntimeStart(); !started)
@@ -684,6 +722,14 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     {
         auto checked = PreEditorValidation::CheckResourceOwnership(
             *m_SceneResources, boxMesh, smoothSphereGeo, boxMaterial, sphereMaterial);
+        if (!checked)
+            return std::unexpected(checked.error());
+    }
+
+    if (std::getenv("GENGINE_PRE_EDITOR_GEOMETRY_TEMPLATES"))
+    {
+        auto checked = PreEditorValidation::CheckGeometryPublication(
+            GetEngineContext(), *m_SceneResources, boxMesh, floorMaterial);
         if (!checked)
             return std::unexpected(checked.error());
     }

@@ -174,6 +174,12 @@ void main() {
                        else if constexpr (std::same_as<T, MeshError>)
                            return std::format("mesh code={} element={}",
                                               static_cast<int>(cause.code), cause.element);
+                       else if constexpr (std::same_as<T, GeometryTemplates::Error>)
+                           return std::format(
+                               "geometry code={} element={} mesh-code={} mesh-element={}",
+                               static_cast<int>(cause.code), cause.element,
+                               cause.mesh ? static_cast<int>(cause.mesh->code) : -1,
+                               cause.mesh ? cause.mesh->element : 0);
                        else if constexpr (std::same_as<T, GpuMeshError>)
                            return std::format("gpu-mesh code={} element={} registry={} message={}",
                                               static_cast<int>(cause.code), cause.element,
@@ -333,6 +339,40 @@ void main() {
         } rollback{m_Meshes, access, *handle};
         m_SharedShapes.emplace_back(name, *handle);
         rollback.committed = true;
+        return *handle;
+    }
+
+    std::expected<Asset::MeshHandle, SceneResourceError>
+    SceneRenderResources::PublishGeometry(const GeometryTemplates::Request& request)
+    {
+        if (!m_Publication.CanPublish())
+            return std::unexpected(
+                SceneResourceError{"geometry publication", SceneResourceCode::PublicationBusy});
+        auto key = GeometryTemplates::KeyFor(request);
+        if (!key)
+            return std::unexpected(SceneResourceError{"geometry parameters", key.error()});
+        for (std::size_t i = 0; i < m_SharedTemplateCount; ++i)
+            if (m_SharedTemplates[i].first == *key)
+            {
+                const auto handle = m_SharedTemplates[i].second;
+                if (auto metadata = m_Meshes.ReadMetadata(handle); !metadata)
+                    return std::unexpected(
+                        SceneResourceError{"geometry identity", metadata.error()});
+                return handle;
+            }
+        if (m_SharedTemplateCount == m_SharedTemplates.size())
+            return std::unexpected(
+                SceneResourceError{"geometry cache", SceneResourceCode::TemplateCapacity});
+        auto mesh = GeometryTemplates::Generate(request);
+        if (!mesh)
+            return std::unexpected(SceneResourceError{"geometry generation", mesh.error()});
+        auto access = m_Publication.BeginPublication();
+        auto handle = PublishMesh(m_Meshes, access, *mesh);
+        if (!handle)
+            return std::unexpected(SceneResourceError{"geometry upload", handle.error()});
+        // Fixed storage: the sole cache mutation follows successful publication
+        // and cannot allocate or fail. All preceding failures preserve old entries.
+        m_SharedTemplates[m_SharedTemplateCount++] = {*key, *handle};
         return *handle;
     }
 

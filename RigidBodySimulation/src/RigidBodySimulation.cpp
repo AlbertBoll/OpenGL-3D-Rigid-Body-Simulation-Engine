@@ -17,6 +17,7 @@
 #include "../tests/SceneAuthoringChecks.h"
 #include "../tests/ResourceOwnershipChecks.h"
 #include "../tests/GeometryTemplateChecks.h"
+#include "../tests/ParametricGeometryChecks.h"
 
 #include <Physics/ShapeBox.h>
 #include <Physics/PhysicsWorld.h>
@@ -30,13 +31,17 @@ using namespace ::GEngine::Asset;
 #define activate_boxes_stacking 0
 #endif
 #ifndef activate_sphere_lattice
-#define activate_sphere_lattice 1
+#define activate_sphere_lattice 0
 #endif
 #ifndef activate_sphere_diamond
 #define activate_sphere_diamond 0
 #endif
 #ifndef activate_sphere_boxes_stacking
 #define activate_sphere_boxes_stacking 0
+#endif
+
+#ifndef GENGINE_RBS_GEOMETRY_TEMPLATE_GALLERY
+#define GENGINE_RBS_GEOMETRY_TEMPLATE_GALLERY 1
 #endif
 
 namespace
@@ -108,6 +113,16 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
                 "Phase 06 CPU geometry before platform initialization", checked.error()});
         cpuGeometryChecks = *checked;
     }
+    std::size_t cpuParametricChecks = 0;
+    if (std::getenv("GENGINE_PRE_EDITOR_PARAMETRIC_GEOMETRY"))
+    {
+        auto checked = PreEditorValidation::CheckCpuParametricGeometry();
+        if (!checked)
+            return std::unexpected(PlatformError{
+                PlatformErrorCode::Initialization, "Phase 07 CPU parametric geometry",
+                checked.error()});
+        cpuParametricChecks = *checked;
+    }
     if (auto initialized = BaseApp::Initialize(WindowsPropertyList); !initialized)
         return initialized;
     if (cpuMetadataChecks)
@@ -116,6 +131,9 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     if (cpuGeometryChecks)
         Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_06_CPU_PASS checks={} before_platform=true",
                                    cpuGeometryChecks);
+    if (cpuParametricChecks)
+        Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_07_CPU_PASS checks={} before_platform=true",
+                                   cpuParametricChecks);
     m_AudioSystem = CreateScopedPtr<Audio::AudioSystem>();
     if (auto audio = m_AudioSystem->Initialize(); !audio)
         return std::unexpected(audio.error());
@@ -678,6 +696,10 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         wallEntity_4.GetComponent<Transform3DComponent>().QuatRotation;
     wallEntity_4.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
 
+    const auto normalPhysicsBodies =
+        m_ActiveScene->GetAllEntitiesWith<RigidBody3DComponent>().size();
+    std::size_t galleryFixtures = 0;
+#if GENGINE_RBS_GEOMETRY_TEMPLATE_GALLERY
     // Render-only template examples; transform scale remains independent of dimensions.
     struct TemplateFixture
     {
@@ -700,6 +722,55 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         created->AddOrReplaceComponent<Transform3DComponent>(fixture.position, Vec3f{}, Vec3f{1});
         if (auto authored = renderable(*created, *mesh, floorMaterial); !authored)
             return authored;
+        ++galleryFixtures;
+    }
+
+    struct CurvedFixture
+    {
+        const char* name;
+        GeometryTemplates::Request request;
+    };
+    const CurvedFixture curved[]{
+        {"Template Sphere", GeometryTemplates::Sphere{}},
+        {"Template Cylinder", GeometryTemplates::Cylinder{}},
+        {"Template Cone", GeometryTemplates::Cone{}},
+        {"Template Capsule", GeometryTemplates::Capsule{}},
+        {"Template Torus", GeometryTemplates::Torus{}},
+        {"Template Diamond", GeometryTemplates::Diamond{}}};
+    for (std::size_t family = 0; family < std::size(curved); ++family)
+        for (int row = 0; row < 2; ++row)
+        {
+            auto request = curved[family].request;
+            std::visit([row](auto& value)
+            {
+                value.Options.Shading = row == 0 ? GeometryTemplates::ShadingMode::Smooth
+                                                : GeometryTemplates::ShadingMode::Flat;
+                value.Options.Tangents = GeometryTemplates::TangentMode::Omit;
+            }, request);
+            auto mesh = m_SceneResources->PublishGeometry(request);
+            if (!mesh)
+                return failure(mesh.error());
+            auto created = m_ActiveScene->CreateEntity(
+                std::format("{} {}", curved[family].name, row == 0 ? "Smooth" : "Flat"));
+            if (!created)
+                return std::unexpected(created.error());
+            created->AddOrReplaceComponent<Transform3DComponent>(
+                Vec3f{-12.f + 4.f * static_cast<float>(family), 3.f, row == 0 ? -10.f : -14.f},
+                Vec3f{}, Vec3f{1});
+            if (auto authored = renderable(*created, *mesh, floorMaterial); !authored)
+                return authored;
+            ++galleryFixtures;
+        }
+#endif
+    if (std::getenv("GENGINE_PRE_EDITOR_PARAMETRIC_GEOMETRY"))
+    {
+        if (normalPhysicsBodies != m_ActiveScene->GetAllEntitiesWith<RigidBody3DComponent>().size() ||
+            galleryFixtures != (GENGINE_RBS_GEOMETRY_TEMPLATE_GALLERY ? 15u : 0u))
+            return std::unexpected(PlatformError{PlatformErrorCode::Initialization,
+                "Phase 07 gallery", "Gallery altered Physics membership or fixture count"});
+        Log::GetCoreLogger()->info(
+            "PRE_EDITOR_PHASE_07_GALLERY_PASS enabled={} fixtures={} physics_bodies={}",
+            GENGINE_RBS_GEOMETRY_TEMPLATE_GALLERY, galleryFixtures, normalPhysicsBodies);
     }
 
     // Reserve before the Scene hands successful runtime shape ownership to this caller.
@@ -730,6 +801,14 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     {
         auto checked = PreEditorValidation::CheckGeometryPublication(
             GetEngineContext(), *m_SceneResources, boxMesh, floorMaterial);
+        if (!checked)
+            return std::unexpected(checked.error());
+    }
+
+    if (std::getenv("GENGINE_PRE_EDITOR_PARAMETRIC_GEOMETRY"))
+    {
+        auto checked = PreEditorValidation::CheckParametricPublication(
+            GetEngineContext(), *m_SceneResources, boxMesh, sphereMaterial, *pointMaterial);
         if (!checked)
             return std::unexpected(checked.error());
     }

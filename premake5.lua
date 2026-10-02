@@ -942,6 +942,13 @@ project "PhysicsTests"
 		links { "SDL2", "delayimp" }
 		linkoptions { "/DELAYLOAD:SDL2.dll" }
 
+	filter { "system:windows", "configurations:Release" }
+		-- Scene ownership pulls GEngine's render-resource object into CPU tests.
+		-- Resolve its native imports without loading them during headless use.
+		libdirs { "%{externals.sdl2}/lib", "%{externals.assimp}/lib" }
+		links { "SDL2", "SDL2_ttf", "assimp", "delayimp" }
+		linkoptions { "/DELAYLOAD:SDL2.dll", "/DELAYLOAD:SDL2_ttf.dll", "/DELAYLOAD:assimp-vc140-mt.dll" }
+
 	filter "configurations:Debug"
 		defines { "GENGINE_CONFIG_DEBUG" }
 		runtime "Debug"

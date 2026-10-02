@@ -4,6 +4,7 @@
 #include "Physics/PhysicsWorld.h"
 #include <Component/Component.h>
 #include <Scene/_Entity.h>
+#include "Renderer/SceneRenderResources.h"
 #include "Physics/PhysicsSystem.h"
 #include "Physics/ShapeSphere.h"
 #include "Physics/ShapeBox.h"
@@ -163,6 +164,9 @@ namespace GEngine
 	using namespace Component;
 	_Scene::_Scene()
 	{
+        m_Registry.on_construct<MeshRendererComponent>().connect<&_Scene::ObserveGeometryOwner>(*this);
+        m_Registry.on_update<MeshRendererComponent>().connect<&_Scene::ObserveGeometryOwner>(*this);
+        m_Registry.on_destroy<MeshRendererComponent>().connect<&_Scene::RemoveGeometryOwner>(*this);
 	/*	auto entity = m_Registry.create();
 		m_Registry.emplace<TransformComponent>(entity);
 
@@ -181,13 +185,93 @@ namespace GEngine
 		m_RenderData.RequireMutable();
 		OnPhysics3DStop();
 		delete m_PhysicsSystem;
+        // Observe removals while receipts/resources are still alive, then disconnect.
+        m_Registry.clear<MeshRendererComponent>();
+        m_Registry.on_construct<MeshRendererComponent>().disconnect(*this);
+        m_Registry.on_update<MeshRendererComponent>().disconnect(*this);
+        m_Registry.on_destroy<MeshRendererComponent>().disconnect(*this);
+        if (m_GeometryCoverageUnavailable) SceneRenderResources::IncompleteGeometryScene(false);
 	}
+
+    bool _Scene::PrepareGeometryReceipt(entt::entity entity)
+    {
+        const auto index = std::size_t(entt::to_entity(entity));
+        if (index < m_GeometryReceiptCapacity) return true;
+        std::size_t capacity = m_GeometryReceiptCapacity ? m_GeometryReceiptCapacity : 16;
+        while (capacity <= index)
+        {
+            if (capacity > SIZE_MAX / 2) return false;
+            capacity *= 2;
+        }
+        if (capacity > SIZE_MAX / sizeof(GeometryOwnerReceipt)) return false;
+        std::unique_ptr<GeometryOwnerReceipt[]> next(new (std::nothrow) GeometryOwnerReceipt[capacity]);
+        if (!next) return false;
+        for (std::size_t i = 0; i < m_GeometryReceiptCapacity; ++i) next[i] = m_GeometryReceipts[i];
+        m_GeometryReceipts = std::move(next);
+        m_GeometryReceiptCapacity = capacity;
+        return true;
+    }
+
+    void _Scene::InvalidateGeometryOwnership()
+    {
+        m_RenderData.RequireMutable();
+        if (!m_GeometryCoverageUnavailable)
+        {
+            m_GeometryCoverageUnavailable = true;
+            SceneRenderResources::IncompleteGeometryScene(true);
+        }
+    }
+
+    void _Scene::ObserveGeometryOwner(entt::registry& registry, entt::entity entity)
+    {
+        if (!PrepareGeometryReceipt(entity))
+        {
+            InvalidateGeometryOwnership();
+            return;
+        }
+        auto& receipt = m_GeometryReceipts[entt::to_entity(entity)];
+        const auto mesh = registry.get<MeshRendererComponent>(entity).mesh;
+        if (receipt.entity == entity && receipt.mesh == mesh) return;
+        if (!SceneRenderResources::CanAddGeometryOwner(mesh))
+        {
+            InvalidateGeometryOwnership();
+            return;
+        }
+        if (receipt.entity != entt::null) SceneRenderResources::RemoveGeometryOwner(receipt.mesh);
+        if (!SceneRenderResources::AddGeometryOwner(mesh))
+        {
+            receipt = {};
+            InvalidateGeometryOwnership();
+            return;
+        }
+        receipt = {entity, mesh};
+    }
+
+    void _Scene::RemoveGeometryOwner(entt::registry&, entt::entity entity)
+    {
+        const auto index = std::size_t(entt::to_entity(entity));
+        if (index >= m_GeometryReceiptCapacity) return;
+        auto& receipt = m_GeometryReceipts[index];
+        if (receipt.entity != entity) return;
+        SceneRenderResources::RemoveGeometryOwner(receipt.mesh);
+        receipt = {};
+    }
+
+    bool _Scene::HasLiveGeometryScaleBinding(entt::entity entity) const
+    {
+        const auto* pose = m_Registry.try_get<RuntimePhysicsPose>(entity);
+        return pose && bool(pose->scaleConnection);
+    }
 
 	std::expected<RefPtr<_Scene>, SceneError> _Scene::Copy(RefPtr<_Scene> other)
 	{
         if (!other) return std::unexpected(SceneError{SceneErrorCode::InvalidScene, "_Scene::Copy",
             "Scene copy requires a source scene"});
 		other->m_RenderData.RequireMutable();
+        for (auto entity : other->m_Registry.view<MeshRendererComponent>())
+            if (!other->m_Registry.all_of<IDComponent, TagComponent>(entity))
+                return std::unexpected(SceneError{SceneErrorCode::MissingIdentity, "_Scene::Copy",
+                    "Renderer copy requires authored Entity identity and name"});
 		RefPtr<_Scene> newScene = CreateRefPtr<_Scene>();
 
 		newScene->m_ViewportWidth = other->m_ViewportWidth;
@@ -201,6 +285,9 @@ namespace GEngine
 		auto idView = srcSceneRegistry.view<IDComponent>();
 		for (auto e : idView)
 		{
+            if (!srcSceneRegistry.all_of<TagComponent>(e))
+                return std::unexpected(SceneError{SceneErrorCode::MissingIdentity, "_Scene::Copy",
+                    "Entity copy requires an authored name"});
 			UUID uuid = srcSceneRegistry.get<IDComponent>(e).ID;
 			const auto& name = srcSceneRegistry.get<TagComponent>(e).Name;
             auto created = newScene->CreateEntityWithUUID(uuid, name);
@@ -210,6 +297,9 @@ namespace GEngine
 
 		// Copy components (except IDComponent and TagComponent)
 		CopyComponent(AllComponents{}, dstSceneRegistry, srcSceneRegistry, enttMap);
+        if (newScene->m_GeometryCoverageUnavailable)
+            return std::unexpected(SceneError{SceneErrorCode::InvalidScene, "_Scene::Copy",
+                "Scene copy could not establish geometry-owner accounting"});
         for (auto source : idView)
             ClearCopiedRuntimeBindings(dstSceneRegistry, enttMap.find(srcSceneRegistry.get<IDComponent>(source).ID)->second,
                 srcSceneRegistry.try_get<RuntimePhysicsPose>(source));
@@ -692,6 +782,10 @@ namespace GEngine
             return SceneAssignmentChange{false, m_RenderAssignmentRevision};
         if (m_RenderAssignmentRevision == UINT64_MAX)
             return std::unexpected(SceneAssignmentError::RevisionExhausted);
+        if (!PrepareGeometryReceipt(entity))
+            return std::unexpected(SceneAssignmentError::AuthoringAllocation);
+        if (!SceneRenderResources::CanAddGeometryOwner(value.mesh))
+            return std::unexpected(SceneAssignmentError::AuthoringOwnershipExhausted);
         auto identity = m_RenderData.Identify(entity);
         if (!identity)
             return std::unexpected(SceneAssignmentError::IdentityExhausted);
@@ -735,6 +829,13 @@ namespace GEngine
                 scene.m_EntityMap.erase(id);
             }
         } rollback{*this, newEntity, newEntity.GetUUID()};
+        if (!PrepareGeometryReceipt(newEntity))
+            return std::unexpected(SceneError{SceneErrorCode::InvalidScene, "_Scene::DuplicateEntity",
+                "Duplicate could not reserve geometry-owner accounting"});
+        if (const auto* renderer = m_Registry.try_get<MeshRendererComponent>(entity);
+            renderer && !SceneRenderResources::CanAddGeometryOwner(renderer->mesh))
+            return std::unexpected(SceneError{SceneErrorCode::InvalidScene, "_Scene::DuplicateEntity",
+                "Duplicate would exhaust geometry-owner accounting"});
         CopyComponentIfExists(AllComponents{}, newEntity, entity);
         ClearCopiedRuntimeBindings(m_Registry, static_cast<entt::entity>(newEntity),
             m_Registry.try_get<RuntimePhysicsPose>(static_cast<entt::entity>(entity)));

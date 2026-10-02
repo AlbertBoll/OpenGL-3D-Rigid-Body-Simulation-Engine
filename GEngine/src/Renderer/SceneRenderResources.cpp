@@ -8,6 +8,10 @@
 #include <fstream>
 #include <format>
 #include <new>
+#include <algorithm>
+#include <cmath>
+#include <cstring>
+#include <limits>
 #include "SubmissionGpuLayout.h"
 
 namespace GEngine
@@ -158,6 +162,8 @@ void main() {
                                               std::same_as<T, SceneResourceCode> ? "scene-resource"
                                               : std::same_as<T, SceneAssignmentError>
                                                   ? "scene-assignment"
+                                              : std::same_as<T, GeometryAuthoringCode>
+                                                  ? "geometry-authoring"
                                                   : "registry",
                                               static_cast<int>(cause));
                        else if constexpr (std::same_as<T, Asset::ShaderError>)
@@ -203,21 +209,26 @@ void main() {
     }
 
     SceneRenderResources::SceneRenderResources(Asset::AssetPublication& publication,
-                                               Manager::ShapeManager& shapes)
-        : m_Publication(publication), m_Shapes(shapes), m_Programs(publication),
+                                               Manager::ShapeManager& shapes,
+                                               GeometryAuthoringLimits limits,
+                                               Asset::AssetRegistryLimits registryLimits)
+        : m_GeometryLimits(limits), m_Publication(publication), m_Shapes(shapes), m_Programs(publication),
           m_Pipelines(publication), m_Templates(publication), m_Materials(publication),
-          m_Meshes(publication)
+          m_Meshes(publication, registryLimits)
     {
     }
 
     std::expected<std::unique_ptr<SceneRenderResources>, SceneResourceError>
-    SceneRenderResources::Create(EngineContext& root)
+    SceneRenderResources::Create(EngineContext& root, GeometryAuthoringLimits limits,
+                                 Asset::AssetRegistryLimits registryLimits)
     {
+        if (limits.independentSources > 64 || limits.independentPayloadBytes > 64 * 1024 * 1024)
+            return std::unexpected(SceneResourceError{"geometry limits", GeometryAuthoringCode::SourceCapacity});
         auto services = root.SceneServices();
         if (!services)
             return std::unexpected(SceneResourceError{"scene services", services.error()});
         std::unique_ptr<SceneRenderResources> result(
-            new (std::nothrow) SceneRenderResources(services->publication, services->shapes));
+            new (std::nothrow) SceneRenderResources(services->publication, services->shapes, limits, registryLimits));
         if (!result)
             return std::unexpected(
                 SceneResourceError{"scene resource owner", SceneResourceCode::Allocation});
@@ -228,10 +239,586 @@ void main() {
         return result;
     }
 
+    SceneRenderResources::~SceneRenderResources()
+    {
+        (void)m_Publication.CanPublish(); // Existing owner-thread lifetime requirement.
+        for (std::size_t i = 0; i < m_SourceCount; ++i)
+            Asset::AssetDetail::RequireInvariant(m_Sources[i].owners == 0);
+        if (m_GeometryDomain)
+        {
+            auto** link = &s_GeometryObservers[m_GeometryDomain % s_GeometryObservers.size()];
+            while (*link && *link != this) link = &(*link)->m_NextGeometryObserver;
+            Asset::AssetDetail::RequireInvariant(*link == this);
+            *link = m_NextGeometryObserver;
+        }
+        // No per-Entity reclamation: successful CPU source remains until teardown.
+    }
+
+    void SceneRenderResources::RegisterGeometryObserver(std::uint64_t domain)
+    {
+        if (m_GeometryDomain)
+        {
+            Asset::AssetDetail::RequireInvariant(m_GeometryDomain == domain);
+            return;
+        }
+        auto& bucket = s_GeometryObservers[domain % s_GeometryObservers.size()];
+        m_GeometryDomain = domain;
+        m_NextGeometryObserver = bucket;
+        bucket = this;
+    }
+
+    SceneRenderResources* SceneRenderResources::GeometryPublisher(Asset::MeshHandle handle)
+    {
+        if (!handle) return nullptr;
+        for (auto* owner = s_GeometryObservers[handle.registry % s_GeometryObservers.size()];
+             owner; owner = owner->m_NextGeometryObserver)
+            if (owner->m_GeometryDomain == handle.registry) return owner;
+        return nullptr;
+    }
+
+    SceneRenderResources::SourceRecord*
+    SceneRenderResources::FindSource(Asset::MeshHandle handle, bool ownershipQuery) const
+    {
+        std::size_t first = 0, last = m_SourceCount;
+        while (first < last)
+        {
+            const auto middle = first + (last - first) / 2;
+            if (ownershipQuery) ++m_GeometryWork.ownershipKeyComparisons;
+            if (m_Sources[middle].handle < handle) first = middle + 1;
+            else last = middle;
+        }
+        if (first == m_SourceCount) return nullptr;
+        if (ownershipQuery) ++m_GeometryWork.ownershipKeyComparisons;
+        return m_Sources[first].handle == handle ? &m_Sources[first] : nullptr;
+    }
+
+    bool SceneRenderResources::CanAddGeometryOwner(Asset::MeshHandle handle)
+    {
+        auto* owner = GeometryPublisher(handle);
+        if (!owner) return true; // Unsupported source cannot later qualify as unique.
+        (void)owner->m_Publication.CanPublish();
+        const auto* record = owner->FindSource(handle);
+        return !record || record->owners != UINT64_MAX;
+    }
+
+    bool SceneRenderResources::AddGeometryOwner(Asset::MeshHandle handle)
+    {
+        auto* owner = GeometryPublisher(handle);
+        if (!owner) return true;
+        (void)owner->m_Publication.CanPublish();
+        if (auto* record = owner->FindSource(handle))
+        {
+            if (record->owners == UINT64_MAX) return false;
+            ++record->owners;
+            ++owner->m_GeometryWork.ownerAdditions;
+        }
+        return true;
+    }
+
+    void SceneRenderResources::RemoveGeometryOwner(Asset::MeshHandle handle)
+    {
+        if (auto* owner = GeometryPublisher(handle))
+        {
+            (void)owner->m_Publication.CanPublish();
+            if (auto* record = owner->FindSource(handle))
+            {
+                Asset::AssetDetail::RequireInvariant(record->owners != 0);
+                --record->owners;
+                ++owner->m_GeometryWork.ownerRemovals;
+            }
+        }
+    }
+
+    void SceneRenderResources::IncompleteGeometryScene(bool entering)
+    {
+        if (entering)
+        {
+            Asset::AssetDetail::RequireInvariant(s_IncompleteGeometryScenes != SIZE_MAX);
+            ++s_IncompleteGeometryScenes;
+        }
+        else
+        {
+            Asset::AssetDetail::RequireInvariant(s_IncompleteGeometryScenes != 0);
+            --s_IncompleteGeometryScenes;
+        }
+    }
+
+    GeometryAuthoringWork SceneRenderResources::GeometryWork() const
+    {
+        (void)m_Publication.CanPublish();
+        return m_GeometryWork;
+    }
+
+    std::expected<GeometrySourceView, SceneResourceError>
+    SceneRenderResources::GeometrySource(Asset::MeshHandle handle) const
+    {
+        auto snapshot = m_Meshes.ReadAuthoringSnapshot(handle);
+        if (!snapshot) return std::unexpected(SceneResourceError{"geometry identity", snapshot.error()});
+        const auto* record = FindSource(handle);
+        if (!record) return std::unexpected(SceneResourceError{"geometry source", GeometryAuthoringCode::SourceUnavailable});
+        if (record->revision != snapshot->revision)
+            return std::unexpected(SceneResourceError{"geometry source", GeometryAuthoringCode::SourceVersionMismatch});
+        return GeometrySourceView{{handle, record->revision, record->source->Bounds()}, record->source.get()};
+    }
+
+    std::expected<GeometryOwnership, SceneResourceError>
+    SceneRenderResources::GeometryOwners(Asset::MeshHandle handle) const
+    {
+        auto snapshot = m_Meshes.ReadAuthoringSnapshot(handle);
+        if (!snapshot) return std::unexpected(SceneResourceError{"geometry identity", snapshot.error()});
+        ++m_GeometryWork.ownershipQueries;
+        if (s_IncompleteGeometryScenes)
+            return std::unexpected(SceneResourceError{"geometry ownership", GeometryAuthoringCode::OwnershipUnavailable});
+        const auto* record = FindSource(handle, true);
+        if (!record) return std::unexpected(SceneResourceError{"geometry source", GeometryAuthoringCode::SourceUnavailable});
+        if (record->revision != snapshot->revision)
+            return std::unexpected(SceneResourceError{"geometry source", GeometryAuthoringCode::SourceVersionMismatch});
+        return GeometryOwnership{record->owners, record->kind != SourceKind::Independent};
+    }
+
+    std::expected<void, SceneResourceError>
+    SceneRenderResources::CheckSourceBudget(const MeshAsset& mesh, SourceKind kind) const
+    {
+        const auto vertices = mesh.Vertices().size(), indices = mesh.Indices().size();
+        if (vertices > MaximumPayloadBytes || indices > MaximumPayloadBytes - vertices ||
+            mesh.Submeshes().size() > 64 ||
+            sizeof(MeshAsset) + mesh.Submeshes().size() * sizeof(SubmeshRange) > 4096 ||
+            m_SourceCount == MaximumSources)
+            return std::unexpected(SceneResourceError{"geometry source limit", GeometryAuthoringCode::SourceCapacity});
+        const auto bytes = vertices + indices;
+        if ((kind == SourceKind::Legacy && m_LegacySourceCount == 32) ||
+            (kind == SourceKind::Template && m_SharedTemplateCount == 128) ||
+            (kind == SourceKind::Independent &&
+             (m_GeometryWork.independentSources >= m_GeometryLimits.independentSources ||
+              bytes > m_GeometryLimits.independentPayloadBytes - m_GeometryWork.independentPayloadBytes)))
+            return std::unexpected(SceneResourceError{"geometry source limit", GeometryAuthoringCode::SourceCapacity});
+        return {};
+    }
+
+    std::expected<GeometryIdentity, SceneResourceError>
+    SceneRenderResources::PublishAuthored(MeshAsset mesh, SourceKind kind)
+    {
+        if (auto budget = CheckSourceBudget(mesh, kind); !budget) return std::unexpected(budget.error());
+        std::unique_ptr<MeshAsset> retained(new (std::nothrow) MeshAsset(std::move(mesh)));
+        if (!retained) return std::unexpected(SceneResourceError{"geometry source", GeometryAuthoringCode::Allocation});
+        auto publication = m_Publication.BeginPublication();
+        auto handle = PublishMesh(m_Meshes, publication, *retained);
+        if (!handle) return std::unexpected(SceneResourceError{"geometry publication", handle.error()});
+        // Fixed record storage, no fallible step after publication. Sorted insertion
+        // moves owners of CPU payload; immutable MeshAsset addresses never move.
+        std::size_t position = 0;
+        while (position < m_SourceCount && m_Sources[position].handle < *handle) ++position;
+        for (std::size_t i = m_SourceCount; i > position; --i) m_Sources[i] = std::move(m_Sources[i - 1]);
+        const auto bytes = retained->Vertices().size() + retained->Indices().size();
+        const GeometryIdentity result{*handle, 1, retained->Bounds()};
+        m_Sources[position] = {*handle, 1, 0, kind, std::move(retained)};
+        ++m_SourceCount;
+        m_GeometryWork.sourceRecords = m_SourceCount;
+        m_GeometryWork.sourcePayloadBytes += bytes;
+        if (kind == SourceKind::Legacy) ++m_LegacySourceCount;
+        if (kind == SourceKind::Independent)
+        {
+            ++m_GeometryWork.independentSources;
+            m_GeometryWork.independentPayloadBytes += bytes;
+        }
+        RegisterGeometryObserver(handle->registry);
+        return result;
+    }
+
+    void SceneRenderResources::DiscardCandidate(Asset::MeshHandle handle)
+    {
+        auto* record = FindSource(handle);
+        Asset::AssetDetail::RequireInvariant(record && record->owners == 0);
+        const auto position = std::size_t(record - m_Sources.data());
+        const auto bytes = record->source->Vertices().size() + record->source->Indices().size();
+        if (record->kind == SourceKind::Independent)
+        {
+            --m_GeometryWork.independentSources;
+            m_GeometryWork.independentPayloadBytes -= bytes;
+        }
+        if (record->kind == SourceKind::Legacy) --m_LegacySourceCount;
+        m_GeometryWork.sourcePayloadBytes -= bytes;
+        for (std::size_t i = position; i + 1 < m_SourceCount; ++i) m_Sources[i] = std::move(m_Sources[i + 1]);
+        m_Sources[--m_SourceCount] = {};
+        m_GeometryWork.sourceRecords = m_SourceCount;
+        auto publication = m_Publication.BeginPublication();
+        auto destroyed = m_Meshes.Destroy(publication, handle);
+        Asset::AssetDetail::RequireInvariant(bool(destroyed));
+        m_Meshes.Collect(publication);
+    }
+
     std::expected<MeshAuthoringMetadata, Asset::RegistryError>
     SceneRenderResources::MeshMetadata(Asset::MeshHandle handle) const
     {
         return m_Meshes.ReadMetadata(handle);
+    }
+
+    namespace
+    {
+        MeshSourceData AuthoredSource(const MeshAsset& mesh, std::span<const std::byte> vertices)
+        {
+            return {mesh.Layout(), vertices, mesh.VertexCount(), mesh.IndexFormat(),
+                    mesh.Indices(), mesh.IndexCount(), mesh.Submeshes(),
+                    mesh.MaterialSlotCount(), mesh.UpdateIntent()};
+        }
+
+        glm::dvec3 ReadVector(const std::byte* record, const VertexAttribute& attribute)
+        {
+            std::array<float, 3> values;
+            std::memcpy(values.data(), record + attribute.offsetBytes, sizeof(values));
+            return {values[0], values[1], values[2]};
+        }
+
+        void WriteVector(std::byte* record, const VertexAttribute& attribute, const glm::dvec3& vector)
+        {
+            const std::array<float, 3> values{float(vector.x), float(vector.y), float(vector.z)};
+            std::memcpy(record + attribute.offsetBytes, values.data(), sizeof(values));
+        }
+
+        bool UnitVector(glm::dvec3& vector)
+        {
+            const auto length = glm::length(vector);
+            if (!std::isfinite(length) || length == 0) return false;
+            vector /= length;
+            return true;
+        }
+
+        std::expected<MeshAsset, SceneResourceError> ScaledAuthoredSource(const MeshAsset& mesh,
+                                                                        const Math::Vec3f& localScale)
+        {
+            const VertexAttribute *position = nullptr, *normal = nullptr, *tangent = nullptr, *bitangent = nullptr;
+            const auto layout = mesh.Layout();
+            for (const auto& attribute : layout.attributes)
+            {
+                if (attribute.semantic == VertexSemantic::JointIndices || attribute.semantic == VertexSemantic::JointWeights)
+                    return std::unexpected(SceneResourceError{"geometry Bake layout", GeometryAuthoringCode::UnsupportedLayout});
+                const bool basis = attribute.semantic == VertexSemantic::Position || attribute.semantic == VertexSemantic::Normal ||
+                    attribute.semantic == VertexSemantic::Tangent || attribute.semantic == VertexSemantic::Bitangent;
+                if (basis && (attribute.scalar != VertexScalarFormat::Float32 ||
+                    attribute.interpretation != VertexInterpretation::Floating ||
+                    (attribute.components != 3 && !(attribute.semantic == VertexSemantic::Tangent && attribute.components == 4))))
+                    return std::unexpected(SceneResourceError{"geometry Bake layout", GeometryAuthoringCode::UnsupportedLayout});
+                switch (attribute.semantic)
+                {
+                case VertexSemantic::Position: position = &attribute; break;
+                case VertexSemantic::Normal: normal = &attribute; break;
+                case VertexSemantic::Tangent: tangent = &attribute; break;
+                case VertexSemantic::Bitangent: bitangent = &attribute; break;
+                default: break;
+                }
+            }
+            if (!position || ((tangent || bitangent) && !normal))
+                return std::unexpected(SceneResourceError{"geometry Bake layout", GeometryAuthoringCode::UnsupportedLayout});
+            const auto bytes = mesh.Vertices().size();
+            std::unique_ptr<std::byte[]> transformed;
+            if (bytes)
+            {
+                transformed.reset(new (std::nothrow) std::byte[bytes]);
+                if (!transformed) return std::unexpected(SceneResourceError{"geometry Bake preparation", GeometryAuthoringCode::Allocation});
+                std::memcpy(transformed.get(), mesh.Vertices().data(), bytes);
+            }
+            const glm::dvec3 scale(localScale);
+            for (std::size_t i = 0; i < mesh.VertexCount(); ++i)
+            {
+                auto* record = transformed.get() + i * layout.strideBytes;
+                const auto p = ReadVector(record, *position) * scale;
+                for (int axis = 0; axis < 3; ++axis)
+                    if (!std::isfinite(p[axis]) || std::abs(p[axis]) > (std::numeric_limits<float>::max)() ||
+                        (p[axis] != 0 && float(p[axis]) == 0))
+                        return std::unexpected(SceneResourceError{"geometry Bake position", GeometryAuthoringCode::InvalidScale});
+                WriteVector(record, *position, p);
+                glm::dvec3 n{}, t{};
+                if (normal)
+                {
+                    n = ReadVector(record, *normal) / scale;
+                    if (!UnitVector(n)) return std::unexpected(SceneResourceError{"geometry Bake normal", GeometryAuthoringCode::InvalidBasis});
+                    WriteVector(record, *normal, n);
+                }
+                if (tangent)
+                {
+                    t = ReadVector(record, *tangent) * scale;
+                    t -= n * glm::dot(n, t);
+                    if (!UnitVector(t)) return std::unexpected(SceneResourceError{"geometry Bake tangent", GeometryAuthoringCode::InvalidBasis});
+                    if (tangent->components == 4)
+                    {
+                        float handedness;
+                        std::memcpy(&handedness, record + tangent->offsetBytes + 3 * sizeof(float), sizeof(float));
+                        if (!std::isfinite(handedness) || std::abs(handedness) != 1.f)
+                            return std::unexpected(SceneResourceError{"geometry Bake handedness", GeometryAuthoringCode::InvalidBasis});
+                    }
+                    WriteVector(record, *tangent, t); // Optional handedness component stays unchanged.
+                }
+                if (bitangent)
+                {
+                    auto b = ReadVector(record, *bitangent) * scale;
+                    b -= n * glm::dot(n, b);
+                    if (tangent) b -= t * glm::dot(t, b);
+                    if (!UnitVector(b)) return std::unexpected(SceneResourceError{"geometry Bake bitangent", GeometryAuthoringCode::InvalidBasis});
+                    WriteVector(record, *bitangent, b);
+                }
+            }
+            auto result = MeshAsset::Create(AuthoredSource(mesh, {transformed.get(), bytes}));
+            if (!result) return std::unexpected(SceneResourceError{"geometry Bake validation", result.error()});
+            return std::move(*result);
+        }
+    }
+
+    std::expected<MeshAsset, SceneResourceError>
+    BakeAuthoredGeometry(const MeshAsset& mesh, const Math::Vec3f& scale)
+    {
+        if (!Math::IsFinite(scale) || scale.x <= 0 || scale.y <= 0 || scale.z <= 0)
+            return std::unexpected(SceneResourceError{"geometry Bake scale", GeometryAuthoringCode::InvalidScale});
+        const auto vertices = mesh.Vertices().size(), indices = mesh.Indices().size();
+        if (vertices > 8 * 1024 * 1024 || indices > 8 * 1024 * 1024 - vertices ||
+            mesh.Submeshes().size() > 64 ||
+            sizeof(MeshAsset) + mesh.Submeshes().size() * sizeof(SubmeshRange) > 4096)
+            return std::unexpected(SceneResourceError{"geometry Bake workspace", GeometryAuthoringCode::SourceCapacity});
+        return ScaledAuthoredSource(mesh, scale);
+    }
+
+    std::expected<GeometrySourceView, SceneResourceError>
+    SceneRenderResources::EntityGeometry(_Entity entity) const
+    {
+        if (!entity || !entity.HasAllComponents<Component::MeshRendererComponent>())
+            return std::unexpected(SceneResourceError{"geometry Entity", GeometryAuthoringCode::InvalidEntity});
+        if (entity.GetSceneContext()->RenderData().IsExtracting())
+            return std::unexpected(SceneResourceError{"geometry Entity", SceneAssignmentError::ExtractionActive});
+        if (!entity.HasAllComponents<Component::Transform3DComponent>())
+            return std::unexpected(SceneResourceError{"geometry Transform", GeometryAuthoringCode::MissingTransform});
+        return GeometrySource(std::as_const(entity).GetComponent<Component::MeshRendererComponent>().mesh);
+    }
+
+    std::expected<void, SceneResourceError>
+    SceneRenderResources::PrepareGeometryAssignment(_Entity entity, std::size_t submeshCount)
+    {
+        auto* scene = entity.GetSceneContext();
+        if (!entity || !scene || !entity.HasAllComponents<Component::IDComponent>())
+            return std::unexpected(SceneResourceError{"geometry Entity", GeometryAuthoringCode::InvalidEntity});
+        if (scene->RenderData().IsExtracting())
+            return std::unexpected(SceneResourceError{"geometry assignment", SceneAssignmentError::ExtractionActive});
+        const auto intent = std::as_const(entity).GetComponent<Component::MeshRendererComponent>();
+        if (intent.submesh >= submeshCount)
+            return std::unexpected(SceneResourceError{"geometry assignment", SceneAssignmentError::InvalidSubmesh});
+        if (scene->m_RenderAssignmentRevision == UINT64_MAX)
+            return std::unexpected(SceneResourceError{"geometry assignment", SceneAssignmentError::RevisionExhausted});
+        {
+            auto access = m_Publication.BeginFrame();
+            if (auto material = m_Materials.Acquire(access, intent.material); !material)
+                return std::unexpected(SceneResourceError{"geometry assignment", SceneAssignmentError::InvalidMaterial});
+        }
+        if (!scene->PrepareGeometryReceipt(entity))
+            return std::unexpected(SceneResourceError{"geometry assignment", SceneAssignmentError::AuthoringAllocation});
+        if (auto identity = scene->RenderData().Identify(entity); !identity)
+            return std::unexpected(SceneResourceError{"geometry assignment", SceneAssignmentError::IdentityExhausted});
+        return {};
+    }
+
+    std::expected<GeometryIdentity, SceneResourceError>
+    SceneRenderResources::CloneGeometry(Asset::MeshHandle handle)
+    {
+        if (!m_Publication.CanPublish())
+            return std::unexpected(SceneResourceError{"geometry Clone", SceneResourceCode::PublicationBusy});
+        auto source = GeometrySource(handle);
+        if (!source) return std::unexpected(source.error());
+        if (auto budget = CheckSourceBudget(*source->source, SourceKind::Independent); !budget)
+            return std::unexpected(budget.error());
+        const auto temporary = source->source->Vertices().size() + source->source->Indices().size() +
+            source->source->Submeshes().size() * sizeof(SubmeshRange) + sizeof(MeshAsset);
+        if (temporary > MaximumTemporaryBytes)
+            return std::unexpected(SceneResourceError{"geometry Clone workspace", GeometryAuthoringCode::SourceCapacity});
+        m_GeometryWork.peakTemporaryBytes = (std::max)(m_GeometryWork.peakTemporaryBytes, temporary);
+        auto mesh = MeshAsset::Create(AuthoredSource(*source->source, source->source->Vertices()));
+        if (!mesh) return std::unexpected(SceneResourceError{"geometry Clone validation", mesh.error()});
+        return PublishAuthored(std::move(*mesh), SourceKind::Independent);
+    }
+
+    std::expected<GeometryChange, SceneResourceError>
+    SceneRenderResources::MakeGeometryUnique(_Entity entity)
+    {
+        if (!m_Publication.CanPublish())
+            return std::unexpected(SceneResourceError{"geometry MakeUnique", SceneResourceCode::PublicationBusy});
+        auto source = EntityGeometry(entity);
+        if (!source) return std::unexpected(source.error());
+        auto ownership = GeometryOwners(source->geometry.handle);
+        if (!ownership) return std::unexpected(ownership.error());
+        const auto scale = std::as_const(entity).GetComponent<Component::Transform3DComponent>().Scale;
+        if (ownership->IsUnique())
+            return GeometryChange{GeometryOperation::MakeUnique, false, source->geometry, source->geometry,
+                                  entity.GetSceneContext()->GetRenderAssignmentRevision(), scale};
+        if (auto prepared = PrepareGeometryAssignment(entity, source->source->Submeshes().size()); !prepared)
+            return std::unexpected(prepared.error());
+        auto geometry = CloneGeometry(source->geometry.handle);
+        if (!geometry) return std::unexpected(geometry.error());
+        auto intent = std::as_const(entity).GetComponent<Component::MeshRendererComponent>();
+        intent.mesh = geometry->handle;
+        auto assigned = AssignRenderable(entity, intent);
+        if (!assigned)
+        {
+            DiscardCandidate(geometry->handle);
+            return std::unexpected(assigned.error());
+        }
+        return GeometryChange{GeometryOperation::MakeUnique, true, source->geometry, *geometry, assigned->revision, scale};
+    }
+
+    std::expected<ObjectDimensions, GeometryAuthoringCode>
+    MeasureObjectDimensions(const GeometryIdentity& geometry, const Math::Vec3f& scale)
+    {
+        if (!Math::IsFinite(scale))
+            return std::unexpected(GeometryAuthoringCode::InvalidScale);
+        ObjectDimensions result{geometry, BoundsStatus::Empty, {}, scale};
+        if (geometry.bounds.empty) return result;
+        if (!std::isfinite(geometry.bounds.sphereRadius) || geometry.bounds.sphereRadius < 0)
+            return std::unexpected(GeometryAuthoringCode::InvalidBounds);
+        result.status = BoundsStatus::Valid;
+        for (int axis = 0; axis < 3; ++axis)
+        {
+            const auto lo = geometry.bounds.minimum[axis], hi = geometry.bounds.maximum[axis];
+            const auto extent = hi - lo;
+            if (!std::isfinite(lo) || !std::isfinite(hi) || !std::isfinite(extent) || extent < 0 ||
+                !std::isfinite(geometry.bounds.sphereCenter[axis]))
+                return std::unexpected(GeometryAuthoringCode::InvalidBounds);
+            result.dimensions[axis] = extent * std::abs(double(scale[axis]));
+            if (!std::isfinite(result.dimensions[axis]))
+                return std::unexpected(GeometryAuthoringCode::InvalidDimensions);
+        }
+        return result;
+    }
+
+    std::expected<Math::Vec3f, GeometryAuthoringCode>
+    ResolveDimensionScale(const ObjectDimensions& previous, const std::array<double, 3>& requested)
+    {
+        auto valid = MeasureObjectDimensions(previous.geometry, previous.localScale);
+        if (!valid) return std::unexpected(valid.error());
+        if (valid->status == BoundsStatus::Empty) return std::unexpected(GeometryAuthoringCode::EmptyBounds);
+        auto scale = previous.localScale;
+        for (int axis = 0; axis < 3; ++axis)
+        {
+            const auto target = requested[axis];
+            const auto extent = previous.geometry.bounds.maximum[axis] - previous.geometry.bounds.minimum[axis];
+            if (!std::isfinite(target) || target < 0)
+                return std::unexpected(GeometryAuthoringCode::InvalidDimensions);
+            if (extent == 0)
+            {
+                if (target != 0)
+                    return std::unexpected(GeometryAuthoringCode::DegenerateExtent);
+                continue; // Preserve local scale on a degenerate axis; never divide by epsilon.
+            }
+            const auto magnitude = target / extent;
+            if (target == 0 || !std::isfinite(magnitude) || magnitude > (std::numeric_limits<float>::max)() || float(magnitude) == 0)
+                return std::unexpected(GeometryAuthoringCode::InvalidDimensions);
+            scale[axis] = std::copysign(float(magnitude), scale[axis] == 0 ? 1.f : scale[axis]);
+        }
+        return scale;
+    }
+
+    std::expected<ObjectDimensions, SceneResourceError>
+    SceneRenderResources::Dimensions(_Entity entity) const
+    {
+        auto source = EntityGeometry(entity);
+        if (!source) return std::unexpected(source.error());
+        auto result = MeasureObjectDimensions(source->geometry,
+            std::as_const(entity).GetComponent<Component::Transform3DComponent>().Scale);
+        if (!result) return std::unexpected(SceneResourceError{"object dimensions", result.error()});
+        return *result;
+    }
+
+    std::expected<ObjectDimensionsChange, SceneResourceError>
+    SceneRenderResources::SetDimensions(_Entity entity, const std::array<double, 3>& requested)
+    {
+        auto previous = Dimensions(entity);
+        if (!previous) return std::unexpected(previous.error());
+        auto scale = ResolveDimensionScale(*previous, requested);
+        if (!scale) return std::unexpected(SceneResourceError{"object dimensions", scale.error()});
+        const bool changed = *scale != previous->localScale;
+        entity.Transform().SetScale(*scale); // Preserve the existing S22 callback/no-op path.
+        auto result = MeasureObjectDimensions(previous->geometry, *scale);
+        Asset::AssetDetail::RequireInvariant(bool(result));
+        return ObjectDimensionsChange{changed, *result};
+    }
+
+    std::expected<GeometryChange, SceneResourceError>
+    SceneRenderResources::RegenerateGeometry(_Entity entity, const GeometryTemplates::Request& request)
+    {
+        if (!m_Publication.CanPublish())
+            return std::unexpected(SceneResourceError{"geometry regeneration", SceneResourceCode::PublicationBusy});
+        auto previous = EntityGeometry(entity);
+        if (!previous) return std::unexpected(previous.error());
+        auto key = GeometryTemplates::KeyFor(request);
+        if (!key) return std::unexpected(SceneResourceError{"geometry parameters", key.error()});
+        if (auto prepared = PrepareGeometryAssignment(entity, 1); !prepared) return std::unexpected(prepared.error());
+        const auto cacheBefore = m_SharedTemplateCount;
+        auto mesh = PublishGeometry(request);
+        if (!mesh) return std::unexpected(mesh.error());
+        const auto source = GeometrySource(*mesh);
+        Asset::AssetDetail::RequireInvariant(bool(source));
+        auto intent = std::as_const(entity).GetComponent<Component::MeshRendererComponent>();
+        intent.mesh = *mesh;
+        auto assigned = AssignRenderable(entity, intent);
+        if (!assigned)
+        {
+            if (m_SharedTemplateCount != cacheBefore)
+            {
+                m_SharedTemplates[--m_SharedTemplateCount] = {};
+                DiscardCandidate(*mesh);
+            }
+            return std::unexpected(assigned.error());
+        }
+        return GeometryChange{GeometryOperation::Regenerate, assigned->changed, previous->geometry, source->geometry,
+            assigned->revision, std::as_const(entity).GetComponent<Component::Transform3DComponent>().Scale};
+    }
+
+    std::expected<GeometryChange, SceneResourceError>
+    SceneRenderResources::BakeGeometry(_Entity entity)
+    {
+        if (!m_Publication.CanPublish())
+            return std::unexpected(SceneResourceError{"geometry Bake", SceneResourceCode::PublicationBusy});
+        auto previous = EntityGeometry(entity);
+        if (!previous) return std::unexpected(previous.error());
+        auto ownership = GeometryOwners(previous->geometry.handle);
+        if (!ownership) return std::unexpected(ownership.error());
+        if (!ownership->IsUnique())
+            return std::unexpected(SceneResourceError{"geometry Bake", GeometryAuthoringCode::GeometryNotUnique});
+        const auto& transform = std::as_const(entity).GetComponent<Component::Transform3DComponent>();
+        const auto scale = transform.Scale;
+        if (!Math::IsFinite(scale) || scale.x <= 0 || scale.y <= 0 || scale.z <= 0)
+            return std::unexpected(SceneResourceError{"geometry Bake scale", GeometryAuthoringCode::InvalidScale});
+        if (entity.GetSceneContext()->HasLiveGeometryScaleBinding(entity))
+            return std::unexpected(SceneResourceError{"geometry Bake reset", GeometryAuthoringCode::LiveScaleBinding});
+        if (scale == Math::Vec3f(1.f))
+            return GeometryChange{GeometryOperation::Bake, false, previous->geometry, previous->geometry,
+                entity.GetSceneContext()->GetRenderAssignmentRevision(), scale};
+        // Arbitrary callbacks can re-enter assignment or modify the target. They have
+        // no reviewed transactional reset contract; preserve them with a typed rejection.
+        if (transform.OnScaleChanged)
+            return std::unexpected(SceneResourceError{"geometry Bake reset", GeometryAuthoringCode::ScaleCallbackUnsupported});
+        if (auto budget = CheckSourceBudget(*previous->source, SourceKind::Independent); !budget)
+            return std::unexpected(budget.error());
+        if (auto prepared = PrepareGeometryAssignment(entity, previous->source->Submeshes().size()); !prepared)
+            return std::unexpected(prepared.error());
+        const auto temporary = previous->source->Vertices().size() * 2 + previous->source->Indices().size() +
+            previous->source->Submeshes().size() * sizeof(SubmeshRange) + sizeof(MeshAsset);
+        if (temporary > MaximumTemporaryBytes)
+            return std::unexpected(SceneResourceError{"geometry Bake workspace", GeometryAuthoringCode::SourceCapacity});
+        m_GeometryWork.peakTemporaryBytes = (std::max)(m_GeometryWork.peakTemporaryBytes, temporary);
+        auto mesh = BakeAuthoredGeometry(*previous->source, scale);
+        if (!mesh) return std::unexpected(mesh.error());
+        auto currentOwnership = GeometryOwners(previous->geometry.handle);
+        if (!currentOwnership || !currentOwnership->IsUnique())
+            return std::unexpected(currentOwnership ? SceneResourceError{"geometry Bake commit", GeometryAuthoringCode::GeometryNotUnique}
+                                                     : currentOwnership.error());
+        auto geometry = PublishAuthored(std::move(*mesh), SourceKind::Independent);
+        if (!geometry) return std::unexpected(geometry.error());
+        auto intent = std::as_const(entity).GetComponent<Component::MeshRendererComponent>();
+        intent.mesh = geometry->handle;
+        auto assigned = AssignRenderable(entity, intent);
+        if (!assigned)
+        {
+            DiscardCandidate(geometry->handle);
+            return std::unexpected(assigned.error());
+        }
+        entity.Transform().SetScale(Math::Vec3f(1.f));
+        return GeometryChange{GeometryOperation::Bake, true, previous->geometry, *geometry,
+                              assigned->revision, Math::Vec3f(1.f)};
     }
 
     std::expected<SceneAssignmentChange, SceneResourceError>
@@ -314,32 +901,20 @@ void main() {
                 SceneResourceError{"shape publication", SceneResourceCode::PublicationBusy});
         for (const auto& [key, handle] : m_SharedShapes)
             if (key == name)
+            {
+                if (auto source = GeometrySource(handle); !source) return std::unexpected(source.error());
                 return handle;
+            }
         auto mesh = m_Shapes.ExportMesh(name);
         if (!mesh)
             return std::unexpected(mesh.error());
-        auto access = m_Publication.BeginPublication();
-        auto handle = PublishMesh(m_Meshes, access, *mesh);
-        if (!handle)
-            return std::unexpected(SceneResourceError{std::string(name), handle.error()});
-        struct Rollback
-        {
-            MeshRegistry& registry;
-            const Asset::AssetPublication::Publication& access;
-            Asset::MeshHandle handle;
-            bool committed = false;
-            ~Rollback()
-            {
-                if (!committed)
-                {
-                    (void)registry.Destroy(access, handle);
-                    registry.Collect(access);
-                }
-            }
-        } rollback{m_Meshes, access, *handle};
-        m_SharedShapes.emplace_back(name, *handle);
-        rollback.committed = true;
-        return *handle;
+        // Prepare legacy cache allocations before GPU publication/source commit.
+        std::string key(name);
+        m_SharedShapes.reserve(m_SharedShapes.size() + 1);
+        auto geometry = PublishAuthored(std::move(*mesh), SourceKind::Legacy);
+        if (!geometry) return std::unexpected(geometry.error());
+        m_SharedShapes.emplace_back(std::move(key), geometry->handle);
+        return geometry->handle;
     }
 
     std::expected<Asset::MeshHandle, SceneResourceError>
@@ -355,9 +930,8 @@ void main() {
             if (m_SharedTemplates[i].first == *key)
             {
                 const auto handle = m_SharedTemplates[i].second;
-                if (auto metadata = m_Meshes.ReadMetadata(handle); !metadata)
-                    return std::unexpected(
-                        SceneResourceError{"geometry identity", metadata.error()});
+                if (auto source = GeometrySource(handle); !source)
+                    return std::unexpected(source.error());
                 return handle;
             }
         if (m_SharedTemplateCount == m_SharedTemplates.size())
@@ -366,14 +940,12 @@ void main() {
         auto mesh = GeometryTemplates::Generate(request);
         if (!mesh)
             return std::unexpected(SceneResourceError{"geometry generation", mesh.error()});
-        auto access = m_Publication.BeginPublication();
-        auto handle = PublishMesh(m_Meshes, access, *mesh);
-        if (!handle)
-            return std::unexpected(SceneResourceError{"geometry upload", handle.error()});
+        auto geometry = PublishAuthored(std::move(*mesh), SourceKind::Template);
+        if (!geometry) return std::unexpected(geometry.error());
         // Fixed storage: the sole cache mutation follows successful publication
         // and cannot allocate or fail. All preceding failures preserve old entries.
-        m_SharedTemplates[m_SharedTemplateCount++] = {*key, *handle};
-        return *handle;
+        m_SharedTemplates[m_SharedTemplateCount++] = {*key, geometry->handle};
+        return geometry->handle;
     }
 
     std::expected<Asset::MaterialInstanceHandle, SceneResourceError>

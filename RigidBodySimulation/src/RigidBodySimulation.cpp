@@ -18,6 +18,7 @@
 #include "../tests/ResourceOwnershipChecks.h"
 #include "../tests/GeometryTemplateChecks.h"
 #include "../tests/ParametricGeometryChecks.h"
+#include "../tests/GeometryAuthoringChecks.h"
 
 #include <Physics/ShapeBox.h>
 #include <Physics/PhysicsWorld.h>
@@ -773,6 +774,49 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
             GENGINE_RBS_GEOMETRY_TEMPLATE_GALLERY, galleryFixtures, normalPhysicsBodies);
     }
 
+    // Phase 08 authoring examples. Ordinary dimensions remain Transform scale;
+    // explicit uniqueness, changed Bake and primitive regeneration are distinct.
+    GeometryTemplates::Cube authoringCube{2, 3, 4};
+    authoringCube.Options.Tangents = GeometryTemplates::TangentMode::Generate;
+    auto authoringMesh = m_SceneResources->PublishGeometry(authoringCube);
+    if (!authoringMesh) return failure(authoringMesh.error());
+    auto authoringSource = m_ActiveScene->CreateEntity("Phase08 Source");
+    if (!authoringSource) return std::unexpected(authoringSource.error());
+    authoringSource->Transform().SetTranslation({-6, 2, 6});
+    if (auto assigned = m_SceneResources->AssignRenderable(*authoringSource, {*authoringMesh, floorMaterial}); !assigned)
+        return failure(assigned.error());
+    auto authoringDuplicate = authoringSource->Duplicate();
+    if (!authoringDuplicate) return std::unexpected(authoringDuplicate.error());
+    authoringDuplicate->Name() = "Phase08 Unique Bake";
+    authoringDuplicate->Transform().SetTranslation({0, 2, 6});
+    if (auto dimensions = m_SceneResources->SetDimensions(*authoringSource, {4, 6, 8}); !dimensions)
+        return failure(dimensions.error());
+    if (auto unique = m_SceneResources->MakeGeometryUnique(*authoringDuplicate); !unique)
+        return failure(unique.error());
+    authoringDuplicate->Transform().SetScale({2, 1, .5f});
+    if (auto baked = m_SceneResources->BakeGeometry(*authoringDuplicate); !baked)
+        return failure(baked.error());
+    auto regenerated = m_ActiveScene->CreateEntity("Phase08 Regenerated");
+    if (!regenerated) return std::unexpected(regenerated.error());
+    regenerated->Transform().SetTranslation({6, 2, 6});
+    if (auto assigned = m_SceneResources->AssignRenderable(*regenerated, {*authoringMesh, floorMaterial}); !assigned)
+        return failure(assigned.error());
+    GeometryTemplates::Cube regeneratedCube{4, 3, 2};
+    regeneratedCube.Options.Tangents = GeometryTemplates::TangentMode::Generate;
+    if (auto geometry = m_SceneResources->RegenerateGeometry(*regenerated, regeneratedCube); !geometry)
+        return failure(geometry.error());
+
+    if (std::getenv("GENGINE_PRE_EDITOR_GEOMETRY_AUTHORING"))
+    {
+        if (!GENGINE_RBS_GEOMETRY_TEMPLATE_GALLERY || galleryFixtures != 15u ||
+            normalPhysicsBodies != m_ActiveScene->GetAllEntitiesWith<RigidBody3DComponent>().size())
+            return std::unexpected(PlatformError{PlatformErrorCode::Initialization,
+                "Phase 08 gallery preservation", "Authoring preset requires the existing gallery and Physics membership"});
+        Log::GetCoreLogger()->info(
+            "PRE_EDITOR_PHASE_08_GALLERY_PASS enabled={} fixtures={} physics_bodies={}",
+            GENGINE_RBS_GEOMETRY_TEMPLATE_GALLERY, galleryFixtures, normalPhysicsBodies);
+    }
+
     // Reserve before the Scene hands successful runtime shape ownership to this caller.
     m_PhysicsShapes.reserve(m_ActiveScene->GetAllEntitiesWith<RigidBody3DComponent>().size());
     if (auto started = m_ActiveScene->OnRuntimeStart(); !started)
@@ -811,6 +855,13 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
             GetEngineContext(), *m_SceneResources, boxMesh, sphereMaterial, *pointMaterial);
         if (!checked)
             return std::unexpected(checked.error());
+    }
+
+    if (std::getenv("GENGINE_PRE_EDITOR_GEOMETRY_AUTHORING"))
+    {
+        auto checked = PreEditorValidation::CheckGeometryAuthoring(
+            GetEngineContext(), *m_ActiveScene, *m_SceneResources, *authoringMesh, floorMaterial);
+        if (!checked) return std::unexpected(checked.error());
     }
 
     auto AppPauseEvent = new Events<void()>("AppPause");
@@ -1339,6 +1390,26 @@ void RigidBodySimulationApp::ImGuiRender()
     }
     else
         ReportPlatformError(scale.error());
+
+    static bool phase08PresentationRecorded = false;
+    if (!phase08PresentationRecorded && std::getenv("GENGINE_PRE_EDITOR_GEOMETRY_AUTHORING") &&
+        HasVisibleViewport() && scale)
+    {
+        const auto logical = GetEditorViewportLogicalSize();
+        const auto pixels = GetEditorViewportPixelSize();
+        const auto& target = m_MousePickFrameBuffer->Buffer().Description();
+        if (target.Width == pixels.Width && target.Height == pixels.Height)
+        {
+            const auto position = m_EditorCamera_.GetPosition();
+            const auto& shadows = GetShadowQuality();
+            Log::GetCoreLogger()->info(
+                "PRE_EDITOR_PHASE_08_PRESENTATION logical={}x{} pixels={}x{} scale={},{} camera={},{},{} fov={} near={} far={} shadow={} resolution={} swap_interval={} manual_cap={}",
+                logical.Width, logical.Height, pixels.Width, pixels.Height, scale->X, scale->Y,
+                position.x, position.y, position.z, m_EditorCamera_.GetFOV(), m_EditorCamera_.GetNearClip(), m_EditorCamera_.GetFarClip(),
+                ShadowQualityLabel(shadows.effective), shadows.resolution, GetWindow()->GetSwapInterval(), GetManualFrameRateLimit());
+            phase08PresentationRecorded = true;
+        }
+    }
 
     //m_ViewportSize = {1280, 720};
     //m_ViewportSize = { viewportPanelSize.x, viewportPanelSize.y };

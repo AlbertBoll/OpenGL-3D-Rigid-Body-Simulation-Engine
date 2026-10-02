@@ -27,27 +27,33 @@ namespace GEngine
 		template<typename... Args>
 		bool HasAllComponents() const
 		{
-			return *this && m_Scene->Reg().all_of<Args...>(m_EntityHandle);
+			return *this && m_Scene->ReadRegistry().all_of<Args...>(m_EntityHandle);
 		}
 
 		template<typename... Args>
 		bool HasAnyComponents() const
 		{
-			return *this && m_Scene->Reg().any_of<Args...>(m_EntityHandle);
+			return *this && m_Scene->ReadRegistry().any_of<Args...>(m_EntityHandle);
 		}
 
 		template<typename T, typename ... Args>
-		T& AddComponent(Args&&...args)
+		decltype(auto) AddComponent(Args&&...args)
 		{
 			m_Scene->RenderData().RequireMutable();
-			return m_Scene->m_Registry.emplace<T>(m_EntityHandle, std::forward<Args>(args)...);
+			auto& value = m_Scene->m_Registry.emplace<T>(m_EntityHandle, std::forward<Args>(args)...);
+            if constexpr (std::same_as<T, Component::MeshRendererComponent>)
+                return std::as_const(value);
+            else return (value);
 		}
 
 		template<typename T>
-		T& GetComponent()
+		decltype(auto) GetComponent()
 		{
 			m_Scene->RenderData().RequireMutable();
-			return m_Scene->m_Registry.get<T>(m_EntityHandle);
+			auto& value = m_Scene->m_Registry.get<T>(m_EntityHandle);
+            if constexpr (std::same_as<T, Component::MeshRendererComponent>)
+                return std::as_const(value);
+            else return (value);
 		}
 
 		template<typename T>
@@ -71,12 +77,14 @@ namespace GEngine
 		}
 
 		template<typename T, typename ... Args>
-		T& AddOrReplaceComponent(Args&& ... args)
+		decltype(auto) AddOrReplaceComponent(Args&& ... args)
 		{
 			m_Scene->RenderData().RequireMutable();
 			T& component = m_Scene->m_Registry.emplace_or_replace<T>(m_EntityHandle, std::forward<Args>(args)...);
 			//m_Scene->OnComponentAdded<T>(*this, component);
-			return component;
+            if constexpr (std::same_as<T, Component::MeshRendererComponent>)
+                return std::as_const(component);
+            else return (component);
 		}
 
 
@@ -134,7 +142,7 @@ namespace GEngine
 		const std::vector<UUID>& Children() const;
 
 		// Handles borrow their scene and must not outlive it. EnTT checks generation reuse.
-		operator bool() const { return m_Scene && m_Scene->Reg().valid(m_EntityHandle); }
+		operator bool() const { return m_Scene && m_Scene->ReadRegistry().valid(m_EntityHandle); }
 		_Scene* GetSceneContext()const { return m_Scene; }
 
 		bool RemoveChild(_Entity child);

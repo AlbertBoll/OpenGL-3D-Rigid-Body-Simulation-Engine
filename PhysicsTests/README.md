@@ -14,7 +14,9 @@ program recreation/name reuse, republishing after shader changes, all light kind
 cross-group hierarchy deletion and invalid inputs. Run in Debug and Release.
 Actual GL submission remains covered by the simulation application smoke.
 Debug links the existing SDL2 library with delayed loading for GEngine counters;
-CPU tests require no SDL runtime DLL. Release has no SDL linkage.
+CPU tests require no SDL runtime DLL. Release also links SDL2, SDL_ttf and Assimp
+with delayed loading to resolve the render-resource dependency pulled by Scene
+ownership. Headless use does not load these DLLs or initialize their runtimes.
 
 Scene grouping uses ordered associative program keys as a transition to Phase 25
 asset handles. After changing/recreating a shader, republish each affected entity

@@ -75,6 +75,12 @@ namespace GEngine::Asset
         };
 
     public:
+        struct AuthoringSnapshot
+        {
+            Handle identity;
+            std::uint64_t revision;
+            Metadata metadata;
+        };
         // The registry keeps a strong retirement reference even after destroy or
         // replacement. A worker dropping a lease can never destroy a GPU owner.
         class Lease final
@@ -169,6 +175,19 @@ namespace GEngine::Asset
             if (!slot)
                 return std::unexpected(RegistryError::InvalidHandle);
             return slot->current->metadata;
+        }
+
+        // CPU facts from one current exact version. No resource borrow, FrameAccess
+        // or GPU lease; authoring can reject stale retained source after raw updates.
+        [[nodiscard]] std::expected<AuthoringSnapshot, RegistryError>
+        ReadAuthoringSnapshot(Handle handle) const
+            requires(!std::same_as<Metadata, NoAuthoringMetadata>)
+        {
+            m_Publication.RequireOwner();
+            if (m_Mutating) return std::unexpected(RegistryError::Busy);
+            const auto* slot = Find(handle);
+            if (!slot) return std::unexpected(RegistryError::InvalidHandle);
+            return AuthoringSnapshot{handle, slot->current->revision, slot->current->metadata};
         }
 
         template<class... Args>

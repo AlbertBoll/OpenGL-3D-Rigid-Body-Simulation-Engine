@@ -11,6 +11,8 @@
 #include <utility>
 #include <string_view>
 #include <map>
+#include <memory>
+#include <type_traits>
 #include "Core/UUID.h"
 #include <Camera/EditorCamera.h>
 
@@ -38,7 +40,8 @@ namespace GEngine
     enum class SceneAssignmentError
     {
         InvalidEntity, ForeignEntity, MissingIdentity, ExtractionActive,
-        InvalidMesh, InvalidMaterial, InvalidSubmesh, IdentityExhausted, RevisionExhausted
+        InvalidMesh, InvalidMaterial, InvalidSubmesh, IdentityExhausted, RevisionExhausted,
+        AuthoringAllocation, AuthoringOwnershipExhausted
     };
     struct SceneAssignmentChange
     {
@@ -49,6 +52,7 @@ namespace GEngine
     };
 
 	class _Entity;
+    class SceneRenderResources;
     namespace SceneDetail { struct BackendAccess; }
 	class PhysicsWorld;
 	class PhysicsSystem;
@@ -58,6 +62,7 @@ namespace GEngine
 	{
 		
 		friend class _Entity;
+        friend class SceneRenderResources;
         friend class RenderSystem;
         friend struct SceneDetail::BackendAccess;
 
@@ -117,7 +122,17 @@ namespace GEngine
 		bool IsRenderInterpolationEnabled() const { return m_RenderInterpolationEnabled; }
 
 		// Legacy mutable access must finish before the serial extraction boundary.
-		entt::registry& Reg() { m_RenderData.RequireMutable(); return m_Registry; }
+		entt::registry& Reg()
+        {
+            m_RenderData.RequireMutable();
+            InvalidateGeometryOwnership();
+            return m_Registry;
+        }
+        const entt::registry& ReadRegistry() const
+        {
+            (void)m_RenderData.IsExtracting(); // Checks the owner thread; const reads may extract.
+            return m_Registry;
+        }
 		RenderEcs& RenderData() { return m_RenderData; }
 		const RenderEcs& RenderData() const { return m_RenderData; }
 
@@ -144,6 +159,11 @@ namespace GEngine
         AssignRenderable(_Entity entity, const Component::MeshRendererComponent& value,
                          const RenderStateResources& resources);
         std::uint64_t GetRenderAssignmentRevision() const { return m_RenderAssignmentRevision; }
+        std::size_t GeometryOwnershipReceiptBytes() const
+        {
+            (void)m_RenderData.IsExtracting();
+            return m_GeometryReceiptCapacity * sizeof(GeometryOwnerReceipt);
+        }
 	
 
 		_Entity FindEntityByName(std::string_view name);
@@ -176,6 +196,8 @@ namespace GEngine
 		auto GetAllEntitiesWith()
 		{
 			m_RenderData.RequireMutable();
+			if constexpr (((std::same_as<std::remove_const_t<Components>, Component::MeshRendererComponent>
+                && !std::is_const_v<Components>) || ...)) InvalidateGeometryOwnership();
 			return m_Registry.view<Components...>();
 		}
 
@@ -183,14 +205,18 @@ namespace GEngine
 		auto GetAllEntitiesWithExclude()
 		{
 			m_RenderData.RequireMutable();
+            if constexpr (std::same_as<std::remove_const_t<IncludeComponent>, Component::MeshRendererComponent>
+                && !std::is_const_v<IncludeComponent>) InvalidateGeometryOwnership();
 			return m_Registry.view<IncludeComponent>(entt::exclude<ExcludeComponents...>);
 		}
 
 		
 		template<typename...Components>
-		auto& View()
+		auto View()
 		{
 			m_RenderData.RequireMutable();
+			if constexpr (((std::same_as<std::remove_const_t<Components>, Component::MeshRendererComponent>
+                && !std::is_const_v<Components>) || ...)) InvalidateGeometryOwnership();
 			return m_Registry.view<Components...>();
 		}
 
@@ -218,6 +244,20 @@ namespace GEngine
 		void OnPhysics3DStop();
 
 	private:
+		struct GeometryOwnerReceipt
+        {
+            entt::entity entity = entt::null;
+            Asset::MeshHandle mesh;
+        };
+        bool PrepareGeometryReceipt(entt::entity);
+        void ObserveGeometryOwner(entt::registry&, entt::entity);
+        void RemoveGeometryOwner(entt::registry&, entt::entity);
+        void InvalidateGeometryOwnership();
+        bool HasLiveGeometryScaleBinding(entt::entity) const;
+        std::unique_ptr<GeometryOwnerReceipt[]> m_GeometryReceipts;
+        std::size_t m_GeometryReceiptCapacity = 0;
+        bool m_GeometryCoverageUnavailable = false;
+
 		bool m_RenderInterpolationEnabled = true;
 		std::uint64_t m_RenderTransformRevision{};
         std::uint64_t m_RenderAssignmentRevision{};

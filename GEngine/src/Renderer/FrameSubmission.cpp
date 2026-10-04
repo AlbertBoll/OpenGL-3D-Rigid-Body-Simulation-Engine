@@ -7,6 +7,7 @@
 #include "Core/RenderCounters.h"
 #include "../Assets/ShaderBackend.h"
 #include "../Assets/TextureBackend.h"
+#include "../Core/FramebufferBackend.h"
 #include "GLPassState.h"
 #include "DrawOrdering.h"
 #include "ShadowCulling.h"
@@ -14,6 +15,8 @@
 #include <format>
 #include <new>
 #include <bit>
+#include <cstdlib>
+#include "../../../runtime/tmp/gpu-capture-tools/RenderDoc_1.46_64/RenderDoc_1.46_64/renderdoc_app.h"
 
 namespace GEngine
 {
@@ -35,6 +38,132 @@ namespace GEngine
         void Uniform(const Shader& s, const char* n, unsigned v) { glUniform1ui(Location(s, n), v); }
         void Uniform(const Shader& s, const char* n, bool v) { Uniform(s, n, int(v)); }
         void Uniform(const Shader& s, const char* n, const glm::mat4& v) { glUniformMatrix4fv(Location(s, n), 1, GL_FALSE, glm::value_ptr(v)); }
+
+        // Owner-authorized, single-run Phase 09 diagnostics. Queries/readback only;
+        // no attachment, clear, shader, matrix or coverage substitution.
+        bool PointDiagnosticEnabled()
+        {
+            const auto* value=std::getenv("GENGINE_PRE_EDITOR_POINT_SHADOW_DIAGNOSTIC");
+            return value && std::string_view(value)=="1";
+        }
+        unsigned pointDiagnosticRun{}, pointDiagnosticActive{};
+        GLuint pointDiagnosticTexture{}, pointDiagnosticFramebuffer{}, pointDiagnosticProgram{};
+        RENDERDOC_API_1_6_0* pointGpuCapture{};
+        void PointGpuCaptureBegin()
+        {
+            const auto* enabled=std::getenv("GENGINE_PRE_EDITOR_POINT_GPU_CAPTURE");
+            if(!enabled || std::string_view(enabled)!="1" || pointDiagnosticActive!=1) return;
+            const auto module=GetModuleHandleA("renderdoc.dll");
+            const auto get=module?reinterpret_cast<pRENDERDOC_GetAPI>(GetProcAddress(module,"RENDERDOC_GetAPI")):nullptr;
+            if(get && get(eRENDERDOC_API_Version_1_6_0,reinterpret_cast<void**>(&pointGpuCapture))) {
+                pointGpuCapture->StartFrameCapture(SDL_GL_GetCurrentContext(),nullptr);
+                pointGpuCapture->SetCaptureTitle("Phase09 point-shadow solid and discarded boundaries");
+                Log::GetCoreLogger()->info("PH09_GPU_CAPTURE_BEGIN active={} pid={}",pointGpuCapture->IsFrameCapturing(),GetCurrentProcessId());
+            } else Log::GetCoreLogger()->info("PH09_GPU_CAPTURE_UNAVAILABLE");
+        }
+        void PointGpuCaptureEnd()
+        {
+            if(pointGpuCapture && pointDiagnosticActive==2) {
+                const auto success=pointGpuCapture->EndFrameCapture(SDL_GL_GetCurrentContext(),nullptr);
+                Log::GetCoreLogger()->info("PH09_GPU_CAPTURE_END success={} captures={}",success,pointGpuCapture->GetNumCaptures());
+            }
+        }
+        void PointDiagnosticErrors(const char* stage)
+        {
+            for(unsigned i=0;i<32;++i) {
+                const auto error=glGetError();
+                Log::GetCoreLogger()->info("PH09_POINT_DIAG_ERROR run={} stage={} code={}",pointDiagnosticActive,stage,error);
+                if(error==GL_NO_ERROR) break;
+            }
+        }
+        void PointDiagnosticState(const char* stage)
+        {
+            PointDiagnosticErrors(stage);
+            GLint draw{},read{},program{},type{},object{},level{},layered{},layer{},face{},box[4]{},viewport[4]{};
+            GLboolean write{}; GLdouble clear{};
+            glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&draw);glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&read);
+            glGetIntegerv(GL_CURRENT_PROGRAM,&program);glGetDoublev(GL_DEPTH_CLEAR_VALUE,&clear);
+            glGetBooleanv(GL_DEPTH_WRITEMASK,&write);glGetIntegerv(GL_SCISSOR_BOX,box);glGetIntegerv(GL_VIEWPORT,viewport);
+            const auto attachment=[&](GLenum key,GLint& value) { glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,key,&value); };
+            attachment(GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,type);attachment(GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME,object);
+            if(type==GL_TEXTURE) {
+                attachment(GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL,level);attachment(GL_FRAMEBUFFER_ATTACHMENT_LAYERED,layered);
+                attachment(GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LAYER,layer);attachment(GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE,face);
+            }
+            Log::GetCoreLogger()->info("PH09_POINT_DIAG_STATE run={} stage={} draw={} read={} expected_fbo={} type={} object={} expected_texture={} level={} layered={} layer={} cube_face={} complete={} clear={} write={} scissor={} discard={} program={} expected_program={} viewport={},{},{},{} box={},{},{},{}",
+                pointDiagnosticActive,stage,draw,read,pointDiagnosticFramebuffer,type,object,pointDiagnosticTexture,level,layered,layer,face,
+                glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER),clear,unsigned(write),unsigned(glIsEnabled(GL_SCISSOR_TEST)),unsigned(glIsEnabled(GL_RASTERIZER_DISCARD)),
+                program,pointDiagnosticProgram,viewport[0],viewport[1],viewport[2],viewport[3],box[0],box[1],box[2],box[3]);
+            PointDiagnosticErrors("state_queries");
+        }
+        void PointDiagnosticDepth(const char* stage)
+        {
+            // Match the calibrated observer's transfer layout and restore all
+            // changed GL state exactly, including state-cache-visible bindings.
+            constexpr GLenum keys[]{GL_PACK_ALIGNMENT,GL_PACK_ROW_LENGTH,GL_PACK_SKIP_PIXELS,GL_PACK_SKIP_ROWS,
+                GL_PACK_IMAGE_HEIGHT,GL_PACK_SKIP_IMAGES,GL_PACK_SWAP_BYTES,GL_PACK_LSB_FIRST};
+            GLint pack{},active{},cube{};std::array<GLint,8> saved{};
+            glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING,&pack);glBindBuffer(GL_PIXEL_PACK_BUFFER,0);
+            for(unsigned i=0;i<saved.size();++i) { glGetIntegerv(keys[i],&saved[i]);glPixelStorei(keys[i],i==0?1:0); }
+            glGetIntegerv(GL_ACTIVE_TEXTURE,&active);glActiveTexture(GL_TEXTURE0);glGetIntegerv(GL_TEXTURE_BINDING_CUBE_MAP,&cube);
+            glBindTexture(GL_TEXTURE_CUBE_MAP,pointDiagnosticTexture);
+            std::vector<float> values(128*128);
+            for(unsigned face=0;face<6;++face) {
+                glGetTexImage(GL_TEXTURE_CUBE_MAP_POSITIVE_X+face,0,GL_DEPTH_COMPONENT,GL_FLOAT,values.data());
+                std::size_t occupied{},sentinel{};float minimum=1,maximum=0;
+                for(float v:values) { occupied+=v<1;sentinel+=v==.75f;minimum=(std::min)(minimum,v);maximum=(std::max)(maximum,v); }
+                Log::GetCoreLogger()->info("PH09_POINT_DIAG_FACE run={} stage={} face={} count={} covered={} sentinel={} min={} max={}",
+                    pointDiagnosticActive,stage,face,values.size(),occupied,sentinel,minimum,maximum);
+                // Lossless run-length encoding of every IEEE-754 float bit pattern.
+                for(std::size_t i=0;i<values.size();) {
+                    const auto bits=std::bit_cast<unsigned>(values[i]);std::size_t end=i+1;
+                    while(end<values.size() && std::bit_cast<unsigned>(values[end])==bits) ++end;
+                    Log::GetCoreLogger()->info("PH09_POINT_DIAG_DEPTH run={} stage={} face={} first={} count={} bits={}",pointDiagnosticActive,stage,face,i,end-i,bits);
+                    i=end;
+                }
+            }
+            glBindTexture(GL_TEXTURE_CUBE_MAP,cube);glActiveTexture(active);glBindBuffer(GL_PIXEL_PACK_BUFFER,pack);
+            for(unsigned i=0;i<saved.size();++i) glPixelStorei(keys[i],saved[i]);
+            PointDiagnosticErrors("depth_readback_restore");
+        }
+        void PointDiagnosticDraw(std::size_t count,unsigned base)
+        {
+            GLint program{},linked{},vertices{},input{},output{},attached{};
+            glGetIntegerv(GL_CURRENT_PROGRAM,&program);
+            glGetProgramiv(program,GL_LINK_STATUS,&linked);glGetProgramiv(program,GL_ATTACHED_SHADERS,&attached);
+            glGetProgramiv(program,GL_GEOMETRY_VERTICES_OUT,&vertices);glGetProgramiv(program,GL_GEOMETRY_INPUT_TYPE,&input);
+            glGetProgramiv(program,GL_GEOMETRY_OUTPUT_TYPE,&output);
+            const auto uniform=[&](const char* name) { GLuint value{};const auto loc=glGetUniformLocation(program,name);if(loc>=0) glGetUniformuiv(program,loc,&value);return value; };
+            const auto mask=uniform("geShadowLayers"),kind=uniform("geShadowKind"),instanced=uniform("geInstanced"),actualBase=uniform("geInstanceBase");
+            Log::GetCoreLogger()->info("PH09_POINT_DIAG_DRAW run={} program={} expected_program={} linked={} attached={} geometry_vertices={} geometry_input={} geometry_output={} mask={} kind={} instanced={} base={} requested_base={} count={}",
+                pointDiagnosticActive,program,pointDiagnosticProgram,linked,attached,vertices,input,output,mask,kind,instanced,actualBase,base,count);
+            const auto block=glGetUniformBlockIndex(program,"GEngineFrame");GLint binding{};GLuint buffer{};GLint64 start{};
+            if(block!=GL_INVALID_INDEX) {
+                glGetActiveUniformBlockiv(program,block,GL_UNIFORM_BLOCK_BINDING,&binding);
+                glGetIntegeri_v(GL_UNIFORM_BUFFER_BINDING,binding,reinterpret_cast<GLint*>(&buffer));
+                glGetInteger64i_v(GL_UNIFORM_BUFFER_START,binding,&start);
+                const char* name="gePointMatrices[0]";GLuint index{};GLint offset{},stride{},matrixStride{},rowMajor{};
+                glGetUniformIndices(program,1,&name,&index);
+                if(index!=GL_INVALID_INDEX) {
+                    glGetActiveUniformsiv(program,1,&index,GL_UNIFORM_OFFSET,&offset);glGetActiveUniformsiv(program,1,&index,GL_UNIFORM_ARRAY_STRIDE,&stride);
+                    glGetActiveUniformsiv(program,1,&index,GL_UNIFORM_MATRIX_STRIDE,&matrixStride);glGetActiveUniformsiv(program,1,&index,GL_UNIFORM_IS_ROW_MAJOR,&rowMajor);
+                    Log::GetCoreLogger()->info("PH09_POINT_DIAG_UBO run={} block={} binding={} buffer={} start={} index={} offset={} stride={} matrix_stride={} row_major={}",
+                        pointDiagnosticActive,block,binding,buffer,start,index,offset,stride,matrixStride,rowMajor);
+                    for(unsigned face=0;face<6;++face) {
+                        std::array<float,16> values{};glGetNamedBufferSubData(buffer,start+offset+face*stride,sizeof(values),values.data());
+                        for(unsigned i=0;i<values.size();++i) Log::GetCoreLogger()->info("PH09_POINT_DIAG_MATRIX run={} face={} element={} bits={} value={}",pointDiagnosticActive,face,i,std::bit_cast<unsigned>(values[i]),values[i]);
+                    }
+                }
+            }
+            if(instanced) {
+                GLint instances{};GLint64 offset{};glGetIntegeri_v(GL_SHADER_STORAGE_BUFFER_BINDING,1,&instances);glGetInteger64i_v(GL_SHADER_STORAGE_BUFFER_START,1,&offset);
+                for(std::size_t i=0;i<count;++i) {
+                    RenderBackend::PackedInstance value{};glGetNamedBufferSubData(instances,offset+(actualBase+i)*sizeof(value),sizeof(value),&value);
+                    Log::GetCoreLogger()->info("PH09_POINT_DIAG_INSTANCE run={} instance={} mask={}",pointDiagnosticActive,i,kind<4?value.identity1[kind]:0);
+                }
+            }
+            PointDiagnosticErrors("draw_queries");
+        }
 
         struct TargetRestore
         {
@@ -62,42 +191,52 @@ namespace GEngine
             const std::string vertex=std::string(R"(#version 450 core
 layout(location=0) in vec3 position;
 layout(location=1) in vec2 uv;
+layout(location=2) in vec3 normal;
 uniform mat4 u_model, u_view, u_projection;
 out vec2 vertexUV;
+out vec3 vertexLocalPosition, vertexLocalNormal;
 flat out int gePickingPixel;
 flat out uint geShadowMask;
 uniform uint geShadowLayers, geShadowKind;
 uniform int u_EntityID;
 void main() { geShadowMask=geInstanced ? geInstances[geInstanceBase+uint(gl_InstanceID)].identity1[geShadowKind] : geShadowLayers;
 gePickingPixel=geInstanced ? int(geInstances[geInstanceBase+uint(gl_InstanceID)].identity1.y) : u_EntityID;
-vertexUV=uv; gl_Position=)") + (picking?"u_projection*u_view*":"") + "u_model*vec4(position,1.0); }";
+vertexUV=uv; vertexLocalPosition=position; vertexLocalNormal=normal; gl_Position=)") + (picking?"u_projection*u_view*":"") + "u_model*vec4(position,1.0); }";
             const std::string geometry=point?R"(#version 450 core
 layout(triangles) in;
 layout(triangle_strip,max_vertices=18) out;
 uniform mat4 shadowMatrices[6];
 in vec2 vertexUV[];
+in vec3 vertexLocalPosition[], vertexLocalNormal[];
 flat in uint geShadowMask[];
 out vec2 fragmentUV;
+out vec3 fragmentLocalPosition, fragmentLocalNormal;
 out vec4 FragPos;
 void main() { for(int face=0;face<6;++face) {
   if((geShadowMask[0] & (1u<<uint(face)))==0u) continue;
   for(int i=0;i<3;++i) { gl_Layer=face; FragPos=gl_in[i].gl_Position;
-    fragmentUV=vertexUV[i]; gl_Position=shadowMatrices[face]*FragPos; EmitVertex(); }
+    fragmentUV=vertexUV[i]; fragmentLocalPosition=vertexLocalPosition[i]; fragmentLocalNormal=vertexLocalNormal[i];
+    gl_Position=shadowMatrices[face]*FragPos; EmitVertex(); }
   EndPrimitive(); } }
 )":R"(#version 450 core
 layout(triangles,invocations=5) in;
 layout(triangle_strip,max_vertices=3) out;
 layout(std140,binding=0) uniform LightSpaceMatrices { mat4 lightSpaceMatrices[16]; };
 in vec2 vertexUV[];
+in vec3 vertexLocalPosition[], vertexLocalNormal[];
 flat in uint geShadowMask[];
 out vec2 fragmentUV;
+out vec3 fragmentLocalPosition, fragmentLocalNormal;
 void main() { if((geShadowMask[0] & (1u<<uint(gl_InvocationID)))==0u) return;
 for(int i=0;i<3;++i) { gl_Layer=gl_InvocationID;
-  fragmentUV=vertexUV[i]; gl_Position=lightSpaceMatrices[gl_InvocationID]*gl_in[i].gl_Position;
+  fragmentUV=vertexUV[i]; fragmentLocalPosition=vertexLocalPosition[i]; fragmentLocalNormal=vertexLocalNormal[i];
+  gl_Position=lightSpaceMatrices[gl_InvocationID]*gl_in[i].gl_Position;
   EmitVertex(); } EndPrimitive(); }
 )";
             std::string fragment="#version 450 core\n";
             fragment+=picking?"in vec2 vertexUV;\n#define fragmentUV vertexUV\nlayout(location=0) out int pixel; flat in int gePickingPixel;\n":"in vec2 fragmentUV;\n";
+            fragment+=picking?"in vec3 vertexLocalPosition, vertexLocalNormal;\n#define fragmentLocalPosition vertexLocalPosition\n#define fragmentLocalNormal vertexLocalNormal\n":
+                "in vec3 fragmentLocalPosition, fragmentLocalNormal;\n";
             if(point) fragment+="in vec4 FragPos; uniform vec3 lightPos; uniform float far_plane;\n";
             fragment+=R"(
 uniform bool frameMasked;
@@ -105,7 +244,11 @@ uniform sampler2D frameCoverage;
 uniform vec2 frameTiling;
 uniform float frameAlphaCutoff, frameOpacity;
 void main() {
-  if(frameMasked && texture(frameCoverage,fragmentUV*frameTiling).a*frameOpacity < frameAlphaCutoff) discard;
+  if(frameMasked) {
+    float alpha = (!frameTyped || frameHasBaseColor) ? geSampleSurface(frameCoverage,
+        fragmentUV, fragmentLocalPosition, fragmentLocalNormal).a : 1.0;
+    if(alpha*frameOpacity*frameBaseAlpha < frameAlphaCutoff) discard;
+  }
 )";
             if(picking) fragment+="pixel=gePickingPixel;";
             if(point) fragment+="gl_FragDepth=length(FragPos.xyz-lightPos)/far_plane;";
@@ -121,6 +264,7 @@ void main() {
             }
             auto result=Shader::Create({std::span(stages).first(picking?2:3)});
             if(!result) return std::unexpected(SubmissionError{"coverage shader",result.error()});
+            if(point && PointDiagnosticEnabled()) Log::GetCoreLogger()->info("PH09_POINT_DIAG_GEOMETRY program={} source_begin\n{}\nPH09_POINT_DIAG_GEOMETRY source_end",Asset::ShaderBackendAccess::Program(*result),packed[2]);
             return std::move(*result);
         }
         GLenum Factor(BlendFactor value)
@@ -136,7 +280,9 @@ void main() {
             GLbitfield clear{};
             if(pass.colorLoad==PassLoad::Clear) clear|=GL_COLOR_BUFFER_BIT;
             if(pass.depthLoad==PassLoad::Clear) clear|=GL_DEPTH_BUFFER_BIT;
+            if(pointDiagnosticActive && pass.pass==RenderPass::PointShadow) PointDiagnosticState("before_clear");
             if(clear) glClear(clear);
+            if(pointDiagnosticActive && pass.pass==RenderPass::PointShadow) { PointDiagnosticState("after_clear");PointDiagnosticDepth("after_clear"); }
         }
         glm::mat4 LightMatrix(const FrameCamera& camera, const FrameSubmissionDesc& desc,
             glm::vec3 direction, float nearPlane, float farPlane)
@@ -188,6 +334,13 @@ void main() {
             {
                 const auto& texture = material.Textures()[i];
                 const auto unit = slots[i].bindingIndex;
+                if (!texture.texture) {
+                    // Optional unbound slots are represented by shader constants.
+                    State::Get().Texture(unit, GL_TEXTURE_2D, 0);
+                    State::Get().Sampler(unit, 0);
+                    Uniform(shader, slots[i].declaration.name.c_str(), int(unit));
+                    continue;
+                }
                 if (auto bound = BindTexture(Asset::TextureView(texture.texture),unit); !bound)
                     return std::unexpected(SubmissionError{"material texture", bound.error()});
                 if (auto bound = texture.sampler->Bind(unit); !bound)
@@ -386,6 +539,7 @@ void main() {
             }
             const auto primitive = draw.role->kind == SceneMaterialKind::Helper ? MeshPrimitive::Lines : MeshPrimitive::Triangles;
             if(primitive==MeshPrimitive::Lines) State::Get().LineWidth(draw.role->lineWidth);
+            if(pointDiagnosticActive) PointDiagnosticDraw(group.count,group.base);
             auto result = draw.resources->Mesh()->DrawSubmeshInstanced(draw.submesh, group.count, primitive);
             if (!result) return std::unexpected(SubmissionError{"mesh submission",result.error()});
             ++stats.submittedDrawCalls;stats.submittedInstances+=group.count;
@@ -581,6 +735,34 @@ void main() {
             if(draw.resources>=frame.Resources().size()) return Error("draw resources",Code::InvalidDraw);
             const auto& resources=frame.Resources()[draw.resources];
             const auto& pipeline=resources.Material().Pipeline().Description();
+            if(role->typedMaterial) {
+                const auto& instance=*resources.Material().Source();
+                const auto params=instance.Declaration()->Parameters();
+                bool triplanar=false;
+                for(std::size_t p=0;p<params.size();++p) if(params[p].declaration.name=="mappingMode") {
+                    const auto* mode=std::get_if<std::int32_t>(&instance.Values()[p]);
+                    if(!mode || *mode<0 || *mode>1) return Error("material mapping value",Code::UnsupportedPipeline);
+                    triplanar=*mode==1;
+                }
+                if(triplanar) {
+                    for(unsigned c=0;c<4;++c) for(unsigned r=0;r<4;++r)
+                        if(!std::isfinite(draw.worldTransform[c][r]))
+                            return Error("Triplanar requires a finite object transform",Code::UnsupportedPipeline);
+                    if(!SceneRenderResources::SupportsLocalProjection(draw.mesh, resources.Mesh().Revision()))
+                        return Error("Triplanar requires a retained source with finite nonzero local normals",Code::UnsupportedPipeline);
+                    const auto linear=glm::mat3(draw.worldTransform);
+                    const auto determinant=glm::determinant(linear);
+                    if(!std::isfinite(determinant) || determinant<=0)
+                        return Error("Triplanar requires a finite nonsingular nonmirrored transform",Code::UnsupportedPipeline);
+                    const auto inverse=glm::inverse(linear);
+                    for(unsigned c=0;c<3;++c) for(unsigned r=0;r<3;++r)
+                        if(!std::isfinite(inverse[c][r])) return Error("Triplanar normal matrix",Code::UnsupportedPipeline);
+                    bool normal=false;
+                    for(const auto& attribute:resources.Mesh()->Layout().attributes)
+                        if(attribute.semantic==VertexSemantic::Normal) normal=true;
+                    if(!normal) return Error("Triplanar requires authored local normals",Code::UnsupportedPipeline);
+                }
+            }
             if(!pipeline.depthTest || pipeline.polygon!=PolygonMode::Fill || pipeline.frontFace!=FrontFace::CounterClockwise
                 || (pipeline.cull!=CullMode::Back && pipeline.cull!=CullMode::None)
                 || (pipeline.depthCompare!=DepthCompare::Less && pipeline.depthCompare!=DepthCompare::LessEqual)
@@ -750,6 +932,7 @@ void main() {
             if(!masked) return {};
             auto slots=material.Source()->Declaration()->Textures();
             for(std::size_t i=0;i<slots.size();++i) if(slots[i].declaration.name=="albedoMap") {
+                if(!material.Textures()[i].texture) break;
                 if(auto bound=BindTexture(Asset::TextureView(material.Textures()[i].texture),0);!bound) return std::unexpected(SubmissionError{"coverage texture",bound.error()});
                 if(auto bound=material.Textures()[i].sampler->Bind(0);!bound) return std::unexpected(SubmissionError{"coverage sampler",bound.error()});
                 Uniform(shader,"frameCoverage",0); break;
@@ -780,8 +963,22 @@ void main() {
         if(stats.decisions[1].executed)
         {
             PassTiming::Scope timing(RenderPass::PointShadow);
+            const auto& diagnosticSize=desc.pointShadow.Buffer().Description();
+            if(PointDiagnosticEnabled() && diagnosticSize.Width==128 && diagnosticSize.Height==128 && diagnosticSize.Layers==6 && pointDiagnosticRun<2) {
+                pointDiagnosticActive=++pointDiagnosticRun;
+                pointDiagnosticTexture=FramebufferDetail::Backend::Depth(desc.pointShadow.Buffer());
+                pointDiagnosticFramebuffer=FramebufferDetail::Backend::Name(desc.pointShadow.Buffer());
+                pointDiagnosticProgram=Asset::ShaderBackendAccess::Program(storage.point);
+            }
+            PointGpuCaptureBegin();
             BindProgram(storage.point); desc.pointShadow.Bind(); begin(RenderPass::PointShadow);
             if(auto result=shadowDraws(storage.point,1);!result) return std::unexpected(result.error());
+            PointGpuCaptureEnd();
+            if(pointDiagnosticActive) {
+                PointDiagnosticState("after_draw");PointDiagnosticDepth("after_draw");
+                Log::GetCoreLogger()->info("PH09_POINT_DIAG_BOUNDARY_COMPLETE run={}",pointDiagnosticActive);
+                pointDiagnosticActive=0;
+            }
             timing.Complete();
         }
         if(stats.decisions[2].executed)

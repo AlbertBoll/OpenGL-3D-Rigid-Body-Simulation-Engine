@@ -66,6 +66,52 @@ uniform uint geMaterialOffset;
 #define framePremultiplied (geMaterialWords[geMaterialOffset].w != 0u)
 #define frameMasked (frameAlphaMode == 1)
 #define frameTiling uintBitsToFloat(geMaterialWords[geMaterialOffset+1u].xy)
+#define frameTyped (geMaterialWords[geMaterialOffset+1u].z != 0u)
+#define frameTextureMask geMaterialWords[geMaterialOffset+1u].w
+#define frameHasBaseColor ((frameTextureMask & 1u) != 0u)
+#define frameMapping int(geMaterialWords[geMaterialOffset+2u].x)
+#define frameProjectionScale uintBitsToFloat(geMaterialWords[geMaterialOffset+2u].y)
+#define frameProjectionSharpness uintBitsToFloat(geMaterialWords[geMaterialOffset+2u].z)
+#define frameBaseAlpha uintBitsToFloat(geMaterialWords[geMaterialOffset+2u].w)
+)";
+    inline constexpr std::uint32_t MaterialHeaderWords = 12;
+    // One bounded sampler shared by the built-in surface and auxiliary coverage
+    // shaders. Projection axes are mesh-local; weights never use the normal map.
+    inline constexpr const char* MappingFunctions = R"(
+vec3 geProjectionWeights(vec3 normal) {
+    vec3 w = pow(abs(normalize(normal)), vec3(frameProjectionSharpness));
+    return w / (w.x + w.y + w.z);
+}
+vec3 geProjectionSigns(vec3 n) { return mix(vec3(-1), vec3(1), greaterThanEqual(n, vec3(0))); }
+vec4 geSampleSurface(sampler2D image, vec2 uv, vec3 localPosition, vec3 localNormal) {
+    if (!frameTyped || frameMapping == 0) return texture(image, uv * frameTiling);
+    vec3 p = localPosition * frameProjectionScale;
+    vec3 s = geProjectionSigns(localNormal), w = geProjectionWeights(localNormal);
+    return texture(image, vec2(-s.x*p.z, p.y))*w.x
+         + texture(image, vec2(p.x, -s.y*p.z))*w.y
+         + texture(image, vec2(s.z*p.x, p.y))*w.z;
+}
+vec3 geRotateNormal(vec3 v, vec3 axis, vec3 n) {
+    vec3 c = cross(axis, n);
+    return v + cross(c, v) + cross(c, cross(c, v)) / (1.0 + dot(axis, n));
+}
+vec3 geDecodeNormal(vec3 encoded, float strength, float greenSign) {
+    vec3 n = encoded*2.0-1.0;
+    n.xy *= vec2(strength, strength*greenSign);
+    return normalize(vec3(n.xy, max(n.z, 0.00001)));
+}
+vec3 geTriplanarNormal(sampler2D image, vec3 localPosition, vec3 localNormal,
+                      float strength, float greenSign) {
+    vec3 n = normalize(localNormal), s = geProjectionSigns(n), w = geProjectionWeights(n);
+    vec3 p = localPosition * frameProjectionScale;
+    vec3 a = geDecodeNormal(texture(image, vec2(-s.x*p.z, p.y)).xyz, strength, greenSign);
+    vec3 b = geDecodeNormal(texture(image, vec2(p.x, -s.y*p.z)).xyz, strength, greenSign);
+    vec3 c = geDecodeNormal(texture(image, vec2(s.z*p.x, p.y)).xyz, strength, greenSign);
+    a = geRotateNormal(vec3(s.x*a.z, a.y, -s.x*a.x), vec3(s.x,0,0), n);
+    b = geRotateNormal(vec3(b.x, s.y*b.z, -s.y*b.y), vec3(0,s.y,0), n);
+    c = geRotateNormal(vec3(s.z*c.x, c.y, s.z*c.z), vec3(0,0,s.z), n);
+    return normalize(a*w.x + b*w.y + c*w.z);
+}
 )";
     inline void ReplaceAll(std::string& text,std::string_view from,std::string_view to)
     {
@@ -108,7 +154,7 @@ uniform uint geMaterialOffset;
         ReplaceAll(source,"uniform vec2 u_tiling;","\n#define u_tiling frameTiling\n");
         std::vector<MaterialParameterDecl> sorted(parameters.begin(),parameters.end());
         std::sort(sorted.begin(),sorted.end(),[](const auto& a,const auto& b){return a.name<b.name;});
-        std::uint32_t lane=2;
+        std::uint32_t lane=MaterialHeaderWords/4;
         constexpr const char* types[]{"bool","int","uint","float","vec2","vec3","vec4","mat4"};
         for(const auto& parameter:sorted) {
             const auto type=static_cast<unsigned>(parameter.type);
@@ -155,7 +201,8 @@ mat4 geModelTransform() { return geInstanced ? geInstances[geInstanceBase+uint(g
 )");
             source.insert(source.find('\n')+1,InstanceBlock);
         }
-        source.insert(source.find('\n')+1,std::string(FrameBlock)+MaterialBlock);
+        source.insert(source.find('\n')+1,std::string(FrameBlock)+MaterialBlock+
+            (stage==Asset::ShaderStage::Fragment ? MappingFunctions : ""));
         return source;
     }
 }

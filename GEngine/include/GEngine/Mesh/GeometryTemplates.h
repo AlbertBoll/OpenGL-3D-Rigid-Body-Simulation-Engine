@@ -63,7 +63,7 @@ namespace GEngine::GeometryTemplates
     struct Sphere
     {
         float radius = 1;
-        std::uint32_t segments = 32, rings = 16;
+        std::uint32_t segments = 64, rings = 32;
         GeometryGenerationOptions Options{};
     };
     struct Cylinder

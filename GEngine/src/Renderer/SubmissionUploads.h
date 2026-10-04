@@ -22,7 +22,7 @@ namespace GEngine::RenderBackend
         static std::expected<MaterialBatch,SubmissionError> Pack(const RenderFrame& frame,
             std::span<const ScenePipeline> roles,std::size_t limit)
         {
-            if(limit<32) return UploadError("material batch minimum storage",SubmissionCode::InvalidDraw);
+            if(limit<MaterialHeaderWords*sizeof(std::uint32_t)) return UploadError("material batch minimum storage",SubmissionCode::InvalidDraw);
             MaterialBatch result;
             const auto resources=frame.Resources();
             result.offsets.reset(new(std::nothrow) std::uint32_t[resources.size()]);
@@ -37,13 +37,13 @@ namespace GEngine::RenderBackend
                 if(shared<i) {result.offsets[i]=result.offsets[shared];continue;}
                 const auto words=material.PackedWords().size();
                 const auto maximum=(std::min)(limit/sizeof(std::uint32_t),std::size_t((std::numeric_limits<std::uint32_t>::max)()));
-                if(words%4 || words>maximum || maximum-words<8 || result.wordCount>maximum-words-8)
+                if(words%4 || words>maximum || maximum-words<MaterialHeaderWords || result.wordCount>maximum-words-MaterialHeaderWords)
                     return UploadError("material batch byte limit",SubmissionCode::InvalidDraw);
                 result.offsets[i]=static_cast<std::uint32_t>(result.wordCount/4);
-                result.wordCount+=8+words;
+                result.wordCount+=MaterialHeaderWords+words;
             }
             // A nonempty backing store is required even for an empty frame.
-            if(!result.wordCount) result.wordCount=8;
+            if(!result.wordCount) result.wordCount=MaterialHeaderWords;
             result.words.reset(new(std::nothrow) std::uint32_t[result.wordCount]{});
             if(!result.words) return UploadError("material batch allocation",SubmissionCode::Allocation);
             for(std::size_t i=0;i<resources.size();++i) {
@@ -58,6 +58,12 @@ namespace GEngine::RenderBackend
                 destination[2]=std::bit_cast<std::uint32_t>(role->opacity);
                 destination[3]=pipeline.transparentBlend==TransparentBlend::PremultipliedAlpha;
                 destination[4]=destination[5]=std::bit_cast<std::uint32_t>(1.f);
+                destination[6]=role->typedMaterial;
+                destination[7]=0;
+                destination[8]=0;
+                destination[9]=std::bit_cast<std::uint32_t>(1.f);
+                destination[10]=std::bit_cast<std::uint32_t>(4.f);
+                destination[11]=std::bit_cast<std::uint32_t>(1.f);
                 const auto parameters=material.Source()->Declaration()->Parameters();
                 for(std::size_t j=0;j<parameters.size();++j) if(parameters[j].declaration.name=="u_tiling") {
                     if(material.Parameters()[j].type!=MaterialParameterType::Float2)
@@ -65,7 +71,28 @@ namespace GEngine::RenderBackend
                     const auto at=material.Parameters()[j].wordOffset;
                     destination[4]=material.PackedWords()[at];destination[5]=material.PackedWords()[at+1];
                 }
-                std::copy(material.PackedWords().begin(),material.PackedWords().end(),destination+8);
+                const auto slots=material.Source()->Declaration()->Textures();
+                constexpr const char* names[]{"albedoMap","normalMap","metallicMap","roughnessMap","aoMap"};
+                for(std::size_t j=0;j<slots.size();++j)
+                    if(material.Textures()[j].texture)
+                        for(unsigned k=0;k<5;++k) if(slots[j].declaration.name==names[k]) destination[7]|=1u<<k;
+                if(role->typedMaterial) {
+                    const auto copy=[&](std::string_view name,MaterialParameterType type,unsigned to,unsigned component=0) {
+                        for(std::size_t j=0;j<parameters.size();++j) if(parameters[j].declaration.name==name) {
+                            if(material.Parameters()[j].type!=type) return false;
+                            destination[to]=material.PackedWords()[material.Parameters()[j].wordOffset+component];return true;
+                        }
+                        return false;
+                    };
+                    if(!copy("materialCutoff",MaterialParameterType::Float,1) ||
+                       !copy("materialOpacity",MaterialParameterType::Float,2) ||
+                       !copy("mappingMode",MaterialParameterType::Integer,8) ||
+                       !copy("projectionScale",MaterialParameterType::Float,9) ||
+                       !copy("projectionSharpness",MaterialParameterType::Float,10) ||
+                       !copy("baseColor",MaterialParameterType::Float4,11,3))
+                        return UploadError("typed material coverage layout",SubmissionCode::UnsupportedPipeline);
+                }
+                std::copy(material.PackedWords().begin(),material.PackedWords().end(),destination+MaterialHeaderWords);
             }
             return result;
         }

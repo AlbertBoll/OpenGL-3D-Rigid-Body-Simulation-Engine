@@ -4,6 +4,7 @@
 #include "Core/RuntimeAssets.h"
 #include <cstdint>
 #include <cstdlib>
+#include <chrono>
 #include "EntryPoint.h"
 #include "Renderer/RenderExtraction.h"
 #include "Managers/AssetsManager.h"
@@ -19,6 +20,7 @@
 #include "../tests/GeometryTemplateChecks.h"
 #include "../tests/ParametricGeometryChecks.h"
 #include "../tests/GeometryAuthoringChecks.h"
+#include "../tests/MaterialAuthoringChecks.h"
 
 #include <Physics/ShapeBox.h>
 #include <Physics/PhysicsWorld.h>
@@ -47,6 +49,63 @@ using namespace ::GEngine::Asset;
 
 namespace
 {
+    struct MaterialGallery
+    {
+        std::array<_Entity, 6> uv, triplanar;
+        _Entity parent;
+        MaterialHandle uvMaterial, triplanarMaterial;
+        int comparison = 0, inspectedGeometry = 0;
+        bool animate = false;
+        float time = 0;
+        bool presentationRecorded = false;
+        unsigned validationFrames = 0;
+        std::chrono::steady_clock::time_point validationStart{};
+        int validationStage = -1, validationSample = -1, recordedSample = -1;
+        bool captureReady = false;
+    } materialGallery;
+
+    void FocusMaterialCamera(Camera::_EditorCamera& camera, const Math::Vec3f& focal,
+                             float pitch, float yaw, float distance)
+    {
+        camera.m_FocalPoint = focal;
+        camera.m_Pitch = pitch;
+        camera.m_Yaw = yaw;
+        camera.SetDistance(distance);
+        camera.m_PositionDelta = {};
+        camera.m_YawDelta = camera.m_PitchDelta = 0;
+        camera.m_Position = focal - camera.GetForwardDirection() * distance;
+        camera.UpdateView();
+    }
+
+    void SetMaterialComparison(int comparison)
+    {
+        materialGallery.comparison = comparison;
+        for (std::size_t i = 0; i < materialGallery.uv.size(); ++i)
+        {
+            materialGallery.uv[i].AddOrReplaceComponent<Component::VisibilityComponent>(
+                Component::VisibilityComponent{comparison != 2});
+            materialGallery.triplanar[i].AddOrReplaceComponent<Component::VisibilityComponent>(
+                Component::VisibilityComponent{comparison != 1});
+            materialGallery.triplanar[i].Transform().SetTranslation({-10.f + 4.f * static_cast<float>(i), 2.f,
+                comparison == 0 ? -24.f : -20.f});
+        }
+    }
+
+    std::expected<MaterialHandle, SceneResourceError> CreateSurfaceMaterial(
+        SceneRenderResources& resources, const std::array<Asset::Texture*, 5>& images,
+        MaterialAuthoringDesc desc)
+    {
+        for (std::size_t i = 0; i < images.size(); ++i)
+        {
+            auto sampled = AssetsManager::SampleTexture(images[i]->View());
+            if (!sampled)
+                return std::visit([](const auto& cause) -> std::expected<MaterialHandle, SceneResourceError>
+                    { return std::unexpected(SceneResourceError{"material sampling", cause}); }, sampled.error().cause);
+            desc.textures[i] = MaterialTextureValue{sampled->TextureIdentity(), sampled->SamplerIdentity()};
+        }
+        return resources.CreateMaterial(desc);
+    }
+
     std::expected<Asset::MaterialInstanceHandle, SceneResourceError>
     PublishTexturedMaterial(SceneRenderResources& resources, SceneMaterialKind kind,
                             std::initializer_list<Asset::Texture*> images,
@@ -74,6 +133,7 @@ namespace
 
 RigidBodySimulationApp::~RigidBodySimulationApp()
 {
+    materialGallery = {};
     if (m_AudioSystem)
         m_AudioSystem->Shutdown();
     if (m_SceneResources)
@@ -302,35 +362,33 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         return std::unexpected(floor_aoResult.error());
     auto* floor_ao = *floor_aoResult;
 
-    const MaterialParameterDecl sphereParameters[]{
-        // Dark-metal patch GGX width fit: 0.275, rounded to 0.28. Keep maps linear.
-        {"roughnessScale", MaterialParameterType::Float, .9f},
-        {"metalness", MaterialParameterType::Float3, std::array<float, 3>{.8f, .8f, .8f}},
-        {"u_tiling", MaterialParameterType::Float2, std::array<float, 2>{1, 1}}};
-    auto sphereMaterialResult = PublishTexturedMaterial(
-        *m_SceneResources, SceneMaterialKind::Lit,
+    MaterialAuthoringDesc sphereParameters;
+    sphereParameters.roughness = .9f;
+    sphereParameters.metallic = 1.f;
+    sphereParameters.dielectricReflectance = {.8f, .8f, .8f};
+    auto sphereMaterialResult = CreateSurfaceMaterial(
+        *m_SceneResources,
         {sphere_albedo, sphere_normal, sphere_metallic, sphere_roughness, sphere_ao},
         sphereParameters);
     if (!sphereMaterialResult)
         return failure(sphereMaterialResult.error());
     auto sphereMaterial = *sphereMaterialResult;
     // Polished floor: retain linear roughness data and author gloss explicitly.
-    const MaterialParameterDecl floorParameters[]{
-        {"roughnessScale", MaterialParameterType::Float, .3f},
-        {"metalness", MaterialParameterType::Float3, std::array<float, 3>{.08f, .08f, .08f}},
-        {"u_tiling", MaterialParameterType::Float2, std::array<float, 2>{2, 2}}};
-    auto floorMaterialResult = PublishTexturedMaterial(
-        *m_SceneResources, SceneMaterialKind::Lit,
+    MaterialAuthoringDesc floorParameters;
+    floorParameters.roughness = .3f;
+    floorParameters.metallic = 1.f;
+    floorParameters.dielectricReflectance = {.08f, .08f, .08f};
+    floorParameters.uvTiling = {2, 2};
+    auto floorMaterialResult = CreateSurfaceMaterial(
+        *m_SceneResources,
         {floor_albedo, floor_normal, floor_metallic, floor_roughness, floor_ao}, floorParameters);
     if (!floorMaterialResult)
         return failure(floorMaterialResult.error());
     auto floorMaterial = *floorMaterialResult;
-    const MaterialParameterDecl wallParameters[]{
-        {"roughnessScale", MaterialParameterType::Float, .3f},
-        {"metalness", MaterialParameterType::Float3, std::array<float, 3>{.08f, .08f, .08f}},
-        {"u_tiling", MaterialParameterType::Float2, std::array<float, 2>{2, .2f}}};
-    auto wallMaterialResult = PublishTexturedMaterial(
-        *m_SceneResources, SceneMaterialKind::Lit,
+    auto wallParameters = floorParameters;
+    wallParameters.uvTiling = {2, .2f};
+    auto wallMaterialResult = CreateSurfaceMaterial(
+        *m_SceneResources,
         {floor_albedo, floor_normal, floor_metallic, floor_roughness, floor_ao}, wallParameters);
     if (!wallMaterialResult)
         return failure(wallMaterialResult.error());
@@ -339,13 +397,13 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     auto woodResult = AssetsManager::GetTextureOrFallback({}, "albedoMap");
     if (!woodResult)
         return std::unexpected(woodResult.error());
-    const MaterialParameterDecl boxParameters[]{
-        {"metalness", MaterialParameterType::Float3, std::array<float, 3>{.08f, .08f, .08f}},
-        {"u_tiling", MaterialParameterType::Float2, std::array<float, 2>{1, 1}}};
+    auto boxParameters = floorParameters;
+    boxParameters.roughness = 1.f;
+    boxParameters.uvTiling = {1, 1};
     // The old box path retained the floor's PBR channels between draws. Make the
     // steady authored combination explicit so frame ordering cannot alter it.
-    auto boxMaterialResult = PublishTexturedMaterial(
-        *m_SceneResources, SceneMaterialKind::Lit,
+    auto boxMaterialResult = CreateSurfaceMaterial(
+        *m_SceneResources,
         {*woodResult, floor_normal, floor_metallic, floor_roughness, floor_ao}, boxParameters);
     if (!boxMaterialResult)
         return failure(boxMaterialResult.error());
@@ -758,7 +816,7 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
             created->AddOrReplaceComponent<Transform3DComponent>(
                 Vec3f{-12.f + 4.f * static_cast<float>(family), 3.f, row == 0 ? -10.f : -14.f},
                 Vec3f{}, Vec3f{1});
-            if (auto authored = renderable(*created, *mesh, floorMaterial); !authored)
+            if (auto authored = renderable(*created, *mesh, sphereMaterial); !authored)
                 return authored;
             ++galleryFixtures;
         }
@@ -799,7 +857,7 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     auto regenerated = m_ActiveScene->CreateEntity("Phase08 Regenerated");
     if (!regenerated) return std::unexpected(regenerated.error());
     regenerated->Transform().SetTranslation({6, 2, 6});
-    if (auto assigned = m_SceneResources->AssignRenderable(*regenerated, {*authoringMesh, floorMaterial}); !assigned)
+    if (auto assigned = m_SceneResources->AssignRenderable(*regenerated, {*authoringMesh, sphereMaterial}); !assigned)
         return failure(assigned.error());
     GeometryTemplates::Cube regeneratedCube{4, 3, 2};
     regeneratedCube.Options.Tangents = GeometryTemplates::TangentMode::Generate;
@@ -815,6 +873,81 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         Log::GetCoreLogger()->info(
             "PRE_EDITOR_PHASE_08_GALLERY_PASS enabled={} fixtures={} physics_bodies={}",
             GENGINE_RBS_GEOMETRY_TEMPLATE_GALLERY, galleryFixtures, normalPhysicsBodies);
+    }
+
+    // The same regular five-map floor is shared by each A/B geometry pair.
+    // Clone changes authored mapping only; no primitive regeneration or UV edits.
+    materialGallery = {};
+    auto uvGallery = m_SceneResources->CloneMaterial(sphereMaterial);
+    if (!uvGallery) return failure(uvGallery.error());
+    auto triplanarGallery = m_SceneResources->CloneMaterial(*uvGallery);
+    if (!triplanarGallery) return failure(triplanarGallery.error());
+    materialGallery.uvMaterial = *uvGallery;
+    materialGallery.triplanarMaterial = *triplanarGallery;
+    auto projection = m_SceneResources->DescribeMaterial(*triplanarGallery);
+    if (!projection) return failure(projection.error());
+    projection->mapping = TextureMappingMode::Triplanar;
+    if (auto edited = m_SceneResources->EditMaterial(*triplanarGallery, *projection); !edited)
+        return failure(edited.error());
+    auto galleryParent = m_ActiveScene->CreateEntity("Material mapping transform");
+    if (!galleryParent) return std::unexpected(galleryParent.error());
+    materialGallery.parent = *galleryParent;
+    const GeometryTemplates::Request mappingRequests[]{GeometryTemplates::Plane{2, 2},
+        GeometryTemplates::Cube{2, 2, 2}, GeometryTemplates::Sphere{},
+        GeometryTemplates::Capsule{}, GeometryTemplates::Torus{}, GeometryTemplates::Diamond{}};
+    constexpr const char* mappingNames[]{"Plane", "Cube", "Sphere", "Capsule", "Torus", "Diamond"};
+    for (std::size_t i = 0; i < std::size(mappingRequests); ++i)
+    {
+        auto mesh = m_SceneResources->PublishGeometry(mappingRequests[i]);
+        if (!mesh) return failure(mesh.error());
+        for (unsigned mode = 0; mode < 2; ++mode)
+        {
+            auto entity = m_ActiveScene->CreateEntity(std::format("{} {}", mappingNames[i], mode ? "Triplanar" : "UV"));
+            if (!entity) return std::unexpected(entity.error());
+            entity->Transform().SetTranslation({-10.f + 4.f * static_cast<float>(i), 2.f, mode ? -24.f : -20.f});
+            if (auto parented = entity->SetParent(materialGallery.parent); !parented)
+                return std::unexpected(PlatformError{PlatformErrorCode::Initialization, "material gallery parent", "Parent assignment failed"});
+            if (auto assigned = m_SceneResources->AssignRenderable(*entity,
+                {*mesh, mode ? *triplanarGallery : *uvGallery}); !assigned) return failure(assigned.error());
+            (mode ? materialGallery.triplanar : materialGallery.uv)[i] = *entity;
+        }
+    }
+    // Opaque, Unlit, Masked, Transparent and Debug use the same authoring API.
+    for (unsigned i = 0; i < 5; ++i)
+    {
+        MaterialAuthoringDesc desc;
+        desc.kind = static_cast<MaterialKind>(i);
+        desc.baseColor = {.25f + .12f * i, .55f, .85f, 1};
+        if (desc.kind == MaterialKind::Transparent) desc.opacity = .45f;
+        // Optional controlled alpha fixture is a validation input, never a new
+        // permanent asset or a fallback for the regular five-map floor comparison.
+        if (desc.kind == MaterialKind::Masked)
+            if (const auto* fixture = std::getenv("GENGINE_PRE_EDITOR_MATERIAL_ALPHA_FIXTURE"))
+            {
+                auto image = AssetsManager::LoadTexture(fixture);
+                if (!image) return failure(SceneResourceError{"alpha fixture", image.error()});
+                auto texture = AssetsManager::ResolveTexture(*image);
+                if (!texture) return failure(SceneResourceError{"alpha fixture lease", texture.error()});
+                auto binding = AssetsManager::SampleTexture(*texture);
+                if (!binding) return std::unexpected(PlatformError{PlatformErrorCode::Initialization,
+                    "alpha fixture sampler", binding.error().message});
+                desc.textures[0] = MaterialTextureValue{binding->TextureIdentity(), binding->SamplerIdentity()};
+                desc.mapping = TextureMappingMode::Triplanar;
+            }
+        auto material = m_SceneResources->CreateMaterial(desc);
+        if (!material) return failure(material.error());
+        auto entity = m_ActiveScene->CreateEntity(std::format("Typed material kind {}", i));
+        if (!entity) return std::unexpected(entity.error());
+        entity->Transform().SetTranslation({-8.f + 4.f * i, 2.f, -28.f});
+        if (auto assigned = m_SceneResources->AssignRenderable(*entity, {boxMesh, *material}); !assigned)
+            return failure(assigned.error());
+    }
+    if (std::getenv("GENGINE_PRE_EDITOR_MATERIAL_AUTHORING"))
+    {
+        auto checked = PreEditorValidation::CheckMaterialAuthoring(*m_SceneResources, *m_ActiveScene,
+            boxMesh, *uvGallery, materialGallery.uv[0].GetComponent<MeshRendererComponent>().mesh);
+        if (!checked) return checked;
+        FocusMaterialCamera(m_EditorCamera_, {0, 2, -22}, .35f, 0, 38.f);
     }
 
     // Reserve before the Scene hands successful runtime shape ownership to this caller.
@@ -915,6 +1048,70 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const WindowP
 
 void RigidBodySimulationApp::Update(Timestep ts)
 {
+    if (materialGallery.parent && std::getenv("GENGINE_PRE_EDITOR_MATERIAL_AUTHORING"))
+    {
+        // Two seconds per static view. Each four-second motion replay advances
+        // the same 60 poses, holding poses 15/30/45/60 for matched captures.
+        const auto now = std::chrono::steady_clock::now();
+        if (materialGallery.validationStart == std::chrono::steady_clock::time_point{})
+            materialGallery.validationStart = now;
+        const double elapsed = std::chrono::duration<double>(now - materialGallery.validationStart).count();
+        const int stage = elapsed < 28 ? int(elapsed / 2) : elapsed < 36 ? 14 + int((elapsed - 28) / 4) : 16;
+        const double within = elapsed - (stage < 14 ? stage * 2 : 28 + (stage - 14) * 4);
+        if (stage != materialGallery.validationStage)
+        {
+            materialGallery.validationStage = stage;
+            materialGallery.recordedSample = -1;
+            SetMaterialComparison(stage == 16 ? 0 : 1 + stage % 2);
+            const int primitive = stage >= 2 && stage < 14 ? (stage - 2) / 2 : -1;
+            FocusMaterialCamera(m_EditorCamera_, primitive < 0 ? Vec3f{0, 2, -22} :
+                Vec3f{-10.f + 4.f * primitive, 2, -20}, .35f, primitive < 0 ? 0 : .65f,
+                primitive < 0 ? 38.f : 7.f);
+            Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_09_VIEW_BEGIN stage={}", stage);
+        }
+        int motionStep = 0;
+        materialGallery.validationSample = 0;
+        materialGallery.captureReady = stage < 14 && within >= .3;
+        if (stage == 14 || stage == 15)
+        {
+            const int block = int(within);
+            const double fraction = within - block;
+            motionStep = block * 15 + (std::min)(15, 1 + int(fraction * 30));
+            materialGallery.validationSample = block + 1;
+            materialGallery.captureReady = fraction >= .65;
+        }
+        materialGallery.validationFrames = motionStep;
+        const float t = motionStep * .05f;
+        materialGallery.parent.Transform().SetTranslation(motionStep ? Vec3f{.5f * std::sin(t), 0, .5f * std::cos(t)} : Vec3f{});
+        materialGallery.parent.Transform().SetRotation({0, .04f * std::sin(t), 0});
+        for (std::size_t i = 0; i < materialGallery.uv.size(); ++i)
+            for (auto entity : {materialGallery.uv[i], materialGallery.triplanar[i]})
+            {
+                entity.Transform().SetRotation({.3f * std::sin(t), t, .2f * std::cos(t)});
+                entity.Transform().SetScale(motionStep == 0 ? Vec3f{1} : motionStep <= 30 ?
+                    Vec3f(1.f + .2f * std::sin(t)) : Vec3f{1.f + .2f * std::sin(t), 1.f + .15f * std::cos(t), 1});
+            }
+    }
+    else if (materialGallery.parent && materialGallery.animate)
+    {
+        const bool validation = std::getenv("GENGINE_PRE_EDITOR_MATERIAL_AUTHORING") != nullptr;
+        materialGallery.time += validation ? .05f : float(ts);
+        const float t = materialGallery.time;
+        materialGallery.parent.Transform().SetTranslation({.5f * std::sin(t), 0, .5f * std::cos(t)});
+        materialGallery.parent.Transform().SetRotation({0, .04f * std::sin(t), 0});
+        for (std::size_t i = 0; i < materialGallery.uv.size(); ++i)
+            for (auto entity : {materialGallery.uv[i], materialGallery.triplanar[i]})
+            {
+                entity.Transform().SetRotation({.3f * std::sin(t), t, .2f * std::cos(t)});
+                entity.Transform().SetScale(validation && materialGallery.validationFrames < 30 ?
+                    Vec3f(1.f + .2f * std::sin(t)) : Vec3f{1.f + .2f * std::sin(t), 1.f + .15f * std::cos(t), 1.f});
+            }
+        if (validation && materialGallery.validationFrames == 59)
+        {
+            materialGallery.animate = false;
+            Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_09_MOTION_COMPLETE frames=60 local_mapping=true parent_motion=true positive_nonuniform_scale=true visual_result=pending");
+        }
+    }
     // ImGui reports subpixel extents; retain whole-pixel truncation for framebuffer resize.
     OnViewportResize(static_cast<int>(m_ViewportSize.x), static_cast<int>(m_ViewportSize.y));
     //auto entity = m_ActiveScene->FindEntityByName("sphere");
@@ -1157,8 +1354,8 @@ void RigidBodySimulationApp::Render()
                 if (!sampled)
                     return std::visit(failure, sampled.error().cause);
                 auto changed = app.m_SceneResources->SetMaterialTexture(
-                    app.m_AsyncBoxMaterial, "albedoMap",
-                    {sampled->TextureIdentity(), sampled->SamplerIdentity()});
+                    app.m_AsyncBoxMaterial, MaterialTextureSemantic::BaseColor,
+                    MaterialTextureValue{sampled->TextureIdentity(), sampled->SamplerIdentity()});
                 if (!changed)
                     return std::unexpected(
                         ScheduleError{FrameStage::UpdateFrameResources, changed.error()});
@@ -1211,7 +1408,29 @@ void RigidBodySimulationApp::Render()
                                      static_cast<RigidBodySimulationApp*>(user)->OnMouseClicked();
                                      return {};
                                  }};
-        return FrameScheduler::Render(context, &input);
+        auto submitted = FrameScheduler::Render(context, &input);
+        if (submitted && std::getenv("GENGINE_PRE_EDITOR_MATERIAL_AUTHORING"))
+        {
+            if (materialGallery.captureReady && materialGallery.recordedSample != materialGallery.validationSample)
+            {
+                const auto p = camera.worldPosition;
+                const auto& q = camera.projection;
+                Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_09_VIEW stage={} sample={} mode={} position={},{},{} pitch={} yaw={} fov={} near={} far={} viewport={},{} projection={},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{} motion_step={}",
+                    materialGallery.validationStage, materialGallery.validationSample, materialGallery.comparison,
+                    p.x,p.y,p.z,m_EditorCamera_.m_Pitch,m_EditorCamera_.m_Yaw,m_EditorCamera_.GetFOV(),
+                    m_EditorCamera_.GetNearClip(),m_EditorCamera_.GetFarClip(),camera.viewportWidth,camera.viewportHeight,
+                    q[0][0],q[0][1],q[0][2],q[0][3],q[1][0],q[1][1],q[1][2],q[1][3],
+                    q[2][0],q[2][1],q[2][2],q[2][3],q[3][0],q[3][1],q[3][2],q[3][3],materialGallery.validationFrames);
+                materialGallery.recordedSample = materialGallery.validationSample;
+            }
+            if (materialGallery.validationStage == 16 && materialGallery.recordedSample != 0)
+            {
+                Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_09_MOTION_COMPLETE poses=60 replays=2 matched_holds=15,30,45,60 visual_result=pending");
+                Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_09_VIEWS_COMPLETE static_views=14 motion_views=8");
+                materialGallery.recordedSample = 0;
+            }
+        }
+        return submitted;
     };
     if (auto result = render(); !result)
     {
@@ -1235,6 +1454,36 @@ void RigidBodySimulationApp::Render()
 
 void RigidBodySimulationApp::ImGuiRender()
 {
+    if (materialGallery.uvMaterial)
+    {
+        ImGui::Begin("Material authoring");
+        ImGui::TextUnformatted("Plane / Cube / Sphere / Capsule / Torus / Diamond");
+        ImGui::TextUnformatted("Same floor: UV front row, Triplanar second row");
+        if (ImGui::Button("Focus material comparison"))
+        {
+            FocusMaterialCamera(m_EditorCamera_, {0, 2, -22}, .35f, 0, 38.f);
+        }
+        ImGui::Checkbox("Animate object transforms", &materialGallery.animate);
+        constexpr const char* geometryNames[]{"Plane", "Cube", "Sphere", "Capsule", "Torus", "Diamond"};
+        ImGui::Combo("Inspect geometry", &materialGallery.inspectedGeometry, geometryNames, 6);
+        if (ImGui::Button("Focus selected geometry"))
+        {
+            FocusMaterialCamera(m_EditorCamera_, {-10.f + 4.f * materialGallery.inspectedGeometry, 2.f, -20.f}, .35f, .65f, 7.f);
+        }
+        const char* comparisons[]{"Paired rows", "UV at reference positions", "Triplanar at reference positions"};
+        if (ImGui::Combo("Comparison", &materialGallery.comparison, comparisons, 3))
+            SetMaterialComparison(materialGallery.comparison);
+        if (auto desc = m_SceneResources->DescribeMaterial(materialGallery.triplanarMaterial); desc)
+        {
+            bool changed = ImGui::SliderFloat("Projection repeats / local unit", &desc->projectionScale.value, .001f, 8.f);
+            changed |= ImGui::SliderFloat("Blend sharpness", &desc->blendSharpness.value, 1, 8);
+            changed |= ImGui::SliderFloat("Normal strength", &desc->normalStrength, 0, 2);
+            if (changed)
+                if (auto edited = m_SceneResources->EditMaterial(materialGallery.triplanarMaterial, *desc); !edited)
+                    Log::GetCoreLogger()->error("{}", DescribeSceneResourceError(edited.error()));
+        }
+        ImGui::End();
+    }
 
     static bool p_open = true;
     static bool opt_fullscreen = true;
@@ -1409,6 +1658,20 @@ void RigidBodySimulationApp::ImGuiRender()
                 ShadowQualityLabel(shadows.effective), shadows.resolution, GetWindow()->GetSwapInterval(), GetManualFrameRateLimit());
             phase08PresentationRecorded = true;
         }
+    }
+
+    if (!materialGallery.presentationRecorded && std::getenv("GENGINE_PRE_EDITOR_MATERIAL_AUTHORING") &&
+        HasVisibleViewport() && scale)
+    {
+        const auto logical = GetEditorViewportLogicalSize();
+        const auto pixels = GetEditorViewportPixelSize();
+        const auto position = m_EditorCamera_.GetPosition();
+        const auto& shadows = GetShadowQuality();
+        Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_09_PRESENTATION logical={}x{} pixels={}x{} scale={},{} camera={},{},{} fov={} near={} far={} shadow={} resolution={} swap_interval={} manual_cap={}",
+            logical.Width, logical.Height, pixels.Width, pixels.Height, scale->X, scale->Y,
+            position.x, position.y, position.z, m_EditorCamera_.GetFOV(), m_EditorCamera_.GetNearClip(), m_EditorCamera_.GetFarClip(),
+            ShadowQualityLabel(shadows.effective), shadows.resolution, GetWindow()->GetSwapInterval(), GetManualFrameRateLimit());
+        materialGallery.presentationRecorded = true;
     }
 
     //m_ViewportSize = {1280, 720};

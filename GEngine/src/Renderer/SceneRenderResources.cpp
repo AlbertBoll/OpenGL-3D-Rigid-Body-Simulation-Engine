@@ -13,6 +13,11 @@
 #include <cstring>
 #include <limits>
 #include "SubmissionGpuLayout.h"
+// Focused checks execute only under the RBS validation opt-in. Their native
+// observation/shader probes compile here so normal application includes stay semantic.
+#define GENGINE_MATERIAL_AUTHORING_BACKEND
+#include "../../../RigidBodySimulation/tests/MaterialAuthoringChecks.h"
+#undef GENGINE_MATERIAL_AUTHORING_BACKEND
 
 namespace GEngine
 {
@@ -25,7 +30,11 @@ namespace GEngine
 layout(location=0) in vec3 aPos;
 layout(location=1) in vec2 aTexCoords;
 layout(location=2) in vec3 aNormal;
-out VS_OUT { vec3 FragPos; vec3 Normal; vec2 TexCoords; } vs_out;
+out VS_OUT { vec3 FragPos; vec3 Normal; vec2 TexCoords;
+#ifdef GENGINE_TYPED_MATERIAL
+vec3 LocalPosition; vec3 LocalNormal; mat3 NormalMatrix;
+#endif
+} vs_out;
 uniform mat4 u_projection, u_view, u_model;
 uniform bool reverse_normals;
 void main() {
@@ -33,6 +42,10 @@ vs_out.FragPos = vec3(u_model * vec4(aPos, 1.0));
 vs_out.Normal = transpose(inverse(mat3(u_model))) * aNormal;
 if (reverse_normals) vs_out.Normal = -vs_out.Normal;
 vs_out.TexCoords = aTexCoords;
+#ifdef GENGINE_TYPED_MATERIAL
+vs_out.LocalPosition = aPos; vs_out.LocalNormal = aNormal;
+vs_out.NormalMatrix = transpose(inverse(mat3(u_model)));
+#endif
 gl_Position = u_projection * u_view * u_model * vec4(aPos, 1.0);
 })";
         constexpr const char* HelperVertex = R"(#version 460
@@ -53,7 +66,7 @@ uniform int frameAlphaMode;
 uniform float frameAlphaCutoff, frameOpacity;
 uniform bool framePremultiplied;
 void main() {
-    float coverage = texture(albedoMap, fs_in.TexCoords * u_tiling).a * frameOpacity;
+    float coverage = geBaseSample().a * frameOpacity * frameBaseAlpha;
     if (frameAlphaMode == 1 && coverage < frameAlphaCutoff) discard;
     frameLightingMain();
     FragColor.a = frameAlphaMode == 2 ? coverage : 1.0;
@@ -65,13 +78,19 @@ void main() {
         std::expected<Asset::Shader, SceneResourceError>
         CreatePackedProgram(const char* vertex, const std::string& source, const char* fragment,
                             SceneMaterialKind kind,
-                            std::span<const MaterialParameterDecl> parameters)
+                            std::span<const MaterialParameterDecl> parameters, bool typed = false)
         {
-            auto packedVertex = RenderBackend::PackedStage(vertex, kind == SceneMaterialKind::Sky,
+            std::string vertexSource(vertex), fragmentSource(source);
+            if (typed)
+            {
+                vertexSource.insert(vertexSource.find('\n') + 1, "#define GENGINE_TYPED_MATERIAL 1\n");
+                fragmentSource.insert(fragmentSource.find('\n') + 1, "#define GENGINE_TYPED_MATERIAL 1\n");
+            }
+            auto packedVertex = RenderBackend::PackedStage(vertexSource, kind == SceneMaterialKind::Sky,
                                                            parameters, Asset::ShaderStage::Vertex);
             if (!packedVertex)
                 return std::unexpected(packedVertex.error());
-            auto packedFragment = RenderBackend::PackedStage(source, false, parameters);
+            auto packedFragment = RenderBackend::PackedStage(fragmentSource, false, parameters);
             if (!packedFragment)
                 return std::unexpected(packedFragment.error());
             const Asset::ShaderSource stages[]{
@@ -86,8 +105,31 @@ void main() {
 
         std::expected<Asset::Shader, SceneResourceError>
         CreateSceneProgram(SceneMaterialKind kind,
-                           std::span<const MaterialParameterDecl> parameters)
+                           std::span<const MaterialParameterDecl> parameters, bool typed = false)
         {
+            if (typed && (kind == SceneMaterialKind::Unlit || kind == SceneMaterialKind::Helper))
+            {
+                const char* unlit = R"(#version 450 core
+in VS_OUT { vec3 FragPos; vec3 Normal; vec2 TexCoords;
+vec3 LocalPosition; vec3 LocalNormal; mat3 NormalMatrix; } fs_in;
+layout(location=0) out vec4 FragColor;
+uniform sampler2D albedoMap;
+uniform vec4 baseColor;
+void main() {
+vec4 texel = frameHasBaseColor ? geSampleSurface(albedoMap, fs_in.TexCoords,
+    fs_in.LocalPosition, fs_in.LocalNormal) : vec4(1.0);
+FragColor = vec4(texel.rgb * baseColor.rgb, 1.0);
+})";
+                const char* debug = R"(#version 450 core
+in vec3 color;
+layout(location=0) out vec4 FragColor;
+uniform vec4 baseColor;
+void main() { FragColor = vec4(baseColor.rgb, 1.0); }
+)";
+                return CreatePackedProgram(kind == SceneMaterialKind::Unlit ? LitVertex : HelperVertex,
+                    kind == SceneMaterialKind::Unlit ? unlit : debug, "typed built-in unlit/debug",
+                    kind, parameters, true);
+            }
             const char* fragment = kind == SceneMaterialKind::Lit      ? "pbr_cascade_shadow.frag"
                                    : kind == SceneMaterialKind::Helper ? "basic.frag"
                                    : kind == SceneMaterialKind::PointLight
@@ -131,7 +173,7 @@ void main() {
                                                               "Cannot read shader source"}});
                 vertex = sky.c_str();
             }
-            return CreatePackedProgram(vertex, source, fragment, kind, parameters);
+            return CreatePackedProgram(vertex, source, fragment, kind, parameters, typed);
         }
 
         PipelineDesc DescribePipeline(const SceneMaterialDesc& desc,
@@ -828,11 +870,41 @@ void main() {
         if (!m_Publication.CanPublish())
             return std::unexpected(
                 SceneResourceError{"renderable assignment", SceneResourceCode::PublicationBusy});
+        if (auto typed = DescribeMaterial(value.material); typed && typed->mapping == TextureMappingMode::Triplanar)
+        {
+            auto source = GeometrySource(value.mesh);
+            if (!source || !SupportsLocalProjection(value.mesh, source->geometry.revision))
+                return std::unexpected(SceneResourceError{"Triplanar requires retained finite nonzero local normals",
+                    SceneResourceCode::InvalidMaterial});
+        }
         auto access = m_Publication.BeginFrame();
         auto assigned = entity.AssignRenderable(value, ForFrame(access));
         if (!assigned)
             return std::unexpected(SceneResourceError{"renderable assignment", assigned.error()});
         return *assigned;
+    }
+
+    bool SceneRenderResources::SupportsLocalProjection(Asset::MeshHandle handle, std::uint64_t revision)
+    {
+        auto* owner = GeometryPublisher(handle);
+        auto* record = owner ? owner->FindSource(handle) : nullptr;
+        if (!record || record->revision != revision || !record->source) return false;
+        if (record->localProjection) return *record->localProjection;
+        const auto& source = *record->source;
+        const VertexAttribute* normal = nullptr;
+        for (const auto& attribute : source.Layout().attributes)
+            if (attribute.semantic == VertexSemantic::Normal) normal = &attribute;
+        bool supported = normal && normal->scalar == VertexScalarFormat::Float32 && normal->components == 3;
+        if (supported)
+            for (std::size_t i = 0; i < source.VertexCount(); ++i)
+            {
+                std::array<float, 3> n;
+                std::memcpy(n.data(), source.Vertices().data() + i * source.Layout().strideBytes + normal->offsetBytes, sizeof(n));
+                const double length2 = double(n[0])*n[0] + double(n[1])*n[1] + double(n[2])*n[2];
+                if (!std::isfinite(length2) || length2 < 1e-12) { supported = false; break; }
+            }
+        record->localProjection = supported;
+        return supported;
     }
 
     std::expected<std::unique_ptr<Asset::AsyncMeshLoader>, Asset::AsyncMeshError>
@@ -852,6 +924,14 @@ void main() {
         if (!m_Publication.CanPublish())
             return std::unexpected(
                 SceneResourceError{"material texture", SceneResourceCode::PublicationBusy});
+        // Compatibility callers editing a typed instance retain its semantic checks.
+        if (auto typed = DescribeMaterial(handle); typed)
+        {
+            constexpr std::string_view names[]{"albedoMap", "normalMap", "metallicMap", "roughnessMap", "aoMap"};
+            for (std::size_t i = 0; i < std::size(names); ++i)
+                if (names[i] == name) return SetMaterialTexture(handle, static_cast<MaterialTextureSemantic>(i), value);
+            return std::unexpected(SceneResourceError{"unknown material texture role", SceneResourceCode::InvalidMaterial});
+        }
         std::optional<MaterialInstance> candidate;
         {
             auto access = m_Publication.BeginFrame();
@@ -946,6 +1026,297 @@ void main() {
         // and cannot allocate or fail. All preceding failures preserve old entries.
         m_SharedTemplates[m_SharedTemplateCount++] = {*key, geometry->handle};
         return geometry->handle;
+    }
+
+    namespace
+    {
+        constexpr const char* MaterialTextureNames[]{"albedoMap", "normalMap", "metallicMap", "roughnessMap", "aoMap"};
+        auto MaterialFailure(const char* operation)
+        { return std::unexpected(SceneResourceError{operation, SceneResourceCode::InvalidMaterial}); }
+        auto AuthoredParameters(const MaterialAuthoringDesc& d)
+        {
+            using P = MaterialParameterDecl;
+            using T = MaterialParameterType;
+            return std::array<P, 14>{{
+                {"baseColor", T::Float4, d.baseColor}, {"metallicFactor", T::Float, d.metallic},
+                {"roughnessScale", T::Float, d.roughness}, {"normalStrength", T::Float, d.normalStrength},
+                {"aoStrength", T::Float, d.aoStrength}, {"emissive", T::Float3, d.emissive},
+                {"metalness", T::Float3, d.dielectricReflectance}, {"materialOpacity", T::Float, d.opacity},
+                {"materialCutoff", T::Float, d.alphaCutoff}, {"u_tiling", T::Float2, d.uvTiling},
+                {"mappingMode", T::Integer, static_cast<std::int32_t>(d.mapping)},
+                {"projectionScale", T::Float, d.projectionScale.value},
+                {"projectionSharpness", T::Float, d.blendSharpness.value},
+                {"normalConvention", T::Integer, static_cast<std::int32_t>(d.normalConvention)}}};
+        }
+        template<class T> bool ReadParameter(const MaterialInstance& instance, std::string_view name, T& value)
+        {
+            const auto parameters = instance.Declaration()->Parameters();
+            for (std::size_t i = 0; i < parameters.size(); ++i)
+                if (parameters[i].declaration.name == name)
+                    if (auto* found = std::get_if<T>(&instance.Values()[i])) { value = *found; return true; }
+            return false;
+        }
+    }
+
+    std::expected<void, SceneResourceError>
+    SceneRenderResources::ValidateMaterial(const MaterialAuthoringDesc& d) const
+    {
+        const auto finiteRange = [](float v, float lo, float hi) { return std::isfinite(v) && v >= lo && v <= hi; };
+        if (d.kind < MaterialKind::Standard || d.kind > MaterialKind::Debug ||
+            d.mapping < TextureMappingMode::UV || d.mapping > TextureMappingMode::Triplanar ||
+            d.normalConvention < NormalMapConvention::NegativeY || d.normalConvention > NormalMapConvention::PositiveY ||
+            d.blend < TransparentBlend::StraightAlpha || d.blend > TransparentBlend::PremultipliedAlpha)
+            return MaterialFailure("material enum value");
+        if (!finiteRange(d.metallic, 0, 1) || !finiteRange(d.roughness, 0, 1) ||
+            !finiteRange(d.normalStrength, 0, 2) || !finiteRange(d.aoStrength, 0, 1) ||
+            !finiteRange(d.opacity, 0, 1) || !finiteRange(d.alphaCutoff, 0, 1) ||
+            !finiteRange(d.projectionScale.value, .001f, 1024) || !finiteRange(d.blendSharpness.value, 1, 8))
+            return MaterialFailure("material scalar range");
+        for (float value : d.baseColor) if (!finiteRange(value, 0, 1)) return MaterialFailure("base color range");
+        for (float value : d.emissive) if (!finiteRange(value, 0, 64)) return MaterialFailure("emissive range");
+        for (float value : d.dielectricReflectance) if (!finiteRange(value, 0, 1)) return MaterialFailure("reflectance range");
+        for (float value : d.uvTiling) if (!finiteRange(value, .001f, 1024)) return MaterialFailure("UV tiling range");
+        if (d.kind != MaterialKind::Transparent && d.blend != TransparentBlend::StraightAlpha)
+            return MaterialFailure("blend policy applies only to Transparent");
+        if (d.kind == MaterialKind::Unlit || d.kind == MaterialKind::Debug)
+        {
+            const MaterialAuthoringDesc defaults;
+            if (d.metallic != defaults.metallic || d.roughness != defaults.roughness ||
+                d.normalStrength != defaults.normalStrength || d.aoStrength != defaults.aoStrength ||
+                d.emissive != defaults.emissive || d.dielectricReflectance != defaults.dielectricReflectance ||
+                d.normalConvention != defaults.normalConvention)
+                return MaterialFailure("lit parameters on Unlit or Debug");
+            for (std::size_t i = d.kind == MaterialKind::Debug ? 0 : 1; i < d.textures.size(); ++i)
+                if (d.textures[i]) return MaterialFailure("texture role on Unlit or Debug");
+        }
+        if (d.kind == MaterialKind::Debug && (d.mapping != TextureMappingMode::UV || d.uvTiling != std::array<float, 2>{1, 1}))
+            return MaterialFailure("Debug has no texture mapping");
+        auto access = m_Publication.BeginFrame();
+        for (std::size_t i = 0; i < d.textures.size(); ++i)
+        {
+            if (!d.textures[i]) continue;
+            const auto value = *d.textures[i];
+            auto texture = m_Bindings->textures.Acquire(access, value.texture);
+            if (!texture) return std::unexpected(SceneResourceError{"material texture identity", texture.error()});
+            auto sampler = m_Bindings->samplers.Acquire(access, value.sampler);
+            if (!sampler) return std::unexpected(SceneResourceError{"material sampler identity", sampler.error()});
+            const auto& description = (*texture)->Description();
+            if (description.kind != Asset::TextureKind::Image2D || description.usage != Asset::TextureUsage::Sampled ||
+                description.format == Asset::TextureFormat::Depth32Float)
+                return MaterialFailure("surface texture requires a sampled color/data Image2D");
+            if (i && description.colorSpace != Asset::TextureColorSpace::Linear)
+                return MaterialFailure("normal and scalar textures require linear data");
+        }
+        return {};
+    }
+
+    std::expected<MaterialInstance, SceneResourceError>
+    SceneRenderResources::PrepareMaterial(const MaterialAuthoringDesc& desc)
+    {
+        if (!m_Publication.CanPublish())
+            return std::unexpected(SceneResourceError{"material preparation", SceneResourceCode::PublicationBusy});
+        if (auto valid = ValidateMaterial(desc); !valid) return std::unexpected(valid.error());
+        Asset::MaterialTemplateHandle declaration;
+        for (std::size_t i = 0; i < m_MaterialWork.templates; ++i)
+        {
+            const auto& item = m_BuiltinMaterials[i];
+            if (item.kind == desc.kind && item.doubleSided == desc.doubleSided && item.blend == desc.blend)
+                declaration = item.declaration;
+        }
+        if (!declaration)
+        {
+            if (m_MaterialWork.templates == m_BuiltinMaterials.size())
+                return std::unexpected(SceneResourceError{"built-in material templates", SceneResourceCode::TemplateCapacity});
+            const auto family = desc.kind == MaterialKind::Unlit ? 1u : desc.kind == MaterialKind::Debug ? 2u : 0u;
+            const auto kind = family == 1 ? SceneMaterialKind::Unlit : family == 2 ? SceneMaterialKind::Helper : SceneMaterialKind::Lit;
+            const auto parameters = AuthoredParameters(MaterialAuthoringDesc{});
+            auto& program = m_BuiltinPrograms[family];
+            if (!program)
+            {
+                ++m_MaterialWork.programCreations;
+                auto shader = CreateSceneProgram(kind, parameters, true);
+                if (!shader) return std::unexpected(shader.error());
+                auto publication = m_Publication.BeginPublication();
+                auto published = m_Programs.Create(publication, std::move(*shader));
+                if (!published) return std::unexpected(SceneResourceError{"built-in program", published.error()});
+                program = *published;
+            }
+            SceneMaterialDesc pipelineDesc;
+            pipelineDesc.kind = kind;
+            pipelineDesc.doubleSided = desc.doubleSided;
+            pipelineDesc.alpha = desc.kind == MaterialKind::Masked ? AlphaMode::Masked :
+                desc.kind == MaterialKind::Transparent ? AlphaMode::Transparent : AlphaMode::Opaque;
+            pipelineDesc.transparentBlend = desc.blend;
+            auto state = PipelineState::Create(DescribePipeline(pipelineDesc, program));
+            if (!state) return std::unexpected(SceneResourceError{"built-in pipeline", state.error()});
+            Asset::PipelineHandle pipelineHandle;
+            {
+                auto publication = m_Publication.BeginPublication();
+                auto published = m_Pipelines.Create(publication, std::move(*state));
+                if (!published) return std::unexpected(SceneResourceError{"built-in pipeline", published.error()});
+                pipelineHandle = *published;
+            }
+            struct PipelineRollback
+            {
+                SceneRenderResources& owner; Asset::PipelineHandle handle; bool committed = false;
+                ~PipelineRollback() { if (!committed) { auto p = owner.m_Publication.BeginPublication();
+                    (void)owner.m_Pipelines.Destroy(p, handle); owner.m_Pipelines.Collect(p); } }
+            } rollback{*this, pipelineHandle};
+            PipelineView pipeline;
+            {
+                auto access = m_Publication.BeginFrame();
+                auto found = m_Pipelines.Acquire(access, pipelineHandle);
+                if (!found) return std::unexpected(SceneResourceError{"built-in pipeline lease", found.error()});
+                pipeline = *found;
+            }
+            std::array<MaterialTextureSlotDecl, 5> slots;
+            for (std::size_t i = 0; i < slots.size(); ++i) slots[i] = {MaterialTextureNames[i], false, {}};
+            const bool depth = desc.kind == MaterialKind::Standard || desc.kind == MaterialKind::Masked;
+            auto materialTemplate = MaterialTemplate::Create({pipeline, parameters, slots, depth, depth});
+            if (!materialTemplate) return std::unexpected(SceneResourceError{"built-in template", materialTemplate.error()});
+            // Reserve role metadata before publishing a template that refers to it.
+            m_Roles.reserve(m_Roles.size() + 1);
+            {
+                auto publication = m_Publication.BeginPublication();
+                auto published = m_Templates.Create(publication, std::move(*materialTemplate));
+                if (!published) return std::unexpected(SceneResourceError{"built-in template", published.error()});
+                declaration = *published;
+            }
+            m_Roles.push_back({pipelineHandle, kind, 1.f, 1.f, true});
+            m_BuiltinMaterials[m_MaterialWork.templates++] = {desc.kind, desc.doubleSided, desc.blend, declaration};
+            rollback.committed = true;
+        }
+        MaterialTemplateView view;
+        {
+            auto access = m_Publication.BeginFrame();
+            auto found = m_Templates.Acquire(access, declaration);
+            if (!found) return std::unexpected(SceneResourceError{"built-in template lease", found.error()});
+            view = *found;
+        }
+        auto instance = MaterialInstance::Create(view);
+        if (!instance) return std::unexpected(SceneResourceError{"built-in instance", instance.error()});
+        for (const auto& parameter : AuthoredParameters(desc))
+            if (auto set = instance->SetParameter(parameter.name, parameter.defaultValue); !set)
+                return std::unexpected(SceneResourceError{"material parameter", set.error()});
+        for (std::size_t i = 0; i < desc.textures.size(); ++i)
+            if (desc.textures[i])
+                if (auto set = instance->SetTexture(MaterialTextureNames[i], *desc.textures[i]); !set)
+                    return std::unexpected(SceneResourceError{"material binding", set.error()});
+        return std::move(*instance);
+    }
+
+    std::expected<MaterialHandle, SceneResourceError>
+    SceneRenderResources::CreateMaterial(const MaterialAuthoringDesc& desc)
+    {
+        auto candidate = PrepareMaterial(desc);
+        if (!candidate) return std::unexpected(candidate.error());
+        auto publication = m_Publication.BeginPublication();
+        auto result = m_Materials.Create(publication, std::move(*candidate));
+        if (!result) return std::unexpected(SceneResourceError{"material creation", result.error()});
+        ++m_MaterialWork.publications;
+        return *result;
+    }
+
+    std::expected<MaterialAuthoringDesc, SceneResourceError>
+    SceneRenderResources::DescribeMaterial(MaterialHandle handle) const
+    {
+        if (!m_Publication.CanPublish())
+            return std::unexpected(SceneResourceError{"material description", SceneResourceCode::PublicationBusy});
+        auto access = m_Publication.BeginFrame();
+        auto found = m_Materials.Acquire(access, handle);
+        if (!found) return std::unexpected(SceneResourceError{"material lookup", found.error()});
+        const auto& source = **found;
+        const BuiltinMaterial* builtin = nullptr;
+        for (std::size_t i = 0; i < m_MaterialWork.templates; ++i)
+            if (m_BuiltinMaterials[i].declaration == source.Template()) builtin = &m_BuiltinMaterials[i];
+        if (!builtin) return MaterialFailure("typed description requires a built-in material");
+        MaterialAuthoringDesc d;
+        d.kind = builtin->kind; d.doubleSided = builtin->doubleSided; d.blend = builtin->blend;
+        std::int32_t mapping = 0, convention = 0;
+        if (!ReadParameter(source, "baseColor", d.baseColor) || !ReadParameter(source, "metallicFactor", d.metallic) ||
+            !ReadParameter(source, "roughnessScale", d.roughness) || !ReadParameter(source, "normalStrength", d.normalStrength) ||
+            !ReadParameter(source, "aoStrength", d.aoStrength) || !ReadParameter(source, "emissive", d.emissive) ||
+            !ReadParameter(source, "metalness", d.dielectricReflectance) || !ReadParameter(source, "materialOpacity", d.opacity) ||
+            !ReadParameter(source, "materialCutoff", d.alphaCutoff) || !ReadParameter(source, "u_tiling", d.uvTiling) ||
+            !ReadParameter(source, "mappingMode", mapping) || !ReadParameter(source, "normalConvention", convention) ||
+            !ReadParameter(source, "projectionScale", d.projectionScale.value) || !ReadParameter(source, "projectionSharpness", d.blendSharpness.value))
+            return MaterialFailure("built-in instance schema mismatch");
+        d.mapping = static_cast<TextureMappingMode>(mapping);
+        d.normalConvention = static_cast<NormalMapConvention>(convention);
+        const auto slots = source.Declaration()->Textures();
+        for (std::size_t i = 0; i < slots.size(); ++i)
+            for (std::size_t j = 0; j < d.textures.size(); ++j)
+                if (slots[i].declaration.name == MaterialTextureNames[j]) d.textures[j] = source.Textures()[i];
+        return d;
+    }
+
+    std::expected<bool, SceneResourceError>
+    SceneRenderResources::EditMaterial(MaterialHandle handle, const MaterialAuthoringDesc& desc)
+    {
+        auto previous = DescribeMaterial(handle);
+        if (!previous) return std::unexpected(previous.error());
+        if (auto valid = ValidateMaterial(desc); !valid) return std::unexpected(valid.error());
+        if (*previous == desc) return false;
+        auto candidate = PrepareMaterial(desc);
+        if (!candidate) return std::unexpected(candidate.error());
+        // Keep the existing authored revision counter for same-template edits.
+        {
+            auto access = m_Publication.BeginFrame();
+            auto old = m_Materials.Acquire(access, handle);
+            if (!old) return std::unexpected(SceneResourceError{"material edit lookup", old.error()});
+            if ((*old)->Template() == candidate->Template())
+            {
+                auto revised = **old;
+                for (const auto& p : AuthoredParameters(desc))
+                    if (auto set = revised.SetParameter(p.name, p.defaultValue); !set)
+                        return std::unexpected(SceneResourceError{"material edit parameter", set.error()});
+                for (std::size_t i = 0; i < desc.textures.size(); ++i)
+                {
+                    auto set = desc.textures[i] ? revised.SetTexture(MaterialTextureNames[i], *desc.textures[i]) :
+                        revised.ResetTexture(MaterialTextureNames[i]);
+                    if (!set) return std::unexpected(SceneResourceError{"material edit binding", set.error()});
+                }
+                *candidate = std::move(revised);
+            }
+        }
+        auto publication = m_Publication.BeginPublication();
+        auto result = m_Materials.Replace(publication, handle, std::move(*candidate));
+        if (!result) return std::unexpected(SceneResourceError{"material edit publication", result.error()});
+        m_Materials.Collect(publication);
+        ++m_MaterialWork.publications;
+        return true;
+    }
+
+    std::expected<bool, SceneResourceError> SceneRenderResources::SetMaterialTexture(
+        MaterialHandle handle, MaterialTextureSemantic semantic, std::optional<MaterialTextureValue> value)
+    {
+        if (semantic < MaterialTextureSemantic::BaseColor || semantic > MaterialTextureSemantic::AO)
+            return MaterialFailure("material texture semantic");
+        auto desc = DescribeMaterial(handle);
+        if (!desc) return std::unexpected(desc.error());
+        desc->textures[static_cast<std::size_t>(semantic)] = value;
+        return EditMaterial(handle, *desc);
+    }
+
+    std::expected<MaterialHandle, SceneResourceError> SceneRenderResources::CloneMaterial(MaterialHandle handle)
+    {
+        if (!m_Publication.CanPublish())
+            return std::unexpected(SceneResourceError{"material Clone", SceneResourceCode::PublicationBusy});
+        std::optional<MaterialInstance> candidate;
+        {
+            auto access = m_Publication.BeginFrame();
+            auto source = m_Materials.Acquire(access, handle);
+            if (!source) return std::unexpected(SceneResourceError{"material Clone source", source.error()});
+            // Validate source bindings without shader creation, texture upload or publication.
+            auto resolved = PreparedMaterialBinding::Prepare(*source, access, *m_Bindings);
+            if (!resolved) return MaterialFailure("material Clone source bindings");
+            candidate = **source;
+        }
+        auto publication = m_Publication.BeginPublication();
+        auto result = m_Materials.Create(publication, std::move(*candidate));
+        if (!result) return std::unexpected(SceneResourceError{"material Clone publication", result.error()});
+        ++m_MaterialWork.clones; ++m_MaterialWork.publications;
+        return *result;
     }
 
     std::expected<Asset::MaterialInstanceHandle, SceneResourceError>

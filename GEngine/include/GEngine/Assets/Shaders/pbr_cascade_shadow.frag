@@ -8,6 +8,11 @@ in VS_OUT {
     vec3 FragPos;
     vec3 Normal;
     vec2 TexCoords;
+#ifdef GENGINE_TYPED_MATERIAL
+    vec3 LocalPosition;
+    vec3 LocalNormal;
+    mat3 NormalMatrix;
+#endif
 } fs_in;
 
 uniform sampler2D albedoMap;
@@ -52,12 +57,23 @@ uniform bool shadows;
 uniform vec3 metalness;
 // Authored material factor; color-space conversion never controls roughness.
 uniform float roughnessScale = 1.0;
+#ifdef GENGINE_TYPED_MATERIAL
+uniform vec4 baseColor;
+uniform float metallicFactor;
+uniform float normalStrength;
+uniform int normalConvention;
+uniform float aoStrength;
+uniform vec3 emissive;
+#endif
 
 const float PI = 3.14159265359;
 
 vec3 getNormalFromMap(vec2 uvs)
 {
     vec3 tangentNormal = texture(normalMap, uvs).xyz * 2.0 - 1.0;
+#ifdef GENGINE_TYPED_MATERIAL
+    tangentNormal.xy *= vec2(normalStrength, normalConvention == 0 ? normalStrength : -normalStrength);
+#endif
     vec3 Q1 = dFdx(fs_in.FragPos);
     vec3 Q2 = dFdy(fs_in.FragPos);
     vec2 st1 = dFdx(uvs);
@@ -83,7 +99,12 @@ float DistributionGGX(vec3 N, vec3 H, float roughness)
     float denom = (NdotH2 * (a2 - 1.0) + 1.0);
     denom = PI * denom * denom;
 
+#ifdef GENGINE_TYPED_MATERIAL
+    // Authored roughness includes zero; bound the singular floating-point limit.
+    return nom / max(denom, 0.0000001);
+#else
     return nom / denom;
+#endif
 }
 
 float GeometrySchlickGGX(float NdotV, float roughness)
@@ -124,6 +145,16 @@ vec3 gridSamplingDisk[20] = vec3[]
 
 uniform mat4 u_view;
 uniform vec2 u_tiling;
+
+vec4 geBaseSample()
+{
+#ifdef GENGINE_TYPED_MATERIAL
+    return frameHasBaseColor ? geSampleSurface(albedoMap, fs_in.TexCoords,
+        fs_in.LocalPosition, fs_in.LocalNormal) : vec4(1.0);
+#else
+    return texture(albedoMap, fs_in.TexCoords * u_tiling);
+#endif
+}
 
 layout (std140) uniform LightSpaceMatrices
 {
@@ -228,7 +259,27 @@ void main()
 {      
 
     vec2 uvs = vec2(fs_in.TexCoords.x * u_tiling.x, fs_in.TexCoords.y * u_tiling.y);
-    vec3 albedo     = texture(albedoMap, uvs).rgb;
+    vec3 albedo     = geBaseSample().rgb;
+#ifdef GENGINE_TYPED_MATERIAL
+    albedo *= baseColor.rgb;
+    float metallic = metallicFactor;
+    if ((frameTextureMask & 4u) != 0u)
+        metallic *= geSampleSurface(metallicMap, fs_in.TexCoords, fs_in.LocalPosition, fs_in.LocalNormal).r;
+    float roughness = roughnessScale;
+    if ((frameTextureMask & 8u) != 0u)
+        roughness *= geSampleSurface(roughnessMap, fs_in.TexCoords, fs_in.LocalPosition, fs_in.LocalNormal).r;
+    // The exact-zero glossy endpoint uses a finite numerical GGX width.
+    roughness = max(roughness, 0.001);
+    float ao = (frameTextureMask & 16u) != 0u ? mix(1.0,
+        geSampleSurface(aoMap, fs_in.TexCoords, fs_in.LocalPosition, fs_in.LocalNormal).r, aoStrength) : 1.0;
+    vec3 N = normalize(fs_in.Normal);
+    if ((frameTextureMask & 2u) != 0u && normalStrength > 0.0) {
+        if (frameMapping == 1)
+            N = normalize(fs_in.NormalMatrix * geTriplanarNormal(normalMap, fs_in.LocalPosition,
+                fs_in.LocalNormal, normalStrength, normalConvention == 0 ? -1.0 : 1.0));
+        else N = getNormalFromMap(uvs);
+    }
+#else
     float metallic  = texture(metallicMap, uvs).r;
     float roughness = texture(roughnessMap, uvs).r * roughnessScale;
     float ao        = texture(aoMap, uvs).r;
@@ -237,6 +288,7 @@ void main()
 //    float ao        = texture(aoMap, fs_in.TexCoords).r;
 
     vec3 N = getNormalFromMap(uvs);
+#endif
     //vec3 N = normalize(fs_in.Normal);
     vec3 V = normalize(viewPos - fs_in.FragPos);
 
@@ -320,6 +372,9 @@ void main()
     // HDR tonemapping
     //color = color / (color + vec3(1.0));
 
+    #ifdef GENGINE_TYPED_MATERIAL
+    color += emissive;
+    #endif
     // gamma correct
     color = pow(color, vec3(1.0/1.8));
     

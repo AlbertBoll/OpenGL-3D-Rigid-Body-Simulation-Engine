@@ -21,6 +21,7 @@
 #include "../tests/ParametricGeometryChecks.h"
 #include "../tests/GeometryAuthoringChecks.h"
 #include "../tests/MaterialAuthoringChecks.h"
+#include "../tests/ShaderDescriptionChecks.h"
 
 #include <Physics/ShapeBox.h>
 #include <Physics/PhysicsWorld.h>
@@ -950,6 +951,52 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(
         FocusMaterialCamera(m_EditorCamera_, {0, 2, -22}, .35f, 0, 38.f);
     }
 
+    // Advanced shader authoring is explicit; ordinary Phase 09 materials above
+    // keep their existing API, packed storage, mapping and resource identities.
+    constexpr const char* customVertex = R"(#version 450 core
+layout(location=0) in vec3 aPos;
+uniform mat4 u_model;
+uniform mat4 u_view;
+uniform mat4 u_projection;
+void main() { gl_Position = u_projection * u_view * u_model * vec4(aPos, 1.0); }
+)";
+    constexpr const char* customFragment = R"(#version 450 core
+layout(location=0) out vec4 FragColor;
+uniform vec4 tint;
+uniform float gain;
+uniform float optionalDetail;
+void main() {
+#if RBS_VARIANT == 1
+    FragColor = vec4(tint.bgr * gain, 1.0);
+#else
+    FragColor = vec4(tint.rgb * gain, 1.0);
+#endif
+}
+)";
+    const ShaderSource customStages[]{
+        {VERTEX, customVertex, "RBS custom vertex"}, {FRAGMENT, customFragment, "RBS custom fragment"}};
+    const MaterialShaderParameter customParameters[]{
+        {{"tint", MaterialParameterType::Float4, std::array<float, 4>{1.f, .35f, .08f, 1.f}}},
+        {{"gain", MaterialParameterType::Float, .8f}},
+        {{"optionalDetail", MaterialParameterType::Float, 0.f}, false}};
+    const ShaderVariant customVariants[]{ {{0}, {{"RBS_VARIANT", 0}}}, {{1}, {{"RBS_VARIANT", 1}}} };
+    auto customDescription = MaterialShaderDescription::Create({customStages, customParameters, {}, customVariants});
+    if (!customDescription) return failure(SceneResourceError{"custom shader description", customDescription.error()});
+    auto customMaterial = m_SceneResources->CreateMaterial(*customDescription);
+    if (!customMaterial) return failure(customMaterial.error());
+    auto customObject = m_ActiveScene->CreateEntity("Phase10 Custom Shader");
+    if (!customObject) return std::unexpected(customObject.error());
+    customObject->Transform().SetTranslation({0.f, 5.f, -22.f});
+    if (auto assigned = m_SceneResources->AssignRenderable(*customObject, {boxMesh, *customMaterial}); !assigned)
+        return failure(assigned.error());
+    if (std::getenv("GENGINE_PRE_EDITOR_SHADER_DESCRIPTIONS"))
+    {
+        auto checked = PreEditorValidation::CheckShaderDescriptions(GetEngineContext(), *m_SceneResources,
+            boxMesh, *customDescription, *customMaterial, customStages, customParameters, customVariants);
+        if (!checked) return checked;
+        FocusMaterialCamera(m_EditorCamera_, {0, 3, -22}, .35f, 0, 38.f);
+    }
+
     // Reserve before the Scene hands successful runtime shape ownership to this caller.
     m_PhysicsShapes.reserve(m_ActiveScene->GetAllEntitiesWith<RigidBody3DComponent>().size());
     if (auto started = m_ActiveScene->OnRuntimeStart(); !started)
@@ -1409,6 +1456,11 @@ void RigidBodySimulationApp::Render()
                                      return {};
                                  }};
         auto submitted = FrameScheduler::Render(context, &input);
+        if (submitted && std::getenv("GENGINE_PRE_EDITOR_SHADER_DESCRIPTIONS") &&
+            !PreEditorValidation::CheckShaderSteadyFrame(*m_SceneResources,
+                {static_cast<unsigned>(camera.viewportWidth), static_cast<unsigned>(camera.viewportHeight)}))
+            return std::unexpected(ScheduleError{FrameStage::Pass, PlatformError{PlatformErrorCode::Initialization,
+                "Phase 10 shader hot path", "Shader work appeared during warmed rendering"}});
         if (submitted && std::getenv("GENGINE_PRE_EDITOR_MATERIAL_AUTHORING"))
         {
             if (materialGallery.captureReady && materialGallery.recordedSample != materialGallery.validationSample)

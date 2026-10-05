@@ -19,7 +19,7 @@ namespace GEngine::Asset
         // no platform import. The callback still checks the actual current context.
         decltype(&SDL_GL_GetCurrentContext) currentContext{};
         std::thread::id thread;
-        std::map<std::string, GLint> uniforms;
+        std::map<std::string, GLint, std::less<>> uniforms;
         std::vector<GLuint> stages;
         ~ShaderStorage();
         void RequireOwner() const noexcept;

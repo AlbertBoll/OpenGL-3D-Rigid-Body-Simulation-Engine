@@ -118,6 +118,11 @@ namespace GEngine
         std::uint64_t programCreations = 0, clones = 0, publications = 0;
         std::size_t templates = 0;
     };
+    struct SceneShaderWork
+    {
+        std::size_t programs = 0;
+        std::uint64_t cacheHits = 0, cacheMisses = 0, packingPasses = 0;
+    };
 
     struct GeometryIdentity
     {
@@ -214,6 +219,13 @@ namespace GEngine
         std::expected<Asset::MaterialInstanceHandle, SceneResourceError>
         PublishMaterial(const SceneMaterialDesc&);
         std::expected<MaterialHandle, SceneResourceError> CreateMaterial(const MaterialAuthoringDesc&);
+        // Explicit advanced entry: opaque, unlit, non-shadow-casting material using
+        // the same packed submission and exact-version resources as ordinary materials.
+        std::expected<MaterialHandle, SceneResourceError>
+            CreateMaterial(const MaterialShaderDescription&, Asset::ShaderVariantKey = {});
+        std::expected<std::span<const Asset::ShaderReflection>, SceneResourceError>
+            ShaderInterface(const MaterialShaderDescription&, Asset::ShaderVariantKey = {}) const;
+        SceneShaderWork ShaderWork() const noexcept { return m_ShaderWork; }
         std::expected<MaterialAuthoringDesc, SceneResourceError> DescribeMaterial(MaterialHandle) const;
         std::expected<bool, SceneResourceError> EditMaterial(MaterialHandle, const MaterialAuthoringDesc&);
         std::expected<MaterialHandle, SceneResourceError> CloneMaterial(MaterialHandle);
@@ -257,6 +269,20 @@ namespace GEngine
 
     private:
         friend class _Scene;
+        struct CachedProgram
+        {
+            std::string identity;
+            bool custom = false;
+            Asset::ShaderProgramHandle handle;
+            std::vector<Asset::ShaderReflection> authored, packed;
+        };
+        std::expected<Asset::ShaderProgramHandle, SceneResourceError>
+            CacheProgram(const Asset::ShaderDescription&, Asset::ShaderVariantKey = {},
+                         const MaterialShaderDescription* = nullptr);
+        std::expected<MaterialHandle, SceneResourceError>
+            PublishMaterial(const SceneMaterialDesc&, const MaterialShaderDescription*, Asset::ShaderVariantKey);
+        std::array<CachedProgram, 64> m_ProgramCache{};
+        SceneShaderWork m_ShaderWork;
         struct BuiltinMaterial
         {
             MaterialKind kind{};

@@ -18,6 +18,9 @@
 #define GENGINE_MATERIAL_AUTHORING_BACKEND
 #include "../../../RigidBodySimulation/tests/MaterialAuthoringChecks.h"
 #undef GENGINE_MATERIAL_AUTHORING_BACKEND
+#define GENGINE_SHADER_DESCRIPTION_BACKEND
+#include "../../../RigidBodySimulation/tests/ShaderDescriptionChecks.h"
+#undef GENGINE_SHADER_DESCRIPTION_BACKEND
 
 namespace GEngine
 {
@@ -75,8 +78,8 @@ void main() {
 )";
         }
 
-        std::expected<Asset::Shader, SceneResourceError>
-        CreatePackedProgram(const char* vertex, const std::string& source, const char* fragment,
+        std::expected<Asset::ShaderDescription, SceneResourceError>
+        DescribePackedProgram(const char* vertex, const std::string& source, const char* fragment,
                             SceneMaterialKind kind,
                             std::span<const MaterialParameterDecl> parameters, bool typed = false)
         {
@@ -97,14 +100,14 @@ void main() {
                 {Asset::ShaderStage::Vertex, *packedVertex,
                  "semantic vertex / packed frame-material input"},
                 {Asset::ShaderStage::Fragment, *packedFragment, fragment}};
-            auto shader = Asset::Shader::Create({stages});
+            auto shader = Asset::ShaderDescription::Create({stages, {}, {}});
             if (!shader)
                 return std::unexpected(SceneResourceError{"program creation", shader.error()});
             return std::move(*shader);
         }
 
-        std::expected<Asset::Shader, SceneResourceError>
-        CreateSceneProgram(SceneMaterialKind kind,
+        std::expected<Asset::ShaderDescription, SceneResourceError>
+        DescribeSceneProgram(SceneMaterialKind kind,
                            std::span<const MaterialParameterDecl> parameters, bool typed = false)
         {
             if (typed && (kind == SceneMaterialKind::Unlit || kind == SceneMaterialKind::Helper))
@@ -126,7 +129,7 @@ layout(location=0) out vec4 FragColor;
 uniform vec4 baseColor;
 void main() { FragColor = vec4(baseColor.rgb, 1.0); }
 )";
-                return CreatePackedProgram(kind == SceneMaterialKind::Unlit ? LitVertex : HelperVertex,
+                return DescribePackedProgram(kind == SceneMaterialKind::Unlit ? LitVertex : HelperVertex,
                     kind == SceneMaterialKind::Unlit ? unlit : debug, "typed built-in unlit/debug",
                     kind, parameters, true);
             }
@@ -173,7 +176,7 @@ void main() { FragColor = vec4(baseColor.rgb, 1.0); }
                                                               "Cannot read shader source"}});
                 vertex = sky.c_str();
             }
-            return CreatePackedProgram(vertex, source, fragment, kind, parameters, typed);
+            return DescribePackedProgram(vertex, source, fragment, kind, parameters, typed);
         }
 
         PipelineDesc DescribePipeline(const SceneMaterialDesc& desc,
@@ -1134,11 +1137,10 @@ void main() { FragColor = vec4(baseColor.rgb, 1.0); }
             if (!program)
             {
                 ++m_MaterialWork.programCreations;
-                auto shader = CreateSceneProgram(kind, parameters, true);
-                if (!shader) return std::unexpected(shader.error());
-                auto publication = m_Publication.BeginPublication();
-                auto published = m_Programs.Create(publication, std::move(*shader));
-                if (!published) return std::unexpected(SceneResourceError{"built-in program", published.error()});
+                auto description = DescribeSceneProgram(kind, parameters, true);
+                if (!description) return std::unexpected(description.error());
+                auto published = CacheProgram(*description);
+                if (!published) return std::unexpected(published.error());
                 program = *published;
             }
             SceneMaterialDesc pipelineDesc;
@@ -1319,27 +1321,158 @@ void main() { FragColor = vec4(baseColor.rgb, 1.0); }
         return *result;
     }
 
+    std::expected<Asset::ShaderProgramHandle, SceneResourceError>
+    SceneRenderResources::CacheProgram(const Asset::ShaderDescription& description,
+                                      Asset::ShaderVariantKey variant, const MaterialShaderDescription* material)
+    {
+        using namespace Asset;
+        if (!m_Publication.CanPublish())
+            return std::unexpected(SceneResourceError{"shader cache", SceneResourceCode::PublicationBusy});
+        const auto failure = [](ShaderErrorCode code, std::string source, std::string log) {
+            return std::unexpected(SceneResourceError{"shader interface", ShaderError{code, {}, std::move(source), std::move(log)}});
+        };
+        auto selected = description.Select(variant);
+        if (!selected) return std::unexpected(SceneResourceError{"shader variant", selected.error()});
+        for (std::size_t i = 0; i < m_ShaderWork.programs; ++i)
+            if (m_ProgramCache[i].custom == (material != nullptr) && m_ProgramCache[i].identity == (*selected)->identity)
+            {
+                ++m_ShaderWork.cacheHits;
+                return m_ProgramCache[i].handle;
+            }
+        if (m_ShaderWork.programs == m_ProgramCache.size())
+            return failure(ShaderErrorCode::Capacity, {}, "Scene shader cache has 64 entries; no eviction or implicit recompilation");
+        ++m_ShaderWork.cacheMisses;
+        CachedProgram entry;
+        entry.custom = material != nullptr; entry.identity = (*selected)->identity;
+        std::vector<ShaderSource> stages;
+        for (const auto& stage : (*selected)->stages) stages.push_back({stage.type, stage.source, stage.label});
+        std::vector<std::string> packedSources;
+        if (material)
+        {
+            // This temporary owner proves authored uniform types before the packed
+            // adapter removes them. The two cold links are explicit and counted.
+            auto authored = CreateShaderProgram(stages);
+            if (!authored) return std::unexpected(SceneResourceError{"authored shader", authored.error()});
+            auto reflected = authored->Reflect(description.Bindings());
+            if (!reflected) return std::unexpected(SceneResourceError{"authored reflection", reflected.error()});
+            entry.authored = std::move(*reflected);
+            for (const auto& item : entry.authored)
+            {
+                if (!item.active || item.name.starts_with("gl_")) continue;
+                if (item.kind == ShaderResourceKind::UniformBlock || item.kind == ShaderResourceKind::StorageBlock ||
+                    item.kind == ShaderResourceKind::BlockMember || !item.semantic ||
+                    std::none_of(description.Bindings().begin(), description.Bindings().end(),
+                        [&](const auto& binding) { return binding.name == item.name && binding.semantic == item.semantic; }))
+                    return failure(ShaderErrorCode::Validation, item.name, "Custom material exposes an undeclared or unsupported interface");
+            }
+            packedSources.reserve(stages.size());
+            for (const auto& stage : stages)
+            {
+                ++m_ShaderWork.packingPasses;
+                auto packed = RenderBackend::PackedStage(std::string(stage.source), false, material->Parameters(), stage.type);
+                if (!packed) return std::unexpected(packed.error());
+                packedSources.push_back(std::move(*packed));
+            }
+            for (std::size_t i = 0; i < stages.size(); ++i) stages[i].source = packedSources[i];
+        }
+        auto shader = CreateShaderProgram(stages);
+        if (!shader) return std::unexpected(SceneResourceError{"packed shader", shader.error()});
+        auto reflected = shader->Reflect();
+        if (!reflected) return std::unexpected(SceneResourceError{"packed reflection", reflected.error()});
+        entry.packed = std::move(*reflected);
+        for (const auto& item : entry.packed)
+        {
+            if (item.kind == ShaderResourceKind::UniformBlock &&
+                (item.name != "GEngineFrame" || item.blockBytes > sizeof(RenderBackend::PackedFrame)))
+                return failure(ShaderErrorCode::BindingType, item.name, "Packed frame block does not match the renderer ABI");
+            if (item.kind == ShaderResourceKind::StorageBlock && item.name != "GEngineMaterials" && item.name != "GEngineInstances")
+                return failure(ShaderErrorCode::Validation, item.name, "Unsupported packed storage block");
+            if (item.kind == ShaderResourceKind::BlockMember)
+            {
+                if (item.block == "GEngineMaterials" && (item.type != ShaderValueType::UInt4 || item.byteOffset != 0 || item.arrayStride != 16))
+                    return failure(ShaderErrorCode::BindingType, item.name, "Packed material word layout differs from shared material storage");
+                if (item.block == "GEngineInstances" && item.arrayStride != sizeof(RenderBackend::PackedInstance))
+                    return failure(ShaderErrorCode::BindingType, item.name, "Packed instance stride differs from renderer storage");
+                const std::pair<std::string_view, std::size_t> matrices[]{
+                    {"geView", offsetof(RenderBackend::PackedFrame, view)},
+                    {"geProjection", offsetof(RenderBackend::PackedFrame, projection)},
+                    {"geSkyView", offsetof(RenderBackend::PackedFrame, skyView)}};
+                for (const auto& [name, offset] : matrices)
+                    if (item.block == "GEngineFrame" && (item.name == name || item.name.ends_with(std::string(".") + std::string(name))) &&
+                        (item.type != ShaderValueType::Matrix4 || item.byteOffset != offset || item.matrixStride != 16))
+                        return failure(ShaderErrorCode::BindingType, item.name, "Packed frame matrix layout differs from renderer storage");
+            }
+            if (material && item.kind == ShaderResourceKind::Uniform)
+            {
+                const auto texture = std::find_if(material->Textures().begin(), material->Textures().end(),
+                    [&](const auto& slot) { return slot.name == item.name; });
+                const bool control = item.name == "u_model" || item.name == "geInstanced" || item.name == "geInstanceBase" || item.name == "geMaterialOffset";
+                if (!control && texture == material->Textures().end())
+                    return failure(ShaderErrorCode::Validation, item.name, "Material uniform was not converted to packed storage; use separate scalar/vector/matrix declarations");
+                if (texture != material->Textures().end() && (item.type != ShaderValueType::Sampler2D || item.elements != 1))
+                    return failure(ShaderErrorCode::BindingType, item.name, "Packed texture semantic differs from schema");
+            }
+        }
+        // Allocate the cache's CPU data before publishing. Fixed cache storage and
+        // noexcept moves cannot strand a newly published program on allocation failure.
+        auto publication = m_Publication.BeginPublication();
+        auto handle = m_Programs.Create(publication, std::move(*shader));
+        if (!handle) return std::unexpected(SceneResourceError{"cached program publication", handle.error()});
+        entry.handle = *handle;
+        m_ProgramCache[m_ShaderWork.programs++] = std::move(entry);
+        return *handle;
+    }
+
+    std::expected<std::span<const Asset::ShaderReflection>, SceneResourceError>
+    SceneRenderResources::ShaderInterface(const MaterialShaderDescription& description, Asset::ShaderVariantKey variant) const
+    {
+        auto selected = description.Program().Select(variant);
+        if (!selected) return std::unexpected(SceneResourceError{"shader variant", selected.error()});
+        for (std::size_t i = 0; i < m_ShaderWork.programs; ++i)
+            if (m_ProgramCache[i].custom && m_ProgramCache[i].identity == (*selected)->identity)
+                return std::span<const Asset::ShaderReflection>(m_ProgramCache[i].authored);
+        return std::unexpected(SceneResourceError{"shader interface not created", SceneResourceCode::InvalidMaterial});
+    }
+
+    std::expected<MaterialHandle, SceneResourceError>
+    SceneRenderResources::CreateMaterial(const MaterialShaderDescription& shader, Asset::ShaderVariantKey variant)
+    {
+        SceneMaterialDesc desc;
+        desc.kind = SceneMaterialKind::Unlit; desc.parameters = shader.Parameters();
+        return PublishMaterial(desc, &shader, variant);
+    }
+
     std::expected<Asset::MaterialInstanceHandle, SceneResourceError>
     SceneRenderResources::PublishMaterial(const SceneMaterialDesc& desc)
+    { return PublishMaterial(desc, nullptr, {}); }
+
+    std::expected<MaterialHandle, SceneResourceError>
+    SceneRenderResources::PublishMaterial(const SceneMaterialDesc& desc, const MaterialShaderDescription* custom,
+                                        Asset::ShaderVariantKey variant)
     {
         if (!m_Publication.CanPublish())
             return std::unexpected(
                 SceneResourceError{"material publication", SceneResourceCode::PublicationBusy});
-        if (desc.kind < SceneMaterialKind::Lit || desc.kind > SceneMaterialKind::Sky ||
+        if (desc.kind < SceneMaterialKind::Lit || desc.kind > (custom ? SceneMaterialKind::Unlit : SceneMaterialKind::Sky) ||
             !std::isfinite(desc.lineWidth) || desc.lineWidth <= 0 || !std::isfinite(desc.opacity) ||
             desc.opacity < 0 || desc.opacity > 1 ||
             (desc.kind != SceneMaterialKind::Lit && desc.alpha != AlphaMode::Opaque))
             return std::unexpected(
                 SceneResourceError{"material description", SceneResourceCode::InvalidMaterial});
-        auto shader = CreateSceneProgram(desc.kind, desc.parameters);
-        if (!shader)
-            return std::unexpected(shader.error());
+        std::optional<Asset::ShaderDescription> standard;
+        if (!custom)
+        {
+            auto description = DescribeSceneProgram(desc.kind, desc.parameters);
+            if (!description) return std::unexpected(description.error());
+            standard = std::move(*description);
+        }
+        auto program = CacheProgram(custom ? custom->Program() : *standard, variant, custom);
+        if (!program) return std::unexpected(program.error());
         // Every failure (including standard container unwinding) retires only this
         // transaction's versions. Dependent local leases end before rollback runs.
         struct Rollback
         {
             SceneRenderResources& owner;
-            Asset::ShaderProgramHandle program;
             Asset::PipelineHandle pipeline;
             Asset::MaterialTemplateHandle declaration;
             Asset::MaterialInstanceHandle material;
@@ -1358,17 +1491,10 @@ void main() { FragColor = vec4(baseColor.rgb, 1.0); }
                 if (pipeline)
                     (void)owner.m_Pipelines.Destroy(access, pipeline);
                 owner.m_Pipelines.Collect(access);
-                if (program)
-                    (void)owner.m_Programs.Destroy(access, program);
-                owner.m_Programs.Collect(access);
             }
         } rollback{*this};
         {
             auto access = m_Publication.BeginPublication();
-            auto program = m_Programs.Create(access, std::move(*shader));
-            if (!program)
-                return std::unexpected(SceneResourceError{"program publication", program.error()});
-            rollback.program = *program;
             const auto pipeline = DescribePipeline(desc, *program);
             auto state = PipelineState::Create(pipeline);
             if (!state)
@@ -1387,14 +1513,17 @@ void main() { FragColor = vec4(baseColor.rgb, 1.0); }
             pipeline = std::move(*view);
         }
         std::vector<MaterialTextureSlotDecl> textures;
-        for (const auto& texture : desc.textures)
-            textures.push_back({std::string(texture.name), true, texture.value});
+        if (custom) textures.assign(custom->Textures().begin(), custom->Textures().end());
+        else for (const auto& texture : desc.textures)
+                textures.push_back({std::string(texture.name), true, texture.value});
         const bool shadow =
             desc.kind == SceneMaterialKind::Lit && desc.alpha != AlphaMode::Transparent;
         auto declaration =
             MaterialTemplate::Create({pipeline, desc.parameters, textures, shadow, shadow});
         if (!declaration)
             return std::unexpected(SceneResourceError{"material template", declaration.error()});
+        if (auto valid = declaration->ValidateBindings({}); !valid)
+            return std::unexpected(SceneResourceError{"material texture schema", valid.error()});
         {
             auto access = m_Publication.BeginPublication();
             auto handle = m_Templates.Create(access, std::move(*declaration));
@@ -1413,6 +1542,8 @@ void main() { FragColor = vec4(baseColor.rgb, 1.0); }
         auto instance = MaterialInstance::Create(view);
         if (!instance)
             return std::unexpected(SceneResourceError{"material instance", instance.error()});
+        // No allocation after instance publication can leave it without role metadata.
+        m_Roles.reserve(m_Roles.size() + 1);
         {
             auto access = m_Publication.BeginPublication();
             auto handle = m_Materials.Create(access, std::move(*instance));

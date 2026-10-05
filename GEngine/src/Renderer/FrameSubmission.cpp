@@ -33,7 +33,11 @@ namespace GEngine
             State::Get().Program(Asset::ShaderBackendAccess::Program(shader));
         }
         GLint Location(const Shader& shader, const char* name)
-        { return glGetUniformLocation(Asset::ShaderBackendAccess::Program(shader), name); }
+        {
+            const auto& locations = Asset::ShaderBackendAccess::Uniforms(shader);
+            const auto found = locations.find(std::string_view(name));
+            return found == locations.end() ? -1 : found->second;
+        }
         void Uniform(const Shader& s, const char* n, int v) { glUniform1i(Location(s, n), v); }
         void Uniform(const Shader& s, const char* n, unsigned v) { glUniform1ui(Location(s, n), v); }
         void Uniform(const Shader& s, const char* n, bool v) { Uniform(s, n, int(v)); }

@@ -4,6 +4,7 @@
 #include "Math/Math.h"
 #include <glm/gtc/type_ptr.hpp>
 #include <concepts>
+#include <cstdint>
 #include <expected>
 #include <memory>
 #include <optional>
@@ -21,7 +22,8 @@ namespace GEngine::Asset
         TESS_EVALUATION = ShaderStage::TessellationEvaluation, COMPUTE = ShaderStage::Compute;
 
     enum class ShaderErrorCode { InvalidInput, InvalidState, FileRead, ProgramAllocation, ShaderAllocation,
-        Compile, Link, ContextUnavailable, WrongThread, Validation, UniformRange };
+        Compile, Link, ContextUnavailable, WrongThread, Validation, UniformRange,
+        MissingBinding, BindingType, VariantNotAdmitted, Capacity };
     struct ShaderError
     {
         ShaderErrorCode code;
@@ -35,6 +37,68 @@ namespace GEngine::Asset
     void ReportShaderError(const ShaderError& error);
     struct ShaderSource { ShaderStage type; std::string_view source; std::string_view label; };
     struct ShaderProgramDesc { std::span<const ShaderSource> stages; };
+
+    enum class ShaderValueType { Unknown, Boolean, Integer, UnsignedInteger, Float,
+        Float2, Float3, Float4, Matrix4, Sampler2D, SamplerCube, Sampler2DArray, UInt4 };
+    enum class ShaderSemantic { Parameter, Texture, Model, View, Projection, Position, TexCoord, Normal, Color };
+    struct ShaderBindingDecl
+    {
+        std::string name;
+        ShaderValueType type = ShaderValueType::Float;
+        ShaderSemantic semantic = ShaderSemantic::Parameter;
+        bool required = true;
+        bool operator==(const ShaderBindingDecl&) const = default;
+    };
+    struct ShaderDefine
+    {
+        std::string name;
+        std::int32_t value = 0;
+        bool operator==(const ShaderDefine&) const = default;
+    };
+    struct ShaderVariantKey { std::uint32_t value = 0; bool operator==(const ShaderVariantKey&) const = default; };
+    struct ShaderVariant { ShaderVariantKey key; std::vector<ShaderDefine> defines; };
+    struct OwnedShaderSource { ShaderStage type; std::string source, label; };
+    struct ShaderVariantSource
+    {
+        ShaderVariantKey key;
+        std::vector<OwnedShaderSource> stages;
+        // Exact, length-delimited canonical bytes. Labels and instance values are excluded.
+        std::string identity;
+    };
+    struct ShaderDescriptionDesc
+    {
+        std::span<const ShaderSource> stages;
+        std::span<const ShaderBindingDecl> bindings;
+        std::span<const ShaderVariant> variants; // Empty means the single default key 0.
+    };
+    // Owned CPU description; no context work. Only the explicitly admitted variants
+    // are canonicalized once. Selection never generates a permutation or source.
+    class ShaderDescription final
+    {
+    public:
+        static std::expected<ShaderDescription, ShaderError> Create(const ShaderDescriptionDesc&);
+        std::expected<const ShaderVariantSource*, ShaderError> Select(ShaderVariantKey = {}) const;
+        std::span<const ShaderBindingDecl> Bindings() const noexcept { return m_Bindings; }
+        std::size_t VariantCount() const noexcept { return m_Variants.size(); }
+    private:
+        std::vector<ShaderBindingDecl> m_Bindings;
+        std::vector<ShaderVariantSource> m_Variants;
+    };
+    enum class ShaderResourceKind { Uniform, VertexInput, FragmentOutput, UniformBlock, StorageBlock, BlockMember };
+    struct ShaderReflection
+    {
+        std::string name, block;
+        ShaderResourceKind kind = ShaderResourceKind::Uniform;
+        ShaderValueType type = ShaderValueType::Unknown;
+        std::uint32_t elements = 1, byteOffset = 0, arrayStride = 0, matrixStride = 0, blockBytes = 0;
+        std::optional<ShaderSemantic> semantic;
+        bool active = true;
+    };
+    struct ShaderCreationWork
+    {
+        std::uint64_t descriptions = 0, stageCompilations = 0, links = 0, reflectionPasses = 0;
+        bool operator==(const ShaderCreationWork&) const = default;
+    };
 
     template<class T>
     concept ShaderUniform = std::same_as<T, int> || std::same_as<T, unsigned int>
@@ -60,6 +124,11 @@ namespace GEngine::Asset
         Shader(Shader&&) noexcept;
         Shader& operator=(Shader&&) noexcept;
         [[nodiscard]] static std::expected<Shader, ShaderError> Create(const ShaderProgramDesc&);
+        [[nodiscard]] static std::expected<Shader, ShaderError> Create(const ShaderDescription&, ShaderVariantKey = {});
+        // Explicit creation-time inspection. Callers retain the returned CPU interface.
+        [[nodiscard]] std::expected<std::vector<ShaderReflection>, ShaderError>
+            Reflect(std::span<const ShaderBindingDecl> = {}) const;
+        static ShaderCreationWork CreationWork() noexcept;
         [[nodiscard]] ShaderResult CompileShader(const char* file);
         [[nodiscard]] ShaderResult CompileShader(const char* file, ShaderStage stage);
         [[nodiscard]] ShaderResult CompileShader(const std::string& source, ShaderStage stage, const char* label);

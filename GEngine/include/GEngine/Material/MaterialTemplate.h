@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Material/Pipeline.h"
+#include "Assets/Shaders/Shader.h"
 #include <array>
 #include <optional>
 #include <span>
@@ -47,6 +48,28 @@ namespace GEngine
         bool operator==(const MaterialTextureSlot&) const = default;
     };
     struct MaterialTextureAssignment { std::string_view name; MaterialTextureValue value; };
+    struct MaterialShaderParameter { MaterialParameterDecl declaration; bool required = true; };
+    struct MaterialShaderDesc
+    {
+        std::span<const Asset::ShaderSource> stages;
+        std::span<const MaterialShaderParameter> parameters;
+        std::span<const MaterialTextureSlotDecl> textures;
+        std::span<const Asset::ShaderVariant> variants;
+    };
+    // Advanced material authoring still uses the shared schema and packed renderer.
+    // u_model/u_view/u_projection and mesh Position are engine-owned semantics.
+    class MaterialShaderDescription final
+    {
+    public:
+        static std::expected<MaterialShaderDescription, Asset::ShaderError> Create(const MaterialShaderDesc&);
+        const Asset::ShaderDescription& Program() const noexcept { return m_Program; }
+        std::span<const MaterialParameterDecl> Parameters() const noexcept { return m_Parameters; }
+        std::span<const MaterialTextureSlotDecl> Textures() const noexcept { return m_Textures; }
+    private:
+        Asset::ShaderDescription m_Program;
+        std::vector<MaterialParameterDecl> m_Parameters;
+        std::vector<MaterialTextureSlotDecl> m_Textures;
+    };
     struct MaterialTemplateDesc
     {
         PipelineView pipeline;

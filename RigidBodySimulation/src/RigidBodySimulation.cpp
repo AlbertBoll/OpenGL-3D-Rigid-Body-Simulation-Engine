@@ -22,6 +22,7 @@
 #include "../tests/GeometryAuthoringChecks.h"
 #include "../tests/MaterialAuthoringChecks.h"
 #include "../tests/ShaderDescriptionChecks.h"
+#include "../tests/ShaderReloadChecks.h"
 
 #include <Physics/ShapeBox.h>
 #include <Physics/PhysicsWorld.h>
@@ -64,6 +65,47 @@ namespace
         int validationStage = -1, validationSample = -1, recordedSample = -1;
         bool captureReady = false;
     } materialGallery;
+
+    struct ShaderReloadGallery
+    {
+        MaterialHandle material, clone;
+        std::optional<MaterialShaderDescription> original, edited, invalid, incompatible;
+        std::optional<ShaderReloadTicket> ticket;
+        std::string message = "Ready. Both cubes share a shader; clone brightness is independent.";
+        int request = 0;
+        unsigned frames = 0;
+    } shaderReloadGallery;
+
+    void ApplyShaderReloadRequest(SceneRenderResources& resources)
+    {
+        auto& gallery = shaderReloadGallery;
+        const int request = std::exchange(gallery.request, 0);
+        if (!request) return;
+        if (request == 5)
+        {
+            auto prepared = resources.PrepareShaderReload(gallery.material, *gallery.edited);
+            if (prepared) { gallery.ticket = *prepared; gallery.message = "Prepared; live materials are unchanged."; }
+            else gallery.message = DescribeSceneResourceError(prepared.error());
+        }
+        else if (request == 7)
+        {
+            if (!gallery.ticket) { gallery.message = "No prepared reload."; return; }
+            auto cancelled = resources.CancelShaderReload(*gallery.ticket);
+            gallery.message = cancelled ? "Cancelled; live materials are unchanged." : DescribeSceneResourceError(cancelled.error());
+            if (cancelled) gallery.ticket.reset();
+        }
+        else
+        {
+            if (request == 6 && !gallery.ticket) { gallery.message = "No prepared reload."; return; }
+            auto result = request == 6 ? resources.CommitShaderReload(*gallery.ticket) :
+                resources.ReloadShader(gallery.material, request == 1 ? *gallery.edited : request == 2 ? *gallery.original :
+                    request == 3 ? *gallery.invalid : *gallery.incompatible);
+            if (request == 6) gallery.ticket.reset();
+            gallery.message = result ? std::format("{}; {} materials. Independent values preserved.",
+                result->changed ? "Reload applied" : "Already current", result->materials) : DescribeSceneResourceError(result.error());
+        }
+        Log::GetCoreLogger()->info("Custom shader reload: {}", gallery.message);
+    }
 
     void FocusMaterialCamera(Camera::_EditorCamera& camera, const Math::Vec3f& focal,
                              float pitch, float yaw, float distance)
@@ -135,6 +177,7 @@ namespace
 RigidBodySimulationApp::~RigidBodySimulationApp()
 {
     materialGallery = {};
+    shaderReloadGallery = {};
     if (m_AudioSystem)
         m_AudioSystem->Shutdown();
     if (m_SceneResources)
@@ -997,6 +1040,36 @@ void main() {
         FocusMaterialCamera(m_EditorCamera_, {0, 3, -22}, .35f, 0, 38.f);
     }
 
+    shaderReloadGallery.material = *customMaterial;
+    shaderReloadGallery.original = *customDescription;
+    std::string editedFragment(customFragment);
+    const auto expression = editedFragment.find("tint.rgb * gain");
+    editedFragment.replace(expression, std::string_view("tint.rgb * gain").size(), "tint.gbr * gain");
+    const ShaderSource editedStages[]{customStages[0], {FRAGMENT, editedFragment, "RBS edited custom fragment"}};
+    const ShaderSource invalidStages[]{customStages[0], {FRAGMENT, "#version 450 core\ninvalid shader syntax;", "RBS invalid custom fragment"}};
+    auto editedDescription = MaterialShaderDescription::Create({editedStages, customParameters, {}, customVariants});
+    auto invalidDescription = MaterialShaderDescription::Create({invalidStages, customParameters, {}, customVariants});
+    std::vector<MaterialShaderParameter> incompatibleParameters(std::begin(customParameters), std::end(customParameters));
+    incompatibleParameters[1].declaration.name = "incompatibleGain";
+    auto incompatibleDescription = MaterialShaderDescription::Create({customStages, incompatibleParameters, {}, customVariants});
+    if (!editedDescription || !invalidDescription || !incompatibleDescription)
+        return failure(SceneResourceError{"reload fixture descriptions", SceneResourceCode::InvalidMaterial});
+    shaderReloadGallery.edited = std::move(*editedDescription);
+    shaderReloadGallery.invalid = std::move(*invalidDescription);
+    shaderReloadGallery.incompatible = std::move(*incompatibleDescription);
+    auto customClone = m_SceneResources->CloneMaterial(*customMaterial);
+    if (!customClone) return failure(customClone.error());
+    shaderReloadGallery.clone = *customClone;
+    if (auto changed = m_SceneResources->SetMaterialParameter(*customClone, "gain", .35f); !changed)
+        return failure(changed.error());
+    auto cloneObject = m_ActiveScene->CreateEntity("Phase11 Custom Shader Clone");
+    if (!cloneObject) return std::unexpected(cloneObject.error());
+    cloneObject->Transform().SetTranslation({3.f, 5.f, -22.f});
+    if (auto assigned = m_SceneResources->AssignRenderable(*cloneObject, {boxMesh, *customClone}); !assigned)
+        return failure(assigned.error());
+    if (std::getenv("GENGINE_PRE_EDITOR_SHADER_RELOAD"))
+        FocusMaterialCamera(m_EditorCamera_, {0, 3, -22}, .35f, 0, 38.f);
+
     // Reserve before the Scene hands successful runtime shape ownership to this caller.
     m_PhysicsShapes.reserve(m_ActiveScene->GetAllEntitiesWith<RigidBody3DComponent>().size());
     if (auto started = m_ActiveScene->OnRuntimeStart(); !started)
@@ -1354,6 +1427,7 @@ void RigidBodySimulationApp::Render()
             this, [](void* user) -> ScheduleResult
             {
                 auto& app = *static_cast<RigidBodySimulationApp*>(user);
+                ApplyShaderReloadRequest(*app.m_SceneResources);
                 if (app.m_MeshLoads)
                 {
                     if (auto updated = app.UpdateImportedMesh(); !updated)
@@ -1455,8 +1529,16 @@ void RigidBodySimulationApp::Render()
                                      static_cast<RigidBodySimulationApp*>(user)->OnMouseClicked();
                                      return {};
                                  }};
+        if (std::getenv("GENGINE_PRE_EDITOR_SHADER_RELOAD") && ++shaderReloadGallery.frames == 3)
+        {
+            auto checked = PreEditorValidation::CheckShaderReload(GetEngineContext(), *m_SceneResources, *m_ActiveScene,
+                shaderReloadGallery.material, shaderReloadGallery.clone, *shaderReloadGallery.original,
+                *shaderReloadGallery.edited, *shaderReloadGallery.invalid, *shaderReloadGallery.incompatible,
+                *m_FrameSubmission, targets, m_PickTable, camera);
+            if (!checked) return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources, checked.error()});
+        }
         auto submitted = FrameScheduler::Render(context, &input);
-        if (submitted && std::getenv("GENGINE_PRE_EDITOR_SHADER_DESCRIPTIONS") &&
+        if (submitted && (std::getenv("GENGINE_PRE_EDITOR_SHADER_DESCRIPTIONS") || std::getenv("GENGINE_PRE_EDITOR_SHADER_RELOAD")) &&
             !PreEditorValidation::CheckShaderSteadyFrame(*m_SceneResources,
                 {static_cast<unsigned>(camera.viewportWidth), static_cast<unsigned>(camera.viewportHeight)}))
             return std::unexpected(ScheduleError{FrameStage::Pass, PlatformError{PlatformErrorCode::Initialization,
@@ -1506,6 +1588,27 @@ void RigidBodySimulationApp::Render()
 
 void RigidBodySimulationApp::ImGuiRender()
 {
+    if (shaderReloadGallery.material)
+    {
+        ImGui::Begin("Custom shader reload");
+        ImGui::TextUnformatted("Both cubes share a shader; the clone keeps its lower brightness.");
+        if (ImGui::Button("Focus custom cubes"))
+            FocusMaterialCamera(m_EditorCamera_, {1.5f, 5, -22}, .2f, 0, 12.f);
+        if (ImGui::Button("Reload color edit")) shaderReloadGallery.request = 1;
+        ImGui::SameLine();
+        if (ImGui::Button("Restore original")) shaderReloadGallery.request = 2;
+        if (ImGui::Button("Try invalid shader")) shaderReloadGallery.request = 3;
+        ImGui::SameLine();
+        if (ImGui::Button("Try incompatible schema")) shaderReloadGallery.request = 4;
+        if (ImGui::Button("Prepare edit")) shaderReloadGallery.request = 5;
+        ImGui::SameLine();
+        if (ImGui::Button("Commit prepared")) shaderReloadGallery.request = 6;
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel prepared")) shaderReloadGallery.request = 7;
+        ImGui::TextWrapped("%s", shaderReloadGallery.message.c_str());
+        ImGui::End();
+    }
+
     if (materialGallery.uvMaterial)
     {
         ImGui::Begin("Material authoring");

@@ -21,6 +21,9 @@
 #define GENGINE_SHADER_DESCRIPTION_BACKEND
 #include "../../../RigidBodySimulation/tests/ShaderDescriptionChecks.h"
 #undef GENGINE_SHADER_DESCRIPTION_BACKEND
+#define GENGINE_SHADER_RELOAD_BACKEND
+#include "../../../RigidBodySimulation/tests/ShaderReloadChecks.h"
+#undef GENGINE_SHADER_RELOAD_BACKEND
 
 namespace GEngine
 {
@@ -256,16 +259,18 @@ void main() { FragColor = vec4(baseColor.rgb, 1.0); }
     SceneRenderResources::SceneRenderResources(Asset::AssetPublication& publication,
                                                Manager::ShapeManager& shapes,
                                                GeometryAuthoringLimits limits,
-                                               Asset::AssetRegistryLimits registryLimits)
-        : m_GeometryLimits(limits), m_Publication(publication), m_Shapes(shapes), m_Programs(publication),
-          m_Pipelines(publication), m_Templates(publication), m_Materials(publication),
-          m_Meshes(publication, registryLimits)
+                                               Asset::AssetRegistryLimits meshLimits,
+                                               MaterialRegistryLimits materialLimits)
+        : m_GeometryLimits(limits), m_Publication(publication), m_Shapes(shapes),
+          m_Programs(publication, materialLimits.programs), m_Pipelines(publication),
+          m_Templates(publication), m_Materials(publication, materialLimits.materials),
+          m_Meshes(publication, meshLimits)
     {
     }
 
     std::expected<std::unique_ptr<SceneRenderResources>, SceneResourceError>
     SceneRenderResources::Create(EngineContext& root, GeometryAuthoringLimits limits,
-                                 Asset::AssetRegistryLimits registryLimits)
+                                 Asset::AssetRegistryLimits meshLimits, MaterialRegistryLimits materialLimits)
     {
         if (limits.independentSources > 64 || limits.independentPayloadBytes > 64 * 1024 * 1024)
             return std::unexpected(SceneResourceError{"geometry limits", GeometryAuthoringCode::SourceCapacity});
@@ -273,7 +278,7 @@ void main() { FragColor = vec4(baseColor.rgb, 1.0); }
         if (!services)
             return std::unexpected(SceneResourceError{"scene services", services.error()});
         std::unique_ptr<SceneRenderResources> result(
-            new (std::nothrow) SceneRenderResources(services->publication, services->shapes, limits, registryLimits));
+            new (std::nothrow) SceneRenderResources(services->publication, services->shapes, limits, meshLimits, materialLimits));
         if (!result)
             return std::unexpected(
                 SceneResourceError{"scene resource owner", SceneResourceCode::Allocation});
@@ -287,6 +292,8 @@ void main() { FragColor = vec4(baseColor.rgb, 1.0); }
     SceneRenderResources::~SceneRenderResources()
     {
         (void)m_Publication.CanPublish(); // Existing owner-thread lifetime requirement.
+        m_Reload.reset();
+        CollectReloadVersions();
         for (std::size_t i = 0; i < m_SourceCount; ++i)
             Asset::AssetDetail::RequireInvariant(m_Sources[i].owners == 0);
         if (m_GeometryDomain)
@@ -1321,29 +1328,20 @@ void main() { FragColor = vec4(baseColor.rgb, 1.0); }
         return *result;
     }
 
-    std::expected<Asset::ShaderProgramHandle, SceneResourceError>
-    SceneRenderResources::CacheProgram(const Asset::ShaderDescription& description,
-                                      Asset::ShaderVariantKey variant, const MaterialShaderDescription* material)
+    std::expected<SceneRenderResources::CompiledProgram, SceneResourceError>
+    SceneRenderResources::CompileProgram(const Asset::ShaderDescription& description,
+                                        Asset::ShaderVariantKey variant, const MaterialShaderDescription* material)
     {
         using namespace Asset;
-        if (!m_Publication.CanPublish())
-            return std::unexpected(SceneResourceError{"shader cache", SceneResourceCode::PublicationBusy});
         const auto failure = [](ShaderErrorCode code, std::string source, std::string log) {
             return std::unexpected(SceneResourceError{"shader interface", ShaderError{code, {}, std::move(source), std::move(log)}});
         };
         auto selected = description.Select(variant);
         if (!selected) return std::unexpected(SceneResourceError{"shader variant", selected.error()});
-        for (std::size_t i = 0; i < m_ShaderWork.programs; ++i)
-            if (m_ProgramCache[i].custom == (material != nullptr) && m_ProgramCache[i].identity == (*selected)->identity)
-            {
-                ++m_ShaderWork.cacheHits;
-                return m_ProgramCache[i].handle;
-            }
-        if (m_ShaderWork.programs == m_ProgramCache.size())
-            return failure(ShaderErrorCode::Capacity, {}, "Scene shader cache has 64 entries; no eviction or implicit recompilation");
         ++m_ShaderWork.cacheMisses;
         CachedProgram entry;
         entry.custom = material != nullptr; entry.identity = (*selected)->identity;
+        entry.bindings.assign(description.Bindings().begin(), description.Bindings().end());
         std::vector<ShaderSource> stages;
         for (const auto& stage : (*selected)->stages) stages.push_back({stage.type, stage.source, stage.label});
         std::vector<std::string> packedSources;
@@ -1413,14 +1411,289 @@ void main() { FragColor = vec4(baseColor.rgb, 1.0); }
                     return failure(ShaderErrorCode::BindingType, item.name, "Packed texture semantic differs from schema");
             }
         }
-        // Allocate the cache's CPU data before publishing. Fixed cache storage and
-        // noexcept moves cannot strand a newly published program on allocation failure.
+        return CompiledProgram{std::move(*shader), std::move(entry)};
+    }
+
+    std::expected<Asset::ShaderProgramHandle, SceneResourceError>
+    SceneRenderResources::CacheProgram(const Asset::ShaderDescription& description,
+                                      Asset::ShaderVariantKey variant, const MaterialShaderDescription* material)
+    {
+        if (!m_Publication.CanPublish())
+            return std::unexpected(SceneResourceError{"shader cache", SceneResourceCode::PublicationBusy});
+        auto selected = description.Select(variant);
+        if (!selected) return std::unexpected(SceneResourceError{"shader variant", selected.error()});
+        for (std::size_t i = 0; i < m_ShaderWork.programs; ++i)
+            if (m_ProgramCache[i].custom == (material != nullptr) && m_ProgramCache[i].identity == (*selected)->identity)
+            {
+                ++m_ShaderWork.cacheHits;
+                return m_ProgramCache[i].handle;
+            }
+        if (m_ShaderWork.programs == m_ProgramCache.size())
+            return std::unexpected(SceneResourceError{"shader cache", Asset::ShaderError{Asset::ShaderErrorCode::Capacity, {}, {}, "Scene shader cache has 64 entries"}});
+        auto compiled = CompileProgram(description, variant, material);
+        if (!compiled) return std::unexpected(compiled.error());
         auto publication = m_Publication.BeginPublication();
-        auto handle = m_Programs.Create(publication, std::move(*shader));
+        auto handle = m_Programs.Create(publication, std::move(compiled->shader));
         if (!handle) return std::unexpected(SceneResourceError{"cached program publication", handle.error()});
-        entry.handle = *handle;
-        m_ProgramCache[m_ShaderWork.programs++] = std::move(entry);
+        compiled->cache.handle = *handle;
+        m_ProgramCache[m_ShaderWork.programs++] = std::move(compiled->cache);
         return *handle;
+    }
+
+    void SceneRenderResources::CollectReloadVersions()
+    {
+        auto access = m_Publication.BeginPublication();
+        m_Materials.Collect(access);
+        m_Templates.Collect(access);
+        m_Pipelines.Collect(access);
+        m_Programs.Collect(access);
+    }
+
+    std::expected<bool, SceneResourceError> SceneRenderResources::SetMaterialParameter(
+        MaterialHandle handle, std::string_view name, MaterialParameterValue value)
+    {
+        if (!m_Publication.CanPublish())
+            return std::unexpected(SceneResourceError{"material parameter", SceneResourceCode::PublicationBusy});
+        std::optional<MaterialInstance> candidate;
+        {
+            auto access = m_Publication.BeginFrame();
+            auto source = m_Materials.Acquire(access, handle);
+            if (!source) return std::unexpected(SceneResourceError{"material parameter source", source.error()});
+            candidate = **source;
+            auto edited = candidate->SetParameter(name, std::move(value));
+            if (!edited) return std::unexpected(SceneResourceError{"material parameter value", edited.error()});
+            if (candidate->Revision() == (*source)->Revision()) return false;
+        }
+        auto publication = m_Publication.BeginPublication();
+        auto result = m_Materials.Replace(publication, handle, std::move(*candidate));
+        if (!result) return std::unexpected(SceneResourceError{"material parameter publication", result.error()});
+        m_Materials.Collect(publication);
+        ++m_MaterialWork.publications;
+        return true;
+    }
+
+    std::expected<ShaderReloadTicket, SceneResourceError>
+    SceneRenderResources::PrepareShaderReload(MaterialHandle target,
+        const MaterialShaderDescription& description, Asset::ShaderVariantKey variant)
+    {
+        const auto failure = [](SceneResourceCode code, const char* detail) {
+            return std::unexpected(SceneResourceError{detail, code});
+        };
+        if (!m_Publication.CanPublish()) return failure(SceneResourceCode::PublicationBusy, "prepare shader reload");
+        if (m_Reload) return failure(SceneResourceCode::ReloadBusy, "one prepared shader reload per owner");
+        struct Cleanup
+        {
+            SceneRenderResources& owner;
+            bool prepared = false;
+            ~Cleanup()
+            {
+                if (!prepared) owner.m_ReloadStatus.state = ShaderReloadState::Failed;
+                owner.CollectReloadVersions();
+            }
+        } cleanup{*this};
+        auto candidate = std::unique_ptr<PreparedReload>(new (std::nothrow) PreparedReload);
+        if (!candidate) return failure(SceneResourceCode::Allocation, "shader reload candidate allocation");
+        if (m_ReloadSerial == (std::numeric_limits<std::uint64_t>::max)())
+            return failure(SceneResourceCode::ReloadStale, "shader reload ticket exhausted");
+        candidate->ticket = {target, ++m_ReloadSerial};
+        m_ReloadStatus = {ShaderReloadState::Failed, candidate->ticket};
+        auto selected = description.Program().Select(variant);
+        if (!selected) return std::unexpected(SceneResourceError{"reload variant", selected.error()});
+        const CachedProgram* previousCache = nullptr;
+        bool defaultsMatch = true;
+        {
+            auto access = m_Publication.BeginFrame();
+            auto source = m_Materials.Acquire(access, target);
+            if (!source) return std::unexpected(SceneResourceError{"reload target", source.error()});
+            candidate->previousProgram = (*source)->Declaration()->State().Description().program;
+            for (std::size_t i = 0; i < m_ShaderWork.programs; ++i)
+                if (m_ProgramCache[i].handle == candidate->previousProgram && m_ProgramCache[i].custom)
+                    previousCache = &m_ProgramCache[i];
+            if (!previousCache) return failure(SceneResourceCode::InvalidMaterial, "reload requires a custom material");
+            if (!std::ranges::equal(previousCache->bindings, description.Program().Bindings()))
+                return failure(SceneResourceCode::ReloadSchema, "reload binding names/types/required semantics differ");
+            m_Materials.Visit(access, [&](const MaterialInstanceView& member) {
+                if (member->Declaration()->State().Description().program == candidate->previousProgram)
+                    candidate->previous.push_back(member);
+            });
+            for (const auto& member : candidate->previous)
+            {
+                const auto& declaration = *member->Declaration();
+                if (declaration.Parameters().size() != description.Parameters().size() ||
+                    declaration.Textures().size() != description.Textures().size())
+                    return failure(SceneResourceCode::ReloadSchema, "reload material schema size differs");
+                for (std::size_t i = 0; i < description.Parameters().size(); ++i)
+                {
+                    const auto& a = declaration.Parameters()[i].declaration;
+                    const auto& b = description.Parameters()[i];
+                    if (a.name != b.name || a.type != b.type)
+                        return failure(SceneResourceCode::ReloadSchema, "reload parameter schema differs");
+                    defaultsMatch &= a == b;
+                }
+                for (std::size_t i = 0; i < description.Textures().size(); ++i)
+                {
+                    const auto& a = declaration.Textures()[i].declaration;
+                    const auto& b = description.Textures()[i];
+                    if (a.name != b.name || a.required != b.required)
+                        return failure(SceneResourceCode::ReloadSchema, "reload texture schema differs");
+                    defaultsMatch &= a == b;
+                }
+                if (!PreparedMaterialBinding::Prepare(member, access, *m_Bindings))
+                    return failure(SceneResourceCode::InvalidMaterial, "reload source bindings are invalid");
+            }
+        }
+        candidate->changed = previousCache->identity != (*selected)->identity || !defaultsMatch;
+        candidate->cacheCount = m_ShaderWork.programs;
+        if (candidate->changed)
+        {
+            Asset::ShaderProgramHandle program;
+            for (std::size_t i = 0; i < m_ShaderWork.programs; ++i)
+                if (m_ProgramCache[i].custom && m_ProgramCache[i].identity == (*selected)->identity)
+                {
+                    program = m_ProgramCache[i].handle;
+                    ++m_ShaderWork.cacheHits;
+                    break;
+                }
+            std::optional<CompiledProgram> compiled;
+            if (!program)
+            {
+                if (m_ShaderWork.programs == m_ProgramCache.size())
+                    return std::unexpected(SceneResourceError{"reload shader cache", Asset::ShaderError{
+                        Asset::ShaderErrorCode::Capacity, {}, {}, "Scene shader cache has 64 entries"}});
+                auto result = CompileProgram(description.Program(), variant, &description);
+                if (!result) return std::unexpected(result.error());
+                compiled.emplace(std::move(*result));
+            }
+            auto publication = m_Publication.BeginPublication();
+            if (compiled)
+            {
+                auto prepared = m_Programs.PrepareCreate(publication, std::move(compiled->shader));
+                if (!prepared) return std::unexpected(SceneResourceError{"reload program preparation", prepared.error()});
+                program = prepared->View().Identity();
+                candidate->program = std::move(*prepared);
+                candidate->cache = std::move(compiled->cache);
+                candidate->cache.handle = program;
+                candidate->newProgram = true;
+            }
+            for (const auto& member : candidate->previous)
+            {
+                const auto& old = member->Declaration();
+                auto pipeline = std::find_if(candidate->pipelines.begin(), candidate->pipelines.end(),
+                    [&](const auto& item) { return item.View().Identity() == old->Pipeline(); });
+                if (pipeline == candidate->pipelines.end())
+                {
+                    auto desc = old->State().Description();
+                    desc.program = program;
+                    desc.programRevision = 1; // Immutable cached programs are created once, never relabelled/replaced.
+                    auto state = PipelineState::Create(desc);
+                    if (!state) return std::unexpected(SceneResourceError{"reload pipeline", state.error()});
+                    auto prepared = m_Pipelines.PrepareReplace(publication, old->Pipeline(), std::move(*state));
+                    if (!prepared) return std::unexpected(SceneResourceError{"reload pipeline preparation", prepared.error()});
+                    if (prepared->View().Revision() - 1 != old->PipelineRevision())
+                        return failure(SceneResourceCode::ReloadStale, "reload pipeline changed outside material graph");
+                    candidate->pipelines.push_back(std::move(*prepared));
+                    pipeline = std::prev(candidate->pipelines.end());
+                }
+                if (pipeline->View().Revision() - 1 != old->PipelineRevision())
+                    return failure(SceneResourceCode::ReloadStale, "reload group has mixed pipeline versions");
+                auto declaration = std::find_if(candidate->templates.begin(), candidate->templates.end(),
+                    [&](const auto& item) { return item.View().Identity() == member->Template(); });
+                if (declaration == candidate->templates.end())
+                {
+                    auto value = MaterialTemplate::Create({pipeline->View(), description.Parameters(), description.Textures(),
+                        old->Key().castsShadow, old->Key().depthPass});
+                    if (!value) return std::unexpected(SceneResourceError{"reload template", value.error()});
+                    auto prepared = m_Templates.PrepareReplace(publication, member->Template(), std::move(*value));
+                    if (!prepared) return std::unexpected(SceneResourceError{"reload template preparation", prepared.error()});
+                    if (prepared->View().Revision() - 1 != member->TemplateRevision())
+                        return failure(SceneResourceCode::ReloadStale, "reload declaration changed outside material graph");
+                    candidate->templates.push_back(std::move(*prepared));
+                    declaration = std::prev(candidate->templates.end());
+                }
+                if (declaration->View().Revision() - 1 != member->TemplateRevision())
+                    return failure(SceneResourceCode::ReloadStale, "reload group has mixed declaration versions");
+                auto instance = member->WithDeclaration(declaration->View());
+                if (!instance) return std::unexpected(SceneResourceError{"reload instance rebind", instance.error()});
+                auto prepared = m_Materials.PrepareReplace(publication, member.Identity(), std::move(*instance));
+                if (!prepared) return std::unexpected(SceneResourceError{"reload instance preparation", prepared.error()});
+                candidate->materials.push_back(std::move(*prepared));
+            }
+        }
+        m_ReloadStatus = {ShaderReloadState::Prepared, candidate->ticket, candidate->previous.size(), candidate->changed};
+        m_Reload = std::move(candidate);
+        cleanup.prepared = true;
+        return m_ReloadStatus.ticket;
+    }
+
+    std::expected<ShaderReloadStatus, SceneResourceError>
+    SceneRenderResources::CommitShaderReload(ShaderReloadTicket ticket)
+    {
+        if (!m_Publication.CanPublish())
+            return std::unexpected(SceneResourceError{"commit shader reload", SceneResourceCode::PublicationBusy});
+        if (!m_Reload || m_Reload->ticket != ticket)
+            return std::unexpected(SceneResourceError{"reload ticket is not pending",
+                m_ReloadStatus.ticket == ticket && m_ReloadStatus.state == ShaderReloadState::Cancelled ?
+                SceneResourceCode::ReloadCancelled : SceneResourceCode::ReloadStale});
+        // Consume exactly once; this guard retires discarded candidates after all
+        // local leases and the publication/read token have ended, including unwind.
+        struct Cleanup
+        {
+            SceneRenderResources& owner;
+            ~Cleanup() { owner.m_Reload.reset(); owner.CollectReloadVersions(); }
+        } cleanup{*this};
+        auto& candidate = *m_Reload;
+        m_ReloadStatus.state = ShaderReloadState::Stale;
+        bool matches = true;
+        std::size_t count = 0;
+        {
+            auto access = m_Publication.BeginFrame();
+            m_Materials.Visit(access, [&](const MaterialInstanceView& member) {
+                if (member->Declaration()->State().Description().program != candidate.previousProgram) return;
+                const auto found = std::find_if(candidate.previous.begin(), candidate.previous.end(),
+                    [&](const auto& old) { return old.Identity() == member.Identity() && old.Revision() == member.Revision(); });
+                matches &= found != candidate.previous.end();
+                ++count;
+                matches &= bool(PreparedMaterialBinding::Prepare(member, access, *m_Bindings));
+            });
+        }
+        if (!matches || count != candidate.previous.size())
+            return std::unexpected(SceneResourceError{"reload dependent group changed", SceneResourceCode::ReloadStale});
+        auto publication = m_Publication.BeginPublication();
+        if (candidate.newProgram && (candidate.cacheCount != m_ShaderWork.programs || !m_Programs.CanCommit(publication, candidate.program)))
+            return std::unexpected(SceneResourceError{"reload program preparation is stale", SceneResourceCode::ReloadStale});
+        for (const auto& item : candidate.pipelines) matches &= m_Pipelines.CanCommit(publication, item);
+        for (const auto& item : candidate.templates) matches &= m_Templates.CanCommit(publication, item);
+        for (const auto& item : candidate.materials) matches &= m_Materials.CanCommit(publication, item);
+        if (!matches) return std::unexpected(SceneResourceError{"reload dependent version changed", SceneResourceCode::ReloadStale});
+        // All fallible work is complete. No callbacks or allocations below.
+        if (candidate.newProgram) m_Programs.CommitPrepared(publication, std::move(candidate.program));
+        for (auto& item : candidate.pipelines) m_Pipelines.CommitPrepared(publication, std::move(item));
+        for (auto& item : candidate.templates) m_Templates.CommitPrepared(publication, std::move(item));
+        for (auto& item : candidate.materials) m_Materials.CommitPrepared(publication, std::move(item));
+        if (candidate.newProgram) m_ProgramCache[m_ShaderWork.programs++] = std::move(candidate.cache);
+        if (candidate.changed) m_MaterialWork.publications += candidate.previous.size();
+        m_ReloadStatus.state = ShaderReloadState::Applied;
+        return m_ReloadStatus;
+    }
+
+    std::expected<void, SceneResourceError> SceneRenderResources::CancelShaderReload(ShaderReloadTicket ticket)
+    {
+        if (!m_Publication.CanPublish())
+            return std::unexpected(SceneResourceError{"cancel shader reload", SceneResourceCode::PublicationBusy});
+        if (!m_Reload || m_Reload->ticket != ticket)
+            return std::unexpected(SceneResourceError{"cancel ticket is not pending", SceneResourceCode::ReloadStale});
+        m_Reload.reset();
+        CollectReloadVersions();
+        m_ReloadStatus.state = ShaderReloadState::Cancelled;
+        return {};
+    }
+
+    std::expected<ShaderReloadStatus, SceneResourceError> SceneRenderResources::ReloadShader(
+        MaterialHandle target, const MaterialShaderDescription& description, Asset::ShaderVariantKey variant)
+    {
+        auto ticket = PrepareShaderReload(target, description, variant);
+        if (!ticket) return std::unexpected(ticket.error());
+        return CommitShaderReload(*ticket);
     }
 
     std::expected<std::span<const Asset::ShaderReflection>, SceneResourceError>

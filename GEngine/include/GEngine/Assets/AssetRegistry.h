@@ -110,6 +110,117 @@ namespace GEngine::Asset
             std::shared_ptr<Version> m_Version;
         };
 
+        // Unpublished exact version. The registry retains it for context-thread
+        // collection even when its last external lease is released by a worker.
+        class PreparedVersion final
+        {
+        public:
+            PreparedVersion() = default;
+            PreparedVersion(const PreparedVersion&) = delete;
+            PreparedVersion& operator=(const PreparedVersion&) = delete;
+            PreparedVersion(PreparedVersion&&) noexcept = default;
+            PreparedVersion& operator=(PreparedVersion&&) noexcept = default;
+            const Lease& View() const noexcept { return m_Candidate; }
+        private:
+            friend class AssetRegistry;
+            AssetRegistry* m_Owner = nullptr;
+            Lease m_Candidate;
+            std::shared_ptr<Version> m_Previous;
+        };
+
+        template<class Visitor>
+        void Visit(const AssetPublication::FrameAccess& access, Visitor&& visitor) const
+        {
+            m_Publication.Require(access);
+            if (!m_Identity || m_Closed) return;
+            for (std::size_t i = 0; i < m_Slots.size(); ++i)
+                if (const auto& slot = m_Slots[i]; slot.current)
+                    std::invoke(visitor, Lease{Handle{static_cast<std::uint32_t>(i), slot.generation, *m_Identity}, slot.current});
+        }
+
+        template<class... Args>
+        requires std::constructible_from<Resource, Args...>
+        std::expected<PreparedVersion, RegistryError> PrepareReplace(
+            const AssetPublication::Publication& access, Handle handle, Args&&... args)
+        {
+            if (m_Closed) return std::unexpected(RegistryError::Closed);
+            Mutation mutation(*this, access);
+            auto* slot = Find(handle);
+            if (!slot) return std::unexpected(RegistryError::InvalidHandle);
+            if (slot->current->revision == m_Limits.maxRevision)
+                return std::unexpected(RegistryError::RevisionExhausted);
+            auto version = std::make_shared<Version>(slot->current->revision + 1, std::forward<Args>(args)...);
+            m_Retired.push_back(version); // All potentially failing storage work precedes commit.
+            PreparedVersion prepared;
+            prepared.m_Owner = this;
+            prepared.m_Candidate = Lease(handle, std::move(version));
+            prepared.m_Previous = slot->current;
+            return prepared;
+        }
+
+        template<class... Args>
+        requires std::constructible_from<Resource, Args...>
+        std::expected<PreparedVersion, RegistryError> PrepareCreate(
+            const AssetPublication::Publication& access, Args&&... args)
+        {
+            if (!m_Identity) return std::unexpected(m_Identity.error());
+            if (m_Closed) return std::unexpected(RegistryError::Closed);
+            Mutation mutation(*this, access);
+            const bool append = m_Free == Handle::NullIndex;
+            if (append && m_Slots.size() >= m_Limits.maxSlots)
+                return std::unexpected(RegistryError::SlotsExhausted);
+            const auto index = append ? static_cast<std::uint32_t>(m_Slots.size()) : m_Free;
+            const auto generation = append ? 1 : m_Slots[index].generation;
+            if (append) m_Slots.reserve(m_Slots.size() + 1);
+            auto version = std::make_shared<Version>(1, std::forward<Args>(args)...);
+            m_Retired.push_back(version);
+            PreparedVersion prepared;
+            prepared.m_Owner = this;
+            prepared.m_Candidate = Lease(Handle{index, generation, *m_Identity}, std::move(version));
+            return prepared;
+        }
+
+        bool CanCommit(const AssetPublication::Publication& access, const PreparedVersion& prepared) const noexcept
+        {
+            m_Publication.Require(access);
+            if (m_Closed || prepared.m_Owner != this || !prepared.m_Candidate) return false;
+            const auto handle = prepared.m_Candidate.Identity();
+            if (prepared.m_Previous)
+            {
+                const auto* slot = Find(handle);
+                return slot && slot->current == prepared.m_Previous;
+            }
+            if (handle.index == m_Slots.size())
+                return m_Free == Handle::NullIndex && m_Slots.capacity() > m_Slots.size();
+            return handle.index == m_Free && !m_Slots[handle.index].current &&
+                handle.generation == m_Slots[handle.index].generation;
+        }
+
+        // A caller first checks EVERY member under the same publication token.
+        // No allocation, callbacks or fallible operations may separate those
+        // checks from the batch of commits. This is the transaction's swap step.
+        void CommitPrepared(const AssetPublication::Publication& access, PreparedVersion&& prepared) noexcept
+        {
+            AssetDetail::RequireInvariant(CanCommit(access, prepared));
+            Mutation mutation(*this, access);
+            const auto handle = prepared.m_Candidate.Identity();
+            const auto retained = std::find(m_Retired.begin(), m_Retired.end(), prepared.m_Candidate.m_Version);
+            AssetDetail::RequireInvariant(retained != m_Retired.end());
+            if (prepared.m_Previous)
+                *retained = prepared.m_Previous;
+            else
+            {
+                if (handle.index == m_Slots.size()) m_Slots.emplace_back();
+                else m_Free = m_Slots[handle.index].nextFree;
+                m_Retired.erase(retained);
+                ++m_Live;
+            }
+            auto& slot = m_Slots[handle.index];
+            slot.nextFree = Handle::NullIndex;
+            slot.current = std::move(prepared.m_Candidate.m_Version);
+            prepared = {};
+        }
+
         explicit AssetRegistry(AssetPublication& publication, AssetRegistryLimits limits = {})
             : m_Publication(publication), m_Limits(limits),
               m_Identity(AssetDetail::TakeRegistryIdentity(AssetDetail::nextRegistryIdentity)), m_Slots(0), m_Retired(0)

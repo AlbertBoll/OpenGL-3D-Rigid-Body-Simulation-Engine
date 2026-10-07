@@ -26,7 +26,11 @@ namespace GEngine
         InvalidMaterial,
         InvalidEntity,
         PublicationBusy,
-        TemplateCapacity
+        TemplateCapacity,
+        ReloadBusy,
+        ReloadStale,
+        ReloadCancelled,
+        ReloadSchema
     };
     enum class GeometryAuthoringCode
     {
@@ -123,6 +127,20 @@ namespace GEngine
         std::size_t programs = 0;
         std::uint64_t cacheHits = 0, cacheMisses = 0, packingPasses = 0;
     };
+    struct ShaderReloadTicket
+    {
+        MaterialHandle target;
+        std::uint64_t serial = 0;
+        bool operator==(const ShaderReloadTicket&) const = default;
+    };
+    enum class ShaderReloadState { Idle, Prepared, Applied, Cancelled, Stale, Failed };
+    struct ShaderReloadStatus
+    {
+        ShaderReloadState state = ShaderReloadState::Idle;
+        ShaderReloadTicket ticket;
+        std::size_t materials = 0;
+        bool changed = false;
+    };
 
     struct GeometryIdentity
     {
@@ -186,6 +204,12 @@ namespace GEngine
         std::size_t independentSources = 0, independentPayloadBytes = 0;
         std::size_t peakTemporaryBytes = 0;
     };
+    struct MaterialRegistryLimits
+    {
+        // Independent bounds for focused failure fixtures; defaults are unchanged.
+        Asset::AssetRegistryLimits programs{};
+        Asset::AssetRegistryLimits materials{};
+    };
 
     // Bounded application resource publisher. The root outlives this owner; scenes
     // (including their presentation caches) and all frames retire before it. All
@@ -195,7 +219,8 @@ namespace GEngine
     {
     public:
         static std::expected<std::unique_ptr<SceneRenderResources>, SceneResourceError>
-        Create(EngineContext&, GeometryAuthoringLimits = {}, Asset::AssetRegistryLimits = {});
+        Create(EngineContext&, GeometryAuthoringLimits = {}, Asset::AssetRegistryLimits meshLimits = {},
+               MaterialRegistryLimits = {});
         ~SceneRenderResources();
         SceneRenderResources(const SceneRenderResources&) = delete;
         SceneRenderResources& operator=(const SceneRenderResources&) = delete;
@@ -226,6 +251,18 @@ namespace GEngine
         std::expected<std::span<const Asset::ShaderReflection>, SceneResourceError>
             ShaderInterface(const MaterialShaderDescription&, Asset::ShaderVariantKey = {}) const;
         SceneShaderWork ShaderWork() const noexcept { return m_ShaderWork; }
+        // Reload the complete current custom-program group, including clones.
+        // Preparation and cancellation are context-thread operations. Publication
+        // validates the captured group and retains every old exact frame version.
+        std::expected<ShaderReloadTicket, SceneResourceError> PrepareShaderReload(
+            MaterialHandle, const MaterialShaderDescription&, Asset::ShaderVariantKey = {});
+        std::expected<ShaderReloadStatus, SceneResourceError> CommitShaderReload(ShaderReloadTicket);
+        std::expected<void, SceneResourceError> CancelShaderReload(ShaderReloadTicket);
+        std::expected<ShaderReloadStatus, SceneResourceError> ReloadShader(
+            MaterialHandle, const MaterialShaderDescription&, Asset::ShaderVariantKey = {});
+        ShaderReloadStatus ReloadStatus() const noexcept { return m_ReloadStatus; }
+        std::expected<bool, SceneResourceError> SetMaterialParameter(
+            MaterialHandle, std::string_view, MaterialParameterValue);
         std::expected<MaterialAuthoringDesc, SceneResourceError> DescribeMaterial(MaterialHandle) const;
         std::expected<bool, SceneResourceError> EditMaterial(MaterialHandle, const MaterialAuthoringDesc&);
         std::expected<MaterialHandle, SceneResourceError> CloneMaterial(MaterialHandle);
@@ -275,7 +312,15 @@ namespace GEngine
             bool custom = false;
             Asset::ShaderProgramHandle handle;
             std::vector<Asset::ShaderReflection> authored, packed;
+            std::vector<Asset::ShaderBindingDecl> bindings;
         };
+        struct CompiledProgram
+        {
+            Asset::ShaderProgram shader;
+            CachedProgram cache;
+        };
+        std::expected<CompiledProgram, SceneResourceError> CompileProgram(
+            const Asset::ShaderDescription&, Asset::ShaderVariantKey, const MaterialShaderDescription*);
         std::expected<Asset::ShaderProgramHandle, SceneResourceError>
             CacheProgram(const Asset::ShaderDescription&, Asset::ShaderVariantKey = {},
                          const MaterialShaderDescription* = nullptr);
@@ -283,6 +328,23 @@ namespace GEngine
             PublishMaterial(const SceneMaterialDesc&, const MaterialShaderDescription*, Asset::ShaderVariantKey);
         std::array<CachedProgram, 64> m_ProgramCache{};
         SceneShaderWork m_ShaderWork;
+        struct PreparedReload
+        {
+            ShaderReloadTicket ticket;
+            Asset::ShaderProgramHandle previousProgram;
+            std::size_t cacheCount = 0;
+            bool newProgram = false, changed = false;
+            CachedProgram cache;
+            ShaderProgramRegistry::PreparedVersion program;
+            std::vector<PipelineRegistry::PreparedVersion> pipelines;
+            std::vector<MaterialTemplateRegistry::PreparedVersion> templates;
+            std::vector<MaterialInstanceRegistry::PreparedVersion> materials;
+            std::vector<MaterialInstanceView> previous;
+        };
+        void CollectReloadVersions();
+        std::unique_ptr<PreparedReload> m_Reload;
+        ShaderReloadStatus m_ReloadStatus;
+        std::uint64_t m_ReloadSerial = 0;
         struct BuiltinMaterial
         {
             MaterialKind kind{};
@@ -308,7 +370,7 @@ namespace GEngine
         static constexpr std::size_t MaximumPayloadBytes = 8 * 1024 * 1024;
         static constexpr std::size_t MaximumTemporaryBytes = 24 * 1024 * 1024;
         SceneRenderResources(Asset::AssetPublication&, Manager::ShapeManager&,
-                             GeometryAuthoringLimits, Asset::AssetRegistryLimits);
+                             GeometryAuthoringLimits, Asset::AssetRegistryLimits, MaterialRegistryLimits);
         SourceRecord* FindSource(Asset::MeshHandle, bool ownershipQuery = false) const;
         std::expected<void, SceneResourceError> CheckSourceBudget(const MeshAsset&, SourceKind) const;
         std::expected<GeometryIdentity, SceneResourceError> PublishAuthored(MeshAsset, SourceKind);

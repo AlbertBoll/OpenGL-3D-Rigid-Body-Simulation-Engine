@@ -33,6 +33,29 @@ namespace GEngine
         [[nodiscard]] MaterialEditResult ResetParameter(std::string_view);
         [[nodiscard]] MaterialEditResult SetTexture(std::string_view, MaterialTextureValue);
         [[nodiscard]] MaterialEditResult ResetTexture(std::string_view);
+        // A shader reload changes the immutable declaration, not authored state.
+        // Copy exact values (including unbound optional slots) and revision.
+        [[nodiscard]] std::expected<MaterialInstance, MaterialInstanceError>
+        WithDeclaration(MaterialTemplateView declaration) const
+        {
+            const auto incompatible = [] {
+                return std::unexpected(MaterialInstanceError{MaterialInstanceCode::InvalidTemplate,
+                    {}, "Replacement declaration must preserve the material schema"});
+            };
+            if (!m_Template || !declaration) return incompatible();
+            const auto before = m_Template->Parameters(), after = declaration->Parameters();
+            const auto oldTextures = m_Template->Textures(), newTextures = declaration->Textures();
+            if (before.size() != after.size() || oldTextures.size() != newTextures.size()) return incompatible();
+            for (std::size_t i = 0; i < before.size(); ++i)
+                if (before[i].declaration.name != after[i].declaration.name ||
+                    before[i].declaration.type != after[i].declaration.type) return incompatible();
+            for (std::size_t i = 0; i < oldTextures.size(); ++i)
+                if (oldTextures[i].declaration.name != newTextures[i].declaration.name ||
+                    oldTextures[i].declaration.required != newTextures[i].declaration.required) return incompatible();
+            auto result = *this;
+            result.m_Template = std::move(declaration);
+            return result;
+        }
     private:
         explicit MaterialInstance(MaterialTemplateView declaration) : m_Template(std::move(declaration)) {}
         MaterialEditResult AssignTexture(std::size_t, std::optional<MaterialTextureValue>);

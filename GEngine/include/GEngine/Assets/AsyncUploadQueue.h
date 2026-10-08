@@ -42,6 +42,7 @@ namespace GEngine::Asset
         // Checked between indivisible requests; the first always makes progress.
         // An individual upload may exceed this time limit, never the byte limit.
         std::chrono::nanoseconds frameTime = std::chrono::milliseconds(2);
+        bool observeStages = false; // Bounded per-ticket diagnostics; no clocks when disabled.
     };
     struct UploadQueueStats
     {
@@ -51,6 +52,17 @@ namespace GEngine::Asset
     {
         std::size_t completed{}, failed{}, bytes{};
         bool byteBudgetReached{}, timeBudgetReached{};
+        std::chrono::nanoseconds elapsed{}; // Available only with observeStages.
+    };
+    // Monotonic steady-clock timestamps (nanoseconds since its epoch), not wall time.
+    // Zero means the stage has not occurred or observation is disabled. Retained
+    // until Release; cancelled/failed requests may have only a partial sequence.
+    struct UploadObservation
+    {
+        bool enabled{};
+        std::int64_t admitted{}, decodeStarted{}, decodeFinished{}, enqueued{},
+            uploadStarted{}, uploadFinished{};
+        std::size_t payloadBytes{};
     };
     class UploadCancellation final
     {
@@ -114,6 +126,7 @@ namespace GEngine::Asset
         UploadResult Cancel(UploadTicket); // Uploading is too late: typed Busy.
         UploadResult Release(UploadTicket); // Terminal AND worker/queue quiescent.
         [[nodiscard]] std::expected<AsyncAssetStatus, UploadError> Status(UploadTicket) const;
+        [[nodiscard]] std::expected<UploadObservation, UploadError> Observation(UploadTicket) const;
         UploadQueueStats Stats() const;
         UploadDrainStats LastDrain() const; // Owner only, last scheduler update.
         void Shutdown(); // Idempotent owner join; statuses remain queryable.

@@ -1,5 +1,10 @@
 #include "gepch.h"
 #include "Assets/Textures/AsyncTexture.h"
+#ifdef GENGINE_ASYNC_RESOURCE_VALIDATION
+#define GENGINE_ASYNC_RESOURCE_BACKEND
+#include "../../../RigidBodySimulation/tests/AsyncResourceChecks.h"
+#undef GENGINE_ASYNC_RESOURCE_BACKEND
+#endif
 #include "Core/GLContextThread.h"
 #include <algorithm>
 #include <cerrno>
@@ -61,6 +66,11 @@ namespace GEngine::Asset
     namespace
     {
         UploadError QueueError(UploadCode code) { return {code}; }
+        std::chrono::steady_clock::time_point ObserveStart(bool enabled)
+        { return enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{}; }
+        std::chrono::nanoseconds ObserveEnd(std::chrono::steady_clock::time_point start)
+        { return start == std::chrono::steady_clock::time_point{} ? std::chrono::nanoseconds{} :
+            std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start); }
         TextureError ImageError(TextureErrorCode code, const std::filesystem::path& path, std::string message,
             std::error_code system = {}) { return {code, path.string(), std::move(message), system}; }
         using DecodedBytes = std::unique_ptr<void, decltype(&DecodeFree)>;
@@ -93,6 +103,7 @@ namespace GEngine::Asset
             TextureHandle image{};
             std::optional<TextureError> error;
             bool cancelled{};
+            AsyncTextureObservation observation;
         };
         struct Entry
         {
@@ -135,9 +146,13 @@ namespace GEngine::Asset
                 if (!image.pixels) return {}; // Canonical alias: leader owns publication.
                 const std::lock_guard lock(owner.mutex);
                 if (record->cancelled) return std::unexpected(QueueError(UploadCode::Cancelled));
+                const auto uploadStart = ObserveStart(owner.limits.queue.observeStages);
                 auto gpu = TextureResource::Create(image.desc, {{static_cast<const std::byte*>(image.pixels.get()), image.bytes}, image.stride});
+                record->observation.upload = ObserveEnd(uploadStart);
                 if (!gpu) { record->error = gpu.error(); record->error->source = record->canonical.string(); return std::unexpected(QueueError(UploadCode::UploadFailed)); }
+                const auto publicationStart = ObserveStart(owner.limits.queue.observeStages);
                 auto published = owner.images.Create(publication, std::move(*gpu));
+                record->observation.publication = ObserveEnd(publicationStart);
                 if (!published) {
                     record->error = TextureError{TextureErrorCode::Registry, record->canonical.string(), "Async texture publication failed", {}, published.error()};
                     return std::unexpected(UploadError{UploadCode::UploadFailed, {}, published.error()});
@@ -168,6 +183,7 @@ namespace GEngine::Asset
                 AssetDetail::RequireInvariant(std::this_thread::get_id() != owner.owner);
                 if (Stopped(cancel)) return std::unexpected(QueueError(UploadCode::Cancelled));
                 std::error_code ec;
+                const auto readStart = ObserveStart(owner.limits.queue.observeStages);
                 auto path = std::filesystem::canonical(entry->path, ec);
                 if (ec) return Fail(ImageError(TextureErrorCode::FileSystem, entry->path, ec.message(), ec));
                 FILE* raw{};
@@ -190,6 +206,7 @@ namespace GEngine::Asset
                     entry->record = std::make_shared<Record>();
                     entry->record->leader = entry->ticket; entry->record->canonical = path;
                     entry->record->description = entry->requested;
+                    entry->record->observation.enabled = owner.limits.queue.observeStages;
                     owner.canonical.emplace(key, entry->record);
                 }
                 if (_fseeki64(raw, 0, SEEK_END) != 0) return Fail(ImageError(TextureErrorCode::FileSystem, path, "Seeking image failed", {errno, std::generic_category()}));
@@ -221,17 +238,27 @@ namespace GEngine::Asset
                 if (Stopped(cancel)) return std::unexpected(QueueError(UploadCode::Cancelled));
                 {
                     const std::lock_guard lock(owner.mutex); ++owner.stats.fileReads; ++owner.stats.decodes;
+                    if (owner.limits.queue.observeStages) {
+                        entry->record->observation.read = ObserveEnd(readStart);
+                        entry->record->observation.encodedBytes = std::size_t(length);
+                    }
                 }
                 image.desc = entry->requested;
                 const int channels = image.desc.format == TextureFormat::R8 ? 1 : image.desc.format == TextureFormat::RGB8 ? 3 : 4;
                 int sourceChannels{};
                 stbi_set_flip_vertically_on_load_thread(image.desc.orientation == ImageOrientation::BottomLeft);
+                const auto decodeStart = ObserveStart(owner.limits.queue.observeStages);
                 image.pixels.reset(stbi_load_from_memory(static_cast<const stbi_uc*>(encoded.get()), int(length),
                     &image.desc.width, &image.desc.height, &sourceChannels, channels));
+                const auto decodeTime = ObserveEnd(decodeStart);
                 encoded.reset(); // Only the immutable decoded buffer crosses the boundary.
                 {
                     const std::lock_guard lock(owner.mutex);
                     owner.stats.peakRequestBytes = (std::max)(owner.stats.peakRequestBytes, image.budget->peak);
+                    if (owner.limits.queue.observeStages) {
+                        entry->record->observation.decode = decodeTime;
+                        entry->record->observation.peakRequestBytes = image.budget->peak;
+                    }
                 }
                 if (Stopped(cancel)) return std::unexpected(QueueError(UploadCode::Cancelled));
                 if (!image.pixels) return Fail(ImageError(image.budget->exhausted ? TextureErrorCode::Allocation : TextureErrorCode::Decode,
@@ -240,6 +267,10 @@ namespace GEngine::Asset
                     return Fail(ImageError(TextureErrorCode::Decode, path, "Invalid decoded image extent"));
                 image.stride = std::size_t(image.desc.width) * std::size_t(channels);
                 image.bytes = image.stride * std::size_t(image.desc.height);
+                if (owner.limits.queue.observeStages) {
+                    const std::lock_guard lock(owner.mutex);
+                    entry->record->observation.pixelBytes = image.bytes;
+                }
                 auto upload = std::unique_ptr<const UploadRequest>(new(std::nothrow) Upload(owner, entry->record, std::move(image)));
                 if (!upload) return Fail(ImageError(TextureErrorCode::Allocation, path, "Upload request allocation failed"));
                 return upload;
@@ -337,4 +368,12 @@ namespace GEngine::Asset
     AsyncUploadQueue& AsyncTextureLoader::Queue() noexcept { return *m_Impl->queue; }
     AsyncTextureStats AsyncTextureLoader::Stats() const
     { m_Impl->Owner(); const std::lock_guard lock(m_Impl->mutex); return m_Impl->stats; }
+    std::expected<AsyncTextureObservation, UploadError> AsyncTextureLoader::Observation(UploadTicket ticket) const
+    {
+        auto& s = *m_Impl; s.Owner(); const std::lock_guard lock(s.mutex);
+        const auto found = s.tickets.find(ticket);
+        if (found == s.tickets.end()) return std::unexpected(QueueError(UploadCode::InvalidTicket));
+        return found->second->record ? found->second->record->observation :
+            AsyncTextureObservation{s.limits.queue.observeStages};
+    }
 }

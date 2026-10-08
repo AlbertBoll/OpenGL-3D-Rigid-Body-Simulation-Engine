@@ -17,6 +17,8 @@ namespace GEngine::Asset
         { return std::unexpected(UploadError{code, {}, {}, detail}); }
         bool Terminal(AsyncAssetState state)
         { return state == AsyncAssetState::Ready || state == AsyncAssetState::Failed || state == AsyncAssetState::Cancelled; }
+        std::int64_t Stamp(bool enabled)
+        { return enabled ? std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() : 0; }
     }
     struct AsyncUploadQueue::Impl
     {
@@ -26,6 +28,7 @@ namespace GEngine::Asset
             bool occupied{}, busy{}, queued{};
             std::atomic<bool> stop{false};
             AsyncAssetStatus status;
+            UploadObservation observation;
             std::size_t reservation{}, bytes{};
             std::unique_ptr<const AssetDecodeJob> job;
             std::unique_ptr<const UploadRequest> upload;
@@ -99,9 +102,12 @@ namespace GEngine::Asset
                 auto& slot = slots[index];
                 const auto generation = slot.generation;
                 slot.busy = true; slot.status.state = AsyncAssetState::Loading;
+                slot.observation.decodeStarted = Stamp(limits.observeStages);
                 lock.unlock();
                 auto decoded = slot.job->Decode(UploadCancellation(slot.stop), slot.reservation);
+                const auto decodedAt = Stamp(limits.observeStages);
                 lock.lock();
+                slot.observation.decodeFinished = decodedAt;
                 // No slot can be recycled while busy. Check generation as well as
                 // cancellation so late decode results never publish a replaced job.
                 if (closed || slot.stop.load(std::memory_order_acquire) || slot.generation != generation) {
@@ -116,6 +122,7 @@ namespace GEngine::Asset
                 }
                 if (!decoded) { slot.busy = false; Discard(slot); changed.notify_all(); continue; }
                 slot.upload = std::move(*decoded); slot.bytes = slot.upload->Bytes(); slot.job.reset();
+                if (limits.observeStages) slot.observation.payloadBytes = slot.bytes;
                 slot.status.state = AsyncAssetState::CpuReady;
                 // CPU-ready payload retains its pre-decode reservation while waiting.
                 changed.wait(lock, [&] { return closed || slot.stop.load(std::memory_order_acquire) ||
@@ -130,6 +137,7 @@ namespace GEngine::Asset
                     slot.queueOrder = nextQueueOrder++;
                     queue[(head + stats.queuedRequests) % limits.queuedRequests] = index;
                     ++stats.queuedRequests; stats.queuedBytes += slot.bytes; slot.queued = true;
+                    slot.observation.enqueued = Stamp(limits.observeStages);
                 }
                 changed.notify_all();
             }
@@ -192,6 +200,7 @@ namespace GEngine::Asset
             slot.occupied = true; slot.stop.store(false, std::memory_order_release);
             slot.order = s.nextOrder++;
             slot.status = {AsyncAssetState::Requested, {}};
+            slot.observation = {s.limits.observeStages, Stamp(s.limits.observeStages)};
             slot.reservation = bytes; slot.job = std::move(job);
             ++s.stats.reservedPayloads; s.stats.reservedBytes += bytes;
             s.changed.notify_all();
@@ -230,11 +239,25 @@ namespace GEngine::Asset
     }
     UploadQueueStats AsyncUploadQueue::Stats() const
     { const std::lock_guard lock(m_Impl->mutex); return m_Impl->stats; }
+    std::expected<UploadObservation, UploadError> AsyncUploadQueue::Observation(UploadTicket ticket) const
+    {
+        auto& s = *m_Impl; const std::lock_guard lock(s.mutex);
+        const auto* slot = s.Find(ticket);
+        if (!slot) return Error(UploadCode::InvalidTicket);
+        return slot->observation;
+    }
     UploadDrainStats AsyncUploadQueue::LastDrain() const { m_Impl->RequireOwner(); return m_Impl->last; }
     AssetPublication& AsyncUploadQueue::Publication() const noexcept { return m_Impl->publication; }
     UploadResult AsyncUploadQueue::DrainUpdateFrameResources()
     {
-        auto& s = *m_Impl; s.RequireOwner();
+        auto& s = *m_Impl;
+        const auto observedStart = Stamp(s.limits.observeStages);
+        s.RequireOwner();
+        struct ObserveDrain
+        {
+            Impl& state; std::int64_t start;
+            ~ObserveDrain() { if (start) state.last.elapsed = std::chrono::nanoseconds(Stamp(true) - start); }
+        } observation{s, observedStart};
         GLContextThread::RequireCurrent("AsyncUploadQueue::UpdateFrameResources");
         if (!s.uploadContext) s.uploadContext = SDL_GL_GetCurrentContext();
         AssetDetail::RequireInvariant(s.uploadContext == SDL_GL_GetCurrentContext());
@@ -262,13 +285,16 @@ namespace GEngine::Asset
             slot.queued = false; slot.busy = true; slot.status.state = AsyncAssetState::Uploading;
             s.changed.notify_all();
             const auto bytes = slot.bytes;
+            slot.observation.uploadStarted = Stamp(s.limits.observeStages);
             lock.unlock();
             // Cancellation/supersession returns Busy once uploading is claimed.
             // No queue lock surrounds user code; polling/submission stays usable.
             auto uploaded = slot.upload->Apply(publication);
+            const auto uploadedAt = Stamp(s.limits.observeStages);
             GLContextThread::RequireCurrent("AsyncUploadQueue::Apply completion");
             AssetDetail::RequireInvariant(s.uploadContext == SDL_GL_GetCurrentContext());
             lock.lock();
+            slot.observation.uploadFinished = uploadedAt;
             slot.status = uploaded ? AsyncAssetStatus{AsyncAssetState::Ready, {}} :
                 AsyncAssetStatus{AsyncAssetState::Failed, uploaded.error()};
             slot.busy = false;

@@ -695,6 +695,10 @@ project "Breakout"
 	staticruntime "on"
 	links "GEngine"
 
+	filter { "action:vs2022", "system:windows" }
+		buildoptions { "/bigobj" }
+	filter {}
+
 	targetdir(tdir)
 	objdir(odir)
 

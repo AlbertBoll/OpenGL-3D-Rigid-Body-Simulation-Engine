@@ -23,6 +23,7 @@
 #include "../tests/MaterialAuthoringChecks.h"
 #include "../tests/ShaderDescriptionChecks.h"
 #include "../tests/ShaderReloadChecks.h"
+#include "../tests/AsyncResourceChecks.h"
 
 #include <Physics/ShapeBox.h>
 #include <Physics/PhysicsWorld.h>
@@ -51,6 +52,66 @@ using namespace ::GEngine::Asset;
 
 namespace
 {
+    struct AsyncTextureGallery
+    {
+        MaterialHandle clone;
+        std::optional<UploadTicket> pending;
+        std::string source, message = "Choose an image. Last-valid material remains visible while loading.";
+        AsyncAssetState state = AsyncAssetState::Ready;
+        bool request = false, cancel = false, meshTurn = false, checked = false;
+        unsigned frames = 0;
+    } asyncTextureGallery;
+
+    ScheduleResult ApplyAsyncTextureEdit(SceneRenderResources& resources,
+        AsyncTextureLoader& loader, MaterialHandle material)
+    {
+        auto& edit = asyncTextureGallery;
+        if (std::exchange(edit.request, false))
+        {
+            if (edit.pending) (void)loader.Cancel(*edit.pending);
+            edit.pending.reset(); // Late completion of an abandoned request cannot assign a material.
+            auto requested = loader.Request(edit.source);
+            if (!requested) {
+                edit.state = AsyncAssetState::Failed;
+                edit.message = DescribeAsyncTextureError(requested.error());
+            } else {
+                edit.pending = *requested; edit.state = AsyncAssetState::Requested;
+                edit.message = "Loading; current material retained.";
+            }
+        }
+        if (std::exchange(edit.cancel, false) && edit.pending)
+        {
+            auto cancelled = loader.Cancel(*edit.pending);
+            if (!cancelled) edit.message = DescribeAsyncTextureError(AsyncTextureError{cancelled.error()});
+        }
+        if (!edit.pending) return {};
+        auto status = loader.Status(*edit.pending);
+        if (!status) return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources, status.error()});
+        edit.state = status->state;
+        if (status->state == AsyncAssetState::Failed || status->state == AsyncAssetState::Cancelled)
+        {
+            edit.message = status->error ? DescribeAsyncTextureError(*status->error) : "Request cancelled.";
+            edit.pending.reset(); return {};
+        }
+        if (status->state != AsyncAssetState::Ready) return {};
+        const auto fail = [](const auto& cause) -> ScheduleResult {
+            return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources,
+                SceneResourceError{"async material replacement", cause}});
+        };
+        auto view = AssetsManager::ResolveTexture(status->image);
+        if (!view) return fail(view.error());
+        auto sampled = AssetsManager::SampleTexture(*view);
+        if (!sampled) return std::visit(fail, sampled.error().cause);
+        auto assigned = resources.SetMaterialTexture(material, MaterialTextureSemantic::BaseColor,
+            MaterialTextureValue{sampled->TextureIdentity(), sampled->SamplerIdentity()});
+        if (!assigned) return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources, assigned.error()});
+        edit.message = std::format("Applied {}x{}; shared material updated. Independent clone preserved.",
+            status->description.width, status->description.height);
+        edit.pending.reset();
+        Log::GetCoreLogger()->info("Async material replacement: {}", edit.message);
+        return {};
+    }
+
     struct MaterialGallery
     {
         std::array<_Entity, 6> uv, triplanar;
@@ -178,6 +239,7 @@ RigidBodySimulationApp::~RigidBodySimulationApp()
 {
     materialGallery = {};
     shaderReloadGallery = {};
+    asyncTextureGallery = {};
     if (m_AudioSystem)
         m_AudioSystem->Shutdown();
     if (m_SceneResources)
@@ -198,6 +260,17 @@ RigidBodySimulationApp::~RigidBodySimulationApp()
 ApplicationInitializationResult RigidBodySimulationApp::Initialize(
     const std::initializer_list<WindowProperties>& WindowsPropertyList)
 {
+    if (std::getenv("GENGINE_PRE_EDITOR_ASYNC_PERFORMANCE"))
+    {
+        WindowProperties properties;
+        properties.m_Title = "Phase 12 async diagnostic";
+        properties.flag = {WindowFlags::INVISIBLE, WindowFlags::BORDERLESS}; properties.m_IsVsync = false;
+        properties.m_Width = properties.m_Height = properties.m_MinWidth = properties.m_MinHeight = 64;
+        if (auto initialized = BaseApp::Initialize({properties}); !initialized) return initialized;
+        if (auto checked = PreEditorValidation::RunAsyncPerformance(GetEngineContext()); !checked)
+            return std::unexpected(checked.error());
+        return {};
+    }
     std::size_t cpuMetadataChecks = 0;
     if (std::getenv("GENGINE_PRE_EDITOR_RESOURCE_OWNERSHIP"))
     {
@@ -1158,6 +1231,24 @@ void main() {
     GetEventManager()->GetEventDispatcher().RegisterEvent(debugshowEvent);
     GetEventManager()->GetEventDispatcher().RegisterEvent(viewPortEvent);
 
+    // Maintained async editing examples: two entities share the target material;
+    // a third has independent authored values and texture assignments.
+    auto independent = m_SceneResources->CloneMaterial(m_AsyncBoxMaterial);
+    if (!independent) return failure(independent.error());
+    asyncTextureGallery.clone = *independent;
+    auto authored = m_SceneResources->DescribeMaterial(*independent);
+    if (!authored) return failure(authored.error());
+    authored->baseColor = {.45f, .8f, .6f, 1.f};
+    if (auto edited = m_SceneResources->EditMaterial(*independent, *authored); !edited) return failure(edited.error());
+    for (int i = 0; i < 3; ++i) {
+        auto entity = m_ActiveScene->CreateEntity(std::format("Async texture {}", i));
+        if (!entity) return std::unexpected(entity.error());
+        entity->Transform().SetTranslation({-3.f + 3.f * i, 8.f, -22.f});
+        if (auto assigned = m_SceneResources->AssignRenderable(*entity,
+            {boxMesh, i == 2 ? *independent : m_AsyncBoxMaterial}); !assigned) return failure(assigned.error());
+    }
+    if (std::getenv("GENGINE_PRE_EDITOR_ASYNC_RESOURCES"))
+        FocusMaterialCamera(m_EditorCamera_, {0, 4, -22}, .35f, 0, 38.f);
     return {};
 }
 
@@ -1168,6 +1259,7 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const WindowP
 
 void RigidBodySimulationApp::Update(Timestep ts)
 {
+    if (std::getenv("GENGINE_PRE_EDITOR_ASYNC_PERFORMANCE")) return;
     if (materialGallery.parent && std::getenv("GENGINE_PRE_EDITOR_MATERIAL_AUTHORING"))
     {
         // Two seconds per static view. Each four-second motion replay advances
@@ -1383,6 +1475,7 @@ std::expected<void, SceneError> RigidBodySimulationApp::UpdateImportedMesh()
 
 void RigidBodySimulationApp::Render()
 {
+    if (std::getenv("GENGINE_PRE_EDITOR_ASYNC_PERFORMANCE")) return;
     RenderContext context{*GetWindow(), *GetWindowManager(), m_RenderTarget.get(),
                           HasVisibleViewport()};
     context.editorUI = {this, [](void* user) -> ScheduleResult
@@ -1408,8 +1501,7 @@ void RigidBodySimulationApp::Render()
                 },
                 loads.error());
         m_TextureLoads = *loads;
-        // This selected one-shot import follows the one-shot texture bootstrap;
-        // only the active service needs draining. This is not a second scheduler.
+        // The optional mesh import starts after the texture bootstrap.
         if (m_LoadBarrel && m_WoodSettled && !m_MeshLoads && !m_BarrelSettled)
         {
             auto meshLoads = m_SceneResources->CreateMeshLoader(m_MeshRoot);
@@ -1422,7 +1514,11 @@ void RigidBodySimulationApp::Render()
                 m_BarrelSettled = true;
             }
         }
-        context.uploads = m_MeshLoads ? &m_MeshLoads->Queue() : &m_TextureLoads->Queue();
+        // One existing upload safe point per frame, bounded fair selection.
+        // A retained mesh loader must not starve later texture edits.
+        asyncTextureGallery.meshTurn = !asyncTextureGallery.meshTurn;
+        context.uploads = m_MeshLoads && asyncTextureGallery.meshTurn ?
+            &m_MeshLoads->Queue() : &m_TextureLoads->Queue();
         context.updateResources = {
             this, [](void* user) -> ScheduleResult
             {
@@ -1435,7 +1531,7 @@ void RigidBodySimulationApp::Render()
                             ScheduleError{FrameStage::UpdateFrameResources, updated.error()});
                 }
                 if (app.m_WoodSettled)
-                    return {};
+                    return ApplyAsyncTextureEdit(*app.m_SceneResources, *app.m_TextureLoads, app.m_AsyncBoxMaterial);
                 auto failure = [](const auto& cause) -> ScheduleResult
                 {
                     if constexpr (std::same_as<std::decay_t<decltype(cause)>, UploadError>)
@@ -1538,6 +1634,22 @@ void RigidBodySimulationApp::Render()
             if (!checked) return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources, checked.error()});
         }
         auto submitted = FrameScheduler::Render(context, &input);
+        if (submitted && std::getenv("GENGINE_PRE_EDITOR_ASYNC_RESOURCES") && m_WoodSettled &&
+            (!m_LoadBarrel || m_BarrelSettled) && !asyncTextureGallery.checked)
+        {
+            asyncTextureGallery.checked = true;
+            auto checked = PreEditorValidation::CheckAsyncAdoption(GetEngineContext(), *m_SceneResources,
+                *m_ActiveScene, m_AsyncBoxMaterial, asyncTextureGallery.clone, *m_TextureLoads,
+                *m_FrameSubmission, targets, m_PickTable, camera,
+                [&](const std::string& path, bool cancel) {
+                    asyncTextureGallery.source = path; asyncTextureGallery.request = true;
+                    asyncTextureGallery.cancel = cancel;
+                }, [&] { return ApplyAsyncTextureEdit(*m_SceneResources, *m_TextureLoads, m_AsyncBoxMaterial); },
+                [&] { return asyncTextureGallery.state; });
+            if (!checked) return std::unexpected(ScheduleError{FrameStage::UpdateFrameResources, checked.error()});
+        }
+        if (submitted && asyncTextureGallery.checked && ++asyncTextureGallery.frames == 5)
+            Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_12_FUNCTIONAL_COMPLETE");
         if (submitted && (std::getenv("GENGINE_PRE_EDITOR_SHADER_DESCRIPTIONS") || std::getenv("GENGINE_PRE_EDITOR_SHADER_RELOAD")) &&
             !PreEditorValidation::CheckShaderSteadyFrame(*m_SceneResources,
                 {static_cast<unsigned>(camera.viewportWidth), static_cast<unsigned>(camera.viewportHeight)}))
@@ -1696,6 +1808,15 @@ void RigidBodySimulationApp::ImGuiRender()
     {
         if (ImGui::BeginMenu("File"))
         {
+            if (ImGui::BeginMenu("Async box texture", m_WoodSettled))
+            {
+                for (const auto* path : {"Sphere/wood_diffuse", "Plane/wood_diffuse", "missing-phase12-image"})
+                    if (ImGui::MenuItem(path)) { asyncTextureGallery.source = path; asyncTextureGallery.request = true; }
+                if (ImGui::MenuItem("Cancel pending request", nullptr, false, asyncTextureGallery.pending.has_value()))
+                    asyncTextureGallery.cancel = true;
+                ImGui::TextWrapped("%s", asyncTextureGallery.message.c_str());
+                ImGui::EndMenu();
+            }
             if (ImGui::MenuItem("Load barrel mesh", nullptr, false, m_WoodSettled && !m_LoadBarrel))
                 m_LoadBarrel = true;
             // Disabling fullscreen would allow the window to be moved to the front of other windows,

@@ -25,6 +25,12 @@ namespace GEngine::Asset
     {
         std::size_t fileReads{}, decodes{}, uploads{}, peakRequestBytes{};
     };
+    struct AsyncTextureObservation
+    {
+        bool enabled{};
+        std::chrono::nanoseconds read{}, decode{}, upload{}, publication{};
+        std::size_t encodedBytes{}, pixelBytes{}, peakRequestBytes{};
+    };
     std::string DescribeAsyncTextureError(const AsyncTextureError&);
 
     // Owner-thread facade over Phase 49's queue. No file access occurs in Request.
@@ -59,6 +65,9 @@ namespace GEngine::Asset
         void Shutdown();
         AsyncUploadQueue& Queue() noexcept;
         AsyncTextureStats Stats() const;
+        // Canonical aliases share their leader's texture observations. Queue
+        // timestamps remain per ticket. Enabled by limits.queue.observeStages.
+        [[nodiscard]] std::expected<AsyncTextureObservation, UploadError> Observation(UploadTicket) const;
     private:
         struct Impl;
         explicit AsyncTextureLoader(std::unique_ptr<Impl>);

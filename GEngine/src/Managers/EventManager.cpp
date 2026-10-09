@@ -31,142 +31,28 @@ namespace GEngine::Manager
 	}
 
 
-	void EventManager::Initialize()
-	{	
-		using namespace GEngine;
-
-		//auto AppQuitEvent = new Events<void()>("ApplicationQuit");
-		//auto WindowCloseEvent = new Events<void(WindowCloseParam)>("WindowClose");
-		//auto KeyPressEvent = new Events<void(const char*)>("KeyPress");
-		//auto KeyRepeatEvent = new Events<void(const char*)>("KeyRepeat");
-		//auto KeyReleaseEvent = new Events<void(const char*)>("KeyRelease");
-		//auto MouseButtonPressEvent = new Events<void(MouseButtonParam)>("MouseButtonPress");
-		//auto MouseButtonReleaseEvent = new Events<void(MouseButtonParam)>("MouseButtonRelease");
-		auto MouseMoveEvent = new Events<void(MouseMoveParam)>("MouseMove");
-	
-
-
-		//AppQuitEvent->Subscribe([this]()
-		//	{
-		//		auto& engine = BaseApp::GetEngine();
-		//		engine.ShutDown();
-
-		//	}); 
-
-
-		MouseMoveEvent->Subscribe([](const MouseMoveParam& moveParam)
-			{
-				auto& mouseState = BaseApp::GetEngine().GetInputManager()->GetMouseState();
-				//mouseState.SetCursorMode(CursorMode::HIDDEN);
-				mouseState.m_XRel = moveParam.XRel;
-				mouseState.m_YRel = moveParam.YRel;	
-				mouseState.m_MousePos.x = (float)moveParam.XPos;
-				mouseState.m_MousePos.y = (float)moveParam.YPos;
-				//GENGINE_INFO("x: {}, y: {}", mouseState.m_XRel, mouseState.m_YRel);
-
-			});
-
-
-		/*MouseButtonReleaseEvent->Subscribe([](const MouseButtonParam& buttonParam)
-			{
-				auto& engine = BaseApp::GetEngine();
-				if (auto p = engine.GetWindowManager()->GetWindows().find(buttonParam.ID); p != engine.GetWindowManager()->GetWindows().end())
-				{
-					if (buttonParam.Button == SDL_BUTTON_LEFT)
-						GENGINE_CORE_INFO("Left Mouse button was release at {}. Window coords ({}, {})", p->second->GetTitle(), buttonParam.X, buttonParam.Y);
-					else if (buttonParam.Button == SDL_BUTTON_MIDDLE)
-						GENGINE_CORE_INFO("Middle Mouse button was release at {}. Window coords ({}, {})", p->second->GetTitle(), buttonParam.X, buttonParam.Y);
-					else
-						GENGINE_CORE_INFO("Right Mouse button was release at {}. Window coords ({}, {})", p->second->GetTitle(), buttonParam.X, buttonParam.Y);
-				}
-			});*/
-
-
-
-		/*MouseButtonPressEvent->Subscribe([](const MouseButtonParam& buttonParam)
-			{
-				auto& engine = BaseApp::GetEngine();
-				if (auto p = engine.GetWindowManager()->GetWindows().find(buttonParam.ID); p != engine.GetWindowManager()->GetWindows().end())
-				{
-					if (buttonParam.Button == SDL_BUTTON_LEFT)
-					{
-						if (buttonParam.Clicks == 1)
-							GENGINE_CORE_INFO("Left mouse button was clicked at {}. Window coords ({}, {})", p->second->GetTitle(), buttonParam.X, buttonParam.Y);
-						else
-							GENGINE_CORE_INFO("Left mouse button was double clicked at {}. Window coords ({}, {})", p->second->GetTitle(), buttonParam.X, buttonParam.Y);
-					}
-
-					else if (buttonParam.Button == SDL_BUTTON_MIDDLE)
-					{
-						if (buttonParam.Clicks == 1)
-							GENGINE_CORE_INFO("Middle mouse button was clicked at {}. Window coords ({}, {})", p->second->GetTitle(), buttonParam.X, buttonParam.Y);
-						else
-							GENGINE_CORE_INFO("Middle mouse button was double clicked at {}. Window coords ({}, {})", p->second->GetTitle(), buttonParam.X, buttonParam.Y);
-					}
-
-					else
-					{
-						if (buttonParam.Clicks == 1)
-							GENGINE_CORE_INFO("Right mouse button was clicked at {}. Window coords ({}, {})", p->second->GetTitle(), buttonParam.X, buttonParam.Y);
-						else
-							GENGINE_CORE_INFO("Right mouse button was double clicked at {}. Window coords ({}, {})", p->second->GetTitle(), buttonParam.X, buttonParam.Y);
-					}
-				}
-			});*/
-
-
-	/*	KeyPressEvent->Subscribe([](const char* keyName)
-			{
-				GENGINE_CORE_INFO("Key {} was pressed", keyName);
-			});
-
-		KeyRepeatEvent->Subscribe([](const char* keyName)
-			{
-				GENGINE_CORE_INFO("Key {} was repeated", keyName);
-			});
-
-		KeyReleaseEvent->Subscribe([](const char* keyName)
-			{
-				GENGINE_CORE_INFO("Key {} was released", keyName);
-			});*/
-
-
-
-		//WindowCloseEvent->Subscribe(([](WindowCloseParam windowParam)
-		//	{
-		//		auto windows = BaseApp::GetWindowManager();
-		//		if (auto p = windows->GetWindows().find(windowParam.ID); p != windows->GetWindows().end())
-		//		{
-		//			//GENGINE_CORE_INFO("Window with ID {} was closed", windowParam.ID);
-		//			windows->RemoveWindow(windowParam.ID);
-		//			//GENGINE_CORE_INFO("Window Manager Size {}", windows->GetWindows().size());
-
-		//			//auto& numWindows = windows->GetNumOfWindows();
-		//			//if (numWindows == 0) {
-		//				//BaseApp::GetEngine().ShutDown();
-		//				//GENGINE_CORE_INFO("ShutDown!");
-
-		//			//}
-		//		}
-		//	}));
-
-	
-
-		//m_EventDispatcher.RegisterEvent(WindowCloseEvent);
-		//m_EventDispatcher.RegisterEvent(KeyPressEvent);
-		//m_EventDispatcher.RegisterEvent(KeyRepeatEvent);
-		//m_EventDispatcher.RegisterEvent(KeyReleaseEvent);
-		//m_EventDispatcher.RegisterEvent(MouseButtonPressEvent);
-		//m_EventDispatcher.RegisterEvent(MouseButtonReleaseEvent);
-		m_EventDispatcher.RegisterEvent(MouseMoveEvent);
-	
-		
-	}
-
-
+    void EventManager::Initialize()
+    {
+        auto connected = Subscribe(Event::MouseMove, [](const MouseMoveParam& moveParam)
+        {
+            auto& mouse = BaseApp::GetEngine().GetInputManager()->GetMouseState();
+            mouse.m_XRel = moveParam.XRel; mouse.m_YRel = moveParam.YRel;
+            mouse.m_MousePos.x = static_cast<float>(moveParam.XPos);
+            mouse.m_MousePos.y = static_cast<float>(moveParam.YPos);
+        });
+        if (!connected) { ReportSubscriptionError(connected.error()); return; }
+        m_MouseMoveConnection = std::move(*connected);
+    }
 
 	void EventManager::PollEvents()
 	{
+        auto drained = m_Completions.Drain();
+        if (!drained) { ReportSubscriptionError(drained.error()); return; }
+        const auto deliver = [this](auto key, auto... values) {
+            if (auto result = m_EventDispatcher.Dispatch(key, values...); !result)
+                ReportSubscriptionError(result.error());
+        };
+
 
 		auto* root = EngineContext::TryGet();
         auto* window = root ? static_cast<SDLWindow*>(root->MainWindow()) : nullptr;
@@ -180,7 +66,7 @@ namespace GEngine::Manager
 			{
 			case SDL_QUIT:
 				//case SDL_KEYDOWN:
-				m_EventDispatcher.DispatchEvent("AppClose");
+				deliver(Event::AppClose);
 				std::cout << "App close event" << std::endl;
 				break;
 
@@ -198,7 +84,7 @@ namespace GEngine::Manager
 
 			case SDL_MOUSEWHEEL:
 
-				m_EventDispatcher.DispatchEvent("MouseScrollWheel", MouseScrollWheelParam{ .ID = e.wheel.windowID,
+				deliver(Event::MouseScrollWheel, MouseScrollWheelParam{ .ID = e.wheel.windowID,
 																						   .X = e.wheel.preciseX,
 																						   .Y = e.wheel.preciseY });
 				break;
@@ -208,7 +94,7 @@ namespace GEngine::Manager
 					//break;
 
 			case SDL_MOUSEBUTTONDOWN:
-				m_EventDispatcher.DispatchEvent("MouseButtonPress", MouseButtonParam{ .ID = e.button.windowID,
+				deliver(Event::MouseButtonPress, MouseButtonParam{ .ID = e.button.windowID,
 																						.X = e.button.x,
 																						.Y = e.button.y ,
 																						.Button = e.button.button,
@@ -231,7 +117,7 @@ namespace GEngine::Manager
 
 
 			case SDL_MOUSEMOTION:
-				m_EventDispatcher.DispatchEvent("MouseMove", MouseMoveParam{ .ID = e.button.windowID,
+				deliver(Event::MouseMove, MouseMoveParam{ .ID = e.button.windowID,
 																			 .XPos = e.motion.x,
 																			 .YPos = e.motion.y,
 																			 .XRel = e.motion.xrel,
@@ -269,17 +155,17 @@ namespace GEngine::Manager
                 // that retain their last nonzero drawable while minimized.
                 if (change == WindowStateChange::Resized && (e.window.data1 <= 0 || e.window.data2 <= 0))
                     logical = {};
-                m_EventDispatcher.DispatchEvent("WindowState", WindowStateEvent{e.window.windowID, change, logical, pixels});
+                deliver(Event::WindowState, WindowStateEvent{e.window.windowID, change, logical, pixels});
 
 				if (e.window.event == SDL_WINDOWEVENT_CLOSE)
 				{
-					m_EventDispatcher.DispatchEvent("WindowClose", WindowCloseParam{ .ID = e.window.windowID });
+					deliver(Event::WindowClose, WindowCloseParam{ .ID = e.window.windowID });
 					std::cout << "window close event" << std::endl;
 				}
 
 				else if (e.window.event == SDL_WINDOWEVENT_RESIZED || e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
 				{
-					m_EventDispatcher.DispatchEvent("WindowResize", WindowResizeParam{ .ID = e.window.windowID,
+					deliver(Event::WindowResize, WindowResizeParam{ .ID = e.window.windowID,
 																					   .Width = e.window.data1,
 																					   .Height = e.window.data2 });
 				}
@@ -289,13 +175,13 @@ namespace GEngine::Manager
 			}
 			case SDL_KEYDOWN:
 				if (e.key.keysym.sym == SDLK_p)
-					m_EventDispatcher.DispatchEvent("AppPause");
+					deliver(Event::AppPause);
 				else if (e.key.keysym.sym == SDLK_r)
-					m_EventDispatcher.DispatchEvent("AppResume");
+					deliver(Event::AppResume);
 				else if (e.key.keysym.sym == SDLK_SPACE)
-					m_EventDispatcher.DispatchEvent("DebugShow");
+					deliver(Event::DebugShow);
 				else
-					m_EventDispatcher.DispatchEvent("ViewportChange");
+					deliver(Event::ViewportChange);
 				break;
 			}
 		}

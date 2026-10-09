@@ -157,6 +157,9 @@ namespace GEngine
 			
 			Transform3DComponent() = default;
 			Transform3DComponent(const Transform3DComponent& transform) = default;
+			Transform3DComponent(Transform3DComponent&&) = default;
+			Transform3DComponent& operator=(const Transform3DComponent&) = default;
+			Transform3DComponent& operator=(Transform3DComponent&&) = default;
 		
 			/*Transform3DComponent(const Vec3f& translation) : Translation(translation)
 			{

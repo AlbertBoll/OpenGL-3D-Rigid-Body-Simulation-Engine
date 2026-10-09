@@ -1,4 +1,5 @@
 #pragma once
+#include "Events/Event.h"
 #include<vector>
 #include<algorithm>
 
@@ -311,9 +312,21 @@ namespace GEngine
     class Signal<Ret(Args...)>
     {
     public:
-
-
-
+        Signal() = default;
+        Signal(const Signal& other) { CopyLegacy(other); }
+        Signal& operator=(const Signal& other)
+        {
+            if (this != &other) { ClearLegacy(); mSource = {}; CopyLegacy(other); }
+            return *this;
+        }
+        Signal(Signal&& other) noexcept : mSource(std::move(other.mSource)), mLegacy(std::exchange(other.mLegacy, nullptr)) {}
+        Signal& operator=(Signal&& other) noexcept
+        {
+            if (this != &other) { ClearLegacy(); mSource = std::move(other.mSource); mLegacy = std::exchange(other.mLegacy, nullptr); }
+            return *this;
+        }
+        ~Signal() { ClearLegacy(); }
+        template<class F> auto ConnectScoped(F callback) { return mSource.Subscribe(std::move(callback)); }
         template <Ret(*FreeFunction)(Args...)>
         auto& Connect();
 
@@ -379,25 +392,48 @@ namespace GEngine
 
         void Disconnect(const Delegate<Ret(Args...)>& delegate)
         {
-            mDelegates.erase(std::remove_if(mDelegates.begin(), mDelegates.end(), [&](const Delegate<Ret(Args...)>& d)
-
-                {
-                    return delegate.GetID() == d.GetID();
-
-                }), mDelegates.end());
+            const auto id = delegate.GetID();
+            for (auto** link = &mLegacy; *link;)
+                if ((*link)->delegate->GetID() == id)
+                { auto* removed = *link; *link = removed->next; delete removed; }
+                else link = &(*link)->next;
         }
 
 
-        explicit operator bool() const { return !mDelegates.empty(); }
+        explicit operator bool() const { return mSource.HasListeners(); }
 
-        void operator()(Args... args) { for (auto& delegate : mDelegates) delegate(std::forward<Args>(args)...); }
+        void operator()(Args... args) { Fire(args...); }
 
-        void Fire(Args... args) { for (auto& delegate : mDelegates) delegate.Invoke(std::forward<Args>(args)...); }
+        void Fire(Args... args) { if (auto result = mSource.Dispatch(args...); !result) ReportSubscriptionError(result.error()); }
 
-        void Emit(Args... args) { for (auto& delegate : mDelegates) delegate.Invoke(std::forward<Args>(args)...); }
+        void Emit(Args... args) { Fire(args...); }
 
     private:
-        std::vector<Delegate<Ret(Args...)>> mDelegates;
+        TypedSubscriptions<Ret(Args...)> mSource;
+        struct Legacy { Delegate<Ret(Args...)>* delegate; Subscription token; Legacy* next{}; };
+        Legacy* mLegacy{};
+        Delegate<Ret(Args...)> mFailedConnection;
+        void ClearLegacy() { while (mLegacy) { auto* next = mLegacy->next; delete mLegacy; mLegacy = next; } }
+        void CopyLegacy(const Signal& other)
+        {
+            // Scoped runtime connections are deliberately absent in authoring copies.
+            for (auto* connection = other.mLegacy; connection; connection = connection->next)
+                AddLegacy(*connection->delegate);
+        }
+        auto& AddLegacy(Delegate<Ret(Args...)> delegate)
+        {
+            auto owned = std::unique_ptr<Delegate<Ret(Args...)>>(new (std::nothrow) Delegate<Ret(Args...)>(std::move(delegate)));
+            if (!owned) { ReportSubscriptionError(SubscriptionError::Allocation); return mFailedConnection; }
+            auto* value = owned.get();
+            auto token = mSource.Subscribe([owned = std::move(owned)](Args... args) { owned->Invoke(args...); });
+            if (!token) { ReportSubscriptionError(token.error()); return mFailedConnection; }
+            auto* connection = new (std::nothrow) Legacy{value, std::move(*token)};
+            if (!connection) { ReportSubscriptionError(SubscriptionError::Allocation); return mFailedConnection; }
+            auto** tail = &mLegacy;
+            while (*tail) tail = &(*tail)->next;
+            *tail = connection;
+            return *value;
+        }
     };
 
     template <typename Ret, typename... Args>
@@ -406,8 +442,7 @@ namespace GEngine
     {
         Delegate<Ret(Args...)> delegate;
         delegate.template Bind<FreeFunction>();
-        mDelegates.push_back(delegate);
-        return mDelegates.back();
+        return AddLegacy(std::move(delegate));
         
     }
 
@@ -417,8 +452,7 @@ namespace GEngine
     {
         Delegate<Ret(Args...)> delegate;
         delegate.template Bind<Type, PtrToMemFun>(instance);
-        mDelegates.push_back(delegate);
-        return mDelegates.back();
+        return AddLegacy(std::move(delegate));
     }
 
     template <typename Ret, typename... Args>
@@ -427,8 +461,7 @@ namespace GEngine
     {
         Delegate<Ret(Args...)> delegate;
         delegate.template Bind<Type, PtrToConstMemFun>(instance);
-        mDelegates.push_back(delegate);
-        return mDelegates.back();
+        return AddLegacy(std::move(delegate));
     }
 
     template <typename Ret, typename... Args>
@@ -437,8 +470,7 @@ namespace GEngine
     {
         Delegate<Ret(Args...)> delegate;
         delegate.template Bind<Type>(std::forward<Type>(funObj));
-        mDelegates.push_back(delegate);
-        return mDelegates.back();
+        return AddLegacy(std::move(delegate));
     }
 
 

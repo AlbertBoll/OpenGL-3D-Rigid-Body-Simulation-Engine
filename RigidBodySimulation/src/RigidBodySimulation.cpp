@@ -24,6 +24,7 @@
 #include "../tests/ShaderDescriptionChecks.h"
 #include "../tests/ShaderReloadChecks.h"
 #include "../tests/AsyncResourceChecks.h"
+#include "../tests/TypedSubscriptionChecks.h"
 
 #include <Physics/ShapeBox.h>
 #include <Physics/PhysicsWorld.h>
@@ -52,6 +53,22 @@ using namespace ::GEngine::Asset;
 
 namespace
 {
+    // Kept in this translation unit to avoid expanding the phase's public app
+    // header scope. Each application owns a distinct bag and releases it first.
+    struct RbsSubscriptions
+    {
+        RigidBodySimulationApp* owner{};
+        std::array<Subscription, 5> tokens;
+        bool checked{};
+        std::unique_ptr<RbsSubscriptions> next;
+    };
+    std::unique_ptr<RbsSubscriptions> rbsSubscriptions;
+    void ReleaseRbsSubscriptions(RigidBodySimulationApp* owner)
+    {
+        for (auto* link = &rbsSubscriptions; *link; link = &(*link)->next)
+            if ((*link)->owner == owner)
+            { auto removed = std::move(*link); *link = std::move(removed->next); return; }
+    }
     struct AsyncTextureGallery
     {
         MaterialHandle clone;
@@ -237,6 +254,9 @@ namespace
 
 RigidBodySimulationApp::~RigidBodySimulationApp()
 {
+    ReleaseRbsSubscriptions(this);
+    if (std::getenv("GENGINE_PRE_EDITOR_SUBSCRIPTIONS"))
+        Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_13_APP_RELEASED");
     materialGallery = {};
     shaderReloadGallery = {};
     asyncTextureGallery = {};
@@ -1190,46 +1210,32 @@ void main() {
         if (!checked) return std::unexpected(checked.error());
     }
 
-    auto AppPauseEvent = new Events<void()>("AppPause");
-    auto AppResumeEvent = new Events<void()>("AppResume");
-    auto debugshowEvent = new Events<void()>("DebugShow");
-
-    auto viewPortEvent = new Events<void()>("ViewportChange");
-
-    auto MouseScrollEvent = new Events<void(MouseScrollWheelParam)>("MouseScrollWheel");
-
-    AppPauseEvent->Subscribe(
-        [this]()
-        {
-            m_IsPause = true;
-        });
-    AppResumeEvent->Subscribe(
-        [this]()
-        {
-            m_IsPause = false;
-        });
-    debugshowEvent->Subscribe(
-        [this]()
-        {
-            m_IsShowDebugBoundingBox = !m_IsShowDebugBoundingBox;
-        });
-    viewPortEvent->Subscribe(
-        [this]()
-        {
-            m_EditorCamera_.OnViewportViewDirectionChange();
-        });
-
-    MouseScrollEvent->Subscribe(
-        [this](const MouseScrollWheelParam& mousescrollParam)
-        {
-            m_EditorCamera_.OnMouseScroll(mousescrollParam.Y);
-        });
-
-    GetEventManager()->GetEventDispatcher().RegisterEvent(MouseScrollEvent);
-    GetEventManager()->GetEventDispatcher().RegisterEvent(AppPauseEvent);
-    GetEventManager()->GetEventDispatcher().RegisterEvent(AppResumeEvent);
-    GetEventManager()->GetEventDispatcher().RegisterEvent(debugshowEvent);
-    GetEventManager()->GetEventDispatcher().RegisterEvent(viewPortEvent);
+    auto connections = std::unique_ptr<RbsSubscriptions>(new (std::nothrow) RbsSubscriptions);
+    if (!connections) return std::unexpected(PlatformError{PlatformErrorCode::Allocation,
+        "RBS subscriptions", "Could not allocate application connection ownership"});
+    connections->owner = this;
+    auto& events = *GetEventManager();
+    std::array connected{
+        events.Subscribe(Manager::Event::AppPause, [this]() { m_IsPause = true; }),
+        events.Subscribe(Manager::Event::AppResume, [this]() { m_IsPause = false; }),
+        events.Subscribe(Manager::Event::DebugShow, [this]() { m_IsShowDebugBoundingBox = !m_IsShowDebugBoundingBox; }),
+        events.Subscribe(Manager::Event::ViewportChange, [this]() { m_EditorCamera_.OnViewportViewDirectionChange(); }),
+        events.Subscribe(Manager::Event::MouseScrollWheel,
+            [this](const MouseScrollWheelParam& wheel) { m_EditorCamera_.OnMouseScroll(wheel.Y); })};
+    for (std::size_t i = 0; i < connected.size(); ++i)
+    {
+        if (!connected[i]) return std::unexpected(PlatformError{PlatformErrorCode::Initialization,
+            "RBS subscriptions", "Typed subscription rejected"});
+        connections->tokens[i] = std::move(*connected[i]);
+    }
+    ReleaseRbsSubscriptions(this);
+    connections->next = std::move(rbsSubscriptions);
+    rbsSubscriptions = std::move(connections);
+    if (std::getenv("GENGINE_PRE_EDITOR_SUBSCRIPTIONS"))
+    {
+        auto checked = PreEditorValidation::CheckSubscriptionScaleBridge(*m_SceneResources, *authoringMesh, floorMaterial);
+        if (!checked) return std::unexpected(checked.error());
+    }
 
     // Maintained async editing examples: two entities share the target material;
     // a third has independent authored values and texture assignments.
@@ -1259,6 +1265,32 @@ ApplicationInitializationResult RigidBodySimulationApp::Initialize(const WindowP
 
 void RigidBodySimulationApp::Update(Timestep ts)
 {
+    if (std::getenv("GENGINE_PRE_EDITOR_SUBSCRIPTIONS"))
+    {
+        for (auto* connections = rbsSubscriptions.get(); connections; connections = connections->next.get())
+            if (connections->owner == this && !connections->checked)
+            {
+                auto checked = PreEditorValidation::CheckTypedSubscriptionLifetime(GetEventManager()->Completions());
+                if (!checked) { ReportPlatformError(checked.error()); m_Running = false; return; }
+                auto& dispatcher = GetEventManager()->GetEventDispatcher();
+                const bool paused = m_IsPause, debug = m_IsShowDebugBoundingBox;
+                const auto distance = m_EditorCamera_.GetDistance();
+                auto camera = m_EditorCamera_;
+                bool valid = bool(dispatcher.Dispatch(Manager::Event::AppPause)) && m_IsPause;
+                valid = bool(dispatcher.Dispatch(Manager::Event::AppResume)) && !m_IsPause && valid;
+                valid = bool(dispatcher.Dispatch(Manager::Event::DebugShow)) && m_IsShowDebugBoundingBox != debug && valid;
+                valid = bool(dispatcher.Dispatch(Manager::Event::ViewportChange)) && valid;
+                valid = bool(dispatcher.Dispatch(Manager::Event::MouseScrollWheel, MouseScrollWheelParam{0, 0, 1})) &&
+                    m_EditorCamera_.GetDistance() != distance && valid;
+                m_IsPause = paused; m_IsShowDebugBoundingBox = debug; m_EditorCamera_ = camera;
+                if (!valid) { Log::GetCoreLogger()->error("PRE_EDITOR_PHASE_13_FAIL maintained actions"); m_Running = false; return; }
+                connections->checked = true;
+                Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_13_ACTIONS_PASS");
+            }
+        if (auto measured = PreEditorValidation::ObserveSubscriptionFrame(); !measured)
+        { ReportPlatformError(measured.error()); m_Running = false; return; }
+    }
+
     if (std::getenv("GENGINE_PRE_EDITOR_ASYNC_PERFORMANCE")) return;
     if (materialGallery.parent && std::getenv("GENGINE_PRE_EDITOR_MATERIAL_AUTHORING"))
     {
@@ -1650,6 +1682,9 @@ void RigidBodySimulationApp::Render()
         }
         if (submitted && asyncTextureGallery.checked && ++asyncTextureGallery.frames == 5)
             Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_12_FUNCTIONAL_COMPLETE");
+        if (submitted && std::getenv("GENGINE_PRE_EDITOR_SUBSCRIPTIONS"))
+            if (auto checked = PreEditorValidation::CheckSubscriptionPresentation(camera.viewportWidth, camera.viewportHeight); !checked)
+                return std::unexpected(ScheduleError{FrameStage::Pass, checked.error()});
         if (submitted && (std::getenv("GENGINE_PRE_EDITOR_SHADER_DESCRIPTIONS") || std::getenv("GENGINE_PRE_EDITOR_SHADER_RELOAD")) &&
             !PreEditorValidation::CheckShaderSteadyFrame(*m_SceneResources,
                 {static_cast<unsigned>(camera.viewportWidth), static_cast<unsigned>(camera.viewportHeight)}))

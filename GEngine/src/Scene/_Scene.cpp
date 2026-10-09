@@ -76,7 +76,7 @@ namespace GEngine
 		{
 			RigidBodyIdentity identity;
 			RigidBody3D* body{};
-            std::optional<Delegate<void(const Vec3f&)>> scaleConnection;
+            Subscription scaleConnection;
 			Vec3f translation{};
 			Quat rotation{ 1.0f, 0.0f, 0.0f, 0.0f };
 			Vec3f previousTranslation{}, currentTranslation{}, scale{1.0f};
@@ -89,9 +89,9 @@ namespace GEngine
             const RuntimePhysicsPose* sourceRuntime)
         {
             if (auto* body = destination.try_get<Component::RigidBody3DComponent>(entity)) body->RuntimeBody = nullptr;
-            if (sourceRuntime && sourceRuntime->scaleConnection)
-                if (auto* transform = destination.try_get<Component::Transform3DComponent>(entity))
-                    transform->OnScaleChanged.Disconnect(*sourceRuntime->scaleConnection);
+            // Signal copies omit scoped runtime subscriptions; the source token
+            // remains owned exclusively by the source RuntimePhysicsPose.
+            (void)sourceRuntime;
         }
 
 		bool ValidPhysicsPose(PhysicsWorld* world, const Component::RigidBody3DComponent& rigidBody, const RuntimePhysicsPose& pose)
@@ -1047,7 +1047,6 @@ namespace GEngine
         {
             entt::entity entity;
             std::unique_ptr<PhysicalShape> shape;
-            std::optional<Delegate<void(const Vec3f&)>> connection;
         };
         std::vector<PendingShape> pending;
         struct Rollback
@@ -1059,9 +1058,6 @@ namespace GEngine
             {
                 if (complete) return;
                 // Startup does not remove authoring entities; only these new slots are ours.
-                for (auto& owner : pending)
-                    if (owner.connection)
-                        scene.m_Registry.get<Transform3DComponent>(owner.entity).OnScaleChanged.Disconnect(*owner.connection);
                 scene.m_IsRunning = false;
                 scene.OnPhysics3DStop(); // Body borrowers retire before pending shape owners.
             }
@@ -1204,9 +1200,13 @@ namespace GEngine
 				pose.body = body;
 				PublishPhysicsPose(transform, pose, *body);
 				ResetPhysicsHistory(pose, transform, *body, entity.GetParentUUID());
-                pending.push_back(PendingShape{e, std::move(shape), {}});
-                pending.back().connection.emplace(Connection(transform, OnScaleChanged, *body->m_Shape, &PhysicalShape::HandleScaleChanged));
-                pose.scaleConnection = pending.back().connection;
+                pending.push_back(PendingShape{e, std::move(shape)});
+                auto connected = transform.OnScaleChanged.ConnectScoped(
+                    [shape = body->m_Shape](const Vec3f& scale) { shape->HandleScaleChanged(scale); });
+                if (!connected)
+                    return std::unexpected(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
+                        "_Scene::OnPhysics3DStart", "Scale subscription could not be established"});
+                pose.scaleConnection = std::move(*connected);
 			}
 		}
         for (auto& owner : pending) owner.shape.release(); // Existing successful caller handoff.
@@ -1216,9 +1216,7 @@ namespace GEngine
 
 	void _Scene::OnPhysics3DStop()
 	{
-        for (auto entity : m_Registry.view<RuntimePhysicsPose, Transform3DComponent>())
-            if (const auto& connection = m_Registry.get<RuntimePhysicsPose>(entity).scaleConnection; connection)
-                m_Registry.get<Transform3DComponent>(entity).OnScaleChanged.Disconnect(*connection);
+        // Clearing runtime poses releases scoped callbacks before body/shape teardown.
 		m_PhysicsTiming = {};
 		m_TimingWorld = nullptr;
 		m_Registry.clear<RuntimePhysicsPose>();

@@ -12,15 +12,18 @@
 namespace PreEditorValidation
 {
 #ifdef GENGINE_ASYNC_RESOURCE_VALIDATION
-    std::expected<void, ::GEngine::PlatformError> RunAsyncPerformance(::GEngine::EngineContext&);
+    std::expected<void, ::GEngine::PlatformError>
+    RunAsyncPerformance(::GEngine::EngineContext&, bool admissionOnly, bool observed);
     std::expected<void, ::GEngine::PlatformError> CheckAsyncQueue(::GEngine::EngineContext&);
 #else
-    inline std::expected<void, ::GEngine::PlatformError> RunAsyncPerformance(::GEngine::EngineContext&) {
+    inline std::expected<void, ::GEngine::PlatformError>
+    RunAsyncPerformance(::GEngine::EngineContext&, bool, bool)
+    {
         return std::unexpected(::GEngine::PlatformError{::GEngine::PlatformErrorCode::Initialization,
             "Phase 12 validation", "Use the declared validation build for this diagnostic mode"});
     }
     inline std::expected<void, ::GEngine::PlatformError> CheckAsyncQueue(::GEngine::EngineContext& root) {
-        return RunAsyncPerformance(root);
+        return RunAsyncPerformance(root, false, false);
     }
 #endif
 
@@ -317,9 +320,11 @@ namespace PreEditorValidation
             metric(s.texture.peakRequestBytes,texture);
             out<<s.memory.PrivateUsage<<','<<s.memory.WorkingSetSize<<','<<(kind[0]=='t'?22369620u:s.buffer)<<','<<(s.stalls?"FAIL":"PASS")<<'\n';out.flush();
         }
-        void Performance(EngineContext& root) {
+        void Performance(EngineContext& root, bool admissionOnly, bool observed)
+        {
             Environment(true,root);
-            if (std::getenv("GENGINE_PRE_EDITOR_ASYNC_ADMISSION_ONLY")) {
+            if (admissionOnly)
+            {
                 // Separate, untimed preflight process; batch warmup and samples stay unchanged.
                 RenderContext empty{*root.MainWindow(), *root.LegacyEngine().GetWindowManager()};
                 empty.visible = false;
@@ -336,7 +341,7 @@ namespace PreEditorValidation
                 return; // No hooks, CSVs, warmup or async requests in preflight.
             }
             Hooks hooks;
-            const bool observed=std::string_view(std::getenv("GENGINE_PRE_EDITOR_ASYNC_PERFORMANCE"))=="ON";
+            // Observation selection is captured once at launch.
             std::ofstream out("async.csv"),frames("async-frames.csv"),idle("idle-frames.csv");
             out<<"kind,sample,request_ns,ready_ns,max_scheduler_ns,frames,stalls,completed,payload_bytes,texture_calls,buffer_calls,image_bytes,buffer_bytes,peak_reserved_bytes,peak_queued_bytes,worker_wait_ns,worker_decode_total_ns,enqueue_wait_ns,queue_wait_ns,apply_total_ns,max_drain_ns,texture_read_ns,texture_decode_ns,texture_upload_ns,texture_publication_ns,texture_peak_bytes,process_private_bytes,working_set_bytes,requested_gpu_storage_bytes,result\n";
             frames<<"kind,sample,frame,state,scheduler_ns,drain_ns,completed,payload_bytes,time_budget_reached\n";idle<<"sample,scheduler_ns\n";
@@ -366,8 +371,14 @@ namespace PreEditorValidation
             Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_12_PERFORMANCE_COMPLETE samples=16 warmups=4 mesh_substages=unavailable_by_accepted_amendment");
         }
     }
-    std::expected<void, ::GEngine::PlatformError> RunAsyncPerformance(::GEngine::EngineContext& root) {
-        try { AsyncChecks::Performance(root);return {}; }
+    std::expected<void, ::GEngine::PlatformError>
+    RunAsyncPerformance(::GEngine::EngineContext& root, bool admissionOnly, bool observed)
+    {
+        try
+        {
+            AsyncChecks::Performance(root, admissionOnly, observed);
+            return {};
+        }
         catch(const std::exception& error){return std::unexpected(AsyncChecks::Failed(error.what()));}
     }
     std::expected<void, ::GEngine::PlatformError> CheckAsyncQueue(::GEngine::EngineContext& root) {

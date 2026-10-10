@@ -4,6 +4,8 @@
 #include "Scene/SceneError.h"
 #include "Scene/RenderState.h"
 #include "Physics/PhysicsShapeError.h"
+#include "Events/Event.h"
+#include "Math/Math.h"
 #include <Core/Timestep.h>
 #include <cstdint>
 #include <expected>
@@ -36,6 +38,51 @@ namespace GEngine
 		std::vector<WorldTransform> transforms;
 		std::size_t recomputed{};
 	};
+
+    enum class TransformMutationErrorCode
+    {
+        InvalidEntity,
+        ForeignEntity,
+        MissingTransform,
+        ExtractionActive,
+        MutationActive,
+        NonFiniteTransform,
+        InvalidRotation,
+        InvalidParent,
+        Cycle,
+        IdentityExhausted,
+        PhysicsPoseRejected
+    };
+    struct TransformMutationError
+    {
+        TransformMutationErrorCode code;
+        UUID entity{0};
+        UUID parent{0};
+    };
+    enum class AuthoritativeTransformChangeKind
+    {
+        Pose,
+        Scale,
+        Parent
+    };
+    // Value snapshot of committed authoring state, not a registry borrow or Physics result.
+    struct AuthoritativeTransformChange
+    {
+        EntityRenderId entity;
+        UUID parent{0};
+        AuthoritativeTransformChangeKind kind;
+        Vec3f translation{}, eulerRotation{}, scale{1.0f};
+        Quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+    };
+    struct AuthoritativeTransformMutation
+    {
+        // Success means authoritative Transform mutation only. The legacy void scale
+        // bridge cannot report collider acceptance or Physics synchronization. A collider
+        // may retain its prior shape; no Transform-plus-collider atomicity is promised.
+        bool changed = false;
+        // A delivery failure follows a committed change; it does not roll that change back.
+        SubscriptionResult notification{};
+    };
 
     enum class SceneAssignmentError
     {
@@ -79,7 +126,40 @@ namespace GEngine
 		[[nodiscard]] std::expected<void, SceneError> DestroyEntity(_Entity entity, bool excludeChildren = false, bool first = true);
 		[[nodiscard]] std::expected<void, SceneError> DestroyEntity(UUID entityID, bool excludeChildren = false, bool first = true);
 
-		// Scene owns the application physics clock; PhysicsSystem remains one tick.
+        // Owner-thread authoring before extraction. Rejections/no-ops do not notify.
+        // Finite signed/nonuniform/zero scales retain the independent legacy collider
+        // policy. Direct fields/Component setters remain compatibility paths, not these
+        // Scene-level successful-change operations. Pose changes are authoring teleports;
+        // ordinary Physics publication never passes through this API.
+        [[nodiscard]] std::expected<AuthoritativeTransformMutation, TransformMutationError>
+        SetLocalPose(const _Entity&, const Vec3f& translation, const Quat& rotation);
+        [[nodiscard]] std::expected<AuthoritativeTransformMutation, TransformMutationError>
+        SetLocalTranslation(const _Entity&, const Vec3f& translation);
+        [[nodiscard]] std::expected<AuthoritativeTransformMutation, TransformMutationError>
+        SetLocalRotation(const _Entity&, const Vec3f& eulerRotation);
+        [[nodiscard]] std::expected<AuthoritativeTransformMutation, TransformMutationError>
+        SetLocalScale(const _Entity&, const Vec3f& scale);
+        [[nodiscard]] std::expected<AuthoritativeTransformMutation, TransformMutationError>
+        SetLocalScale(const _Entity& entity, float scale)
+        {
+            return SetLocalScale(entity, Vec3f(scale));
+        }
+        // Keeps local TRS. Rigid bodies remain world-space anchors even with a parent link.
+        [[nodiscard]] std::expected<AuthoritativeTransformMutation, TransformMutationError>
+        SetParent(const _Entity& entity, const _Entity& parent);
+
+        // Scoped listeners borrow neither an entity nor this Scene through the payload.
+        // Phase 13 owner-thread/lifetime/registration/nested-delivery rules apply.
+        template <class F>
+            requires std::is_nothrow_move_constructible_v<std::decay_t<F>> &&
+                     std::invocable<F&, const AuthoritativeTransformChange&>
+        [[nodiscard]] std::expected<Subscription, SubscriptionError>
+        SubscribeToAuthoritativeTransformChanges(F listener)
+        {
+            return m_AuthoritativeTransformChanges.Subscribe(std::move(listener));
+        }
+
+        // Scene owns the application physics clock; PhysicsSystem remains one tick.
 		static constexpr Seconds PhysicsStep{1.0 / 60.0};
 		static constexpr double PhysicsStepSeconds = PhysicsStep.count(); // Legacy scheduler boundary.
 		static constexpr std::uint32_t MaxPhysicsStepsPerUpdate = 2;
@@ -228,7 +308,19 @@ namespace GEngine
 		}
 
 	private:
-		auto& GetGroupEntities() { m_RenderData.RequireMutable(); return m_GroupEntities; }
+        [[nodiscard]] std::expected<EntityRenderId, TransformMutationError>
+        ValidateTransformMutation(const _Entity&);
+        [[nodiscard]] std::expected<AuthoritativeTransformMutation, TransformMutationError>
+        ApplyLocalPose(const _Entity&, Vec3f, Quat, Vec3f eulerRotation);
+        AuthoritativeTransformMutation
+        PublishAuthoritativeTransformChange(const _Entity&, EntityRenderId,
+                                            AuthoritativeTransformChangeKind);
+        // Guards the pre-store compatibility callback, not post-commit notification dispatch.
+        bool m_ApplyingTransform = false;
+        TypedSubscriptions<void(const AuthoritativeTransformChange&)>
+            m_AuthoritativeTransformChanges;
+
+        auto& GetGroupEntities() { m_RenderData.RequireMutable(); return m_GroupEntities; }
 		auto& GetLightEntities() { m_RenderData.RequireMutable(); return m_LightEntities; }
 		const std::vector<_Entity>& GetLightEntitiesWithRenderID(unsigned int id) const;
 

@@ -496,6 +496,217 @@ namespace GEngine
         return EvaluateRenderPresentation(ObserveRenderPresentation(handle));
     }
 
+    std::expected<EntityRenderId, TransformMutationError>
+    _Scene::ValidateTransformMutation(const _Entity& entity)
+    {
+        using Error = TransformMutationErrorCode;
+        if (m_RenderData.IsExtracting())
+            return std::unexpected(TransformMutationError{Error::ExtractionActive});
+        if (m_ApplyingTransform)
+            return std::unexpected(TransformMutationError{Error::MutationActive});
+        if (!entity.GetSceneContext())
+            return std::unexpected(TransformMutationError{Error::InvalidEntity});
+        if (entity.GetSceneContext() != this)
+            return std::unexpected(TransformMutationError{Error::ForeignEntity});
+        if (!entity.HasAllComponents<IDComponent>())
+            return std::unexpected(TransformMutationError{Error::InvalidEntity});
+        const auto id = entity.GetUUID();
+        if (id == 0)
+            return std::unexpected(TransformMutationError{Error::InvalidEntity});
+        if (!entity.HasAllComponents<Transform3DComponent>())
+            return std::unexpected(TransformMutationError{Error::MissingTransform, id});
+        auto identity = m_RenderData.Identify(static_cast<entt::entity>(entity));
+        if (!identity)
+            return std::unexpected(TransformMutationError{Error::IdentityExhausted, id});
+        return *identity;
+    }
+
+    AuthoritativeTransformMutation
+    _Scene::PublishAuthoritativeTransformChange(const _Entity& entity, EntityRenderId identity,
+                                                AuthoritativeTransformChangeKind kind)
+    {
+        const auto& transform = entity.GetComponent<Transform3DComponent>();
+        const AuthoritativeTransformChange change{identity,
+                                                  entity.GetParentUUID(),
+                                                  kind,
+                                                  transform.Translation,
+                                                  transform.EulerRotation,
+                                                  transform.Scale,
+                                                  transform.QuatRotation};
+        // Only a value snapshot crosses dispatch: callbacks may perform another semantic
+        // mutation. Each notification describes its own commit, not a later nested commit.
+        return {true, m_AuthoritativeTransformChanges.Dispatch(change)};
+    }
+
+    std::expected<AuthoritativeTransformMutation, TransformMutationError>
+    _Scene::ApplyLocalPose(const _Entity& entity, Vec3f translation, Quat rotation,
+                           Vec3f eulerRotation)
+    {
+        using Error = TransformMutationErrorCode;
+        auto identity = ValidateTransformMutation(entity);
+        if (!identity)
+            return std::unexpected(identity.error());
+        const auto id = entity.GetUUID();
+        const auto lengthSquared = glm::dot(rotation, rotation);
+        if (!std::isfinite(lengthSquared) || lengthSquared <= 0.0f)
+            return std::unexpected(TransformMutationError{Error::InvalidRotation, id});
+        auto& transform = m_Registry.get<Transform3DComponent>(static_cast<entt::entity>(entity));
+        if (!Math::IsFinite(translation) || !Math::IsFinite(eulerRotation) ||
+            !Math::IsFinite(transform.Scale))
+            return std::unexpected(TransformMutationError{Error::NonFiniteTransform, id});
+        if (transform.Translation == translation && transform.QuatRotation == rotation &&
+            transform.EulerRotation == eulerRotation)
+            return AuthoritativeTransformMutation{};
+
+        const auto handle = static_cast<entt::entity>(entity);
+        auto* pose = m_Registry.try_get<RuntimePhysicsPose>(handle);
+        const auto* rigidBody = m_Registry.try_get<RigidBody3DComponent>(handle);
+        const bool live = pose && rigidBody &&
+                          ValidPhysicsPose(m_PhysicsSystem->GetPhysicsWorld(), *rigidBody, *pose);
+        if (rigidBody && rigidBody->RuntimeBody && !live)
+            return std::unexpected(TransformMutationError{Error::PhysicsPoseRejected, id});
+        const Vec3f previousPosition = live ? pose->body->m_Position : Vec3f{};
+        const Quat previousRotation = live ? pose->body->m_Orientation : Quat{1, 0, 0, 0};
+        if (live && !m_PhysicsSystem->SetBodyPose(pose->body, translation, rotation))
+            return std::unexpected(TransformMutationError{Error::PhysicsPoseRejected, id});
+        transform.SetTranslation(translation);
+        transform.SetRotation(live ? pose->body->m_Orientation : rotation);
+        transform.EulerRotation = eulerRotation;
+        if (live)
+        {
+            // Record the authoring teleport now so Update does not replay it as an edit.
+            pose->translation = transform.Translation;
+            pose->rotation = transform.QuatRotation;
+            if (previousPosition != pose->body->m_Position ||
+                previousRotation != pose->body->m_Orientation)
+                ResetPhysicsHistory(*pose, transform, *pose->body, entity.GetParentUUID());
+        }
+        return PublishAuthoritativeTransformChange(entity, *identity,
+                                                   AuthoritativeTransformChangeKind::Pose);
+    }
+
+    std::expected<AuthoritativeTransformMutation, TransformMutationError>
+    _Scene::SetLocalPose(const _Entity& entity, const Vec3f& translation, const Quat& rotation)
+    {
+        return ApplyLocalPose(entity, translation, rotation, glm::eulerAngles(rotation));
+    }
+
+    std::expected<AuthoritativeTransformMutation, TransformMutationError>
+    _Scene::SetLocalTranslation(const _Entity& entity, const Vec3f& translation)
+    {
+        if (auto valid = ValidateTransformMutation(entity); !valid)
+            return std::unexpected(valid.error());
+        const auto& transform = entity.GetComponent<Transform3DComponent>();
+        return ApplyLocalPose(entity, translation, transform.QuatRotation, transform.EulerRotation);
+    }
+
+    std::expected<AuthoritativeTransformMutation, TransformMutationError>
+    _Scene::SetLocalRotation(const _Entity& entity, const Vec3f& eulerRotation)
+    {
+        if (auto valid = ValidateTransformMutation(entity); !valid)
+            return std::unexpected(valid.error());
+        return ApplyLocalPose(entity, entity.GetComponent<Transform3DComponent>().Translation,
+                              Quat(eulerRotation), eulerRotation);
+    }
+
+    std::expected<AuthoritativeTransformMutation, TransformMutationError>
+    _Scene::SetLocalScale(const _Entity& entity, const Vec3f& scale)
+    {
+        using Error = TransformMutationErrorCode;
+        auto identity = ValidateTransformMutation(entity);
+        if (!identity)
+            return std::unexpected(identity.error());
+        auto& transform = m_Registry.get<Transform3DComponent>(static_cast<entt::entity>(entity));
+        const auto lengthSquared = glm::dot(transform.QuatRotation, transform.QuatRotation);
+        if (!std::isfinite(lengthSquared) || lengthSquared <= 0.0f)
+            return std::unexpected(
+                TransformMutationError{Error::InvalidRotation, entity.GetUUID()});
+        if (!Math::IsFinite(scale) || !Math::IsFinite(transform.Translation))
+            return std::unexpected(
+                TransformMutationError{Error::NonFiniteTransform, entity.GetUUID()});
+        if (transform.Scale == scale)
+            return AuthoritativeTransformMutation{};
+        // The legacy callback runs before storage and may independently reject a collider
+        // update. Its void result is deliberately not interpreted as Physics success.
+        {
+            struct ApplyingTransform
+            {
+                bool& active;
+                explicit ApplyingTransform(bool& value) : active(value)
+                {
+                    active = true;
+                }
+                ~ApplyingTransform()
+                {
+                    active = false;
+                }
+            } applying(m_ApplyingTransform);
+            transform.SetScale(scale);
+        }
+        (void)ResetRenderInterpolation(entity); // Validated member; changed authoring scale only.
+        return PublishAuthoritativeTransformChange(entity, *identity,
+                                                   AuthoritativeTransformChangeKind::Scale);
+    }
+
+    std::expected<AuthoritativeTransformMutation, TransformMutationError>
+    _Scene::SetParent(const _Entity& entity, const _Entity& parent)
+    {
+        using Error = TransformMutationErrorCode;
+        auto identity = ValidateTransformMutation(entity);
+        if (!identity)
+            return std::unexpected(identity.error());
+        const auto id = entity.GetUUID();
+        const bool detach = static_cast<entt::entity>(parent) == entt::null;
+        if (!detach && parent.GetSceneContext() != this)
+            return std::unexpected(TransformMutationError{Error::ForeignEntity, id});
+        if (!detach && !parent.HasAllComponents<IDComponent, Transform3DComponent>())
+            return std::unexpected(TransformMutationError{Error::InvalidParent, id});
+        std::unordered_set<UUID> visited;
+        for (auto ancestor = detach ? _Entity{} : parent; ancestor;)
+        {
+            if (ancestor == entity || !visited.insert(ancestor.GetUUID()).second)
+                return std::unexpected(TransformMutationError{Error::Cycle, id, parent.GetUUID()});
+            const auto next = ancestor.GetParentUUID();
+            ancestor = ancestor.GetParent();
+            if (next != 0 && !ancestor)
+                return std::unexpected(TransformMutationError{Error::InvalidParent, id, next});
+        }
+        const UUID parentId = detach ? UUID(0) : parent.GetUUID();
+        EntityRenderId parentIdentity{};
+        if (!detach)
+        {
+            auto identified = m_RenderData.Identify(static_cast<entt::entity>(parent));
+            if (!identified)
+                return std::unexpected(
+                    TransformMutationError{Error::IdentityExhausted, id, parentId});
+            parentIdentity = *identified;
+        }
+        if (entity.GetParentUUID() == parentId && (detach || entity.GetParent() == parent))
+            return AuthoritativeTransformMutation{};
+        const auto handle = static_cast<entt::entity>(entity);
+        const auto currentParent = entity.GetParent();
+        (void)m_Registry.get_or_emplace<RelationshipComponent>(handle);
+        if (!detach)
+        {
+            auto& children =
+                m_Registry.get_or_emplace<RelationshipComponent>(static_cast<entt::entity>(parent))
+                    .Children;
+            if (std::find(children.begin(), children.end(), id) == children.end())
+                children.push_back(id);
+        }
+        if (currentParent)
+            if (auto* link = m_Registry.try_get<RelationshipComponent>(
+                    static_cast<entt::entity>(currentParent)))
+                std::erase(link->Children, id);
+        // Relationship insertion may relocate its storage; reacquire before publication.
+        auto& relationship = m_Registry.get<RelationshipComponent>(handle);
+        relationship.ParentHandle = parentId;
+        relationship.ParentIdentity = parentIdentity;
+        (void)ResetRenderInterpolation(entity);
+        return PublishAuthoritativeTransformChange(entity, *identity,
+                                                   AuthoritativeTransformChangeKind::Parent);
+    }
+
 	std::expected<void, TransformError> _Scene::ResetRenderInterpolation(const _Entity& entity)
 	{
 		m_RenderData.RequireMutable();

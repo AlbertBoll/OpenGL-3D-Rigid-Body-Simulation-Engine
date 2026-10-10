@@ -1,5 +1,6 @@
 #include "gepch.h"
 #include "Core/RuntimeAssets.h"
+#include "Core/LaunchConfig.h"
 
 namespace GEngine::RuntimeAssets
 {
@@ -50,54 +51,85 @@ namespace GEngine::RuntimeAssets
         return Resolve(application, root, relative);
     }
 
+    namespace
+    {
+        PlatformResult InitializePackage(const std::string& executableName, const char* configured);
+    }
+
     PlatformResult Initialize(const std::string& executableName)
     {
-        std::filesystem::path candidate;
-        const auto fail = [&](const std::string& resource, const std::string& reason) {
-            return std::unexpected(Failure(executableName, candidate, resource, reason));
-        };
-        if (executableName != "GEngineEditor" && executableName != "RigidBodySimulation" &&
-            executableName != "Breakout" && executableName != "RayTracing")
-            return fail(executableName, "unknown graphical application startup profile");
+        return InitializePackage(executableName, SDL_getenv("GENGINE_ASSET_ROOT"));
+    }
 
-        if (const char* configured = SDL_getenv("GENGINE_ASSET_ROOT"))
+    PlatformResult Initialize(const std::string& executableName,
+                              const EngineLaunchConfig& launchConfig)
+    {
+        return InitializePackage(executableName, launchConfig.assetRootUtf8
+                                                     ? launchConfig.assetRootUtf8->c_str()
+                                                     : nullptr);
+    }
+
+    namespace
+    {
+        PlatformResult InitializePackage(const std::string& executableName, const char* configured)
         {
-            candidate = std::filesystem::path(std::u8string_view(reinterpret_cast<const char8_t*>(configured)));
-            if (candidate.empty() || !candidate.is_absolute())
-                return fail(configured, "GENGINE_ASSET_ROOT must be a nonempty absolute path");
+            std::filesystem::path candidate;
+            const auto fail = [&](const std::string& resource, const std::string& reason)
+            {
+                return std::unexpected(Failure(executableName, candidate, resource, reason));
+            };
+            if (executableName != "GEngineEditor" && executableName != "RigidBodySimulation" &&
+                executableName != "Breakout" && executableName != "RayTracing")
+                return fail(executableName, "unknown graphical application startup profile");
+
+            if (configured)
+            {
+                candidate = std::filesystem::path(
+                    std::u8string_view(reinterpret_cast<const char8_t*>(configured)));
+                if (candidate.empty() || !candidate.is_absolute())
+                    return fail(configured, "GENGINE_ASSET_ROOT must be a nonempty absolute path");
+            }
+            else
+            {
+                std::unique_ptr<char, decltype(&SDL_free)> base(SDL_GetBasePath(), SDL_free);
+                if (!base)
+                    return fail("executable directory", SDL_GetError());
+                const auto executableDirectory = std::filesystem::path(
+                    std::u8string_view(reinterpret_cast<const char8_t*>(base.get())));
+                // SDL includes a trailing separator; normalize that before taking the parent.
+                candidate = executableDirectory.parent_path().parent_path() / "assets";
+            }
+            candidate = candidate.lexically_normal();
+            const auto manifest =
+                Resolve(executableName, candidate, "startup/" + executableName + ".txt");
+            if (!manifest)
+                return std::unexpected(manifest.error());
+            std::ifstream input(std::filesystem::path(*manifest), std::ios::binary);
+            if (!input)
+                return fail(*manifest, "missing or unreadable startup dependency list");
+            std::string line;
+            if (!std::getline(input, line) || line != "GENGINE_STARTUP_ASSETS_V1 " + executableName)
+                return fail(*manifest, "invalid startup dependency list header");
+            unsigned int count = 0;
+            while (std::getline(input, line))
+            {
+                if (line.empty())
+                    return fail(*manifest, "empty startup dependency");
+                const auto path = Resolve(executableName, candidate, line);
+                if (!path)
+                    return std::unexpected(path.error());
+                std::ifstream asset(std::filesystem::path(*path), std::ios::binary);
+                if (!asset || asset.peek() == std::ifstream::traits_type::eof())
+                    return fail(*path, "missing, empty or unreadable required startup asset");
+                ++count;
+            }
+            if (input.bad() || count == 0)
+                return fail(*manifest, "unreadable or empty startup dependency list");
+            root = std::move(candidate);
+            application = executableName;
+            std::cout << "Runtime assets [" << application << "]: " << root.string() << " ("
+                      << count << " startup dependencies)\n";
+            return {};
         }
-        else
-        {
-            std::unique_ptr<char, decltype(&SDL_free)> base(SDL_GetBasePath(), SDL_free);
-            if (!base) return fail("executable directory", SDL_GetError());
-            const auto executableDirectory = std::filesystem::path(std::u8string_view(reinterpret_cast<const char8_t*>(base.get())));
-            // SDL includes a trailing separator; normalize that before taking the parent.
-            candidate = executableDirectory.parent_path().parent_path() / "assets";
-        }
-        candidate = candidate.lexically_normal();
-        const auto manifest = Resolve(executableName, candidate, "startup/" + executableName + ".txt");
-        if (!manifest) return std::unexpected(manifest.error());
-        std::ifstream input(std::filesystem::path(*manifest), std::ios::binary);
-        if (!input) return fail(*manifest, "missing or unreadable startup dependency list");
-        std::string line;
-        if (!std::getline(input, line) || line != "GENGINE_STARTUP_ASSETS_V1 " + executableName)
-            return fail(*manifest, "invalid startup dependency list header");
-        unsigned int count = 0;
-        while (std::getline(input, line))
-        {
-            if (line.empty()) return fail(*manifest, "empty startup dependency");
-            const auto path = Resolve(executableName, candidate, line);
-            if (!path) return std::unexpected(path.error());
-            std::ifstream asset(std::filesystem::path(*path), std::ios::binary);
-            if (!asset || asset.peek() == std::ifstream::traits_type::eof())
-                return fail(*path, "missing, empty or unreadable required startup asset");
-            ++count;
-        }
-        if (input.bad() || count == 0) return fail(*manifest, "unreadable or empty startup dependency list");
-        root = std::move(candidate);
-        application = executableName;
-        std::cout << "Runtime assets [" << application << "]: " << root.string()
-                  << " (" << count << " startup dependencies)\n";
-        return {};
     }
 }

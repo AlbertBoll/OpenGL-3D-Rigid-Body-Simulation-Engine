@@ -52,8 +52,9 @@ namespace GEngine
         std::optional<ApplicationRuntimeError> m_RuntimeFailure;
 	public:
 		BaseApp();
+        explicit BaseApp(const EngineLaunchConfig& launchConfig);
 
-		NONCOPYMOVABLE(BaseApp);
+        NONCOPYMOVABLE(BaseApp);
 
 		virtual ~BaseApp();
 

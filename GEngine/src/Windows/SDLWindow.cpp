@@ -7,6 +7,7 @@
 #include <imgui/imgui.h>
 //#include <Core/Renderer.h>
 #include "Core/BaseApp.h"
+#include "Core/LaunchConfig.h"
 #include <new>
 #include <limits>
 #include <format>
@@ -101,8 +102,13 @@ namespace GEngine
 		if (!success)
 			return std::unexpected(PlatformError{PlatformErrorCode::FunctionLoading, "graphics functions", "Graphics functions could not be loaded"});
 		GLDebug::Initialize();
-        const char* timingOutput=SDL_getenv("GENGINE_PASS_TIMING_OUTPUT");
-        const bool timingEnabled=timingOutput || SDL_getenv("GENGINE_PASS_TIMING");
+        const auto* root = EngineContext::TryGet();
+        const auto* launch = root ? root->LaunchConfiguration() : nullptr;
+        const char* timingOutput =
+            launch ? (launch->passTimingOutput ? launch->passTimingOutput->c_str() : nullptr)
+                   : SDL_getenv("GENGINE_PASS_TIMING_OUTPUT");
+        const bool timingEnabled =
+            launch ? launch->passTiming : timingOutput || SDL_getenv("GENGINE_PASS_TIMING");
         const auto timingPath=timingOutput?std::format("{}/passes-{}.csv",timingOutput,SDL_GetWindowID(m_Window)):std::string{};
         if(auto timing=m_PassTiming.Initialize(timingEnabled,timingOutput?timingPath.c_str():nullptr);!timing)
             return std::unexpected(PlatformError{PlatformErrorCode::Initialization,"pass timing",std::format("timing code={}",int(timing.error()))});

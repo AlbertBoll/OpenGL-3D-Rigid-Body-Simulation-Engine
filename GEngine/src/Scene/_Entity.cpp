@@ -40,55 +40,44 @@ namespace GEngine
         return m_Scene->DuplicateEntity(*this);
     }
 
-	std::expected<void, TransformError> _Entity::SetParent(_Entity parent)
-	{
-		if (!HasAllComponents<IDComponent>())
-			return std::unexpected(TransformError{TransformErrorCode::InvalidEntity});
-		const auto id = GetUUID();
-		const bool detach = parent.m_EntityHandle == entt::null;
-		if (!detach && parent.m_Scene != m_Scene)
-			return std::unexpected(TransformError{TransformErrorCode::ForeignEntity, id});
-		if (!detach && !parent.HasAllComponents<IDComponent>())
-			return std::unexpected(TransformError{TransformErrorCode::InvalidParent, id});
-
-		// Validate the complete parent chain before changing either side of the link.
-		std::unordered_set<UUID> visited;
-		for (auto ancestor = detach ? _Entity{} : parent; ancestor;)
-		{
-			if (ancestor == *this || !visited.insert(ancestor.GetUUID()).second)
-				return std::unexpected(TransformError{TransformErrorCode::Cycle, id, parent.GetUUID()});
-			const auto next = ancestor.GetParentUUID();
-			ancestor = ancestor.GetParent();
-			if (next != 0 && !ancestor)
-				return std::unexpected(TransformError{TransformErrorCode::InvalidParent, id, next});
-		}
-
-		const UUID parentId = detach ? UUID(0) : parent.GetUUID();
-		EntityRenderId parentIdentity{};
-		if (!detach)
-		{
-			auto identity = m_Scene->RenderData().Identify(parent.m_EntityHandle);
-			if (!identity) return std::unexpected(TransformError{TransformErrorCode::IdentityExhausted, id, parentId});
-			parentIdentity = *identity;
-		}
-		if (GetParentUUID() == parentId && (detach || GetParent() == parent)) return {};
-		auto currentParent = GetParent();
-		(void)m_Scene->Reg().get_or_emplace<RelationshipComponent>(m_EntityHandle);
-		if (!detach)
-		{
-			auto& children = m_Scene->Reg().get_or_emplace<RelationshipComponent>(parent.m_EntityHandle).Children;
-			if (std::find(children.begin(), children.end(), id) == children.end())
-				children.push_back(id);
-		}
-		if (currentParent)
-			if (auto* link = m_Scene->Reg().try_get<RelationshipComponent>(currentParent.m_EntityHandle))
-				std::erase(link->Children, id);
-		// Component insertion can relocate storage: reacquire after parent.Children().
-		auto& relationship = GetComponent<RelationshipComponent>();
-		relationship.ParentHandle = parentId;
-		relationship.ParentIdentity = parentIdentity;
-		return m_Scene->ResetRenderInterpolation(*this);
-	}
+    std::expected<void, TransformError> _Entity::SetParent(_Entity parent)
+    {
+        if (!m_Scene)
+            return std::unexpected(TransformError{TransformErrorCode::InvalidEntity});
+        auto changed = m_Scene->SetParent(*this, parent);
+        if (!changed)
+        {
+            // Preserve the legacy hierarchy error vocabulary; the Scene API additionally
+            // reports extraction/reentrant mutation rejection explicitly.
+            auto code = TransformErrorCode::InvalidEntity;
+            switch (changed.error().code)
+            {
+            case TransformMutationErrorCode::ForeignEntity:
+                code = TransformErrorCode::ForeignEntity;
+                break;
+            case TransformMutationErrorCode::MissingTransform:
+                code = TransformErrorCode::MissingTransform;
+                break;
+            case TransformMutationErrorCode::InvalidParent:
+                code = TransformErrorCode::InvalidParent;
+                break;
+            case TransformMutationErrorCode::Cycle:
+                code = TransformErrorCode::Cycle;
+                break;
+            case TransformMutationErrorCode::IdentityExhausted:
+                code = TransformErrorCode::IdentityExhausted;
+                break;
+            default:
+                break;
+            }
+            return std::unexpected(
+                TransformError{code, changed.error().entity, changed.error().parent});
+        }
+        // This compatibility signature cannot carry post-commit delivery diagnostics.
+        if (!changed->notification)
+            ReportSubscriptionError(changed->notification.error());
+        return {};
+    }
 
 	std::expected<void, TransformError> _Entity::SetParentUUID(UUID parent)
 	{

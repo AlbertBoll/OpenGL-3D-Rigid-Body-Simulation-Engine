@@ -148,7 +148,10 @@ namespace GEngine
 			Vec3f EulerRotation{ 0.0f, 0.0f, 0.0f };
 			Vec3f Scale{ 1.0f, 1.0f, 1.0f };
 			Quat QuatRotation{ 1.0f, 0.0f, 0.0f, 0.0f };
-			Signal<void(const Vec3f&)> OnScaleChanged;
+            // Compatibility/internal pre-store hook, including the scoped Physics bridge.
+            // This void hook reports neither collider acceptance nor authoritative
+            // Transform success. Scene publishes a separate post-commit notification.
+            Signal<void(const Vec3f&)> OnScaleChanged;
 			
 			/*Property<Vec3f> Translation_{ {0.0f, 0.0f, 0.0f } };
 			Property<Vec3f> EulerRotation_{ {0.0f, 0.0f, 0.0f } };

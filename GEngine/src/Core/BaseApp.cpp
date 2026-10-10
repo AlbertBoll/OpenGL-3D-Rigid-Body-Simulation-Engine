@@ -1,6 +1,7 @@
 #include "gepch.h"
 #include "Renderer/FrameScheduler.h"
 #include "Core/BaseApp.h"
+#include "Core/LaunchConfig.h"
 #include "Core/GLDebug.h"
 #include "Core/GLContextThread.h"
 #include "Core/RenderBaseline.h"
@@ -83,6 +84,8 @@ namespace GEngine
     {
       
     }
+
+    BaseApp::BaseApp(const EngineLaunchConfig& launchConfig) : m_EngineContext(&launchConfig) {}
 
     BaseApp::~BaseApp()
     {
@@ -195,7 +198,8 @@ namespace GEngine
 
         if (!m_Initialize)
         {
-            auto shadowQuality=ShadowQualityFromEnvironment();
+            const auto* launch = m_EngineContext.LaunchConfiguration();
+            auto shadowQuality = launch ? launch->shadowQuality : ShadowQualityFromEnvironment();
             if(!shadowQuality) return std::unexpected(shadowQuality.error());
             if (auto initialized = m_EngineContext.Initialize(WindowsPropertyList); !initialized)
                 return std::visit([](const auto& error) -> ApplicationInitializationResult
@@ -486,8 +490,10 @@ namespace GEngine
         auto baseline = std::move(*pendingBaseline);
 #endif
 #if GENGINE_RENDER_COUNTERS
-        const char* counterLog = SDL_getenv("GENGINE_RENDER_COUNTERS_LOG");
-        const bool reportCounters = counterLog && std::string_view(counterLog) == "1";
+        const auto* launch = m_EngineContext.LaunchConfiguration();
+        const char* counterLog = launch ? nullptr : SDL_getenv("GENGINE_RENDER_COUNTERS_LOG");
+        const bool reportCounters = launch ? launch->reportRenderCounters
+                                           : counterLog && std::string_view(counterLog) == "1";
 #endif
         auto input = GetInputManager();
 

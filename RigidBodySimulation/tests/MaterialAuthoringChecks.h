@@ -27,7 +27,8 @@ namespace PreEditorValidation
         bool Empty() const { return !(compiles || links || textureNames || textureStorage || textureUploads); }
     };
     bool MaterialProjectionGpuChecks();
-    bool MaterialCoverageGpuChecks(::GEngine::SceneRenderResources&, ::GEngine::Asset::MeshHandle);
+    bool MaterialCoverageGpuChecks(::GEngine::SceneRenderResources&, ::GEngine::Asset::MeshHandle,
+                                   const char*);
     bool MaterialPackedHeaderChecks(const ::GEngine::RenderFrame&);
 
 #ifdef GENGINE_MATERIAL_AUTHORING_BACKEND
@@ -200,7 +201,8 @@ void main() { result=scalarProbe ? geSampleSurface(fixture,vec2(.17,.31),vec3(.1
         return true;
     }
 
-    bool MaterialCoverageGpuChecks(::GEngine::SceneRenderResources& owner, ::GEngine::Asset::MeshHandle plane)
+    bool MaterialCoverageGpuChecks(::GEngine::SceneRenderResources& owner,
+                                   ::GEngine::Asset::MeshHandle plane, const char* fixture)
     {
         using namespace ::GEngine;
         using namespace ::GEngine::Component;
@@ -234,7 +236,7 @@ void main() { result=scalarProbe ? geSampleSurface(fixture,vec2(.17,.31),vec3(.1
         auto pointTarget=PointShadowFrameBuffer::Create(size,size);
         auto submitter=FrameSubmission::Create();
         if(!target || !pick || !cascade || !pointTarget || !submitter) return false;
-        const auto* fixture=std::getenv("GENGINE_PRE_EDITOR_MATERIAL_ALPHA_FIXTURE");
+        // The caller supplies the captured optional fixture; missing/empty stay distinct.
         if(!fixture) return false;
         auto image=Manager::AssetsManager::LoadTexture(fixture); if(!image) return false;
         Asset::SamplerDesc nearest; nearest.minFilter=nearest.magFilter=Asset::SamplerFilter::Nearest;
@@ -413,10 +415,10 @@ void main() { result=scalarProbe ? geSampleSurface(fixture,vec2(.17,.31),vec3(.1
         return true;
     }
 #else
-    inline std::expected<void, ::GEngine::PlatformError>
-    CheckMaterialAuthoring(::GEngine::SceneRenderResources& owner, ::GEngine::_Scene& active,
-                           ::GEngine::Asset::MeshHandle mesh, ::GEngine::MaterialHandle regularFloor,
-                           ::GEngine::Asset::MeshHandle plane)
+    inline std::expected<void, ::GEngine::PlatformError> CheckMaterialAuthoring(
+        ::GEngine::SceneRenderResources& owner, ::GEngine::_Scene& active,
+        ::GEngine::Asset::MeshHandle mesh, ::GEngine::MaterialHandle regularFloor,
+        ::GEngine::Asset::MeshHandle plane, const char* alphaFixture, bool floorComparison)
     {
         using namespace ::GEngine;
         using namespace ::GEngine::Component;
@@ -582,8 +584,9 @@ void main() { result=scalarProbe ? geSampleSurface(fixture,vec2(.17,.31),vec3(.1
             owner.GeometryWork().sourcePayloadBytes==geometryWork.sourcePayloadBytes,"mapping leaves geometry identity payload UV and cache unchanged");
         MAT09_REQUIRE(active.GetAllEntitiesWith<RigidBody3DComponent>().size()==physicsCount,"Physics membership unchanged");
         MAT09_REQUIRE(MaterialProjectionGpuChecks(),"flat and directional GPU normal projection");
-        MAT09_REQUIRE(MaterialCoverageGpuChecks(owner,plane),"mapped alpha through color picking and shadow passes");
-        const bool floorComparison=std::getenv("GENGINE_PRE_EDITOR_MATERIAL_FLOOR_COMPARISON")!=nullptr;
+        MAT09_REQUIRE(MaterialCoverageGpuChecks(owner, plane, alphaFixture),
+                      "mapped alpha through color picking and shadow passes");
+        // Preserve the captured presence-based comparison selection.
         if(floorComparison) {
             // Opt-in validation fixture only. Ordinary startup retains all owner
             // assignments. The separate retained-presentation run never enters here.

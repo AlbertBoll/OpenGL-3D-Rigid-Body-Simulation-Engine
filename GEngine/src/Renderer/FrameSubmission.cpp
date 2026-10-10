@@ -3,6 +3,8 @@
 #include "Renderer/PassTiming.h"
 #include "Core/RenderTarget.h"
 #include "Core/RuntimeAssets.h"
+#include "Core/GEngine.h"
+#include "Core/LaunchConfig.h"
 #include "Core/GLContextThread.h"
 #include "Core/RenderCounters.h"
 #include "../Assets/ShaderBackend.h"
@@ -47,6 +49,9 @@ namespace GEngine
         // no attachment, clear, shader, matrix or coverage substitution.
         bool PointDiagnosticEnabled()
         {
+            const auto* root = EngineContext::TryGet();
+            if (const auto* launch = root ? root->LaunchConfiguration() : nullptr)
+                return launch->pointShadowDiagnostic;
             const auto* value=std::getenv("GENGINE_PRE_EDITOR_POINT_SHADOW_DIAGNOSTIC");
             return value && std::string_view(value)=="1";
         }
@@ -55,8 +60,14 @@ namespace GEngine
         RENDERDOC_API_1_6_0* pointGpuCapture{};
         void PointGpuCaptureBegin()
         {
-            const auto* enabled=std::getenv("GENGINE_PRE_EDITOR_POINT_GPU_CAPTURE");
-            if(!enabled || std::string_view(enabled)!="1" || pointDiagnosticActive!=1) return;
+            const auto* root = EngineContext::TryGet();
+            const auto* launch = root ? root->LaunchConfiguration() : nullptr;
+            const auto* enabled =
+                launch ? nullptr : std::getenv("GENGINE_PRE_EDITOR_POINT_GPU_CAPTURE");
+            const bool requested =
+                launch ? launch->pointGpuCapture : enabled && std::string_view(enabled) == "1";
+            if (!requested || pointDiagnosticActive != 1)
+                return;
             const auto module=GetModuleHandleA("renderdoc.dll");
             const auto get=module?reinterpret_cast<pRENDERDOC_GetAPI>(GetProcAddress(module,"RENDERDOC_GetAPI")):nullptr;
             if(get && get(eRENDERDOC_API_Version_1_6_0,reinterpret_cast<void**>(&pointGpuCapture))) {

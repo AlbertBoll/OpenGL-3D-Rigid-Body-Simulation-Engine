@@ -71,10 +71,17 @@ namespace GEngine
     using EngineInitializationError = std::variant<PlatformError, ShapeRegistrationError>;
     using EngineInitializationResult = std::expected<void, EngineInitializationError>;
 
+    struct EngineLaunchConfig;
+
     class EngineContext final
     {
     public:
-        EngineContext();
+        // A supplied immutable launch snapshot must outlive this application root.
+        explicit EngineContext(const EngineLaunchConfig* launchConfig = nullptr);
+        const EngineLaunchConfig* LaunchConfiguration() const noexcept
+        {
+            return m_LaunchConfig;
+        }
         ~EngineContext();
         NONCOPYMOVABLE(EngineContext);
 
@@ -107,6 +114,7 @@ namespace GEngine
         void Release() noexcept;
         inline static EngineContext* s_Current = nullptr; // Non-owning compatibility lookup.
         const std::thread::id m_OwnerThread;
+        const EngineLaunchConfig* const m_LaunchConfig; // Borrowed startup snapshot; never mutated.
         Asset::AssetPublication m_AssetPublication;
         GEngine m_LegacyEngine;
         ScopedPtr<Manager::AssetsManager> m_Assets;

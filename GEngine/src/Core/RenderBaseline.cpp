@@ -1,5 +1,7 @@
 #include "gepch.h"
 #include "Core/RenderBaseline.h"
+#include "Core/GEngine.h"
+#include "Core/LaunchConfig.h"
 #ifdef GENGINE_RENDER_BASELINE
 #include "Core/GLContextThread.h"
 #include "Core/RenderCounters.h"
@@ -17,10 +19,32 @@ namespace GEngine::RenderBaseline
 {
     using Clock = std::chrono::steady_clock;
     namespace { Clock::time_point startup; }
-    bool Requested() { return SDL_getenv("GENGINE_BASELINE_OUTPUT") != nullptr; }
+    namespace
+    {
+        const EngineLaunchConfig* ActiveLaunch()
+        {
+            const auto* root = EngineContext::TryGet();
+            return root ? root->LaunchConfiguration() : nullptr;
+        }
+    }
+    bool Requested()
+    {
+        if (const auto* launch = ActiveLaunch())
+            return launch->baselineOutput.has_value();
+        return SDL_getenv("GENGINE_BASELINE_OUTPUT") != nullptr;
+    }
     void Configure(WindowProperties& properties)
     {
         if (!Requested()) return;
+        startup = Clock::now();
+        properties.m_Width = 1280;
+        properties.m_Height = 720;
+        properties.m_IsVsync = false;
+    }
+    void Configure(WindowProperties& properties, const EngineLaunchConfig& launch)
+    {
+        if (!launch.baselineOutput)
+            return;
         startup = Clock::now();
         properties.m_Width = 1280;
         properties.m_Height = 720;
@@ -53,7 +77,9 @@ namespace GEngine::RenderBaseline
         {
             if (!RenderCounters::Enabled || !IsPhysicsProfilingEnabled())
                 return std::unexpected(Failure(ErrorCode::Capability, "baseline startup", {}, "Baseline requires consistently enabled render/Physics counters"));
-            output = std::filesystem::path(SDL_getenv("GENGINE_BASELINE_OUTPUT"));
+            const auto* launch = ActiveLaunch();
+            output = std::filesystem::path(launch ? launch->baselineOutput->c_str()
+                                                  : SDL_getenv("GENGINE_BASELINE_OUTPUT"));
             std::error_code system;
             const bool directory = std::filesystem::is_directory(output, system);
             if (!output.is_absolute() || !directory || system) {
@@ -152,7 +178,13 @@ namespace GEngine::RenderBaseline
         Result CaptureScene(const RenderTarget* target)
         {
             if (failure) return std::unexpected(*failure);
-            if (frame != Warmup + Samples || !SDL_getenv("GENGINE_BASELINE_SCENE_TARGET")) return {};
+            if (frame != Warmup + Samples)
+                return {};
+            const auto* launch = ActiveLaunch();
+            const bool requested = launch ? launch->baselineSceneTarget
+                                          : SDL_getenv("GENGINE_BASELINE_SCENE_TARGET") != nullptr;
+            if (!requested)
+                return {};
             if (auto current = RequireContext("baseline scene capture"); !current) return current;
             if (!target || target->GetWidth() != width || target->GetHeight() != height)
                 return std::unexpected(Failure(ErrorCode::SceneTarget, "baseline scene capture", {}, "Diagnostic scene target has unexpected dimensions"));

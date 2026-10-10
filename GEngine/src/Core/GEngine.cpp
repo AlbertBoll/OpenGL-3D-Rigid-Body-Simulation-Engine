@@ -21,7 +21,8 @@ namespace GEngine
 		return EngineContext::Current().LegacyEngine();
 	}
 
-    EngineContext::EngineContext() : m_OwnerThread(std::this_thread::get_id())
+    EngineContext::EngineContext(const EngineLaunchConfig* launchConfig)
+        : m_OwnerThread(std::this_thread::get_id()), m_LaunchConfig(launchConfig)
     {
         if (!s_Current) s_Current = this;
         else m_State = State::Failed; // Initialize reports registration failure without acquiring ownership.

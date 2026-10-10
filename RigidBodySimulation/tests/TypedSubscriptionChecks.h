@@ -320,7 +320,7 @@ namespace PreEditorValidation
         return SubscriptionFailure("presentation validation requires the isolated native observer build");
 #endif
     }
-    inline ::GEngine::PlatformResult ObserveSubscriptionFrame()
+    inline ::GEngine::PlatformResult ObserveSubscriptionFrame(const char* directory)
     {
         using namespace ::GEngine;
 #ifndef GENGINE_CONFIG_RELEASE
@@ -347,7 +347,7 @@ namespace PreEditorValidation
         static Cost cost;
         if (!cost.initialized)
         {
-            const char* directory = std::getenv("GENGINE_PRE_EDITOR_SUBSCRIPTION_OUTPUT");
+            // Borrowed from the immutable launch snapshot; guards remain unchanged.
             if (!directory) return SubscriptionFailure("missing measurement destination");
             const auto path = std::filesystem::weakly_canonical(directory);
             const auto allowed = std::filesystem::weakly_canonical("C:/dev/GEngine-pre-editor/logs/pre_editor/phase-13");

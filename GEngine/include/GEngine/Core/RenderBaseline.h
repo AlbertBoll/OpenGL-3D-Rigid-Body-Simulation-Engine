@@ -9,7 +9,12 @@
 #include <string>
 #include <system_error>
 
-namespace GEngine { struct WindowProperties; class RenderTarget; }
+namespace GEngine
+{
+    struct WindowProperties;
+    struct EngineLaunchConfig;
+    class RenderTarget;
+}
 namespace GEngine::RenderBaseline
 {
     enum class ErrorCode { Capability, InvalidOutput, OutputOpen, OutputWrite, ContextUnavailable,
@@ -28,6 +33,7 @@ namespace GEngine::RenderBaseline
     std::string DescribeContext(const Error&);
     bool Requested();
     void Configure(WindowProperties&);
+    void Configure(WindowProperties&, const EngineLaunchConfig&);
 
     namespace Detail { struct State; }
     // A session and all of its calls remain on the creating context thread.

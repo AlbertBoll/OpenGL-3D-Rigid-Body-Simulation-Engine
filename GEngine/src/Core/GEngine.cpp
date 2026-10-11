@@ -360,10 +360,11 @@ namespace GEngine
 		// Called after application destruction; retire callbacks before their platform.
 		ShutDown();
 		m_EventManager.reset();
-		// Window owners retire ImGui, GL contexts and native windows in that order.
-		m_WindowManager.reset();
+		// Input cancellation still borrows the live native window.
 		if (m_InputManager) m_InputManager->ShutDown();
 		m_InputManager.reset();
+		// Window owners retire ImGui, GL contexts and native windows in that order.
+		m_WindowManager.reset();
 		if (TTF_WasInit()) TTF_Quit();
 		if (SDL_WasInit(0)) SDL_Quit();
 	}

@@ -15,6 +15,12 @@ using namespace ::GEngine::Component;
 using namespace ::GEngine::Manager;
 using namespace ::GEngine::Math;
 using namespace ::GEngine::Camera;
+#if defined(GENGINE_INPUT_VALIDATION) && !defined(GENGINE_INPUT_CONTROL)
+namespace PreEditorInput
+{
+    void RecordInputPicking(bool);
+}
+#endif
 
 void RigidBodySimulationApp::Update(Timestep ts)
 {
@@ -222,14 +228,17 @@ void RigidBodySimulationApp::Render()
                                     m_EditorCamera_.GetFarClip(),
                                     m_NearPlane,
                                     m_FarPlane};
-        const auto mouse = ImGui::GetMousePos();
+        const auto mouse = GetInputManager()->GetViewState().m_Mouse.GetPosition();
         const auto& pickStorage = m_MousePickFrameBuffer->Buffer().Description();
         targets.pickingEnabled =
-            GetInputManager()->GetMouseState().isButtonPressed(
+            GetInputManager()->GetViewState().m_Mouse.isButtonPressed(
                 GEngineMouseCode::GENGINE_BUTTON_LEFT) &&
             ViewportPixelAt(mouse.x - m_ViewportBounds[0].x, mouse.y - m_ViewportBounds[0].y,
                             GetEditorViewportLogicalSize(), {pickStorage.Width, pickStorage.Height})
                 .has_value();
+#if defined(GENGINE_INPUT_VALIDATION) && !defined(GENGINE_INPUT_CONTROL)
+        PreEditorInput::RecordInputPicking(targets.pickingEnabled);
+#endif
         FrameSceneInput input{*m_ActiveScene, *m_SceneResources, *m_FrameSubmission,
                               targets,        m_PickTable,       {&camera, 1}};
         // Preserve Phase 45's input/viewport snapshot: read this frame's IDs
@@ -268,9 +277,10 @@ void RigidBodySimulationApp::Render()
 
 void RigidBodySimulationApp::OnMouseClicked()
 {
-    if (GetInputManager()->GetMouseState().isButtonPressed(GEngineMouseCode::GENGINE_BUTTON_LEFT))
+    if (GetInputManager()->GetViewState().m_Mouse.isButtonPressed(
+            GEngineMouseCode::GENGINE_BUTTON_LEFT))
     {
-        const auto mouse = ImGui::GetMousePos();
+        const auto mouse = GetInputManager()->GetViewState().m_Mouse.GetPosition();
         const auto& storage = m_MousePickFrameBuffer->Buffer().Description();
         auto position =
             ViewportPixelAt(mouse.x - m_ViewportBounds[0].x, mouse.y - m_ViewportBounds[0].y,

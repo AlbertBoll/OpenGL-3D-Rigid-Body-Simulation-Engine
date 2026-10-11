@@ -14,9 +14,33 @@ using namespace ::GEngine::Component;
 using namespace ::GEngine::Manager;
 using namespace ::GEngine::Math;
 using namespace ::GEngine::Camera;
+#if defined(GENGINE_INPUT_VALIDATION) && !defined(GENGINE_INPUT_CONTROL)
+namespace PreEditorInput
+{
+    void NoteUIItem(unsigned);
+    void NoteUIMenu(unsigned, bool, float, float, float, float);
+    void DrawInputFixture();
+}
+#endif
+
+namespace
+{
+    void PublishPanelInputRegion()
+    {
+        const auto position = ImGui::GetWindowPos();
+        const auto size = ImGui::GetWindowSize();
+        const auto origin = ImGui::GetMainViewport()->Pos;
+        if (auto result = BaseApp::GetInputManager()->AddUIRegion(
+                {position.x - origin.x, position.y - origin.y, position.x + size.x - origin.x,
+                 position.y + size.y - origin.y});
+            !result)
+            Log::GetCoreLogger()->error("UI input region rejected: {}", int(result.error()));
+    }
+}
 
 void RigidBodySimulationApp::ImGuiRender()
 {
+    GetInputManager()->BeginUIRouting();
     if (auto host = UI::BeginDockspaceHost({"DockSpace Demo", "MyDockSpace"}); !host)
     {
         ReportPlatformError(host.error());
@@ -39,12 +63,37 @@ void RigidBodySimulationApp::ImGuiRender()
         ImGui::LogToFile(-1, "scene-ui-text.log");
 #endif
     DrawMenus();
+#if defined(GENGINE_INPUT_VALIDATION) && !defined(GENGINE_INPUT_CONTROL)
+    PreEditorInput::DrawInputFixture();
+#endif
     DrawViewport();
 #ifdef GENGINE_RBS_SCENE_VALIDATION
     if (ImGui::GetFrameCount() == 4)
         ImGui::LogFinish();
 #endif
     UI::EndDockspaceHost();
+    // Publish one completed UI descriptor for the next input poll. The viewport
+    // background is a View surface; every active widget/menu/popup has UI priority.
+    const auto& io = ImGui::GetIO();
+    const auto origin = ImGui::GetMainViewport()->Pos;
+    const bool popup =
+        ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
+    const bool active = ImGui::IsAnyItemActive();
+    const bool text = io.WantTextInput;
+    const bool visible = HasVisibleViewport() && m_ViewportBounds[1].x > m_ViewportBounds[0].x &&
+                         m_ViewportBounds[1].y > m_ViewportBounds[0].y;
+    const InputRouting routing{
+        GetWindow()->GetWindowID(),
+        m_ViewportBounds[0].x - origin.x,
+        m_ViewportBounds[0].y - origin.y,
+        m_ViewportBounds[1].x - origin.x,
+        m_ViewportBounds[1].y - origin.y,
+        visible,
+        m_ViewportForcused,
+        active || popup || text || (io.WantCaptureMouse && !m_ViewportHovered),
+        active || popup || text || (io.WantCaptureKeyboard && !m_ViewportForcused)};
+    if (auto published = GetInputManager()->PublishRouting(routing); !published)
+        Log::GetCoreLogger()->error("RBS input routing rejected: {}", int(published.error()));
 #ifdef GENGINE_RBS_MODULARITY_VALIDATION
     ValidatePacketAUi();
 #endif
@@ -53,6 +102,7 @@ void RigidBodySimulationApp::ImGuiRender()
 void RigidBodySimulationApp::DrawShaderPanel()
 {
     ImGui::Begin("Custom shader reload");
+    PublishPanelInputRegion();
     if (m_ShaderReloadGallery.material)
     {
         ImGui::TextUnformatted("Both cubes share a shader; the clone keeps its lower brightness.");
@@ -86,6 +136,7 @@ void RigidBodySimulationApp::DrawShaderPanel()
 void RigidBodySimulationApp::DrawMaterialPanel()
 {
     ImGui::Begin("Material authoring");
+    PublishPanelInputRegion();
     if (m_MaterialGallery.uvMaterial)
     {
         ImGui::TextUnformatted("Plane / Cube / Sphere / Capsule / Torus / Diamond");
@@ -168,7 +219,17 @@ void RigidBodySimulationApp::DrawMenus()
         if (ImGui::GetFrameCount() == 3 || ImGui::GetFrameCount() == 4)
             ImGui::OpenPopup("File");
 #endif
-        if (ImGui::BeginMenu("File"))
+#if defined(GENGINE_INPUT_VALIDATION) && !defined(GENGINE_INPUT_CONTROL)
+        const auto filePoint = ImGui::GetCursorScreenPos();
+#endif
+        const bool fileOpen = ImGui::BeginMenu("File");
+#if defined(GENGINE_INPUT_VALIDATION) && !defined(GENGINE_INPUT_CONTROL)
+        PreEditorInput::NoteUIMenu(3, fileOpen, filePoint.x, filePoint.y,
+                                   ImGui::CalcTextSize("File").x +
+                                       2 * ImGui::GetStyle().ItemSpacing.x,
+                                   ImGui::GetFrameHeight());
+#endif
+        if (fileOpen)
         {
             DrawAsyncMenu();
             // Disabling fullscreen would allow the window to be moved to the front of other windows,
@@ -181,7 +242,17 @@ void RigidBodySimulationApp::DrawMenus()
             ImGui::EndMenu();
         }
 
-        if (ImGui::BeginMenu("Shadows"))
+#if defined(GENGINE_INPUT_VALIDATION) && !defined(GENGINE_INPUT_CONTROL)
+        const auto shadowPoint = ImGui::GetCursorScreenPos();
+#endif
+        const bool shadowsOpen = ImGui::BeginMenu("Shadows");
+#if defined(GENGINE_INPUT_VALIDATION) && !defined(GENGINE_INPUT_CONTROL)
+        PreEditorInput::NoteUIMenu(0, shadowsOpen, shadowPoint.x, shadowPoint.y,
+                                   ImGui::CalcTextSize("Shadows").x +
+                                       2 * ImGui::GetStyle().ItemSpacing.x,
+                                   ImGui::GetFrameHeight());
+#endif
+        if (shadowsOpen)
         {
             auto request = GetShadowQuality().requested;
             int tier = static_cast<int>(request.quality);
@@ -207,6 +278,9 @@ void RigidBodySimulationApp::DrawMenus()
                 changed = true;
             }
             bool fallback = request.fallback == ShadowFallback::LowerTiers;
+#if defined(GENGINE_INPUT_VALIDATION) && !defined(GENGINE_INPUT_CONTROL)
+            PreEditorInput::NoteUIItem(2);
+#endif
             if (ImGui::Checkbox("Allow lower quality on allocation failure", &fallback))
             {
                 request.fallback = fallback ? ShadowFallback::LowerTiers : ShadowFallback::None;

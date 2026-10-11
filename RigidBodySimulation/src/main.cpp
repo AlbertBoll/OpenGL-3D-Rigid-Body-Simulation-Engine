@@ -31,6 +31,14 @@ int main(int argc, char* args[])
     constexpr auto scenePreset = Rbs::RbsScenePreset::GeometryGallery;
     Rbs::LaunchConfig settings;
     settings.scene = scenePreset;
+#ifdef GENGINE_INPUT_VALIDATION
+    settings.validation.checks.push_back(Rbs::ValidationCheck::InputRouting);
+    winProp.m_IsVsync = false;
+    if (argc < 1 || !args || !args[0] || !std::filesystem::path(args[0]).is_absolute())
+        return 1;
+    settings.engine.assetRootUtf8 =
+        (std::filesystem::path(args[0]).parent_path().parent_path() / "assets").generic_string();
+#endif
 #ifdef GENGINE_RBS_SCENE_VALIDATION
     // Scene/UI test executable; normal RBS has no scene-selection CLI.
     constexpr Rbs::RbsScenePreset presets[]{

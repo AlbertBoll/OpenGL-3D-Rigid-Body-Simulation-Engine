@@ -21,6 +21,10 @@ RigidBodySimulationApp::RigidBodySimulationApp(const Rbs::LaunchConfig& launch)
 
 RigidBodySimulationApp::~RigidBodySimulationApp()
 {
+    if (auto* input = GetInputManager())
+        if (auto cancelled = input->CancelInput(InputCancelReason::OwnerRelease); !cancelled)
+            Log::GetCoreLogger()->error("RBS input cancellation failed: {}",
+                                        int(cancelled.error()));
     m_Subscriptions.reset();
     if (m_Launch.validation.Includes(Rbs::ValidationCheck::Subscriptions))
         Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_13_APP_RELEASED");
@@ -95,43 +99,95 @@ ApplicationInitializationResult RigidBodySimulationApp::ConnectApplicationEventH
 {
     auto connections = std::unique_ptr<Rbs::Subscriptions>(new (std::nothrow) Rbs::Subscriptions);
     if (!connections)
-        return std::unexpected(
-            PlatformError{PlatformErrorCode::Allocation, "RBS subscriptions",
-                          "Could not allocate application connection ownership"});
-    auto& events = *GetEventManager();
-    std::array connected{events.Subscribe(Manager::Event::AppPause,
-                                          [this]()
-                                          {
-                                              m_IsPause = true;
-                                          }),
-                         events.Subscribe(Manager::Event::AppResume,
-                                          [this]()
-                                          {
-                                              m_IsPause = false;
-                                          }),
-                         events.Subscribe(Manager::Event::DebugShow,
-                                          [this]()
-                                          {
-                                              m_IsShowDebugBoundingBox = !m_IsShowDebugBoundingBox;
-                                          }),
-                         events.Subscribe(Manager::Event::ViewportChange,
-                                          [this]()
-                                          {
-                                              m_EditorCamera_.OnViewportViewDirectionChange();
-                                          }),
-                         events.Subscribe(Manager::Event::MouseScrollWheel,
-                                          [this](const MouseScrollWheelParam& wheel)
-                                          {
-                                              m_EditorCamera_.OnMouseScroll(wheel.Y);
-                                          })};
-    for (std::size_t i = 0; i < connected.size(); ++i)
-    {
-        if (!connected[i])
-            return std::unexpected(PlatformError{PlatformErrorCode::Initialization,
-                                                 "RBS subscriptions",
-                                                 "Typed subscription rejected"});
-        connections->tokens[i] = std::move(*connected[i]);
-    }
+        return std::unexpected(PlatformError{PlatformErrorCode::Allocation, "RBS input",
+                                             "Could not allocate connection ownership"});
+    auto& input = *GetInputManager();
+    auto view = input.Subscribe(InputLayer::View,
+                                [this](InputDelivery& delivery)
+                                {
+                                    const auto& event = delivery.event;
+                                    if (event.cleanup)
+                                        return;
+                                    if (event.kind == InputKind::Motion ||
+                                        event.kind == InputKind::ButtonDown ||
+                                        event.kind == InputKind::Wheel)
+                                    {
+                                        delivery.Handle();
+                                        if (event.kind == InputKind::Wheel)
+                                            m_EditorCamera_.OnMouseScroll(event.wheelY);
+                                        return;
+                                    }
+                                    if (event.kind != InputKind::KeyDown)
+                                        return;
+                                    std::optional<ViewportMode> direction;
+                                    switch (event.key)
+                                    {
+                                    case GENGINE_KEY_I:
+                                        direction = ViewportMode::FRONT;
+                                        break;
+                                    case GENGINE_KEY_K:
+                                        direction = ViewportMode::BACK;
+                                        break;
+                                    case GENGINE_KEY_J:
+                                        direction = ViewportMode::LEFT;
+                                        break;
+                                    case GENGINE_KEY_L:
+                                        direction = ViewportMode::RIGHT;
+                                        break;
+                                    case GENGINE_KEY_U:
+                                        direction = ViewportMode::TOP;
+                                        break;
+                                    case GENGINE_KEY_O:
+                                        direction = ViewportMode::BOTTOM;
+                                        break;
+                                    case GENGINE_KEY_TAB:
+                                        direction = ViewportMode::DEFAULT;
+                                        break;
+                                    case GENGINE_KEY_W:
+                                    case GENGINE_KEY_A:
+                                    case GENGINE_KEY_S:
+                                    case GENGINE_KEY_D:
+                                    case GENGINE_KEY_Q:
+                                    case GENGINE_KEY_E:
+                                    case GENGINE_KEY_LALT:
+                                    case GENGINE_KEY_RALT:
+                                    case GENGINE_KEY_LCTRL:
+                                    case GENGINE_KEY_RCTRL:
+                                    case GENGINE_KEY_LSHIFT:
+                                    case GENGINE_KEY_RSHIFT:
+                                        delivery.Handle();
+                                        return;
+                                    default:
+                                        return;
+                                    }
+                                    delivery.Handle();
+                                    if (!event.repeated)
+                                        m_EditorCamera_.Initialize(*direction);
+                                });
+    auto game = input.Subscribe(InputLayer::Game,
+                                [this](InputDelivery& delivery)
+                                {
+                                    const auto& event = delivery.event;
+                                    if (event.cleanup || event.kind != InputKind::KeyDown)
+                                        return;
+                                    if (event.key != GENGINE_KEY_P && event.key != GENGINE_KEY_R &&
+                                        event.key != GENGINE_KEY_SPACE)
+                                        return;
+                                    delivery.Handle();
+                                    if (event.repeated)
+                                        return;
+                                    if (event.key == GENGINE_KEY_P)
+                                        m_IsPause = true;
+                                    else if (event.key == GENGINE_KEY_R)
+                                        m_IsPause = false;
+                                    else
+                                        m_IsShowDebugBoundingBox = !m_IsShowDebugBoundingBox;
+                                });
+    if (!view || !game)
+        return std::unexpected(PlatformError{PlatformErrorCode::Initialization, "RBS input",
+                                             "Typed input subscription rejected"});
+    connections->tokens[0] = std::move(*view);
+    connections->tokens[1] = std::move(*game);
     m_Subscriptions = std::move(connections);
     return {};
 }

@@ -27,7 +27,8 @@ namespace Rbs
         ShaderDescriptions,
         ShaderReload,
         AsyncResources,
-        Subscriptions
+        Subscriptions,
+        InputRouting
     };
 
     enum class Observation

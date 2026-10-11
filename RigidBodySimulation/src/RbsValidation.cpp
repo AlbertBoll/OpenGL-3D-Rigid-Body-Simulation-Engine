@@ -6,6 +6,9 @@
 
 #include <chrono>
 #include <cmath>
+#ifdef GENGINE_INPUT_VALIDATION
+#include "../tests/InputRoutingChecks.h"
+#endif
 #ifdef GENGINE_RBS_SCENE_VALIDATION
 #include "Physics/PhysicsBody.h"
 #include <algorithm>
@@ -241,6 +244,166 @@ ApplicationInitializationResult RigidBodySimulationApp::ValidateShaderDescriptio
 
 bool RigidBodySimulationApp::ValidateUpdate()
 {
+#ifdef GENGINE_INPUT_VALIDATION
+    if (m_Launch.validation.Includes(Rbs::ValidationCheck::InputRouting))
+    {
+        SetManualFrameRateLimit(0);
+        static unsigned inputFrames = 0;
+        static Vec3f uiCameraPosition{};
+        static bool uiPaused = false, uiDebug = false;
+        static std::uint32_t uiPicked = 0;
+        ++inputFrames;
+        const auto fail = [this](const char* message)
+        {
+            FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Input validation", "",
+                         "Phase 15 control/candidate", "", message});
+            return false;
+        };
+        if (inputFrames == 8)
+        {
+            PreEditorInput::Describe(*this);
+            const auto camera = m_EditorCamera_;
+            const bool paused = m_IsPause, debug = m_IsShowDebugBoundingBox;
+#ifndef GENGINE_INPUT_CONTROL
+            if (auto prepared = PreEditorInput::PrepareNativeFixture(*this); !prepared)
+                return fail(prepared.error().message.c_str());
+            if (auto checked = PreEditorInput::CheckState(*this); !checked)
+                return fail(checked.error().message.c_str());
+            if (auto prepared = PreEditorInput::PrepareNativeFixture(*this); !prepared)
+                return fail(prepared.error().message.c_str());
+            auto& input = *GetInputManager();
+            input.BeginUIRouting();
+            if (!input.PublishRouting(
+                    {GetWindow()->GetWindowID(), 0, 0, 1280, 720, true, true, false, false}))
+                return fail("native action routing fixture");
+            const bool pauseTap = PreEditorInput::NativeTap(*this, SDL_SCANCODE_P);
+            Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_15_NATIVE_ACTION pause injected={} actual={}",
+                                       pauseTap, m_IsPause);
+            if (!pauseTap || !m_IsPause)
+                return fail("maintained pause/resume/debug native controls: pause");
+            const bool resumeTap = PreEditorInput::NativeTap(*this, SDL_SCANCODE_R);
+            Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_15_NATIVE_ACTION resume injected={} actualPause={}",
+                                       resumeTap, m_IsPause);
+            if (!resumeTap || m_IsPause)
+                return fail("maintained pause/resume/debug native controls: resume");
+            const bool debugTap = PreEditorInput::NativeTap(*this, SDL_SCANCODE_SPACE);
+            Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_15_NATIVE_ACTION debug injected={} before={} after={}",
+                                       debugTap, debug, m_IsShowDebugBoundingBox);
+            if (!debugTap || m_IsShowDebugBoundingBox == debug)
+                return fail("maintained pause/resume/debug native controls: debug");
+            if (!PreEditorInput::NativeTap(*this, SDL_SCANCODE_I))
+                return fail("native viewpoint shortcut");
+            const auto beforeWheel = m_EditorCamera_.GetDistance();
+            auto motion = PreEditorInput::Native(2, GetWindow()->GetWindowID());
+            auto wheel = PreEditorInput::Native(3, GetWindow()->GetWindowID());
+            if (SDL_PushEvent(&motion) != 1 || SDL_PushEvent(&wheel) != 1)
+                return fail("native pointer injection");
+            input.PrepareForUpdate();
+            GetEventManager()->PollEvents();
+            input.Update();
+            if (m_EditorCamera_.GetDistance() == beforeWheel)
+                return fail("maintained wheel consumer");
+            m_EditorCamera_.OnUpdate(
+                Timestep(.016f)); // Retire any earlier cancellation before a new gesture.
+            SDL_Event button{};
+            button.type = SDL_MOUSEBUTTONDOWN;
+            button.button.windowID = GetWindow()->GetWindowID();
+            button.button.button = SDL_BUTTON_RIGHT;
+            button.button.state = SDL_PRESSED;
+            button.button.x = 640;
+            button.button.y = 360;
+            if (SDL_PushEvent(&button) != 1)
+                return fail("camera gesture injection");
+            input.PrepareForUpdate();
+            GetEventManager()->PollEvents();
+            input.Update();
+            m_EditorCamera_.OnUpdate(Timestep(.016f));
+            if (input.PointerCapture() != InputLayer::View ||
+                !input.CancelInput(InputCancelReason::Explicit))
+                return fail("maintained camera capture/cancel");
+            m_EditorCamera_.OnUpdate(Timestep(.016f));
+            Log::GetCoreLogger()->info(
+                "PRE_EDITOR_PHASE_15_ACTIONS_PASS pause=true resume=true debug=true viewpoint=true wheel=true camera=true");
+            for (const auto lost : {SDL_WINDOWEVENT_FOCUS_LOST, SDL_WINDOWEVENT_HIDDEN,
+                                    SDL_WINDOWEVENT_MINIMIZED})
+            {
+                if (!PreEditorInput::NativeTap(*this, SDL_SCANCODE_W))
+                    return fail("window cancellation fixture");
+                SDL_Event state{};
+                state.type = SDL_WINDOWEVENT;
+                state.window.windowID = GetWindow()->GetWindowID();
+                state.window.event = lost;
+                if (SDL_PushEvent(&state) != 1)
+                    return fail("window cancellation injection");
+                GetEventManager()->PollEvents();
+                if (input.Focused() || input.PointerCapture() != InputLayer::None)
+                    return fail("native focus/hide/minimize cancellation");
+                state.window.event = SDL_WINDOWEVENT_RESTORED;
+                if (SDL_PushEvent(&state) != 1)
+                    return fail("window restore injection");
+                state.window.event = SDL_WINDOWEVENT_SHOWN;
+                if (SDL_PushEvent(&state) != 1)
+                    return fail("window shown injection");
+                state.window.event = SDL_WINDOWEVENT_FOCUS_GAINED;
+                if (SDL_PushEvent(&state) != 1)
+                    return fail("window focus injection");
+                GetEventManager()->PollEvents();
+                input.BeginUIRouting();
+                if (!input.PublishRouting({GetWindow()->GetWindowID(), 0, 0, 1280, 720,
+                                           true, true, false, false}))
+                    return fail("restored view routing");
+            }
+            Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_15_WINDOW_PASS focus=true hidden=true minimize=true regain=true");
+            // Retire the synthetic native button after checking semantic cancellation.
+            // ImGui receives native events independently of the semantic state fixture.
+            button.type = SDL_MOUSEBUTTONUP;
+            button.button.state = SDL_RELEASED;
+            if (SDL_PushEvent(&button) != 1)
+                return fail("native camera fixture release");
+            GetEventManager()->PollEvents();
+#endif
+#if defined(GENGINE_CONFIG_RELEASE)
+            if (auto measured = PreEditorInput::Measure(*this); !measured)
+                return fail(measured.error().message.c_str());
+#endif
+            m_EditorCamera_ = camera;
+            m_IsPause = paused;
+            m_IsShowDebugBoundingBox = debug;
+#ifdef GENGINE_INPUT_CONTROL
+            if (!PreEditorInput::RequestNativeClose())
+                return fail("native quit injection failed");
+            Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_15_PASS");
+            return false;
+#else
+            if (!GetInputManager()->CancelInput(InputCancelReason::Explicit))
+                return fail("retire input fixtures");
+            m_EditorCamera_.OnUpdate(Timestep(.016f));
+            uiCameraPosition = m_EditorCamera_.GetPosition();
+            uiPaused = m_IsPause;
+            uiDebug = m_IsShowDebugBoundingBox;
+            uiPicked = static_cast<std::uint32_t>(m_HoveredEntity);
+#endif
+        }
+#ifndef GENGINE_INPUT_CONTROL
+        if (inputFrames > 8)
+        {
+            if (m_IsPause != uiPaused || m_IsShowDebugBoundingBox != uiDebug ||
+                m_EditorCamera_.GetPosition() != uiCameraPosition ||
+                static_cast<std::uint32_t>(m_HoveredEntity) != uiPicked)
+                return fail("UI changed scene selection/camera/Game state");
+            if (auto checked = PreEditorInput::StepUI(*this); !checked)
+                return fail(checked.error().message.c_str());
+            if (PreEditorInput::uiProbe.step == 42)
+            {
+                if (!PreEditorInput::RequestNativeClose())
+                    return fail("native quit injection failed");
+                Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_15_PASS");
+                return false;
+            }
+        }
+#endif
+    }
+#endif
     if (m_Launch.validation.Includes(Rbs::ValidationCheck::Subscriptions))
     {
         if (auto* connections = m_Subscriptions.get(); connections && !connections->checked)
@@ -253,21 +416,45 @@ bool RigidBodySimulationApp::ValidateUpdate()
                 m_Running = false;
                 return false;
             }
-            auto& dispatcher = GetEventManager()->GetEventDispatcher();
+            auto& input = *GetInputManager();
+            const auto routing = input.Routing();
+            input.BeginUIRouting();
+            if (!input.PublishRouting(
+                    {GetWindow()->GetWindowID(), 0, 0, 1280, 720, true, true, false, false}))
+                return false;
+            const auto tap = [&](GEngineKeyCode code)
+            {
+                InputEvent event;
+                event.window = GetWindow()->GetWindowID();
+                event.kind = InputKind::KeyDown;
+                event.key = code;
+                if (!input.Route(event))
+                    return false;
+                event.kind = InputKind::KeyUp;
+                return bool(input.Route(event));
+            };
             const bool paused = m_IsPause, debug = m_IsShowDebugBoundingBox;
             const auto distance = m_EditorCamera_.GetDistance();
             auto camera = m_EditorCamera_;
-            bool valid = bool(dispatcher.Dispatch(Manager::Event::AppPause)) && m_IsPause;
-            valid = bool(dispatcher.Dispatch(Manager::Event::AppResume)) && !m_IsPause && valid;
-            valid = bool(dispatcher.Dispatch(Manager::Event::DebugShow)) &&
-                    m_IsShowDebugBoundingBox != debug && valid;
-            valid = bool(dispatcher.Dispatch(Manager::Event::ViewportChange)) && valid;
-            valid = bool(dispatcher.Dispatch(Manager::Event::MouseScrollWheel,
-                                             MouseScrollWheelParam{0, 0, 1})) &&
-                    m_EditorCamera_.GetDistance() != distance && valid;
+            bool valid = tap(GENGINE_KEY_P) && m_IsPause;
+            valid = tap(GENGINE_KEY_R) && !m_IsPause && valid;
+            valid = tap(GENGINE_KEY_SPACE) && m_IsShowDebugBoundingBox != debug && valid;
+            valid = tap(GENGINE_KEY_I) && valid;
+            InputEvent pointer;
+            pointer.window = GetWindow()->GetWindowID();
+            pointer.kind = InputKind::Motion;
+            pointer.x = 640;
+            pointer.y = 360;
+            valid = bool(input.Route(pointer)) && valid;
+            pointer.kind = InputKind::Wheel;
+            pointer.wheelY = 1;
+            valid =
+                bool(input.Route(pointer)) && m_EditorCamera_.GetDistance() != distance && valid;
             m_IsPause = paused;
             m_IsShowDebugBoundingBox = debug;
             m_EditorCamera_ = camera;
+            valid = bool(input.CancelInput(InputCancelReason::Explicit)) && valid;
+            valid = bool(input.PublishRouting(routing)) && valid;
             if (!valid)
             {
                 Log::GetCoreLogger()->error("PRE_EDITOR_PHASE_13_FAIL maintained actions");

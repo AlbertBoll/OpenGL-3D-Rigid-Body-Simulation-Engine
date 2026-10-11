@@ -1,133 +1,199 @@
 #include "gepch.h"
-
 #include "Managers/EventManager.h"
+#include "Managers/InputManager.h"
 #include "Managers/WindowManager.h"
-#include "Events/MouseEvent.h"
-#include "Events/KeyboardEvent.h"
-#include "Events/ApplicationEvent.h"
 #include "Core/BaseApp.h"
 #include "Windows/SDLWindow.h"
 
-
-//using namespace GEngine::Event;
-
-//namespace GEngine
-//{
-//	class Event;
-//}
-
-
 namespace GEngine::Manager
 {
-
-	
-
-	ScopedPtr<EventManager> EventManager::GetScopedInstance()
-	{
-		struct MkUniEnablr : public EventManager {};
-		auto instance = CreateScopedPtr<MkUniEnablr>();
-
-		return instance;
-	}
-
+    ScopedPtr<EventManager> EventManager::GetScopedInstance()
+    {
+        struct Enable : EventManager
+        {
+        };
+        return CreateScopedPtr<Enable>();
+    }
 
     void EventManager::Initialize()
     {
-        auto connected = Subscribe(Event::MouseMove, [](const MouseMoveParam& moveParam)
-        {
-            auto& mouse = BaseApp::GetEngine().GetInputManager()->GetMouseState();
-            mouse.m_XRel = moveParam.XRel; mouse.m_YRel = moveParam.YRel;
-            mouse.m_MousePos.x = static_cast<float>(moveParam.XPos);
-            mouse.m_MousePos.y = static_cast<float>(moveParam.YPos);
-        });
-        if (!connected) { ReportSubscriptionError(connected.error()); return; }
-        m_MouseMoveConnection = std::move(*connected);
+        // InputManager owns snapshots; no notification callback may overwrite motion.
+        if (auto result = m_MouseMoveConnection.Reset(); !result)
+            ReportSubscriptionError(result.error());
     }
 
-	void EventManager::PollEvents()
-	{
+    void EventManager::PollEvents()
+    {
         auto drained = m_Completions.Drain();
-        if (!drained) { ReportSubscriptionError(drained.error()); return; }
-        const auto deliver = [this](auto key, auto... values) {
+        if (!drained)
+        {
+            ReportSubscriptionError(drained.error());
+            return;
+        }
+        const auto deliver = [this](auto key, auto... values)
+        {
             if (auto result = m_EventDispatcher.Dispatch(key, values...); !result)
                 ReportSubscriptionError(result.error());
         };
-
-
-		auto* root = EngineContext::TryGet();
+        auto* root = EngineContext::TryGet();
         auto* window = root ? static_cast<SDLWindow*>(root->MainWindow()) : nullptr;
-        SDL_Event e{};
-		while (SDL_PollEvent(&e))
-		{
-			if (window && window->GetImGuiWindow())
-				window->GetImGuiWindow()->HandleSDLEvent(e);
-
-			switch (e.type)
-			{
-			case SDL_QUIT:
-				//case SDL_KEYDOWN:
-				deliver(Event::AppClose);
-				std::cout << "App close event" << std::endl;
-				break;
-
-				//case SDL_KEYDOWN:
-				//	if (!e.key.repeat)
-				//	{
-				//		m_EventDispatcher.DispatchEvent("AppQuit");
-				//		//std::cout << "App quit event" << std::endl;
-				//		//m_EventDispatcher.DispatchEvent("KeyPress", SDL_GetKeyName(e.key.keysym.sym));
-				//	}
-
-				//	//else 
-				//		//m_EventDispatcher.DispatchEvent("KeyRepeat", SDL_GetKeyName(e.key.keysym.sym));
-				//	break;
-
-			case SDL_MOUSEWHEEL:
-
-				deliver(Event::MouseScrollWheel, MouseScrollWheelParam{ .ID = e.wheel.windowID,
-																						   .X = e.wheel.preciseX,
-																						   .Y = e.wheel.preciseY });
-				break;
-
-				//case SDL_KEYUP:
-					//m_EventDispatcher.DispatchEvent("KeyRelease", SDL_GetKeyName(e.key.keysym.sym));
-					//break;
-
-			case SDL_MOUSEBUTTONDOWN:
-				deliver(Event::MouseButtonPress, MouseButtonParam{ .ID = e.button.windowID,
-																						.X = e.button.x,
-																						.Y = e.button.y ,
-																						.Button = e.button.button,
-																						.Clicks = e.button.clicks });
-
-				break;
-
-					//break;
-
-				//case SDL_MOUSEBUTTONUP:
-					/*m_EventDispatcher.DispatchEvent("MouseButtonRelease", MouseButtonParam{ .ID = e.button.windowID,
-																							.X = e.button.x,
-																							.Y = e.button.y ,
-																							.Button = e.button.button,
-																							.Clicks = e.button.clicks });*/
-
-																							//break;
-
-
-
-
-			case SDL_MOUSEMOTION:
-				deliver(Event::MouseMove, MouseMoveParam{ .ID = e.button.windowID,
-																			 .XPos = e.motion.x,
-																			 .YPos = e.motion.y,
-																			 .XRel = e.motion.xrel,
-																			 .YRel = e.motion.yrel });
-
-				//std::cout << "X: " << e.motion.x << " Y: " << e.motion.y << std::endl;
-
-				break;
-
-			case SDL_WINDOWEVENT:
+        auto* input = root ? root->LegacyEngine().GetInputManager() : nullptr;
+        SDL_Event native{};
+        while (SDL_PollEvent(&native))
+        {
+            if (window && window->GetImGuiWindow())
+                window->GetImGuiWindow()->HandleSDLEvent(native);
+            InputEvent value;
+            bool isInput = true;
+            InputResult translated{};
+            switch (native.type)
+            {
+            case SDL_KEYDOWN:
+            case SDL_KEYUP:
+                value.kind = native.type == SDL_KEYDOWN ? InputKind::KeyDown : InputKind::KeyUp;
+                value.window = native.key.windowID;
+                value.key = static_cast<GEngineKeyCode>(native.key.keysym.scancode);
+                value.repeated = native.key.repeat != 0;
+                if (native.key.keysym.mod & KMOD_CAPS)
+                    value.modifiers |= CapsLock;
+                if (native.key.keysym.mod & KMOD_NUM)
+                    value.modifiers |= NumLock;
+                break;
+            case SDL_TEXTINPUT:
+                value.kind = InputKind::Text;
+                value.window = native.text.windowID;
+                translated = value.SetText(native.text.text);
+                break;
+            case SDL_TEXTEDITING:
+                value.kind = InputKind::Composition;
+                value.window = native.edit.windowID;
+                value.compositionStart = native.edit.start;
+                value.compositionLength = native.edit.length;
+                translated = value.SetText(native.edit.text);
+                break;
+#if SDL_VERSION_ATLEAST(2, 0, 22)
+            case SDL_TEXTEDITING_EXT:
+                value.kind = InputKind::Composition;
+                value.window = native.editExt.windowID;
+                value.compositionStart = native.editExt.start;
+                value.compositionLength = native.editExt.length;
+                translated = value.SetText(native.editExt.text ? native.editExt.text : "");
+                SDL_free(native.editExt.text);
+                break;
+#endif
+            case SDL_MOUSEMOTION:
+                value.kind = InputKind::Motion;
+                value.window = native.motion.windowID;
+                value.x = static_cast<float>(native.motion.x);
+                value.y = static_cast<float>(native.motion.y);
+                value.dx = native.motion.xrel;
+                value.dy = native.motion.yrel;
+                break;
+            case SDL_MOUSEBUTTONDOWN:
+            case SDL_MOUSEBUTTONUP:
+                value.kind = native.type == SDL_MOUSEBUTTONDOWN ? InputKind::ButtonDown
+                                                                : InputKind::ButtonUp;
+                value.window = native.button.windowID;
+                value.button = static_cast<GEngineMouseCode>(native.button.button);
+                value.x = static_cast<float>(native.button.x);
+                value.y = static_cast<float>(native.button.y);
+                break;
+            case SDL_MOUSEWHEEL:
+            {
+                value.kind = InputKind::Wheel;
+                value.window = native.wheel.windowID;
+                const float direction =
+                    native.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1.f : 1.f;
+                value.wheelX = native.wheel.preciseX * direction;
+                value.wheelY = native.wheel.preciseY * direction;
+                break;
+            }
+            case SDL_WINDOWEVENT:
+                value.window = native.window.windowID;
+                if (native.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
+                    value.kind = InputKind::FocusLost;
+                else if (native.window.event == SDL_WINDOWEVENT_FOCUS_GAINED)
+                    value.kind = InputKind::FocusGained;
+                else if (native.window.event == SDL_WINDOWEVENT_HIDDEN ||
+                         native.window.event == SDL_WINDOWEVENT_MINIMIZED ||
+                         native.window.event == SDL_WINDOWEVENT_CLOSE)
+                {
+                    value.kind = InputKind::Cancel;
+                    value.cancellation = InputCancelReason::Hidden;
+                }
+                else
+                    isInput = false;
+                break;
+            default:
+                isInput = false;
+                break;
+            }
+            if (isInput && input && window)
+            {
+                if (!input->Routing().window)
+                {
+                    // Compatibility applications without an authored View descriptor.
+                    const InputRouting routing{
+                        window->GetWindowID(),  0, 0, 0, 0, false, false, window->WantsMouse(),
+                        window->WantsKeyboard()};
+                    if (auto result = input->PublishRouting(routing); !result)
+                        GENGINE_CORE_ERROR("Input routing rejected: {}", int(result.error()));
+                }
+                auto routed = translated ? input->Route(value)
+                                         : std::expected<InputLayer, InputError>(
+                                               std::unexpected(translated.error()));
+                if (!routed)
+                {
+                    GENGINE_CORE_ERROR("Input translation/routing rejected: {}",
+                                       int(routed.error()));
+                }
+                else if (!value.handled && !value.cleanup)
+                {
+                    // Compatibility notifications follow consumption; migrated RBS handlers
+                    // consume their typed route and therefore never receive duplicate actions.
+                    switch (value.kind)
+                    {
+                    case InputKind::KeyDown:
+                        if (value.repeated)
+                            break;
+                        if (value.key == GENGINE_KEY_P)
+                            deliver(Event::AppPause);
+                        else if (value.key == GENGINE_KEY_R)
+                            deliver(Event::AppResume);
+                        else if (value.key == GENGINE_KEY_SPACE)
+                            deliver(Event::DebugShow);
+                        else
+                            deliver(Event::ViewportChange);
+                        break;
+                    case InputKind::Motion:
+                        deliver(Event::MouseMove, MouseMoveParam{value.window, int(value.x),
+                                                                 int(value.y), value.dx, value.dy});
+                        break;
+                    case InputKind::ButtonDown:
+                        deliver(Event::MouseButtonPress,
+                                MouseButtonParam{value.window, int(value.x), int(value.y),
+                                                 std::uint8_t(value.button), native.button.clicks});
+                        break;
+                    case InputKind::Wheel:
+                        deliver(Event::MouseScrollWheel,
+                                MouseScrollWheelParam{value.window, value.wheelX, value.wheelY});
+                        break;
+                    default:
+                        break;
+                    }
+                }
+            }
+            const auto& e = native;
+            switch (native.type)
+            {
+            case SDL_QUIT:
+                if (input)
+                    if (auto result = input->CancelInput(InputCancelReason::Shutdown); !result)
+                        GENGINE_CORE_ERROR("Input close cancellation rejected: {}",
+                                           int(result.error()));
+                deliver(Event::AppClose);
+                break;
+            case SDL_WINDOWEVENT:
 			{
 				// Preserve the actual SDL state event; resizing and visibility are independent.
 				auto& windows = BaseApp::GetWindowManager()->GetWindows();
@@ -160,8 +226,8 @@ namespace GEngine::Manager
 				if (e.window.event == SDL_WINDOWEVENT_CLOSE)
 				{
 					deliver(Event::WindowClose, WindowCloseParam{ .ID = e.window.windowID });
-					std::cout << "window close event" << std::endl;
-				}
+                    GENGINE_CORE_INFO("Window close event");
+                }
 
 				else if (e.window.event == SDL_WINDOWEVENT_RESIZED || e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
 				{
@@ -173,18 +239,9 @@ namespace GEngine::Manager
 				break;
 
 			}
-			case SDL_KEYDOWN:
-				if (e.key.keysym.sym == SDLK_p)
-					deliver(Event::AppPause);
-				else if (e.key.keysym.sym == SDLK_r)
-					deliver(Event::AppResume);
-				else if (e.key.keysym.sym == SDLK_SPACE)
-					deliver(Event::DebugShow);
-				else
-					deliver(Event::ViewportChange);
-				break;
-			}
-		}
-	}
-
+            default:
+                break;
+            }
+        }
+    }
 }

@@ -33,9 +33,9 @@ namespace GEngine::Camera
 	{
 		using namespace GEngine;
 		auto input = BaseApp::GetInputManager();
-		auto& keyboardState = input->GetKeyboardState();
-		auto& mouseState = input->GetMouseState();
-		if(keyboardState.IsKeyPressed(GENGINE_KEY_LCTRL))
+        auto& keyboardState = input->GetViewState().m_Keyboard;
+        auto& mouseState = input->GetViewState().m_Mouse;
+        if(keyboardState.IsKeyPressed(GENGINE_KEY_LCTRL))
 		//if (Input::IsKeyPressed(Key::LeftAlt))
 		{
 			const Vec2f mouse = { mouseState.GetPosition().x, mouseState.GetPosition().y };
@@ -253,30 +253,39 @@ namespace GEngine::Camera
 		m_ViewMatrix = glm::inverse(m_ViewMatrix);
 	}
 
-	static void DisableMouse()
-	{
-		
-		auto& input = BaseApp::GetEngine().GetInputManager()->GetMouseState();
-		input.SetCursorMode(CursorMode::LOCKED);
-		//UI::SetInputEnabled(false);
-	}
+    static void DisableMouse()
+    {
+        if (auto result =
+                BaseApp::GetInputManager()->CapturePointer(Manager::InputLayer::View, true);
+            !result)
+            ReportPlatformError(result.error());
+    }
 
+    static void EnableMouse()
+    {
+        if (auto result = BaseApp::GetInputManager()->ReleasePointer(Manager::InputLayer::View);
+            !result)
+            ReportPlatformError(result.error());
+    }
 
-	static void EnableMouse()
+    void _EditorCamera::OnUpdate(Timestep ts)
 	{
-		auto& input = BaseApp::GetEngine().GetInputManager()->GetMouseState();
-		input.SetCursorMode(CursorMode::NORMAL);
-		//UI::SetInputEnabled(true);
-	}
-
-	void _EditorCamera::OnUpdate(Timestep ts)
-	{
-		auto& keyboard_input = BaseApp::GetInputManager()->GetKeyboardState();
-		auto& mouse_input = BaseApp::GetInputManager()->GetMouseState();
-		Vec2f mouse = Vec2f{ mouse_input.GetPosition().x, mouse_input.GetPosition().y };
+        auto& keyboard_input = BaseApp::GetInputManager()->GetViewState().m_Keyboard;
+        auto& mouse_input = BaseApp::GetInputManager()->GetViewState().m_Mouse;
+        Vec2f mouse = Vec2f{ mouse_input.GetPosition().x, mouse_input.GetPosition().y };
 		//GENGINE_CORE_INFO("Mouse X: {}, Y: {}", mouse.x, mouse.y);
-		const Vec2f delta = (mouse - m_InitialMousePosition) * 0.002f;
-		//GENGINE_CORE_INFO("Mouse delX: {}, delY: {}", delta.x, delta.y);
+        if (BaseApp::GetInputManager()->ConsumeViewCancellation())
+        {
+            m_PositionDelta = {};
+            m_YawDelta = m_PitchDelta = 0.f;
+            m_InitialMousePosition = mouse;
+            return;
+        }
+        const Vec2f movement = mouse_input.IsRelative()
+                                   ? Vec2f{float(mouse_input.GetDX()), float(mouse_input.GetDY())}
+                                   : mouse - m_InitialMousePosition;
+        const Vec2f delta = movement * 0.002f;
+        //GENGINE_CORE_INFO("Mouse delX: {}, delY: {}", delta.x, delta.y);
 		/*if (!m_IsActive)
 		{
 			if (!UI::IsInputEnabled())
@@ -391,8 +400,8 @@ namespace GEngine::Camera
 
 	float _EditorCamera::GetCameraSpeed() const
 	{
-		auto& keyboard_input = BaseApp::GetInputManager()->GetKeyboardState();
-		float speed = m_NormalSpeed;
+        auto& keyboard_input = BaseApp::GetInputManager()->GetViewState().m_Keyboard;
+        float speed = m_NormalSpeed;
 		if (keyboard_input.IsKeyPressed(GENGINE_KEY_LCTRL))
 			speed /= 2 - glm::log(m_NormalSpeed);
 		if (keyboard_input.IsKeyPressed(GENGINE_KEY_LSHIFT))
@@ -442,8 +451,8 @@ namespace GEngine::Camera
 
 	bool _EditorCamera::OnMouseScroll(float new_zoom_level)
 	{
-		auto& mouse_input = BaseApp::GetInputManager()->GetMouseState();
-		if (mouse_input.isButtonHeld(GENGINE_BUTTON_RIGHT))
+        auto& mouse_input = BaseApp::GetInputManager()->GetViewState().m_Mouse;
+        if (mouse_input.isButtonHeld(GENGINE_BUTTON_RIGHT))
 		{
 			m_NormalSpeed += new_zoom_level * 0.3f * m_NormalSpeed;
 			m_NormalSpeed = std::clamp(m_NormalSpeed, MIN_SPEED, MAX_SPEED);
@@ -460,8 +469,8 @@ namespace GEngine::Camera
 
 	void _EditorCamera::OnViewportViewDirectionChange()
 	{
-		auto& key_input = BaseApp::GetInputManager()->GetInputState();
-		if (key_input.m_Keyboard.IsKeyPressed(GENGINE_KEY_I))
+        auto& key_input = BaseApp::GetInputManager()->GetViewState();
+        if (key_input.m_Keyboard.IsKeyPressed(GENGINE_KEY_I))
 		{
 			Initialize(ViewportMode::FRONT);
 		}

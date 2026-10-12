@@ -7,6 +7,7 @@
 #include "UI/Dockspace.h"
 #include "UI/FramebufferImage.h"
 #include <imgui/imgui.h>
+#include <imgui/imgui_internal.h>
 
 using namespace ::GEngine;
 using namespace ::GEngine::Asset;
@@ -78,7 +79,26 @@ void RigidBodySimulationApp::ImGuiRender()
     const auto origin = ImGui::GetMainViewport()->Pos;
     const bool popup =
         ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
-    const bool active = ImGui::IsAnyItemActive();
+    const bool viewGesture = GetInputManager()->PointerCapture() == InputLayer::View;
+    auto& uiContext = *ImGui::GetCurrentContext();
+    const auto& viewKeyboard = GetInputManager()->GetViewState().m_Keyboard;
+    // Alt used by an owned camera gesture is not a pending menu activation.
+    // Remember it through mouse-first release: ImGui key repeat can re-arm its
+    // menu toggle while Alt remains held after pointer capture has ended.
+    if (viewGesture && (viewKeyboard.IsKeyHeld(GENGINE_KEY_LALT) ||
+                        viewKeyboard.IsKeyHeld(GENGINE_KEY_RALT)))
+        m_ViewportAltGestureConsumed = true;
+    if (m_ViewportAltGestureConsumed)
+        uiContext.NavWindowingToggleLayer = false;
+    if (!io.KeyAlt)
+        m_ViewportAltGestureConsumed = false;
+    const auto* viewportWindow = ImGui::FindWindowByName("Viewport");
+    // ImGui retains a MoveId for a background click even when title-bar-only
+    // movement prevents a drag. It is not an active widget taking this gesture.
+    const bool viewBackground =
+        viewportWindow && uiContext.ActiveIdWindow == viewportWindow &&
+        uiContext.ActiveId == viewportWindow->MoveId && !uiContext.MovingWindow;
+    const bool active = ImGui::IsAnyItemActive() && !viewBackground;
     const bool text = io.WantTextInput;
     const bool visible = HasVisibleViewport() && m_ViewportBounds[1].x > m_ViewportBounds[0].x &&
                          m_ViewportBounds[1].y > m_ViewportBounds[0].y;
@@ -90,8 +110,8 @@ void RigidBodySimulationApp::ImGuiRender()
         m_ViewportBounds[1].y - origin.y,
         visible,
         m_ViewportForcused,
-        active || popup || text || (io.WantCaptureMouse && !m_ViewportHovered),
-        active || popup || text || (io.WantCaptureKeyboard && !m_ViewportForcused)};
+        active || popup || text || (io.WantCaptureMouse && !m_ViewportHovered && !viewGesture),
+        active || popup || text || (io.WantCaptureKeyboard && !m_ViewportForcused && !viewGesture)};
     if (auto published = GetInputManager()->PublishRouting(routing); !published)
         Log::GetCoreLogger()->error("RBS input routing rejected: {}", int(published.error()));
 #ifdef GENGINE_RBS_MODULARITY_VALIDATION

@@ -65,6 +65,10 @@ private:
                               std::span<const GEngine::MaterialShaderParameter>,
                               std::span<const GEngine::Asset::ShaderVariant>);
     bool ValidateUpdate();
+#ifdef GENGINE_CAMERA_VALIDATION
+    bool ValidateCameraUpdate();
+    GEngine::ScheduleResult ValidateCameraFrame(const GEngine::FrameCamera&);
+#endif
     bool ReplayMaterialValidation();
     void ObserveViewport(const std::expected<GEngine::FramebufferScale, GEngine::PlatformError>&);
     GEngine::ScheduleResult ValidateBeforeSubmission(const GEngine::FrameSubmissionDesc&,
@@ -139,6 +143,10 @@ private:
     std::unique_ptr<GEngine::SceneRenderResources> m_SceneResources;
     std::optional<GEngine::FrameSubmission> m_FrameSubmission;
     GEngine::EntityPickTable m_PickTable;
+    // The current modern camera is authoritative. Picking retains coordinates from
+    // this same snapshot until the scheduler's pre-UI readback callback completes.
+    std::optional<GEngine::CameraSnapshot> m_CameraSnapshot;
+    std::optional<glm::uvec2> m_FramePickPixel;
     GEngine::Asset::AsyncTextureLoader* m_TextureLoads{}; // Borrowed root-owned service.
     GEngine::Asset::UploadTicket m_WoodRequest{};
     GEngine::Asset::MaterialInstanceHandle m_AsyncBoxMaterial{};
@@ -172,6 +180,7 @@ private:
     };
     SceneState m_SceneState = SceneState::Edit;
     bool m_ViewportFocused = false, m_ViewportHovered = false;
+    bool m_ViewportAltGestureConsumed = false;
     //Vec2f m_ViewportSize = { 1280.f, 400 };
     GEngine::Math::Vec2f m_ViewportBounds[2];
     GEngine::Math::Vec3f m_LightDirection; // = { 20.f, 50.0f, 20.f };

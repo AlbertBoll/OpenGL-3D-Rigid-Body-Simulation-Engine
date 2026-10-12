@@ -201,41 +201,71 @@ void RigidBodySimulationApp::Render()
             {
                 return static_cast<RigidBodySimulationApp*>(user)->UpdateFrameResources();
             }};
+        m_CameraSnapshot.reset();
+        m_FramePickPixel.reset();
         if (!context.visible)
             return FrameScheduler::Render(context);
+        // Capture the pose before UpdateView applies controller damping. The
+        // snapshot builds the view from that local-to-world orientation exactly once.
+        const auto orientation = m_EditorCamera_.GetOrientation();
         m_EditorCamera_.UpdateView();
         auto cameraId = m_ActiveScene->RenderData().Identify(m_FrameCameraEntity);
         if (!cameraId)
             return std::unexpected(ScheduleError{FrameStage::FreezeFrameInputs,
                                                  RenderExtractionError{{}, cameraId.error()}});
-        const FrameCamera camera{*cameraId,
-                                 m_EditorCamera_.GetViewMatrix(),
-                                 m_EditorCamera_.GetProjection(),
-                                 m_EditorCamera_.GetPosition(),
-                                 0,
-                                 0,
-                                 static_cast<unsigned>(m_RenderTarget->GetWidth()),
-                                 static_cast<unsigned>(m_RenderTarget->GetHeight())};
+        const auto& intent = m_FrameCameraEntity.GetComponent<RenderCameraComponent>();
+        const auto logical = GetEditorViewportLogicalSize();
+        CameraSnapshotDesc descriptor;
+        descriptor.projection = intent.projection;
+        descriptor.verticalFovRadians = intent.verticalFovRadians;
+        descriptor.orthographicHeight = intent.orthographicHeight;
+        descriptor.nearPlane = intent.nearPlane;
+        descriptor.farPlane = intent.farPlane;
+        descriptor.position = m_EditorCamera_.GetPosition();
+        descriptor.orientation = orientation;
+        descriptor.viewport.logicalOrigin = m_ViewportBounds[0];
+        descriptor.viewport.logicalSize = {logical.Width, logical.Height};
+        descriptor.viewport.pixelSize = {m_RenderTarget->GetWidth(), m_RenderTarget->GetHeight()};
+        descriptor.visibleLayers = intent.visibleLayers;
+        auto snapshot = CameraSnapshot::Create(descriptor);
+        if (!snapshot)
+        {
+            if (snapshot.error().code == CameraErrorCode::EmptyViewport)
+            {
+                context.visible = false;
+                return FrameScheduler::Render(context);
+            }
+            return std::unexpected(ScheduleError{
+                FrameStage::FreezeFrameInputs,
+                SubmissionError{std::format("camera snapshot {}: {}",
+                                            static_cast<unsigned>(snapshot.error().code),
+                                            snapshot.error().operation),
+                                SubmissionCode::InvalidCamera}});
+        }
+        m_CameraSnapshot = std::move(*snapshot);
+        const FrameCamera camera = FrameCamera::FromSnapshot(*cameraId, *m_CameraSnapshot);
         FrameSubmissionDesc targets{*m_RenderTarget,
                                     *m_MousePickFrameBuffer,
                                     *m_PointShadowFrameBuffer,
                                     *m_CascadeShadowFrameBuffer,
                                     {}, // FrameScheduler supplies current renderer pipeline roles.
                                     m_ShadowCascadeLevels,
-                                    m_EditorCamera_.GetFOV(),
-                                    m_EditorCamera_.GetAspectRatio(),
-                                    m_EditorCamera_.GetNearClip(),
-                                    m_EditorCamera_.GetFarClip(),
+                                    static_cast<float>(descriptor.verticalFovRadians),
+                                    float(camera.viewportWidth) / camera.viewportHeight,
+                                    static_cast<float>(descriptor.nearPlane),
+                                    static_cast<float>(descriptor.farPlane),
                                     m_NearPlane,
                                     m_FarPlane};
         const auto mouse = GetInputManager()->GetViewState().m_Mouse.GetPosition();
-        const auto& pickStorage = m_MousePickFrameBuffer->Buffer().Description();
-        targets.pickingEnabled =
-            GetInputManager()->GetViewState().m_Mouse.isButtonPressed(
-                GEngineMouseCode::GENGINE_BUTTON_LEFT) &&
-            ViewportPixelAt(mouse.x - m_ViewportBounds[0].x, mouse.y - m_ViewportBounds[0].y,
-                            GetEditorViewportLogicalSize(), {pickStorage.Width, pickStorage.Height})
-                .has_value();
+        if (GetInputManager()->GetViewState().m_Mouse.isButtonPressed(
+                GEngineMouseCode::GENGINE_BUTTON_LEFT))
+            if (auto pixel = m_CameraSnapshot->ReadbackPixelAt({mouse.x, mouse.y}); pixel)
+                m_FramePickPixel = *pixel;
+        targets.pickingEnabled = m_FramePickPixel.has_value();
+#ifdef GENGINE_CAMERA_VALIDATION
+        // The camera fixture additionally verifies exact IDs at declared interior samples.
+        targets.pickingEnabled = true;
+#endif
 #if defined(GENGINE_INPUT_VALIDATION) && !defined(GENGINE_INPUT_CONTROL)
         PreEditorInput::RecordInputPicking(targets.pickingEnabled);
 #endif
@@ -277,17 +307,11 @@ void RigidBodySimulationApp::Render()
 
 void RigidBodySimulationApp::OnMouseClicked()
 {
-    if (GetInputManager()->GetViewState().m_Mouse.isButtonPressed(
-            GEngineMouseCode::GENGINE_BUTTON_LEFT))
+    if (m_FramePickPixel && m_CameraSnapshot)
     {
-        const auto mouse = GetInputManager()->GetViewState().m_Mouse.GetPosition();
-        const auto& storage = m_MousePickFrameBuffer->Buffer().Description();
-        auto position =
-            ViewportPixelAt(mouse.x - m_ViewportBounds[0].x, mouse.y - m_ViewportBounds[0].y,
-                            GetEditorViewportLogicalSize(), {storage.Width, storage.Height});
-        if (!position || !HasVisibleViewport())
-            return;
-        const int x = position->X, y = position->Y;
+        const int x = static_cast<int>(m_FramePickPixel->x);
+        const int y = static_cast<int>(m_FramePickPixel->y);
+        m_FramePickPixel.reset();
         auto pixel = m_MousePickFrameBuffer->ReadPixel(x, y);
         if (!pixel)
         {
@@ -311,11 +335,8 @@ void RigidBodySimulationApp::OnMouseClicked()
             }
             m_HoveredEntity = _Entity{*entity, m_ActiveScene.get()};
         }
-        //GENGINE_CORE_INFO("Mouse Position: {}, {}; Entity {} has been clicked",x,y,m_HoveredEntity?m_HoveredEntity.GetName():"None");
-        std::println("Mouse Position: {}, {}; Entity {} has been clicked", x, y,
-                     m_HoveredEntity ? m_HoveredEntity.GetName() : "None");
-        //std::cout << "Pixel Data: " << pixel_data << std::endl;
-        //m_MousePickFrameBuffer->UnBind();
+        Log::GetCoreLogger()->info("Mouse Position: {}, {}; Entity {} has been clicked", x, y,
+                                   m_HoveredEntity ? m_HoveredEntity.GetName() : "None");
     }
 }
 

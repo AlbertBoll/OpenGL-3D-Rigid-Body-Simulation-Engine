@@ -4,10 +4,19 @@
 #include "Core/Window.h"
 #include <new>
 #include <limits>
+#ifdef GENGINE_PLATFORM_WINDOWS
+#include <sdl2/SDL_syswm.h>
+#endif
 
 namespace GEngine::Manager
 {
-    struct InputManager::Backend { SDL_GameController* Controller = nullptr; };
+    struct InputManager::Backend
+    {
+        SDL_GameController* Controller = nullptr;
+        std::uint32_t relativeWindow = 0;
+        int relativeOriginX = 0, relativeOriginY = 0;
+        int relativePixelX = 0, relativePixelY = 0;
+    };
     InputManager::InputManager() = default;
     InputManager::~InputManager() { ShutDown(); }
 
@@ -737,9 +746,163 @@ namespace GEngine::Manager
         if (m_Owner != std::this_thread::get_id())
             return std::unexpected(
                 PlatformError{PlatformErrorCode::InputMode, "relative mouse mode", "Wrong thread"});
-        if (m_Physical.m_Mouse.m_IsRelative != value &&
-            SDL_SetRelativeMouseMode(value ? SDL_TRUE : SDL_FALSE) != 0)
-            return std::unexpected(PlatformError{PlatformErrorCode::InputMode, "relative mouse mode", SDL_GetError()});
+        if (m_Physical.m_Mouse.m_IsRelative != value)
+        {
+            auto* window = m_Window ? SDL_GetWindowFromID(m_Window->GetWindowID()) : nullptr;
+            int originX = 0, originY = 0, originPixelX = 0, originPixelY = 0;
+            if (value)
+            {
+                SDL_GetMouseState(&originX, &originY);
+                if (window)
+                {
+                    // Focus/hide cancellation must not warp. SDL can therefore
+                    // retain its old absolute cache until the next real motion.
+                    // The actual cursor, not that cache, defines a new gesture.
+                    int windowX = 0, windowY = 0;
+                    SDL_GetGlobalMouseState(&originX, &originY);
+                    SDL_GetWindowPosition(window, &windowX, &windowY);
+                    originX -= windowX;
+                    originY -= windowY;
+                }
+                originPixelX = originX;
+                originPixelY = originY;
+#ifdef GENGINE_PLATFORM_WINDOWS
+                if (window)
+                {
+                    SDL_SysWMinfo native{};
+                    SDL_VERSION(&native.version);
+                    if (!SDL_GetWindowWMInfo(window, &native) ||
+                        native.subsystem != SDL_SYSWM_WINDOWS)
+                        return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
+                            "relative mouse entry", "Native window unavailable"});
+                    const auto previous = SetThreadDpiAwarenessContext(
+                        DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+                    if (!previous)
+                        return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
+                            "relative mouse entry", "Physical cursor context unavailable"});
+                    POINT point{}, client{};
+                    const bool positioned = GetPhysicalCursorPos(&point) &&
+                        ClientToScreen(native.info.win.window, &client);
+                    SetThreadDpiAwarenessContext(previous);
+                    if (!positioned)
+                        return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
+                            "relative mouse entry", "Physical cursor coordinates unavailable"});
+                    originPixelX = point.x - client.x;
+                    originPixelY = point.y - client.y;
+                }
+#endif
+            }
+            int width = 0, height = 0;
+            if (window)
+                SDL_GetWindowSize(window, &width, &height);
+            const bool viewExit = !value && m_Backend && window &&
+                m_Capture == InputLayer::View;
+            const bool focusedExit = viewExit && SDL_GetKeyboardFocus() == window &&
+                (SDL_GetWindowFlags(window) & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED)) == 0;
+            const bool restore = focusedExit && !m_Cancelling && Focused() &&
+                m_Routing.visible && !m_Routing.uiMouse &&
+                m_Backend->relativeWindow == SDL_GetWindowID(window) &&
+                m_Backend->relativeOriginX >= 0 && m_Backend->relativeOriginX < width &&
+                m_Backend->relativeOriginY >= 0 && m_Backend->relativeOriginY < height;
+            int exitX = 0, exitY = 0;
+            struct MouseRectGuard
+            {
+                SDL_Window* window = nullptr;
+                SDL_Rect previous{};
+                bool hadPrevious = false;
+#ifdef GENGINE_PLATFORM_WINDOWS
+                DPI_AWARENESS_CONTEXT previousDpi = nullptr;
+#endif
+                ~MouseRectGuard()
+                {
+#ifdef GENGINE_PLATFORM_WINDOWS
+                    if (previousDpi)
+                        SetThreadDpiAwarenessContext(previousDpi);
+#endif
+                    if (window)
+                        SDL_SetWindowMouseRect(window, hadPrevious ? &previous : nullptr);
+                }
+            } mouseRect;
+            if (focusedExit)
+            {
+                if (restore)
+                {
+                    exitX = m_Backend->relativeOriginX;
+                    exitY = m_Backend->relativeOriginY;
+                }
+                else
+                {
+                    int windowX = 0, windowY = 0;
+                    SDL_GetGlobalMouseState(&exitX, &exitY);
+                    SDL_GetWindowPosition(window, &windowX, &windowY);
+                    exitX -= windowX;
+                    exitY -= windowY;
+                }
+                mouseRect.window = window;
+                if (const auto* previous = SDL_GetWindowMouseRect(window))
+                {
+                    mouseRect.previous = *previous;
+                    mouseRect.hadPrevious = true;
+                }
+                SDL_Rect stationary{exitX, exitY, 1, 1};
+#ifdef GENGINE_PLATFORM_WINDOWS
+                SDL_SysWMinfo native{};
+                SDL_VERSION(&native.version);
+                if (!SDL_GetWindowWMInfo(window, &native) ||
+                    native.subsystem != SDL_SYSWM_WINDOWS)
+                    return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
+                        "relative mouse exit", "Native window unavailable"});
+                mouseRect.previousDpi = SetThreadDpiAwarenessContext(
+                    DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+                if (!mouseRect.previousDpi)
+                    return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
+                        "relative mouse exit", "Physical cursor context unavailable"});
+                POINT point{}, client{};
+                if (!GetPhysicalCursorPos(&point) ||
+                    !ClientToScreen(native.info.win.window, &client))
+                    return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
+                        "relative mouse exit", "Physical cursor coordinates unavailable"});
+                // SDL 2.0.20 subtracts one from the right/bottom clip edges.
+                // Use one PHYSICAL pixel, not a DPI-virtualized logical pixel.
+                // Cancellation holds the current point; only normal release
+                // may restore the recorded point in the originating window.
+                stationary = {restore ? m_Backend->relativePixelX : point.x - client.x,
+                              restore ? m_Backend->relativePixelY : point.y - client.y, 2, 2};
+#endif
+                if (SDL_SetWindowMouseRect(window, &stationary) != 0)
+                    return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
+                        "relative mouse exit", SDL_GetError()});
+            }
+            if (SDL_SetRelativeMouseMode(value ? SDL_TRUE : SDL_FALSE) != 0)
+                return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
+                    "relative mouse mode", SDL_GetError()});
+            if (focusedExit)
+            {
+                // Update SDL absolute state AFTER leaving warp-relative mode:
+                // that mode ignores an exact center sample. Native confinement
+                // suppresses SDL's implicit exit warp and one-pixel jitter.
+                // On cancellation this performs no native cursor displacement.
+                SDL_WarpMouseInWindow(window, exitX, exitY);
+                SDL_FlushEvent(SDL_MOUSEMOTION);
+            }
+            if (viewExit)
+            {
+                int exitX = 0, exitY = 0;
+                SDL_GetMouseState(&exitX, &exitY);
+                const Vector2 position{float(exitX), float(exitY)};
+                m_Physical.m_Mouse.m_MousePos = m_States[1].m_Mouse.m_MousePos = position;
+                m_Physical.m_Mouse.m_XRel = m_Physical.m_Mouse.m_YRel = 0;
+                m_States[1].m_Mouse.m_XRel = m_States[1].m_Mouse.m_YRel = 0;
+            }
+            if (m_Backend)
+            {
+                m_Backend->relativeWindow = value && window ? SDL_GetWindowID(window) : 0;
+                m_Backend->relativeOriginX = originX;
+                m_Backend->relativeOriginY = originY;
+                m_Backend->relativePixelX = originPixelX;
+                m_Backend->relativePixelY = originPixelY;
+            }
+        }
         m_Physical.m_Mouse.m_IsRelative = value;
         for (auto& state : m_States)
             state.m_Mouse.m_IsRelative = value;

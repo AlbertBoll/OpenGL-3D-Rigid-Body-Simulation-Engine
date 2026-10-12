@@ -263,8 +263,15 @@ namespace GEngine::Camera
 
     static void EnableMouse()
     {
-        if (auto result = BaseApp::GetInputManager()->ReleasePointer(Manager::InputLayer::View);
-            !result)
+        auto* input = BaseApp::GetInputManager();
+        const auto& mouse = input->GetViewState().m_Mouse;
+        // A modifier transition may suspend camera motion while its View-owned
+        // buttons remain held. Ownership ends on release or explicit cancellation.
+        if (input->PointerCapture() == Manager::InputLayer::View &&
+            (mouse.isButtonHeld(GENGINE_BUTTON_LEFT) || mouse.isButtonHeld(GENGINE_BUTTON_MIDDLE) ||
+             mouse.isButtonHeld(GENGINE_BUTTON_RIGHT)))
+            return;
+        if (auto result = input->ReleasePointer(Manager::InputLayer::View); !result)
             ReportPlatformError(result.error());
     }
 
@@ -281,9 +288,10 @@ namespace GEngine::Camera
             m_InitialMousePosition = mouse;
             return;
         }
-        const Vec2f movement = mouse_input.IsRelative()
-                                   ? Vec2f{float(mouse_input.GetDX()), float(mouse_input.GetDY())}
-                                   : mouse - m_InitialMousePosition;
+        // A button press can establish the first View position without any
+        // routed motion. Only motion-event deltas are camera movement, including
+        // the frame that begins relative capture; a new absolute anchor is not.
+        const Vec2f movement{float(mouse_input.GetDX()), float(mouse_input.GetDY())};
         const Vec2f delta = movement * 0.002f;
         //GENGINE_CORE_INFO("Mouse delX: {}, delY: {}", delta.x, delta.y);
 		/*if (!m_IsActive)
@@ -360,7 +368,10 @@ namespace GEngine::Camera
 			EnableMouse();
 		}
 
-		m_InitialMousePosition = mouse;
+        // Re-read after EnableMouse: a normal relative-mode release can restore
+        // the platform cursor origin during this update. Do not carry the old
+        // accumulated relative coordinates into the next absolute delta.
+        m_InitialMousePosition = { mouse_input.GetPosition().x, mouse_input.GetPosition().y };
 		m_Position += m_PositionDelta;
 		m_Yaw += m_YawDelta;
 		m_Pitch += m_PitchDelta;
@@ -398,25 +409,25 @@ namespace GEngine::Camera
 		return Quat(Vec3f(-m_Pitch - m_PitchDelta, -m_Yaw - m_YawDelta, 0.0f));
 	}
 
-	float _EditorCamera::GetCameraSpeed() const
-	{
+    float _EditorCamera::GetCameraSpeed() const
+    {
         auto& keyboard_input = BaseApp::GetInputManager()->GetViewState().m_Keyboard;
         float speed = m_NormalSpeed;
-		if (keyboard_input.IsKeyPressed(GENGINE_KEY_LCTRL))
-			speed /= 2 - glm::log(m_NormalSpeed);
-		if (keyboard_input.IsKeyPressed(GENGINE_KEY_LSHIFT))
-			speed *= 2 - glm::log(m_NormalSpeed);
+        if (keyboard_input.IsKeyHeld(GENGINE_KEY_LCTRL))
+            speed /= 2 - glm::log(m_NormalSpeed);
+        if (keyboard_input.IsKeyHeld(GENGINE_KEY_LSHIFT))
+            speed *= 2 - glm::log(m_NormalSpeed);
 
-		return glm::clamp(speed, MIN_SPEED, MAX_SPEED);
-	}
+        return glm::clamp(speed, MIN_SPEED, MAX_SPEED);
+    }
 
-	void _EditorCamera::UpdateProjection()
-	{
-		m_AspectRatio = (float)m_ViewportWidth / m_ViewportHeight;
+    void _EditorCamera::UpdateProjection()
+    {
+        m_AspectRatio = (float)m_ViewportWidth / m_ViewportHeight;
 		m_Projection = glm::perspective(glm::radians(m_FOV), m_AspectRatio, m_NearClip, m_FarClip);
-	}
+    }
 
-	void _EditorCamera::UpdateView()
+    void _EditorCamera::UpdateView()
 	{
 		const float yawSign = GetUpDirection().y < 0 ? -1.0f : 1.0f;
 

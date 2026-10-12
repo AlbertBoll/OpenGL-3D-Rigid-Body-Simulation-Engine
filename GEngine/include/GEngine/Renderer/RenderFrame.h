@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Component/RenderComponents.h"
+#include "Camera/CameraSnapshot.h"
 #include "Mesh/GpuMesh.h"
 #include "Material/MaterialBinding.h"
 #include <glm/glm.hpp>
@@ -11,6 +12,7 @@
 #include <variant>
 #include <type_traits>
 #include <span>
+#include <optional>
 
 namespace GEngine
 {
@@ -49,16 +51,31 @@ namespace GEngine
         float innerConeRadians = .4f, outerConeRadians = .6f;
         LightShadowSettings shadows;
     };
-    // Presentation values only. View/projection use the engine's GLM column-vector
-    // convention. Viewport coordinates are pixels relative to the submission target;
-    // target selection/retention and camera extraction are caller responsibilities.
+    // Renderer compatibility values. Modern callers derive these from a validated
+    // CameraSnapshot; any subsequent disagreement is rejected before frame publication.
+    // Legacy callers may still supply their existing presentation matrices explicitly.
     struct FrameCamera
     {
+        FrameCamera() = default;
+        FrameCamera(EntityRenderId identity, const glm::mat4& viewMatrix,
+                    const glm::mat4& projectionMatrix, glm::vec3 position, std::uint32_t x,
+                    std::uint32_t y, std::uint32_t width, std::uint32_t height,
+                    std::uint32_t layers = ~std::uint32_t{0}) noexcept;
+        static FrameCamera FromSnapshot(EntityRenderId, const CameraSnapshot&) noexcept;
+        const CameraSnapshot* Snapshot() const noexcept
+        {
+            return m_Snapshot ? &*m_Snapshot : nullptr;
+        }
+        bool MatchesSnapshot() const noexcept;
+
         EntityRenderId entity;
         glm::mat4 view{1.f}, projection{1.f};
         glm::vec3 worldPosition{};
         std::uint32_t viewportX{}, viewportY{}, viewportWidth{}, viewportHeight{};
         std::uint32_t visibleLayers = ~std::uint32_t{0};
+
+    private:
+        std::optional<CameraSnapshot> m_Snapshot;
     };
 
     struct DrawItem

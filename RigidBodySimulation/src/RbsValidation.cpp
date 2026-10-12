@@ -6,6 +6,9 @@
 
 #include <chrono>
 #include <cmath>
+#ifdef GENGINE_CAMERA_VALIDATION
+#include "../tests/CameraSnapshotChecks.h"
+#endif
 #ifdef GENGINE_INPUT_VALIDATION
 #include "../tests/InputRoutingChecks.h"
 #endif
@@ -42,6 +45,260 @@ using namespace ::GEngine::Component;
 using namespace ::GEngine::Manager;
 using namespace ::GEngine::Math;
 using namespace ::GEngine::Camera;
+
+#ifdef GENGINE_CAMERA_VALIDATION
+bool RigidBodySimulationApp::ValidateCameraUpdate()
+{
+    using namespace PreEditorCamera;
+    auto& probe = runtime;
+    ++probe.updates;
+    const auto fail = [this](const char* reason)
+    {
+        FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,
+                     "Phase 16 camera",
+                     {},
+                     "bounded diagnostic",
+                     {},
+                     reason});
+        return false;
+    };
+    if (!probe.cpu)
+    {
+        auto id = m_ActiveScene->RenderData().Identify(m_FrameCameraEntity);
+        if (!id || !Cpu(*id))
+            return fail("Independent CPU camera checks failed; see camera-math.csv");
+        probe.cpu = true;
+        Log::GetCoreLogger()->info(
+            "PRE_EDITOR_PHASE_16_RENDERER vendor={} renderer={} version={} swap_interval={} manual_cap={}",
+            reinterpret_cast<const char*>(glGetString(GL_VENDOR)),
+            reinterpret_cast<const char*>(glGetString(GL_RENDERER)),
+            reinterpret_cast<const char*>(glGetString(GL_VERSION)), GetWindow()->GetSwapInterval(),
+            GetManualFrameRateLimit());
+    }
+    if (probe.waitingRestore)
+    {
+        if (!std::ifstream("native-restored.json"))
+            return fail("Application resumed without external native minimize/restore observation");
+        probe.waitingRestore = false;
+        if (GetInputManager()->PointerCapture() != InputLayer::None || IsRenderingSuspended())
+            return fail("Stale capture or suspended state after native restore");
+        Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_16_RESTORE resumed=true capture=none");
+    }
+    if (probe.segment >= 7)
+    {
+        if (!nativeFixture.Release())
+            return fail("Native fixture cleanup before close failed");
+        Log::GetCoreLogger()->info(
+            "PRE_EDITOR_PHASE_16_FOREGROUND_RELEASE before=close success=true");
+        SDL_Event quit{};
+        quit.type = SDL_QUIT;
+        if (SDL_PushEvent(&quit) != 1)
+            return fail("Native clean-close request failed");
+        Log::GetCoreLogger()->info(
+            "PRE_EDITOR_PHASE_16_PASS segments=7 observed_frames=56 readbacks={}", probe.readbacks);
+        return false;
+    }
+    if (probe.applied != probe.segment)
+    {
+        m_HoveredEntity = {};
+        auto* native = SDL_GetWindowFromID(GetWindow()->GetWindowID());
+        if (!native)
+            return fail("Missing native diagnostic window");
+        if (!ActivateNativeWindow(native))
+            return fail("Native diagnostic activation failed");
+        FocusMaterialCamera(m_EditorCamera_, {0, 7, 6}, .12f, Rotated() ? .12f : 0.f, 28.f);
+        auto& intent = m_FrameCameraEntity.GetComponent<RenderCameraComponent>();
+        intent.projection = Ortho() ? Projection::Orthographic : Projection::Perspective;
+        intent.orthographicHeight = 20;
+        intent.nearPlane = .1f;
+        intent.farPlane = 1000;
+        if (probe.segment == 5)
+        {
+            SDL_SetWindowSize(native, 960, 640);
+            ImGui::SetWindowSize("Viewport", {560, 580});
+        }
+        if (probe.segment == 6)
+        {
+            SDL_SetWindowSize(native, 1280, 720);
+            ImGui::SetWindowSize("Viewport", {880, 660});
+        }
+        probe.applied = probe.segment;
+        probe.stable = probe.observed = 0;
+        probe.previousSize = {};
+        Log::GetCoreLogger()->info(
+            "PRE_EDITOR_PHASE_16_SEGMENT segment={} ortho={} yaw={} controlled_scale={}",
+            probe.segment, Ortho(), Rotated() ? .12 : 0, Scale());
+    }
+    return true;
+}
+
+ScheduleResult RigidBodySimulationApp::ValidateCameraFrame(const FrameCamera& camera)
+{
+    using namespace PreEditorCamera;
+    auto& probe = runtime;
+    const auto fail = [](std::string reason) -> ScheduleResult
+    {
+        Log::GetCoreLogger()->error("PRE_EDITOR_PHASE_16_FAIL {}", reason);
+        return std::unexpected(
+            ScheduleError{FrameStage::Pass, PlatformError{PlatformErrorCode::Initialization,
+                                                          "Phase 16 camera", std::move(reason)}});
+    };
+    if (probe.segment >= 7)
+        return {};
+    const auto* snapshot = camera.Snapshot();
+    if (!snapshot || !camera.MatchesSnapshot())
+        return fail("Missing or contradictory frame camera");
+    const auto& d = snapshot->Description();
+    const float controlled = static_cast<float>(Scale());
+    const auto requested = ToFramebufferPixels({static_cast<float>(d.viewport.logicalSize.x),
+                                                static_cast<float>(d.viewport.logicalSize.y)},
+                                               {controlled, controlled});
+    const auto windowSize = GetWindow()->GetLogicalSize();
+    const bool expectedWindow = probe.segment == 5
+                                    ? windowSize.Width == 960 && windowSize.Height == 640
+                                    : windowSize.Width == 1280 && windowSize.Height == 720;
+    const bool expectedPanel =
+        probe.segment == 5 ? d.viewport.logicalSize != probe.initialLogical
+                           : probe.segment != 6 || d.viewport.logicalSize == probe.initialLogical;
+    if (!requested || d.viewport.pixelSize != glm::uvec2(requested->Width, requested->Height) ||
+        d.projection != (Ortho() ? Projection::Orthographic : Projection::Perspective) ||
+        !expectedWindow || !expectedPanel)
+    {
+        probe.stable = 0;
+        return {};
+    }
+    if (probe.previousSize != d.viewport.pixelSize)
+        probe.stable = 0;
+    probe.previousSize = d.viewport.pixelSize;
+    if (++probe.stable <= 2)
+        return {};
+    // Validate actual focus after normal event processing of native activation.
+    auto* native = SDL_GetWindowFromID(GetWindow()->GetWindowID());
+    if (!AcquireNativeForeground() || !native ||
+        !(SDL_GetWindowFlags(native) & SDL_WINDOW_INPUT_FOCUS) || !GetInputManager()->Focused())
+        return fail(std::format("Native diagnostic focus was not retained: flags={} engine={}",
+                                native ? SDL_GetWindowFlags(native) : 0,
+                                GetInputManager()->Focused()));
+    ++probe.observed;
+    if (probe.segment == 0 && probe.observed == 1)
+        probe.initialLogical = d.viewport.logicalSize;
+    const auto& picking = m_MousePickFrameBuffer->Buffer().Description();
+    if (picking.Width != d.viewport.pixelSize.x || picking.Height != d.viewport.pixelSize.y)
+        return fail("Picking target and snapshot extent differ");
+    const glm::dquat expectedQ(glm::vec3(-.12f, Rotated() ? -.12f : 0, 0));
+    const auto expectedPosition = glm::dvec3(0, 7, 6) - Rotate(expectedQ, {0, 0, -1}) * 28.0;
+    if (Max(d.position - expectedPosition) > WorldLimit(expectedPosition) ||
+        Max(Rotate(d.orientation, {0, 0, -1}) - Rotate(expectedQ, {0, 0, -1})) > 2e-5)
+        return fail("Observed camera differs from frozen diagnostic pose");
+    if (probe.pendingPick)
+    {
+        if (!m_HoveredEntity || m_HoveredEntity.GetName() != Targets[0])
+            return fail("Routed viewport click did not select the predeclared source");
+        probe.pendingPick = false;
+        Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_16_ROUTED_PICK segment={} entity={}",
+                                   probe.segment, m_HoveredEntity.GetName());
+    }
+    std::array<int, 3> ids{};
+    for (unsigned i = 0; i < 2; ++i)
+    {
+        const auto expected = Pixel(d, Points[i]);
+        const auto logical = d.viewport.logicalOrigin +
+                             expected / glm::dvec2(d.viewport.pixelSize) * d.viewport.logicalSize;
+        if (!NativePointVisible(logical))
+            return fail("Declared viewport point is occluded by another native window");
+        const auto projected = snapshot->WorldToPixel(Points[i]);
+        if (!projected || Max(projected->value - expected) > .05 || !Interior(d, i, expected))
+            return fail("Predeclared pick point lacks projection agreement or four-pixel margin");
+        const int x = static_cast<int>(std::floor(expected.x));
+        const int y =
+            static_cast<int>(picking.Height) - 1 - static_cast<int>(std::floor(expected.y));
+        const auto pixel = m_MousePickFrameBuffer->ReadPixel(x, y);
+        ++probe.readbacks;
+        if (!pixel)
+            return fail("GPU picking readback failed");
+        ids[i] = *pixel;
+        auto resolved = m_ActiveScene->RenderData().ResolvePick(m_PickTable, *pixel);
+        auto entity = m_ActiveScene->FindEntityByName(Targets[i]);
+        const auto expectedId = m_ActiveScene->RenderData().Identify(entity);
+        if (!resolved || !expectedId || *resolved != *expectedId)
+            return fail(std::format("Exact entity readback mismatch: {} pixel={} x={} y={}",
+                                    Targets[i], *pixel, x, y));
+        if (i == 0 && (probe.observed == 2 || probe.observed == 3))
+        {
+            auto* native = SDL_GetWindowFromID(GetWindow()->GetWindowID());
+            if (probe.observed == 2)
+            {
+                SDL_WarpMouseInWindow(native, static_cast<int>(logical.x),
+                                      static_cast<int>(logical.y));
+                ImGui::FocusWindow(ImGui::FindWindowByName("Viewport"));
+            }
+            else
+            {
+                SDL_Event event{};
+                event.type = SDL_MOUSEBUTTONDOWN;
+                event.button.windowID = GetWindow()->GetWindowID();
+                event.button.button = SDL_BUTTON_LEFT;
+                event.button.state = SDL_PRESSED;
+                event.button.x = static_cast<int>(logical.x);
+                event.button.y = static_cast<int>(logical.y);
+                if (SDL_PushEvent(&event) != 1)
+                    return fail("Native picking injection failed");
+                event.type = SDL_MOUSEBUTTONUP;
+                event.button.state = SDL_RELEASED;
+                if (SDL_PushEvent(&event) != 1)
+                    return fail("Native picking release failed");
+                probe.pendingPick = true;
+            }
+        }
+    }
+    const auto background = m_MousePickFrameBuffer->ReadPixel(static_cast<int>(picking.Width / 4),
+                                                              static_cast<int>(picking.Height) - 9);
+    ++probe.readbacks;
+    if (!background || *background != EntityPickTable::InvalidPixel)
+        return fail("Background readback must be invalid");
+    ids[2] = *background;
+    probe.rows << probe.segment << ',' << probe.observed << ',' << d.viewport.logicalSize.x << ','
+               << d.viewport.logicalSize.y << ',' << picking.Width << ',' << picking.Height << ','
+               << Scale() << ',' << ids[0] << ',' << ids[1] << ',' << ids[2] << '\n';
+    if (probe.observed == 1)
+    {
+        const auto real = GetWindow()->GetFramebufferPixelSize();
+        Log::GetCoreLogger()->info(
+            "PRE_EDITOR_PHASE_16_VIEW segment={} logical={},{} pixels={},{} actual_os_scale={},{} position={},{},{} quaternion={},{},{},{}",
+            probe.segment, d.viewport.logicalSize.x, d.viewport.logicalSize.y, picking.Width,
+            picking.Height, double(real.Width) / windowSize.Width,
+            double(real.Height) / windowSize.Height, d.position.x, d.position.y, d.position.z,
+            d.orientation.w, d.orientation.x, d.orientation.y, d.orientation.z);
+    }
+    if (probe.observed == 8)
+    {
+        if (!Capture(*m_RenderTarget, probe.segment))
+            return fail("Representative framebuffer capture failed");
+        probe.rows.flush();
+        if (!probe.rows)
+            return fail("Frame evidence write failed");
+        Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_16_SEGMENT_PASS segment={} frames=8",
+                                   probe.segment);
+        if (probe.segment == 5)
+        {
+            if (!nativeFixture.Release())
+                return fail("Native fixture cleanup before minimize failed");
+            Log::GetCoreLogger()->info(
+                "PRE_EDITOR_PHASE_16_FOREGROUND_RELEASE before=minimize success=true");
+            std::ofstream request("native-minimize.request");
+            request
+                << "Native restore required after observed minimized state; no rendering while suspended.\n";
+            request.close();
+            if (!request)
+                return fail("Native minimize request record failed");
+            probe.waitingRestore = true;
+            SDL_MinimizeWindow(SDL_GetWindowFromID(GetWindow()->GetWindowID()));
+        }
+        ++probe.segment;
+    }
+    return {};
+}
+#endif
 
 ApplicationInitializationResult RigidBodySimulationApp::InitializeValidationPlatform(
     const std::initializer_list<WindowProperties>& WindowsPropertyList)
@@ -244,6 +501,10 @@ ApplicationInitializationResult RigidBodySimulationApp::ValidateShaderDescriptio
 
 bool RigidBodySimulationApp::ValidateUpdate()
 {
+#ifdef GENGINE_CAMERA_VALIDATION
+    if (!ValidateCameraUpdate())
+        return false;
+#endif
 #ifdef GENGINE_INPUT_VALIDATION
     if (m_Launch.validation.Includes(Rbs::ValidationCheck::InputRouting))
     {
@@ -560,6 +821,11 @@ ScheduleResult RigidBodySimulationApp::ValidateSubmittedFrame(bool submitted,
                                                               const FrameSubmissionDesc& targets,
                                                               const FrameCamera& camera)
 {
+#ifdef GENGINE_CAMERA_VALIDATION
+    if (submitted)
+        if (auto checked = ValidateCameraFrame(camera); !checked)
+            return checked;
+#endif
     if (submitted && m_Launch.validation.Includes(Rbs::ValidationCheck::AsyncResources) &&
         m_WoodSettled && (!m_LoadBarrel || m_BarrelSettled) && !m_AsyncTextureGallery.checked)
     {
@@ -637,6 +903,16 @@ ScheduleResult RigidBodySimulationApp::ValidateSubmittedFrame(bool submitted,
 void RigidBodySimulationApp::ObserveViewport(
     const std::expected<FramebufferScale, PlatformError>& scale)
 {
+#ifdef GENGINE_CAMERA_VALIDATION
+    if (scale && HasVisibleViewport())
+    {
+        const float controlled = static_cast<float>(PreEditorCamera::Scale());
+        if (auto sized =
+                SetEditorViewport(GetEditorViewportLogicalSize(), {controlled, controlled});
+            !sized)
+            ReportPlatformError(sized.error());
+    }
+#endif
     static bool phase08PresentationRecorded = false;
     if (!phase08PresentationRecorded &&
         m_Launch.validation.Includes(Rbs::ValidationCheck::GeometryAuthoring) &&

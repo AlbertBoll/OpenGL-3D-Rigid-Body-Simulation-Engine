@@ -299,20 +299,41 @@ void main() {
             if(clear) glClear(clear);
             if(pointDiagnosticActive && pass.pass==RenderPass::PointShadow) { PointDiagnosticState("after_clear");PointDiagnosticDepth("after_clear"); }
         }
-        glm::mat4 LightMatrix(const FrameCamera& camera, const FrameSubmissionDesc& desc,
-            glm::vec3 direction, float nearPlane, float farPlane)
+        std::expected<glm::mat4, SubmissionError> LightMatrix(const FrameCamera& camera,
+                                                              const FrameSubmissionDesc& desc,
+                                                              glm::vec3 direction, double nearPlane,
+                                                              double farPlane)
         {
-            // Identical cascade fitting and z expansion to the old serial path.
-            const auto inverse = glm::inverse(glm::perspective(desc.cameraFov, desc.cameraAspect,
-                nearPlane, farPlane) * camera.view);
             std::array<glm::vec4, 8> corners;
-            glm::vec3 center(0.f);
-            std::size_t i = 0;
-            for (int x = 0; x != 2; ++x) for (int y = 0; y != 2; ++y) for (int z = 0; z != 2; ++z)
+            if (const auto* snapshot = camera.Snapshot())
             {
-                auto p = inverse * glm::vec4(2.f*x-1, 2.f*y-1, 2.f*z-1, 1);
-                corners[i] = p / p.w; center += glm::vec3(corners[i++]);
+                auto slice = snapshot->SliceCorners(nearPlane, farPlane);
+                if (!slice)
+                    return Error("camera snapshot cascade slice", Code::InvalidCamera);
+                for (std::size_t i = 0; i < corners.size(); ++i)
+                    corners[i] = glm::vec4(glm::vec3((*slice)[i]), 1);
             }
+            else
+            {
+                // Retained legacy adapter. Modern slices use the authoritative snapshot.
+                const auto inverse = glm::inverse(
+                    glm::perspective(desc.cameraFov, desc.cameraAspect,
+                                     static_cast<float>(nearPlane), static_cast<float>(farPlane)) *
+                    camera.view);
+                std::size_t i = 0;
+                for (int x = 0; x != 2; ++x)
+                    for (int y = 0; y != 2; ++y)
+                        for (int z = 0; z != 2; ++z)
+                        {
+                            const auto p =
+                                inverse * glm::vec4(2.f * x - 1, 2.f * y - 1, 2.f * z - 1, 1);
+                            corners[i++] = p / p.w;
+                        }
+            }
+            // Preserve the existing light fit and depth expansion for both projections.
+            glm::vec3 center(0.f);
+            for (const auto& corner : corners)
+                center += glm::vec3(corner);
             center /= 8.f;
             const auto view = glm::lookAt(center + direction, center, glm::vec3(0,1,0));
             glm::vec3 lo((std::numeric_limits<float>::max)()), hi((std::numeric_limits<float>::lowest)());
@@ -518,6 +539,25 @@ void main() {
                     const auto& camera=frame.Cameras()[0];
                     out.Id(camera.entity); out.M(camera.view); out.M(camera.projection); out.V(camera.worldPosition);
                     out.U(camera.viewportX); out.U(camera.viewportY); out.U(camera.viewportWidth); out.U(camera.viewportHeight);
+                    const auto* snapshot = camera.Snapshot();
+                    out.U(snapshot != nullptr);
+                    if (snapshot)
+                    {
+                        const auto& semantic = snapshot->Description();
+                        out.U(static_cast<unsigned>(semantic.projection));
+                        out.U(std::bit_cast<std::uint64_t>(semantic.nearPlane));
+                        out.U(std::bit_cast<std::uint64_t>(semantic.farPlane));
+                        // Slice math retains double precision beyond the compatibility
+                        // matrices. Exact reuse must retain those authoritative inputs.
+                        for (int column = 0; column < 4; ++column)
+                            for (int row = 0; row < 4; ++row)
+                            {
+                                out.U(std::bit_cast<std::uint64_t>(
+                                    snapshot->ViewProjection()[column][row]));
+                                out.U(std::bit_cast<std::uint64_t>(
+                                    snapshot->InverseView()[column][row]));
+                            }
+                    }
                     if(picking) out.U(camera.visibleLayers);
                 }
                 result.ends[5]=out.size;
@@ -707,6 +747,11 @@ void main() {
         if (spot && spot->shadows.castShadows)
             return Error("spot shadows are unsupported",Code::UnsupportedLights);
         const auto& camera=frame.Cameras()[0];
+        // RenderFrameBuilder validated snapshot/representation agreement before
+        // publishing this immutable frame. Submission consumes that validated state.
+        const auto* snapshot = camera.Snapshot();
+        const double cameraNear = snapshot ? snapshot->Description().nearPlane : desc.cameraNear;
+        const double cameraFar = snapshot ? snapshot->Description().farPlane : desc.cameraFar;
         const auto& target=desc.color.Description().Storage;
         const auto* directional=frame.DirectionalLights().empty()?nullptr:&frame.DirectionalLights()[0];
         const auto* point=frame.PointLights().empty()?nullptr:&frame.PointLights()[0];
@@ -719,15 +764,19 @@ void main() {
             || (directionalShadow && desc.cascadeShadow.Buffer().Description().Layers<5)
             || camera.viewportX || camera.viewportY || camera.viewportWidth!=target.Width || camera.viewportHeight!=target.Height)
             return Error("submission required target or dimensions",Code::InvalidTarget);
-        if (desc.cascadeSplits.size()!=5 || desc.cascadeSplits.back()!=desc.cameraFar
-            || !std::isfinite(desc.cameraFov) || desc.cameraFov<=0 || desc.cameraFov>=glm::pi<float>() || !std::isfinite(desc.cameraAspect)
-            || desc.cameraAspect<=0 || !std::isfinite(desc.cameraNear) || desc.cameraNear<=0
-            || !std::isfinite(desc.cameraFar) || desc.cameraFar<=desc.cameraNear
-            || !std::isfinite(desc.pointNear) || desc.pointNear<=0 || !std::isfinite(desc.pointFar) || desc.pointFar<=desc.pointNear)
+        if (desc.cascadeSplits.size() != 5 ||
+            desc.cascadeSplits.back() != static_cast<float>(cameraFar) ||
+            (!snapshot && (!std::isfinite(desc.cameraFov) || desc.cameraFov <= 0 ||
+                           desc.cameraFov >= glm::pi<float>() ||
+                           !std::isfinite(desc.cameraAspect) || desc.cameraAspect <= 0)) ||
+            !std::isfinite(cameraNear) || cameraNear <= 0 || !std::isfinite(cameraFar) ||
+            cameraFar <= cameraNear || !std::isfinite(desc.pointNear) || desc.pointNear <= 0 ||
+            !std::isfinite(desc.pointFar) || desc.pointFar <= desc.pointNear)
             return Error("shadow projection",Code::InvalidShadowSettings);
-        float previous=desc.cameraNear;
+        double previous = cameraNear;
         for(float split:desc.cascadeSplits) {
-            if(!std::isfinite(split) || split<=previous || split>desc.cameraFar) return Error("cascade splits",Code::InvalidShadowSettings);
+            if (!std::isfinite(split) || split <= previous || split > static_cast<float>(cameraFar))
+                return Error("cascade splits", Code::InvalidShadowSettings);
             previous=split;
         }
         const float pointFar=point?point->range:desc.pointFar;
@@ -821,10 +870,15 @@ void main() {
         }
         std::array<glm::mat4,5> cascadeMatrices;
         std::array<glm::mat4,6> pointMatrices;
-        previous=desc.cameraNear;
+        previous = cameraNear;
         if(stats.decisions[0].executed) for(std::size_t i=0;i<cascadeMatrices.size();++i) {
-            cascadeMatrices[i]=LightMatrix(camera,desc,lightDirection,previous,desc.cascadeSplits[i]);
-            previous=desc.cascadeSplits[i];
+                const double end =
+                    i + 1 == cascadeMatrices.size() ? cameraFar : desc.cascadeSplits[i];
+                auto matrix = LightMatrix(camera, desc, lightDirection, previous, end);
+                if (!matrix)
+                    return std::unexpected(matrix.error());
+                cascadeMatrices[i] = *matrix;
+                previous = end;
         }
         if(stats.decisions[1].executed) {
             const auto& size=desc.pointShadow.Buffer().Description();
@@ -897,14 +951,14 @@ void main() {
         packedFrame.viewPosition=lane(camera.worldPosition);packedFrame.lightDirection=lane(lightDirection);packedFrame.lightPosition=lane(position);
         packedFrame.directionalColor=lane(directional?directional->color*directional->intensity:glm::vec3(0));
         packedFrame.pointColor=lane(point?point->color*point->intensity:glm::vec3(0));
-        packedFrame.planes={desc.cameraFar,pointFar,0,0};
+        packedFrame.planes = {static_cast<float>(cameraFar), pointFar, 0, 0};
         packedFrame.lights={bool(directional),bool(point),directionalShadow,pointShadow};
         if(spot) {
             packedFrame.spotPosition=lane(spot->position);packedFrame.spotPosition[3]=spot->range;
             packedFrame.spotDirection=lane(spot->direction);packedFrame.spotDirection[3]=std::cos(spot->innerConeRadians);
             packedFrame.spotColor=lane(spot->color*spot->intensity);packedFrame.spotColor[3]=std::cos(spot->outerConeRadians);
         }
-        previous=desc.cameraNear;
+        previous = cameraNear;
         for(std::size_t i=0;i<desc.cascadeSplits.size();++i) {
             packedFrame.splits[i][0]=desc.cascadeSplits[i];
             if(stats.decisions[0].executed) packedFrame.cascades[i]=matrixWords(cascadeMatrices[i]);

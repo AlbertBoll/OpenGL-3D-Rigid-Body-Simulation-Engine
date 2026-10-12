@@ -28,7 +28,7 @@ int main(int argc, char* args[])
 {
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
     // Select exactly one RBS scene here; bootstrap supplies all launch settings.
-    constexpr auto scenePreset = Rbs::RbsScenePreset::GeometryGallery;
+    constexpr auto scenePreset = Rbs::RbsScenePreset::SphereBoxStack;
     Rbs::LaunchConfig settings;
     settings.scene = scenePreset;
 #ifdef GENGINE_INPUT_VALIDATION

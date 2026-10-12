@@ -42,6 +42,46 @@ namespace GEngine
         }
     }
 
+    FrameCamera::FrameCamera(EntityRenderId identity, const glm::mat4& viewMatrix,
+                             const glm::mat4& projectionMatrix, glm::vec3 position, std::uint32_t x,
+                             std::uint32_t y, std::uint32_t width, std::uint32_t height,
+                             std::uint32_t layers) noexcept
+        : entity(identity), view(viewMatrix), projection(projectionMatrix), worldPosition(position),
+          viewportX(x), viewportY(y), viewportWidth(width), viewportHeight(height),
+          visibleLayers(layers)
+    {
+    }
+
+    FrameCamera FrameCamera::FromSnapshot(EntityRenderId identity,
+                                          const CameraSnapshot& snapshot) noexcept
+    {
+        const auto& desc = snapshot.Description();
+        const auto& viewport = desc.viewport;
+        FrameCamera result{identity,
+                           snapshot.View(),
+                           snapshot.Projection(),
+                           glm::vec3(desc.position),
+                           viewport.pixelOrigin.x,
+                           viewport.pixelOrigin.y,
+                           viewport.pixelSize.x,
+                           viewport.pixelSize.y,
+                           desc.visibleLayers};
+        result.m_Snapshot = snapshot;
+        return result;
+    }
+
+    bool FrameCamera::MatchesSnapshot() const noexcept
+    {
+        if (!m_Snapshot)
+            return true;
+        const auto& desc = m_Snapshot->Description();
+        const auto& viewport = desc.viewport;
+        return view == m_Snapshot->View() && projection == m_Snapshot->Projection() &&
+               worldPosition == glm::vec3(desc.position) && viewportX == viewport.pixelOrigin.x &&
+               viewportY == viewport.pixelOrigin.y && viewportWidth == viewport.pixelSize.x &&
+               viewportHeight == viewport.pixelSize.y && visibleLayers == desc.visibleLayers;
+    }
+
     RenderFrame::RenderFrame() = default;
     RenderFrame::~RenderFrame() = default;
     std::span<const DrawItem> RenderFrame::Draws() const & noexcept
@@ -191,9 +231,10 @@ namespace GEngine
         const auto index = m_Frame.m_Size.cameras;
         if (index == m_Frame.m_Capacity.cameras) return Error(Code::CapacityExceeded, Section::Cameras, index);
         const auto limit = (std::numeric_limits<std::uint32_t>::max)();
-        if (!camera.entity || !Finite(camera.view) || !Finite(camera.projection) || !Finite(camera.worldPosition)
-            || !camera.viewportWidth || !camera.viewportHeight
-            || camera.viewportWidth > limit - camera.viewportX || camera.viewportHeight > limit - camera.viewportY)
+        if (!camera.entity || !Finite(camera.view) || !Finite(camera.projection) ||
+            !Finite(camera.worldPosition) || !camera.viewportWidth || !camera.viewportHeight ||
+            camera.viewportWidth > limit - camera.viewportX ||
+            camera.viewportHeight > limit - camera.viewportY || !camera.MatchesSnapshot())
             return Error(Code::InvalidCamera, Section::Cameras, index);
         m_Frame.m_Cameras[index] = camera;
         ++m_Frame.m_Size.cameras;

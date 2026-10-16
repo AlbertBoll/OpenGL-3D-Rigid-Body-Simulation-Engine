@@ -69,6 +69,10 @@ private:
     bool ValidateCameraUpdate();
     GEngine::ScheduleResult ValidateCameraFrame(const GEngine::FrameCamera&);
 #endif
+#ifdef GENGINE_LIFECYCLE_VALIDATION
+    bool ValidateLifecycleUpdate();
+    GEngine::ScheduleResult ValidateLifecycleFrame(const GEngine::FrameCamera&);
+#endif
     bool ReplayMaterialValidation();
     void ObserveViewport(const std::expected<GEngine::FramebufferScale, GEngine::PlatformError>&);
     GEngine::ScheduleResult ValidateBeforeSubmission(const GEngine::FrameSubmissionDesc&,
@@ -134,6 +138,7 @@ private:
     void DrawMaterialPanel();
     void DrawAsyncMenu();
     void DrawMenus();
+    void DrawCameraMenu();
     void DrawViewport();
 #ifdef GENGINE_RBS_MODULARITY_VALIDATION
     void ValidatePacketAUi();
@@ -155,7 +160,26 @@ private:
     std::unique_ptr<GEngine::Asset::AsyncMeshLoader> m_MeshLoads;
     GEngine::Asset::UploadTicket m_BarrelRequest{};
     bool m_LoadBarrel{}, m_BarrelSettled{};
-    GEngine::_Entity m_FrameCameraEntity;
+    enum class CameraView { Editor, ActiveScene, Preview };
+    CameraView m_CameraView = CameraView::Editor;
+    CameraView m_PreviewReturnView = CameraView::Editor;
+    GEngine::EntityRenderId m_EditorViewIdentity{}, m_PreviewCamera{};
+    std::array<GEngine::EntityRenderId, 2> m_SceneCameras{}; // UI references, not selection authority.
+    std::string m_CameraDiagnostic;
+    std::string m_CameraUnavailableDiagnostic;
+    bool m_CameraAvailable = false;
+    bool CancelCameraGesture();
+    bool SetCameraView(CameraView, GEngine::EntityRenderId preview = {});
+    bool EndCameraPreview();
+    bool BindCameraScene(GEngine::RefPtr<GEngine::_Scene>);
+    bool SelectSceneCamera(GEngine::EntityRenderId);
+    bool RetireSceneCamera(std::size_t slot, bool replace);
+    GEngine::ApplicationInitializationResult CreateSceneCamera(std::size_t slot);
+    GEngine::ScheduleResult PrepareCameraFrame(GEngine::RenderContext&,
+                                              GEngine::FrameSceneInput&, GEngine::FrameCamera&);
+#ifdef GENGINE_CAMERA_VALIDATION
+    GEngine::Component::RenderCameraComponent m_CameraValidationIntent;
+#endif
     GEngine::_Entity m_Sphere;
     GEngine::_Entity m_HoveredEntity;
     GEngine::_Entity m_GridEntity;
@@ -181,6 +205,17 @@ private:
     SceneState m_SceneState = SceneState::Edit;
     bool m_ViewportFocused = false, m_ViewportHovered = false;
     bool m_ViewportAltGestureConsumed = false;
+    bool m_ViewportActive = false, m_ViewportRequestFocus = false;
+    bool m_ViewportHighlightPending = false, m_ViewPickRequested = false;
+    std::uint32_t m_ViewportActivationButtons = 0;
+    unsigned m_ViewportNavWindow = 0;
+    double m_ViewportHighlightStart = -1.0;
+    void SetViewportActive(bool active, bool cancelInput = true);
+#ifdef GENGINE_LIFECYCLE_VALIDATION
+    std::uint64_t m_GesturePickReadbacks = 0, m_ViewportActivations = 0;
+    float m_ViewportHighlightOpacity = 0;
+    bool ValidateViewportGestures();
+#endif
     //Vec2f m_ViewportSize = { 1280.f, 400 };
     GEngine::Math::Vec2f m_ViewportBounds[2];
     GEngine::Math::Vec3f m_LightDirection; // = { 20.f, 50.0f, 20.f };

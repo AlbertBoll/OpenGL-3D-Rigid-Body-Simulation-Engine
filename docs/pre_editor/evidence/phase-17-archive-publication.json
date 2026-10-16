@@ -1,0 +1,41 @@
+{
+  "phase": 17,
+  "recorded_utc": "2026-10-16T05:47:31.377537+00:00",
+  "purpose": "Lossless permanent publication of immutable diagnostic patch without violating new-file whitespace guard",
+  "original": {
+    "path": "docs/pre_editor/evidence/phase-17-production-changes.patch",
+    "sha256": "24d3d86f6774dce5d5cbb943a8cc9e6688a8a950081b06cfa61a85c65d3bb177",
+    "size": 166153,
+    "disposition": "Unchanged, protected local evidence; not staged"
+  },
+  "published_transport": {
+    "path": "docs/pre_editor/evidence/phase-17-production-changes.patch.base64.txt",
+    "sha256": "dcb80272a70c795fa23030912af2130ad35ff228b1f15af587ffcf3b058deb39",
+    "size": 224455,
+    "encoding": "RFC4648 Base64, wrapped with LF"
+  },
+  "decode": "Python: base64.decodebytes(Path(\"phase-17-production-changes.patch.base64.txt\").read_bytes()); verify SHA256 equals original.sha256 before saving or applying",
+  "byte_equality_verified": true,
+  "production_changes": false,
+  "guard_suppression": false,
+  "prior_unsealed_metadata_failures": [
+    {
+      "reason": "Missing command fields",
+      "correction": "Added actual recorded commands"
+    },
+    {
+      "reason": "String findings instead of objects",
+      "correction": "Preserved meaning using finding/status/disposition schema"
+    },
+    {
+      "reason": "Unclassified preexisting/derived outputs",
+      "correction": "1697 exact paths classified protected-only from entry and control manifests"
+    },
+    {
+      "reason": "New-file whitespace in raw patch",
+      "correction": "Lossless Base64 transport; original remains immutable"
+    }
+  ],
+  "validation_results": "All applicable formal gates PASS, unchanged; C26 Release and all historical failures retained",
+  "historical_uncertainty": "C04/C13 causes unresolved; owner-inspected historical executable identity unverified"
+}

@@ -361,6 +361,10 @@ namespace GEngine::Manager
         [[nodiscard]] PlatformResult CapturePointer(InputLayer layer, bool relative);
         [[nodiscard]] PlatformResult ReleasePointer(InputLayer layer);
         [[nodiscard]] PlatformResult SetRelativeMouseMode(bool value);
+        // EventManager brackets only native polling. Logical delivery stays immediate.
+        [[nodiscard]] PlatformResult BeginNativePoll();
+        [[nodiscard]] PlatformResult EndNativePoll();
+        const PlatformError* NativePollFailure() const;
 
         template <class F>
         auto Subscribe(InputLayer layer, F callback)
@@ -383,6 +387,11 @@ namespace GEngine::Manager
 
     private:
         InputManager();
+        struct NativePointerTransition;
+        PlatformResult TransitionPointer(bool relative, int grab);
+        PlatformResult ApplyPointerTransition(const NativePointerTransition& transition);
+        PlatformResult ReadPointerOrigin(NativePointerTransition& transition);
+        void CancelFailedPointerTransition(const PlatformError& error);
         float Filter1D(int input);
         Vector2 Filter2D(int x, int y);
         void Apply(InputState& state, const InputEvent& event);

@@ -17,9 +17,26 @@
 #include <type_traits>
 #include "Core/UUID.h"
 #include <Camera/EditorCamera.h>
+#include "Camera/CameraSnapshot.h"
 
 namespace GEngine
 {
+    enum class SceneCameraErrorCode
+    {
+        StaleId, ForeignId, MissingIdentity, MissingCamera, MissingTransform,
+        InvalidPose, InvalidProjection, InvalidViewport, EmptyViewport,
+        TransformUnavailable, ExtractionActive, IdentityExhausted,
+        NotEditorView, InvalidReplacement, RetirementFailed
+    };
+    struct SceneCameraError
+    {
+        SceneCameraErrorCode code;
+        EntityRenderId camera{};
+        std::optional<RenderEcsError> identity;
+        std::optional<CameraError> snapshot;
+        std::optional<TransformError> transform;
+        std::optional<SceneError> scene;
+    };
     struct RenderTransformQueryError
     {
         TransformErrorCode code = TransformErrorCode::InvalidEntity;
@@ -251,6 +268,28 @@ namespace GEngine
 
 		_Entity GetPrimaryCameraEntity();
 
+        // Modern selection is explicit. Legacy CameraComponent::Primary is independent.
+        // All identities use this scene's existing generation/domain provider.
+        [[nodiscard]] std::expected<std::optional<EntityRenderId>, SceneCameraError>
+        ActiveSceneCamera() const;
+        [[nodiscard]] std::expected<void, SceneCameraError>
+        SetActiveSceneCamera(EntityRenderId, const RenderStateResources&);
+        [[nodiscard]] std::expected<void, SceneCameraError> ClearActiveSceneCamera();
+        [[nodiscard]] std::expected<void, SceneCameraError> DeleteSceneCamera(EntityRenderId);
+        [[nodiscard]] std::expected<void, SceneCameraError>
+        ReplaceSceneCamera(EntityRenderId expectedOld, EntityRenderId replacement,
+                           const RenderStateResources&);
+        // Samples the existing world/presentation provider immediately before extraction.
+        // No cached projection, controller pose or independent hierarchy is maintained.
+        [[nodiscard]] std::expected<CameraSnapshot, SceneCameraError>
+        SnapshotSceneCamera(EntityRenderId, const RenderStateResources&, const CameraViewport&);
+
+        // Runtime-only view identity: no UUID, Transform, camera intent, renderer or body.
+        // It cannot become a Scene Camera and is excluded from authored Scene copies.
+        [[nodiscard]] std::expected<EntityRenderId, SceneCameraError> CreateEditorViewIdentity();
+        [[nodiscard]] std::expected<void, SceneCameraError> ValidateEditorViewIdentity(EntityRenderId) const;
+        [[nodiscard]] std::expected<void, SceneCameraError> RetireEditorViewIdentity(EntityRenderId);
+
 		bool IsRunning() const { return m_IsRunning; }
 		bool IsPaused() const { return m_IsPaused; }
 
@@ -308,6 +347,10 @@ namespace GEngine
 		}
 
 	private:
+        [[nodiscard]] std::expected<entt::entity, SceneCameraError>
+        ResolveSceneCamera(EntityRenderId) const;
+        std::optional<EntityRenderId> m_ActiveSceneCamera;
+
         [[nodiscard]] std::expected<EntityRenderId, TransformMutationError>
         ValidateTransformMutation(const _Entity&);
         [[nodiscard]] std::expected<AuthoritativeTransformMutation, TransformMutationError>

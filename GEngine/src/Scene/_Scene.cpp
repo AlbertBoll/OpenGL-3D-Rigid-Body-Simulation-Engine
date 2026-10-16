@@ -30,6 +30,17 @@ namespace GEngine
 
 	namespace
 	{
+        struct TransientEditorView {};
+
+        SceneCameraError CameraIdentityError(EntityRenderId id, RenderEcsError error)
+        {
+            const auto code = error == RenderEcsError::ForeignId ? SceneCameraErrorCode::ForeignId
+                : error == RenderEcsError::ExtractionActive ? SceneCameraErrorCode::ExtractionActive
+                : error == RenderEcsError::IdentityExhausted ? SceneCameraErrorCode::IdentityExhausted
+                : SceneCameraErrorCode::StaleId;
+            return {code, id, error};
+        }
+
 		struct CachedWorldTransform
 		{
 			Vec3f translation{}, scale{1.0f};
@@ -125,7 +136,7 @@ namespace GEngine
 	{
 		([&]()
 			{
-				auto view = src.view<Component>();
+				auto view = src.view<Component>(entt::exclude<TransientEditorView>);
 				for (auto srcEntity : view)
 				{
 					entt::entity dstEntity = enttMap.at(src.get<IDComponent>(srcEntity).ID);
@@ -268,7 +279,7 @@ namespace GEngine
         if (!other) return std::unexpected(SceneError{SceneErrorCode::InvalidScene, "_Scene::Copy",
             "Scene copy requires a source scene"});
 		other->m_RenderData.RequireMutable();
-        for (auto entity : other->m_Registry.view<MeshRendererComponent>())
+        for (auto entity : other->m_Registry.view<MeshRendererComponent>(entt::exclude<TransientEditorView>))
             if (!other->m_Registry.all_of<IDComponent, TagComponent>(entity))
                 return std::unexpected(SceneError{SceneErrorCode::MissingIdentity, "_Scene::Copy",
                     "Renderer copy requires authored Entity identity and name"});
@@ -282,7 +293,7 @@ namespace GEngine
 		std::unordered_map<UUID, entt::entity> enttMap;
 
 		// Create entities in new scene
-		auto idView = srcSceneRegistry.view<IDComponent>();
+		auto idView = srcSceneRegistry.view<IDComponent>(entt::exclude<TransientEditorView>);
 		for (auto e : idView)
 		{
             if (!srcSceneRegistry.all_of<TagComponent>(e))
@@ -327,6 +338,23 @@ namespace GEngine
             if (auto published = newScene->PushToRenderList(_Entity(e, newScene.get())); !published)
                 return std::unexpected(published.error());
 		}
+
+        if (other->m_ActiveSceneCamera)
+        {
+            auto source = other->ResolveSceneCamera(*other->m_ActiveSceneCamera);
+            if (source)
+            {
+                const auto copied = enttMap.find(srcSceneRegistry.get<IDComponent>(*source).ID);
+                if (copied != enttMap.end())
+                {
+                    auto id = newScene->m_RenderData.Identify(copied->second);
+                    if (!id)
+                        return std::unexpected(SceneError{SceneErrorCode::InvalidIdentity,
+                            "_Scene::Copy", "Active camera identity allocation failed"});
+                    newScene->m_ActiveSceneCamera = *id;
+                }
+            }
+        }
 
 		return newScene;
 
@@ -1100,6 +1128,177 @@ namespace GEngine
 		return {};
 	}
 
+    std::expected<entt::entity, SceneCameraError>
+    _Scene::ResolveSceneCamera(EntityRenderId id) const
+    {
+        if (m_RenderData.IsExtracting())
+            return std::unexpected(SceneCameraError{SceneCameraErrorCode::ExtractionActive, id});
+        auto entity = m_RenderData.Resolve(id);
+        if (!entity) return std::unexpected(CameraIdentityError(id, entity.error()));
+        // Compatibility component writes cannot change a transient view's lifetime role.
+        if (m_Registry.any_of<TransientEditorView>(*entity) || !m_Registry.all_of<IDComponent>(*entity))
+            return std::unexpected(SceneCameraError{SceneCameraErrorCode::MissingIdentity, id});
+        if (!m_Registry.all_of<RenderCameraComponent>(*entity))
+            return std::unexpected(SceneCameraError{SceneCameraErrorCode::MissingCamera, id});
+        if (!m_Registry.all_of<Transform3DComponent>(*entity))
+            return std::unexpected(SceneCameraError{SceneCameraErrorCode::MissingTransform, id});
+        return *entity;
+    }
+
+    std::expected<EntityRenderId, SceneCameraError> _Scene::CreateEditorViewIdentity()
+    {
+        if (m_RenderData.IsExtracting())
+            return std::unexpected(SceneCameraError{SceneCameraErrorCode::ExtractionActive});
+        const auto entity = m_Registry.create();
+        auto id = m_RenderData.Identify(entity);
+        if (!id)
+        {
+            m_Registry.destroy(entity);
+            return std::unexpected(CameraIdentityError({}, id.error()));
+        }
+        m_Registry.emplace<TransientEditorView>(entity);
+        return *id;
+    }
+
+    std::expected<void, SceneCameraError>
+    _Scene::ValidateEditorViewIdentity(EntityRenderId id) const
+    {
+        auto entity = m_RenderData.Resolve(id);
+        if (!entity) return std::unexpected(CameraIdentityError(id, entity.error()));
+        if (!m_Registry.all_of<TransientEditorView>(*entity) ||
+            m_Registry.any_of<IDComponent, Transform3DComponent, RenderCameraComponent,
+                              MeshRendererComponent, RigidBody3DComponent>(*entity))
+            return std::unexpected(SceneCameraError{SceneCameraErrorCode::NotEditorView, id});
+        return {};
+    }
+
+    std::expected<void, SceneCameraError> _Scene::RetireEditorViewIdentity(EntityRenderId id)
+    {
+        if (m_RenderData.IsExtracting())
+            return std::unexpected(SceneCameraError{SceneCameraErrorCode::ExtractionActive, id});
+        auto entity = m_RenderData.Resolve(id);
+        if (!entity) return std::unexpected(CameraIdentityError(id, entity.error()));
+        // A compatibility projection value invalidates rendering, not the owned
+        // transient lifetime. Authored state and resource owners still fail closed.
+        if (!m_Registry.all_of<TransientEditorView>(*entity) ||
+            m_Registry.any_of<IDComponent, Transform3DComponent,
+                              MeshRendererComponent, RigidBody3DComponent>(*entity))
+            return std::unexpected(SceneCameraError{SceneCameraErrorCode::NotEditorView, id});
+        m_Registry.destroy(*entity);
+        return {};
+    }
+
+    std::expected<std::optional<EntityRenderId>, SceneCameraError> _Scene::ActiveSceneCamera() const
+    {
+        if (m_ActiveSceneCamera)
+            if (auto valid = ResolveSceneCamera(*m_ActiveSceneCamera); !valid)
+                return std::unexpected(valid.error());
+        return m_ActiveSceneCamera;
+    }
+
+    std::expected<void, SceneCameraError> _Scene::ClearActiveSceneCamera()
+    {
+        if (m_RenderData.IsExtracting())
+            return std::unexpected(SceneCameraError{SceneCameraErrorCode::ExtractionActive});
+        m_ActiveSceneCamera.reset();
+        return {};
+    }
+
+    std::expected<CameraSnapshot, SceneCameraError>
+    _Scene::SnapshotSceneCamera(EntityRenderId id, const RenderStateResources& resources,
+                                const CameraViewport& viewport)
+    {
+        auto entity = ResolveSceneCamera(id);
+        if (!entity) return std::unexpected(entity.error());
+        const auto& intent = m_Registry.get<RenderCameraComponent>(*entity);
+        if (!std::isfinite(intent.verticalFovRadians) || !std::isfinite(intent.orthographicHeight) ||
+            !std::isfinite(intent.nearPlane) || !std::isfinite(intent.farPlane))
+            return std::unexpected(SceneCameraError{SceneCameraErrorCode::InvalidProjection, id});
+        auto sampled = UpdateRenderState(resources);
+        if (!sampled)
+            return std::unexpected(SceneCameraError{
+                sampled.error().code == TransformErrorCode::NonFiniteTransform ||
+                sampled.error().code == TransformErrorCode::InvalidRotation
+                    ? SceneCameraErrorCode::InvalidPose : SceneCameraErrorCode::TransformUnavailable,
+                id, {}, {}, sampled.error()});
+        for (const auto row : sampled->entities)
+        {
+            if (row.entity != id) continue;
+            const glm::dmat3 basis(row.world);
+            const auto residual = glm::transpose(basis) * basis - glm::dmat3(1);
+            double maximum = 0;
+            for (int c = 0; c != 3; ++c)
+                for (int r = 0; r != 3; ++r)
+                    maximum = (std::max)(maximum, std::abs(residual[c][r]));
+            if (!FiniteMatrix(row.world) || maximum > 2e-4 ||
+                std::abs(glm::determinant(basis) - 1.) > 2e-4)
+                return std::unexpected(SceneCameraError{SceneCameraErrorCode::InvalidPose, id});
+            const auto& projection = *row.cpu.cameraIntent;
+            CameraSnapshotDesc desc;
+            desc.position = glm::dvec3(row.world[3]);
+            desc.orientation = glm::normalize(glm::quat_cast(basis));
+            desc.projection = projection.projection;
+            desc.verticalFovRadians = projection.verticalFovRadians;
+            desc.orthographicHeight = projection.orthographicHeight;
+            desc.nearPlane = projection.nearPlane;
+            desc.farPlane = projection.farPlane;
+            desc.visibleLayers = projection.visibleLayers;
+            desc.viewport = viewport;
+            auto snapshot = CameraSnapshot::Create(desc);
+            if (!snapshot)
+            {
+                const auto code = snapshot.error().code == CameraErrorCode::EmptyViewport
+                    ? SceneCameraErrorCode::EmptyViewport
+                    : snapshot.error().code == CameraErrorCode::InvalidViewport
+                        ? SceneCameraErrorCode::InvalidViewport : SceneCameraErrorCode::InvalidProjection;
+                return std::unexpected(SceneCameraError{code, id, {}, snapshot.error()});
+            }
+            return *snapshot;
+        }
+        return std::unexpected(SceneCameraError{SceneCameraErrorCode::MissingTransform, id});
+    }
+
+    std::expected<void, SceneCameraError>
+    _Scene::SetActiveSceneCamera(EntityRenderId id, const RenderStateResources& resources)
+    {
+        if (auto valid = SnapshotSceneCamera(id, resources, {}); !valid)
+            return std::unexpected(valid.error());
+        m_ActiveSceneCamera = id;
+        return {};
+    }
+
+    std::expected<void, SceneCameraError> _Scene::DeleteSceneCamera(EntityRenderId id)
+    {
+        auto entity = ResolveSceneCamera(id);
+        if (!entity) return std::unexpected(entity.error());
+        if (auto retired = DestroyEntity(_Entity{*entity, this}); !retired)
+            return std::unexpected(SceneCameraError{SceneCameraErrorCode::RetirementFailed,
+                id, {}, {}, {}, retired.error()});
+        return {};
+    }
+
+    std::expected<void, SceneCameraError>
+    _Scene::ReplaceSceneCamera(EntityRenderId old, EntityRenderId replacement,
+                               const RenderStateResources& resources)
+    {
+        auto source = ResolveSceneCamera(old);
+        if (!source) return std::unexpected(source.error());
+        auto target = ResolveSceneCamera(replacement);
+        if (!target) return std::unexpected(target.error());
+        if (old == replacement)
+            return std::unexpected(SceneCameraError{SceneCameraErrorCode::InvalidReplacement, old});
+        if (auto valid = SnapshotSceneCamera(replacement, resources, {}); !valid)
+            return std::unexpected(valid.error());
+        // Destruction includes descendants: a replacement must survive that retirement.
+        for (auto parent = _Entity{*target, this}.GetParent(); parent; parent = parent.GetParent())
+            if (static_cast<entt::entity>(parent) == *source)
+                return std::unexpected(SceneCameraError{SceneCameraErrorCode::InvalidReplacement, replacement});
+        const bool transfer = m_ActiveSceneCamera == old;
+        if (auto retired = DeleteSceneCamera(old); !retired) return retired;
+        if (transfer) m_ActiveSceneCamera = replacement;
+        return {};
+    }
+
 	std::expected<_Entity, SceneError> _Scene::CreateEntity(const std::string& tag)
 	{
 		return CreateEntityWithUUID(UUID(), tag);
@@ -1173,6 +1372,10 @@ namespace GEngine
 		{
 			const auto current = *it;
 			const auto id = current.GetUUID();
+			if (m_ActiveSceneCamera)
+                if (auto active = m_RenderData.Resolve(*m_ActiveSceneCamera);
+                    active && *active == static_cast<entt::entity>(current))
+                    m_ActiveSceneCamera.reset();
 			RemoveFromRenderLists(current);
 			if (current.HasAllComponents<RigidBody3DComponent>())
 			{

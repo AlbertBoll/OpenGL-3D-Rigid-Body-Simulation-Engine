@@ -6,6 +6,9 @@
 
 #include <chrono>
 #include <cmath>
+#ifdef GENGINE_LIFECYCLE_VALIDATION
+#include "../tests/CameraLifecycleChecks.h"
+#endif
 #ifdef GENGINE_CAMERA_VALIDATION
 #include "../tests/CameraSnapshotChecks.h"
 #endif
@@ -46,6 +49,756 @@ using namespace ::GEngine::Manager;
 using namespace ::GEngine::Math;
 using namespace ::GEngine::Camera;
 
+#if defined(GENGINE_LIFECYCLE_VALIDATION) && !defined(GENGINE_LIFECYCLE_CONTROL)
+#ifdef GENGINE_LIFECYCLE_FOCUS_TRACE
+namespace PreEditorLifecycle
+{
+    void FinishFocusTrace(const char* reason)
+    {
+        const auto reset = probe.focusTrace.Reset();
+        FocusMark(119, bool(reset));
+        PreEditorCamera::FocusTrace::Finish(reset ? reason : "engine_observer_detach_failed");
+    }
+}
+#endif
+bool RigidBodySimulationApp::ValidateViewportGestures()
+{
+    using namespace PreEditorLifecycle;
+    auto& p = gestureProbe; auto& input = *GetInputManager();
+    using Movement = GestureProbe::Movement;
+    const auto fail = [&](const char* reason) {
+        p.rows.flush();
+        Log::GetCoreLogger()->error("PRE_EDITOR_PHASE_17_GESTURE_FAIL step={} case={} reason={}", p.step,p.name,reason);
+        FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Viewport gestures",{},p.name,{},reason});
+        return false;
+    };
+    if (++p.frames > 256) return fail("Bounded gesture frame allowance exhausted");
+    if (!FocusGate(*this) || input.NativePollFailure()) return fail("Native/engine focus or transition failure");
+    if (!p.started)
+    {
+        if (ImGui::GetCurrentContext()->InputEventsQueue.Size)
+        {
+            if (++p.settle > 32) return fail("Prior UI events did not retire before gesture matrix");
+            return true;
+        }
+        if (!SetCameraView(CameraView::Editor) || !CancelCameraGesture()) return fail("Gesture setup");
+        p.started = true;
+    }
+    if (p.tick && ++p.tick < 4) return true;
+    if (p.tick)
+    {
+        const auto reads = m_GesturePickReadbacks - p.reads;
+        const auto activations = m_ViewportActivations - p.activations;
+        const bool capture = input.PointerCapture() == InputLayer::View;
+        const bool moved = PreEditorCamera::Max(glm::dvec3(m_EditorCamera_.GetPosition()-p.position)) >
+            PreEditorCamera::WorldLimit(glm::dvec3(p.position)) ||
+            std::abs(glm::dot(m_EditorCamera_.GetOrientation(),p.orientation)) < 1.f-1e-6f;
+        bool movement = false;
+        switch (p.movement)
+        {
+        case Movement::None: movement = !moved; break;
+        case Movement::Orbit: case Movement::Fly:
+            movement = moved && std::abs(m_EditorCamera_.m_YawDelta) > 1e-6f &&
+                std::abs(m_EditorCamera_.m_PitchDelta) > 1e-6f;
+            if (p.allowNavTransfer) movement = moved; // Real UI cancellation may retire damping after movement.
+            break;
+        case Movement::Pan: movement = moved && m_EditorCamera_.m_FocalPoint != p.focal; break;
+        case Movement::Dolly: movement = moved && std::abs(m_EditorCamera_.GetDistance()-p.distance)>1e-5f; break;
+        }
+        const bool pick = !p.expectedReads || (m_HoveredEntity &&
+            m_HoveredEntity.GetName() == PreEditorCamera::Targets[0]);
+        const auto highlightAge = ImGui::GetTime()-m_ViewportHighlightStart;
+        const auto& ui = *ImGui::GetCurrentContext();
+        const bool legitimateUITransfer = p.allowNavTransfer && !m_ViewportActive && ui.NavWindow &&
+            ui.NavWindow != ImGui::FindWindowByName("Viewport");
+        const bool highlight = !p.expectActive || legitimateUITransfer ||
+            ((p.expectedActivations ? m_ViewportHighlightStart>=0 : m_ViewportHighlightStart==p.highlightStart) &&
+             (m_ViewportHighlightStart<0 || highlightAge<.25 || m_ViewportHighlightOpacity==0));
+        const bool passed = highlight && movement && reads==p.expectedReads && activations==p.expectedActivations &&
+            (m_ViewportActive==p.expectActive || legitimateUITransfer) && capture==p.expectCapture &&
+            (SDL_GetRelativeMouseMode()==SDL_TRUE)==p.expectCapture && pick;
+        p.rows << p.step << ',' << p.name << ',' << passed << ',' << reads << ',' << activations << ','
+            << m_ViewportActive << ',' << capture << ',' << moved << '\n';
+        if (!passed) return fail("Movement/picking/activation/capture oracle");
+        if (++p.step == 65)
+        {
+            if (!SetCameraView(CameraView::Editor) || !CancelCameraGesture()) return fail("Gesture teardown");
+            p.complete=true; probe.ui=false; p.rows.flush();
+            Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_17_GESTURES_PASS cases=65 held_alt_gestures=20 frames={}",p.frames);
+            return true;
+        }
+        p.tick=0;
+    }
+    // Neutralize only old camera damping at the fixture boundary. Keep physical keys,
+    // button ownership, capture and all routing intact (including Alt held for 20 gestures).
+    m_EditorCamera_.m_Yaw += m_EditorCamera_.m_YawDelta;
+    m_EditorCamera_.m_Pitch += m_EditorCamera_.m_PitchDelta;
+    m_EditorCamera_.m_YawDelta = m_EditorCamera_.m_PitchDelta = 0;
+    m_EditorCamera_.m_PositionDelta = {};
+    m_EditorCamera_.m_FocalPoint = m_EditorCamera_.GetPosition() +
+        m_EditorCamera_.GetForwardDirection()*m_EditorCamera_.GetDistance();
+    p.position=m_EditorCamera_.GetPosition(); p.orientation=m_EditorCamera_.GetOrientation();
+    p.focal=m_EditorCamera_.m_FocalPoint; p.distance=m_EditorCamera_.GetDistance();
+    p.reads=m_GesturePickReadbacks; p.activations=m_ViewportActivations;
+    p.highlightStart=m_ViewportHighlightStart;
+    p.expectedReads=0; p.expectedActivations=0; p.expectActive=true; p.expectCapture=false;
+    p.movement=Movement::None; p.allowNavTransfer=false;
+    const auto r=input.Routing();
+    const auto uiPoint=PreEditorInput::uiProbe.points[4];
+    const glm::vec2 widgetPoint{uiPoint.x,uiPoint.y};
+    const glm::vec2 center{(r.left+r.right)*.5f,(r.top+r.bottom)*.5f};
+    const glm::vec2 outside[4]={{r.left-2,center.y},{center.x,r.top-2},{r.right+2,center.y},{center.x,r.bottom+2}};
+    const auto button=[&](unsigned b,bool down,glm::vec2 pt) { return GestureButton(*this,b,down,pt); };
+    const auto motion=[&](glm::vec2 pt,int dx=0,int dy=0) { return GestureMotion(*this,pt,dx,dy); };
+    const auto alt=[&](bool down) { return GestureKey(*this,SDL_SCANCODE_LALT,down,down?KMOD_LALT:KMOD_NONE); };
+    const auto click=[&](glm::vec2 pt) { return motion(pt) && button(SDL_BUTTON_LEFT,true,pt) && button(SDL_BUTTON_LEFT,false,pt); };
+    const auto gesture=[&](unsigned b) { return motion(center) && button(b,true,center) &&
+        motion(center,12,-9) && button(b,false,center); };
+    const auto targetClick=[&]() {
+        if (!m_CameraSnapshot) return false;
+        const auto pixel=m_CameraSnapshot->WorldToPixel(PreEditorCamera::Points[0]);
+        if (!pixel) return false;
+        const auto& v=m_CameraSnapshot->Description().viewport;
+        const glm::vec2 point(v.logicalOrigin+pixel->value/glm::dvec2(v.pixelSize)*v.logicalSize);
+        return PreEditorCamera::NativePointVisible(glm::dvec2(point)) && click(point);
+    };
+    bool ok=true;
+    if (p.step>=4 && p.step<24)
+    {
+        p.name="held_alt_consecutive_orbit"; p.movement=Movement::Orbit;
+        ok=(input.GetPhysicalState().modifiers&LeftAlt) && gesture(SDL_BUTTON_LEFT);
+    }
+    else if (p.step>=25 && p.step<=28)
+    {
+        p.name="repeated_alt_press_release"; p.movement=Movement::Orbit;
+        ok=alt(true)&&gesture(SDL_BUTTON_LEFT)&&alt(false);
+    }
+    else if (p.step>=40 && p.step<=47)
+    {
+        if (p.step%2==0)
+        {
+            p.name="new_outside_press_rejected"; p.expectActive=false;
+            const auto point=outside[(p.step-40)/2];
+            ok=alt(true)&&motion(point)&&button(SDL_BUTTON_LEFT,true,point)&&motion(point,12,-9)&&
+                button(SDL_BUTTON_LEFT,false,point)&&alt(false);
+        }
+        else { p.name="fresh_activation_after_UI_transfer"; p.expectedActivations=1; ok=click(center); }
+    }
+    else switch(p.step)
+    {
+    case 0:
+        p.name="hover_never_activates"; p.expectActive=false;
+        ok=GestureFocus(*this,false)&&GestureFocus(*this,true)&&motion(center); break;
+    case 1: p.name="activation_consumes_down_up"; p.expectedActivations=1; ok=click(center); break;
+    case 2: p.name="fresh_plain_GPU_pick"; p.expectedReads=1; ok=targetClick(); break;
+    case 3: p.name="alt_before_mouse"; ok=alt(true); break;
+    case 24: p.name="alt_release_preserves_activation"; ok=alt(false); break;
+    case 29:
+        p.name="same_poll_alt_up_before_button_up"; p.movement=Movement::Orbit;
+        ok=alt(true)&&motion(center)&&button(SDL_BUTTON_LEFT,true,center)&&motion(center,12,-9)&&
+            alt(false)&&button(SDL_BUTTON_LEFT,false,center); break;
+    case 30:
+        p.name="mouse_first_alt_promotion"; p.movement=Movement::Orbit;
+        ok=motion(center)&&button(SDL_BUTTON_LEFT,true,center)&&alt(true)&&motion(center,12,-9)&&
+            button(SDL_BUTTON_LEFT,false,center)&&alt(false); break;
+    case 31: p.name="left_alt_middle_pan"; p.movement=Movement::Pan; ok=alt(true)&&gesture(SDL_BUTTON_MIDDLE)&&alt(false); break;
+    case 32: p.name="left_alt_right_dolly"; p.movement=Movement::Dolly; ok=alt(true)&&gesture(SDL_BUTTON_RIGHT)&&alt(false); break;
+    case 33:
+        p.name="right_alt_preserves_plain_picking"; p.expectedReads=1; p.allowNavTransfer=true;
+        ok=GestureKey(*this,SDL_SCANCODE_RALT,true,KMOD_RALT)&&targetClick()&&
+            GestureKey(*this,SDL_SCANCODE_RALT,false,KMOD_NONE); break;
+    case 34:
+        p.name="right_alt_preserves_right_fly"; p.movement=Movement::Fly; p.allowNavTransfer=true;
+        if (!m_ViewportActive) { p.expectedActivations=1; ok=click(center); }
+        ok=ok&&GestureKey(*this,SDL_SCANCODE_RALT,true,KMOD_RALT)&&gesture(SDL_BUTTON_RIGHT)&&
+            GestureKey(*this,SDL_SCANCODE_RALT,false,KMOD_NONE); break;
+    case 35:
+        p.name="same_poll_orbit_crosses_left_boundary"; p.movement=Movement::Orbit; p.expectCapture=true;
+        if (!m_ViewportActive) { p.expectedActivations=1; ok=click(center); }
+        ok=ok&&alt(true)&&motion(center)&&button(SDL_BUTTON_LEFT,true,center)&&motion(outside[0],12,-9); break;
+    case 36: case 37: case 38:
+        p.name="owned_orbit_crosses_boundary"; p.movement=Movement::Orbit; p.expectCapture=true;
+        ok=motion(outside[p.step-35],12,-9); break;
+    case 39:
+        p.name="outside_release_keeps_activation"; ok=button(SDL_BUTTON_LEFT,false,outside[3])&&alt(false); break;
+    case 48:
+        p.name="relative_capture_setup"; p.expectCapture=true;
+        ok=alt(true)&&motion(center)&&button(SDL_BUTTON_LEFT,true,center); break;
+    case 49:
+        p.name="relative_release_then_fresh_same_poll"; p.movement=Movement::Orbit;
+        ok=button(SDL_BUTTON_LEFT,false,center)&&gesture(SDL_BUTTON_LEFT)&&alt(false); break;
+    case 50:
+        p.name="focus_cancel_owned_orbit_setup"; p.movement=Movement::Orbit; p.expectCapture=true;
+        ok=alt(true)&&motion(center)&&button(SDL_BUTTON_LEFT,true,center)&&motion(center,12,-9); break;
+    case 51:
+        p.name="cancel_before_regain_fresh_same_poll"; p.movement=Movement::Orbit; p.expectedActivations=1;
+        ok=motion(center,30,20)&&GestureFocus(*this,false)&&GestureFocus(*this,true)&&alt(true)&&
+            click(center)&&gesture(SDL_BUTTON_LEFT)&&alt(false); break;
+    case 52:
+        p.name="focus_regain_stays_inactive"; p.expectActive=false;
+        ok=GestureFocus(*this,false)&&GestureFocus(*this,true)&&motion(center); break;
+    case 53:
+        p.name="UI_owned_alt_activation_barrier"; p.expectedActivations=1;
+        ok=alt(true)&&click(center); break;
+    case 54:
+        p.name="orbit_with_alt_owned_before_activation"; p.movement=Movement::Orbit;
+        ok=(input.GetPhysicalState().modifiers&LeftAlt)&&gesture(SDL_BUTTON_LEFT); break;
+    case 55:
+        p.name="plain_GPU_pick_after_alt_gestures"; p.expectedReads=1; ok=alt(false)&&targetClick(); break;
+    case 56: p.name="real_UI_appearance_focus_transfer"; probe.ui=true; p.expectActive=false; break;
+    case 57:
+        p.name="UI_alt_press_owns_text_widget"; p.expectActive=false;
+        ok=PreEditorInput::uiProbe.seen[4]&&alt(true)&&motion(widgetPoint)&&
+            button(SDL_BUTTON_LEFT,true,widgetPoint); break;
+    case 58:
+        p.name="UI_alt_motion_release_never_orbits_or_picks"; p.expectActive=false;
+        ok=motion(widgetPoint,12,-9)&&
+            button(SDL_BUTTON_LEFT,false,widgetPoint)&&alt(false); break;
+    case 59:
+        p.name="active_text_has_priority_over_view_activation"; p.expectActive=false;
+        ok=PreEditorInput::uiProbe.textActive&&click(center); break;
+    case 60:
+        p.name="UI_escape_retires_text"; p.expectActive=false;
+        ok=GestureKey(*this,SDL_SCANCODE_ESCAPE,true,KMOD_NONE)&&GestureKey(*this,SDL_SCANCODE_ESCAPE,false,KMOD_NONE); break;
+    case 61: p.name="fresh_activation_after_UI"; p.expectedActivations=1; ok=click(center); break;
+    case 62: p.name="plain_GPU_pick_after_UI"; p.expectedReads=1; ok=targetClick(); break;
+    case 63:
+        p.name="scene_role_rejects_alt_camera_and_pick";
+        ok=SetCameraView(CameraView::ActiveScene)&&alt(true)&&gesture(SDL_BUTTON_LEFT)&&alt(false); break;
+    case 64:
+        p.name="preview_role_rejects_alt_camera_and_pick";
+        ok=SetCameraView(CameraView::Preview,m_SceneCameras[0])&&alt(true)&&gesture(SDL_BUTTON_LEFT)&&alt(false); break;
+    default: return fail("Unknown gesture case");
+    }
+    if (!ok) return fail("Gesture input prerequisite/injection failed");
+    p.tick=1;
+    return true;
+}
+
+bool RigidBodySimulationApp::ValidateLifecycleUpdate()
+{
+    using namespace PreEditorLifecycle;
+    ++probe.updates;
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+    PickTraceValues("post_poll");
+#endif
+    FocusFrame();
+    FocusMark(100);
+    SetManualFrameRateLimit(0);
+    const auto fail = [this](const char* message)
+    {
+#ifdef GENGINE_LIFECYCLE_FOCUS_TRACE
+        PreEditorLifecycle::FinishFocusTrace(message);
+#endif
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+        PickTrace::Finish(message);
+#endif
+        FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Phase 17 camera lifecycle", {},
+                     "bounded diagnostic", {}, message});
+        return false;
+    };
+    auto& input = *GetInputManager();
+    auto* native = SDL_GetWindowFromID(GetWindow()->GetWindowID());
+#ifdef GENGINE_LIFECYCLE_FOCUS_TRACE
+    if (probe.updates == 1)
+    {
+        // Begin before the original fixture activation at update5. No extra pump.
+        if (!PreEditorCamera::FocusTrace::Begin(native)) return fail("Trace hook initialization");
+        FocusFrame();
+        auto observer = input.Observe([this](const InputEvent& event)
+        {
+            const auto flags = std::uint64_t(event.kind) | (std::uint64_t(event.cancellation) << 8) |
+                (std::uint64_t(event.cleanup) << 16) | (std::uint64_t(event.handled) << 17) |
+                (std::uint64_t(event.destination) << 24);
+            const auto state = std::uint64_t(GetInputManager()->Focused()) |
+                (std::uint64_t(GetInputManager()->PointerCapture()) << 8) |
+                (std::uint64_t(SDL_GetRelativeMouseMode()) << 16);
+            FocusMark(110, event.sequence, flags, event.window, state);
+            FocusMark(111, event.sequence, unsigned(event.key), unsigned(event.button), event.modifiers);
+            // The state is sampled after Route/CancelInput's existing dispatch point;
+            // nested cleanup can precede the physical focus assignment.
+            if (event.kind == InputKind::FocusLost || event.kind == InputKind::FocusGained ||
+                event.kind == InputKind::Cancel)
+                FocusSample(121, *this);
+        });
+        if (!observer) return fail("Focus observation subscription");
+        probe.focusTrace = std::move(*observer);
+        FocusMark(122, 1);
+        FocusSample(123, *this);
+    }
+#endif
+    if (probe.updates < 5) return true;
+    if (!probe.initialized)
+    {
+        if (!native || !ActivateNative(native, *this)) return fail("Native activation");
+        FocusSample(102, *this);
+        const auto prepared = PreEditorInput::PrepareNativeFixture(*this);
+        FocusMark(103, bool(prepared), PreEditorInput::nativeForeground.held,
+                  reinterpret_cast<std::uintptr_t>(PreEditorInput::nativeForeground.window));
+        FocusSample(124, *this);
+        if (!prepared) return fail(prepared.error().message.c_str());
+        if (auto checked = Cpu(*m_SceneResources); !checked) return fail(checked.error().message.c_str());
+        if (auto checked = PreEditorInput::CheckState(*this); !checked) return fail(checked.error().message.c_str());
+        if (auto checked = NativePollChecks(*this); !checked) return fail(checked.error().message.c_str());
+        // The new focus policy requires a consumed activation click before controls/costs.
+        if (!Routing(*this) || !Button(*this, SDL_BUTTON_LEFT, true) ||
+            !Button(*this, SDL_BUTTON_LEFT, false) || !Pump(*this) || !m_ViewportActive ||
+            m_ViewPickRequested || input.PointerCapture() != InputLayer::None)
+            return fail("Explicit Viewport activation prerequisite");
+        PreEditorInput::Describe(*this);
+        Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_17_RENDERER vendor={} renderer={} version={} swap_interval={} manual_cap={}",
+            reinterpret_cast<const char*>(glGetString(GL_VENDOR)), reinterpret_cast<const char*>(glGetString(GL_RENDERER)),
+            reinterpret_cast<const char*>(glGetString(GL_VERSION)), GetWindow()->GetSwapInterval(), GetManualFrameRateLimit());
+        const auto originalEditor = m_EditorCamera_;
+        const bool paused = m_IsPause, debug = m_IsShowDebugBoundingBox;
+#if defined(GENGINE_CONFIG_RELEASE)
+        if (auto measured = Measure(*this, "editor"); !measured) return fail(measured.error().message.c_str());
+        if (!SetCameraView(CameraView::ActiveScene)) return fail("Scene input measurement binding");
+        if (auto measured = Measure(*this, "scene"); !measured) return fail(measured.error().message.c_str());
+        probe.costDone = true;
+#endif
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+        PickTrace::Arm(*this);
+#endif
+        m_EditorCamera_ = originalEditor;
+        if (!SetCameraView(CameraView::Editor) || !Routing(*this)) return fail("Input fixture routing");
+        if (!PreEditorLifecycle::NativeTap(*this, SDL_SCANCODE_P) || !m_IsPause ||
+            !PreEditorLifecycle::NativeTap(*this, SDL_SCANCODE_R) || m_IsPause ||
+            !PreEditorLifecycle::NativeTap(*this, SDL_SCANCODE_SPACE) || m_IsShowDebugBoundingBox == debug)
+            return fail("Preserved Game actions");
+        const auto beforeShortcutPosition = m_EditorCamera_.GetPosition();
+        const auto beforeShortcutOrientation = m_EditorCamera_.GetOrientation();
+        if (!PreEditorLifecycle::NativeTap(*this, SDL_SCANCODE_I)) return fail("Editor viewpoint input");
+        const glm::dvec3 frontPosition(0, 20, std::sqrt(5000.0));
+        if (!Check((m_EditorCamera_.GetPosition() != beforeShortcutPosition ||
+                    m_EditorCamera_.GetOrientation() != beforeShortcutOrientation) &&
+                   PreEditorCamera::Max(glm::dvec3(m_EditorCamera_.GetPosition()) - frontPosition) <=
+                       PreEditorCamera::WorldLimit(frontPosition) &&
+                   PreEditorCamera::Max(PreEditorCamera::Rotate(glm::dquat(m_EditorCamera_.GetOrientation()), {0,0,-1}) -
+                                       glm::dvec3(0,0,-1)) <= 2e-5 &&
+                   PreEditorCamera::Max(PreEditorCamera::Rotate(glm::dquat(m_EditorCamera_.GetOrientation()), {0,1,0}) -
+                                       glm::dvec3(0,1,0)) <= 2e-5,
+                   "editor_viewpoint_shortcut_fixed_front_pose")) return fail("Editor viewpoint pose");
+        const float distance = m_EditorCamera_.GetDistance();
+        if (!Wheel(*this) || !Pump(*this) || !Check(m_EditorCamera_.GetDistance() != distance, "editor_wheel"))
+            return fail("Editor wheel consumer");
+        FocusMaterialCamera(m_EditorCamera_, {0,7,6}, .12f, 0, 28.f);
+        if (!CancelCameraGesture() || !Routing(*this)) return fail("Editor capture preparation");
+        const auto beforeFly = m_EditorCamera_.GetPosition();
+        if (!Button(*this, SDL_BUTTON_RIGHT, true) || !Key(*this, SDL_SCANCODE_W, true) || !Motion(*this) || !Pump(*this))
+            return fail("Fly injection");
+        m_EditorCamera_.OnUpdate(Timestep(.016f));
+        if (!Check(input.PointerCapture() == InputLayer::View && m_EditorCamera_.GetPosition() != beforeFly,
+                   "editor_real_fly_capture")) return fail("Editor fly");
+        const auto movingPosition = m_EditorCamera_.GetPosition();
+        const auto movingOrientation = m_EditorCamera_.GetOrientation();
+        const auto movingDistance = m_EditorCamera_.GetDistance();
+        if (!Check(m_EditorCamera_.m_YawDelta != 0 && m_EditorCamera_.m_PitchDelta != 0,
+                   "switch_fixture_has_angular_damping")) return fail("Moving switch fixture");
+        if (!SetCameraView(CameraView::ActiveScene)) return fail("Switch during capture");
+        if (!Check(m_EditorCamera_.GetPosition() == movingPosition &&
+                   m_EditorCamera_.GetOrientation() == movingOrientation &&
+                   m_EditorCamera_.GetDistance() == movingDistance,
+                   "switch_preserves_effective_editor_pose")) return fail("Switch moved Editor pose");
+        const auto savedPosition = m_EditorCamera_.GetPosition();
+        const auto savedOrientation = m_EditorCamera_.GetOrientation();
+        const auto savedDistance = m_EditorCamera_.GetDistance();
+        if (!Check(input.PointerCapture() == InputLayer::None && SDL_GetRelativeMouseMode() == SDL_FALSE &&
+                   m_EditorCamera_.m_PositionDelta == Vec3f{} && m_EditorCamera_.m_YawDelta == 0 &&
+                   m_EditorCamera_.m_PitchDelta == 0, "switch_cancels_capture_and_damping")) return fail("switch cancellation");
+        const auto aEntity = *m_ActiveScene->RenderData().Resolve(m_SceneCameras[0]);
+        const auto authoredPose = m_ActiveScene->ReadRegistry().get<Transform3DComponent>(aEntity).Translation;
+        for (const auto role : {CameraView::ActiveScene, CameraView::Preview})
+        {
+            if (!SetCameraView(role, m_SceneCameras[1]) || !Routing(*this) ||
+                !PreEditorLifecycle::NativeTap(*this, SDL_SCANCODE_I) || !Wheel(*this) ||
+                !Button(*this, SDL_BUTTON_RIGHT, true) || !Key(*this, SDL_SCANCODE_W, true) || !Motion(*this) || !Pump(*this))
+                return fail("Scene/Preview control injection");
+            if (!Check(m_EditorCamera_.GetPosition() == savedPosition && m_EditorCamera_.GetOrientation() == savedOrientation &&
+                    m_EditorCamera_.GetDistance() == savedDistance &&
+                    m_ActiveScene->ReadRegistry().get<Transform3DComponent>(aEntity).Translation == authoredPose &&
+                    input.PointerCapture() == InputLayer::None, "scene_preview_controls_preserve_authored_and_editor"))
+                return fail("Scene/Preview suppression");
+        }
+        if (!EndCameraPreview() || m_CameraView != CameraView::ActiveScene || !SetCameraView(CameraView::Editor))
+            return fail("Preview restores prior role");
+        m_EditorCamera_.OnUpdate(Timestep(.016f));
+        if (!Check(input.PointerCapture() == InputLayer::None && m_EditorCamera_.GetPosition() == savedPosition &&
+                   m_EditorCamera_.GetOrientation() == savedOrientation,
+                   "return_requires_fresh_press")) return fail("held input resumed");
+        if (!Button(*this, SDL_BUTTON_RIGHT, false) || !Key(*this, SDL_SCANCODE_W, false) || !Pump(*this) ||
+            !Routing(*this) || !Button(*this, SDL_BUTTON_RIGHT, true) || !Motion(*this) || !Pump(*this)) return fail("fresh press");
+        m_EditorCamera_.OnUpdate(Timestep(.016f));
+        if (!Check(input.PointerCapture() == InputLayer::View, "fresh_press_captures")) return fail("fresh capture");
+        if (!Button(*this, SDL_BUTTON_RIGHT, false) || !Pump(*this) || !CancelCameraGesture()) return fail("fly release");
+        for (const auto button : {SDL_BUTTON_LEFT, SDL_BUTTON_MIDDLE})
+        {
+            if (!Routing(*this) || !Key(*this, SDL_SCANCODE_LALT, true) || !Button(*this, button, true) ||
+                !Motion(*this) || !Pump(*this)) return fail("orbit/pan injection");
+            const auto q = m_EditorCamera_.GetOrientation();
+            const auto focal = m_EditorCamera_.m_FocalPoint;
+            m_EditorCamera_.OnUpdate(Timestep(.016f));
+            if (!Check(input.PointerCapture() == InputLayer::View &&
+                    (button == SDL_BUTTON_LEFT ? m_EditorCamera_.GetOrientation() != q : m_EditorCamera_.m_FocalPoint != focal),
+                    "editor_real_orbit_pan")) return fail("orbit/pan control");
+            const auto orbitPosition = m_EditorCamera_.GetPosition();
+            const auto orbitOrientation = m_EditorCamera_.GetOrientation();
+            const auto orbitDistance = m_EditorCamera_.GetDistance();
+            if (button == SDL_BUTTON_LEFT &&
+                !Check(m_EditorCamera_.m_YawDelta != 0 && m_EditorCamera_.m_PitchDelta != 0,
+                       "orbit_switch_fixture_has_angular_damping")) return fail("Moving orbit switch fixture");
+            if (!SetCameraView(CameraView::ActiveScene)) return fail("Orbit/pan Scene switch");
+            if (!Check(m_EditorCamera_.GetPosition() == orbitPosition &&
+                       m_EditorCamera_.GetOrientation() == orbitOrientation &&
+                       m_EditorCamera_.GetDistance() == orbitDistance,
+                       "orbit_pan_switch_preserves_effective_pose")) return fail("Orbit/pan switch moved Editor pose");
+            if (!SetCameraView(CameraView::Editor)) return fail("Orbit/pan Editor return");
+            m_EditorCamera_.OnUpdate(Timestep(0));
+            if (!Check(input.PointerCapture() == InputLayer::None &&
+                       PreEditorCamera::Max(glm::dvec3(m_EditorCamera_.GetPosition()) - glm::dvec3(orbitPosition)) <=
+                           PreEditorCamera::WorldLimit(glm::dvec3(orbitPosition)) &&
+                       m_EditorCamera_.GetOrientation() == orbitOrientation &&
+                       m_EditorCamera_.GetDistance() == orbitDistance &&
+                       m_EditorCamera_.m_PositionDelta == Vec3f{} &&
+                       m_EditorCamera_.m_YawDelta == 0 && m_EditorCamera_.m_PitchDelta == 0,
+                       "orbit_pan_idle_return_preserves_effective_pose")) return fail("Orbit/pan idle return moved Editor pose");
+            if (!Button(*this, button, false) || !Key(*this, SDL_SCANCODE_LALT, false) || !Pump(*this) ||
+                !CancelCameraGesture()) return fail("orbit/pan release");
+        }
+        for (const auto lost : {SDL_WINDOWEVENT_FOCUS_LOST, SDL_WINDOWEVENT_HIDDEN, SDL_WINDOWEVENT_MINIMIZED})
+        {
+            if (!Routing(*this)) return fail("focus fixture routing");
+            if (!m_ViewportActive && (!Button(*this, SDL_BUTTON_LEFT, true) ||
+                !Button(*this, SDL_BUTTON_LEFT, false) || !Pump(*this))) return fail("focus fixture activation");
+            if (!Button(*this, SDL_BUTTON_RIGHT, true) || !Pump(*this)) return fail("focus capture setup");
+            m_EditorCamera_.OnUpdate(Timestep(.016f));
+            SDL_Event event{}; event.type = SDL_WINDOWEVENT;
+            event.window.windowID = GetWindow()->GetWindowID(); event.window.event = lost;
+            if (Push(event, 25) != 1) return fail("focus loss injection");
+            GetEventManager()->PollEvents();
+            if (!Check(!input.Focused() && input.PointerCapture() == InputLayer::None &&
+                       SDL_GetRelativeMouseMode() == SDL_FALSE, "focus_hide_minimize_cancel")) return fail("focus cancellation");
+            for (const auto restored : {SDL_WINDOWEVENT_RESTORED, SDL_WINDOWEVENT_SHOWN, SDL_WINDOWEVENT_FOCUS_GAINED})
+            { event.window.event = restored; if (Push(event, 25) != 1) return fail("focus restore injection"); }
+            if (!Button(*this, SDL_BUTTON_RIGHT, false) || !Pump(*this) || !CancelCameraGesture()) return fail("focus restore");
+        }
+        const auto savedScene = m_ActiveScene;
+        const auto cameras = m_SceneCameras;
+        const auto oldView = m_EditorViewIdentity;
+        auto emptyScene = CreateRefPtr<_Scene>();
+        if (!BindCameraScene(emptyScene)) return fail("Scene rebind");
+        const auto temporaryView = m_EditorViewIdentity;
+        if (!Check(!savedScene->RenderData().Resolve(oldView) && m_CameraView == CameraView::Editor &&
+                   !m_PreviewCamera && !m_SceneCameras[0] && input.PointerCapture() == InputLayer::None,
+                   "rebind_retires_old_view_clears_references")) return fail("rebind lifecycle");
+        if (!BindCameraScene(savedScene)) return fail("Scene restore binding");
+        m_SceneCameras = cameras;
+        if (!Check(!emptyScene->RenderData().Resolve(temporaryView) && m_EditorViewIdentity != oldView,
+                   "rebind_back_fresh_identity")) return fail("rebind stale");
+        m_IsPause = paused; m_IsShowDebugBoundingBox = debug;
+        FocusMaterialCamera(m_EditorCamera_, {0,7,6}, .12f, 0, 28.f);
+        for (unsigned slot = 0; slot != 2; ++slot)
+        {
+            auto entity = m_ActiveScene->RenderData().Resolve(m_SceneCameras[slot]);
+            if (!entity || !m_ActiveScene->SetLocalPose(_Entity{*entity, m_ActiveScene.get()},
+                    glm::vec3(Position(slot == 1)), glm::quat(Orientation(slot == 1)))) return fail("authored diagnostic pose");
+        }
+        probe.editorPosition = m_EditorCamera_.GetPosition();
+        probe.editorOrientation = m_EditorCamera_.GetOrientation();
+        probe.editorDistance = m_EditorCamera_.GetDistance();
+        // Transfer the process foreground lease from the input fixture to the frame fixture.
+        if (!ForegroundHandoff(*this))
+            return fail("Input-to-camera foreground lease handoff");
+        probe.initialized = true;
+        Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_17_INPUT_PASS fly=true orbit=true pan=true wheel=true shortcut=true suppression=true capture=true rebind=true");
+    }
+    if (probe.waitingRestore)
+    {
+        if (!std::ifstream("native-restored.json") || IsRenderingSuspended() || input.PointerCapture() != InputLayer::None)
+            return fail("Native restore observation/capture");
+        probe.waitingRestore = false;
+    }
+    if (probe.segment >= 12)
+    {
+        // A live camera with invalid projection must make this frame unavailable,
+        // then produce a fresh snapshot after restoration; never reuse the old one.
+        if (probe.invalidStage < 3)
+        {
+            auto entity = m_ActiveScene->RenderData().Resolve(m_SceneCameras[0]);
+            if (!entity) return fail("Invalid-view fixture identity");
+            auto& intent = m_ActiveScene->Reg().get<RenderCameraComponent>(*entity);
+            if (probe.invalidStage == 0) intent.verticalFovRadians = 0;
+            else if (probe.invalidStage == 1)
+            {
+                if (!Check(!m_CameraAvailable && !m_CameraSnapshot && !m_FramePickPixel && !m_CameraUnavailableDiagnostic.empty(),
+                           "invalid_projection_unavailable_no_stale_snapshot")) return fail("invalid view reused camera");
+                intent.verticalFovRadians = glm::radians(45.f);
+            }
+            else if (!Check(m_CameraAvailable && m_CameraSnapshot && m_CameraView == CameraView::ActiveScene &&
+                            m_CameraUnavailableDiagnostic.empty(),
+                            "restored_projection_fresh_snapshot")) return fail("restored snapshot unavailable");
+            ++probe.invalidStage;
+            return true;
+        }
+        if (!gestureProbe.complete) return ValidateViewportGestures();
+        if (!probe.uiStarted)
+        {
+            if (!SetCameraView(CameraView::Editor)) return fail("UI acceptance view");
+            probe.ui = probe.uiStarted = true;
+            probe.uiPosition = m_EditorCamera_.GetPosition();
+            probe.uiPaused = m_IsPause; probe.uiDebug = m_IsShowDebugBoundingBox;
+            probe.uiPicked = static_cast<std::uint32_t>(m_HoveredEntity);
+        }
+        if (m_EditorCamera_.GetPosition() != probe.uiPosition || m_IsPause != probe.uiPaused ||
+            m_IsShowDebugBoundingBox != probe.uiDebug || static_cast<std::uint32_t>(m_HoveredEntity) != probe.uiPicked)
+            return fail("UI leaked camera/pick/Game action");
+        if (auto checked = PreEditorInput::StepUI(*this); !checked) return fail(checked.error().message.c_str());
+        if (PreEditorInput::uiProbe.step == 42)
+        {
+            if (!CancelCameraGesture() || !PreEditorInput::nativeForeground.Release() ||
+                !PreEditorCamera::nativeFixture.Release() || !PreEditorInput::RequestNativeClose()) return fail("Diagnostic close cleanup");
+#ifdef GENGINE_LIFECYCLE_FOCUS_TRACE
+            PreEditorLifecycle::FinishFocusTrace("diagnostic_complete");
+#endif
+            Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_17_PASS segments=12 frames=96 readbacks={} checks={} cost={}",
+                                       probe.readbacks, probe.checks, probe.costDone);
+            return false;
+        }
+        return true;
+    }
+    if (probe.applied != probe.segment)
+    {
+        if (!ActivateNative(native, *this)) return fail("Segment native activation");
+        m_HoveredEntity = {};
+        switch (probe.segment)
+        {
+        case 0: if (!SetCameraView(CameraView::Editor)) return fail("Editor segment"); break;
+        case 1: if (!SetCameraView(CameraView::ActiveScene)) return fail("Scene A segment"); break;
+        case 2: if (!SetCameraView(CameraView::Preview, m_SceneCameras[1])) return fail("Preview B segment"); break;
+        case 3: if (!EndCameraPreview()) return fail("Preview return A"); break;
+        case 4: if (!SelectSceneCamera(m_SceneCameras[1])) return fail("Activate B"); break;
+        case 5: if (!SetCameraView(CameraView::Preview, m_SceneCameras[0])) return fail("Preview A segment"); break;
+        case 6:
+            probe.replaced = m_SceneCameras[0];
+            if (!RetireSceneCamera(0, true)) return fail("Replace preview A");
+            break;
+        case 7:
+            if (!Check(m_CameraView == CameraView::ActiveScene && !m_ActiveScene->RenderData().Resolve(probe.replaced) &&
+                       !m_CameraDiagnostic.empty(),
+                       "preview_replacement_restores_previous_exact_role")) return fail("preview replacement");
+            probe.replaced = m_SceneCameras[1];
+            if (!RetireSceneCamera(1, true)) return fail("Replace active B");
+            break;
+        case 8:
+            if (!Check(!m_ActiveScene->RenderData().Resolve(probe.replaced), "active_replacement_old_stale") ||
+                !RetireSceneCamera(0, false)) return fail("Inactive A deletion");
+            SDL_SetWindowSize(native, 960, 640);
+            if (!RestoreNativeExposureAfterResize(native)) return fail("Native resize exposure");
+            ImGui::SetWindowSize("Viewport", {560,580});
+            break;
+        case 9:
+            if (!SetCameraView(CameraView::Editor) || !SetCameraView(CameraView::Preview, m_SceneCameras[1]) ||
+                !RetireSceneCamera(1, false)) return fail("Delete active and preview B");
+            break;
+        case 10:
+            SDL_SetWindowSize(native, 1280, 720);
+            if (!RestoreNativeExposureAfterResize(native)) return fail("Native restore exposure");
+            ImGui::SetWindowSize("Viewport", {880,660});
+            if (!Check(m_CameraView == CameraView::Editor && m_EditorCamera_.GetPosition() == probe.editorPosition &&
+                       m_EditorCamera_.GetOrientation() == probe.editorOrientation && !m_CameraDiagnostic.empty(),
+                       "retired_preview_restores_saved_editor")) return fail("Editor preservation");
+            break;
+        case 11:
+            if (!CreateSceneCamera(0) || !CreateSceneCamera(1) || !SelectSceneCamera(m_SceneCameras[0]) ||
+                !SetCameraView(CameraView::ActiveScene)) return fail("Fresh authored camera recreation");
+            break;
+        }
+        probe.expected = probe.segment == 0 || probe.segment == 9 || probe.segment == 10 ? m_EditorViewIdentity :
+            probe.segment == 1 || probe.segment == 3 || probe.segment == 5 || probe.segment == 11 ? m_SceneCameras[0] : m_SceneCameras[1];
+        probe.applied = probe.segment; probe.stable = probe.observed = 0; probe.previousSize = {};
+        Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_17_SEGMENT segment={} scale={}", probe.segment, Scale());
+    }
+    return true;
+}
+
+ScheduleResult RigidBodySimulationApp::ValidateLifecycleFrame(const FrameCamera& camera)
+{
+    using namespace PreEditorLifecycle;
+    if (!GpuChecks()) return {};
+    FocusFrame();
+    FocusMark(101);
+    const auto fail = [](const char* message) -> ScheduleResult
+    {
+#ifdef GENGINE_LIFECYCLE_FOCUS_TRACE
+        PreEditorLifecycle::FinishFocusTrace(message);
+#endif
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+        PickTrace::Finish(message);
+#endif
+        return std::unexpected(ScheduleError{FrameStage::Pass,
+            PlatformError{PlatformErrorCode::Initialization, "Phase 17 camera frame", message}});
+    };
+    const auto* snapshot = camera.Snapshot();
+    if (!snapshot || !camera.MatchesSnapshot()) return fail("Frame camera/snapshot disagreement");
+    const auto& desc = snapshot->Description();
+    const bool rotated = probe.segment == 2 || probe.segment == 4 || (probe.segment >= 6 && probe.segment <= 8);
+    const auto expectedProjection = rotated ? CameraProjection::Orthographic : CameraProjection::Perspective;
+    auto pixels = ToFramebufferPixels({float(desc.viewport.logicalSize.x), float(desc.viewport.logicalSize.y)}, {Scale(),Scale()});
+    const auto window = GetWindow()->GetLogicalSize();
+    const bool small = probe.segment == 8 || probe.segment == 9;
+    if (!pixels || desc.viewport.pixelSize != glm::uvec2(pixels->Width,pixels->Height) ||
+        window.Width != (small ? 960 : 1280) || window.Height != (small ? 640 : 720))
+    { probe.stable = 0; return {}; }
+    if (probe.previousSize != desc.viewport.pixelSize) probe.stable = 0;
+    probe.previousSize = desc.viewport.pixelSize;
+    if (++probe.stable <= 2) return {};
+    ++probe.observed;
+    FocusFrame();
+    if (!FocusGate(*this)) return fail("Native foreground lost");
+    if (camera.entity != probe.expected || desc.projection != expectedProjection ||
+        PreEditorCamera::Max(desc.position - Position(rotated)) > PreEditorCamera::WorldLimit(Position(rotated)) ||
+        PreEditorCamera::Max(PreEditorCamera::Rotate(desc.orientation, {0,0,-1}) -
+                            PreEditorCamera::Rotate(Orientation(rotated), {0,0,-1})) > 2e-5)
+        return fail("Displayed identity/projection/world pose differs from fixed oracle");
+    auto oracle = desc;
+    oracle.position = Position(rotated); oracle.orientation = Orientation(rotated);
+    oracle.verticalFovRadians = glm::radians(45.f); oracle.nearPlane = .1f;
+    oracle.farPlane = 1000.f; oracle.orthographicHeight = 20;
+    if (!MatrixAndCoordinates(*snapshot, oracle)) return fail("Frozen matrix/inverse/world/NDC tolerances");
+    if (probe.pendingPick)
+    {
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+        const bool present = bool(m_HoveredEntity);
+        const bool nameMismatch = present && m_HoveredEntity.GetName() != PreEditorCamera::Targets[0];
+        const bool failed = !present || nameMismatch;
+        if (!PickTrace::finished)
+        {
+            PickTrace::firstPick = true; PickTrace::firstPickPassed = !failed;
+            PickTraceValues("pending_pick", !failed,
+                            {present, static_cast<std::uint32_t>(m_HoveredEntity), present, nameMismatch});
+        }
+        if (failed) return fail("Same-frame routed GPU pick");
+        PickTrace::Finish("first_pick_passed");
+#else
+        if (!m_HoveredEntity || m_HoveredEntity.GetName() != PreEditorCamera::Targets[0]) return fail("Same-frame routed GPU pick");
+#endif
+        probe.pendingPick = false;
+    }
+    const auto& target = m_MousePickFrameBuffer->Buffer().Description();
+    if (target.Width != desc.viewport.pixelSize.x || target.Height != desc.viewport.pixelSize.y) return fail("Picking extent mismatch");
+    std::array<int,3> ids{};
+    for (unsigned i = 0; i != 2; ++i)
+    {
+        auto reference = desc; reference.position = Position(rotated); reference.orientation = Orientation(rotated);
+        const auto expected = PreEditorCamera::Pixel(reference, PreEditorCamera::Points[i]);
+        auto projected = snapshot->WorldToPixel(PreEditorCamera::Points[i]);
+        const auto logical = desc.viewport.logicalOrigin + expected / glm::dvec2(desc.viewport.pixelSize) * desc.viewport.logicalSize;
+        auto ray = snapshot->PixelToRay(expected);
+#ifdef GENGINE_LIFECYCLE_ORACLE_EVIDENCE
+        PreEditorCamera::OracleEvidence::Evaluation evidence;
+        if (evidence.conditions.Record(0, !projected) || evidence.conditions.Record(1, !ray) ||
+            (evidence.pixelDelta = projected->value - expected,
+             evidence.pixelError = PreEditorCamera::Max(evidence.pixelDelta),
+             evidence.conditions.Record(2, evidence.pixelError > .05)) ||
+            evidence.conditions.Record(3, !PreEditorCamera::Interior(reference, i, expected, evidence.interior)) ||
+            evidence.conditions.Record(4, !PreEditorCamera::NativePointVisible(logical, evidence.native)))
+        {
+            PreEditorCamera::OracleEvidence::Frame frame;
+            frame.updates = probe.updates; frame.segment = probe.segment;
+            frame.stable = probe.stable; frame.observed = probe.observed; frame.targetIndex = i;
+            frame.entityIndex = camera.entity.index; frame.entityGeneration = camera.entity.generation;
+            frame.entityRegistry = camera.entity.registry; frame.scale = Scale();
+            frame.requestedNative = small ? glm::uvec2(960, 640) : glm::uvec2(1280, 720);
+            frame.sampledNative = {window.Width, window.Height};
+            frame.requestedViewportWindow = small ? glm::dvec2(560, 580) : glm::dvec2(880, 660);
+            frame.pickingExtent = {target.Width, target.Height};
+            frame.convertedExtent = {pixels->Width, pixels->Height};
+            PreEditorCamera::OracleEvidence::Dump(frame, *snapshot, reference, PreEditorCamera::Points[i],
+                                                  expected, logical, projected, ray, evidence);
+            return fail("Projection/ray/interior/visibility oracle");
+        }
+#else
+        if (!projected || !ray || PreEditorCamera::Max(projected->value - expected) > .05 ||
+            !PreEditorCamera::Interior(reference, i, expected) || !PreEditorCamera::NativePointVisible(logical))
+            return fail("Projection/ray/interior/visibility oracle");
+#endif
+        const auto distance = glm::dot(PreEditorCamera::Points[i] - ray->origin, ray->direction);
+        auto rayPixel = snapshot->WorldToPixel(ray->origin + distance * ray->direction);
+        if (!rayPixel || PreEditorCamera::Max(rayPixel->value - expected) > .05 || std::abs(glm::length(ray->direction)-1.) > 2e-5)
+            return fail("Ray/render agreement");
+        auto readback = snapshot->ReadbackPixelAt(logical);
+        const int x = int(std::floor(expected.x)), y = int(target.Height) - 1 - int(std::floor(expected.y));
+        if (!readback || *readback != glm::uvec2(x,y)) return fail("Exact floor/Y-flip");
+        auto pixel = m_MousePickFrameBuffer->ReadPixel(x,y); ++probe.readbacks;
+        if (!pixel) return fail("GPU readback");
+        ids[i] = *pixel;
+        auto id = m_ActiveScene->RenderData().ResolvePick(m_PickTable, *pixel);
+        auto expectedId = m_ActiveScene->RenderData().Identify(m_ActiveScene->FindEntityByName(PreEditorCamera::Targets[i]));
+        if (!id || !expectedId || *id != *expectedId) return fail("GPU exact runtime identity");
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+        if (i == 0 && probe.observed == 3)
+            PickTraceValues("target", 1, {expectedId->index, expectedId->generation, expectedId->registry});
+#endif
+        if (i == 0 && probe.observed == 2)
+        {
+            SDL_WarpMouseInWindow(SDL_GetWindowFromID(GetWindow()->GetWindowID()), int(logical.x), int(logical.y));
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+            PickTraceValues("warp", -1, {}, {logical.x, logical.y});
+#endif
+            if (!m_ViewportActive)
+            {
+                SDL_Event activation{}; activation.type = SDL_MOUSEBUTTONDOWN;
+                activation.button.windowID = GetWindow()->GetWindowID();
+                activation.button.button = SDL_BUTTON_LEFT; activation.button.state = SDL_PRESSED;
+                activation.button.x = int(logical.x); activation.button.y = int(logical.y);
+                if (Push(activation, 27) != 1) return fail("Viewport activation press");
+                activation.type = SDL_MOUSEBUTTONUP; activation.button.state = SDL_RELEASED;
+                if (Push(activation, 27) != 1) return fail("Viewport activation release");
+            }
+        }
+        if (i == 0 && probe.observed == 3)
+        {
+            SDL_Event event{}; event.type = SDL_MOUSEBUTTONDOWN; event.button.windowID = GetWindow()->GetWindowID();
+            event.button.button = SDL_BUTTON_LEFT; event.button.state = SDL_PRESSED;
+            event.button.x = int(logical.x); event.button.y = int(logical.y);
+            if (Push(event, 26) != 1) return fail("Viewport pick injection");
+            event.type = SDL_MOUSEBUTTONUP; event.button.state = SDL_RELEASED;
+            if (Push(event, 26) != 1) return fail("Viewport pick release");
+            probe.pendingPick = true;
+        }
+    }
+    auto background = m_MousePickFrameBuffer->ReadPixel(int(target.Width/4), int(target.Height)-9); ++probe.readbacks;
+    if (!background || *background != EntityPickTable::InvalidPixel) return fail("Fixed background pixel");
+    ids[2] = *background;
+    if (probe.retained && (!probe.retained->MatchesSnapshot() ||
+        PreEditorCamera::Max(probe.retained->Snapshot()->Description().position - Position(false)) >
+            PreEditorCamera::WorldLimit(Position(false)))) return fail("Retained frame changed after lifecycle operation");
+    if (probe.segment == 1 && probe.observed == 1) probe.retained = camera;
+    probe.rows << probe.segment << ',' << probe.observed << ',' << target.Width << ',' << target.Height << ',' << Scale()
+               << ',' << camera.entity.index << ',' << camera.entity.generation << ',' << camera.entity.registry
+               << ',' << ids[0] << ',' << ids[1] << ',' << ids[2] << '\n';
+    if (probe.observed == 8)
+    {
+        if (!PreEditorCamera::Capture(*m_RenderTarget, probe.segment)) return fail("Framebuffer evidence capture");
+        probe.rows.flush(); if (!probe.rows) return fail("Frame evidence write");
+        Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_17_SEGMENT_PASS segment={} frames=8", probe.segment);
+        if (probe.segment == 9)
+        {
+            if (!PreEditorInput::nativeForeground.Release() || !PreEditorCamera::nativeFixture.Release()) return fail("Native release before minimize");
+            std::ofstream request("native-minimize.request"); request << "Observe minimized state before native restore.\n"; request.close();
+            if (!request) return fail("Minimize request evidence");
+            probe.waitingRestore = true;
+            SDL_MinimizeWindow(SDL_GetWindowFromID(GetWindow()->GetWindowID()));
+        }
+#ifdef GENGINE_LIFECYCLE_FOCUS_TRACE
+        if (probe.segment == 0) PreEditorLifecycle::FinishFocusTrace("segment0_complete_no_focus_failure");
+#endif
+        ++probe.segment;
+    }
+    return {};
+}
+#endif
+
 #ifdef GENGINE_CAMERA_VALIDATION
 bool RigidBodySimulationApp::ValidateCameraUpdate()
 {
@@ -64,8 +817,7 @@ bool RigidBodySimulationApp::ValidateCameraUpdate()
     };
     if (!probe.cpu)
     {
-        auto id = m_ActiveScene->RenderData().Identify(m_FrameCameraEntity);
-        if (!id || !Cpu(*id))
+        if (!m_ActiveScene->ValidateEditorViewIdentity(m_EditorViewIdentity) || !Cpu(m_EditorViewIdentity))
             return fail("Independent CPU camera checks failed; see camera-math.csv");
         probe.cpu = true;
         Log::GetCoreLogger()->info(
@@ -107,7 +859,7 @@ bool RigidBodySimulationApp::ValidateCameraUpdate()
         if (!ActivateNativeWindow(native))
             return fail("Native diagnostic activation failed");
         FocusMaterialCamera(m_EditorCamera_, {0, 7, 6}, .12f, Rotated() ? .12f : 0.f, 28.f);
-        auto& intent = m_FrameCameraEntity.GetComponent<RenderCameraComponent>();
+        auto& intent = m_CameraValidationIntent;
         intent.projection = Ortho() ? Projection::Orthographic : Projection::Perspective;
         intent.orthographicHeight = 20;
         intent.nearPlane = .1f;
@@ -501,6 +1253,9 @@ ApplicationInitializationResult RigidBodySimulationApp::ValidateShaderDescriptio
 
 bool RigidBodySimulationApp::ValidateUpdate()
 {
+#ifdef GENGINE_LIFECYCLE_VALIDATION
+    if (!ValidateLifecycleUpdate()) return false;
+#endif
 #ifdef GENGINE_CAMERA_VALIDATION
     if (!ValidateCameraUpdate())
         return false;
@@ -821,6 +1576,10 @@ ScheduleResult RigidBodySimulationApp::ValidateSubmittedFrame(bool submitted,
                                                               const FrameSubmissionDesc& targets,
                                                               const FrameCamera& camera)
 {
+#ifdef GENGINE_LIFECYCLE_VALIDATION
+    if (submitted)
+        if (auto checked = ValidateLifecycleFrame(camera); !checked) return checked;
+#endif
 #ifdef GENGINE_CAMERA_VALIDATION
     if (submitted)
         if (auto checked = ValidateCameraFrame(camera); !checked)
@@ -903,6 +1662,14 @@ ScheduleResult RigidBodySimulationApp::ValidateSubmittedFrame(bool submitted,
 void RigidBodySimulationApp::ObserveViewport(
     const std::expected<FramebufferScale, PlatformError>& scale)
 {
+#ifdef GENGINE_LIFECYCLE_VALIDATION
+    if (scale && HasVisibleViewport())
+    {
+        const float controlled = PreEditorLifecycle::Scale();
+        if (auto sized = SetEditorViewport(GetEditorViewportLogicalSize(), {controlled, controlled}); !sized)
+            ReportPlatformError(sized.error());
+    }
+#endif
 #ifdef GENGINE_CAMERA_VALIDATION
     if (scale && HasVisibleViewport())
     {

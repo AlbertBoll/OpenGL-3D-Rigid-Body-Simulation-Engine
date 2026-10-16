@@ -19,8 +19,21 @@ RigidBodySimulationApp::RigidBodySimulationApp(const Rbs::LaunchConfig& launch)
 {
 }
 
+#ifdef GENGINE_LIFECYCLE_FOCUS_TRACE
+namespace PreEditorLifecycle { void FinishFocusTrace(const char* reason); }
+#endif
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+namespace PreEditorLifecycle { void FinishPickTrace(const char* reason) noexcept; }
+#endif
+
 RigidBodySimulationApp::~RigidBodySimulationApp()
 {
+#ifdef GENGINE_LIFECYCLE_FOCUS_TRACE
+    PreEditorLifecycle::FinishFocusTrace("application_teardown_before_trace_decision");
+#endif
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+    PreEditorLifecycle::FinishPickTrace("application_teardown_before_first_pick");
+#endif
     if (auto* input = GetInputManager())
         if (auto cancelled = input->CancelInput(InputCancelReason::OwnerRelease); !cancelled)
             Log::GetCoreLogger()->error("RBS input cancellation failed: {}",
@@ -41,6 +54,15 @@ RigidBodySimulationApp::~RigidBodySimulationApp()
             std::terminate();
         }
         m_MeshLoads.reset(); // Cancel/join imports before registry or scene retirement.
+        if (m_ActiveScene && m_EditorViewIdentity)
+            if (auto retired = m_ActiveScene->RetireEditorViewIdentity(m_EditorViewIdentity); !retired)
+                Log::GetCoreLogger()->error("Editor view retirement failed: {}", int(retired.error().code));
+#ifdef GENGINE_LIFECYCLE_VALIDATION
+        if (m_ActiveScene && !m_ActiveScene->RenderData().Resolve(m_EditorViewIdentity) &&
+            GetInputManager()->PointerCapture() == InputLayer::None)
+            Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_17_TEARDOWN_PASS transient_retired=true capture=none");
+#endif
+        m_EditorViewIdentity = {};
         m_ActiveScene.reset();
         m_EditorScene.reset();
         m_FrameSubmission.reset();
@@ -95,6 +117,29 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeResources()
     return {};
 }
 
+void RigidBodySimulationApp::SetViewportActive(bool active, bool cancelInput)
+{
+    if (m_ViewportActive == active) return;
+    m_ViewportActive = active;
+    if (active)
+    {
+        m_ViewportRequestFocus = m_ViewportHighlightPending = true;
+#ifdef GENGINE_LIFECYCLE_VALIDATION
+        ++m_ViewportActivations;
+#endif
+        return;
+    }
+    m_ViewportRequestFocus = m_ViewportHighlightPending = false;
+    m_ViewportHighlightStart = -1;
+    m_ViewportActivationButtons = 0;
+    m_ViewPickRequested = false;
+    if (cancelInput)
+        if (auto cancelled = GetInputManager()->CancelInput(InputCancelReason::Transfer, InputLayer::View);
+            !cancelled)
+            FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Viewport input", "",
+                "focus transfer cancellation", "", "View owner cancellation failed"});
+}
+
 ApplicationInitializationResult RigidBodySimulationApp::ConnectApplicationEventHandlers()
 {
     auto connections = std::unique_ptr<Rbs::Subscriptions>(new (std::nothrow) Rbs::Subscriptions);
@@ -106,14 +151,67 @@ ApplicationInitializationResult RigidBodySimulationApp::ConnectApplicationEventH
                                 [this](InputDelivery& delivery)
                                 {
                                     const auto& event = delivery.event;
+                                    const auto& route = GetInputManager()->Routing();
+                                    const auto point = event.kind == InputKind::ButtonDown || event.kind == InputKind::Motion
+                                        ? Math::Vector2{event.x, event.y} : GetInputManager()->GetPhysicalState().m_Mouse.GetPosition();
+                                    const bool inside = route.visible && point.x >= route.left && point.x < route.right &&
+                                        point.y >= route.top && point.y < route.bottom;
+                                    const auto cameraInput = [this, &event](bool eligible)
+                                    {
+                                        if (auto result = m_EditorCamera_.OnViewInput(event,
+                                                eligible && m_CameraView == CameraView::Editor); !result)
+                                        {
+                                            ReportPlatformError(result.error());
+                                            FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,
+                                                "Editor Camera input", "", "owned View gesture", "", result.error().message});
+                                        }
+                                    };
                                     if (event.cleanup)
+                                    {
+                                        const bool activation = m_ViewportActivationButtons != 0;
+                                        if (event.kind == InputKind::Cancel)
+                                        {
+                                            if (const auto* error = GetInputManager()->NativePollFailure())
+                                                FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,
+                                                    "Native input transition", "", error->operation, "", error->message});
+                                            m_ViewPickRequested = false;
+                                            m_ViewportActivationButtons = 0;
+                                            if (event.cancellation == InputCancelReason::FocusLoss ||
+                                                event.cancellation == InputCancelReason::Hidden ||
+                                                event.cancellation == InputCancelReason::Transfer)
+                                                SetViewportActive(false, false);
+                                        }
+                                        else if (event.kind == InputKind::ButtonUp)
+                                            m_ViewportActivationButtons &= ~GENGINE_BUTTON(event.button);
+                                        cameraInput(m_ViewportActive && !activation);
                                         return;
+                                    }
                                     if (event.kind == InputKind::Motion ||
                                         event.kind == InputKind::ButtonDown ||
                                         event.kind == InputKind::Wheel)
                                     {
+                                        const bool fresh = event.kind == InputKind::ButtonDown &&
+                                            !GetInputManager()->GetViewState().m_Mouse.isButtonHeld(event.button);
                                         delivery.Handle();
-                                        if (event.kind == InputKind::Wheel)
+                                        if (fresh && inside && !m_ViewportActive)
+                                        {
+                                            SetViewportActive(true);
+                                            m_ViewportActivationButtons |= GENGINE_BUTTON(event.button);
+                                        }
+                                        else if (fresh && m_ViewportActivationButtons)
+                                            m_ViewportActivationButtons |= GENGINE_BUTTON(event.button);
+                                        const bool eligible = m_ViewportActive && !m_ViewportActivationButtons &&
+                                            (inside || (!fresh && GetInputManager()->PointerCapture() == InputLayer::View));
+                                        if (eligible && fresh && event.button == GENGINE_BUTTON_LEFT)
+                                            m_ViewPickRequested = (event.modifiers & LeftAlt) == 0;
+                                        if ((event.modifiers & LeftAlt) &&
+                                            GetInputManager()->GetViewState().m_Mouse.m_CurrentButtons)
+                                        {
+                                            m_ViewportAltGestureConsumed = true;
+                                            m_ViewPickRequested = false;
+                                        }
+                                        cameraInput(eligible);
+                                        if (eligible && event.kind == InputKind::Wheel && m_CameraView == CameraView::Editor)
                                             m_EditorCamera_.OnMouseScroll(event.wheelY);
                                         return;
                                     }
@@ -156,12 +254,23 @@ ApplicationInitializationResult RigidBodySimulationApp::ConnectApplicationEventH
                                     case GENGINE_KEY_LSHIFT:
                                     case GENGINE_KEY_RSHIFT:
                                         delivery.Handle();
+                                        if (m_ViewportActive && !m_ViewportActivationButtons)
+                                        {
+                                            if ((event.modifiers & LeftAlt) &&
+                                                GetInputManager()->GetViewState().m_Mouse.m_CurrentButtons)
+                                            {
+                                                m_ViewportAltGestureConsumed = true;
+                                                m_ViewPickRequested = false;
+                                            }
+                                            cameraInput(inside || GetInputManager()->PointerCapture() == InputLayer::View);
+                                        }
                                         return;
                                     default:
                                         return;
                                     }
                                     delivery.Handle();
-                                    if (!event.repeated)
+                                    if (m_ViewportActive && !m_ViewportActivationButtons &&
+                                        !event.repeated && m_CameraView == CameraView::Editor)
                                         m_EditorCamera_.Initialize(*direction);
                                 });
     auto game = input.Subscribe(InputLayer::Game,
@@ -183,11 +292,19 @@ ApplicationInitializationResult RigidBodySimulationApp::ConnectApplicationEventH
                                     else
                                         m_IsShowDebugBoundingBox = !m_IsShowDebugBoundingBox;
                                 });
-    if (!view || !game)
+    auto focus = input.Observe([this](const InputEvent& event)
+    {
+        // Hover and capture release do not transfer activation. A routed UI press does.
+        if (!event.cleanup && event.kind == InputKind::ButtonDown &&
+            event.destination != InputLayer::View)
+            SetViewportActive(false);
+    });
+    if (!view || !game || !focus)
         return std::unexpected(PlatformError{PlatformErrorCode::Initialization, "RBS input",
                                              "Typed input subscription rejected"});
     connections->tokens[0] = std::move(*view);
     connections->tokens[1] = std::move(*game);
+    connections->tokens[2] = std::move(*focus);
     m_Subscriptions = std::move(connections);
     return {};
 }

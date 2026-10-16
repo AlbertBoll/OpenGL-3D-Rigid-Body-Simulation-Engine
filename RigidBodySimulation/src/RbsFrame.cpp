@@ -6,6 +6,7 @@
 
 #include "Managers/AssetsManager.h"
 #include <imgui/imgui.h>
+#include <imgui/imgui_internal.h>
 #include <cmath>
 #include <print>
 
@@ -15,7 +16,19 @@ using namespace ::GEngine::Component;
 using namespace ::GEngine::Manager;
 using namespace ::GEngine::Math;
 using namespace ::GEngine::Camera;
-#if defined(GENGINE_INPUT_VALIDATION) && !defined(GENGINE_INPUT_CONTROL)
+#ifdef GENGINE_LIFECYCLE_VALIDATION
+namespace PreEditorLifecycle { bool GpuChecks(); }
+#endif
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+#include <array>
+namespace PreEditorLifecycle
+{
+    void PickTraceValues(const char*, std::int64_t = -1, const std::array<std::uint64_t, 12>& = {},
+                         const std::array<double, 12>& = {}) noexcept;
+    void FinishPickTrace(const char*) noexcept;
+}
+#endif
+#if (defined(GENGINE_INPUT_VALIDATION) || defined(GENGINE_LIFECYCLE_VALIDATION)) && !defined(GENGINE_INPUT_CONTROL)
 namespace PreEditorInput
 {
     void RecordInputPicking(bool);
@@ -36,7 +49,8 @@ void RigidBodySimulationApp::Update(Timestep ts)
     //auto entity = m_ActiveScene->FindEntityByName("sphere");
 
     //auto& relationship = entity.GetComponent<RelationshipComponent>();
-    m_EditorCamera_.OnUpdate(ts);
+    if (m_CameraView == CameraView::Editor)
+        m_EditorCamera_.OnUpdate(ts);
 
     const auto authored = [this](const auto& result)
     {
@@ -55,9 +69,6 @@ void RigidBodySimulationApp::Update(Timestep ts)
     auto skyRotation = m_SkyBoxEntity.Transform().EulerRotation;
     skyRotation.y += ts * 0.02f;
     if (!authored(m_ActiveScene->SetLocalRotation(m_SkyBoxEntity, skyRotation)))
-        return;
-    if (!authored(m_ActiveScene->SetLocalPose(m_FrameCameraEntity, m_EditorCamera_.GetPosition(),
-                                              m_EditorCamera_.GetOrientation())))
         return;
     //std::cout << "time passes_ " << ts << std::endl;
 
@@ -180,8 +191,295 @@ void RigidBodySimulationApp::UpdateMaterialAnimation(Timestep ts)
     }
 }
 
+bool RigidBodySimulationApp::CancelCameraGesture()
+{
+    const auto position = m_EditorCamera_.GetPosition();
+    const auto pitch = m_EditorCamera_.m_Pitch + m_EditorCamera_.m_PitchDelta;
+    const auto yaw = m_EditorCamera_.m_Yaw + m_EditorCamera_.m_YawDelta;
+    const bool pendingMovement = m_EditorCamera_.m_PositionDelta != Vec3f{} ||
+        m_EditorCamera_.m_PitchDelta != 0 || m_EditorCamera_.m_YawDelta != 0;
+    if (auto cancelled = GetInputManager()->CancelInput(InputCancelReason::OwnerRelease); !cancelled)
+    {
+        m_CameraDiagnostic = std::format("Camera switch rejected: input cancellation {}", int(cancelled.error()));
+        return false;
+    }
+    // Angular damping participates in the controller's current orientation. Consume
+    // cancellation, then retain that effective pose with no pending movement.
+    m_EditorCamera_.OnUpdate(Timestep(0));
+    m_EditorCamera_.m_Position = position;
+    m_EditorCamera_.m_Pitch = pitch;
+    m_EditorCamera_.m_Yaw = yaw;
+    if (pendingMovement)
+        m_EditorCamera_.m_FocalPoint = position +
+            m_EditorCamera_.GetForwardDirection() * m_EditorCamera_.GetDistance();
+    m_FramePickPixel.reset();
+    return true;
+}
+
+bool RigidBodySimulationApp::SetCameraView(CameraView role, EntityRenderId preview)
+{
+    if (role == CameraView::Editor)
+    {
+        if (auto valid = m_ActiveScene->ValidateEditorViewIdentity(m_EditorViewIdentity); !valid)
+        {
+            m_CameraDiagnostic = "Editor view identity is unavailable";
+            return false;
+        }
+    }
+    else
+    {
+        auto active = m_ActiveScene->ActiveSceneCamera();
+        if (role == CameraView::ActiveScene && (!active || !*active))
+        {
+            m_CameraDiagnostic = "No valid active Scene Camera";
+            return false;
+        }
+        const auto id = role == CameraView::Preview ? preview : **active;
+        auto access = m_SceneResources->Publication().BeginFrame();
+        if (auto valid = m_ActiveScene->SnapshotSceneCamera(id, m_SceneResources->ForFrame(access), {}); !valid)
+        {
+            m_CameraDiagnostic = std::format("Camera binding rejected: {}", int(valid.error().code));
+            return false;
+        }
+    }
+    if (!CancelCameraGesture()) return false;
+    if (role == CameraView::Preview && m_CameraView != CameraView::Preview)
+        m_PreviewReturnView = m_CameraView;
+    m_CameraView = role;
+    m_PreviewCamera = role == CameraView::Preview ? preview : EntityRenderId{};
+    m_CameraDiagnostic.clear();
+    return true;
+}
+
+bool RigidBodySimulationApp::EndCameraPreview()
+{
+    if (m_CameraView != CameraView::Preview) return true;
+    CameraView restore = CameraView::Editor;
+    if (m_PreviewReturnView == CameraView::ActiveScene)
+    {
+        auto active = m_ActiveScene->ActiveSceneCamera();
+        if (active && *active)
+        {
+            auto access = m_SceneResources->Publication().BeginFrame();
+            if (m_ActiveScene->SnapshotSceneCamera(**active, m_SceneResources->ForFrame(access), {}))
+                restore = CameraView::ActiveScene;
+        }
+    }
+    // Choose the valid fallback before cancelling. A cancellation failure is
+    // reported once and must not be retried as a different role transition.
+    return SetCameraView(restore);
+}
+
+bool RigidBodySimulationApp::SelectSceneCamera(EntityRenderId id)
+{
+    auto access = m_SceneResources->Publication().BeginFrame();
+    auto resources = m_SceneResources->ForFrame(access);
+    if (auto valid = m_ActiveScene->SnapshotSceneCamera(id, resources, {}); !valid)
+    {
+        m_CameraDiagnostic = std::format("Scene selection rejected: {}", int(valid.error().code));
+        return false;
+    }
+    if (m_CameraView == CameraView::ActiveScene && !CancelCameraGesture()) return false;
+    if (auto selected = m_ActiveScene->SetActiveSceneCamera(id, resources); !selected)
+    {
+        m_CameraDiagnostic = std::format("Scene selection rejected: {}", int(selected.error().code));
+        return false;
+    }
+    m_CameraDiagnostic.clear();
+    return true;
+}
+
+bool RigidBodySimulationApp::RetireSceneCamera(std::size_t slot, bool replace)
+{
+    const auto old = m_SceneCameras[slot];
+    auto source = m_ActiveScene->RenderData().Resolve(old);
+    if (!source) { m_CameraDiagnostic = "Scene Camera has already retired"; return false; }
+    const auto active = m_ActiveScene->ActiveSceneCamera();
+    const bool bound = (m_CameraView == CameraView::Preview && m_PreviewCamera == old) ||
+        (m_CameraView == CameraView::ActiveScene && active && *active && **active == old);
+    if (bound && !CancelCameraGesture()) return false;
+    std::expected<void, SceneCameraError> result;
+    EntityRenderId replacement;
+    if (replace)
+    {
+        auto copied = m_ActiveScene->DuplicateEntity(_Entity{*source, m_ActiveScene.get()});
+        if (!copied) { m_CameraDiagnostic = "Camera replacement creation failed"; return false; }
+        auto identity = m_ActiveScene->RenderData().Identify(*copied);
+        if (identity)
+        {
+            replacement = *identity;
+            auto access = m_SceneResources->Publication().BeginFrame();
+            result = m_ActiveScene->ReplaceSceneCamera(old, replacement, m_SceneResources->ForFrame(access));
+        }
+        if (!identity || !result)
+        {
+            (void)m_ActiveScene->DestroyEntity(*copied);
+            m_CameraDiagnostic = "Camera replacement rejected; original retained";
+            return false;
+        }
+    }
+    else result = m_ActiveScene->DeleteSceneCamera(old);
+    if (!result)
+    {
+        m_CameraDiagnostic = std::format("Camera retirement rejected: {}", int(result.error().code));
+        return false;
+    }
+    m_SceneCameras[slot] = replacement;
+    // The next frame resolves exact references, including preview and active fallback.
+    return true;
+}
+
+bool RigidBodySimulationApp::BindCameraScene(RefPtr<_Scene> scene)
+{
+    // Camera part of the application's scene-owner transition. The caller must
+    // finish its other authoring bindings before the next application Update.
+    if (!scene) { m_CameraDiagnostic = "Camera binding requires a Scene"; return false; }
+    if (scene == m_ActiveScene) return true;
+    auto view = scene->CreateEditorViewIdentity();
+    if (!view) { m_CameraDiagnostic = "New Scene view identity unavailable"; return false; }
+    if (!CancelCameraGesture()) { (void)scene->RetireEditorViewIdentity(*view); return false; }
+    if (m_ActiveScene && m_EditorViewIdentity)
+        if (auto retired = m_ActiveScene->RetireEditorViewIdentity(m_EditorViewIdentity); !retired)
+        {
+            (void)scene->RetireEditorViewIdentity(*view);
+            m_CameraDiagnostic = "Previous Scene view retirement failed";
+            return false;
+        }
+    m_ActiveScene = std::move(scene);
+    m_EditorViewIdentity = *view;
+    m_SceneCameras = {};
+    m_PreviewCamera = {};
+    m_CameraView = m_PreviewReturnView = CameraView::Editor;
+    m_HoveredEntity = {};
+    m_CameraDiagnostic.clear();
+    return true;
+}
+
+ScheduleResult RigidBodySimulationApp::PrepareCameraFrame(RenderContext& context,
+                                                          FrameSceneInput& input, FrameCamera& camera)
+{
+    const bool requestedPick = std::exchange(m_ViewPickRequested, false);
+    m_CameraSnapshot.reset();
+    m_FramePickPixel.reset();
+    m_CameraAvailable = false;
+    m_CameraUnavailableDiagnostic.clear();
+    if (!context.visible) return {};
+    EntityRenderId id = m_EditorViewIdentity;
+    if (m_CameraView == CameraView::Preview)
+    {
+        if (!m_ActiveScene->RenderData().Resolve(m_PreviewCamera))
+        {
+            if (!EndCameraPreview())
+                return std::unexpected(ScheduleError{FrameStage::FreezeFrameInputs,
+                    SubmissionError{m_CameraDiagnostic, SubmissionCode::InvalidCamera}});
+            m_CameraDiagnostic = "Preview camera retired; previous valid view restored";
+        }
+        else id = m_PreviewCamera;
+    }
+    if (m_CameraView == CameraView::ActiveScene)
+    {
+        auto active = m_ActiveScene->ActiveSceneCamera();
+        if (!active || !*active)
+        {
+            if (!SetCameraView(CameraView::Editor))
+                return std::unexpected(ScheduleError{FrameStage::FreezeFrameInputs,
+                    SubmissionError{m_CameraDiagnostic, SubmissionCode::InvalidCamera}});
+            m_CameraDiagnostic = "Active Scene Camera unavailable; Editor view restored";
+        }
+        else id = **active;
+    }
+    const auto logical = GetEditorViewportLogicalSize();
+    CameraViewport viewport;
+    viewport.logicalOrigin = m_ViewportBounds[0];
+    viewport.logicalSize = {logical.Width, logical.Height};
+    viewport.pixelSize = {m_RenderTarget->GetWidth(), m_RenderTarget->GetHeight()};
+    if (m_CameraView == CameraView::Editor)
+    {
+        id = m_EditorViewIdentity;
+        if (!m_ActiveScene->ValidateEditorViewIdentity(id))
+        {
+            context.visible = false;
+            m_CameraUnavailableDiagnostic = "Editor view unavailable: retired identity";
+            return {};
+        }
+        CameraSnapshotDesc desc;
+        desc.position = m_EditorCamera_.GetPosition();
+        desc.orientation = m_EditorCamera_.GetOrientation();
+        desc.verticalFovRadians = m_EditorCamera_.GetFOV();
+        desc.nearPlane = m_EditorCamera_.GetNearClip();
+        desc.farPlane = m_EditorCamera_.GetFarClip();
+        desc.viewport = viewport;
+#ifdef GENGINE_CAMERA_VALIDATION
+        desc.projection = m_CameraValidationIntent.projection;
+        desc.verticalFovRadians = m_CameraValidationIntent.verticalFovRadians;
+        desc.orthographicHeight = m_CameraValidationIntent.orthographicHeight;
+#endif
+        m_EditorCamera_.UpdateView();
+        auto snapshot = CameraSnapshot::Create(desc);
+        if (snapshot) m_CameraSnapshot = *snapshot;
+        else m_CameraUnavailableDiagnostic = std::format("Editor view unavailable: {}", int(snapshot.error().code));
+    }
+    else
+    {
+        // This callback runs after upload/publication and before extraction. Its
+        // temporary access ends here; no authoring or Physics update intervenes.
+        auto access = m_SceneResources->Publication().BeginFrame();
+        auto snapshot = m_ActiveScene->SnapshotSceneCamera(id, m_SceneResources->ForFrame(access), viewport);
+        if (snapshot) m_CameraSnapshot = *snapshot;
+        else m_CameraUnavailableDiagnostic = std::format("Scene view unavailable: camera error {}", int(snapshot.error().code));
+    }
+    if (!m_CameraSnapshot) { context.visible = false; return {}; }
+    m_CameraAvailable = true;
+    camera = FrameCamera::FromSnapshot(id, *m_CameraSnapshot);
+    const auto& desc = m_CameraSnapshot->Description();
+    input.targets.cameraFov = static_cast<float>(desc.verticalFovRadians);
+    input.targets.cameraAspect = float(camera.viewportWidth) / camera.viewportHeight;
+    input.targets.cameraNear = static_cast<float>(desc.nearPlane);
+    input.targets.cameraFar = static_cast<float>(desc.farPlane);
+    const auto& mouse = GetInputManager()->GetViewState().m_Mouse;
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+    PreEditorLifecycle::PickTraceValues("pick_prepare", -1,
+        {m_FramePickPixel.has_value(), m_FramePickPixel ? m_FramePickPixel->x : 0,
+         m_FramePickPixel ? m_FramePickPixel->y : 0},
+        {desc.viewport.logicalOrigin.x, desc.viewport.logicalOrigin.y,
+         desc.viewport.logicalSize.x, desc.viewport.logicalSize.y,
+         double(desc.viewport.pixelSize.x), double(desc.viewport.pixelSize.y)});
+#endif
+    if (requestedPick && m_ViewportActive && !m_ViewportActivationButtons &&
+        mouse.isButtonPressed(GEngineMouseCode::GENGINE_BUTTON_LEFT))
+    {
+        const auto point = mouse.GetPosition();
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+        auto pixel = m_CameraSnapshot->ReadbackPixelAt({point.x, point.y});
+        PreEditorLifecycle::PickTraceValues("pick_conversion", bool(pixel),
+            {pixel ? pixel->x : 0, pixel ? pixel->y : 0, pixel ? 0 : std::uint64_t(pixel.error().code) + 1});
+        if (pixel)
+#else
+        if (auto pixel = m_CameraSnapshot->ReadbackPixelAt({point.x, point.y}); pixel)
+#endif
+            m_FramePickPixel = *pixel;
+    }
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+    PreEditorLifecycle::PickTraceValues("pick_ready", m_FramePickPixel.has_value(),
+        {m_FramePickPixel ? m_FramePickPixel->x : 0, m_FramePickPixel ? m_FramePickPixel->y : 0});
+#endif
+    input.targets.pickingEnabled = m_FramePickPixel.has_value();
+#ifdef GENGINE_CAMERA_VALIDATION
+    input.targets.pickingEnabled = true;
+#endif
+#ifdef GENGINE_LIFECYCLE_VALIDATION
+    if (PreEditorLifecycle::GpuChecks()) input.targets.pickingEnabled = true;
+#endif
+#if (defined(GENGINE_INPUT_VALIDATION) || defined(GENGINE_LIFECYCLE_VALIDATION)) && !defined(GENGINE_INPUT_CONTROL)
+    PreEditorInput::RecordInputPicking(input.targets.pickingEnabled);
+#endif
+    return ValidateBeforeSubmission(input.targets, camera);
+}
+
 void RigidBodySimulationApp::Render()
 {
+    if (m_ViewportAltGestureConsumed)
+        ImGui::GetCurrentContext()->NavWindowingToggleLayer = false;
     if (m_Launch.AsyncPerformanceEnabled())
         return;
     RenderContext context{*GetWindow(), *GetWindowManager(), m_RenderTarget.get(),
@@ -196,79 +494,16 @@ void RigidBodySimulationApp::Render()
     {
         if (auto prepared = PrepareFrameResources(context); !prepared)
             return std::unexpected(prepared.error());
-        context.updateResources = {
-            this, [](void* user)
-            {
-                return static_cast<RigidBodySimulationApp*>(user)->UpdateFrameResources();
-            }};
-        m_CameraSnapshot.reset();
-        m_FramePickPixel.reset();
-        if (!context.visible)
-            return FrameScheduler::Render(context);
-        // Capture the pose before UpdateView applies controller damping. The
-        // snapshot builds the view from that local-to-world orientation exactly once.
-        const auto orientation = m_EditorCamera_.GetOrientation();
-        m_EditorCamera_.UpdateView();
-        auto cameraId = m_ActiveScene->RenderData().Identify(m_FrameCameraEntity);
-        if (!cameraId)
-            return std::unexpected(ScheduleError{FrameStage::FreezeFrameInputs,
-                                                 RenderExtractionError{{}, cameraId.error()}});
-        const auto& intent = m_FrameCameraEntity.GetComponent<RenderCameraComponent>();
-        const auto logical = GetEditorViewportLogicalSize();
-        CameraSnapshotDesc descriptor;
-        descriptor.projection = intent.projection;
-        descriptor.verticalFovRadians = intent.verticalFovRadians;
-        descriptor.orthographicHeight = intent.orthographicHeight;
-        descriptor.nearPlane = intent.nearPlane;
-        descriptor.farPlane = intent.farPlane;
-        descriptor.position = m_EditorCamera_.GetPosition();
-        descriptor.orientation = orientation;
-        descriptor.viewport.logicalOrigin = m_ViewportBounds[0];
-        descriptor.viewport.logicalSize = {logical.Width, logical.Height};
-        descriptor.viewport.pixelSize = {m_RenderTarget->GetWidth(), m_RenderTarget->GetHeight()};
-        descriptor.visibleLayers = intent.visibleLayers;
-        auto snapshot = CameraSnapshot::Create(descriptor);
-        if (!snapshot)
-        {
-            if (snapshot.error().code == CameraErrorCode::EmptyViewport)
-            {
-                context.visible = false;
-                return FrameScheduler::Render(context);
-            }
-            return std::unexpected(ScheduleError{
-                FrameStage::FreezeFrameInputs,
-                SubmissionError{std::format("camera snapshot {}: {}",
-                                            static_cast<unsigned>(snapshot.error().code),
-                                            snapshot.error().operation),
-                                SubmissionCode::InvalidCamera}});
-        }
-        m_CameraSnapshot = std::move(*snapshot);
-        const FrameCamera camera = FrameCamera::FromSnapshot(*cameraId, *m_CameraSnapshot);
+        FrameCamera camera;
         FrameSubmissionDesc targets{*m_RenderTarget,
                                     *m_MousePickFrameBuffer,
                                     *m_PointShadowFrameBuffer,
                                     *m_CascadeShadowFrameBuffer,
                                     {}, // FrameScheduler supplies current renderer pipeline roles.
                                     m_ShadowCascadeLevels,
-                                    static_cast<float>(descriptor.verticalFovRadians),
-                                    float(camera.viewportWidth) / camera.viewportHeight,
-                                    static_cast<float>(descriptor.nearPlane),
-                                    static_cast<float>(descriptor.farPlane),
+                                    glm::radians(45.f), 1.f, .1f, 1000.f,
                                     m_NearPlane,
                                     m_FarPlane};
-        const auto mouse = GetInputManager()->GetViewState().m_Mouse.GetPosition();
-        if (GetInputManager()->GetViewState().m_Mouse.isButtonPressed(
-                GEngineMouseCode::GENGINE_BUTTON_LEFT))
-            if (auto pixel = m_CameraSnapshot->ReadbackPixelAt({mouse.x, mouse.y}); pixel)
-                m_FramePickPixel = *pixel;
-        targets.pickingEnabled = m_FramePickPixel.has_value();
-#ifdef GENGINE_CAMERA_VALIDATION
-        // The camera fixture additionally verifies exact IDs at declared interior samples.
-        targets.pickingEnabled = true;
-#endif
-#if defined(GENGINE_INPUT_VALIDATION) && !defined(GENGINE_INPUT_CONTROL)
-        PreEditorInput::RecordInputPicking(targets.pickingEnabled);
-#endif
         FrameSceneInput input{*m_ActiveScene, *m_SceneResources, *m_FrameSubmission,
                               targets,        m_PickTable,       {&camera, 1}};
         // Preserve Phase 45's input/viewport snapshot: read this frame's IDs
@@ -278,15 +513,25 @@ void RigidBodySimulationApp::Render()
                                      static_cast<RigidBodySimulationApp*>(user)->OnMouseClicked();
                                      return {};
                                  }};
-        if (auto checked = ValidateBeforeSubmission(targets, camera); !checked)
-            return std::unexpected(checked.error());
+        struct Preparation { RigidBodySimulationApp& app; RenderContext& context;
+                             FrameSceneInput& input; FrameCamera& camera; } preparation{*this, context, input, camera};
+        context.updateResources = {&preparation, [](void* user) -> ScheduleResult
+        {
+            auto& p = *static_cast<Preparation*>(user);
+            if (auto updated = p.app.UpdateFrameResources(); !updated) return updated;
+            return p.app.PrepareCameraFrame(p.context, p.input, p.camera);
+        }};
         auto submitted = FrameScheduler::Render(context, &input);
-        if (auto checked = ValidateSubmittedFrame(bool(submitted), targets, camera); !checked)
-            return std::unexpected(checked.error());
+        if (context.visible && m_CameraSnapshot)
+            if (auto checked = ValidateSubmittedFrame(bool(submitted), input.targets, camera); !checked)
+                return std::unexpected(checked.error());
         return submitted;
     };
     if (auto result = render(); !result)
     {
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+        PreEditorLifecycle::FinishPickTrace("submission_failure_before_first_pick");
+#endif
         if (const auto* sceneError = std::get_if<SceneError>(&result.error().cause))
             FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Scene",
                          std::to_string(static_cast<unsigned>(sceneError->code)),
@@ -307,12 +552,24 @@ void RigidBodySimulationApp::Render()
 
 void RigidBodySimulationApp::OnMouseClicked()
 {
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+    PreEditorLifecycle::PickTraceValues("pick_readback_enter", -1,
+        {m_FramePickPixel.has_value(), m_CameraSnapshot.has_value(),
+         m_FramePickPixel ? m_FramePickPixel->x : 0, m_FramePickPixel ? m_FramePickPixel->y : 0});
+#endif
     if (m_FramePickPixel && m_CameraSnapshot)
     {
         const int x = static_cast<int>(m_FramePickPixel->x);
         const int y = static_cast<int>(m_FramePickPixel->y);
         m_FramePickPixel.reset();
+#ifdef GENGINE_LIFECYCLE_VALIDATION
+        ++m_GesturePickReadbacks;
+#endif
         auto pixel = m_MousePickFrameBuffer->ReadPixel(x, y);
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+        PreEditorLifecycle::PickTraceValues("pick_readback_result", bool(pixel),
+            {pixel ? 0 : std::uint64_t(pixel.error().code) + 1}, {pixel ? double(*pixel) : 0});
+#endif
         if (!pixel)
         {
             ReportFramebufferError("picking read", pixel.error());
@@ -322,12 +579,21 @@ void RigidBodySimulationApp::OnMouseClicked()
         if (*pixel != EntityPickTable::InvalidPixel)
         {
             auto id = m_ActiveScene->RenderData().ResolvePick(m_PickTable, *pixel);
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+            PreEditorLifecycle::PickTraceValues("pick_resolve", bool(id),
+                {id ? id->index : 0, id ? id->generation : 0, id ? id->registry : 0,
+                 id ? 0 : std::uint64_t(id.error()) + 1});
+#endif
             if (!id)
             {
                 Log::GetCoreLogger()->warn("Stale/invalid picking result: {}", int(id.error()));
                 return;
             }
             auto entity = m_ActiveScene->RenderData().Resolve(*id);
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+            PreEditorLifecycle::PickTraceValues("pick_entity", bool(entity),
+                {entity ? std::uint64_t(*entity) : 0, entity ? 0 : std::uint64_t(entity.error()) + 1});
+#endif
             if (!entity)
             {
                 Log::GetCoreLogger()->warn("Picking entity: {}", int(entity.error()));
@@ -335,6 +601,10 @@ void RigidBodySimulationApp::OnMouseClicked()
             }
             m_HoveredEntity = _Entity{*entity, m_ActiveScene.get()};
         }
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+        PreEditorLifecycle::PickTraceValues("pick_hovered", bool(m_HoveredEntity),
+            {static_cast<std::uint32_t>(m_HoveredEntity)});
+#endif
         Log::GetCoreLogger()->info("Mouse Position: {}, {}; Entity {} has been clicked", x, y,
                                    m_HoveredEntity ? m_HoveredEntity.GetName() : "None");
     }

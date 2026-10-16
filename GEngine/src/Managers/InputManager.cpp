@@ -10,9 +10,23 @@
 
 namespace GEngine::Manager
 {
+    struct InputManager::NativePointerTransition
+    {
+        bool relative = false, cancelling = false;
+        int grab = -1; // -1 leaves grab unchanged; 0/1 releases/acquires it.
+        InputLayer owner = InputLayer::None;
+        std::uint64_t sequence = 0;
+        int originX = 0, originY = 0, pixelX = 0, pixelY = 0;
+        bool deferred = false;
+    };
     struct InputManager::Backend
     {
         SDL_GameController* Controller = nullptr;
+        std::array<NativePointerTransition, 256> transitions{};
+        std::size_t transitionCount = 0;
+        unsigned pollDepth = 0;
+        std::optional<PlatformError> pollFailure;
+        bool failing = false;
         std::uint32_t relativeWindow = 0;
         int relativeOriginX = 0, relativeOriginY = 0;
         int relativePixelX = 0, relativePixelY = 0;
@@ -204,6 +218,9 @@ namespace GEngine::Manager
     {
         if (m_Backend)
         {
+            // Teardown is outside delivery: never leave deferred native capture alive.
+            m_Backend->pollDepth = 0;
+            m_Backend->transitionCount = 0;
             if (auto result = CancelInput(InputCancelReason::Shutdown); !result)
                 GENGINE_CORE_ERROR("Input shutdown cancellation failed: {}", int(result.error()));
             SDL_StopTextInput();
@@ -419,6 +436,8 @@ namespace GEngine::Manager
             return std::unexpected(InputError::Reentrant);
         if (!m_Backend)
             return std::unexpected(InputError::Closed);
+        if (m_Backend->pollFailure)
+            return std::unexpected(InputError::Capture);
         if (!m_Window || event.window != m_Window->GetWindowID())
             return std::unexpected(InputError::InvalidWindow);
         if (KeyEvent(event.kind) && (event.key == GENGINE_KEY_UNKNOWN ||
@@ -437,11 +456,9 @@ namespace GEngine::Manager
         event.cleanup = false;
         if (event.kind == InputKind::FocusLost || event.kind == InputKind::Cancel)
         {
-            if (auto result =
-                    CancelInput(event.kind == InputKind::FocusLost ? InputCancelReason::FocusLoss
-                                                                   : event.cancellation);
-                !result)
-                return std::unexpected(result.error());
+            const auto cancelled =
+                CancelInput(event.kind == InputKind::FocusLost ? InputCancelReason::FocusLoss
+                                                               : event.cancellation);
             if (event.kind == InputKind::FocusLost)
             {
                 m_Physical.focused = false;
@@ -455,6 +472,7 @@ namespace GEngine::Manager
                 for (auto& state : m_States)
                     state.focused = false;
             }
+            if (!cancelled) return std::unexpected(cancelled.error());
             event.handled = true;
         }
         else if (event.kind == InputKind::FocusGained)
@@ -610,6 +628,7 @@ namespace GEngine::Manager
             return std::unexpected(InputError::WrongThread);
         if (m_Cancelling)
             return std::unexpected(InputError::Reentrant);
+        const auto nativeBegin = m_Backend ? m_Backend->transitionCount : 0;
         m_Cancelling = true;
         struct Exit
         {
@@ -622,11 +641,9 @@ namespace GEngine::Manager
         bool modeFailed = false;
         if (layer == InputLayer::None || layer == m_Capture)
         {
-            modeFailed = !SetRelativeMouseMode(false);
-            if (!modeFailed)
-                m_Capture = InputLayer::None;
-            if (m_Window)
-                m_Window->SetMouseGrab(false);
+            // Cancellation invalidates logical ownership even if native release fails.
+            modeFailed = !TransitionPointer(false, 0);
+            m_Capture = InputLayer::None;
         }
         for (unsigned i = 0; i < m_States.size(); ++i)
         {
@@ -703,11 +720,15 @@ namespace GEngine::Manager
             m_Physical.textCommits = 0;
             ++m_Physical.compositionChanges;
         }
+        if (m_Backend && m_Backend->pollDepth)
+            for (std::size_t i = nativeBegin; i < m_Backend->transitionCount; ++i)
+                if (auto& transition = m_Backend->transitions[i]; transition.cancelling && !transition.relative)
+                    transition.sequence = m_Sequence; // Synthetic cleanup is part of this cancellation.
         return modeFailed ? InputResult(std::unexpected(InputError::Capture)) : InputResult{};
     }
     PlatformResult InputManager::CapturePointer(InputLayer layer, bool relative)
     {
-        if (m_Owner != std::this_thread::get_id() || !Focused() || layer < InputLayer::UI ||
+        if (m_Owner != std::this_thread::get_id() || m_Cancelling || !Focused() || layer < InputLayer::UI ||
             layer > InputLayer::Game ||
             (m_Capture == InputLayer::None && !m_Physical.m_Mouse.m_CurrentButtons) ||
             (layer == InputLayer::View &&
@@ -720,10 +741,8 @@ namespace GEngine::Manager
                 return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
                                                      "pointer capture",
                                                      "Old owner cancellation failed"});
-        if (auto mode = SetRelativeMouseMode(relative); !mode)
+        if (auto mode = TransitionPointer(relative, 1); !mode)
             return mode;
-        if (m_Window)
-            m_Window->SetMouseGrab(true);
         m_Capture = layer;
         return {};
     }
@@ -734,72 +753,205 @@ namespace GEngine::Manager
                 PlatformError{PlatformErrorCode::InputMode, "pointer release", "Wrong thread"});
         if (m_Capture != layer)
             return {};
-        if (auto mode = SetRelativeMouseMode(false); !mode)
-            return mode;
-        if (m_Window)
-            m_Window->SetMouseGrab(false);
+        const auto mode = TransitionPointer(false, 0);
         m_Capture = InputLayer::None;
+        return mode;
+    }
+    const PlatformError* InputManager::NativePollFailure() const
+    {
+        return m_Backend && m_Backend->pollFailure ? &*m_Backend->pollFailure : nullptr;
+    }
+    PlatformResult InputManager::BeginNativePoll()
+    {
+        if (m_Owner != std::this_thread::get_id() || !m_Backend)
+            return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
+                "begin native input poll", "Unavailable input owner"});
+        if (m_Backend->pollFailure) return std::unexpected(*m_Backend->pollFailure);
+        if (m_Backend->pollDepth == UINT_MAX)
+            return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
+                "begin native input poll", "Poll nesting exhausted"});
+        ++m_Backend->pollDepth;
+        return {};
+    }
+    void InputManager::CancelFailedPointerTransition(const PlatformError& error)
+    {
+        if (!m_Backend) return;
+        if (!m_Backend->pollFailure) m_Backend->pollFailure = error;
+        m_Backend->transitionCount = 0;
+        m_Backend->failing = true;
+        if (!m_Cancelling)
+            if (auto cancelled = CancelInput(InputCancelReason::Explicit); !cancelled)
+                GENGINE_CORE_ERROR("Native input failure cancellation: {}", int(cancelled.error()));
+        m_Capture = InputLayer::None;
+        m_KeyOwners = {}; m_ButtonOwners = {};
+        const auto neutral = [](InputState& state) {
+            state.m_Keyboard.held.reset(); state.m_Keyboard.pressed.reset();
+            state.m_Mouse.m_CurrentButtons = state.m_Mouse.m_PressedButtons = 0;
+            state.m_Mouse.m_XRel = state.m_Mouse.m_YRel = 0;
+            state.m_Mouse.m_ScrollWheel = {}; state.modifiers = 0;
+        };
+        neutral(m_Physical);
+        for (auto& state : m_States) neutral(state);
+        m_ViewCancelled = true;
+        m_Backend->failing = false;
+    }
+    PlatformResult InputManager::EndNativePoll()
+    {
+        if (m_Owner != std::this_thread::get_id() || !m_Backend || !m_Backend->pollDepth)
+            return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
+                "end native input poll", "Unbalanced input poll"});
+        if (--m_Backend->pollDepth) return {};
+        const auto count = std::exchange(m_Backend->transitionCount, 0);
+        if (!m_Backend->pollFailure)
+        {
+            std::size_t lastExit = 0, lastGrab = 0;
+            for (std::size_t i = 0; i < count; ++i)
+            {
+                if (!m_Backend->transitions[i].relative) lastExit = i + 1;
+                if (m_Backend->transitions[i].grab >= 0) lastGrab = i + 1;
+            }
+            for (std::size_t i = 0; i < count; ++i)
+            {
+                auto transition = m_Backend->transitions[i];
+                // A completed/cancelled gesture needs no transient native entry.
+                // Keep actual exits (and their restore reason) before any fresh held entry.
+                if (transition.relative && i + 1 < lastExit)
+                    transition.relative = m_Physical.m_Mouse.m_IsRelative;
+                if (transition.grab >= 0 && i + 1 < lastGrab) transition.grab = -1;
+                if (auto result = ApplyPointerTransition(transition); !result)
+                {
+                    CancelFailedPointerTransition(result.error());
+                    break;
+                }
+            }
+        }
+        if (m_Backend->pollFailure)
+        {
+            // A failed transaction is terminal for this input backend. Best-effort release
+            // does not revive ownership or discard the first failure.
+            NativePointerTransition release;
+            release.grab = 0; release.cancelling = true;
+            release.owner = InputLayer::View; release.sequence = m_Sequence; release.deferred = true;
+            if (auto result = ApplyPointerTransition(release); !result)
+                ReportPlatformError(result.error());
+            const bool relative = SDL_GetRelativeMouseMode() == SDL_TRUE;
+            m_Physical.m_Mouse.m_IsRelative = relative;
+            for (auto& state : m_States) state.m_Mouse.m_IsRelative = relative;
+            return std::unexpected(*m_Backend->pollFailure);
+        }
         return {};
     }
     PlatformResult InputManager::SetRelativeMouseMode(bool value)
     {
-        if (m_Owner != std::this_thread::get_id())
-            return std::unexpected(
-                PlatformError{PlatformErrorCode::InputMode, "relative mouse mode", "Wrong thread"});
+        return TransitionPointer(value, -1);
+    }
+    PlatformResult InputManager::ReadPointerOrigin(NativePointerTransition& transition)
+    {
+        auto* window = m_Window ? SDL_GetWindowFromID(m_Window->GetWindowID()) : nullptr;
+        SDL_GetMouseState(&transition.originX, &transition.originY);
+        if (window)
+        {
+            // Focus/hide cancellation must not warp. SDL can therefore
+            // retain its old absolute cache until the next real motion.
+            // The actual cursor, not that cache, defines a new gesture.
+            int windowX = 0, windowY = 0;
+            SDL_GetGlobalMouseState(&transition.originX, &transition.originY);
+            SDL_GetWindowPosition(window, &windowX, &windowY);
+            transition.originX -= windowX;
+            transition.originY -= windowY;
+        }
+        transition.pixelX = transition.originX;
+        transition.pixelY = transition.originY;
+#ifdef GENGINE_PLATFORM_WINDOWS
+        if (window)
+        {
+            SDL_SysWMinfo native{};
+            SDL_VERSION(&native.version);
+            if (!SDL_GetWindowWMInfo(window, &native) ||
+                native.subsystem != SDL_SYSWM_WINDOWS)
+                return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
+                    "relative mouse entry", "Native window unavailable"});
+            const auto previous = SetThreadDpiAwarenessContext(
+                DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+            if (!previous)
+                return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
+                    "relative mouse entry", "Physical cursor context unavailable"});
+            POINT point{}, client{};
+            const bool positioned = GetPhysicalCursorPos(&point) &&
+                ClientToScreen(native.info.win.window, &client);
+            SetThreadDpiAwarenessContext(previous);
+            if (!positioned)
+                return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
+                    "relative mouse entry", "Physical cursor coordinates unavailable"});
+            transition.pixelX = point.x - client.x;
+            transition.pixelY = point.y - client.y;
+        }
+#endif
+        return {};
+    }
+    PlatformResult InputManager::TransitionPointer(bool relative, int grab)
+    {
+        if (m_Owner != std::this_thread::get_id() || !m_Backend)
+            return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
+                "pointer transition", "Unavailable input owner"});
+        if (m_Backend->failing) return {};
+        if (m_Backend->pollFailure) return std::unexpected(*m_Backend->pollFailure);
+        NativePointerTransition transition;
+        transition.relative = relative; transition.grab = grab;
+        transition.owner = m_Capture; transition.cancelling = m_Cancelling;
+        transition.sequence = m_Sequence; transition.deferred = m_Backend->pollDepth != 0;
+        const bool planned = m_Backend->transitionCount
+            ? m_Backend->transitions[m_Backend->transitionCount - 1].relative
+            : m_Physical.m_Mouse.m_IsRelative;
+        if (relative && !planned)
+            if (auto result = ReadPointerOrigin(transition); !result)
+            {
+                CancelFailedPointerTransition(result.error());
+                return result;
+            }
+        if (transition.deferred)
+        {
+            if (m_Cancelling)
+                for (std::size_t i = 0; i < m_Backend->transitionCount; ++i)
+                    m_Backend->transitions[i].cancelling = true;
+            if (m_Backend->transitionCount == m_Backend->transitions.size())
+            {
+                const PlatformError error{PlatformErrorCode::InputMode, "pointer transition",
+                    "Native transition capacity exhausted"};
+                CancelFailedPointerTransition(error);
+                return std::unexpected(error);
+            }
+            m_Backend->transitions[m_Backend->transitionCount++] = transition;
+            return {};
+        }
+        auto result = ApplyPointerTransition(transition);
+        if (!result)
+        {
+            CancelFailedPointerTransition(result.error());
+            NativePointerTransition release;
+            release.grab = 0; release.cancelling = true; release.owner = transition.owner;
+            release.sequence = m_Sequence;
+            if (auto cleanup = ApplyPointerTransition(release); !cleanup)
+                ReportPlatformError(cleanup.error());
+        }
+        return result;
+    }
+    PlatformResult InputManager::ApplyPointerTransition(const NativePointerTransition& transition)
+    {
+        const bool value = transition.relative;
+        auto* window = m_Window ? SDL_GetWindowFromID(m_Window->GetWindowID()) : nullptr;
         if (m_Physical.m_Mouse.m_IsRelative != value)
         {
-            auto* window = m_Window ? SDL_GetWindowFromID(m_Window->GetWindowID()) : nullptr;
-            int originX = 0, originY = 0, originPixelX = 0, originPixelY = 0;
-            if (value)
-            {
-                SDL_GetMouseState(&originX, &originY);
-                if (window)
-                {
-                    // Focus/hide cancellation must not warp. SDL can therefore
-                    // retain its old absolute cache until the next real motion.
-                    // The actual cursor, not that cache, defines a new gesture.
-                    int windowX = 0, windowY = 0;
-                    SDL_GetGlobalMouseState(&originX, &originY);
-                    SDL_GetWindowPosition(window, &windowX, &windowY);
-                    originX -= windowX;
-                    originY -= windowY;
-                }
-                originPixelX = originX;
-                originPixelY = originY;
-#ifdef GENGINE_PLATFORM_WINDOWS
-                if (window)
-                {
-                    SDL_SysWMinfo native{};
-                    SDL_VERSION(&native.version);
-                    if (!SDL_GetWindowWMInfo(window, &native) ||
-                        native.subsystem != SDL_SYSWM_WINDOWS)
-                        return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
-                            "relative mouse entry", "Native window unavailable"});
-                    const auto previous = SetThreadDpiAwarenessContext(
-                        DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-                    if (!previous)
-                        return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
-                            "relative mouse entry", "Physical cursor context unavailable"});
-                    POINT point{}, client{};
-                    const bool positioned = GetPhysicalCursorPos(&point) &&
-                        ClientToScreen(native.info.win.window, &client);
-                    SetThreadDpiAwarenessContext(previous);
-                    if (!positioned)
-                        return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
-                            "relative mouse entry", "Physical cursor coordinates unavailable"});
-                    originPixelX = point.x - client.x;
-                    originPixelY = point.y - client.y;
-                }
-#endif
-            }
+            const int originX = transition.originX, originY = transition.originY;
+            const int originPixelX = transition.pixelX, originPixelY = transition.pixelY;
             int width = 0, height = 0;
             if (window)
                 SDL_GetWindowSize(window, &width, &height);
             const bool viewExit = !value && m_Backend && window &&
-                m_Capture == InputLayer::View;
+                transition.owner == InputLayer::View;
             const bool focusedExit = viewExit && SDL_GetKeyboardFocus() == window &&
                 (SDL_GetWindowFlags(window) & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED)) == 0;
-            const bool restore = focusedExit && !m_Cancelling && Focused() &&
+            const bool restore = focusedExit && !transition.cancelling && Focused() &&
                 m_Routing.visible && !m_Routing.uiMouse &&
                 m_Backend->relativeWindow == SDL_GetWindowID(window) &&
                 m_Backend->relativeOriginX >= 0 && m_Backend->relativeOriginX < width &&
@@ -890,9 +1042,18 @@ namespace GEngine::Manager
                 int exitX = 0, exitY = 0;
                 SDL_GetMouseState(&exitX, &exitY);
                 const Vector2 position{float(exitX), float(exitY)};
-                m_Physical.m_Mouse.m_MousePos = m_States[1].m_Mouse.m_MousePos = position;
-                m_Physical.m_Mouse.m_XRel = m_Physical.m_Mouse.m_YRel = 0;
-                m_States[1].m_Mouse.m_XRel = m_States[1].m_Mouse.m_YRel = 0;
+                const auto restoreSnapshot = [&](MouseState& mouse)
+                {
+                    // A fresh later press/motion belongs to a different logical gesture.
+                    // Committing an older native release must not overwrite its position.
+                    if (!transition.deferred || mouse.positionVersion <= transition.sequence)
+                    {
+                        mouse.m_MousePos = position;
+                        mouse.m_XRel = mouse.m_YRel = 0;
+                    }
+                };
+                restoreSnapshot(m_Physical.m_Mouse);
+                restoreSnapshot(m_States[1].m_Mouse);
             }
             if (m_Backend)
             {
@@ -906,6 +1067,13 @@ namespace GEngine::Manager
         m_Physical.m_Mouse.m_IsRelative = value;
         for (auto& state : m_States)
             state.m_Mouse.m_IsRelative = value;
+        if (transition.grab >= 0 && m_Window)
+        {
+            m_Window->SetMouseGrab(transition.grab != 0);
+            if (!window || (SDL_GetWindowGrab(window) == SDL_TRUE) != (transition.grab != 0))
+                return std::unexpected(PlatformError{PlatformErrorCode::InputMode,
+                    "pointer grab", "Native grab did not match requested state"});
+        }
         return {};
     }
     SubscriptionResult InputManager::ObserveCosts(SubscriptionObservations* observer)

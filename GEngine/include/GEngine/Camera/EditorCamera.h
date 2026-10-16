@@ -1,5 +1,10 @@
 #pragma once
 #include "Camera/Camera.h"
+#include "Core/Platform.h"
+#include <array>
+#include <cstdint>
+
+namespace GEngine::Manager { struct InputEvent; }
 
 namespace GEngine
 {
@@ -25,6 +30,8 @@ namespace GEngine
 			void Initialize(ViewportMode mode);
 
 			void OnUpdate(Timestep ts);
+			// Only the owning View subscriber may deliver accepted input/cleanup.
+			[[nodiscard]] PlatformResult OnViewInput(const Manager::InputEvent&, bool eligible);
 			//void OnEvent(Event& e);
 
 			inline float GetDistance() const { return m_Distance; }
@@ -53,6 +60,14 @@ namespace GEngine
 			void UpdateView();
 
 		private:
+			enum class Gesture { None, Fly, Orbit, Pan, Dolly };
+			struct GestureMotion { Gesture gesture; std::int32_t dx, dy; };
+			std::array<GestureMotion, 256> m_ViewMotions{};
+			std::size_t m_ViewMotionCount = 0;
+			Gesture m_ViewGesture = Gesture::None;
+        std::uint32_t m_ViewGestureButtons = 0;
+			bool m_UsesViewInput = false, m_ViewInputCancelled = false, m_ViewCaptureRejected = false;
+			void UpdateViewInput(Timestep ts);
 			void UpdateProjection();
 			
 			void Focus(const Vec3f& focusPoint);

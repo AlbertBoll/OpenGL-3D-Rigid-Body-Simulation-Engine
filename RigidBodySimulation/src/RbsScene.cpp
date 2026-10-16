@@ -165,11 +165,43 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeSceneRoot()
     float cameraFarClip = m_EditorCamera_.GetFarClip();
     m_ShadowCascadeLevels = {cameraFarClip / 50.f, cameraFarClip / 25.f, cameraFarClip / 10.f,
                              cameraFarClip / 2.f, cameraFarClip};
-    auto createdSceneEntity0 = m_ActiveScene->CreateEntity("Editor frame camera");
-    if (!createdSceneEntity0)
-        return std::unexpected(createdSceneEntity0.error());
-    m_FrameCameraEntity = *createdSceneEntity0;
-    m_FrameCameraEntity.AddOrReplaceComponent<RenderCameraComponent>();
+    auto view = m_ActiveScene->CreateEditorViewIdentity();
+    if (!view)
+        return std::unexpected(PlatformError{PlatformErrorCode::Initialization, "Editor view",
+                                             "Transient view identity allocation failed"});
+    m_EditorViewIdentity = *view;
+    for (std::size_t slot = 0; slot != m_SceneCameras.size(); ++slot)
+        if (auto camera = CreateSceneCamera(slot); !camera) return camera;
+    auto access = m_SceneResources->Publication().BeginFrame();
+    if (auto active = m_ActiveScene->SetActiveSceneCamera(m_SceneCameras[0],
+            m_SceneResources->ForFrame(access)); !active)
+        return std::unexpected(PlatformError{PlatformErrorCode::Initialization, "Scene camera",
+                                             "Initial active camera validation failed"});
+    return {};
+}
+
+ApplicationInitializationResult RigidBodySimulationApp::CreateSceneCamera(std::size_t slot)
+{
+    auto created = m_ActiveScene->CreateEntity(slot == 0 ? "Scene Camera A" : "Scene Camera B");
+    if (!created) return std::unexpected(created.error());
+    auto entity = *created;
+    auto& camera = entity.AddComponent<RenderCameraComponent>();
+    camera.projection = slot == 0 ? CameraProjection::Perspective : CameraProjection::Orthographic;
+    camera.verticalFovRadians = glm::radians(45.f);
+    camera.orthographicHeight = 20.f;
+    camera.nearPlane = .1f;
+    camera.farPlane = 1000.f;
+    auto pose = m_ActiveScene->SetLocalPose(entity, m_EditorCamera_.GetPosition(),
+                                          m_EditorCamera_.GetOrientation());
+    auto id = m_ActiveScene->RenderData().Identify(entity);
+    if (!pose || !id)
+    {
+        (void)m_ActiveScene->DestroyEntity(entity);
+        return std::unexpected(PlatformError{PlatformErrorCode::Initialization, "Scene camera",
+                                             "Authored camera pose or identity rejected"});
+    }
+    if (!pose->notification) ReportSubscriptionError(pose->notification.error());
+    m_SceneCameras[slot] = *id;
     return {};
 }
 

@@ -1,0 +1,1095 @@
+{
+  "phase": 17,
+  "candidate": "28",
+  "result": "ALL_APPLICABLE_AUTOMATED_GATES_PASS",
+  "recorded_utc": "2026-10-16T05:36:37.825603+00:00",
+  "authority": {
+    "path": "docs/pre_editor/active/PHASE_17_RISK_BASED_CLOSURE_AUTHORITY.json",
+    "sha256": "a499667fb25f32ba489913b231c6851b89dd20293140db82f847705631e0a96c",
+    "size": 14669
+  },
+  "original_diagnostic_archive": {
+    "docs/pre_editor/PHASE_17_DIAGNOSTIC_HISTORY.md": {
+      "sha256": "f4fef28c07ed590a364d1dbeed2d33cda75cbc3f04c9b7fefa6137f66be4b2a7",
+      "size": 46111
+    },
+    "docs/pre_editor/evidence/phase-17-diagnostic-index.json": {
+      "sha256": "952aea5bf9df57cc515d4c2c72fcef087a4f7ed1c82c2abc0b1e5da145a26202",
+      "size": 285158
+    },
+    "docs/pre_editor/evidence/phase-17-production-changes.patch": {
+      "sha256": "24d3d86f6774dce5d5cbb943a8cc9e6688a8a950081b06cfa61a85c65d3bb177",
+      "size": 166153
+    },
+    "docs/pre_editor/evidence/phase-17-approval-disposition.json": {
+      "sha256": "322b3a5b985d612a6b30fe48e9c22505bfd078d4391603cdbe0cf76993f59c9d",
+      "size": 4539
+    },
+    "docs/pre_editor/proposals/PHASE_18_PLUS_RISK_BASED_VALIDATION.md": {
+      "sha256": "a068e42115d360d9bb30938677a5a5af963cc6d9a7e3fb1d7474f8159d439320",
+      "size": 6980
+    }
+  },
+  "sources": {
+    "GEngine/include/GEngine/Scene/_Scene.h": {
+      "sha256": "bfcfc269b254bf596c243f877e7a7003e7cb1b4d438f68fb70c13a9a12cf81b7",
+      "size": 18517,
+      "git_mode": "100644"
+    },
+    "GEngine/src/Scene/_Scene.cpp": {
+      "sha256": "2ff05f7afad2b290fecf61c2067dec19c7b17777a9e981248afa91d7a590108d",
+      "size": 74379,
+      "git_mode": "100644"
+    },
+    "RigidBodySimulation/include/RigidBodySimulation.h": {
+      "sha256": "3b01584c4fa7bbab19f4ba062fd4e6f63fbba338aad22c3da1e5e46ca108ba48",
+      "size": 12357,
+      "git_mode": "100644"
+    },
+    "RigidBodySimulation/src/RbsScene.cpp": {
+      "sha256": "c0bb774fe333b6085652586f4738b3f082f08be9995f3ed9d8e8d3772a631435",
+      "size": 59195,
+      "git_mode": "100644"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "sha256": "b3ac31167db276ddaf8b324eaf6e9d0577c3ca00681e05698d290b1a30fd7714",
+      "size": 17123,
+      "git_mode": "100644"
+    },
+    "RigidBodySimulation/src/RbsFrame.cpp": {
+      "sha256": "03d34205be8b3ab944744d72e1f6a20bfaaeab03cb22a93d9a600423af761793",
+      "size": 27689,
+      "git_mode": "100644"
+    },
+    "RigidBodySimulation/src/RbsUi.cpp": {
+      "sha256": "573af7ebfc177a0fb0a82baa749e3adca48ffedaec3bf7b1a064e996dbc9c6ed",
+      "size": 33522,
+      "git_mode": "100644"
+    },
+    "RigidBodySimulation/src/RbsValidation.cpp": {
+      "sha256": "7c044e7017e0bbc24772e820725f7db957df423e07ddf57751b81e662c6c6cdd",
+      "size": 122984,
+      "git_mode": "100644"
+    },
+    "GEngine/include/GEngine/Camera/EditorCamera.h": {
+      "sha256": "ba0482e1bc29f6c724eecef99dbca516ac1ef573f2d1cc3b27b7588136cd3700",
+      "size": 5254,
+      "git_mode": "100644"
+    },
+    "GEngine/src/Camera/EditorCamera.cpp": {
+      "sha256": "9cb7be2a8520290469bb484ce9afb057e7a6ef8a80d1cb4c2d07849de4a40304",
+      "size": 25536,
+      "git_mode": "100644"
+    },
+    "GEngine/include/GEngine/Managers/InputManager.h": {
+      "sha256": "4c579981611a59b50f15b7d3dd352cfb0739dc7d336b8ff1d50d96f44c4a8608",
+      "size": 13253,
+      "git_mode": "100644"
+    },
+    "GEngine/src/Managers/InputManager.cpp": {
+      "sha256": "b58e0bce21fe2c412e4a226ba4b99484ccdde79bebf82ffa95c8a1e8bfb263c6",
+      "size": 51833,
+      "git_mode": "100644"
+    },
+    "GEngine/src/Managers/EventManager.cpp": {
+      "sha256": "28305ad0d63c998fc49dea02f0c1cc37feb05e675f5b2d15d5a7b877dcad6b6c",
+      "size": 12613,
+      "git_mode": "100644"
+    },
+    "RigidBodySimulation/tests/CameraLifecycleChecks.h": {
+      "sha256": "0ed1b99f85cd5774d1712d09f222a2055786072dcf2d34cb8685ff023da1f701",
+      "size": 85285,
+      "git_mode": "100644"
+    },
+    "RigidBodySimulation/tests/CameraSnapshotChecks.h": {
+      "sha256": "7a9955896cf7b1b684e027af2141572f419380bc96192b1995c6ea01b866d5e3",
+      "size": 78900,
+      "git_mode": "100644"
+    },
+    "tools/test_pre_editor_camera_snapshot.py": {
+      "sha256": "d246734555e6d82df1f0046c5dd144895923028045abefa518ddcced64a84fbb",
+      "size": 120117,
+      "git_mode": "100644"
+    },
+    "tools/test_pre_editor_camera_lifecycle.py": {
+      "sha256": "53174adb7edc279691969e4ff7349b76f1f480c16037242dc67a4594f5d99fb9",
+      "size": 198526,
+      "git_mode": "100644"
+    }
+  },
+  "Debug": {
+    "result": "PASS_REUSED",
+    "original_candidate": "26",
+    "audit": {
+      "path": "logs/pre_editor/phase-17/candidate-26/audit-Debug.json",
+      "sha256": "c7c9709dd79d0aab1e45b90042024e6f09cb98db0e6b6fb638631236a421ef8b",
+      "size": 2410
+    },
+    "runtime": {
+      "path": "logs/pre_editor/phase-17/candidate-26/run-Debug.json",
+      "sha256": "6158156a1d700c3c67ef4d09868825ae5965daf431c215e09ef001b5601e45cf",
+      "size": 7684
+    },
+    "build": {
+      "path": "logs/pre_editor/phase-17/candidate-26/build-Debug/result.json",
+      "sha256": "0ce87d1f62411f574a6993b098c0b0bca4cae0b172a8c88b4e31b084f14f0087",
+      "size": 218865
+    },
+    "impact_proof": {
+      "path": "logs/pre_editor/phase-17/revision-09/risk-closure-01/debug-reuse-proof-c28.json",
+      "sha256": "e5300a8e56a842e9f12c7fcc462fe68bae91bbd4978810f7d5d7c702ccadfe50",
+      "size": 229902
+    },
+    "new_Debug_binary_tested": false
+  },
+  "Release": {
+    "result": "PASS",
+    "build": {
+      "path": "logs/pre_editor/phase-17/candidate-28/build-Release/result.json",
+      "sha256": "737820f016d3d9c6a5b22605ce517af17f770df606e462dcb045efeda862f312",
+      "size": 6718
+    },
+    "run": {
+      "path": "logs/pre_editor/phase-17/candidate-28/run-Release.json",
+      "sha256": "238596ccae718a47c1f8b28483fb3aec75e535614e2907f0dedd2aaa866ef71a",
+      "size": 8129
+    },
+    "audit": {
+      "path": "logs/pre_editor/phase-17/candidate-28/audit-Release.json",
+      "sha256": "a1168811fc4763c9a1b613c72a053fec8c6aac474ef550778de9f447ba402acd",
+      "size": 19855
+    },
+    "binary": {
+      "sha256": "fa5b504c9c4e9c877f70f3ec2e77904358a4ece80396bf9e188722b201a2a22b",
+      "size": 4512768
+    },
+    "ordinary_build_product": {
+      "path": "C:\\dev\\GEngine-pre-editor\\logs\\pre_editor\\phase-17\\candidate-27\\build-Release\\ordinary\\RigidBodySimulation.exe",
+      "sha256": "935437ae972190a4fcd0e93d7755a50095a02714f27190022ee2861e4d455cb5",
+      "size": 4100096
+    },
+    "products": {
+      "C:\\dev\\GEngine-pre-editor\\bin\\Release\\Phase17Candidate27\\glad\\glad.lib": {
+        "sha256": "9f7063f6d51641d7bfa149463e4fa296f3d1ac0e5f6c1a9de9ac8df68714bcd5",
+        "size": 1524440
+      },
+      "C:\\dev\\GEngine-pre-editor\\bin\\Release\\Phase17Candidate27\\GEngine\\GEngine.lib": {
+        "sha256": "01d1870b139045de5b3e5a868365a91d368b6de3eadce9e6ba54fdd8beb3a4da",
+        "size": 47042890
+      },
+      "C:\\dev\\GEngine-pre-editor\\bin\\Release\\Phase17Candidate27\\RigidBodySimulation\\RigidBodySimulation.exe": {
+        "sha256": "fa5b504c9c4e9c877f70f3ec2e77904358a4ece80396bf9e188722b201a2a22b",
+        "size": 4512768
+      }
+    },
+    "coverage": {
+      "segments": 12,
+      "observed_frames": 96,
+      "readbacks": 288,
+      "lifecycle_checks": 62,
+      "native_restore": {
+        "pid": 24004,
+        "handle": 1508442,
+        "minimized_observed": true,
+        "frame_rows_stable": true,
+        "frame_stream": "lifecycle-frames.csv",
+        "recorded_utc": "2026-10-16T05:35:25.761829+00:00"
+      },
+      "ui": "unchanged 42-step Shadows/menu/popup/widget/Unicode test; zero View/Game/picking leaks",
+      "manual_remaining": "Owner RBS visual acceptance and physical OS DPI transition"
+    },
+    "gesture_regressions": {
+      "cases": 65,
+      "held_alt_gestures": 20,
+      "raw": {
+        "sha256": "45cb26a28cea15e04d018b6d1dbdc58fd5cc3e739baa3398cf1dc9b4148c62d3",
+        "size": 2994
+      },
+      "native_and_direct_provider": "PASS"
+    },
+    "visual": {
+      "schema": 1,
+      "capacity": 2048,
+      "stored": 2048,
+      "total": 2467,
+      "compacted": 419,
+      "passed": 2467,
+      "failed": 0,
+      "failure_bits": 0,
+      "first_failure_ordinal": 0,
+      "overflow": 0,
+      "active_frames": 2376,
+      "drawable_frames": 2466,
+      "opaque_frames": 2466,
+      "flashes": 297,
+      "persistent": 2079,
+      "after_one_second": 1682,
+      "after_five_seconds": 13,
+      "inactive_frames": 90,
+      "gesture_mask": 1048575,
+      "multiple_activations": 1,
+      "field_digest_fnv1a64": "16685158996809512000"
+    },
+    "focus_lifetime": {
+      "result": "PASS",
+      "raw": {
+        "sha256": "bf90248c440cc5ebd8c1fe454aec4ebf2d4a7d479b4242a6354af2f9c64a5acd",
+        "size": 138
+      },
+      "begun": 1,
+      "complete": 1,
+      "frames": 2097,
+      "wall_seconds": 5.001028,
+      "activation_age": 5.029805100231897,
+      "activations": 13,
+      "reads": 16
+    }
+  },
+  "performance": {
+    "result": "PASS",
+    "roles": [
+      "Editor",
+      "Scene"
+    ],
+    "pairs_per_role": 3,
+    "warmup_per_lane": 120,
+    "measured_per_lane": 240,
+    "events_per_iteration": 64,
+    "worst_median_delta_ms": 0.0025000000000000022,
+    "worst_p95_delta_ms": 0.002599999999999998,
+    "maximum_latency_ms": 0.0334,
+    "limits_ms": {
+      "median_delta": 0.1,
+      "p95_delta": 0.25,
+      "latency": 16.667
+    },
+    "on_allocation_copy_counts_stable": true,
+    "control": {
+      "path": "C:\\dev\\GEngine-pre-editor\\logs\\pre_editor\\phase-17\\control-05",
+      "manifest": {
+        "sha256": "c2f228c56c812567b48b9f90a46898a1928ad2c5350d0f8b7d8c971f9593060f",
+        "size": 817884
+      },
+      "summary": {
+        "sha256": "c316a560abea4791a183fbc90a5141ad911ae76d04ca55eb7cb4c7c30462eaf3",
+        "size": 1705
+      },
+      "run": {
+        "sha256": "6dafe8fbf1b944bf5a6a9a60dda57a6ac30cca6605be7b30e6dae8f7a9a32785",
+        "size": 8456
+      }
+    },
+    "roles_full": [
+      {
+        "role": "editor",
+        "raw": {
+          "sha256": "5204994a3d40f491646667f025c52f55b343a685aabc36e3a2a8b3c21501c481",
+          "size": 61768
+        },
+        "groups": [
+          {
+            "pair": 0,
+            "on": 0,
+            "median_ms": 0.0187,
+            "p95_ms": 0.019,
+            "delta_median_ms": 0.0025000000000000022,
+            "delta_p95_ms": 0.002599999999999998,
+            "max_latency_ms": 0.0,
+            "counters": {
+              "deliveries": {
+                "min": 64,
+                "max": 64
+              },
+              "allocations": {
+                "min": 0,
+                "max": 0
+              },
+              "requested_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "lookups": {
+                "min": 0,
+                "max": 0
+              },
+              "callbacks": {
+                "min": 0,
+                "max": 0
+              },
+              "logical_value_copies": {
+                "min": 0,
+                "max": 0
+              },
+              "logical_copy_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "engine_backlog": {
+                "min": 0,
+                "max": 0
+              },
+              "native_remaining": {
+                "min": 0,
+                "max": 0
+              },
+              "drain_mutex_acquisitions": {
+                "min": 1,
+                "max": 1
+              }
+            },
+            "pass": true
+          },
+          {
+            "pair": 0,
+            "on": 1,
+            "median_ms": 0.0199,
+            "p95_ms": 0.0202,
+            "delta_median_ms": 0.0017999999999999995,
+            "delta_p95_ms": 0.0014999999999999979,
+            "max_latency_ms": 0.0275,
+            "counters": {
+              "deliveries": {
+                "min": 64,
+                "max": 64
+              },
+              "allocations": {
+                "min": 0,
+                "max": 0
+              },
+              "requested_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "lookups": {
+                "min": 208,
+                "max": 208
+              },
+              "callbacks": {
+                "min": 208,
+                "max": 208
+              },
+              "logical_value_copies": {
+                "min": 0,
+                "max": 0
+              },
+              "logical_copy_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "engine_backlog": {
+                "min": 0,
+                "max": 0
+              },
+              "native_remaining": {
+                "min": 0,
+                "max": 0
+              },
+              "drain_mutex_acquisitions": {
+                "min": 1,
+                "max": 1
+              }
+            },
+            "pass": true
+          },
+          {
+            "pair": 1,
+            "on": 0,
+            "median_ms": 0.0189,
+            "p95_ms": 0.0193,
+            "delta_median_ms": 0.0015000000000000013,
+            "delta_p95_ms": 0.0016000000000000007,
+            "max_latency_ms": 0.0,
+            "counters": {
+              "deliveries": {
+                "min": 64,
+                "max": 64
+              },
+              "allocations": {
+                "min": 0,
+                "max": 0
+              },
+              "requested_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "lookups": {
+                "min": 0,
+                "max": 0
+              },
+              "callbacks": {
+                "min": 0,
+                "max": 0
+              },
+              "logical_value_copies": {
+                "min": 0,
+                "max": 0
+              },
+              "logical_copy_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "engine_backlog": {
+                "min": 0,
+                "max": 0
+              },
+              "native_remaining": {
+                "min": 0,
+                "max": 0
+              },
+              "drain_mutex_acquisitions": {
+                "min": 1,
+                "max": 1
+              }
+            },
+            "pass": true
+          },
+          {
+            "pair": 1,
+            "on": 1,
+            "median_ms": 0.02015,
+            "p95_ms": 0.0205,
+            "delta_median_ms": 0.0009500000000000029,
+            "delta_p95_ms": 0.0011000000000000003,
+            "max_latency_ms": 0.0255,
+            "counters": {
+              "deliveries": {
+                "min": 64,
+                "max": 64
+              },
+              "allocations": {
+                "min": 0,
+                "max": 0
+              },
+              "requested_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "lookups": {
+                "min": 208,
+                "max": 208
+              },
+              "callbacks": {
+                "min": 208,
+                "max": 208
+              },
+              "logical_value_copies": {
+                "min": 0,
+                "max": 0
+              },
+              "logical_copy_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "engine_backlog": {
+                "min": 0,
+                "max": 0
+              },
+              "native_remaining": {
+                "min": 0,
+                "max": 0
+              },
+              "drain_mutex_acquisitions": {
+                "min": 1,
+                "max": 1
+              }
+            },
+            "pass": true
+          },
+          {
+            "pair": 2,
+            "on": 0,
+            "median_ms": 0.0193,
+            "p95_ms": 0.0197,
+            "delta_median_ms": 0.0020000000000000018,
+            "delta_p95_ms": 0.002199999999999997,
+            "max_latency_ms": 0.0,
+            "counters": {
+              "deliveries": {
+                "min": 64,
+                "max": 64
+              },
+              "allocations": {
+                "min": 0,
+                "max": 0
+              },
+              "requested_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "lookups": {
+                "min": 0,
+                "max": 0
+              },
+              "callbacks": {
+                "min": 0,
+                "max": 0
+              },
+              "logical_value_copies": {
+                "min": 0,
+                "max": 0
+              },
+              "logical_copy_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "engine_backlog": {
+                "min": 0,
+                "max": 0
+              },
+              "native_remaining": {
+                "min": 0,
+                "max": 0
+              },
+              "drain_mutex_acquisitions": {
+                "min": 1,
+                "max": 1
+              }
+            },
+            "pass": true
+          },
+          {
+            "pair": 2,
+            "on": 1,
+            "median_ms": 0.0205,
+            "p95_ms": 0.0212,
+            "delta_median_ms": 0.0017000000000000001,
+            "delta_p95_ms": 0.001899999999999999,
+            "max_latency_ms": 0.0334,
+            "counters": {
+              "deliveries": {
+                "min": 64,
+                "max": 64
+              },
+              "allocations": {
+                "min": 0,
+                "max": 0
+              },
+              "requested_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "lookups": {
+                "min": 208,
+                "max": 208
+              },
+              "callbacks": {
+                "min": 208,
+                "max": 208
+              },
+              "logical_value_copies": {
+                "min": 0,
+                "max": 0
+              },
+              "logical_copy_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "engine_backlog": {
+                "min": 0,
+                "max": 0
+              },
+              "native_remaining": {
+                "min": 0,
+                "max": 0
+              },
+              "drain_mutex_acquisitions": {
+                "min": 1,
+                "max": 1
+              }
+            },
+            "pass": true
+          }
+        ],
+        "observer_on_minus_off_median_ms": [
+          0.0011999999999999997,
+          0.0012500000000000011,
+          0.0011999999999999997
+        ],
+        "observer_note": "OFF optional counters unmeasured; no observer subtraction for PASS; no display latency claim"
+      },
+      {
+        "role": "scene",
+        "raw": {
+          "sha256": "f1edc790795deaa75207a07dc39415d36dc351b914c3cb16d402506aa3d7b106",
+          "size": 61985
+        },
+        "groups": [
+          {
+            "pair": 0,
+            "on": 0,
+            "median_ms": 0.0159,
+            "p95_ms": 0.0161,
+            "delta_median_ms": -0.0002999999999999982,
+            "delta_p95_ms": -0.00030000000000000165,
+            "max_latency_ms": 0.0,
+            "counters": {
+              "deliveries": {
+                "min": 64,
+                "max": 64
+              },
+              "allocations": {
+                "min": 0,
+                "max": 0
+              },
+              "requested_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "lookups": {
+                "min": 0,
+                "max": 0
+              },
+              "callbacks": {
+                "min": 0,
+                "max": 0
+              },
+              "logical_value_copies": {
+                "min": 0,
+                "max": 0
+              },
+              "logical_copy_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "engine_backlog": {
+                "min": 0,
+                "max": 0
+              },
+              "native_remaining": {
+                "min": 0,
+                "max": 0
+              },
+              "drain_mutex_acquisitions": {
+                "min": 1,
+                "max": 1
+              }
+            },
+            "pass": true
+          },
+          {
+            "pair": 0,
+            "on": 1,
+            "median_ms": 0.0175,
+            "p95_ms": 0.0178,
+            "delta_median_ms": -0.0005999999999999998,
+            "delta_p95_ms": -0.0009000000000000015,
+            "max_latency_ms": 0.0198,
+            "counters": {
+              "deliveries": {
+                "min": 64,
+                "max": 64
+              },
+              "allocations": {
+                "min": 0,
+                "max": 0
+              },
+              "requested_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "lookups": {
+                "min": 208,
+                "max": 208
+              },
+              "callbacks": {
+                "min": 208,
+                "max": 208
+              },
+              "logical_value_copies": {
+                "min": 0,
+                "max": 0
+              },
+              "logical_copy_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "engine_backlog": {
+                "min": 0,
+                "max": 0
+              },
+              "native_remaining": {
+                "min": 0,
+                "max": 0
+              },
+              "drain_mutex_acquisitions": {
+                "min": 1,
+                "max": 1
+              }
+            },
+            "pass": true
+          },
+          {
+            "pair": 1,
+            "on": 0,
+            "median_ms": 0.0161,
+            "p95_ms": 0.0164,
+            "delta_median_ms": -0.001299999999999999,
+            "delta_p95_ms": -0.001299999999999999,
+            "max_latency_ms": 0.0,
+            "counters": {
+              "deliveries": {
+                "min": 64,
+                "max": 64
+              },
+              "allocations": {
+                "min": 0,
+                "max": 0
+              },
+              "requested_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "lookups": {
+                "min": 0,
+                "max": 0
+              },
+              "callbacks": {
+                "min": 0,
+                "max": 0
+              },
+              "logical_value_copies": {
+                "min": 0,
+                "max": 0
+              },
+              "logical_copy_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "engine_backlog": {
+                "min": 0,
+                "max": 0
+              },
+              "native_remaining": {
+                "min": 0,
+                "max": 0
+              },
+              "drain_mutex_acquisitions": {
+                "min": 1,
+                "max": 1
+              }
+            },
+            "pass": true
+          },
+          {
+            "pair": 1,
+            "on": 1,
+            "median_ms": 0.0178,
+            "p95_ms": 0.0181,
+            "delta_median_ms": -0.0013999999999999985,
+            "delta_p95_ms": -0.001299999999999999,
+            "max_latency_ms": 0.0196,
+            "counters": {
+              "deliveries": {
+                "min": 64,
+                "max": 64
+              },
+              "allocations": {
+                "min": 0,
+                "max": 0
+              },
+              "requested_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "lookups": {
+                "min": 208,
+                "max": 208
+              },
+              "callbacks": {
+                "min": 208,
+                "max": 208
+              },
+              "logical_value_copies": {
+                "min": 0,
+                "max": 0
+              },
+              "logical_copy_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "engine_backlog": {
+                "min": 0,
+                "max": 0
+              },
+              "native_remaining": {
+                "min": 0,
+                "max": 0
+              },
+              "drain_mutex_acquisitions": {
+                "min": 1,
+                "max": 1
+              }
+            },
+            "pass": true
+          },
+          {
+            "pair": 2,
+            "on": 0,
+            "median_ms": 0.016,
+            "p95_ms": 0.0163,
+            "delta_median_ms": -0.001299999999999999,
+            "delta_p95_ms": -0.0012000000000000031,
+            "max_latency_ms": 0.0,
+            "counters": {
+              "deliveries": {
+                "min": 64,
+                "max": 64
+              },
+              "allocations": {
+                "min": 0,
+                "max": 0
+              },
+              "requested_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "lookups": {
+                "min": 0,
+                "max": 0
+              },
+              "callbacks": {
+                "min": 0,
+                "max": 0
+              },
+              "logical_value_copies": {
+                "min": 0,
+                "max": 0
+              },
+              "logical_copy_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "engine_backlog": {
+                "min": 0,
+                "max": 0
+              },
+              "native_remaining": {
+                "min": 0,
+                "max": 0
+              },
+              "drain_mutex_acquisitions": {
+                "min": 1,
+                "max": 1
+              }
+            },
+            "pass": true
+          },
+          {
+            "pair": 2,
+            "on": 1,
+            "median_ms": 0.0174,
+            "p95_ms": 0.0178,
+            "delta_median_ms": -0.001400000000000002,
+            "delta_p95_ms": -0.0015000000000000013,
+            "max_latency_ms": 0.0268,
+            "counters": {
+              "deliveries": {
+                "min": 64,
+                "max": 64
+              },
+              "allocations": {
+                "min": 0,
+                "max": 0
+              },
+              "requested_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "lookups": {
+                "min": 208,
+                "max": 208
+              },
+              "callbacks": {
+                "min": 208,
+                "max": 208
+              },
+              "logical_value_copies": {
+                "min": 0,
+                "max": 0
+              },
+              "logical_copy_bytes": {
+                "min": 0,
+                "max": 0
+              },
+              "engine_backlog": {
+                "min": 0,
+                "max": 0
+              },
+              "native_remaining": {
+                "min": 0,
+                "max": 0
+              },
+              "drain_mutex_acquisitions": {
+                "min": 1,
+                "max": 1
+              }
+            },
+            "pass": true
+          }
+        ],
+        "observer_on_minus_off_median_ms": [
+          0.0016000000000000007,
+          0.0017000000000000001,
+          0.0013999999999999985
+        ],
+        "observer_note": "OFF optional counters unmeasured; no observer subtraction for PASS; no display latency claim"
+      }
+    ]
+  },
+  "accounting": {
+    "recorded_utc": "2026-10-16T05:36:37.794353+00:00",
+    "native_cumulative_launches": 19,
+    "native_cumulative_cap": 20,
+    "native_revision_launches": 13,
+    "native_revision_cap": 14,
+    "diagnostic_cumulative_launches": 5,
+    "diagnostic_cumulative_cap": 5,
+    "diagnostic_revision_launches": 3,
+    "diagnostic_revision_cap": 3,
+    "native_cumulative_seconds": 423.43999999996765,
+    "native_cumulative_seconds_cap": 1620,
+    "native_revision_seconds": 291.75099999996917,
+    "native_revision_seconds_cap": 1080,
+    "build_cumulative_seconds": 7961.843000000008,
+    "build_cumulative_seconds_cap": 12600,
+    "build_revision_seconds": 5600.6400000000285,
+    "build_revision_seconds_cap": 7200,
+    "build_revision_configuration_seconds": {
+      "Debug": 3327.56200000002,
+      "Release": 2273.0780000000086
+    },
+    "build_revision_configuration_cap": {
+      "Debug": 3600,
+      "Release": 3600
+    },
+    "focused_invocations": 40,
+    "focused_cap": 40,
+    "focused_seconds": 571.1903119999988,
+    "focused_seconds_cap": 600,
+    "desktop_probes": {
+      "invocations": 3,
+      "seconds": 4.389999999976252,
+      "cap": 3,
+      "seconds_cap": 45
+    },
+    "free_storage_bytes": 29142544384,
+    "candidate25_prelaunch_seconds_charged": 0.09299999999348074,
+    "candidate25_launched": false,
+    "remaining_native_launches": 1,
+    "historical_failures_preserved": true,
+    "candidate26_launched": true,
+    "new_attempts": {
+      "focused": [
+        {
+          "path": "logs/pre_editor/phase-17/revision-09/risk-closure-01/focused-check-01/result.json",
+          "sha256": "89c29dd30a59772e4814e6a160c1ffc518fbdeabef1ade0f8dbc4761921dd7f3",
+          "size": 1963
+        },
+        {
+          "path": "logs/pre_editor/phase-17/revision-09/risk-closure-01/focused-check-02/result.json",
+          "sha256": "5b4dae349b3ccabeaea49e973fda7712dbd307f221547c1f075fef8e510cd5a7",
+          "size": 1975
+        },
+        {
+          "path": "logs/pre_editor/phase-17/revision-09/risk-closure-01/focused-check-03/result.json",
+          "sha256": "649f9aa9f710353670c01787eca0e7d8c02c5891097549546739532ff74df274",
+          "size": 3504
+        },
+        {
+          "path": "logs/pre_editor/phase-17/revision-09/risk-closure-01/focused-check-04/result.json",
+          "sha256": "5584539c0e50c8ab8234fd798f78b438be84ee5f551f5916a3ebe2b158b811a5",
+          "size": 6454
+        },
+        {
+          "path": "logs/pre_editor/phase-17/revision-09/risk-closure-01/focused-check-05/result.json",
+          "sha256": "0093122f485d462d5387ddf9bd4b32349eb0095ccaae192ba5ab384a7053315c",
+          "size": 1207
+        },
+        {
+          "path": "logs/pre_editor/phase-17/revision-09/risk-closure-01/focused-check-06/result.json",
+          "sha256": "a65bff9e5ece430c2eae8856844944e4b5d6a9387e4b7256ec889db7f14cfd33",
+          "size": 990
+        }
+      ],
+      "final_audit": "logs\\pre_editor\\phase-17\\revision-09\\risk-closure-01\\focused-check-07",
+      "native": [
+        {
+          "path": "logs/pre_editor/phase-17/candidate-28/run-Release.json",
+          "sha256": "238596ccae718a47c1f8b28483fb3aec75e535614e2907f0dedd2aaa866ef71a",
+          "size": 8129
+        }
+      ],
+      "Debug": "Original C26 full PASS reused by exact impact proof; no fresh Debug native launch",
+      "new_diagnostics": 0,
+      "no_attempt_reset": true
+    }
+  },
+  "human_acceptance": {
+    "result": "OWNER_REPORTED_PASS",
+    "evidence": {
+      "path": "logs/pre_editor/phase-17/revision-05/post-human-01/human-acceptance.json",
+      "sha256": "6f261f317eafde683245cbff29dedbc6b27101b5af45ea84961a317a77558611",
+      "size": 5930
+    },
+    "reaffirmed_by": "APPROVE PRE_EDITOR PHASE17 DIAGNOSTIC ARCHIVE AND FINAL CLOSURE",
+    "production_identity": "All13 match recorded post-human and Candidate26 bytes",
+    "historical_executable_identity": "UNVERIFIED; no claim that owner inspected C21/C26/C27 executable",
+    "material_production_change": false
+  },
+  "validation_change": {
+    "files": [
+      "RigidBodySimulation/tests/CameraLifecycleChecks.h",
+      "tools/test_pre_editor_camera_lifecycle.py"
+    ],
+    "cause": "C26 Release exhausted2048 rows before five seconds; all stored rows passed",
+    "implementation": "Fixed prefix2047/latest, dense per-frame counters and explicit-field rolling digest, first-failure retention; original per-frame predicates and lifetime/42UI workload unchanged",
+    "storage_proof": {
+      "path": "logs/pre_editor/phase-17/compile-check-31/build-Debug/result.json",
+      "sha256": "649f9aa9f710353670c01787eca0e7d8c02c5891097549546739532ff74df274",
+      "size": 3504
+    },
+    "actual_TU_compile": {
+      "path": "logs/pre_editor/phase-17/compile-check-32/build-Debug/result.json",
+      "sha256": "5584539c0e50c8ab8234fd798f78b438be84ee5f551f5916a3ebe2b158b811a5",
+      "size": 6454
+    },
+    "storage_freeze": {
+      "path": "logs/pre_editor/phase-17/revision-09/risk-closure-01/focused-check-05/result.json",
+      "sha256": "0093122f485d462d5387ddf9bd4b32349eb0095ccaae192ba5ab384a7053315c",
+      "size": 1207
+    },
+    "freeze": {
+      "path": "logs/pre_editor/phase-17/revision-09/risk-closure-01/focused-check-06/result.json",
+      "sha256": "a65bff9e5ece430c2eae8856844944e4b5d6a9387e4b7256ec889db7f14cfd33",
+      "size": 990
+    },
+    "runner_compile_reuse": {
+      "path": "logs/pre_editor/phase-17/revision-09/risk-closure-01/runner-compile-reuse.json",
+      "sha256": "02fb1b54e03f649584e57ae4c8bd7b0f3b72e991650a91d6f5885606454eaade",
+      "size": 1028
+    },
+    "final_audit": {
+      "path": "logs/pre_editor/phase-17/revision-09/risk-closure-01/focused-check-07/result.json",
+      "sha256": "62f625b2735e4444690eb2b803413a0f4db37fb4ee9301e9cf688691bfdc7e2b",
+      "size": 21282
+    }
+  },
+  "historical_results": {
+    "Candidate26_Debug": "FULL_PASS",
+    "Candidate26_Release": "FAIL:2048 passing recorded rows, capacity exhaustion before5s; remaining42UI not completed; completed Camera/GPU/65gestures/performance PASS only where completed",
+    "Candidate04_focus_cause": "UNRESOLVED",
+    "Candidate13_Release_pick_cause": "UNRESOLVED",
+    "focused34": "FAIL: inherited project-reference link input in new CPU-only proof",
+    "focused35": "FAIL: isolated DLL linker flag missing",
+    "focused36": "PASS: both build-command corrections; actual bounded collector validated",
+    "Candidate27": "BLOCKED_BEFORE_LAUNCH: legacy run-Debug prerequisite did not honor proven Debug reuse; no native launch",
+    "focused39": "PASS: Python-only prerequisite correction and exact compiled-product/Debug reuse proof",
+    "all_prior_evidence": "UNCHANGED"
+  },
+  "prospective_governance": {
+    "path": "docs/pre_editor/proposals/PHASE_18_PLUS_RISK_BASED_VALIDATION.md",
+    "status": "PROPOSED_NOT_ACTIVE",
+    "phase17_gate": false
+  },
+  "publication": "PENDING_GUARDED_APPROVAL"
+}

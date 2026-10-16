@@ -38,6 +38,34 @@ namespace GEngine::Manager
         auto* root = EngineContext::TryGet();
         auto* window = root ? static_cast<SDLWindow*>(root->MainWindow()) : nullptr;
         auto* input = root ? root->LegacyEngine().GetInputManager() : nullptr;
+        // SDL relative-mode transitions flush motion. Bracket the entire drain so
+        // callbacks acquire/release logical owners immediately without mutating that queue.
+        struct NativePoll
+        {
+            InputManager* input;
+            EventManager* events;
+            bool active = false;
+            ~NativePoll()
+            {
+                if (!active) return;
+                if (auto result = input->EndNativePoll(); !result)
+                {
+                    ReportPlatformError(result.error());
+                    if (auto closed = events->m_EventDispatcher.Dispatch(Event::AppClose); !closed)
+                        ReportSubscriptionError(closed.error());
+                }
+            }
+        } poll{input, this};
+        if (input)
+        {
+            if (auto result = input->BeginNativePoll(); !result)
+            {
+                ReportPlatformError(result.error());
+                deliver(Event::AppClose);
+                return;
+            }
+            poll.active = true;
+        }
         SDL_Event native{};
         while (SDL_PollEvent(&native))
         {

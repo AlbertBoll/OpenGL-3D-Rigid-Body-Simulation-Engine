@@ -46,6 +46,8 @@ namespace GEngine
         // thread, after frame leases retire and before BeginUI advances input.
         // Invoked only for a visible, successful frame with pickingEnabled.
         FrameCallback pickingReadback;
+        // Owner-prepared values, borrowed until synchronous extraction copies them.
+        std::span<const FrameDebugLine> debugLines;
     };
     struct ScheduledFrameStats
     {

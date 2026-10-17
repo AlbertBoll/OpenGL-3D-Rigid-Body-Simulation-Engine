@@ -113,7 +113,7 @@ namespace GEngine
             stats.trace.Stage(FrameStage::BuildRenderFrame);
             // This entry prepares and freezes ECS before any builder work; its
             // serial and optional worker paths share the pinned resource domain.
-            auto frame=ExtractRenderFrame(scene->scene,scene->resources.ForFrame(access),stats.extraction,scene->cameras,{},scene->extraction);
+            auto frame=ExtractRenderFrame(scene->scene,scene->resources.ForFrame(access),stats.extraction,scene->cameras,scene->debugLines,scene->extraction);
             if (!frame) return std::unexpected(ScheduleError{FrameStage::BuildRenderFrame,frame.error()});
             auto targets=scene->targets;
             // A synchronous replacement can grow the role table. Borrow its

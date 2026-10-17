@@ -605,8 +605,10 @@ void main() {
     }
     struct FrameSubmission::Storage
     {
-        Shader point, cascade, pick;
+        Shader point, cascade, pick, debug;
         RenderBackend::UploadBuffer frameUpload, materialUpload, instanceUpload;
+        RenderBackend::UploadBuffer debugUpload;
+        GLuint debugVao{};
         std::size_t materialLimit{};
         RenderBackend::PackedFrame lastFrame;
         std::array<PassInputs,3> inputs;
@@ -617,7 +619,7 @@ void main() {
         {
             GLContextThread::RequireOwner(owner,"frame submission destruction");
             Asset::AssetDetail::RequireInvariant(SDL_GL_GetCurrentContext() == context);
-
+            if (debugVao) glDeleteVertexArrays(1,&debugVao);
         }
     };
     FrameSubmission::FrameSubmission(FrameSubmission&&) noexcept = default;
@@ -740,7 +742,8 @@ void main() {
                 inputs.pending=inputs.pending | PassDirtyReason::RetryAfterFailure; }
         } transaction{*m_Storage};
         if (frame.Cameras().size()!=1) return Error("submission camera count",Code::InvalidCamera);
-        if (!frame.DebugLines().empty()) return Error("debug lines are outside this scene submission layer",Code::UnsupportedPipeline);
+        if (frame.DebugLines().size()>std::size_t((std::numeric_limits<GLsizei>::max)())/2)
+            return Error("debug vertex capacity",Code::InvalidDraw);
         if (frame.DirectionalLights().size()>1 || frame.PointLights().size()>1 || frame.SpotLights().size()>1)
             return Error("lighting capacity (one directional, one point, one unshadowed spot)",Code::UnsupportedLights);
         const auto* spot=frame.SpotLights().empty()?nullptr:&frame.SpotLights()[0];
@@ -975,6 +978,49 @@ void main() {
         TargetRestore restore;
         State state; // Ends before restore and every external scheduler boundary.
         auto& storage=*m_Storage;
+        if (!frame.DebugLines().empty())
+        {
+            // Private backend resources belong to this existing submission owner.
+            // The immutable frame keeps values only, and survives producer reuse.
+            struct DebugVertex { glm::vec3 position; glm::vec4 color; };
+            const auto count=frame.DebugLines().size()*2;
+            std::unique_ptr<DebugVertex[]> vertices(new(std::nothrow) DebugVertex[count]);
+            if (!vertices) return Error("debug vertex allocation",Code::Allocation);
+            for (std::size_t i=0;i<frame.DebugLines().size();++i) {
+                const auto& line=frame.DebugLines()[i];
+                vertices[2*i]={line.start,line.color}; vertices[2*i+1]={line.end,line.color};
+            }
+            if (!storage.debug.IsLinked()) {
+                constexpr Asset::ShaderSource stages[]{
+                    {Asset::ShaderStage::Vertex,R"(#version 450 core
+layout(location=0) in vec3 position;
+layout(location=1) in vec4 color;
+uniform mat4 u_viewProjection;
+out vec4 lineColor;
+void main(){ gl_Position=u_viewProjection*vec4(position,1); lineColor=color; }
+)","semantic debug vertex"},
+                    {Asset::ShaderStage::Fragment,R"(#version 450 core
+in vec4 lineColor;
+layout(location=0) out vec4 color;
+void main(){ color=lineColor; }
+)","semantic debug fragment"}};
+                auto shader=Asset::CreateShaderProgram(stages);
+                if (!shader) return std::unexpected(SubmissionError{"debug shader",shader.error()});
+                storage.debug=std::move(*shader);
+            }
+            if (auto r=storage.debugUpload.Update(std::as_bytes(std::span(vertices.get(),count)),GL_STREAM_DRAW);!r)
+                return std::unexpected(r.error());
+            if (!storage.debugVao) {
+                glCreateVertexArrays(1,&storage.debugVao);
+                if (!storage.debugVao) return Error("debug vertex array",Code::Allocation);
+                glVertexArrayVertexBuffer(storage.debugVao,0,storage.debugUpload.Name(),0,sizeof(DebugVertex));
+                glEnableVertexArrayAttrib(storage.debugVao,0); glEnableVertexArrayAttrib(storage.debugVao,1);
+                glVertexArrayAttribFormat(storage.debugVao,0,3,GL_FLOAT,GL_FALSE,offsetof(DebugVertex,position));
+                glVertexArrayAttribFormat(storage.debugVao,1,4,GL_FLOAT,GL_FALSE,offsetof(DebugVertex,color));
+                glVertexArrayAttribBinding(storage.debugVao,0,0); glVertexArrayAttribBinding(storage.debugVao,1,0);
+            }
+            if (glGetError()!=GL_NO_ERROR) return Error("debug preparation",Code::Driver);
+        }
         if(auto uploaded=storage.frameUpload.Update(std::as_bytes(std::span(&packedFrame,1)),GL_STREAM_DRAW);!uploaded)
             return std::unexpected(uploaded.error());
         if(auto uploaded=storage.materialUpload.Update(materialBatch->Bytes(),GL_DYNAMIC_DRAW);!uploaded)
@@ -1119,6 +1165,28 @@ void main() {
                     if(auto result=colorDraw(group,pass);!result) return std::unexpected(result.error());
             } else for(auto index:indices)
                 if(auto result=colorDraw({index},pass);!result) return std::unexpected(result.error());
+            if (pass==RenderPass::Debug && !frame.DebugLines().empty())
+            {
+                BindProgram(storage.debug);
+                Uniform(storage.debug,"u_viewProjection",camera.projection*camera.view);
+                State::Get().VertexArray(storage.debugVao);
+                State::Get().DepthMask(GL_FALSE); State::Get().DepthFunc(GL_LEQUAL);
+                State::Get().LineWidth(1.f);
+                Toggle(GL_CULL_FACE,false); Toggle(GL_LINE_SMOOTH,false); Toggle(GL_BLEND,true);
+                State::Get().BlendEquation(GL_FUNC_ADD,GL_FUNC_ADD);
+                State::Get().BlendFunction(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);
+                // Contiguous depth runs preserve caller order and alpha composition.
+                const auto lines=frame.DebugLines();
+                for (std::size_t first=0;first<lines.size();) {
+                    auto end=first+1;
+                    while (end<lines.size() && lines[end].depth==lines[first].depth) ++end;
+                    Toggle(GL_DEPTH_TEST,lines[first].depth==DebugDepth::Tested);
+                    glDrawArrays(GL_LINES,static_cast<GLint>(first*2),static_cast<GLsizei>((end-first)*2));
+                    stats.helperDraws+=end-first; ++stats.submittedDrawCalls; ++stats.submittedInstances;
+                    PassTiming::Submitted(end-first,1);
+                    first=end;
+                }
+            }
             timing.Complete();
         }
         State::Get().DepthFunc(GL_LESS); State::Get().DepthMask(GL_TRUE); State::Get().ColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE); Toggle(GL_BLEND,false);

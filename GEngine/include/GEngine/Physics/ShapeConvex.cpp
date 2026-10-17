@@ -36,6 +36,48 @@ namespace GEngine
 				bounds.WidthX() > tolerance && bounds.WidthY() > tolerance &&
 				bounds.WidthZ() > tolerance;
 		}
+
+        // Diagnostic topology only. Collision points, bounds and mass properties
+        // still come from the unchanged hull/mass computations below.
+        std::vector<std::array<std::size_t,2>> HullBoundaryEdges(
+            const std::vector<Vec3f>& points,const std::vector<tri_t>& triangles,const Bounds& bounds)
+        {
+            struct FaceEdge { std::size_t a,b,opposite; };
+            std::vector<FaceEdge> edges;
+            edges.reserve(triangles.size()*3);
+            for (const auto& triangle:triangles) {
+                const std::size_t v[]{std::size_t(triangle.a),std::size_t(triangle.b),std::size_t(triangle.c)};
+                for (unsigned i=0;i<3;++i)
+                    edges.push_back({std::min(v[i],v[(i+1)%3]),std::max(v[i],v[(i+1)%3]),v[(i+2)%3]});
+            }
+            std::sort(edges.begin(),edges.end(),[](const auto& a,const auto& b) {
+                return a.a<b.a || (a.a==b.a && a.b<b.b);
+            });
+            // Float input precision, relative to this hull's extent. Compute
+            // plane distances in double so large/small hulls use the same policy.
+            const double tolerance=8.0*std::numeric_limits<float>::epsilon()*
+                std::max({double(bounds.WidthX()),double(bounds.WidthY()),double(bounds.WidthZ())});
+            std::vector<std::array<std::size_t,2>> boundary;
+            for (std::size_t first=0;first<edges.size();) {
+                auto end=first+1;
+                while (end<edges.size() && edges[end].a==edges[first].a && edges[end].b==edges[first].b) ++end;
+                const auto& edge=edges[first];
+                const glm::dvec3 a(points[edge.a]),axis=glm::dvec3(points[edge.b])-a;
+                const glm::dvec3 opposite=glm::dvec3(points[edge.opposite])-a;
+                const auto normal=glm::cross(axis,opposite);
+                bool coplanar=end-first>1;
+                for (auto i=first+1;i<end && coplanar;++i) {
+                    const auto other=glm::dvec3(points[edges[i].opposite])-a;
+                    const auto otherNormal=glm::cross(axis,other);
+                    coplanar=glm::length(normal)>0 && glm::length(otherNormal)>0 &&
+                        std::abs(glm::dot(normal,other))<=tolerance*glm::length(normal) &&
+                        std::abs(glm::dot(otherNormal,opposite))<=tolerance*glm::length(otherNormal);
+                }
+                if (!coplanar) boundary.push_back({edge.a,edge.b});
+                first=end;
+            }
+            return boundary;
+        }
 	}
 
 	/*
@@ -610,8 +652,10 @@ namespace GEngine
 			return;
 		}
 
+        auto boundaryEdges=HullBoundaryEdges(hullPoints,hullTriangles,bounds);
 		m_MeshPoints = pts;
 		m_Points.swap(hullPoints);
+        m_BoundaryEdges.swap(boundaryEdges);
 		m_Bounds = bounds;
 		m_CenterOfMass = centerOfMass;
 		m_InertiaTensor = inertiaTensor;

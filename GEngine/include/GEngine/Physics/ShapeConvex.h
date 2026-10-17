@@ -1,5 +1,7 @@
 #pragma once
 #include "Shape.h"
+#include <array>
+#include <cstddef>
 
 namespace GEngine
 {
@@ -38,11 +40,16 @@ namespace GEngine
 		Bounds GetBounds(const Vec3f& pos, const Quat& orient) const override;
 		Bounds GetBounds() const override { return m_Bounds; }
 		const std::vector<Vec3f>& GetPoints() const { return m_Points; }
+        // Read-only topology of the same local, already-scaled hull used by
+        // Support(). Unique boundary edges exclude coplanar triangulation seams.
+        // References remain valid until a successful Build/scale rebuild.
+        const std::vector<std::array<std::size_t,2>>& GetBoundaryEdges() const { return m_BoundaryEdges; }
 
 		float FastestLinearSpeed(const Vec3f& angularVelocity, const Vec3f& dir) const override;
 	
 	private:
 		std::vector<Vec3f> m_Points;
+        std::vector<std::array<std::size_t,2>> m_BoundaryEdges;
 		Bounds m_Bounds;
 		Mat3 m_InertiaTensor{ 0.0f };
 		bool m_IsValid = false;

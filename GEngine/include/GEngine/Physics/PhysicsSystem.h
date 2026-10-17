@@ -6,6 +6,10 @@
 #include "Contact.h"
 #include "Broadphase.h"
 #include "ContactIsland.h"
+#include "PhysicsWorld.h"
+#include "ShapeSphere.h"
+#include "ShapeConvex.h"
+#include "Renderer/DebugGeometry.h"
 
 
 
@@ -79,6 +83,52 @@ namespace GEngine
 		// Creation/direct body mutation is reflected at the next Update. This is not a
 		// final-pose/CCD graph. Sleep decisions use its dynamic groups after integration.
 		const std::vector<ContactIsland>& GetContactIslands() const { return m_ContactIslands; }
+
+        // Owner thread, between updates. No stepping or cache/body mutation.
+        // Cyan: authoritative sphere/box/convex collider; yellow: Physics world
+        // AABB (possibly conservative); RGB: COM axes. Contact anchors follow current poses;
+        // the labelled world B->A normal is from the last solve, not a new query.
+        [[nodiscard]] DebugGeometryResult AppendDebugGeometry(DebugGeometry& out)
+        {
+            if (!m_PhysicsWorld) return {};
+            for (const auto* body:m_PhysicsWorld->GetPhysicsBodies())
+            {
+                if (!body || !body->m_Shape || !body->m_Shape->IsValid()) continue;
+                const auto& shape=*body->m_Shape;
+                DebugGeometryResult collider;
+                if (shape.GetShapeType()==ShapeType::Sphere)
+                    collider=out.Sphere(body->m_Position,static_cast<const ShapeSphere&>(shape).GetRadius(),{0,1,1,1});
+                else if (shape.GetShapeType()==ShapeType::Convex) {
+                    const auto& convex=static_cast<const ShapeConvex&>(shape);
+                    collider=out.IndexedLines(convex.GetPoints(),convex.GetBoundaryEdges(),
+                        body->m_Position,body->m_Orientation,{0,1,1,1});
+                }
+                else {
+                    const auto bounds=shape.GetBounds();
+                    collider=out.Box(bounds.mins,bounds.maxs,body->m_Position,body->m_Orientation,
+                        shape.GetShapeType()==ShapeType::Box?glm::vec4(0,1,1,1):glm::vec4(1,0,1,1));
+                }
+                if (!collider) return collider;
+                const auto& bounds=body->GetWorldBounds();
+                if (auto r=out.Box(bounds.mins,bounds.maxs,{},glm::quat(1,0,0,0),{1,1,0,.6f});!r) return r;
+                if (auto r=out.Axes(body->GetCenterOfMassWorldSpace(),body->m_Orientation,.2f);!r) return r;
+            }
+            for (auto& manifold:m_Manifolds.m_Manifolds)
+            {
+                if (!m_PhysicsWorld->IsBodyIdentityValid(manifold.GetBodyAIdentity()) ||
+                    !m_PhysicsWorld->IsBodyIdentityValid(manifold.GetBodyBIdentity())) continue;
+                for (int i=0;i<manifold.GetNumContacts();++i)
+                {
+                    const auto contact=manifold.GetContact(i);
+                    const auto a=contact.m_BodyA->BodySpaceToWorldSpace(contact.ptOnA_LocalSpace);
+                    const auto b=contact.m_BodyB->BodySpaceToWorldSpace(contact.ptOnB_LocalSpace);
+                    if (auto r=out.Line(a,b,{1,.25f,0,1},DebugDepth::Overlay);!r) return r;
+                    if (auto r=out.Ray(a,contact.normal*.4f,{1,.4f,0,1},DebugDepth::Overlay);!r) return r;
+                    if (auto r=out.Sphere(a,.025f,{1,1,1,1},DebugDepth::Overlay);!r) return r;
+                }
+            }
+            return {};
+        }
 
 		
 

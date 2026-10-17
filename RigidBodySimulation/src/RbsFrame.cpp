@@ -2,6 +2,8 @@
 #include "Core/Log.h"
 #include "Core/Window.h"
 #include "Scene/_Scene.h"
+#include "Physics/PhysicsSystem.h"
+#include <new>
 #include <format>
 
 #include "Managers/AssetsManager.h"
@@ -514,12 +516,25 @@ void RigidBodySimulationApp::Render()
                                      return {};
                                  }};
         struct Preparation { RigidBodySimulationApp& app; RenderContext& context;
-                             FrameSceneInput& input; FrameCamera& camera; } preparation{*this, context, input, camera};
+                             FrameSceneInput& input; FrameCamera& camera;
+                             std::unique_ptr<FrameDebugLine[]> debug; } preparation{*this, context, input, camera};
         context.updateResources = {&preparation, [](void* user) -> ScheduleResult
         {
             auto& p = *static_cast<Preparation*>(user);
             if (auto updated = p.app.UpdateFrameResources(); !updated) return updated;
-            return p.app.PrepareCameraFrame(p.context, p.input, p.camera);
+            if (auto camera=p.app.PrepareCameraFrame(p.context,p.input,p.camera);!camera) return camera;
+            if (p.context.visible && p.app.m_IsShowDebugBoundingBox) {
+                constexpr std::size_t capacity=32768;
+                p.debug.reset(new(std::nothrow) FrameDebugLine[capacity]);
+                if (!p.debug) return std::unexpected(ScheduleError{FrameStage::BuildRenderFrame,
+                    SubmissionError{"physics debug storage",SubmissionCode::Allocation}});
+                DebugGeometry geometry({p.debug.get(),capacity});
+                if (auto result=p.app.m_ActiveScene->GetPhysicsSystem()->AppendDebugGeometry(geometry);!result)
+                    return std::unexpected(ScheduleError{FrameStage::BuildRenderFrame,
+                        SubmissionError{std::format("physics debug geometry code={}",int(result.error())),SubmissionCode::InvalidDraw}});
+                p.input.debugLines=geometry.Lines();
+            }
+            return {};
         }};
         auto submitted = FrameScheduler::Render(context, &input);
         if (context.visible && m_CameraSnapshot)

@@ -1,5 +1,6 @@
 #include "gepch.h"
 #include "Manifold.h"
+#include "PhysicsProfile.h"
 #include "PhysicsBody.h"
 #include "Shape.h"
 #include <Core/Timer.h>
@@ -78,6 +79,13 @@ namespace GEngine
 
 	void Manifold::RemoveContact(int slot)
 	{
+        PhysicsDiagnostic::Observation diagnostic(PhysicsDiagnostic::Operation::ContactRemove,m_BodyA,m_BodyB);
+        if (diagnostic) {
+            diagnostic.value.slot=slot; diagnostic.value.previousSlot=slot;
+            diagnostic.value.localA=m_Contacts[slot].ptOnA_LocalSpace; diagnostic.value.localB=m_Contacts[slot].ptOnB_LocalSpace;
+            diagnostic.value.featureA=m_Contacts[slot].featureA; diagnostic.value.featureB=m_Contacts[slot].featureB;
+            diagnostic.value.accumulatedBefore={m_Constraints[slot].m_CachedLambda[0],m_Constraints[slot].m_CachedLambda[1],m_Constraints[slot].m_CachedLambda[2]};
+        }
 		for (int j = slot; j + 1 < m_NumContacts; ++j) {
 			m_Contacts[j] = m_Contacts[j + 1];
 			m_Constraints[j] = m_Constraints[j + 1];
@@ -91,6 +99,17 @@ namespace GEngine
 
 	void Manifold::WriteContact(int slot, const contact_t& contact, const ConstraintPenetration* previous)
 	{
+        PhysicsDiagnostic::Observation diagnostic(previous ? PhysicsDiagnostic::Operation::ContactRefresh :
+            PhysicsDiagnostic::Operation::ContactNew,m_BodyA,m_BodyB);
+        if (diagnostic) {
+            diagnostic.value.slot=slot;
+            diagnostic.value.localA=contact.ptOnA_LocalSpace; diagnostic.value.localB=contact.ptOnB_LocalSpace;
+            diagnostic.value.featureA=contact.featureA; diagnostic.value.featureB=contact.featureB;
+            diagnostic.value.penetration=-contact.separationDistance;
+            diagnostic.value.normal=-contact.normal;
+            diagnostic.value.anchorA=contact.ptOnA_WorldSpace; diagnostic.value.anchorB=contact.ptOnB_WorldSpace;
+            if (previous) diagnostic.value.accumulatedBefore={previous->m_CachedLambda[0],previous->m_CachedLambda[1],previous->m_CachedLambda[2]};
+        }
 		const Vec3f normal = Math::NormalizeOr(m_BodyA->GetWorldToBodyRotation() * -contact.normal);
 		SolverMath::Vector<3> lambda;
 		lambda.Zero();
@@ -117,6 +136,7 @@ namespace GEngine
 		constraint.m_Normal = normal; // Contact B -> A becomes solver A -> B.
 		constraint.m_CachedLambda = lambda; // PreSolve still applies the current Coulomb bound.
 		m_NormalB[slot] = Math::NormalizeOr(m_BodyB->GetWorldToBodyRotation() * -contact.normal);
+        if (diagnostic) diagnostic.value.accumulatedAfter={lambda[0],lambda[1],lambda[2]};
 	}
 
 	void Manifold::AddContact(const contact_t& incoming)
@@ -129,6 +149,7 @@ namespace GEngine
 		if (!((incoming.m_BodyA == m_BodyA && incoming.m_BodyB == m_BodyB) ||
 			(incoming.m_BodyA == m_BodyB && incoming.m_BodyB == m_BodyA))) return;
 		if (!CacheCompatible()) {
+            PhysicsDiagnostic::Mark(PhysicsDiagnostic::Operation::PairReset,m_BodyA,m_BodyB,-1,-1,1);
 			m_NumContacts = 0;
 			CaptureCompatibility();
 		}
@@ -224,8 +245,10 @@ namespace GEngine
 			}
 		}
 
+        PhysicsDiagnostic::Mark(PhysicsDiagnostic::Operation::PatchBegin,m_BodyA,m_BodyB,m_NumContacts,count,compatible?1:0);
 		const auto append = [&](int point) {
 			const int match = matches[point];
+            PhysicsDiagnostic::Mark(PhysicsDiagnostic::Operation::PointMap,m_BodyA,m_BodyB,refreshed.m_NumContacts,match);
 			refreshed.WriteContact(refreshed.m_NumContacts, canonical[point],
 				match >= 0 ? &m_Constraints[match] : nullptr);
 			++refreshed.m_NumContacts;
@@ -239,11 +262,12 @@ namespace GEngine
 		for (int point = 0; point < count; ++point)
 			if (matches[point] < 0) append(point);
 		*this = refreshed;
+        PhysicsDiagnostic::Mark(PhysicsDiagnostic::Operation::PatchEnd,m_BodyA,m_BodyB,m_NumContacts);
 	}
 
 	void Manifold::RemoveExpiredContacts()
 	{
-		if (!CacheCompatible()) { m_NumContacts = 0; return; }
+		if (!CacheCompatible()) { PhysicsDiagnostic::Mark(PhysicsDiagnostic::Operation::PairReset,m_BodyA,m_BodyB,-1,-1,2); m_NumContacts = 0; return; }
 		for (int i = 0; i < m_NumContacts;) {
 			contact_t& contact = m_Contacts[i];
 			const Vec3f a = m_BodyA->BodySpaceToWorldSpace(contact.ptOnA_LocalSpace);
@@ -269,12 +293,13 @@ namespace GEngine
 
 	void Manifold::PreSolve(const float dt_sec)
 	{
-		if (!CacheCompatible()) { m_NumContacts = 0; return; }
+		if (!CacheCompatible()) { PhysicsDiagnostic::Mark(PhysicsDiagnostic::Operation::PairReset,m_BodyA,m_BodyB,-1,-1,2); m_NumContacts = 0; return; }
 		for (int i = 0; i < m_NumContacts;) {
 			const Vec3f normalA = m_BodyA->GetBodyToWorldRotation() * m_Constraints[i].m_Normal;
 			const Vec3f normalB = m_BodyB->GetBodyToWorldRotation() * m_NormalB[i];
 			if (!(glm::dot(normalA, normalB) >= NormalCoherence)) RemoveContact(i);
 			else {
+                PhysicsDiagnostic::SetSlot(i);
 				// Keep compatibility/normal validation for sleeping contact caches.
 				if (HasActiveResponse(m_BodyA, m_BodyB)) m_Constraints[i].PreSolve(dt_sec);
 				++i;
@@ -411,9 +436,25 @@ namespace GEngine
 				return false;
 			for (int i = 0; i < count; ++i)
 			{
+                PhysicsDiagnostic::Observation diagnostic(PhysicsDiagnostic::Operation::BlockNormal,A,B);
+                if (diagnostic) {
+                    diagnostic.value.slot=i;
+                    diagnostic.value.localA=contacts[i].m_anchorA; diagnostic.value.localB=contacts[i].m_anchorB;
+                    diagnostic.value.normal=Vec3f(n[i]);
+                    diagnostic.value.anchorA=A->BodySpaceToWorldSpace(contacts[i].m_anchorA);
+                    diagnostic.value.anchorB=B->BodySpaceToWorldSpace(contacts[i].m_anchorB);
+                    diagnostic.value.accumulatedBefore[0]=contacts[i].m_CachedLambda[0];
+                    diagnostic.value.accumulatedAfter[0]=static_cast<float>(best[i]);
+                }
 				float next = static_cast<float>(best[i]), delta = next - contacts[i].m_CachedLambda[0];
 				contacts[i].m_CachedLambda[0] = next;
 				const Vec3f impulse = Vec3f(n[i]) * delta;
+                if (diagnostic) {
+                    diagnostic.value.linearImpulseB=impulse; diagnostic.value.linearImpulseA=-impulse;
+                    diagnostic.value.angularImpulseA=glm::cross(Vec3f(ra[i]),-impulse);
+                    diagnostic.value.angularImpulseB=glm::cross(Vec3f(rb[i]),impulse);
+                    diagnostic.value.appliedImpulsesKnown=true;
+                }
 				A->ApplyImpulse(A->BodySpaceToWorldSpace(contacts[i].m_anchorA), -impulse);
 				B->ApplyImpulse(B->BodySpaceToWorldSpace(contacts[i].m_anchorB), impulse);
 			}
@@ -427,6 +468,7 @@ namespace GEngine
 		// Balance force and torque over the whole support patch before friction.
 		const bool blockSolved = SolveNormalBlock(m_Constraints, m_NumContacts);
 		for (int i = 0; i < m_NumContacts; ++i) {
+            PhysicsDiagnostic::SetSlot(i);
 			if (blockSolved) m_Constraints[i].SolveFriction();
 			else m_Constraints[i].Solve(); // Single witness or failed/unsupported block.
 		}
@@ -436,6 +478,7 @@ namespace GEngine
 		if (!HasActiveResponse(m_BodyA, m_BodyB)) return;
 		for (int i = 0; i < m_NumContacts; i++)
 		{
+            PhysicsDiagnostic::SetSlot(i);
 			m_Constraints[i].PostSolve();
 		}
 	}
@@ -475,6 +518,7 @@ namespace GEngine
 			found = &m_Manifolds.back();
 			found->m_BodyA = first.m_BodyA;
 			found->m_BodyB = first.m_BodyB;
+            PhysicsDiagnostic::Mark(PhysicsDiagnostic::Operation::PairBegin,first.m_BodyA,first.m_BodyB);
 		}
 		if (count == 1) found->AddContact(first);
 		else found->RefreshContacts(contacts, count);
@@ -486,7 +530,10 @@ namespace GEngine
 			m_Manifolds[i].PreSolve(dt_sec);
 			// Invalidation can empty a manifold here, after the world's expiry stage.
 			// Do not leave an empty pair holding pointers that body-removal skips.
-			if (m_Manifolds[i].GetNumContacts() == 0) m_Manifolds.erase(m_Manifolds.begin() + i);
+			if (m_Manifolds[i].GetNumContacts() == 0) {
+                PhysicsDiagnostic::Mark(PhysicsDiagnostic::Operation::PairEnd,m_Manifolds[i].m_BodyA,m_Manifolds[i].m_BodyB,-1,-1,1);
+                m_Manifolds.erase(m_Manifolds.begin() + i);
+            }
 			else ++i;
 		}
 	}
@@ -515,6 +562,7 @@ namespace GEngine
 			manifold.RemoveExpiredContacts();
 
 			if (0 == manifold.m_NumContacts) {
+                PhysicsDiagnostic::Mark(PhysicsDiagnostic::Operation::PairEnd,manifold.m_BodyA,manifold.m_BodyB,-1,-1,2);
 				it = m_Manifolds.erase(it);
 			}
 		}

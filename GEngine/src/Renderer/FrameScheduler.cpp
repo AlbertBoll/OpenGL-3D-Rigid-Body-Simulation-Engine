@@ -119,6 +119,7 @@ namespace GEngine
             // A synchronous replacement can grow the role table. Borrow its
             // current storage only after publication has completed.
             targets.pipelines=scene->resources.Pipelines();
+            if (scene->observeFrame) scene->observeFrame(scene->observationContext,*frame);
             auto submitted=scene->submission.Submit(*frame,targets,scene->picks);
             if (!submitted) return std::unexpected(ScheduleError{FrameStage::Pass,submitted.error()});
             stats.submission=std::move(*submitted);

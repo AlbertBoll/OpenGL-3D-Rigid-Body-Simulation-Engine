@@ -5,6 +5,8 @@
 #include <crtdbg.h>
 #include <filesystem>
 #include <memory>
+#include "../tests/RestingContactDiagnosis.h"
+#include <string_view>
 #ifdef GENGINE_RBS_SCENE_VALIDATION
 #include <string_view>
 #include <iterator>
@@ -28,9 +30,24 @@ int main(int argc, char* args[])
 {
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
     // Select exactly one RBS scene here; bootstrap supplies all launch settings.
-    constexpr auto scenePreset = Rbs::RbsScenePreset::SphereDiamond;
+    constexpr auto scenePreset = Rbs::RbsScenePreset::SphereLattice;
     Rbs::LaunchConfig settings;
     settings.scene = scenePreset;
+    if (argc>1 && args && args[1] && std::string_view(args[1])=="--targeted-entity-diagnostic")
+    {
+        if (argc!=5 || std::string_view(args[2])!="wood_sphere158" || std::string_view(args[3])!="--output") return 1;
+        settings.targetedEntityDiagnostic=Rbs::LaunchConfig::TargetedEntityDiagnostic{args[2],args[4]};
+    }
+    if (argc>1 && args && args[1] && std::string_view(args[1])=="--resting-contact-diagnostic")
+    {
+        if (argc!=7 || std::string_view(args[3])!="--lattice" || std::string_view(args[5])!="--output" ||
+            (std::string_view(args[2])!="off" && std::string_view(args[2])!="on")) return 1;
+        settings.restingContactDiagnostic=Rbs::RestingContactDiagnostic{
+            std::string_view(args[2])=="on"?Rbs::Observation::Observed:Rbs::Observation::Unobserved,args[4],args[6]};
+        if (!settings.ValidRestingContactDiagnostic()) return 1;
+        settings.engine.assetRootUtf8=(std::filesystem::absolute(args[0]).parent_path().parent_path()/"assets").generic_string();
+        winProp.m_IsVsync=false;
+    }
 #ifdef GENGINE_INPUT_VALIDATION
     settings.validation.checks.push_back(Rbs::ValidationCheck::InputRouting);
     winProp.m_IsVsync = false;
@@ -73,6 +90,7 @@ int main(int argc, char* args[])
         (probeExecutable.parent_path().parent_path().parent_path() / "assets").generic_string();
 #endif
     // All consumers borrow this immutable value; it outlives app/EngineContext.
+    if (!settings.ValidRestingContactDiagnostic() || !settings.ValidTargetedEntityDiagnostic()) return 1;
     const auto launch = std::move(settings);
 #ifdef GENGINE_RENDER_BASELINE
     RenderBaseline::Configure(winProp, launch.engine);
@@ -99,15 +117,36 @@ int main(int argc, char* args[])
         std::fprintf(stderr, "GEngine application allocation failed\n");
         return 1;
     }
+    const auto finishTarget=[&](bool clean) {
+        if (!launch.targetedEntityDiagnostic) return clean;
+        auto& target=Rbs::RestDiagnosis::targetSession;
+        if (target) target->Detach();
+        app.reset(); // All application/Scene/GL teardown precedes evidence completion.
+        const bool ok=target && target->Finish(clean);
+        target.reset();
+        return ok;
+    };
     if (auto initialized = app->Initialize({winProp}); !initialized)
     {
         ReportApplicationError(initialized.error());
+        finishTarget(false);
         return 1;
     }
+    if (launch.restingContactDiagnostic) app->SetManualFrameRateLimit(0);
     if (auto running = app->Run(); !running)
     {
         ReportApplicationError(running.error());
+        finishTarget(false);
         return 1;
+    }
+    if (launch.targetedEntityDiagnostic) return finishTarget(true)?0:1;
+    if (launch.restingContactDiagnostic)
+    {
+        PhysicsDiagnostic::observer=nullptr;
+        app.reset(); // Evidence completion follows actual application/resource teardown.
+        const bool complete=Rbs::RestDiagnosis::session && Rbs::RestDiagnosis::session->FinishAfterAppShutdown(true);
+        Rbs::RestDiagnosis::session.reset();
+        return complete?0:1;
     }
     return 0;
 }

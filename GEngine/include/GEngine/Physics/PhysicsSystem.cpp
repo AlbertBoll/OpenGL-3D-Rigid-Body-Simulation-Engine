@@ -429,6 +429,20 @@ namespace GEngine
 
 	void PhysicsSystem::Update(Timestep ts)
 	{
+        const auto observe = [&](PhysicsDiagnostic::Stage stage) {
+            auto* sink=PhysicsDiagnostic::observer;
+            if (!sink || !m_PhysicsWorld) return;
+            // Only named vector capacity is counted, not process/heap allocation.
+            const auto bytes=m_Contacts.capacity()*sizeof(contact_t) +
+                m_CollisionPairs.capacity()*sizeof(collisionPair_t) +
+                m_Manifolds.m_Manifolds.capacity()*sizeof(Manifold) +
+                m_ContactIslandScratch.nodes.capacity()*sizeof(ContactIslandScratch::Node) +
+                m_ContactIslandScratch.edges.capacity()*sizeof(std::array<std::size_t,2>) +
+                m_ContactIslandScratch.counts.capacity()*sizeof(ContactIslandScratch::Counts);
+            sink->boundary(sink->context,stage,*m_PhysicsWorld,m_Manifolds,
+                           m_ContactIslands,bytes,m_SolverIterations);
+        };
+        observe(PhysicsDiagnostic::Stage::Begin);
 		m_SleepTimings = {};
 		// Invalidate the public snapshot while retaining its allocation capacity locally.
 		std::vector<ContactIsland> previousIslands;
@@ -469,7 +483,7 @@ namespace GEngine
 					(body->m_SleepSourceValid ? sourceChanged : body->IsSleeping());
 				hasSleeping |= body->IsSleeping();
 				body->m_ActivationIsland = static_cast<std::size_t>(-1);
-				if (body->m_ExternalMutation || !m_SleepingEnabled) body->WakeUp();
+				if (body->m_ExternalMutation || !m_SleepingEnabled) { PhysicsDiagnostic::Observation sleepDiagnostic(PhysicsDiagnostic::Operation::SleepDecision,body,body,true); if (sleepDiagnostic) sleepDiagnostic.value.reason=1; body->WakeUp(); }
 				// An unchanged final snapshot already is this tick's start snapshot.
 				if (sourceChanged) body->m_SleepSource = { body->m_Position, body->m_LinearVelocity,
 					body->m_AngularVelocity, body->m_Orientation, body->m_InvMass, body->m_Elasticity,
@@ -494,7 +508,7 @@ namespace GEngine
 							(body->GetLinearVelocity() != Vec3f(0) || body->GetAngularVelocity() != Vec3f(0)));
 					}
 					if (changed || (sleeping && awake))
-						for (auto identity : std::span(island.dynamicBodies.data(), island.dynamicBodies.size())) if (auto* body = ResolveBody(identity)) body->WakeUp();
+						for (auto identity : std::span(island.dynamicBodies.data(), island.dynamicBodies.size())) if (auto* body = ResolveBody(identity)) { PhysicsDiagnostic::Observation sleepDiagnostic(PhysicsDiagnostic::Operation::SleepDecision,body,body,true); if (sleepDiagnostic) sleepDiagnostic.value.reason=2; body->WakeUp(); }
 				}
 			}
 			m_LastSleepGravity = gravity;
@@ -529,6 +543,7 @@ namespace GEngine
 
 
 			flagsTimer.Stop();
+            observe(PhysicsDiagnostic::Stage::Wake);
 			// Gravity impulse
 			{
 				GE_PHYSICS_PROFILE_SCOPE(gravityTimeNs);
@@ -538,6 +553,8 @@ namespace GEngine
 					RigidBody3D* body = PhysicsBodies[i];
 					if (body->Type == BodyType::Dynamic && body->GetInverseMass() > 0.0f && !body->IsSleeping())
 					{
+                        PhysicsDiagnostic::Observation gravityDiagnostic(PhysicsDiagnostic::Operation::GravityImpulse,body,body,true);
+                        if (gravityDiagnostic) gravityDiagnostic.value.duration=dtSeconds;
 						body->m_LinearVelocity += gravity * dtSeconds;
 						body->AssertFiniteState();
 					}
@@ -545,6 +562,7 @@ namespace GEngine
 			}
 
 			//
+            observe(PhysicsDiagnostic::Stage::Gravity);
 			// Broadphase
 			//
 			{
@@ -552,6 +570,7 @@ namespace GEngine
 				//Timeit("	BroadPhase")
 				m_Broadphase.FindPairs(PhysicsBodies, m_CollisionPairs, dtSeconds);
 			}
+            observe(PhysicsDiagnostic::Stage::Broadphase);
 			const BroadphaseStats& broadphaseStats = m_Broadphase.GetLastStats();
 			GE_PHYSICS_PROFILE_SET(candidatePairCount, m_CollisionPairs.size());
 			GE_PHYSICS_PROFILE_ADD(broadphaseAxisOverlapCount, broadphaseStats.axisOverlapCount);
@@ -569,9 +588,16 @@ namespace GEngine
 				if (!seed->IsSleeping()) return false;
 				const auto wake = [&](RigidBody3D* body) {
 					if (!body || !body->IsSleeping()) return;
+                    PhysicsDiagnostic::Observation sleepDiagnostic(PhysicsDiagnostic::Operation::SleepDecision,body,body,true);
+                    if (sleepDiagnostic) sleepDiagnostic.value.reason=3;
 					body->WakeUp();
+                    sleepDiagnostic.Finish();
 					// Gravity was skipped earlier. Apply it exactly once before this tick's solve.
-					if (body->GetInverseMass() > 0.0f) body->m_LinearVelocity += gravity * dtSeconds;
+					if (body->GetInverseMass() > 0.0f) {
+                        PhysicsDiagnostic::Observation gravityDiagnostic(PhysicsDiagnostic::Operation::GravityImpulse,body,body,true);
+                        if (gravityDiagnostic) { gravityDiagnostic.value.duration=dtSeconds; gravityDiagnostic.value.reason=1; }
+                        body->m_LinearVelocity += gravity * dtSeconds;
+                    }
 				};
 				if (seed->m_ActivationIsland < m_ActivationIslands.size()) {
 					for (auto identity : m_ActivationIslands[seed->m_ActivationIsland].dynamicBodies) wake(ResolveBody(identity));
@@ -669,6 +695,7 @@ namespace GEngine
 				}
 			}
 
+            observe(PhysicsDiagnostic::Stage::Narrowphase);
 #ifdef GE_ENABLE_PHYSICS_PROFILING
 			int manifoldContactCount = 0;
 			for (auto& manifold : m_Manifolds.m_Manifolds) {
@@ -689,10 +716,12 @@ namespace GEngine
 				m_Manifolds.PreSolve(ts);
 			}
 
+            observe(PhysicsDiagnostic::Stage::WarmStart);
 			// PreSolve may retire invalid manifolds. Describe exactly the retained graph
 			// without changing contact order or CCD. Sleep decisions use this graph below.
 			BuildContactIslands(PhysicsBodies, m_Manifolds.m_Manifolds, previousIslands, m_ContactIslandScratch);
 			m_ContactIslands.swap(previousIslands);
+            observe(PhysicsDiagnostic::Stage::Islands);
 
 			{
 				GE_PHYSICS_PROFILE_SCOPE(solverTimeNs);
@@ -713,6 +742,7 @@ namespace GEngine
 
 
 
+            observe(PhysicsDiagnostic::Stage::Solve);
 			// Revalidate the initially detected positive-TOI pairs after the resting solve.
 			// A missed prediction stays pending: another impulse on either body may revive it.
 			float accumulatedTime = 0.0f;
@@ -758,7 +788,11 @@ namespace GEngine
 					GE_PHYSICS_PROFILE_SCOPE(integrationTimeNs);
 					for (RigidBody3D* body : PhysicsBodies)
 					{
-						if (!body->IsSleeping()) { body->Update(dt); GE_PHYSICS_PROFILE_ADD(integratedBodyCount, 1); }
+						if (!body->IsSleeping()) {
+                            PhysicsDiagnostic::Observation integrationDiagnostic(PhysicsDiagnostic::Operation::Integrate,body,body,true);
+                            if (integrationDiagnostic) { integrationDiagnostic.value.time=accumulatedTime; integrationDiagnostic.value.duration=dt; }
+                            body->Update(dt); GE_PHYSICS_PROFILE_ADD(integratedBodyCount, 1);
+                        }
 					}
 				}
 				accumulatedTime = event.timeOfImpact;
@@ -777,6 +811,15 @@ namespace GEngine
 				{
 					current.timeOfImpact = accumulatedTime;
 					GE_PHYSICS_PROFILE_SCOPE(contactResolutionTimeNs);
+                    PhysicsDiagnostic::Observation toiDiagnostic(PhysicsDiagnostic::Operation::ToiQuery,current.m_BodyA,current.m_BodyB,true);
+                    if (toiDiagnostic) {
+                        toiDiagnostic.value.time=accumulatedTime; toiDiagnostic.value.normal=-current.normal;
+                        toiDiagnostic.value.anchorA=current.ptOnA_WorldSpace; toiDiagnostic.value.anchorB=current.ptOnB_WorldSpace;
+                        toiDiagnostic.value.localA=current.ptOnA_LocalSpace; toiDiagnostic.value.localB=current.ptOnB_LocalSpace;
+                        toiDiagnostic.value.featureA=current.featureA; toiDiagnostic.value.featureB=current.featureB;
+                        toiDiagnostic.value.penetration=-current.separationDistance;
+                    }
+                    toiDiagnostic.Finish();
 					ResolveContactAtCurrentState(current, false);
 				}
 
@@ -802,18 +845,24 @@ namespace GEngine
 						//Timeit("	update entities rest")
 						for (int i = 0; i < size; i++) 
 						{
-							if (!PhysicsBodies[i]->IsSleeping()) { PhysicsBodies[i]->Update(timeRemaining); GE_PHYSICS_PROFILE_ADD(integratedBodyCount, 1); }
+							if (!PhysicsBodies[i]->IsSleeping()) {
+                                PhysicsDiagnostic::Observation integrationDiagnostic(PhysicsDiagnostic::Operation::Integrate,PhysicsBodies[i],PhysicsBodies[i],true);
+                                if (integrationDiagnostic) { integrationDiagnostic.value.time=accumulatedTime; integrationDiagnostic.value.duration=timeRemaining; }
+                                PhysicsBodies[i]->Update(timeRemaining); GE_PHYSICS_PROFILE_ADD(integratedBodyCount, 1);
+                            }
 						}
 					}
 				}
 			}
 
+            observe(PhysicsDiagnostic::Stage::Integration);
 			// Correct current resting penetration once, after all physical/TOI integration.
 			{
 				GE_PHYSICS_PROFILE_SCOPE(solverTimeNs);
 				m_Manifolds.PostSolve();
 			}
 
+            observe(PhysicsDiagnostic::Stage::Correction);
 			if (dtSeconds > 0.0f && m_SleepingEnabled) {
 				SleepPathTimer depthTimer(m_SleepTimings.depthNs);
 				// Do not freeze residual penetration outside the existing position-stability
@@ -824,8 +873,8 @@ namespace GEngine
 					const Vec3f b = contact.m_BodyB->BodySpaceToWorldSpace(contact.ptOnB_LocalSpace);
 					const float depth = -glm::dot(a - b, contact.normal);
 					if (!Math::IsFinite(depth) || depth > 0.02001f) {
-						if (contact.m_BodyA->GetInverseMass() > 0.0f) contact.m_BodyA->WakeUp();
-						if (contact.m_BodyB->GetInverseMass() > 0.0f) contact.m_BodyB->WakeUp();
+						if (contact.m_BodyA->GetInverseMass() > 0.0f) { PhysicsDiagnostic::Observation sleepDiagnostic(PhysicsDiagnostic::Operation::SleepDecision,contact.m_BodyA,contact.m_BodyA,true); if (sleepDiagnostic) sleepDiagnostic.value.reason=4; contact.m_BodyA->WakeUp(); }
+						if (contact.m_BodyB->GetInverseMass() > 0.0f) { PhysicsDiagnostic::Observation sleepDiagnostic(PhysicsDiagnostic::Operation::SleepDecision,contact.m_BodyB,contact.m_BodyB,true); if (sleepDiagnostic) sleepDiagnostic.value.reason=4; contact.m_BodyB->WakeUp(); }
 					}
 				}
 				depthTimer.Stop();
@@ -833,7 +882,7 @@ namespace GEngine
 				bool hasSleepCandidate = false;
 				for (auto* body : std::span(PhysicsBodies.data(), PhysicsBodies.size())) {
 					if (body->IsSleeping()) { hasSleepCandidate = true; continue; }
-					if (body->GetInverseMass() <= 0.0f) { body->WakeUp(); continue; }
+					if (body->GetInverseMass() <= 0.0f) { { PhysicsDiagnostic::Observation sleepDiagnostic(PhysicsDiagnostic::Operation::SleepDecision,body,body,true); if (sleepDiagnostic) sleepDiagnostic.value.reason=5; body->WakeUp(); } continue; }
 					const bool unchangedPose = body->m_Position == body->m_SleepSource.position &&
 						body->m_Orientation == body->m_SleepSource.orientation;
 					bool moved = body->m_WakeRequested || !body->m_SleepShapeValid;
@@ -849,7 +898,7 @@ namespace GEngine
 						moved = glm::dot(displacement, displacement) > linearLimit * linearLimit ||
 							std::min(glm::dot(dq,dq), glm::dot(opposite,opposite)) > angularLimit * angularLimit;
 					}
-					if (moved) body->WakeUp();
+					if (moved) { PhysicsDiagnostic::Observation sleepDiagnostic(PhysicsDiagnostic::Operation::SleepDecision,body,body,true); if (sleepDiagnostic) sleepDiagnostic.value.reason=6; body->WakeUp(); }
 					else if (body->m_SleepSourceValid && !body->m_ExternalMutation && unchangedPose &&
 						body->m_InactiveSeconds > 0.0 &&
 						body->m_LinearVelocity == body->m_SleepSource.linearVelocity &&
@@ -857,9 +906,9 @@ namespace GEngine
 						// Positive inactivity proves prior finite/speed eligibility. The complete
 						// source is unchanged, as are this step's motion and the sleep policy
 						// (policy setters wake/reset). Reuse that proof, not a connectivity decision.
-						body->AdvanceSleepTimer(dtSeconds);
+						{ PhysicsDiagnostic::Observation sleepDiagnostic(PhysicsDiagnostic::Operation::SleepDecision,body,body,true); if (sleepDiagnostic) sleepDiagnostic.value.reason=7; body->AdvanceSleepTimer(dtSeconds); }
 					}
-					else body->UpdateSleepTimer(dtSeconds);
+					else { PhysicsDiagnostic::Observation sleepDiagnostic(PhysicsDiagnostic::Operation::SleepDecision,body,body,true); if (sleepDiagnostic) sleepDiagnostic.value.reason=8; body->UpdateSleepTimer(dtSeconds); }
 					hasSleepCandidate |= body->m_InactiveSeconds >= body->m_SleepSettings.inactivitySeconds;
 				}
 				eligibilityTimer.Stop();
@@ -877,15 +926,18 @@ namespace GEngine
 						if (body->m_ExternalMutation || (body->Type == BodyType::Kinematic &&
 							(body->GetLinearVelocity() != Vec3f(0) || body->GetAngularVelocity() != Vec3f(0)))) {
 							ready = false;
-							for (auto member : std::span(island.dynamicBodies.data(), island.dynamicBodies.size())) if (auto* dynamic = ResolveBody(member)) dynamic->WakeUp();
+							for (auto member : std::span(island.dynamicBodies.data(), island.dynamicBodies.size())) if (auto* dynamic = ResolveBody(member)) { PhysicsDiagnostic::Observation sleepDiagnostic(PhysicsDiagnostic::Operation::SleepDecision,dynamic,dynamic,true); if (sleepDiagnostic) sleepDiagnostic.value.reason=9; dynamic->WakeUp(); }
 						}
 					}
 					if (ready) for (auto identity : std::span(island.dynamicBodies.data(), island.dynamicBodies.size())) if (auto* body = ResolveBody(identity)) {
+                        PhysicsDiagnostic::Observation sleepDiagnostic(PhysicsDiagnostic::Operation::SleepDecision,body,body,true);
+                        if (sleepDiagnostic) sleepDiagnostic.value.reason=10;
 						body->TrySleep();
 						body->m_LinearVelocity = body->m_AngularVelocity = Vec3f(0);
 					}
 				}
 			}
+            observe(PhysicsDiagnostic::Stage::Sleep);
 #ifdef GE_ENABLE_PHYSICS_PROFILING
 			std::uint64_t dynamicBodyCount = 0;
 			std::uint64_t activeBodyCount = 0, sleepingBodyCount = 0;
@@ -930,7 +982,7 @@ namespace GEngine
 			}
 
 		}
-
+        observe(PhysicsDiagnostic::Stage::End);
 	}
 
 	bool PhysicsSystem::SetBodyPose(RigidBody3D* body, const Vec3f& position, const Quat& orientation)
@@ -1182,6 +1234,18 @@ namespace GEngine
 			if (Math::IsFinite(impulseJ) && impulseJ < 0.0f)
 			{
 				const Vec3f vectorImpulseJ = n * impulseJ;
+                PhysicsDiagnostic::Observation diagnostic(PhysicsDiagnostic::Operation::ToiNormal,bodyA,bodyB);
+                if (diagnostic) {
+                    diagnostic.value.normal=-n; diagnostic.value.anchorA=ptOnA; diagnostic.value.anchorB=ptOnB;
+                    diagnostic.value.linearImpulseB=vectorImpulseJ;
+                    diagnostic.value.linearImpulseA=-vectorImpulseJ;
+                    diagnostic.value.angularImpulseA=glm::cross(ra,-vectorImpulseJ);
+                    diagnostic.value.angularImpulseB=glm::cross(rb,vectorImpulseJ);
+                    diagnostic.value.appliedImpulsesKnown=true; diagnostic.value.time=contact.timeOfImpact;
+                    diagnostic.value.localA=contact.ptOnA_LocalSpace; diagnostic.value.localB=contact.ptOnB_LocalSpace;
+                    diagnostic.value.restitution=restitution; diagnostic.value.closingSpeed=normalSpeed;
+                    diagnostic.value.penetration=-glm::dot(ptOnA-ptOnB,n);
+                }
 				bodyA->ApplyImpulse(ptOnA, vectorImpulseJ * -1.0f);
 				bodyB->ApplyImpulse(ptOnB, vectorImpulseJ);
 				normalImpulse = -impulseJ;
@@ -1215,6 +1279,17 @@ namespace GEngine
 					const Vec3f impulseFriction = tangent * static_cast<float>(std::min(candidateImpulse, frictionLimit));
 					if (Math::IsFinite(impulseFriction))
 					{
+                        PhysicsDiagnostic::Observation diagnostic(PhysicsDiagnostic::Operation::ToiFriction,bodyA,bodyB);
+                        if (diagnostic) {
+                            diagnostic.value.normal=-n; diagnostic.value.anchorA=ptOnA; diagnostic.value.anchorB=ptOnB;
+                            diagnostic.value.linearImpulseB=impulseFriction;
+                            diagnostic.value.linearImpulseA=-impulseFriction;
+                            diagnostic.value.angularImpulseA=glm::cross(ra,-impulseFriction);
+                            diagnostic.value.angularImpulseB=glm::cross(rb,impulseFriction);
+                            diagnostic.value.appliedImpulsesKnown=true; diagnostic.value.time=contact.timeOfImpact;
+                            diagnostic.value.tangentU=tangent;
+                            diagnostic.value.localA=contact.ptOnA_LocalSpace; diagnostic.value.localB=contact.ptOnB_LocalSpace;
+                        }
 						bodyA->ApplyImpulse(ptOnA, -impulseFriction);
 						bodyB->ApplyImpulse(ptOnB, impulseFriction);
 					}
@@ -1226,6 +1301,9 @@ namespace GEngine
 		// Let's also move our colliding objects to just outside of each other (projection method)
 		//
 		if (projectPosition) {
+            PhysicsDiagnostic::Observation diagnostic(PhysicsDiagnostic::Operation::ToiPosition,bodyA,bodyB);
+            if (diagnostic) { diagnostic.value.normal=-n; diagnostic.value.anchorA=ptOnA; diagnostic.value.anchorB=ptOnB;
+                diagnostic.value.time=contact.timeOfImpact; diagnostic.value.localA=contact.ptOnA_LocalSpace; diagnostic.value.localB=contact.ptOnB_LocalSpace; }
 			const Vec3f ds = ptOnB - ptOnA;
 
 			const float inverseMassSum = invMassA + invMassB;

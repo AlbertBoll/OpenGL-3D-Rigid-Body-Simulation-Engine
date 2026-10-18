@@ -190,6 +190,11 @@ namespace GEngine
 			std::uint32_t stepsLastUpdate{};
 		};
 		const PhysicsTiming& GetPhysicsTiming() const { return m_PhysicsTiming; }
+
+        // Select the existing clock before its first tick. Only the ordinary
+        // 60 Hz step and admitted 120 Hz diagnostic step are supported.
+        [[nodiscard]] bool SetPhysicsStep(Seconds step);
+        Seconds GetPhysicsStep() const { return Seconds{m_PhysicsStepSeconds}; }
 		void Update(Timestep ts);
 
 		// Call after authoring/physics and before serial render extraction. Ordinary
@@ -405,6 +410,8 @@ namespace GEngine
 		//PhysicsWorld* m_PhysicsWorld{};
 		PhysicsSystem* m_PhysicsSystem{};
 		PhysicsTiming m_PhysicsTiming{};
+        double m_PhysicsStepSeconds = PhysicsStepSeconds;
+        bool m_PhysicsStepStarted = false;
 		PhysicsWorld* m_TimingWorld{};
 		std::unordered_map<UUID, entt::entity> m_EntityMap;
 		// Transitional grouping: ascending program order and insertion order within a group.

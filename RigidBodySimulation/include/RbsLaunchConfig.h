@@ -71,14 +71,26 @@ namespace Rbs
         [[nodiscard]] bool Includes(ValidationCheck check) const noexcept;
     };
 
+    struct RestingContactDiagnostic
+    {
+        Observation observation = Observation::Unobserved;
+        std::string latticePath;
+        std::string outputDirectory;
+    };
+
     struct LaunchConfig
     {
         GEngine::EngineLaunchConfig engine;
         RbsScenePreset scene = RbsScenePreset::GeometryGallery;
         StartupMesh startupMesh = StartupMesh::None;
         ValidationProfile validation;
+        std::optional<RestingContactDiagnostic> restingContactDiagnostic;
+        struct TargetedEntityDiagnostic { std::string entityName, outputDirectory; };
+        std::optional<TargetedEntityDiagnostic> targetedEntityDiagnostic;
 
         [[nodiscard]] bool AsyncPerformanceEnabled() const noexcept;
+        [[nodiscard]] bool ValidRestingContactDiagnostic() const;
+        [[nodiscard]] bool ValidTargetedEntityDiagnostic() const;
     };
     // Bootstrap supplies typed values, then owns a const snapshot until after app
     // teardown. No member is populated from the process environment.

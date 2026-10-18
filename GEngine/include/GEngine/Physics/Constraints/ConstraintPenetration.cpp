@@ -167,7 +167,12 @@ namespace GEngine
 		// The existing float slot tracks enabled tangent rows; the coefficient stays in double.
 		m_Friction = friction > 0.0 ? 1.0f : 0.0f;
 		// Cached tangents must obey the current material limit before they are warm started.
+        PhysicsDiagnostic::Observation cacheDiagnostic(PhysicsDiagnostic::Operation::ContactSnapshot,m_bodyA,m_bodyB,true);
+        if (cacheDiagnostic) { cacheDiagnostic.value.slot=PhysicsDiagnostic::observer->contactSlot;
+            cacheDiagnostic.value.accumulatedBefore={m_CachedLambda[0],m_CachedLambda[1],m_CachedLambda[2]}; }
 		ProjectCoulombImpulse(m_CachedLambda, friction);
+        if (cacheDiagnostic) cacheDiagnostic.value.accumulatedAfter={m_CachedLambda[0],m_CachedLambda[1],m_CachedLambda[2]};
+        cacheDiagnostic.Finish();
 
 		Vec3f u;
 		Vec3f v;
@@ -252,9 +257,31 @@ namespace GEngine
 		//
 	// Apply warm starting from last frame
 	//
+        PhysicsDiagnostic::Observation diagnostic(PhysicsDiagnostic::Operation::WarmStart,m_bodyA,m_bodyB);
+        if (diagnostic) {
+            diagnostic.value.normal=normal; diagnostic.value.anchorA=worldAnchorA; diagnostic.value.anchorB=worldAnchorB;
+            if (PhysicsDiagnostic::observer->targeted) diagnostic.value.accumulatedBefore={m_CachedLambda[0],m_CachedLambda[1],m_CachedLambda[2]};
+            diagnostic.value.accumulatedAfter={m_CachedLambda[0],m_CachedLambda[1],m_CachedLambda[2]};
+            diagnostic.value.duration=dt_sec; diagnostic.value.tangentU=u; diagnostic.value.tangentV=v;
+        }
 		const SolverMath::Vector<12> impulses = m_Jacobian.Transpose() * m_CachedLambda;
 		ApplySolverImpulses(*m_bodyA, *m_bodyB, impulses);
 
+        if (diagnostic) {
+            diagnostic.value.linearImpulseA=Vec3f(impulses[0],impulses[1],impulses[2]);
+            diagnostic.value.angularImpulseA=Vec3f(impulses[3],impulses[4],impulses[5]);
+            diagnostic.value.linearImpulseB=Vec3f(impulses[6],impulses[7],impulses[8]);
+            diagnostic.value.angularImpulseB=Vec3f(impulses[9],impulses[10],impulses[11]);
+            diagnostic.value.appliedImpulsesKnown=true;
+            diagnostic.value.localA=m_anchorA; diagnostic.value.localB=m_anchorB;
+            diagnostic.value.constraintToken=reinterpret_cast<std::uintptr_t>(this);
+            for (int col=0;col<12;++col) {
+                diagnostic.value.normalRow[col]=m_Jacobian[0][col];
+                diagnostic.value.tangentRowU[col]=m_Jacobian[1][col];
+                diagnostic.value.tangentRowV[col]=m_Jacobian[2][col];
+            }
+        }
+        diagnostic.Finish();
 		// A paused or reverse step must not depenetrate bodies. No 1/dt velocity bias.
 		m_PositionCorrectionEnabled = Math::IsFinite(dt_sec) && dt_sec > Math::NumericalEpsilon;
 
@@ -298,8 +325,31 @@ namespace GEngine
 		const SolverMath::Vector<3> lambdaN = m_CachedLambda - oldLambda;
 
 		// Apply the impulses
+        PhysicsDiagnostic::Observation diagnostic(PhysicsDiagnostic::Operation::NormalSliding,m_bodyA,m_bodyB);
+        if (diagnostic) {
+            diagnostic.value.normal=Vec3f(m_Jacobian[0][6],m_Jacobian[0][7],m_Jacobian[0][8]);
+            diagnostic.value.anchorA=m_bodyA->BodySpaceToWorldSpace(m_anchorA);
+            diagnostic.value.anchorB=m_bodyB->BodySpaceToWorldSpace(m_anchorB);
+            diagnostic.value.accumulatedBefore={oldLambda[0],oldLambda[1],oldLambda[2]};
+            diagnostic.value.accumulatedAfter={m_CachedLambda[0],m_CachedLambda[1],m_CachedLambda[2]};
+        }
 		const SolverMath::Vector<12> impulses = JacobianTranspose * lambdaN;
 		ApplySolverImpulses(*m_bodyA, *m_bodyB, impulses);
+        if (diagnostic) {
+            diagnostic.value.linearImpulseA=Vec3f(impulses[0],impulses[1],impulses[2]);
+            diagnostic.value.angularImpulseA=Vec3f(impulses[3],impulses[4],impulses[5]);
+            diagnostic.value.linearImpulseB=Vec3f(impulses[6],impulses[7],impulses[8]);
+            diagnostic.value.angularImpulseB=Vec3f(impulses[9],impulses[10],impulses[11]);
+            diagnostic.value.appliedImpulsesKnown=true;
+            diagnostic.value.localA=m_anchorA; diagnostic.value.localB=m_anchorB;
+            diagnostic.value.constraintToken=reinterpret_cast<std::uintptr_t>(this);
+            for (int col=0;col<12;++col) {
+                diagnostic.value.normalRow[col]=m_Jacobian[0][col];
+                diagnostic.value.tangentRowU[col]=m_Jacobian[1][col];
+                diagnostic.value.tangentRowV[col]=m_Jacobian[2][col];
+            }
+        }
+        diagnostic.Finish();
 		SolveSpin();
 		SolveRolling();
 		m_bodyA->AssertFiniteState();
@@ -339,6 +389,13 @@ namespace GEngine
 		const Vec3f nextB = m_bodyB->m_AngularVelocity +
 			m_bodyB->GetInverseInertiaTensorWorldSpace() * impulse;
 		if (!Math::IsFinite(impulse) || !Math::IsFinite(nextA) || !Math::IsFinite(nextB)) return;
+        PhysicsDiagnostic::Observation diagnostic(PhysicsDiagnostic::Operation::Spin,m_bodyA,m_bodyB);
+        if (diagnostic) {
+            diagnostic.value.normal=normal; diagnostic.value.angularImpulseB=impulse;
+            diagnostic.value.angularImpulseA=-impulse; diagnostic.value.appliedImpulsesKnown=true;
+            diagnostic.value.accumulatedBefore[0]=m_SpinImpulse;
+            diagnostic.value.accumulatedAfter[0]=m_SpinImpulse+applied;
+        }
 		m_bodyA->ApplyImpulseAngular(-impulse);
 		m_bodyB->ApplyImpulseAngular(impulse);
 		m_SpinImpulse += applied;
@@ -407,9 +464,17 @@ namespace GEngine
 		const Vec3f nextA = m_bodyA->m_AngularVelocity - inverseA * impulse;
 		const Vec3f nextB = m_bodyB->m_AngularVelocity + inverseB * impulse;
 		if (!Math::IsFinite(nextA) || !Math::IsFinite(nextB)) return;
+        PhysicsDiagnostic::Observation diagnostic(PhysicsDiagnostic::Operation::Rolling,m_bodyA,m_bodyB);
+        if (diagnostic) {
+            diagnostic.value.normal=Vec3f(normal); diagnostic.value.angularImpulseB=impulse;
+            diagnostic.value.angularImpulseA=-impulse; diagnostic.value.appliedImpulsesKnown=true;
+            diagnostic.value.tangentU=Vec3f(u); diagnostic.value.tangentV=Vec3f(v);
+            diagnostic.value.accumulatedBefore={m_RollingImpulse.x,m_RollingImpulse.y,0};
+        }
 		m_bodyA->ApplyImpulseAngular(-impulse);
 		m_bodyB->ApplyImpulseAngular(impulse);
 		m_RollingImpulse += glm::dvec2(glm::dot(u, glm::dvec3(impulse)), glm::dot(v, glm::dvec3(impulse)));
+        if (diagnostic) diagnostic.value.accumulatedAfter={m_RollingImpulse.x,m_RollingImpulse.y,0};
 		GE_PHYSICS_PROFILE_ADD(rollingResistanceImpulseCount, 1);
 	}
 
@@ -452,6 +517,11 @@ namespace GEngine
 			(correction * static_cast<float>(inverseB / inverseSum));
 		if (!Math::IsFinite(positionA) || !Math::IsFinite(positionB)) return;
 
+        PhysicsDiagnostic::Observation diagnostic(PhysicsDiagnostic::Operation::Position,m_bodyA,m_bodyB);
+        if (diagnostic) {
+            diagnostic.value.normal=normal; diagnostic.value.anchorA=a; diagnostic.value.anchorB=b;
+            diagnostic.value.penetration=depth; diagnostic.value.localA=m_anchorA; diagnostic.value.localB=m_anchorB;
+        }
 		// Translation alone preserves orientation-dependent kinetic energy as well as velocities.
 		// For two dynamic bodies the inverse-mass weights preserve their common center of mass.
 		if (inverseA > 0.0) m_bodyA->m_Position = positionA;

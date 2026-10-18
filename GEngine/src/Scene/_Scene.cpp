@@ -361,6 +361,16 @@ namespace GEngine
 
 	}
 
+    bool _Scene::SetPhysicsStep(Seconds step)
+    {
+        m_RenderData.RequireMutable();
+        const auto seconds=step.count();
+        if (m_PhysicsStepStarted || m_PhysicsTiming.pendingSeconds != 0.0 ||
+            (seconds != PhysicsStepSeconds && seconds != 1.0/120.0)) return false;
+        m_PhysicsStepSeconds=seconds;
+        return true;
+    }
+
 	void _Scene::Update(Timestep ts)
 	{
 		m_RenderData.RequireMutable();
@@ -411,8 +421,8 @@ namespace GEngine
 				maxTotal - m_PhysicsTiming.totalDiscardedSeconds);
 			// Only absorb roundoff at a tick boundary (less than 5e-16 seconds).
 			constexpr double roundoff = 8.0 * std::numeric_limits<double>::epsilon() * MaxPendingPhysicsSeconds;
-			while (m_PhysicsTiming.stepsLastUpdate < MaxPhysicsStepsPerUpdate &&
-				m_PhysicsTiming.pendingSeconds + roundoff >= PhysicsStepSeconds)
+			while (!m_IsPaused && m_PhysicsTiming.stepsLastUpdate < MaxPhysicsStepsPerUpdate &&
+				m_PhysicsTiming.pendingSeconds + roundoff >= m_PhysicsStepSeconds)
 			{
 				for (auto e : m_Registry.view<RigidBody3DComponent, RuntimePhysicsPose>())
 				{
@@ -421,7 +431,8 @@ namespace GEngine
 					pose.previousTranslation = pose.currentTranslation;
 					pose.previousRotation = pose.currentRotation;
 				}
-				m_PhysicsSystem->Update(Timestep(PhysicsStepSeconds));
+                m_PhysicsStepStarted=true;
+				m_PhysicsSystem->Update(Timestep(m_PhysicsStepSeconds));
 				for (auto e : m_Registry.view<RigidBody3DComponent, RuntimePhysicsPose>())
 				{
 					auto& pose = m_Registry.get<RuntimePhysicsPose>(e);
@@ -429,7 +440,7 @@ namespace GEngine
 					pose.currentTranslation = pose.body->m_Position;
 					pose.currentRotation = pose.body->m_Orientation;
 				}
-				m_PhysicsTiming.pendingSeconds = std::max(0.0, m_PhysicsTiming.pendingSeconds - PhysicsStepSeconds);
+				m_PhysicsTiming.pendingSeconds = std::max(0.0, m_PhysicsTiming.pendingSeconds - m_PhysicsStepSeconds);
 				++m_PhysicsTiming.stepsLastUpdate;
 				++m_PhysicsTiming.totalSteps;
 			}
@@ -452,7 +463,7 @@ namespace GEngine
 	{
 		// Whole retained ticks indicate overload: show current state, never extrapolate
 		// or wrap the remainder back toward an older pose.
-		return std::clamp(m_PhysicsTiming.pendingSeconds / PhysicsStepSeconds, 0.0, 1.0);
+		return std::clamp(m_PhysicsTiming.pendingSeconds / m_PhysicsStepSeconds, 0.0, 1.0);
 	}
 
 	std::expected<_Scene::RenderTransform, RenderTransformQueryError> _Scene::GetRenderTransform(const _Entity& entity)

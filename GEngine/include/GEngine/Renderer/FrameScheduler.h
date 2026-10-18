@@ -48,6 +48,10 @@ namespace GEngine
         FrameCallback pickingReadback;
         // Owner-prepared values, borrowed until synchronous extraction copies them.
         std::span<const FrameDebugLine> debugLines;
+        // Optional owner-thread observation; borrow immutable values only for this call.
+        // No retention, publication, rendering or control decision is permitted.
+        void* observationContext{};
+        void (*observeFrame)(void*,const RenderFrame&) noexcept{};
     };
     struct ScheduledFrameStats
     {

@@ -7,6 +7,7 @@
 #include "Managers/AssetsManager.h"
 #include "Physics/PhysicsWorld.h"
 #include <glm/gtx/quaternion.hpp>
+#include "../tests/RestingContactDiagnosis.h"
 
 using namespace ::GEngine;
 using namespace ::GEngine::Asset;
@@ -1012,6 +1013,34 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeScene()
         return result;
     if (auto result = CreateSceneLights(assets); !result)
         return result;
+    if (m_Launch.restingContactDiagnostic)
+    {
+        if (auto result=CreateEnvironmentHelpers();!result) return result;
+        auto& diagnostic=Rbs::RestDiagnosis::session;
+        diagnostic=std::make_unique<Rbs::RestDiagnosis::Session>(*m_Launch.restingContactDiagnostic);
+        // Exercise the normal default and rejected pre-step selections before
+        // choosing the admitted rate. No separate Physics scheduler is created.
+        const bool clock=m_ActiveScene->GetPhysicsStep().count()==1.0/60.0 &&
+            !m_ActiveScene->SetPhysicsStep(Seconds{0}) &&
+            !m_ActiveScene->SetPhysicsStep(Seconds{std::numeric_limits<double>::quiet_NaN()}) &&
+            !m_ActiveScene->SetPhysicsStep(Seconds{1.0/90.0}) &&
+            m_ActiveScene->GetPhysicsStep().count()==1.0/60.0 &&
+            m_ActiveScene->SetPhysicsStep(Seconds{1.0/120.0});
+        if (!clock || !diagnostic->Open() ||
+            !diagnostic->BeginEpisode(*m_ActiveScene,*m_SceneResources,assets,m_PhysicsShapes))
+            return std::unexpected(PlatformError{PlatformErrorCode::Initialization,"Phase19 diagnostic",
+                "Clock, frozen fixture or recorder initialization failed"});
+        const Vec3f eye(25,25,35), focal(0,9,0), offset=eye-focal;
+        FocusMaterialCamera(m_EditorCamera_,focal,std::asin(offset.y/glm::length(offset)),
+                            -std::atan2(offset.x,offset.z),glm::length(offset));
+        m_IsShowDebugBoundingBox=true;
+        const auto logical=GetWindow()->GetLogicalSize();
+        const auto pixels=GetWindow()->GetFramebufferPixelSize();
+        Log::GetCoreLogger()->info("PHASE19_VIEW logical={}x{} physical={}x{} camera=({},{},{}) step={}",
+            logical.Width,logical.Height,pixels.Width,pixels.Height,m_EditorCamera_.GetPosition().x,
+            m_EditorCamera_.GetPosition().y,m_EditorCamera_.GetPosition().z,m_ActiveScene->GetPhysicsStep().count());
+        return ConnectApplicationEventHandlers();
+    }
     if (auto result = CreatePhysicsScene(assets); !result)
         return result;
     if (auto result = CreateEnvironmentHelpers(); !result)
@@ -1039,6 +1068,17 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeScene()
         return result;
     if (auto result = ValidateScaleBridge(assets); !result)
         return result;
+    if (m_Launch.targetedEntityDiagnostic)
+    {
+        auto& target=Rbs::RestDiagnosis::targetSession;
+        target.reset(new(std::nothrow) Rbs::RestDiagnosis::TargetSession(*m_Launch.targetedEntityDiagnostic));
+        if (!target || !target->Open(*m_ActiveScene))
+            return std::unexpected(PlatformError{PlatformErrorCode::Initialization,"Phase19 targeted observation",
+                target?target->failure:"target session allocation failed"});
+        Log::GetCoreLogger()->info("PHASE19_TARGET_BOUND wood_sphere158 UUID={} slot={} generation={}; normal 60Hz; press F10 at the delayed event",
+            target->bindings[target->target].uuid,target->bindings[target->target].id.GetSlot(),
+            target->bindings[target->target].id.GetGeneration());
+    }
     if (m_Launch.scene == Rbs::RbsScenePreset::GeometryGallery)
         if (auto result = CreateAsyncExamples(assets); !result)
             return result;

@@ -7,6 +7,7 @@
 #include "glm/glm.hpp"
 
 #include <array>
+#include <bit>
 #include <limits>
 
 namespace GEngine
@@ -1027,6 +1028,14 @@ namespace GEngine
 		const float normalLengthSquared = glm::length2(normal);
 		if (!Math::IsFinite(normalLengthSquared) || normalLengthSquared <= Math::NumericalEpsilonSquared)
 		{
+			// P20_EPA_OBSERVATION_BEGIN
+			PhysicsDiagnostic::BarycentricRecord([&](auto& value) {
+				value.exit = PhysicsDiagnostic::BarycentricExit::NormalFallback;
+				value.validFields = 1;
+				value.normalLengthSquared = normalLengthSquared;
+				value.returnedWeights = Vec3f(1.0f, 0.0f, 0.0f);
+			});
+			// P20_EPA_OBSERVATION_END
 			return Vec3f(1.0f, 0.0f, 0.0f);
 		}
 		Vec3f p0 = normal * glm::dot(s1, normal) / normalLengthSquared;
@@ -1077,15 +1086,44 @@ namespace GEngine
 
 		if (!Math::IsFinite(area_max) || std::fabs(area_max) <= Math::NumericalEpsilon)
 		{
+			// P20_EPA_OBSERVATION_BEGIN
+			PhysicsDiagnostic::BarycentricRecord([&](auto& value) {
+				value.exit = PhysicsDiagnostic::BarycentricExit::AreaFallback;
+				value.validFields = 15;
+				value.normalLengthSquared = normalLengthSquared;
+				value.projectedOrigin = p0;
+				value.dominantArea = area_max;
+				value.dominantAxis = idx;
+				value.subareas = areas;
+				value.returnedWeights = Vec3f(1.0f, 0.0f, 0.0f);
+			});
+			// P20_EPA_OBSERVATION_END
 			return Vec3f(1.0f, 0.0f, 0.0f);
 		}
 
 		Vec3f lambdas = areas / area_max;
 
+		// P20_EPA_OBSERVATION_BEGIN
+		const Vec3f observationRawWeights = lambdas;
+		// P20_EPA_OBSERVATION_END
 		if(!IsValid(lambdas))
 		{
 			lambdas = Vec3f(1, 0, 0);
 		}
+		// P20_EPA_OBSERVATION_BEGIN
+		PhysicsDiagnostic::BarycentricRecord([&](auto& value) {
+			value.exit = IsValid(observationRawWeights) ? PhysicsDiagnostic::BarycentricExit::Weights :
+				PhysicsDiagnostic::BarycentricExit::NonfiniteWeightsFallback;
+			value.validFields = 31;
+			value.normalLengthSquared = normalLengthSquared;
+			value.projectedOrigin = p0;
+			value.dominantArea = area_max;
+			value.dominantAxis = idx;
+			value.subareas = areas;
+			value.rawWeights = observationRawWeights;
+			value.returnedWeights = lambdas;
+		});
+		// P20_EPA_OBSERVATION_END
 		return lambdas;
 	}
 
@@ -1116,6 +1154,554 @@ namespace GEngine
 			}
 		};
 		constexpr float EpaRelativeConvergenceTolerance = 1.0e-4f;
+
+		struct EpaFinalProjection
+		{
+			Vec3f lambdas{}, projectedPoint{}, expectedProjection{};
+			float lambdaSum{}, projectionErrorSquared{}, projectionScaleSquared{};
+		};
+
+		EpaFinalProjection EvaluateFinalProjection(const point_t& a, const point_t& b,
+			const point_t& c, const Vec3f& lambdas, const Vec3f& finalNormal,
+			float finalOriginDistance)
+		{
+			Vec3f ptA_w = a.xyz;
+			Vec3f ptB_w = b.xyz;
+			Vec3f ptC_w = c.xyz;
+			const float lambdaSum = lambdas.x + lambdas.y + lambdas.z;
+			const Vec3f projectedPoint = ptA_w * lambdas.x + ptB_w * lambdas.y + ptC_w * lambdas.z;
+			const Vec3f expectedProjection = -finalOriginDistance * finalNormal;
+			const float projectionErrorSquared = glm::length2(projectedPoint - expectedProjection);
+			const float projectionScaleSquared = std::max(1.0f, glm::length2(expectedProjection));
+			return {lambdas, projectedPoint, expectedProjection, lambdaSum,
+				projectionErrorSquared, projectionScaleSquared};
+		}
+
+		EpaTermination ReconstructFinalProjection(const point_t& a, const point_t& b,
+			const point_t& c, const EpaFinalProjection& projection, Vec3f& ptOnA, Vec3f& ptOnB)
+		{
+			const Vec3f& lambdas = projection.lambdas;
+			const float lambdaSum = projection.lambdaSum;
+			const float projectionErrorSquared = projection.projectionErrorSquared;
+			const float projectionScaleSquared = projection.projectionScaleSquared;
+			if (!Math::IsFinite(lambdas) || !Math::IsFinite(lambdaSum) ||
+				std::fabs(lambdaSum - 1.0f) > 1.0e-3f ||
+				lambdas.x < -1.0e-3f || lambdas.y < -1.0e-3f || lambdas.z < -1.0e-3f ||
+				!Math::IsFinite(projectionErrorSquared) ||
+				projectionErrorSquared > EpaRelativeConvergenceTolerance *
+					EpaRelativeConvergenceTolerance * projectionScaleSquared) {
+				return EpaTermination::InvalidProjection;
+			}
+
+			// Get the point on shape A
+			Vec3f ptA_a = a.ptA;
+			Vec3f ptB_a = b.ptA;
+			Vec3f ptC_a = c.ptA;
+			const Vec3f candidatePtOnA = ptA_a * lambdas[0] + ptB_a * lambdas[1] + ptC_a * lambdas[2];
+
+			// Get the point on shape B
+			Vec3f ptA_b = a.ptB;
+			Vec3f ptB_b = b.ptB;
+			Vec3f ptC_b = c.ptB;
+			const Vec3f candidatePtOnB = ptA_b * lambdas[0] + ptB_b * lambdas[1] + ptC_b * lambdas[2];
+
+			const float penetrationDistance = glm::length(candidatePtOnB - candidatePtOnA);
+			if (!Math::IsFinite(candidatePtOnA) || !Math::IsFinite(candidatePtOnB) ||
+				!Math::IsFinite(penetrationDistance)) {
+				return EpaTermination::InvalidWitness;
+			}
+
+			ptOnA = candidatePtOnA;
+			ptOnB = candidatePtOnB;
+			// The caller retains its original EPA convergence reason.
+			return EpaTermination::Converged;
+		}
+
+		std::uint32_t FinalProjectionFailedPredicates(const EpaFinalProjection& projection)
+		{
+			const Vec3f& lambdas = projection.lambdas;
+			const float lambdaSum = projection.lambdaSum;
+			const float projectionErrorSquared = projection.projectionErrorSquared;
+			const float projectionScaleSquared = projection.projectionScaleSquared;
+			return (!Math::IsFinite(lambdas) ? 1u : 0u) |
+				(!Math::IsFinite(lambdaSum) ? 2u : 0u) |
+				(std::fabs(lambdaSum - 1.0f) > 1.0e-3f ? 4u : 0u) |
+				(lambdas.x < -1.0e-3f ? 8u : 0u) |
+				(lambdas.y < -1.0e-3f ? 16u : 0u) |
+				(lambdas.z < -1.0e-3f ? 32u : 0u) |
+				(!Math::IsFinite(projectionErrorSquared) ? 64u : 0u) |
+				(projectionErrorSquared > EpaRelativeConvergenceTolerance *
+					EpaRelativeConvergenceTolerance * projectionScaleSquared ? 128u : 0u);
+		}
+
+		// Exact predicates for the admitted final-plane recovery only. A binary32
+		// value on the common 2^-149 grid needs at most 277 magnitude bits.
+		// The degree-four expressions below need fewer than 1120; capacity is
+		// checked at every arithmetic boundary and never grows dynamically.
+		constexpr unsigned EpaProjectionWordCount = 40;
+		struct EpaProjectionInteger
+		{
+			std::uint32_t words[EpaProjectionWordCount]{};
+			unsigned used{};
+			bool negative{};
+		};
+		struct EpaProjectionWorkspace
+		{
+			// 0..2: selected normal; 3..9: reusable arithmetic;
+			// 10: denominator/plane value; 11..13: barycentric numerators.
+			EpaProjectionInteger value[14]{};
+			unsigned gridShift = 277; // Minimum exact low-bit position; 277 means no nonzero operand yet.
+		};
+		static_assert(sizeof(EpaProjectionWorkspace) <= 2360);
+
+		bool IncludeProjectionGrid(const Vec3f& input, unsigned& gridShift)
+		{
+			for (unsigned axis = 0; axis < 3; ++axis) {
+				const std::uint32_t bits = std::bit_cast<std::uint32_t>(input[axis]);
+				const unsigned exponent = (bits >> 23) & 255u;
+				if (exponent == 255u) return false;
+				const std::uint32_t mantissa = (bits & 0x7fffffu) | (exponent ? 0x800000u : 0u);
+				if (mantissa) {
+					const unsigned low = (exponent ? exponent - 1 : 0) + std::countr_zero(mantissa);
+					if (low < gridShift) gridShift = low;
+				}
+			}
+			return true;
+		}
+
+		void NormalizeProjectionInteger(EpaProjectionInteger& value)
+		{
+			while (value.used && value.words[value.used - 1] == 0) --value.used;
+			if (!value.used) value.negative = false;
+		}
+
+		__declspec(noinline) bool InitializeProjectionGrid(const std::span<const point_t>& points,
+			const Vec3f& finalNormal, unsigned& gridShift)
+		{
+			if (!IncludeProjectionGrid(finalNormal, gridShift)) return false;
+			for (const point_t& point : points) {
+				if (!IncludeProjectionGrid(point.xyz, gridShift)) return false;
+			}
+			return true;
+		}
+
+		bool LoadProjectionInteger(float input, EpaProjectionInteger& value, unsigned gridShift)
+		{
+			const std::uint32_t bits = std::bit_cast<std::uint32_t>(input);
+			const unsigned exponent = (bits >> 23) & 255u;
+			if (exponent == 255u) return false;
+			std::uint32_t mantissa = (bits & 0x7fffffu) | (exponent ? 0x800000u : 0u);
+			memset(value.words, 0, sizeof(value.words));
+			value.used = 0;
+			value.negative = false;
+			if (!mantissa) return true;
+			unsigned shift = exponent ? exponent - 1 : 0;
+			// Remove only the common exact power of two. No floating operation,
+			// discarded significant bit or new tolerance participates in a predicate.
+			if (gridShift > shift) {
+				const unsigned removed = gridShift - shift;
+				if (removed > 23 || (mantissa & ((1u << removed) - 1u))) return false;
+				mantissa >>= removed;
+				shift = 0;
+			} else shift -= gridShift;
+			const unsigned word = shift / 32;
+			const std::uint64_t shifted = static_cast<std::uint64_t>(mantissa) << (shift % 32);
+			if (word + 1 >= EpaProjectionWordCount) return false;
+			value.words[word] = static_cast<std::uint32_t>(shifted);
+			value.words[word + 1] = static_cast<std::uint32_t>(shifted >> 32);
+			value.used = word + (value.words[word + 1] ? 2 : 1);
+			value.negative = (bits >> 31) != 0;
+			return true;
+		}
+
+		int CompareProjectionMagnitude(const EpaProjectionInteger& a, const EpaProjectionInteger& b)
+		{
+			if (a.used != b.used) return a.used < b.used ? -1 : 1;
+			for (unsigned i = a.used; i != 0; --i) {
+				if (a.words[i - 1] != b.words[i - 1])
+					return a.words[i - 1] < b.words[i - 1] ? -1 : 1;
+			}
+			return 0;
+		}
+
+		bool AddProjectionInteger(EpaProjectionInteger& a, const EpaProjectionInteger& b,
+			bool subtract = false)
+		{
+			const unsigned aUsed = a.used;
+			const unsigned count = a.used < b.used ? b.used : a.used;
+			const bool bNegative = b.used && (b.negative != subtract);
+			if (!b.used) return true;
+			if (!a.used) {
+				a = b;
+				a.negative = bNegative;
+				return true;
+			}
+			if (a.negative == bNegative) {
+				std::uint64_t carry = 0;
+				for (unsigned i = 0; i < count; ++i) {
+					const std::uint64_t sum = static_cast<std::uint64_t>(i < aUsed ? a.words[i] : 0) +
+						(i < b.used ? b.words[i] : 0) + carry;
+					a.words[i] = static_cast<std::uint32_t>(sum);
+					carry = sum >> 32;
+				}
+				a.used = count;
+				if (carry) {
+					if (a.used == EpaProjectionWordCount) return false;
+					a.words[a.used++] = static_cast<std::uint32_t>(carry);
+				}
+			} else {
+				// The same magnitude comparison stays in this frame, so its
+				// temporary call frame does not overlap the subtraction state.
+				bool aLarger = a.used >= b.used;
+				if (a.used == b.used) {
+					for (unsigned i = a.used; i != 0; --i) {
+						if (a.words[i - 1] != b.words[i - 1]) {
+							aLarger = a.words[i - 1] > b.words[i - 1];
+							break;
+						}
+					}
+				}
+				std::uint64_t borrow = 0;
+				for (unsigned i = 0; i < count; ++i) {
+					const std::uint64_t av = i < aUsed ? a.words[i] : 0;
+					const std::uint64_t bv = i < b.used ? b.words[i] : 0;
+					const std::uint64_t larger = aLarger ? av : bv;
+					const std::uint64_t smaller = (aLarger ? bv : av) + borrow;
+					a.words[i] = static_cast<std::uint32_t>(larger - smaller);
+					borrow = larger < smaller ? 1 : 0;
+				}
+				if (borrow) return false;
+				a.used = count;
+				if (!aLarger) a.negative = bNegative;
+			}
+			while (a.used && a.words[a.used - 1] == 0) --a.used;
+			if (!a.used) a.negative = false;
+			return true;
+		}
+
+		bool MultiplyProjectionInteger(const EpaProjectionInteger& a, const EpaProjectionInteger& b,
+			EpaProjectionInteger& output)
+		{
+			if (&output == &a || &output == &b || a.used + b.used > EpaProjectionWordCount) return false;
+			memset(output.words, 0, sizeof(output.words));
+			output.used = 0;
+			output.negative = false;
+			if (!a.used || !b.used) return true;
+			for (unsigned i = 0; i < a.used; ++i) {
+				std::uint64_t carry = 0;
+				for (unsigned j = 0; j < b.used; ++j) {
+					// Product + existing word + carry is at most UINT64_MAX.
+					const std::uint64_t product = static_cast<std::uint64_t>(a.words[i]) * b.words[j] +
+						output.words[i + j] + carry;
+					output.words[i + j] = static_cast<std::uint32_t>(product);
+					carry = product >> 32;
+				}
+				output.words[i + b.used] = static_cast<std::uint32_t>(carry);
+			}
+			output.used = a.used + b.used;
+			output.negative = a.negative != b.negative;
+			NormalizeProjectionInteger(output);
+			return true;
+		}
+
+		bool ProjectionDifference(float a, float b, EpaProjectionInteger& output,
+			EpaProjectionInteger& scratch, unsigned gridShift)
+		{
+			return LoadProjectionInteger(a, output, gridShift) && LoadProjectionInteger(b, scratch, gridShift) &&
+				AddProjectionInteger(output, scratch, true);
+		}
+
+		bool BuildProjectionNormal(const Vec3f& a, const Vec3f& b, const Vec3f& c,
+			EpaProjectionWorkspace& workspace)
+		{
+			auto& w = workspace.value;
+			for (unsigned i = 0; i < 3; ++i) {
+				const unsigned j = (i + 1) % 3, k = (i + 2) % 3;
+				if (!ProjectionDifference(b[j], a[j], w[3], w[9], workspace.gridShift) ||
+					!ProjectionDifference(c[k], a[k], w[4], w[9], workspace.gridShift) ||
+					!ProjectionDifference(b[k], a[k], w[5], w[9], workspace.gridShift) ||
+					!ProjectionDifference(c[j], a[j], w[6], w[9], workspace.gridShift) ||
+					!MultiplyProjectionInteger(w[3], w[4], w[7]) ||
+					!MultiplyProjectionInteger(w[5], w[6], w[8]) ||
+					!AddProjectionInteger(w[7], w[8], true)) return false;
+				w[i] = w[7];
+			}
+			return w[0].used || w[1].used || w[2].used;
+		}
+
+		bool ProjectionPlaneValue(const Vec3f& point, const Vec3f& base,
+			EpaProjectionWorkspace& workspace)
+		{
+			auto& w = workspace.value;
+			w[10].used = 0;
+			w[10].negative = false;
+			for (unsigned i = 0; i < 3; ++i) {
+				if (!ProjectionDifference(point[i], base[i], w[3], w[4], workspace.gridShift) ||
+					!MultiplyProjectionInteger(w[i], w[3], w[5]) ||
+					!AddProjectionInteger(w[10], w[5])) return false;
+			}
+			return true;
+		}
+
+		bool ProjectionDotCross(const Vec3f& u, const Vec3f& v, const Vec3f& base,
+			EpaProjectionInteger& output, EpaProjectionWorkspace& workspace)
+		{
+			auto& w = workspace.value;
+			output.used = 0;
+			output.negative = false;
+			for (unsigned i = 0; i < 3; ++i) {
+				const unsigned j = (i + 1) % 3, k = (i + 2) % 3;
+				if (!LoadProjectionInteger(u[j], w[3], workspace.gridShift) || !LoadProjectionInteger(base[j], w[9], workspace.gridShift) ||
+					!AddProjectionInteger(w[3], w[9], true) ||
+					!LoadProjectionInteger(v[k], w[4], workspace.gridShift) || !LoadProjectionInteger(base[k], w[9], workspace.gridShift) ||
+					!AddProjectionInteger(w[4], w[9], true) ||
+					!LoadProjectionInteger(u[k], w[5], workspace.gridShift) || !LoadProjectionInteger(base[k], w[9], workspace.gridShift) ||
+					!AddProjectionInteger(w[5], w[9], true) ||
+					!LoadProjectionInteger(v[j], w[6], workspace.gridShift) || !LoadProjectionInteger(base[j], w[9], workspace.gridShift) ||
+					!AddProjectionInteger(w[6], w[9], true) ||
+					!MultiplyProjectionInteger(w[3], w[4], w[7]) ||
+					!MultiplyProjectionInteger(w[5], w[6], w[8]) ||
+					!AddProjectionInteger(w[7], w[8], true) ||
+					!MultiplyProjectionInteger(w[i], w[7], w[9]) ||
+					!AddProjectionInteger(output, w[9])) return false;
+			}
+			return true;
+		}
+
+		bool ProjectionFaceCoordinates(const point_t& a, const point_t& b, const point_t& c,
+			EpaProjectionWorkspace& workspace)
+		{
+			auto& w = workspace.value;
+			if (!ProjectionDotCross(b.xyz, c.xyz, a.xyz, w[10], workspace) ||
+				!ProjectionDotCross(b.xyz, c.xyz, Vec3f(0.0f), w[11], workspace) ||
+				!ProjectionDotCross(c.xyz, a.xyz, Vec3f(0.0f), w[12], workspace) ||
+				!ProjectionDotCross(a.xyz, b.xyz, Vec3f(0.0f), w[13], workspace)) return false;
+			// The exact area identity also guards the private workspace contract.
+			w[3] = w[11];
+			return AddProjectionInteger(w[3], w[12]) && AddProjectionInteger(w[3], w[13]) &&
+				w[3].negative == w[10].negative && CompareProjectionMagnitude(w[3], w[10]) == 0;
+		}
+
+		bool ShiftProjectionInteger(EpaProjectionInteger& value)
+		{
+			std::uint64_t carry = 0;
+			for (unsigned i = 0; i < value.used; ++i) {
+				const std::uint64_t shifted = (static_cast<std::uint64_t>(value.words[i]) << 1) | carry;
+				value.words[i] = static_cast<std::uint32_t>(shifted);
+				carry = shifted >> 32;
+			}
+			if (carry) {
+				if (value.used == EpaProjectionWordCount) return false;
+				value.words[value.used++] = static_cast<std::uint32_t>(carry);
+			}
+			return true;
+		}
+
+		bool ProjectionRatioToFloat(const EpaProjectionInteger& numerator,
+			const EpaProjectionInteger& denominator, EpaProjectionInteger& remainder, float& output)
+		{
+			if (!denominator.used || denominator.negative || numerator.negative) return false;
+			const int order = CompareProjectionMagnitude(numerator, denominator);
+			if (order > 0) return false;
+			if (!numerator.used || order == 0) {
+				output = numerator.used ? 1.0f : 0.0f;
+				return true;
+			}
+			remainder = numerator;
+			unsigned leading = 0, roundPosition = 150;
+			std::uint32_t significand = 0;
+			// Binary32 has 24 significand bits, minimum normal exponent -126,
+			// and minimum subnormal exponent -149. Position150 is its last
+			// possible rounding bit, not a geometric tolerance or solver cap.
+			for (unsigned position = 1; position <= roundPosition; ++position) {
+				if (!ShiftProjectionInteger(remainder)) return false;
+				const bool bit = CompareProjectionMagnitude(remainder, denominator) >= 0;
+				if (bit && !AddProjectionInteger(remainder, denominator, true)) return false;
+				if (!leading && bit) {
+					leading = position;
+					if (leading <= 126) roundPosition = leading + 24;
+				}
+				if (position < roundPosition) {
+					if (leading) significand = (significand << 1) | (bit ? 1u : 0u);
+				} else {
+					// Round the exact rational to nearest, ties to even.
+					if (bit && (remainder.used || (significand & 1u))) ++significand;
+					std::uint32_t bits = significand;
+					if (leading && leading <= 126) {
+						unsigned exponent = 127 - leading;
+						if (significand == 0x1000000u) { significand >>= 1; ++exponent; }
+						bits = (exponent << 23) | (significand & 0x7fffffu);
+					}
+					output = std::bit_cast<float>(bits);
+					return true;
+				}
+			}
+			return false;
+		}
+
+		bool ConvertCertifiedProjectionWeights(EpaProjectionWorkspace& workspace, Vec3f& lambdas)
+		{
+			auto& w = workspace.value;
+			if (!w[10].used || w[10].negative || w[11].negative || w[12].negative || w[13].negative)
+				return false;
+			for (unsigned i = 0; i < 3; ++i) {
+				if (!ProjectionRatioToFloat(w[11 + i], w[10], w[3], lambdas[i])) return false;
+			}
+			return true;
+		}
+
+		bool ReconstructCertifiedFace(const point_t& a, const point_t& b, const point_t& c,
+			const Vec3f& finalNormal, float finalOriginDistance, const Vec3f& lambdas,
+			EpaFinalProjection& projection, Vec3f& ptOnA, Vec3f& ptOnB)
+		{
+			projection = EvaluateFinalProjection(a, b, c, lambdas, finalNormal, finalOriginDistance);
+			return ReconstructFinalProjection(a, b, c, projection, ptOnA, ptOnB) ==
+				EpaTermination::Converged;
+		}
+
+		struct EpaProjectionCertificate
+		{
+			Vec3f lambdas{};
+			int face = -1;
+		};
+
+		// Only this call owns the integer workspace. Its frame must return before
+		// the caller evaluates the floating projection and reconstructs witnesses.
+		__declspec(noinline) bool FindFinalProjectionCertificate(std::span<const point_t> points,
+			std::span<const tri_t> triangles, int selected, const Vec3f& finalNormal,
+			unsigned gridShift, EpaProjectionCertificate& certificate)
+		{
+			const auto validFace = [points](const tri_t& tri) {
+				return tri.a >= 0 && tri.b >= 0 && tri.c >= 0 &&
+					static_cast<std::size_t>(tri.a) < points.size() &&
+					static_cast<std::size_t>(tri.b) < points.size() &&
+					static_cast<std::size_t>(tri.c) < points.size() &&
+					tri.a != tri.b && tri.b != tri.c && tri.c != tri.a;
+			};
+			const tri_t& source = triangles[selected];
+			if (!validFace(source)) return false;
+			EpaProjectionWorkspace workspace{};
+			workspace.gridShift = gridShift;
+			auto& w = workspace.value;
+			if (!BuildProjectionNormal(points[source.a].xyz, points[source.b].xyz,
+				points[source.c].xyz, workspace) ||
+				!ProjectionPlaneValue(finalNormal, Vec3f(0.0f), workspace) ||
+				!w[10].used || w[10].negative ||
+				!ProjectionPlaneValue(Vec3f(0.0f), points[source.a].xyz, workspace) ||
+				(w[10].used && !w[10].negative)) return false;
+			// The recovery certifies its supporting plane. It does not replace
+			// the existing EPA topology checks with a full convex-hull validator.
+			for (const point_t& point : points) {
+				if (!ProjectionPlaneValue(point.xyz, points[source.a].xyz, workspace) ||
+					(w[10].used && !w[10].negative)) return false;
+			}
+			if (!ProjectionFaceCoordinates(points[source.a], points[source.b], points[source.c], workspace) ||
+				!w[10].used || w[10].negative ||
+				(!w[11].negative && !w[12].negative && !w[13].negative)) return false;
+			for (std::size_t i = 0; i < triangles.size(); ++i) {
+				if (i == static_cast<std::size_t>(selected)) continue;
+				const tri_t& tri = triangles[i];
+				if (!validFace(tri)) return false;
+				bool coplanar = true;
+				const int indices[3] = {tri.a, tri.b, tri.c};
+				for (const int index : indices) {
+					if (!ProjectionPlaneValue(points[index].xyz, points[source.a].xyz, workspace))
+						return false;
+					if (w[10].used) { coplanar = false; break; }
+				}
+				if (!coplanar) continue;
+				if (!ProjectionFaceCoordinates(points[tri.a], points[tri.b], points[tri.c], workspace))
+					return false;
+				if (!w[10].used || w[10].negative ||
+					w[11].negative || w[12].negative || w[13].negative) continue;
+				if (!w[10].used || w[10].negative || w[11].negative || w[12].negative || w[13].negative)
+					return false;
+				for (unsigned axis = 0; axis < 3; ++axis) {
+					if (!ProjectionRatioToFloat(w[11 + axis], w[10], w[3], certificate.lambdas[axis]))
+						return false;
+				}
+				certificate.face = static_cast<int>(i);
+				return true;
+			}
+			return false;
+		}
+
+		__declspec(noinline) bool TryRecoverFinalProjection(std::span<const point_t> points, std::span<const tri_t> triangles,
+			int selected, const Vec3f& finalNormal, float finalOriginDistance,
+			const EpaFinalProjection& original, Vec3f& ptOnA, Vec3f& ptOnB,
+			EpaFinalProjection* recoveredProjection = nullptr, int* recoveredFace = nullptr)
+		{
+			const std::uint32_t predicates = FinalProjectionFailedPredicates(original);
+			if (!predicates || (predicates & ~56u) || selected < 0 ||
+				static_cast<std::size_t>(selected) >= triangles.size()) return false;
+			// Finish the complete grid scan before entering the integer workspace.
+			unsigned gridShift = 277;
+			if (!InitializeProjectionGrid(points, finalNormal, gridShift)) return false;
+			EpaProjectionCertificate certificate;
+			if (!FindFinalProjectionCertificate(points, triangles, selected, finalNormal, gridShift, certificate))
+				return false;
+			const tri_t& tri = triangles[certificate.face];
+			EpaFinalProjection projection{};
+			if (!ReconstructCertifiedFace(points[tri.a], points[tri.b], points[tri.c],
+				finalNormal, finalOriginDistance, certificate.lambdas, projection, ptOnA, ptOnB)) return false;
+			if (recoveredProjection) *recoveredProjection = projection;
+			if (recoveredFace) *recoveredFace = certificate.face;
+			return true;
+		}
+
+		// Diagnostic certificate uses the same arithmetic as production B, with
+		// the same non-overlapping workspace and floating-reconstruction lifetimes.
+		__declspec(noinline) bool CertifyPrimitiveProjection(const point_t& a, const point_t& b,
+			const point_t& c, Vec3f& lambdas)
+		{
+			EpaProjectionWorkspace workspace{};
+			return IncludeProjectionGrid(a.xyz, workspace.gridShift) &&
+				IncludeProjectionGrid(b.xyz, workspace.gridShift) &&
+				IncludeProjectionGrid(c.xyz, workspace.gridShift) &&
+				BuildProjectionNormal(a.xyz, b.xyz, c.xyz, workspace) &&
+				ProjectionFaceCoordinates(a, b, c, workspace) &&
+				ConvertCertifiedProjectionWeights(workspace, lambdas);
+		}
+
+		__declspec(noinline) bool ReconstructCertifiedPrimitiveFace(const point_t& a, const point_t& b,
+			const point_t& c, const Vec3f& normal, float originDistance, EpaFinalProjection& projection,
+			Vec3f& ptOnA, Vec3f& ptOnB)
+		{
+			Vec3f lambdas;
+			return CertifyPrimitiveProjection(a, b, c, lambdas) &&
+				ReconstructCertifiedFace(a, b, c, normal, originDistance, lambdas, projection, ptOnA, ptOnB);
+		}
+
+		// P20_EPA_OBSERVATION_BEGIN
+		void RecordEpaProjection(const std::vector<point_t>& points,
+			const std::vector<tri_t>& triangles, PhysicsDiagnostic::EpaProjectionEvent& value) noexcept
+		{
+			auto* sink = PhysicsDiagnostic::queryObserver;
+			if (!sink || !sink->epaProjection) return;
+			const auto start = PhysicsDiagnostic::Nanoseconds();
+			value.iteration = sink->iteration;
+			value.pointCount = points.size();
+			value.faceCount = triangles.size();
+			value.overflow = points.size() > PhysicsDiagnostic::EpaCaptureMaxPoints ||
+				triangles.size() > PhysicsDiagnostic::EpaCaptureMaxFaces;
+			std::array<PhysicsDiagnostic::EpaPoint, PhysicsDiagnostic::EpaCaptureMaxPoints> pointCopy{};
+			std::array<PhysicsDiagnostic::EpaFace, PhysicsDiagnostic::EpaCaptureMaxFaces> faceCopy{};
+			if (!value.overflow) {
+				for (std::size_t i = 0; i < points.size(); ++i) {
+					pointCopy[i] = {points[i].xyz, points[i].ptA, points[i].ptB};
+				}
+				for (std::size_t i = 0; i < triangles.size(); ++i) {
+					faceCopy[i] = {triangles[i].a, triangles[i].b, triangles[i].c};
+				}
+				value.points = {pointCopy.data(), points.size()};
+				value.faces = {faceCopy.data(), triangles.size()};
+			}
+			sink->epaProjection(sink->context, value);
+			value.points = {};
+			value.faces = {};
+			sink->observationNs += PhysicsDiagnostic::Nanoseconds() - start;
+		}
+		// P20_EPA_OBSERVATION_END
 
 		bool IsValidPointIndex(int index, const std::vector<point_t>& points)
 		{
@@ -1443,6 +2029,9 @@ namespace GEngine
 		//
 		bool converged = false;
 		EpaTermination convergenceReason = EpaTermination::Converged;
+		// P20_EPA_OBSERVATION_BEGIN
+		PhysicsDiagnostic::EpaProjectionEvent projectionObservation{};
+		// P20_EPA_OBSERVATION_END
 		const unsigned limit = std::min(maxIterations, EpaMaxIterations);
 		for (unsigned iteration = 0; iteration < limit; ++iteration) {
 			++query.result.iterations;
@@ -1473,6 +2062,16 @@ namespace GEngine
 			}
 			const float convergenceTolerance = std::max(Math::NumericalEpsilon,
 				EpaRelativeConvergenceTolerance * std::max(std::fabs(originDistance), bias));
+			// P20_EPA_OBSERVATION_BEGIN
+			if (PhysicsDiagnostic::queryObserver && PhysicsDiagnostic::queryObserver->epaProjection) {
+				projectionObservation.lastSupport = {newPt.xyz, newPt.ptA, newPt.ptB};
+				projectionObservation.lastSupportNormal = normal;
+				projectionObservation.lastOriginDistance = originDistance;
+				projectionObservation.lastExpansionDistance = expansionDistance;
+				projectionObservation.lastConvergenceTolerance = convergenceTolerance;
+				projectionObservation.lastSelectedFace = idx;
+			}
+			// P20_EPA_OBSERVATION_END
 
 			// if w already exists, then just stop
 			// because it means we can't expand any further
@@ -1559,41 +2158,97 @@ namespace GEngine
 		Vec3f ptB_w = points[tri.b].xyz;
 		Vec3f ptC_w = points[tri.c].xyz;
 		Vec3f lambdas = BarycentricCoordinates(ptA_w, ptB_w, ptC_w, Vec3f(0.0f));
-		const float lambdaSum = lambdas.x + lambdas.y + lambdas.z;
-		const Vec3f projectedPoint = ptA_w * lambdas.x + ptB_w * lambdas.y + ptC_w * lambdas.z;
-		const Vec3f expectedProjection = -finalOriginDistance * finalNormal;
-		const float projectionErrorSquared = glm::length2(projectedPoint - expectedProjection);
-		const float projectionScaleSquared = std::max(1.0f, glm::length2(expectedProjection));
-		if (!Math::IsFinite(lambdas) || !Math::IsFinite(lambdaSum) ||
-			std::fabs(lambdaSum - 1.0f) > 1.0e-3f ||
-			lambdas.x < -1.0e-3f || lambdas.y < -1.0e-3f || lambdas.z < -1.0e-3f ||
-			!Math::IsFinite(projectionErrorSquared) ||
-			projectionErrorSquared > EpaRelativeConvergenceTolerance *
-				EpaRelativeConvergenceTolerance * projectionScaleSquared) {
-			return query.Finish(EpaTermination::InvalidProjection);
+		const EpaFinalProjection projection = EvaluateFinalProjection(points[tri.a], points[tri.b],
+			points[tri.c], lambdas, finalNormal, finalOriginDistance);
+		// P20_EPA_OBSERVATION_BEGIN
+		if (PhysicsDiagnostic::queryObserver && PhysicsDiagnostic::queryObserver->epaProjection) {
+			projectionObservation.epaIterations = query.result.iterations;
+			projectionObservation.selectedFace = idx;
+			projectionObservation.convergenceReason = convergenceReason;
+			projectionObservation.bias = bias;
+			projectionObservation.normal = finalNormal;
+			projectionObservation.originDistance = finalOriginDistance;
+			projectionObservation.lambdas = lambdas;
+			projectionObservation.lambdaSum = projection.lambdaSum;
+			projectionObservation.projectedPoint = projection.projectedPoint;
+			projectionObservation.expectedProjection = projection.expectedProjection;
+			projectionObservation.projectionErrorSquared = projection.projectionErrorSquared;
+			projectionObservation.projectionScaleSquared = projection.projectionScaleSquared;
+			projectionObservation.failedPredicates = FinalProjectionFailedPredicates(projection);
+			RecordEpaProjection(points, triangles, projectionObservation);
 		}
-
-		// Get the point on shape A
-		Vec3f ptA_a = points[tri.a].ptA;
-		Vec3f ptB_a = points[tri.b].ptA;
-		Vec3f ptC_a = points[tri.c].ptA;
-		const Vec3f candidatePtOnA = ptA_a * lambdas[0] + ptB_a * lambdas[1] + ptC_a * lambdas[2];
-
-		// Get the point on shape B
-		Vec3f ptA_b = points[tri.a].ptB;
-		Vec3f ptB_b = points[tri.b].ptB;
-		Vec3f ptC_b = points[tri.c].ptB;
-		const Vec3f candidatePtOnB = ptA_b * lambdas[0] + ptB_b * lambdas[1] + ptC_b * lambdas[2];
-
-		const float penetrationDistance = glm::length(candidatePtOnB - candidatePtOnA);
-		if (!Math::IsFinite(candidatePtOnA) || !Math::IsFinite(candidatePtOnB) ||
-			!Math::IsFinite(penetrationDistance)) {
-			return query.Finish(EpaTermination::InvalidWitness);
+		// P20_EPA_OBSERVATION_END
+		const EpaTermination reconstruction = ReconstructFinalProjection(points[tri.a], points[tri.b],
+			points[tri.c], projection, ptOnA, ptOnB);
+		if (reconstruction == EpaTermination::InvalidProjection &&
+			TryRecoverFinalProjection(points, triangles, idx, finalNormal, finalOriginDistance,
+				projection, ptOnA, ptOnB)) {
+			return query.Finish(convergenceReason);
 		}
-
-		ptOnA = candidatePtOnA;
-		ptOnB = candidatePtOnB;
+		if (reconstruction != EpaTermination::Converged) {
+			return query.Finish(reconstruction);
+		}
 		return query.Finish(convergenceReason);
+	}
+
+	namespace PhysicsDiagnostic
+	{
+		ProjectionPrimitiveObservation EvaluateProjectionPrimitive(unsigned scenario)
+		{
+			ProjectionPrimitiveObservation result{};
+			if (scenario > 1) return result;
+			std::array<point_t, 4> points{};
+			std::array<tri_t, 2> triangles{};
+			if (scenario == 0) {
+				points[0].xyz = Vec3f(-1.0f, 0.125f, -2.0f);
+				points[1].xyz = Vec3f(3.0f, 0.125f, 2.0f);
+				points[2].xyz = Vec3f(3.0f, 0.125f, -2.0f);
+				points[3].xyz = Vec3f(-1.0f, 0.125f, 2.0f);
+				triangles[0] = {0, 1, 2};
+				triangles[1] = {0, 3, 1};
+			} else {
+				constexpr float h = 1.0f / 2048.0f;
+				points[0].xyz = Vec3f(-h, 0.125f, -h);
+				points[1].xyz = Vec3f(0.0f, 0.125f, h);
+				points[2].xyz = Vec3f(h, 0.125f, -h);
+				triangles[0] = {0, 1, 2};
+			}
+			for (point_t& point : points) point.ptA = point.xyz;
+			// Both prescribed faces have this exact oriented plane. These controls
+			// exercise final reconstruction, not public-query hull reachability.
+			result.selectedFace = 0;
+			result.normal = Vec3f(0.0f, 1.0f, 0.0f);
+			result.originDistance = -0.125f;
+			const tri_t& tri = triangles[0];
+			const Vec3f lambdas = BarycentricCoordinates(points[tri.a].xyz, points[tri.b].xyz,
+				points[tri.c].xyz, Vec3f(0.0f));
+			EpaFinalProjection projection = EvaluateFinalProjection(points[tri.a], points[tri.b],
+				points[tri.c], lambdas, result.normal, result.originDistance);
+			result.termination = ReconstructFinalProjection(points[tri.a], points[tri.b], points[tri.c],
+				projection, result.witnessA, result.witnessB);
+			if (scenario == 0 && result.termination == EpaTermination::InvalidProjection) {
+				if (TryRecoverFinalProjection(points, triangles, 0, result.normal, result.originDistance,
+					projection, result.witnessA, result.witnessB, &projection, &result.selectedFace))
+					result.termination = EpaTermination::Converged;
+			} else if (scenario == 1) {
+				// Exercise the same certified-face component used by production B.
+				// This does not enable selected-inside production recovery.
+				if (ReconstructCertifiedPrimitiveFace(points[tri.a], points[tri.b], points[tri.c],
+					result.normal, result.originDistance, projection, result.witnessA, result.witnessB))
+					result.termination = EpaTermination::Converged;
+			}
+			result.lambdas = projection.lambdas;
+			result.lambdaSum = projection.lambdaSum;
+			result.projectedPoint = projection.projectedPoint;
+			result.expectedProjection = projection.expectedProjection;
+			result.projectionErrorSquared = projection.projectionErrorSquared;
+			result.projectionScaleSquared = projection.projectionScaleSquared;
+			result.failedPredicates = FinalProjectionFailedPredicates(projection);
+			if (result.termination == EpaTermination::Converged) {
+				result.penetrationDistance = glm::length(result.witnessB - result.witnessA);
+			}
+			return result;
+		}
 	}
 
 

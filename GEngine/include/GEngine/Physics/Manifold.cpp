@@ -3,6 +3,7 @@
 #include "PhysicsProfile.h"
 #include "PhysicsBody.h"
 #include "Shape.h"
+#include "Broadphase.h"
 #include <Core/Timer.h>
 #include <cmath>
 #include <limits>
@@ -198,7 +199,7 @@ namespace GEngine
 	}
 
 
-	void Manifold::RefreshContacts(const contact_t* contacts, int count)
+	void Manifold::RefreshContacts(const contact_t* contacts, int count, bool refreshCandidates)
 	{
 		Manifold refreshed;
 		refreshed.m_BodyA = m_BodyA;
@@ -209,12 +210,17 @@ namespace GEngine
 		int matches[MAX_CONTACTS]{ -1, -1, -1, -1 };
 		bool used[MAX_CONTACTS]{};
 		for (int point = 0; point < count; ++point) canonical[point] = CanonicalContact(contacts[point], m_BodyA);
+		const auto candidate = [&](int slot) {
+			return refreshCandidates && m_Contacts[slot].separationDistance > 0.0f;
+		};
 
 		// Exact topology has priority across the whole patch. At coincident box edges,
 		// tiny sliding/rotation changes boundary bits without changing the supporting
 		// face pair. Unmatched points may then use both nearby anchors on those same
 		// labelled faces; a different face, normal, shape or body still starts cold.
-		for (int pass = 0; compatible && pass < 2; ++pass) {
+		// Preserve both original survivor passes before considering an expired
+		// point. Candidates can only warm an otherwise cold exact-feature point.
+		for (int pass = 0; compatible && pass < (refreshCandidates ? 3 : 2); ++pass) {
 			for (;;) {
 				int bestPoint = -1, bestOld = -1;
 				double bestDistance = AnchorDistance2;
@@ -224,7 +230,9 @@ namespace GEngine
 					for (int i = 0; i < m_NumContacts; ++i) {
 						if (used[i]) continue;
 						const auto& old = m_Contacts[i];
-						const bool featureMatch = pass == 0 ? SameFeatures(contact, old) :
+						if (pass < 2 && candidate(i)) continue;
+						if (pass == 2 && (!candidate(i) || !old.featureA || !old.featureB)) continue;
+						const bool featureMatch = pass != 1 ? SameFeatures(contact, old) :
 							contact.featureA && contact.featureB && old.featureA && old.featureB &&
 							(contact.featureA >> 4) == (old.featureA >> 4) &&
 							(contact.featureB >> 4) == (old.featureB >> 4);
@@ -256,19 +264,28 @@ namespace GEngine
 		// Clipping can cyclically permute unchanged points when reference ownership
 		// or boundary classification changes. Keep surviving constraints in their old
 		// solve order, then append genuinely new points in deterministic input order.
-		for (int i = 0; i < m_NumContacts; ++i)
+		for (int i = 0; i < m_NumContacts; ++i) {
+			if (candidate(i)) continue;
 			for (int point = 0; point < count; ++point)
 				if (matches[point] == i) append(point);
+		}
 		for (int point = 0; point < count; ++point)
-			if (matches[point] < 0) append(point);
+			if (matches[point] < 0 || candidate(matches[point])) append(point);
 		*this = refreshed;
         PhysicsDiagnostic::Mark(PhysicsDiagnostic::Operation::PatchEnd,m_BodyA,m_BodyB,m_NumContacts);
 	}
 
 	void Manifold::RemoveExpiredContacts()
 	{
-		if (!CacheCompatible()) { PhysicsDiagnostic::Mark(PhysicsDiagnostic::Operation::PairReset,m_BodyA,m_BodyB,-1,-1,2); m_NumContacts = 0; return; }
-		for (int i = 0; i < m_NumContacts;) {
+		RemoveExpiredContacts(false);
+	}
+
+	bool Manifold::RemoveExpiredContacts(bool keepContinuingCandidates)
+	{
+		if (!CacheCompatible()) { PhysicsDiagnostic::Mark(PhysicsDiagnostic::Operation::PairReset,m_BodyA,m_BodyB,-1,-1,2); m_NumContacts = 0; return false; }
+		unsigned strict = 0, candidates = 0;
+		const int oldCount = m_NumContacts;
+		for (int i = 0; i < oldCount; ++i) {
 			contact_t& contact = m_Contacts[i];
 			const Vec3f a = m_BodyA->BodySpaceToWorldSpace(contact.ptOnA_LocalSpace);
 			const Vec3f b = m_BodyB->BodySpaceToWorldSpace(contact.ptOnB_LocalSpace);
@@ -279,15 +296,23 @@ namespace GEngine
 			const Vec3f tangent = ab - normal * separation;
 			if (Math::IsFinite(a) && Math::IsFinite(b) && Math::IsFinite(separation) &&
 				glm::dot(normal, normalB) >= NormalCoherence &&
-				glm::length2(tangent) < AnchorDistance2 && separation <= 0.0f) {
+				glm::length2(tangent) < AnchorDistance2 &&
+				(separation <= 0.0f || (keepContinuingCandidates && contact.featureA && contact.featureB))) {
 				contact.ptOnA_WorldSpace = a;
 				contact.ptOnB_WorldSpace = b;
 				contact.normal = -normal;
 				contact.separationDistance = separation;
-				++i;
+				if (separation <= 0.0f) strict |= 1u << i;
+				else candidates |= 1u << i;
 			}
-			else RemoveContact(i);
 		}
+		// A candidate never extends the pair lifetime or occupies new storage.
+		const unsigned retained = strict | (strict ? candidates : 0u);
+		for (int old = 0, slot = 0; old < oldCount; ++old) {
+			if (retained & (1u << old)) ++slot;
+			else RemoveContact(slot);
+		}
+		return strict && candidates;
 	}
 
 
@@ -309,6 +334,84 @@ namespace GEngine
 
 	namespace
 	{
+		void PreferClosestNormalFamily(const double (&matrix)[4][5], const int (&pivotColumns)[4],
+			int rank, int size, const int (&indices)[4], const double (&K)[4][4],
+			const double (&rhs)[4], const double (&old)[4], int count, double tolerance, double (&x)[4])
+		{
+			// The original pinned-free-coordinate candidate remains the fallback.
+			// For x = particular + N*z, minimize |x-old|^2 by solving
+			// (N^T*N)*z = N^T*(old-particular). Each basis vector owns a distinct
+			// unit free coordinate, so the Gram matrix is positive definite.
+			if (rank == 0 || rank == size) return;
+			int freeColumns[4]{}, freeCount = 0;
+			for (int col = 0; col < size; ++col) {
+				bool pivot = false;
+				for (int row = 0; row < rank; ++row) pivot |= pivotColumns[row] == col;
+				if (!pivot) freeColumns[freeCount++] = col;
+			}
+			double particular[4]{}, basis[4][4]{}, gram[4][5]{}, coefficients[4]{}, projected[4]{};
+			for (int row = rank - 1; row >= 0; --row) {
+				const int col = pivotColumns[row];
+				double value = matrix[row][size];
+				for (int j = col + 1; j < size; ++j) value -= matrix[row][j] * particular[j];
+				particular[col] = value / matrix[row][col];
+			}
+			for (int axis = 0; axis < freeCount; ++axis) {
+				basis[axis][freeColumns[axis]] = 1.0;
+				for (int row = rank - 1; row >= 0; --row) {
+					const int col = pivotColumns[row];
+					double value = 0;
+					for (int j = col + 1; j < size; ++j) value -= matrix[row][j] * basis[axis][j];
+					basis[axis][col] = value / matrix[row][col];
+				}
+			}
+			for (int row = 0; row < freeCount; ++row) {
+				for (int col = 0; col < freeCount; ++col)
+					for (int i = 0; i < size; ++i) gram[row][col] += basis[row][i] * basis[col][i];
+				for (int i = 0; i < size; ++i)
+					gram[row][freeCount] += basis[row][i] * (old[indices[i]] - particular[i]);
+				for (int col = 0; col <= freeCount; ++col)
+					if (!std::isfinite(gram[row][col])) return;
+			}
+			// No new rank tolerance: a nonfinite or unusable Gram solve leaves the
+			// original candidate intact, and the original full-K guards still apply.
+			for (int col = 0; col < freeCount; ++col) {
+				int pivot = col;
+				for (int row = col + 1; row < freeCount; ++row)
+					if (std::abs(gram[row][col]) > std::abs(gram[pivot][col])) pivot = row;
+				if (!(std::abs(gram[pivot][col]) > 0.0) || !std::isfinite(gram[pivot][col])) return;
+				for (int j = col; j <= freeCount; ++j) std::swap(gram[pivot][j], gram[col][j]);
+				for (int row = col + 1; row < freeCount; ++row) {
+					const double factor = gram[row][col] / gram[col][col];
+					for (int j = col; j <= freeCount; ++j) gram[row][j] -= factor * gram[col][j];
+				}
+			}
+			for (int row = freeCount - 1; row >= 0; --row) {
+				double value = gram[row][freeCount];
+				for (int j = row + 1; j < freeCount; ++j) value -= gram[row][j] * coefficients[j];
+				coefficients[row] = value / gram[row][row];
+				if (!std::isfinite(coefficients[row])) return;
+			}
+			double projectedScore = 0, pinnedScore = 0, lambda[4]{};
+			for (int i = 0; i < size; ++i) {
+				projected[i] = particular[i];
+				for (int axis = 0; axis < freeCount; ++axis) projected[i] += basis[axis][i] * coefficients[axis];
+				if (!std::isfinite(projected[i]) || projected[i] < 0 ||
+					projected[i] > std::numeric_limits<float>::max()) return;
+				lambda[indices[i]] = projected[i];
+				projectedScore += (projected[i] - old[indices[i]]) * (projected[i] - old[indices[i]]);
+				pinnedScore += (x[i] - old[indices[i]]) * (x[i] - old[indices[i]]);
+			}
+			if (!(projectedScore < pinnedScore)) return;
+			for (int i = 0; i < count; ++i) {
+				double value = -rhs[i];
+				for (int j = 0; j < count; ++j) value += K[i][j] * lambda[j];
+				if (!std::isfinite(value) || value < -tolerance ||
+					(lambda[i] > 0 && std::abs(value) > tolerance)) return;
+			}
+			for (int i = 0; i < size; ++i) x[i] = projected[i];
+		}
+
 		bool SolveNormalBlock(ConstraintPenetration *contacts, int count)
 		{
 			if (count < 2 || count > 4)
@@ -406,6 +509,8 @@ namespace GEngine
 						b -= matrix[row][j] * x[j];
 					x[col] = b / matrix[row][col];
 				}
+				if (rank > 0 && rank < size)
+					PreferClosestNormalFamily(matrix, pivotColumns, rank, size, indices, K, rhs, old, count, tolerance, x);
 				double lambda[4]{}, score = 0;
 				for (int i = 0; i < size; ++i)
 				{
@@ -496,6 +601,11 @@ namespace GEngine
 
 	void ManifoldCollector::AddContacts(const contact_t* contacts, int count)
 	{
+		AddContacts(contacts, count, false);
+	}
+
+	void ManifoldCollector::AddContacts(const contact_t* contacts, int count, bool refreshCandidates)
+	{
 		if (!contacts || count < 1 || count > 4) return;
 		const auto& first = contacts[0];
 		for (int i = 0; i < count; ++i) {
@@ -521,7 +631,25 @@ namespace GEngine
             PhysicsDiagnostic::Mark(PhysicsDiagnostic::Operation::PairBegin,first.m_BodyA,first.m_BodyB);
 		}
 		if (count == 1) found->AddContact(first);
-		else found->RefreshContacts(contacts, count);
+		else found->RefreshContacts(contacts, count, refreshCandidates);
+	}
+
+	bool ManifoldCollector::RefreshContactPatch(RigidBody3D* a, RigidBody3D* b,
+		const contact_t* contacts, int count)
+	{
+		bool valid = a && b && a != b && contacts && count >= 2 && count <= 4;
+		for (int i = 0; valid && i < count; ++i) {
+			const auto& contact = contacts[i];
+			valid = ValidContact(contact) &&
+				((contact.m_BodyA == a && contact.m_BodyB == b) ||
+				 (contact.m_BodyA == b && contact.m_BodyB == a));
+		}
+		if (!valid) {
+			RemoveExpiredForPair(a, b);
+			return false;
+		}
+		AddContacts(contacts, count, true);
+		return true;
 	}
 
 	void ManifoldCollector::PreSolve(const float dt_sec)
@@ -555,14 +683,68 @@ namespace GEngine
 
 	void ManifoldCollector::RemoveExpired()
 	{
+		RemoveExpired(false);
+	}
+
+	bool ManifoldCollector::PrepareContactRefresh()
+	{
+		return RemoveExpired(true);
+	}
+
+	bool ManifoldCollector::RemoveExpired(bool keepContinuingCandidates)
+	{
 		// Remove expired manifolds
+		bool candidates = false;
 		for (auto it = m_Manifolds.end(); it != m_Manifolds.begin();) {
 			--it;
 			Manifold& manifold = *it;
-			manifold.RemoveExpiredContacts();
+			candidates |= manifold.RemoveExpiredContacts(keepContinuingCandidates);
 
 			if (0 == manifold.m_NumContacts) {
                 PhysicsDiagnostic::Mark(PhysicsDiagnostic::Operation::PairEnd,manifold.m_BodyA,manifold.m_BodyB,-1,-1,2);
+				it = m_Manifolds.erase(it);
+			}
+		}
+		return candidates;
+	}
+
+	void ManifoldCollector::RemoveExpiredForPair(const RigidBody3D* a, const RigidBody3D* b)
+	{
+		for (auto it = m_Manifolds.end(); it != m_Manifolds.begin();) {
+			--it;
+			if (!((it->m_BodyA == a && it->m_BodyB == b) ||
+				(it->m_BodyA == b && it->m_BodyB == a))) continue;
+			it->RemoveExpiredContacts();
+			if (it->m_NumContacts == 0) {
+				PhysicsDiagnostic::Mark(PhysicsDiagnostic::Operation::PairEnd,it->m_BodyA,it->m_BodyB,-1,-1,2);
+				it = m_Manifolds.erase(it);
+			}
+		}
+	}
+
+	void ManifoldCollector::RemoveExpiredOutsidePairs(std::span<const collisionPair_t> pairs,
+		std::span<RigidBody3D* const> bodies)
+	{
+		for (auto it = m_Manifolds.end(); it != m_Manifolds.begin();) {
+			--it;
+			bool candidate = false;
+			for (int point = 0; point < it->m_NumContacts; ++point)
+				candidate |= it->m_Contacts[point].separationDistance > 0.0f;
+			if (!candidate) continue;
+			bool found = false;
+			for (const auto& pair : pairs) {
+				if (pair.a < 0 || pair.b < 0 || pair.a == pair.b ||
+					static_cast<std::size_t>(pair.a) >= bodies.size() ||
+					static_cast<std::size_t>(pair.b) >= bodies.size()) continue;
+				const auto* a = bodies[pair.a];
+				const auto* b = bodies[pair.b];
+				if (a && b && ((it->m_BodyA == a && it->m_BodyB == b) ||
+					(it->m_BodyA == b && it->m_BodyB == a))) { found = true; break; }
+			}
+			if (found) continue;
+			it->RemoveExpiredContacts();
+			if (it->m_NumContacts == 0) {
+				PhysicsDiagnostic::Mark(PhysicsDiagnostic::Operation::PairEnd,it->m_BodyA,it->m_BodyB,-1,-1,2);
 				it = m_Manifolds.erase(it);
 			}
 		}

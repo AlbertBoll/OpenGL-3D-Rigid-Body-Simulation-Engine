@@ -30,7 +30,7 @@ int main(int argc, char* args[])
 {
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
     // Select exactly one RBS scene here; bootstrap supplies all launch settings.
-    constexpr auto scenePreset = Rbs::RbsScenePreset::SphereLattice;
+    constexpr auto scenePreset = Rbs::RbsScenePreset::SphereDiamond;
     Rbs::LaunchConfig settings;
     settings.scene = scenePreset;
     if (argc>1 && args && args[1] && std::string_view(args[1])=="--targeted-entity-diagnostic")

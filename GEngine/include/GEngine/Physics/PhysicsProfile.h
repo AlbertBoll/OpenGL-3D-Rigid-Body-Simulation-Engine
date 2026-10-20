@@ -5,6 +5,8 @@
 #include <chrono>
 #include <span>
 #include "PhysicsBody.h"
+#include "GJK.h"
+#include "Contact.h"
 
 namespace GEngine { class PhysicsWorld; class ManifoldCollector; struct ContactIsland; }
 
@@ -74,6 +76,126 @@ namespace GEngine::PhysicsDiagnostic
         return a.position==b.position && a.linear==b.linear && a.angular==b.angular &&
             a.orientation==b.orientation && a.inactive==b.inactive && a.sleeping==b.sleeping;
     }
+    // P20_QUERY_OBSERVATION_BEGIN
+    // Separate value-only query evidence. No sink is installed by normal consumers;
+    // the caller never consumes these fields to decide a Physics result.
+    enum class QueryKind { Begin, ContactSearch, ClosestPoints, Result, SpeedTerms, Speed, Time, Exit };
+    enum class QueryExit { None, Contact, IterationLimit, InvalidOrNonclosingSpeed,
+        InvalidTime, TimeBeyondRemaining, IntervalExhausted,
+        ContactSearchFailed, ClosestDistanceFailed, InvalidDistance, NoProgress };
+    struct CaContractObservation
+    {
+        int queryOutcome{-1};
+        QueryExit queryReason{}, exit{};
+        GjkDiagnostics diagnostics{};
+        unsigned queries{}, advances{};
+        float remaining{}, toi{};
+        contact_t contact{};
+        BodyState predictedA{}, predictedB{};
+    };
+    CaContractObservation EvaluateCaContract(unsigned scenario,
+        RigidBody3D* seedA, RigidBody3D* seedB);
+    struct ProjectionPrimitiveObservation
+    {
+        EpaTermination termination{EpaTermination::NotRun};
+        int selectedFace{-1};
+        Vec3f normal{}, lambdas{}, projectedPoint{}, expectedProjection{}, witnessA{}, witnessB{};
+        float originDistance{}, lambdaSum{}, projectionErrorSquared{}, projectionScaleSquared{};
+        float penetrationDistance{};
+        std::uint32_t failedPredicates{};
+    };
+    ProjectionPrimitiveObservation EvaluateProjectionPrimitive(unsigned scenario);
+    struct QueryEvent
+    {
+        QueryKind kind{};
+        QueryExit exit{};
+        unsigned iteration{};
+        int contactStatus{-1};
+        GjkDiagnostics diagnostics{};
+        BodyState a{}, b{};
+        contact_t contact{};
+        Vec3f witnessA{}, witnessB{}, direction{}, relativeVelocity{};
+        float remaining{}, toi{}, projectedSpeed{}, angularA{}, angularB{}, speed{}, timeToGo{};
+        bool hit{};
+    };
+    // P20_EPA_OBSERVATION_BEGIN
+    // Ephemeral final-projection operands. Spans are borrowed for one synchronous
+    // callback only; the fixture owns any bounded persistent copy.
+    inline constexpr std::size_t EpaCaptureMaxPoints = 68;
+    inline constexpr std::size_t EpaCaptureMaxFaces = 256;
+    struct EpaPoint { Vec3f xyz{}, ptA{}, ptB{}; };
+    struct EpaFace { int a{}, b{}, c{}; };
+    struct EpaProjectionEvent
+    {
+        unsigned iteration{}, epaIterations{};
+        std::size_t pointCount{}, faceCount{};
+        int selectedFace{-1};
+        bool overflow{};
+        std::span<const EpaPoint> points{};
+        std::span<const EpaFace> faces{};
+        EpaTermination convergenceReason{EpaTermination::NotRun};
+        float bias{}, originDistance{}, lambdaSum{};
+        float projectionErrorSquared{}, projectionScaleSquared{};
+        Vec3f normal{}, lambdas{}, projectedPoint{}, expectedProjection{};
+        // Bits 0..7: nonfinite weights, nonfinite sum, sum error, negative
+        // X/Y/Z weight, nonfinite residual, residual exceeds existing bound.
+        std::uint32_t failedPredicates{};
+        EpaPoint lastSupport{};
+        Vec3f lastSupportNormal{};
+        float lastOriginDistance{}, lastExpansionDistance{}, lastConvergenceTolerance{};
+        int lastSelectedFace{-1};
+    };
+    enum class BarycentricExit { Weights, NormalFallback, AreaFallback, NonfiniteWeightsFallback };
+    struct BarycentricEvent
+    {
+        unsigned iteration{};
+        BarycentricExit exit{BarycentricExit::Weights};
+        // Bits 0..4 identify operands actually computed by the original path:
+        // normal squared, projected origin, dominant area, subareas, raw weights.
+        std::uint32_t validFields{};
+        float normalLengthSquared{}, dominantArea{};
+        int dominantAxis{-1};
+        Vec3f projectedOrigin{}, subareas{}, rawWeights{}, returnedWeights{};
+    };
+    // P20_EPA_OBSERVATION_END
+    struct QueryObserver
+    {
+        void* context{};
+        void (*event)(void*,const QueryEvent&) noexcept{};
+        unsigned iteration{};
+        std::uint64_t observationNs{};
+        // P20_EPA_OBSERVATION_BEGIN
+        void (*epaProjection)(void*, const EpaProjectionEvent&) noexcept{};
+        void (*barycentric)(void*, const BarycentricEvent&) noexcept{};
+        // P20_EPA_OBSERVATION_END
+    };
+    inline thread_local QueryObserver* queryObserver{};
+    inline void QueryIteration(unsigned iteration) noexcept
+    { if (queryObserver) queryObserver->iteration=iteration; }
+    template<class Fill> inline void QueryRecord(Fill&& fill) noexcept
+    {
+        if (!queryObserver || !queryObserver->event) return;
+        auto* sink=queryObserver;
+        const auto start=Nanoseconds();
+        QueryEvent value{}; value.iteration=sink->iteration;
+        fill(value);
+        sink->event(sink->context,value);
+        sink->observationNs+=Nanoseconds()-start;
+    }
+    // P20_EPA_OBSERVATION_BEGIN
+    template<class Fill> inline void BarycentricRecord(Fill&& fill) noexcept
+    {
+        if (!queryObserver || !queryObserver->barycentric) return;
+        auto* sink = queryObserver;
+        const auto start = Nanoseconds();
+        BarycentricEvent value{};
+        value.iteration = sink->iteration;
+        fill(value);
+        sink->barycentric(sink->context, value);
+        sink->observationNs += Nanoseconds() - start;
+    }
+    // P20_EPA_OBSERVATION_END
+    // P20_QUERY_OBSERVATION_END
     class Observation
     {
         Observer* m_Observer{};

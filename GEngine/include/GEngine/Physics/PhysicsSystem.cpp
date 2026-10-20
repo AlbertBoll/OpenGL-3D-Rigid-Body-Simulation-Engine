@@ -8,6 +8,9 @@
 #include "Broadphase.h"
 #include "GJK.h"
 #include "PhysicsProfile.h"
+#ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
+#include "../../../../RigidBodySimulation/tests/CoupledCollisionObservation.h"
+#endif
 #include <Core/Timer.h>
 #include <cmath>
 #include <limits>
@@ -290,14 +293,60 @@ namespace GEngine
 	// path separate from the public resolver's legacy zero-TOI position projection.
 	static void ResolveContactAtCurrentState(contact_t& contact, bool projectPosition);
 
-	static bool QueryCurrentToiContact(RigidBody3D* bodyA, RigidBody3D* bodyB, contact_t& contact)
+	// Private classification remains available to the Physics caller even when the
+	// optional diagnostic observer is disconnected. Public Collision APIs stay bool.
+	enum class QueryOutcome { Contact, SeparatedValid, Failed };
+	struct QueryResult
+	{
+		QueryOutcome outcome{ QueryOutcome::Failed };
+		PhysicsDiagnostic::QueryExit reason{ PhysicsDiagnostic::QueryExit::None };
+		GjkDiagnostics diagnostics{};
+		bool HasContact() const { return outcome == QueryOutcome::Contact; }
+	};
+	static QueryResult QueryInstantContact(RigidBody3D* bodyA, RigidBody3D* bodyB, contact_t& contact);
+	static QueryResult QueryPredictedContact(RigidBody3D* bodyA, RigidBody3D* bodyB, float dt, contact_t& contact);
+
+	// Keep patch scratch on the admission branch, outside every query call lifetime.
+	static __declspec(noinline) void AdmitRestingContact(ManifoldCollector& manifolds,
+		RigidBody3D* bodyA, RigidBody3D* bodyB, const contact_t& contact, bool refreshCandidates
+#ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
+		, const PhysicsDiagnostic::Coupled::Event& coupledPairResult
+#endif
+	)
+	{
+		std::array<contact_t, 4> faceContacts{};
+		const int faceContactCount = BuildBoxFaceContacts(contact, faceContacts);
+		if (faceContactCount > 0) {
+			if (refreshCandidates && faceContactCount == 1)
+				manifolds.RemoveExpiredForPair(bodyA, bodyB);
+#ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
+            PhysicsDiagnostic::Coupled::Admit(coupledPairResult,contact,faceContacts.data(),
+                static_cast<unsigned>(faceContactCount),PhysicsDiagnostic::Coupled::AdmissionKind::RestingPatch);
+#endif
+			if (refreshCandidates && faceContactCount > 1)
+				manifolds.RefreshContactPatch(bodyA, bodyB, faceContacts.data(), faceContactCount);
+			else manifolds.AddContacts(faceContacts.data(), faceContactCount);
+			GE_PHYSICS_PROFILE_ADD(generatedContactCount, faceContactCount - 1);
+		}
+		else {
+			if (refreshCandidates) manifolds.RemoveExpiredForPair(bodyA, bodyB);
+#ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
+            PhysicsDiagnostic::Coupled::Admit(coupledPairResult,contact,&contact,1,
+                PhysicsDiagnostic::Coupled::AdmissionKind::RestingSingle);
+#endif
+			manifolds.AddContact(contact);
+		}
+	}
+
+	static QueryResult QueryCurrentToiContact(RigidBody3D* bodyA, RigidBody3D* bodyB, contact_t& contact)
 	{
 		if (bodyA->m_Shape->GetShapeType() == ShapeType::Sphere && bodyB->m_Shape->GetShapeType() == ShapeType::Sphere)
 		{
 			// Reuse the existing short-ray contact tolerance at the actual impact pose.
-			return Collision::SphereSphereIntersect(bodyA, bodyB, 0.0f, contact);
+			return { Collision::SphereSphereIntersect(bodyA, bodyB, 0.0f, contact)
+				? QueryOutcome::Contact : QueryOutcome::SeparatedValid };
 		}
-		return Collision::Intersect(bodyA, bodyB, contact);
+		return QueryInstantContact(bodyA, bodyB, contact);
 	}
 
 	static bool RaySphere(const Vec3f& rayStart, const Vec3f& rayDir, const Vec3f& sphereCenter, const float sphereRadius, float& t1, float& t2) {
@@ -514,10 +563,14 @@ namespace GEngine
 			m_LastSleepGravity = gravity;
 			m_HasSleepGravity = true;
 		}
+		// The finite-step/first-gravity guards above run before any candidate
+		// lifetime begins. Paused, reverse and null-world paths remain strict.
+		bool refreshCandidates = false;
 		{
 			GE_PHYSICS_PROFILE_SCOPE(manifoldTimeNs);
 			//Timeit("	m_Manifolds-RemoveExpired")
-			m_Manifolds.RemoveExpired();
+			if (m_PhysicsWorld && dtSeconds > 0.0f) refreshCandidates = m_Manifolds.PrepareContactRefresh();
+			else m_Manifolds.RemoveExpired();
 		}
 
 		if (m_PhysicsWorld)
@@ -528,6 +581,10 @@ namespace GEngine
 			GENGINE_CORE_ASSERT(Math::IsFinite(gravity), "Physics gravity must be finite");
 			if (!Math::IsFinite(gravity))
 			{
+				if (refreshCandidates) {
+					GE_PHYSICS_PROFILE_SCOPE(manifoldTimeNs);
+					m_Manifolds.RemoveExpired();
+				}
 				return;
 			}
 			SleepPathTimer flagsTimer(m_SleepTimings.stepFlagsNs);
@@ -579,6 +636,16 @@ namespace GEngine
 			GE_PHYSICS_PROFILE_ADD(broadphaseMaskRejectedCount, broadphaseStats.maskRejectedCount);
 			GE_PHYSICS_PROFILE_ADD(broadphaseInsertionSortSwapCount, broadphaseStats.insertionSortSwapCount);
 			GE_PHYSICS_PROFILE_ADD(broadphaseFullSortCount, broadphaseStats.fullSortCount);
+			if (refreshCandidates) {
+				GE_PHYSICS_PROFILE_SCOPE(manifoldTimeNs);
+				m_Manifolds.RemoveExpiredOutsidePairs(m_CollisionPairs, PhysicsBodies);
+			}
+			const auto expirePair = [&](const RigidBody3D* a, const RigidBody3D* b) {
+				if (refreshCandidates) {
+					GE_PHYSICS_PROFILE_SCOPE(manifoldTimeNs);
+					m_Manifolds.RemoveExpiredForPair(a, b);
+				}
+			};
 
 			//
 			//	NarrowPhase (perform actual collision detection)
@@ -624,6 +691,7 @@ namespace GEngine
 				if (!bodyA || !bodyB || !bodyA->m_Shape || !bodyB->m_Shape ||
 					!bodyA->m_Shape->IsValid() || !bodyB->m_Shape->IsValid())
 				{
+					expirePair(bodyA, bodyB);
 					continue;
 				}
 
@@ -640,30 +708,54 @@ namespace GEngine
 				if (skipStaticPair || skipMaskedPair)
 				{
 					GE_PHYSICS_PROFILE_ADD(pairFilterRejectedCount, 1);
+					expirePair(bodyA, bodyB);
 					continue;
 				}
 
 				// Keep every proxy in SAP so active/edited bodies can still discover sleepers.
 				if (m_SleepingEnabled && dtSeconds > 0.0f && inactiveEndpoint(bodyA) && inactiveEndpoint(bodyB) &&
-					(bodyA->IsSleeping() || bodyB->IsSleeping())) continue;
+					(bodyA->IsSleeping() || bodyB->IsSleeping())) {
+					expirePair(bodyA, bodyB);
+					continue;
+				}
 				contact_t contact{};
 
 				GE_PHYSICS_PROFILE_ADD(narrowphaseCallCount, 1);
 				GE_PHYSICS_PROFILE_SCOPE_NAMED(narrowphaseTimer, narrowphaseTimeNs);
-				bool didIntersect = Intersect(bodyA, bodyB, (float)ts, contact);
+#ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
+                PhysicsDiagnostic::Coupled::QueryScope coupledInitialQuery(
+                    PhysicsDiagnostic::Coupled::Role::InitialPrediction,bodyA,bodyB,(float)ts,0.0f);
+#endif
+				QueryResult pairQuery = QueryPredictedContact(bodyA, bodyB, (float)ts, contact);
+#ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
+                auto coupledPairResult=coupledInitialQuery.Finish(static_cast<int>(pairQuery.outcome),
+                    pairQuery.reason,pairQuery.diagnostics,contact);
+#endif
+				bool didIntersect = pairQuery.HasContact();
 				if (didIntersect && IsFiniteContact(contact) && dtSeconds > 0.0f) {
 					const bool wokeA = wakeSleeping(bodyA), wokeB = wakeSleeping(bodyB);
 					if (wokeA || wokeB) {
 						GE_PHYSICS_PROFILE_ADD(narrowphaseCallCount, 1);
-						didIntersect = Intersect(bodyA, bodyB, dtSeconds, contact);
+#ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
+                        PhysicsDiagnostic::Coupled::QueryScope coupledWakeQuery(
+                            PhysicsDiagnostic::Coupled::Role::WakeRequery,bodyA,bodyB,dtSeconds,0.0f);
+#endif
+						pairQuery = QueryPredictedContact(bodyA, bodyB, dtSeconds, contact);
+#ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
+                        coupledPairResult=coupledWakeQuery.Finish(static_cast<int>(pairQuery.outcome),
+                            pairQuery.reason,pairQuery.diagnostics,contact);
+#endif
+						didIntersect = pairQuery.HasContact();
 					}
 				}
 				GE_PHYSICS_PROFILE_STOP(narrowphaseTimer);
+				if (!didIntersect) expirePair(bodyA, bodyB);
 				if(didIntersect)
 				{
 					GENGINE_CORE_ASSERT(IsFiniteContact(contact), "Generated physics contact must be finite");
 					if (!IsFiniteContact(contact))
 					{
+						expirePair(bodyA, bodyB);
 						continue;
 					}
 					GE_PHYSICS_PROFILE_ADD(generatedContactCount, 1);
@@ -673,22 +765,23 @@ namespace GEngine
 						
 						{
 							GE_PHYSICS_PROFILE_SCOPE(manifoldTimeNs);
-							std::array<contact_t, 4> faceContacts{};
-							const int faceContactCount = BuildBoxFaceContacts(contact, faceContacts);
-							if (faceContactCount > 0) {
-								m_Manifolds.AddContacts(faceContacts.data(), faceContactCount);
-								GE_PHYSICS_PROFILE_ADD(generatedContactCount, faceContactCount - 1);
-							}
-							else {
-								m_Manifolds.AddContact(contact);
-							}
+							AdmitRestingContact(m_Manifolds, bodyA, bodyB, contact, refreshCandidates
+#ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
+								, coupledPairResult
+#endif
+							);
 						}
 						
 					}
 					else
 					{
+						expirePair(bodyA, bodyB);
 						//std::cout << "Collision occurred" << std::endl;
 						GENGINE_INFO("Collision occurred");
+#ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
+                        PhysicsDiagnostic::Coupled::Admit(coupledPairResult,contact,&contact,1,
+                            PhysicsDiagnostic::Coupled::AdmissionKind::ToiQueued);
+#endif
 						m_Contacts.push_back(contact);
 						//
 					}
@@ -752,9 +845,19 @@ namespace GEngine
 				const float remaining = dtSeconds - accumulatedTime;
 				GE_PHYSICS_PROFILE_ADD(narrowphaseCallCount, 1);
 				GE_PHYSICS_PROFILE_SCOPE(narrowphaseTimeNs);
-				const bool hit = remaining > 0.0f
-					? Intersect(pending.m_BodyA, pending.m_BodyB, remaining, current)
+#ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
+                PhysicsDiagnostic::Coupled::QueryScope coupledPendingQuery(
+                    PhysicsDiagnostic::Coupled::Role::PendingRefresh,pending.m_BodyA,pending.m_BodyB,
+                    remaining,accumulatedTime);
+#endif
+				const QueryResult pendingQuery = remaining > 0.0f
+					? QueryPredictedContact(pending.m_BodyA, pending.m_BodyB, remaining, current)
 					: QueryCurrentToiContact(pending.m_BodyA, pending.m_BodyB, current);
+#ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
+                coupledPendingQuery.Finish(static_cast<int>(pendingQuery.outcome),
+                    pendingQuery.reason,pendingQuery.diagnostics,current);
+#endif
+				const bool hit = pendingQuery.HasContact();
 				if (hit && IsFiniteContact(current) && current.timeOfImpact >= 0.0f && current.timeOfImpact <= remaining)
 				{
 					pending = current;
@@ -801,13 +904,22 @@ namespace GEngine
 				// failed/non-finite queries cannot supply an impulse. The resolver rejects
 				// non-closing contact velocity using these current anchors and normal.
 				contact_t current{};
-				bool hit = false;
+				QueryResult currentQuery;
 				{
 					GE_PHYSICS_PROFILE_ADD(narrowphaseCallCount, 1);
 					GE_PHYSICS_PROFILE_SCOPE(narrowphaseTimeNs);
-					hit = QueryCurrentToiContact(event.m_BodyA, event.m_BodyB, current);
+#ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
+                    PhysicsDiagnostic::Coupled::QueryScope coupledCurrentQuery(
+                        PhysicsDiagnostic::Coupled::Role::CurrentToi,event.m_BodyA,event.m_BodyB,
+                        0.0f,accumulatedTime);
+#endif
+					currentQuery = QueryCurrentToiContact(event.m_BodyA, event.m_BodyB, current);
+#ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
+                    coupledCurrentQuery.Finish(static_cast<int>(currentQuery.outcome),
+                        currentQuery.reason,currentQuery.diagnostics,current);
+#endif
 				}
-				if (hit && IsFiniteContact(current))
+				if (currentQuery.HasContact() && IsFiniteContact(current))
 				{
 					current.timeOfImpact = accumulatedTime;
 					GE_PHYSICS_PROFILE_SCOPE(contactResolutionTimeNs);
@@ -1093,13 +1205,91 @@ namespace GEngine
 		return false;
 	}
 
-	// Internal narrow-phase evaluation accepts only query-local bodies.
-	static bool IntersectAtQueryState(RigidBody3D* bodyA, RigidBody3D* bodyB, contact_t& contact)
+	static QueryResult ClassifyContactQuery(GjkContactStatus status, const GjkDiagnostics& diagnostics)
 	{
-		contact.featureA = contact.featureB = 0; // This query emits an unfeatured witness.
+		if (status == GjkContactStatus::Contact)
+			return { QueryOutcome::Contact, PhysicsDiagnostic::QueryExit::None, diagnostics };
+		if (status == GjkContactStatus::Failed)
+			return { QueryOutcome::Failed, PhysicsDiagnostic::QueryExit::ContactSearchFailed, diagnostics };
+		// Provisional separation is completed by the fresh closest-distance query
+		// before it can leave IntersectAtQueryState.
+		return { QueryOutcome::SeparatedValid, PhysicsDiagnostic::QueryExit::None, diagnostics };
+	}
+
+	static QueryResult ClassifyClosestQuery(const GjkDiagnostics& diagnostics,
+		const Vec3f& ptOnA, const Vec3f& ptOnB, float separation)
+	{
+		if (diagnostics.termination == GjkTermination::OriginReached)
+			return { QueryOutcome::Failed, PhysicsDiagnostic::QueryExit::NoProgress, diagnostics };
+		if (diagnostics.termination != GjkTermination::DuplicateSupport &&
+			diagnostics.termination != GjkTermination::NoProgress)
+			return { QueryOutcome::Failed, PhysicsDiagnostic::QueryExit::ClosestDistanceFailed, diagnostics };
+		if (!Math::IsFinite(ptOnA) || !Math::IsFinite(ptOnB) || !Math::IsFinite(separation) || separation < 0.0f)
+			return { QueryOutcome::Failed, PhysicsDiagnostic::QueryExit::InvalidDistance, diagnostics };
+		if (separation == 0.0f)
+			return { QueryOutcome::Failed, PhysicsDiagnostic::QueryExit::NoProgress, diagnostics };
+		return { QueryOutcome::SeparatedValid, PhysicsDiagnostic::QueryExit::None, diagnostics };
+	}
+
+	// A non-contact result never exposes an earlier query's contact payload.
+	// Preserve the caller's labelled bodies while clearing every value field.
+	static void ClearQueryContact(contact_t& contact)
+	{
+		contact.ptOnA_WorldSpace = contact.ptOnB_WorldSpace = Vec3f(0.0f);
+		contact.ptOnA_LocalSpace = contact.ptOnB_LocalSpace = Vec3f(0.0f);
+		contact.normal = Vec3f(0.0f);
+		contact.separationDistance = contact.timeOfImpact = 0.0f;
+		contact.featureA = contact.featureB = 0;
+	}
+
+	static PhysicsDiagnostic::QueryExit CaQueryDecision(const QueryResult& query, contact_t& contact)
+	{
+		if (query.HasContact()) return PhysicsDiagnostic::QueryExit::Contact;
+		if (query.outcome == QueryOutcome::Failed) {
+			ClearQueryContact(contact);
+			return query.reason == PhysicsDiagnostic::QueryExit::None
+				? PhysicsDiagnostic::QueryExit::InvalidDistance : query.reason;
+		}
+		return PhysicsDiagnostic::QueryExit::None;
+	}
+	static bool HasCaInterval(float dt) { return dt > 0.0f; }
+
+	static PhysicsDiagnostic::QueryExit CaIntervalDecision(float dt, contact_t& contact)
+	{
+		if (!Math::IsFinite(dt) || dt < 0.0f) {
+			ClearQueryContact(contact);
+			return PhysicsDiagnostic::QueryExit::InvalidTime;
+		}
+		if (!HasCaInterval(dt)) {
+			ClearQueryContact(contact);
+			return PhysicsDiagnostic::QueryExit::IntervalExhausted;
+		}
+		return PhysicsDiagnostic::QueryExit::None;
+	}
+
+	static QueryResult CompleteClosestQuery(RigidBody3D* bodyA, RigidBody3D* bodyB,
+		const GjkDiagnostics& diagnostics, const Vec3f& ptOnA, const Vec3f& ptOnB, contact_t& contact)
+	{
+		const float r = glm::length(ptOnA - ptOnB);
+		const QueryResult query = ClassifyClosestQuery(diagnostics, ptOnA, ptOnB, r);
+		if (query.outcome == QueryOutcome::Failed) {
+			ClearQueryContact(contact);
+			return query;
+		}
+		contact.ptOnA_WorldSpace = ptOnA;
+		contact.ptOnB_WorldSpace = ptOnB;
+		contact.ptOnA_LocalSpace = bodyA->WorldSpaceToBodySpace(contact.ptOnA_WorldSpace);
+		contact.ptOnB_LocalSpace = bodyB->WorldSpaceToBodySpace(contact.ptOnB_WorldSpace);
+		contact.separationDistance = r;
+		return query;
+	}
+
+	// Internal narrow-phase evaluation accepts only query-local bodies.
+	static QueryResult IntersectAtQueryState(RigidBody3D* bodyA, RigidBody3D* bodyB, contact_t& contact)
+	{
+		ClearQueryContact(contact);
 		contact.m_BodyA = bodyA;
 		contact.m_BodyB = bodyB;
-		contact.timeOfImpact = 0.0f;
 
 		if (bodyA->m_Shape->GetShapeType() == ShapeType::Sphere && bodyB->m_Shape->GetShapeType() == ShapeType::Sphere)
 		{
@@ -1118,7 +1308,7 @@ namespace GEngine
 				Vec3f ab = bodyB->m_Position - bodyA->m_Position;
 				float r = glm::length(ab) - (sphereA->GetRadius() + sphereB->GetRadius());
 				contact.separationDistance = r;
-				return true;
+				return { QueryOutcome::Contact };
 			}
 		}
 		else 
@@ -1127,7 +1317,18 @@ namespace GEngine
 			Vec3f ptOnA;
 			Vec3f ptOnB;
 			const float bias = 0.001f;
-			const GjkContactStatus gjkStatus = GJK_GetContact(bodyA, bodyB, bias, ptOnA, ptOnB);
+			GjkDiagnostics queryContactDiagnostics;
+			const GjkContactStatus gjkStatus = GJK_GetContact(bodyA, bodyB, bias, ptOnA, ptOnB,
+				&queryContactDiagnostics);
+			const QueryResult contactQuery = ClassifyContactQuery(gjkStatus, queryContactDiagnostics);
+			// P20_QUERY_OBSERVATION_BEGIN
+			PhysicsDiagnostic::QueryRecord([&](auto& q) {
+				q.kind=PhysicsDiagnostic::QueryKind::ContactSearch;
+				q.contactStatus=static_cast<int>(gjkStatus); q.diagnostics=queryContactDiagnostics;
+				q.a=PhysicsDiagnostic::Capture(*bodyA); q.b=PhysicsDiagnostic::Capture(*bodyB);
+				q.witnessA=ptOnA; q.witnessB=ptOnB; q.contact=contact;
+			});
+			// P20_QUERY_OBSERVATION_END
 			if (gjkStatus == GjkContactStatus::Contact)
 			{
 				//std::cout << "GJK_DoesIntersect" << std::endl;
@@ -1150,40 +1351,48 @@ namespace GEngine
 				Vec3f ab = bodyB->m_Position - bodyA->m_Position;
 				float r = glm::length(ptOnA - ptOnB);
 				contact.separationDistance = -r;
-				return true;
+				return contactQuery;
 			}
 			if (gjkStatus == GjkContactStatus::Failed)
 			{
-				return false;
+				return contactQuery;
 			}
 
 			// There was no collision, but we still want the contact data, so get it
-			GJK_ClosestPoints(bodyA, bodyB, ptOnA, ptOnB);
-			contact.ptOnA_WorldSpace = ptOnA;
-			contact.ptOnB_WorldSpace = ptOnB;
-
-			contact.ptOnA_LocalSpace = bodyA->WorldSpaceToBodySpace(contact.ptOnA_WorldSpace);
-			contact.ptOnB_LocalSpace = bodyB->WorldSpaceToBodySpace(contact.ptOnB_WorldSpace);
-
-			Vec3f ab = bodyB->m_Position - bodyA->m_Position;
-			float r = glm::length(ptOnA - ptOnB);
-			contact.separationDistance = r;
+			GjkDiagnostics queryClosestDiagnostics;
+			GJK_ClosestPoints(bodyA, bodyB, ptOnA, ptOnB,
+				&queryClosestDiagnostics);
+			// P20_QUERY_OBSERVATION_BEGIN
+			PhysicsDiagnostic::QueryRecord([&](auto& q) {
+				q.kind=PhysicsDiagnostic::QueryKind::ClosestPoints; q.diagnostics=queryClosestDiagnostics;
+				q.a=PhysicsDiagnostic::Capture(*bodyA); q.b=PhysicsDiagnostic::Capture(*bodyB);
+				q.witnessA=ptOnA; q.witnessB=ptOnB;
+			});
+			// P20_QUERY_OBSERVATION_END
+			// Producer diagnostics certify this fresh distance independently of observation.
+			return CompleteClosestQuery(bodyA, bodyB, queryClosestDiagnostics, ptOnA, ptOnB, contact);
 		}
 
-		return false;
+		// The existing static sphere miss supplies no fresh distance to CA.
+		return { QueryOutcome::Failed, PhysicsDiagnostic::QueryExit::InvalidDistance };
 
 	}
 
 
-	bool Collision::Intersect(RigidBody3D* bodyA, RigidBody3D* bodyB, contact_t& contact)
+	static QueryResult QueryInstantContact(RigidBody3D* bodyA, RigidBody3D* bodyB, contact_t& contact)
 	{
 		// Even a zero-time query can populate lazy caches; keep those writes local too.
 		RigidBody3D predictedA = *bodyA;
 		RigidBody3D predictedB = *bodyB;
-		const bool hit = IntersectAtQueryState(&predictedA, &predictedB, contact);
+		const QueryResult result = IntersectAtQueryState(&predictedA, &predictedB, contact);
 		contact.m_BodyA = bodyA;
 		contact.m_BodyB = bodyB;
-		return hit;
+		return result;
+	}
+
+	bool Collision::Intersect(RigidBody3D* bodyA, RigidBody3D* bodyB, contact_t& contact)
+	{
+		return QueryInstantContact(bodyA, bodyB, contact).HasContact();
 	}
 
 	static void ResolveContactAtCurrentState(contact_t& contact, bool projectPosition)
@@ -1325,11 +1534,68 @@ namespace GEngine
 		ResolveContactAtCurrentState(contact, contact.timeOfImpact == 0.0f);
 	}
 
-	bool Collision::ConservativeAdvance(RigidBody3D* bodyA, RigidBody3D* bodyB, float dt, contact_t& contact)
+	static PhysicsDiagnostic::QueryExit CaAdvanceExit(PhysicsDiagnostic::QueryExit exit,
+		contact_t& contact, float dt, float toi, float speed, float timeToGo = 0.0f)
+	{
+		ClearQueryContact(contact);
+		PhysicsDiagnostic::QueryRecord([&](auto& q) {
+			q.kind=PhysicsDiagnostic::QueryKind::Exit; q.exit=exit; q.contact=contact;
+			q.remaining=dt; q.toi=toi; q.speed=speed; q.timeToGo=timeToGo;
+		});
+		return exit;
+	}
+
+	// The production advance and bounded regressions share these guards and updates.
+	static PhysicsDiagnostic::QueryExit AdvanceCaQuery(contact_t& contact, float orthoSpeed,
+		float& dt, float& toi, RigidBody3D& predictedA, RigidBody3D& predictedB)
+	{
+		if (!Math::IsFinite(contact.separationDistance) || contact.separationDistance < 0.0f)
+			return CaAdvanceExit(PhysicsDiagnostic::QueryExit::InvalidDistance, contact, dt, toi, orthoSpeed);
+		if (contact.separationDistance == 0.0f)
+			return CaAdvanceExit(PhysicsDiagnostic::QueryExit::NoProgress, contact, dt, toi, orthoSpeed);
+		if (!Math::IsFinite(orthoSpeed) || orthoSpeed <= Math::NumericalEpsilon)
+			return CaAdvanceExit(PhysicsDiagnostic::QueryExit::InvalidOrNonclosingSpeed, contact, dt, toi, orthoSpeed);
+
+		const float timeToGo = contact.separationDistance / orthoSpeed;
+		PhysicsDiagnostic::QueryRecord([&](auto& q) {
+			q.kind=PhysicsDiagnostic::QueryKind::Time; q.contact=contact; q.speed=orthoSpeed;
+			q.remaining=dt; q.toi=toi; q.timeToGo=timeToGo;
+		});
+		if (!Math::IsFinite(timeToGo) || timeToGo < 0.0f)
+			return CaAdvanceExit(PhysicsDiagnostic::QueryExit::InvalidTime, contact, dt, toi, orthoSpeed, timeToGo);
+		if (timeToGo == 0.0f)
+			return CaAdvanceExit(PhysicsDiagnostic::QueryExit::NoProgress, contact, dt, toi, orthoSpeed, timeToGo);
+		if (timeToGo > dt)
+			return CaAdvanceExit(PhysicsDiagnostic::QueryExit::TimeBeyondRemaining, contact, dt, toi, orthoSpeed, timeToGo);
+
+		const float nextRemaining = dt - timeToGo;
+		const float nextToi = toi + timeToGo;
+		if (!Math::IsFinite(nextRemaining) || !Math::IsFinite(nextToi))
+			return CaAdvanceExit(PhysicsDiagnostic::QueryExit::InvalidTime, contact, dt, toi, orthoSpeed, timeToGo);
+		if (!(nextRemaining < dt) || !(nextToi > toi))
+			return CaAdvanceExit(PhysicsDiagnostic::QueryExit::NoProgress, contact, dt, toi, orthoSpeed, timeToGo);
+
+		dt = nextRemaining;
+		toi = nextToi;
+		predictedA.Update(timeToGo);
+		predictedB.Update(timeToGo);
+		return PhysicsDiagnostic::QueryExit::None;
+	}
+
+	static QueryResult ConservativeAdvanceQuery(RigidBody3D* bodyA, RigidBody3D* bodyB, float dt, contact_t& contact)
 	{
 		contact.featureA = contact.featureB = 0; // This query emits an unfeatured witness.
 		contact.m_BodyA = bodyA;
 		contact.m_BodyB = bodyB;
+		PhysicsDiagnostic::QueryIteration(0);
+		const auto intervalExit = CaIntervalDecision(dt, contact);
+		if (intervalExit != PhysicsDiagnostic::QueryExit::None) {
+			PhysicsDiagnostic::QueryRecord([&](auto& q) {
+				q.kind=PhysicsDiagnostic::QueryKind::Exit; q.exit=intervalExit;
+				q.contact=contact; q.remaining=dt; q.toi=0.0f;
+			});
+			return { QueryOutcome::Failed, intervalExit };
+		}
 
 		// Value copies own independent derived caches and are never registered in a world.
 		// Advance them with the existing integrator; shapes are read-only during prediction.
@@ -1338,26 +1604,55 @@ namespace GEngine
 		float toi = 0.0f;
 
 		int numIters = 0;
+		QueryResult query{ QueryOutcome::Failed, PhysicsDiagnostic::QueryExit::IntervalExhausted };
 
-		// Advance the positions of the bodies until they touch or there's not time left
-		while (dt > 0.0f) {
-			
-			// Check for intersection
-			bool didIntersect = IntersectAtQueryState(&predictedA, &predictedB, contact);
+		// Advance the positions of the bodies until they touch or there's no time left.
+		while (HasCaInterval(dt)) {
+
+			// P20_QUERY_OBSERVATION_BEGIN
+			PhysicsDiagnostic::QueryIteration(static_cast<unsigned>(numIters+1));
+			PhysicsDiagnostic::QueryRecord([&](auto& q) {
+				q.kind=PhysicsDiagnostic::QueryKind::Begin; q.remaining=dt; q.toi=toi;
+				q.a=PhysicsDiagnostic::Capture(predictedA); q.b=PhysicsDiagnostic::Capture(predictedB);
+				q.contact=contact;
+			});
+			// P20_QUERY_OBSERVATION_END
+			query = IntersectAtQueryState(&predictedA, &predictedB, contact);
 			// Never let query-local pointers escape, on either success or failure.
 			contact.m_BodyA = bodyA;
 			contact.m_BodyB = bodyB;
-			if (didIntersect) {
-				//std::cout << "Intersection" << std::endl;
+			const auto queryExit = CaQueryDecision(query, contact);
+			// This Result is the instantaneous query; Exit describes the whole CA result.
+			PhysicsDiagnostic::QueryRecord([&](auto& q) {
+				q.kind=PhysicsDiagnostic::QueryKind::Result; q.hit=query.HasContact();
+				q.exit=query.reason; q.diagnostics=query.diagnostics;
+				q.contact=contact; q.remaining=dt; q.toi=toi;
+			});
+			if (queryExit == PhysicsDiagnostic::QueryExit::Contact) {
 				contact.timeOfImpact = toi;
-				return true;
+				PhysicsDiagnostic::QueryRecord([&](auto& q) {
+					q.kind=PhysicsDiagnostic::QueryKind::Exit; q.exit=PhysicsDiagnostic::QueryExit::Contact;
+					q.hit=true; q.diagnostics=query.diagnostics; q.contact=contact; q.remaining=dt; q.toi=toi;
+				});
+				return query;
 			}
-			//std::cout << "No intersection" << std::endl;
+			if (queryExit != PhysicsDiagnostic::QueryExit::None) {
+				PhysicsDiagnostic::QueryRecord([&](auto& q) {
+					q.kind=PhysicsDiagnostic::QueryKind::Exit; q.exit=queryExit; q.diagnostics=query.diagnostics;
+					q.contact=contact; q.remaining=dt; q.toi=toi;
+				});
+				return { QueryOutcome::Failed, queryExit, query.diagnostics };
+			}
 			++numIters;
 			if (numIters > 10) {
-				break;
+				ClearQueryContact(contact);
+				PhysicsDiagnostic::QueryRecord([&](auto& q) {
+					q.kind=PhysicsDiagnostic::QueryKind::Exit; q.exit=PhysicsDiagnostic::QueryExit::IterationLimit;
+					q.diagnostics=query.diagnostics; q.contact=contact; q.remaining=dt; q.toi=toi;
+				});
+				return { QueryOutcome::Failed, PhysicsDiagnostic::QueryExit::IterationLimit, query.diagnostics };
 			}
-			
+
 			// Get the vector from the closest point on A to the closest point on B
 			Vec3f ab = Math::NormalizeOr(contact.ptOnB_WorldSpace - contact.ptOnA_WorldSpace,
 				predictedB.m_Position - predictedA.m_Position);
@@ -1374,37 +1669,132 @@ namespace GEngine
 			const Mat3& worldToB = predictedB.GetWorldToBodyRotation();
 			float angularSpeedA = predictedA.m_Shape->FastestLinearSpeed(worldToA * predictedA.GetAngularVelocity(), worldToA * ab);
 			float angularSpeedB = predictedB.m_Shape->FastestLinearSpeed(worldToB * predictedB.GetAngularVelocity(), worldToB * -ab);
+			// P20_QUERY_OBSERVATION_BEGIN
+			PhysicsDiagnostic::QueryRecord([&](auto& q) {
+				q.kind=PhysicsDiagnostic::QueryKind::SpeedTerms; q.direction=ab; q.relativeVelocity=relativeVelocity;
+				q.projectedSpeed=orthoSpeed; q.angularA=angularSpeedA; q.angularB=angularSpeedB;
+			});
+			// P20_QUERY_OBSERVATION_END
 			orthoSpeed += angularSpeedA + angularSpeedB;
-			if (!Math::IsFinite(orthoSpeed) || orthoSpeed <= Math::NumericalEpsilon) {
-				break;
+			// P20_QUERY_OBSERVATION_BEGIN
+			PhysicsDiagnostic::QueryRecord([&](auto& q) {
+				q.kind=PhysicsDiagnostic::QueryKind::Speed; q.speed=orthoSpeed;
+			});
+			// P20_QUERY_OBSERVATION_END
+			const auto advanceExit = AdvanceCaQuery(contact, orthoSpeed, dt, toi, predictedA, predictedB);
+			if (advanceExit != PhysicsDiagnostic::QueryExit::None) {
+				const bool validSeparation = advanceExit == PhysicsDiagnostic::QueryExit::TimeBeyondRemaining ||
+					(advanceExit == PhysicsDiagnostic::QueryExit::InvalidOrNonclosingSpeed && Math::IsFinite(orthoSpeed));
+				return { validSeparation ? QueryOutcome::SeparatedValid : QueryOutcome::Failed,
+					advanceExit, query.diagnostics };
 			}
-
-			float timeToGo = contact.separationDistance / orthoSpeed;
-			if (!Math::IsFinite(timeToGo) || timeToGo < 0.0f)
-			{
-				break;
-			}
-			if (timeToGo > dt) {
-				break;
-			}
-
-			dt -= timeToGo;
-			toi += timeToGo;
-			predictedA.Update(timeToGo);
-			predictedB.Update(timeToGo);
 		}
-
-		return false;
+		// The last witness precedes the final advance; no endpoint query certified it.
+		ClearQueryContact(contact);
+		PhysicsDiagnostic::QueryRecord([&](auto& q) {
+			q.kind=PhysicsDiagnostic::QueryKind::Exit; q.exit=PhysicsDiagnostic::QueryExit::IntervalExhausted;
+			q.diagnostics=query.diagnostics; q.contact=contact; q.remaining=dt; q.toi=toi;
+		});
+		return { QueryOutcome::Failed, PhysicsDiagnostic::QueryExit::IntervalExhausted, query.diagnostics };
 	}
 
+	bool Collision::ConservativeAdvance(RigidBody3D* bodyA, RigidBody3D* bodyB, float dt, contact_t& contact)
+	{
+		return ConservativeAdvanceQuery(bodyA, bodyB, dt, contact).HasContact();
+	}
 
-	bool Collision::Intersect(RigidBody3D* bodyA, RigidBody3D* bodyB, const float dt, contact_t& contact)
+	static QueryResult QueryPredictedContact(RigidBody3D* bodyA, RigidBody3D* bodyB, float dt, contact_t& contact)
 	{
 		if (bodyA->m_Shape->GetShapeType() == ShapeType::Sphere && bodyB->m_Shape->GetShapeType() == ShapeType::Sphere)
 		{
-			return SphereSphereIntersect(bodyA, bodyB, dt, contact);
+			return { Collision::SphereSphereIntersect(bodyA, bodyB, dt, contact)
+				? QueryOutcome::Contact : QueryOutcome::SeparatedValid };
 		}
-		return ConservativeAdvance(bodyA, bodyB, dt, contact);
+		return ConservativeAdvanceQuery(bodyA, bodyB, dt, contact);
+	}
+
+	bool Collision::Intersect(RigidBody3D* bodyA, RigidBody3D* bodyB, const float dt, contact_t& contact)
+	{
+		return QueryPredictedContact(bodyA, bodyB, dt, contact).HasContact();
+	}
+
+	PhysicsDiagnostic::CaContractObservation PhysicsDiagnostic::EvaluateCaContract(
+		unsigned scenario, RigidBody3D* seedA, RigidBody3D* seedB)
+	{
+		CaContractObservation observation;
+		RigidBody3D predictedA = *seedA;
+		RigidBody3D predictedB = *seedB;
+		contact_t contact{};
+		contact.m_BodyA = seedA;
+		contact.m_BodyB = seedB;
+		contact.ptOnA_WorldSpace = Vec3f(1.0f, 2.0f, 3.0f);
+		contact.ptOnB_WorldSpace = Vec3f(2.0f, 2.0f, 3.0f);
+		contact.ptOnA_LocalSpace = Vec3f(4.0f, 5.0f, 6.0f);
+		contact.ptOnB_LocalSpace = Vec3f(7.0f, 8.0f, 9.0f);
+		contact.normal = Vec3f(1.0f, 0.0f, 0.0f);
+		contact.separationDistance = 0.25f;
+		float remaining = scenario == 5 ? 0.0f : 1.0f;
+		float toi = scenario == 4 ? 1.0f : 0.0f;
+		const auto consume = [&](const QueryResult& query) {
+			++observation.queries;
+			QueryIteration(observation.queries);
+			observation.queryOutcome = static_cast<int>(query.outcome);
+			observation.queryReason = query.reason;
+			observation.diagnostics = query.diagnostics;
+			observation.exit = CaQueryDecision(query, contact);
+			QueryRecord([&](auto& q) {
+				q.kind=QueryKind::Result; q.hit=query.HasContact(); q.exit=query.reason;
+				q.diagnostics=query.diagnostics; q.contact=contact; q.remaining=remaining; q.toi=toi;
+			});
+			if (observation.exit != QueryExit::None) {
+				QueryRecord([&](auto& q) {
+					q.kind=QueryKind::Exit; q.exit=observation.exit; q.diagnostics=query.diagnostics;
+					q.contact=contact; q.remaining=remaining; q.toi=toi;
+				});
+				return false;
+			}
+			observation.exit = AdvanceCaQuery(contact, 1.0f, remaining, toi, predictedA, predictedB);
+			if (observation.exit == QueryExit::None) ++observation.advances;
+			return observation.exit == QueryExit::None;
+		};
+		const auto failedContact = [&]() {
+			GjkDiagnostics diagnostics;
+			diagnostics.termination = GjkTermination::ContactExpansionFailed;
+			diagnostics.epa.termination = EpaTermination::InvalidProjection;
+			return ClassifyContactQuery(GjkContactStatus::Failed, diagnostics);
+		};
+		const auto closest = [&](GjkTermination termination, float distance) {
+			GjkDiagnostics contactDiagnostics;
+			contactDiagnostics.termination = GjkTermination::SeparatingAxis;
+			const QueryResult contactQuery = ClassifyContactQuery(GjkContactStatus::Separated, contactDiagnostics);
+			if (contactQuery.outcome != QueryOutcome::SeparatedValid) return contactQuery;
+			GjkDiagnostics distanceDiagnostics;
+			distanceDiagnostics.termination = termination;
+			return CompleteClosestQuery(&predictedA, &predictedB, distanceDiagnostics,
+				Vec3f(0.0f), Vec3f(distance, 0.0f, 0.0f), contact);
+		};
+		QueryIteration(0);
+		observation.exit = CaIntervalDecision(remaining, contact);
+		if (observation.exit != QueryExit::None) {
+			QueryRecord([&](auto& q) {
+				q.kind=QueryKind::Exit; q.exit=observation.exit;
+				q.contact=contact; q.remaining=remaining; q.toi=toi;
+			});
+		}
+		else if (scenario == 0) consume(failedContact());
+		else if (scenario == 1) {
+			if (consume(closest(GjkTermination::DuplicateSupport, 0.25f))) consume(failedContact());
+		}
+		else if (scenario == 2) consume(closest(GjkTermination::InvalidSupport, 0.0f));
+		else if (scenario == 3) consume(closest(GjkTermination::DuplicateSupport, 0.0f));
+		else if (scenario == 4) consume(closest(GjkTermination::DuplicateSupport, 0x1p-30f));
+		else observation.exit = QueryExit::InvalidDistance;
+		observation.remaining = remaining;
+		observation.toi = toi;
+		observation.contact = contact;
+		observation.predictedA = Capture(predictedA);
+		observation.predictedB = Capture(predictedB);
+		return observation;
 	}
 
 }

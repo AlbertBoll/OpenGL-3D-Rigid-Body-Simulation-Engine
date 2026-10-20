@@ -3,11 +3,16 @@
 #include "Contact.h"
 #include "PhysicsBody.h"
 #include "Constraints/ConstraintPenetration.h"
+#include <span>
 
 
 namespace GEngine
 {
 	class RigidBody3D;
+	struct collisionPair_t;
+#ifdef GE_ENABLE_COUPLED_SOLVER_REPLAY
+    namespace PhysicsDiagnostic { struct CoupledSolverReplayAccess; }
+#endif
 
 	class Manifold
 	{
@@ -41,7 +46,8 @@ namespace GEngine
 		void CaptureCompatibility();
 		void RemoveContact(int slot);
 		void WriteContact(int slot, const contact_t& contact, const ConstraintPenetration* previous);
-		void RefreshContacts(const contact_t* contacts, int count);
+		void RefreshContacts(const contact_t* contacts, int count, bool refreshCandidates = false);
+		bool RemoveExpiredContacts(bool keepContinuingCandidates);
 		contact_t m_Contacts[MAX_CONTACTS]{};
 
 		int m_NumContacts;
@@ -52,6 +58,9 @@ namespace GEngine
 		ConstraintPenetration m_Constraints[MAX_CONTACTS];
 
 		friend class ManifoldCollector;
+#ifdef GE_ENABLE_COUPLED_SOLVER_REPLAY
+        friend struct PhysicsDiagnostic::CoupledSolverReplayAccess;
+#endif
 	};
 
 	/*
@@ -72,8 +81,25 @@ ManifoldCollector
 		void PostSolve();
 
 		void RemoveExpired();
+		// One positive step: keep labelled positive-gap candidates only inside a
+		// pair with a strict survivor. Finalize every pair before PreSolve.
+		// Returns whether any such candidate remains; no-donor steps need no
+		// extra cleanup or patch-matching route.
+		bool PrepareContactRefresh();
+		void RemoveExpiredForPair(const RigidBody3D* a, const RigidBody3D* b);
+		// Prepared at these same poses/configuration; before fresh admission.
+		// Only candidate-bearing manifolds need a broadphase membership scan.
+		void RemoveExpiredOutsidePairs(std::span<const collisionPair_t> pairs,
+			std::span<RigidBody3D* const> bodies);
+		// Requires PrepareContactRefresh at the current poses. Invalid input
+		// strictly expires the specified pair; only a complete patch may donate.
+		bool RefreshContactPatch(RigidBody3D* a, RigidBody3D* b,
+			const contact_t* contacts, int count);
 		void Clear() { m_Manifolds.clear(); }	// For resetting
 		int GetContactCount() const;
+	private:
+		void AddContacts(const contact_t* contacts, int count, bool refreshCandidates);
+		bool RemoveExpired(bool keepContinuingCandidates);
 
 	public:
 		std::vector<Manifold> m_Manifolds;

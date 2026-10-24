@@ -52,7 +52,7 @@ namespace GEngine
             const auto* root = EngineContext::TryGet();
             if (const auto* launch = root ? root->LaunchConfiguration() : nullptr)
                 return launch->pointShadowDiagnostic;
-            const auto* value=std::getenv("GENGINE_PRE_EDITOR_POINT_SHADOW_DIAGNOSTIC");
+            const auto* value=SDL_getenv("GENGINE_PRE_EDITOR_POINT_SHADOW_DIAGNOSTIC");
             return value && std::string_view(value)=="1";
         }
         unsigned pointDiagnosticRun{}, pointDiagnosticActive{};
@@ -63,7 +63,7 @@ namespace GEngine
             const auto* root = EngineContext::TryGet();
             const auto* launch = root ? root->LaunchConfiguration() : nullptr;
             const auto* enabled =
-                launch ? nullptr : std::getenv("GENGINE_PRE_EDITOR_POINT_GPU_CAPTURE");
+                launch ? nullptr : SDL_getenv("GENGINE_PRE_EDITOR_POINT_GPU_CAPTURE");
             const bool requested =
                 launch ? launch->pointGpuCapture : enabled && std::string_view(enabled) == "1";
             if (!requested || pointDiagnosticActive != 1)

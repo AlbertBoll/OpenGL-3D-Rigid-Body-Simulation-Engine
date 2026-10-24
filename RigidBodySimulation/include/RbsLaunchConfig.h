@@ -85,12 +85,9 @@ namespace Rbs
         StartupMesh startupMesh = StartupMesh::None;
         ValidationProfile validation;
         std::optional<RestingContactDiagnostic> restingContactDiagnostic;
-        struct TargetedEntityDiagnostic { std::string entityName, outputDirectory; };
-        std::optional<TargetedEntityDiagnostic> targetedEntityDiagnostic;
 
         [[nodiscard]] bool AsyncPerformanceEnabled() const noexcept;
         [[nodiscard]] bool ValidRestingContactDiagnostic() const;
-        [[nodiscard]] bool ValidTargetedEntityDiagnostic() const;
     };
     // Bootstrap supplies typed values, then owns a const snapshot until after app
     // teardown. No member is populated from the process environment.

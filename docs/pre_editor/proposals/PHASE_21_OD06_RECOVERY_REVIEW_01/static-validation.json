@@ -1,0 +1,56 @@
+{
+  "status": "PASS_STATIC_PROPOSAL_CHECKS_ONLY",
+  "recorded_utc": "2026-10-22T06:44:50.961906+00:00",
+  "checks": {
+    "proposal_paths_resolved_against_OUTPUT_PATHS_and_reparse_guards": true,
+    "proposal_relative_links_checked": true,
+    "no_trailing_whitespace_and_final_newlines": true,
+    "fixed_fixture_identity_matches": true,
+    "unchanged_preserved_input_hashes": 22,
+    "baseline_branch_index_canonical_RBS_protected_scope_guards": true,
+    "usage_unchanged": true,
+    "current_100ms_code_unchanged": true,
+    "seven_proposed_slots_590_simulated_seconds": true,
+    "additional_vs_historical_launch_accounting_explicit": true,
+    "aggregate_cap_shortfall_disclosed": true,
+    "P1_attribution_gates_blocking_no_exception": true,
+    "no_P0_waiver": true,
+    "historical_FAIL_records_unchanged": true,
+    "no_formal_qualification_credit_from_diagnostic": true
+  },
+  "proposal_only_actions": {
+    "source_edits": 0,
+    "engine_builds": 0,
+    "native_launches": 0,
+    "threshold_activations": 0,
+    "state_or_authority_updates": 0,
+    "approval_seal_publication": 0
+  },
+  "links": [
+    {
+      "from": "PROPOSAL.md",
+      "target": "CONTRACT_AMENDMENT.md"
+    },
+    {
+      "from": "PROPOSAL.md",
+      "target": "../../../../logs/pre_editor/phase-21/stop-04/handoff.json"
+    },
+    {
+      "from": "PROPOSAL.md",
+      "target": "../../../../logs/pre_editor/phase-21/stop-04/diagnostic-review.json"
+    },
+    {
+      "from": "PROPOSAL.md",
+      "target": "../../../../logs/pre_editor/phase-21/analysis/Release-long-tail-01-01/analysis.json"
+    },
+    {
+      "from": "PROPOSAL.md",
+      "target": "manifest.json"
+    },
+    {
+      "from": "CONTRACT_AMENDMENT.md",
+      "target": "PROPOSAL.md"
+    }
+  ],
+  "limitation": "Static proposal review, not implementation feasibility proof, numerical gate closure or formal qualification."
+}

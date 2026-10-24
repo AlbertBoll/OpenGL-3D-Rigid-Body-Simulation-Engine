@@ -18,20 +18,11 @@ namespace Rbs
     {
         if (!restingContactDiagnostic) return true;
         const auto& d=*restingContactDiagnostic;
-        return !targetedEntityDiagnostic && validation.checks.empty() && !validation.asyncPerformance &&
+        return validation.checks.empty() && !validation.asyncPerformance &&
             !validation.materialAlphaFixture && !validation.subscriptionOutput &&
             startupMesh==StartupMesh::None &&
             (d.observation==Observation::Unobserved || d.observation==Observation::Observed) &&
             std::filesystem::path(d.latticePath).is_absolute() &&
             std::filesystem::path(d.outputDirectory).is_absolute();
-    }
-    bool LaunchConfig::ValidTargetedEntityDiagnostic() const
-    {
-        if (!targetedEntityDiagnostic) return true;
-        return !restingContactDiagnostic && validation.checks.empty() && !validation.asyncPerformance &&
-            !validation.materialAlphaFixture && !validation.subscriptionOutput &&
-            startupMesh==StartupMesh::None && scene==RbsScenePreset::SphereLattice &&
-            targetedEntityDiagnostic->entityName=="wood_sphere158" &&
-            std::filesystem::path(targetedEntityDiagnostic->outputDirectory).is_absolute();
     }
 }

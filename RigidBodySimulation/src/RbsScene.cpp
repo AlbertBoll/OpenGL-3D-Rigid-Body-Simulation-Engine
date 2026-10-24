@@ -1068,17 +1068,6 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeScene()
         return result;
     if (auto result = ValidateScaleBridge(assets); !result)
         return result;
-    if (m_Launch.targetedEntityDiagnostic)
-    {
-        auto& target=Rbs::RestDiagnosis::targetSession;
-        target.reset(new(std::nothrow) Rbs::RestDiagnosis::TargetSession(*m_Launch.targetedEntityDiagnostic));
-        if (!target || !target->Open(*m_ActiveScene))
-            return std::unexpected(PlatformError{PlatformErrorCode::Initialization,"Phase19 targeted observation",
-                target?target->failure:"target session allocation failed"});
-        Log::GetCoreLogger()->info("PHASE19_TARGET_BOUND wood_sphere158 UUID={} slot={} generation={}; normal 60Hz; press F10 at the delayed event",
-            target->bindings[target->target].uuid,target->bindings[target->target].id.GetSlot(),
-            target->bindings[target->target].id.GetGeneration());
-    }
     if (m_Launch.scene == Rbs::RbsScenePreset::GeometryGallery)
         if (auto result = CreateAsyncExamples(assets); !result)
             return result;

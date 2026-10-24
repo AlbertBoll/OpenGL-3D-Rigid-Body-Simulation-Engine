@@ -1,0 +1,124 @@
+{
+  "schema": 1,
+  "recorded_utc": "2026-10-24T17:18:05.507632+00:00",
+  "phase": "21",
+  "status": "FROZEN_UNAPPROVED",
+  "approved": false,
+  "complete": false,
+  "qualification_pass": false,
+  "owner_authority": "FREEZE PRE_EDITOR PHASE 21 AND START PHASE 22; explicit freeze commit, annotated tag and non-force origin publication authorized independently of APPROVE",
+  "source_parent": "6263b3719bfd1b20d3ed8c40abf803580857a82c",
+  "branch": "pre-editor/refactor",
+  "tag": "pre-editor-phase-21-frozen-unapproved",
+  "remote": "origin",
+  "remote_url": "https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine.git",
+  "physics_baseline": "6263b3719bfd1b20d3ed8c40abf803580857a82c",
+  "physics_sha256": {
+    "GEngine/include/GEngine/Physics/Bounds.cpp": "e1ca15af623a4375747d3762024d795f2b9ba9a04ac36305a2d1ab5114b3d3c1",
+    "GEngine/include/GEngine/Physics/Bounds.h": "c7b299abc8c8301e1bd2c7ffe095bd77e4c05c071edcc26c6d64f302996c600e",
+    "GEngine/include/GEngine/Physics/BoxContact.h": "e8ba9cc943523ec767b4d298cb1fd0efbcf9a81cb3e4b8ce06c32f3aa5cbd9ef",
+    "GEngine/include/GEngine/Physics/Broadphase.cpp": "2945e2c34fcd202f07bb06c30947a272a73c0028d641bd1c1de7b15569d9bc22",
+    "GEngine/include/GEngine/Physics/Broadphase.h": "3145e9abab5464f4abf75b5dcd3925e4b22200f2ab4de90372e60d241448e6df",
+    "GEngine/include/GEngine/Physics/Constraints/Constraint.cpp": "bf2df40095a7c3901aaccc11e71dc0cc280b29c570dcb07a29460b759504cc10",
+    "GEngine/include/GEngine/Physics/Constraints/Constraint.h": "dbe1ba1f410514f357525a57ac1066e235412e60563ab50b84313e7c81f6ef6e",
+    "GEngine/include/GEngine/Physics/Constraints/ConstraintPenetration.cpp": "566ee6a6c31d29d4284b89114d1563d402267ecfc11010a5ca8daf20efa53e5f",
+    "GEngine/include/GEngine/Physics/Constraints/ConstraintPenetration.h": "d750a5e1319ba7d87150e4eb23def80344fa7732d0bb081e8543bac2600ce962",
+    "GEngine/include/GEngine/Physics/Constraints/SolverMath.h": "e6776732df397875da29bac082458283ce6a9be5c3cc41fca026bac82ef41dfb",
+    "GEngine/include/GEngine/Physics/Contact.cpp": "31284cc1c6ff22e65a19a4b883ecb6024a219b0a5f7bfea6eb1a6c0df9165aa6",
+    "GEngine/include/GEngine/Physics/Contact.h": "773e0ee7df29c76b1a17f065b67e1d467341088c52db43b0031f336ed997c328",
+    "GEngine/include/GEngine/Physics/ContactIsland.h": "ae0f977c4a9b88d228d013df58d8516809d8ae1ce3367f2c16fce6894c02a9ba",
+    "GEngine/include/GEngine/Physics/GJK.cpp": "196963e22cf7e3dbc02de6929fccd96ff7a66500010bd8fa6a11cec971277061",
+    "GEngine/include/GEngine/Physics/GJK.h": "490a630ca2625a3a2fa28d69bc5e3e680bea0621efe39ecace2bb11b2aacc006",
+    "GEngine/include/GEngine/Physics/Manifold.cpp": "f6c0fe13a11fce568e1d5b58bcaa8014e7cb00c157f4a3b000285f51d5bb42f6",
+    "GEngine/include/GEngine/Physics/Manifold.h": "b4580280d07da2e05592c6b82e14c01c99e0ffa995191b5f7a995ebd3a054800",
+    "GEngine/include/GEngine/Physics/PhysicsBody.cpp": "15eca90ca0e150e61238f9a7d44ffe00f06a56ad5b3b9d87e533d4065caf9639",
+    "GEngine/include/GEngine/Physics/PhysicsBody.h": "00f2206b979647252fd7029ff673c4e99a814a4b1b9865099ad1eb9ab8e72910",
+    "GEngine/include/GEngine/Physics/PhysicsProfile.cpp": "bd4209ce3fd40950fba3f408f457e0896dda4800c773a57afa327261bea51a28",
+    "GEngine/include/GEngine/Physics/PhysicsProfile.h": "883a63926fb7fe450527cf5f489db172ab6439332270789b7711c196fc8e1071",
+    "GEngine/include/GEngine/Physics/PhysicsShapeError.h": "94b971c7d24d1d6f3ffcd36c0c86d483e348b9c43f661ccc40f56abb4bb9927c",
+    "GEngine/include/GEngine/Physics/PhysicsSystem.cpp": "656c946b233a7a42643f77a12f9b2d94aa15618a8aa3859f1eb51ab73b4b1c26",
+    "GEngine/include/GEngine/Physics/PhysicsSystem.h": "382f27b7731c469d8631f9c2e407903e49593f85906fd51791963e53cc3a7e4c",
+    "GEngine/include/GEngine/Physics/PhysicsWorld.cpp": "6b4c34e397e0a28636e34a7fa8947caab54f335578969c929447358ef1e472a0",
+    "GEngine/include/GEngine/Physics/PhysicsWorld.h": "840b739f478e9686b8094540b4b893bf79efc026bc73b23af51e3c1b9c5efceb",
+    "GEngine/include/GEngine/Physics/Shape.cpp": "4657f8ac241de9c27845cafc7f9c5c6af87bce4274666e817c6ed1d5193378a1",
+    "GEngine/include/GEngine/Physics/Shape.h": "f8d76f984198ab7e50c7acc7cde8dcdca8e37c08cc152eeac4d024bbc817a32f",
+    "GEngine/include/GEngine/Physics/ShapeBox.cpp": "42d266c6302f002157ab5a12d02c6a44a5e500f988f9845ac97c8325b004f91a",
+    "GEngine/include/GEngine/Physics/ShapeBox.h": "6fb99eecb74ed01c0fd6c9d5b3cda1432a612cedcee76066acff7df6ba647d15",
+    "GEngine/include/GEngine/Physics/ShapeConvex.cpp": "9d5a865e888b5edd6fa39d614543b6b7c74116ccc65ca96bf8a51a165c609955",
+    "GEngine/include/GEngine/Physics/ShapeConvex.h": "01a3dc3f2e254533997a8890561bf039715b9eb44137498bfc1e757905461e25",
+    "GEngine/include/GEngine/Physics/ShapeSphere.cpp": "acd6389a2bee45e869e27ae2d7750844fe4d399ca82364dba556c941f63cfe7b",
+    "GEngine/include/GEngine/Physics/ShapeSphere.h": "6d4c52470abd05f73a7aacda85ceb67efae4c2a7e973a17749941fd571ce86d7",
+    "GEngine/include/GEngine/Physics/detail/ConvexHull.h": "498719e0c2138c283d36f993041e9a80c58a60a48cb90fb66a70e3c5ca06c298"
+  },
+  "source_files": {
+    "GEngine/src/Core/LaunchConfig.cpp": "3ae8e552698c65ad4e5d58f52954098cb9ca28c754e0661722e217d5e2d184be",
+    "GEngine/src/Renderer/FrameSubmission.cpp": "f673bfd0767d2a872ce54570af25c8f673b2a6486316f019259788ac57da5d51",
+    "GEngine/src/Scene/RenderState.cpp": "42fc298f34a93d3e227beb5057c59fb2d14450870200f88bc49886530541847b",
+    "PhysicsTests/src/main.cpp": "8f00e7aa189fbe8e793c89d9144aa13c186e830414dd7a01f41f0c1caeea2187",
+    "RigidBodySimulation/include/RbsDiagnosticBootstrap.h": "5ca97ec85fbf837594eb5f0502fda2e537b693bed6d27fb73269cedc55cc2b60",
+    "RigidBodySimulation/include/RbsLaunchConfig.h": "c7d0ca14f768459faded0f899d080aa6fa53abca36bcd232154761e25878fa42",
+    "RigidBodySimulation/src/RbsFrame.cpp": "c6e4f3ef2316140e17e4184d88dae3c7a2ca881703910a94f0a3760d0098113b",
+    "RigidBodySimulation/src/RbsLaunchConfig.cpp": "eb65c397e46d8510c7ccb095c343442a0eeee06224eea06f20e6dcb995d2bddd",
+    "RigidBodySimulation/src/RbsScene.cpp": "8ba335411f5fe373d19e495ea5d3f79ca6ee5f98c7411dd3089d3baf0926f3ba",
+    "RigidBodySimulation/src/RbsValidation.cpp": "10a1859725413cd2805070550461a4db772038882dd8300f4fe1c74a8e79a6d2",
+    "RigidBodySimulation/src/main.cpp": "28be44b84fa0db79180913405620a1ad52853121b830102eab2c1accc7169311",
+    "RigidBodySimulation/tests/RestingContactDiagnosis.h": "65ff7acf1f573e4e2c7596b2448c61d6c86a8d841855f181905bbd661fba50a9",
+    "docs/pre_editor/proposals/PHASE_21_COUPLED_REFINEMENT_ADMISSION_01/ADMISSION.json": "224e7362dde834ee2d1a32dce5e51d53ecf4ed008153ae9939dc5e6bf16720d8",
+    "docs/pre_editor/proposals/PHASE_21_COUPLED_REFINEMENT_ADMISSION_01/EVIDENCE.json": "832b08ef3b4eaa3176853be15a3f98d3361771e1f4ebbb0cb0076b9963c23767",
+    "docs/pre_editor/proposals/PHASE_21_COUPLED_REFINEMENT_ADMISSION_01/PROPOSAL.md": "411f9b0531ef5ce4538045e99f170743f9b85591be60ee41dfb5f040fa89d040",
+    "docs/pre_editor/proposals/PHASE_21_COUPLED_REFINEMENT_ADMISSION_01/STATIC_REVIEW.json": "0e87d13b9a11a2ae9aa5889bb745812b54ea42fd0d35c6c42606e7cec5c888dd",
+    "docs/pre_editor/proposals/PHASE_21_OD06_PENETRATION_REVIEW_01/CONTRACT_AMENDMENT.md": "adba5e334816c382ce05841c426b21b25b835ee13ce9ca466728c3120553c473",
+    "docs/pre_editor/proposals/PHASE_21_OD06_PENETRATION_REVIEW_01/PROPOSAL.md": "7693bdab2b191eb748c5283ac46604a8191f93750d0ecba3aabf821f9dfa74be",
+    "docs/pre_editor/proposals/PHASE_21_OD06_PENETRATION_REVIEW_01/manifest.json": "438e9ad8233a957f107ed3809fdd2f990a64b57be9b3c605ccfca8ee0cb8fe91",
+    "docs/pre_editor/proposals/PHASE_21_OD06_RECOVERY_REVIEW_01/CONTRACT_AMENDMENT.md": "384cd3787adcf5119acb8ffd7163e1fa9b3bd5c1ca902d77b3fa02d5da9d611d",
+    "docs/pre_editor/proposals/PHASE_21_OD06_RECOVERY_REVIEW_01/PROPOSAL.md": "bfb9e7fbef6625e7528f575bf7b426b12c5f6f465ed24332d3ce07aa5721fbc3",
+    "docs/pre_editor/proposals/PHASE_21_OD06_RECOVERY_REVIEW_01/manifest.json": "9c096361257a00dfea3f243ad45c87a4c2885156297da07852c35b99890152b2",
+    "docs/pre_editor/proposals/PHASE_21_OD06_RECOVERY_REVIEW_01/proposal-inputs.json": "c82da51f8333c8d7d49c7a9529876bce70b494309099f5e58c2e3a665129caa2",
+    "docs/pre_editor/proposals/PHASE_21_OD06_RECOVERY_REVIEW_01/static-validation.json": "10707b54f4940c808c257fca86475e84f6487fc226dadb7430c2f71ebf0efe58",
+    "external/glad/premake5.lua": "057d2e3b673dbc18c26582cdb60c9004a2476f583f9c4bac40efc18cf6a0ff8c",
+    "premake5.lua": "327753c4d2164312b7fbb64f35947d85b9be0f1e8c342f5130480bda56891823",
+    "tools/pre_editor_phase21_qualification.py": "3f609285551dcfcdf8f1530930ca20b4911a986d8aa456c0988b210e2ba69b5a"
+  },
+  "evidence_index": {
+    "path": "docs/pre_editor/evidence/phase-21-freeze-evidence-index.json",
+    "sha256": "d8057cd039cfc0f2eee0ca1f8d521c874232b1583b6802dac1ce78773b9c1ced",
+    "count": 1508
+  },
+  "phase21_charges_unchanged": {
+    "build_seconds": 2870.0320000000283,
+    "native_seconds": 1134.1150000000343,
+    "native_launches": 18,
+    "build_commands": 18
+  },
+  "findings": [
+    {
+      "id": "P21-PEN-01",
+      "status": "FAIL"
+    },
+    {
+      "id": "P21-PEN-02",
+      "status": "FAIL"
+    },
+    {
+      "id": "P21-L60-DEPTH-01",
+      "status": "MANDATORY FAIL; unresolved"
+    },
+    {
+      "id": "Candidate11",
+      "status": "HUMAN_VISUAL_REGRESSION_FAIL; rejected; selective Physics rollback verified"
+    },
+    {
+      "id": "C11-C3",
+      "status": "FAIL_OR_INCOMPLETE",
+      "Solver_p95_ms": 1.9724,
+      "accepted_ceiling_ms": 1.00573
+    },
+    {
+      "id": "C11-C4-C9",
+      "status": "NOT RUN"
+    }
+  ],
+  "preservation": "Every historical PASS/FAIL/INCONCLUSIVE retains its tested source and workload identity. Approved Phase20 algorithms restored; no Phase21 success inferred from cleanup builds or runtime smoke. No new Physics work or qualification. Unrelated untracked work and generated products remain local and untouched.",
+  "entry_exception": "docs/pre_editor/PHASE_22_ENTRY_EXCEPTION.md",
+  "staging_policy": "Exact verified source/support/proposal files plus freeze and exception records only; no force-add, bins, unrelated Phase17/18 files, or approval receipt."
+}

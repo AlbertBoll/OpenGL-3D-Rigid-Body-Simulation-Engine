@@ -1,3 +1,12 @@
+#include "RbsDiagnosticBootstrap.h"
+#include "../tests/RestingContactDiagnosis.h"
+#ifdef GENGINE_RENDER_BASELINE
+#include "Core/RenderBaseline.h"
+#endif
+#include <cstdio>
+#include <filesystem>
+#include <iterator>
+#include <string_view>
 #include "RigidBodySimulation.h"
 #include "Core/Log.h"
 #include "Core/Window.h"
@@ -2257,3 +2266,101 @@ RigidBodySimulationApp::ValidatePhysicsScene(const Rbs::SceneAssets& assets)
     return {};
 }
 #endif
+
+namespace Rbs
+{
+    bool ConfigureDiagnosticLaunch(int argc, char* const args[], LaunchConfig& settings,
+                                   ::GEngine::WindowProperties& winProp)
+    {
+#ifndef GENGINE_RBS_SCENE_VALIDATION
+        if (argc > 1 && (!args || !args[1] ||
+                         std::string_view(args[1]) != "--resting-contact-diagnostic"))
+            return false;
+#endif
+        if (argc > 1 && args && args[1] &&
+            std::string_view(args[1]) == "--resting-contact-diagnostic")
+        {
+            if (argc != 7 || std::string_view(args[3]) != "--lattice" ||
+                std::string_view(args[5]) != "--output" ||
+                (std::string_view(args[2]) != "off" && std::string_view(args[2]) != "on"))
+                return false;
+            settings.restingContactDiagnostic = RestingContactDiagnostic{
+                std::string_view(args[2]) == "on" ? Observation::Observed : Observation::Unobserved,
+                args[4], args[6]};
+            if (!settings.ValidRestingContactDiagnostic())
+                return false;
+            settings.engine.assetRootUtf8 =
+                (std::filesystem::absolute(args[0]).parent_path().parent_path() / "assets").generic_string();
+            winProp.m_IsVsync = false;
+        }
+#ifdef GENGINE_INPUT_VALIDATION
+        settings.validation.checks.push_back(Rbs::ValidationCheck::InputRouting);
+        winProp.m_IsVsync = false;
+        if (argc < 1 || !args || !args[0] || !std::filesystem::path(args[0]).is_absolute())
+            return false;
+        settings.engine.assetRootUtf8 =
+            (std::filesystem::path(args[0]).parent_path().parent_path() / "assets").generic_string();
+#endif
+#ifdef GENGINE_RBS_SCENE_VALIDATION
+        // Scene/UI test executable; normal RBS has no scene-selection CLI.
+        constexpr Rbs::RbsScenePreset presets[]{
+            Rbs::RbsScenePreset::GeometryGallery, Rbs::RbsScenePreset::SphereDiamond,
+            Rbs::RbsScenePreset::SphereLattice, Rbs::RbsScenePreset::BoxStack,
+            Rbs::RbsScenePreset::SphereBoxStack};
+        constexpr std::string_view names[]{"GeometryGallery", "SphereDiamond", "SphereLattice",
+                                           "BoxStack", "SphereBoxStack"};
+        if (argc < 1 || argc > 2 || !args || (argc == 2 && !args[1]))
+            return false;
+        std::size_t selected = 0;
+        while (argc == 2 && selected < std::size(names) && names[selected] != args[1])
+            ++selected;
+        if (selected == std::size(names))
+            return false;
+        settings.scene = argc == 1 ? settings.scene : presets[selected];
+        if (settings.scene != Rbs::RbsScenePreset::GeometryGallery)
+            settings.startupMesh = Rbs::StartupMesh::Barrel;
+#endif
+#if defined(GENGINE_RBS_SCENE_VALIDATION) || defined(GENGINE_RBS_MODULARITY_VALIDATION)
+        // Probe outputs sit one directory below the normal target. This is an
+        // explicit diagnostic asset location, never a process-environment override.
+        if (argc < 1 || !args || !args[0])
+            return false;
+        const auto probeExecutable = std::filesystem::path(args[0]);
+        if (!probeExecutable.is_absolute())
+        {
+            std::fprintf(stderr, "RBS validation requires an absolute executable path\n");
+            return false;
+        }
+        settings.engine.assetRootUtf8 =
+            (probeExecutable.parent_path().parent_path().parent_path() / "assets").generic_string();
+#endif
+        if (!settings.ValidRestingContactDiagnostic())
+            return false;
+#ifdef GENGINE_RENDER_BASELINE
+        RenderBaseline::Configure(winProp, settings.engine);
+#endif
+        return true;
+    }
+
+    void ConfigureDiagnosticApplication(const LaunchConfig& launch, ::GEngine::BaseApp& app)
+    {
+        if (launch.restingContactDiagnostic)
+            app.SetManualFrameRateLimit(0);
+    }
+
+    bool FinishDiagnosticApplication(const LaunchConfig& launch,
+                                     std::unique_ptr<::GEngine::BaseApp>& app, bool clean)
+    {
+        if (clean && launch.restingContactDiagnostic)
+        {
+            PhysicsDiagnostic::observer = nullptr;
+            app.reset();
+            const bool complete = RestDiagnosis::session &&
+                                  RestDiagnosis::session->FinishAfterAppShutdown(true);
+            RestDiagnosis::session.reset();
+            return complete;
+        }
+        // Preserve incomplete resting-run evidence on failure; no clean completion.
+        return clean;
+    }
+}

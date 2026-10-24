@@ -21,8 +21,8 @@ namespace GEngine
         template<class Tag> VersionKey Version(Asset::AssetHandle<Tag> id,std::uint64_t revision)
         { return {id.index,id.generation,id.registry,revision}; }
         bool SameFloat(float a,float b) { return std::bit_cast<std::uint32_t>(a)==std::bit_cast<std::uint32_t>(b); }
-        template<class T> bool SameScalars(const T& a,const T& b,std::size_t n) {
-            for(std::size_t i=0;i<n;++i) if(!SameFloat(a[i],b[i]))return false;
+        template<class T> bool SameScalars(const T& a,const T& b,int n) {
+            for(int i=0;i<n;++i) if(!SameFloat(a[i],b[i]))return false;
             return true;
         }
         bool SameMatrix(const Mat4&a,const Mat4&b) {

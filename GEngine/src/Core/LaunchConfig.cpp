@@ -33,7 +33,7 @@ namespace GEngine
         const auto diagnostic = [&](const char* name)
         {
             const char* value =
-                environment.read ? environment.read(environment.context, name) : std::getenv(name);
+                read(name);
             return value && std::string_view(value) == "1";
         };
         result.pointShadowDiagnostic = diagnostic("GENGINE_PRE_EDITOR_POINT_SHADOW_DIAGNOSTIC");

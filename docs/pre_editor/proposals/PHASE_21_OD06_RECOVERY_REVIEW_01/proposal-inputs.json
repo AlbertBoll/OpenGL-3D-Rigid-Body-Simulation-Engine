@@ -1,0 +1,91 @@
+{
+  "status": "PROPOSED_ONLY_NOT_ACTIVE",
+  "recorded_utc": "2026-10-22T06:42:12.040745+00:00",
+  "phase": 21,
+  "baseline": "6263b3719bfd1b20d3ed8c40abf803580857a82c",
+  "owner_directive": "PRE_EDITOR PHASE 21 BOUNDED RECOVERY POLICY REVISION AND QUALIFICATION CONTINUATION PROPOSAL",
+  "owner_acceptance_scope": "Completed long-tail diagnostic supports stable observed rest for the exact approved one-pass sleep-enabled fixture; no qualification PASS or threshold activation.",
+  "preserved_inputs": {
+    "docs/pre_editor/active/OUTPUT_PATHS.json": "b8d868fda409d2b0bb386d5a943239c10503d54862259b3a84193beab969ceb1",
+    "docs/pre_editor/active/PHASE_18_PLUS_MINIMUM_SUFFICIENT_VALIDATION.md": "19744617ead7bb045fd4bcc925c379102d2052db84ca0b208115f09d87f99567",
+    "docs/pre_editor/VALIDATION_CONTRACTS.md": "c1e1fef342daa960bd802c992426aab9434c7135089651be035bf8048ccd61cc",
+    "docs/pre_editor/phases/PHASE_21.md": "241425d50b3ea3097528666bd1c5e0ece001e310490e1afd918d6264fa34f9ef",
+    "docs/pre_editor/active/PHASE_21_OD06_OD07_ACCEPTANCE_01.json": "5f9dabbf23a359df6020de6da8355d011a32e49037c4bcddec5f5178eaab6d48",
+    "docs/pre_editor/active/PHASE_21_OD06_PENETRATION_AMENDMENT_02_ACTIVATION.json": "a2df51d31c8068596fceb93e3870d36e54011daa1ec5ab78fa63c8b9507090c3",
+    "docs/pre_editor/active/PHASE_21_QUALIFICATION_AUTHORITY_02.json": "b5823b8a8a8a0b7f225102ec4674020466d201d41ac56a34f88ecaa4dcd85ff9",
+    "docs/pre_editor/active/PHASE_21_LONG_TAIL_DIAGNOSTIC_AUTHORITY_01.json": "ec56039f2f25e375878a6a441e7e8be0d222328189ba15f66825b6e53c162e55",
+    "docs/pre_editor/proposals/PHASE_21_OD06_PENETRATION_REVIEW_01/CONTRACT_AMENDMENT.md": "adba5e334816c382ce05841c426b21b25b835ee13ce9ca466728c3120553c473",
+    "docs/pre_editor/active/PHASE_21_REVIEW.md": "9846659eb1361b869fa7559cb21ede46cc24a05d5026bbbbb0c51350f6477f2c",
+    "docs/pre_editor/active/REFACTOR_STATE.md": "416862617c3d4454ef516a291ad7b8e5c4e65f2566458997d4f8b2b01537825f",
+    "logs/pre_editor/phase-21/ledger.json": "79a5339a4f3dfab33957975fb82ba554b1d8a4b6180184ef36cbfe8b47b081b2",
+    "logs/pre_editor/phase-21/stop-02/handoff.json": "c59d5d0b791ba261b753765374e0d1cc021af634a1bd98e06e0c53adf477528f",
+    "logs/pre_editor/phase-21/stop-03/handoff.json": "b87066e6501465e10acff09d676994d824b6819ba6d529a0b7b1388b5ebe409b",
+    "logs/pre_editor/phase-21/stop-04/handoff.json": "f732de90b303ab1dd46ddd1462afcf4252109db3955c535ab6b69c81d2b7f6b3",
+    "logs/pre_editor/phase-21/stop-04/diagnostic-review.json": "f6e2698df6f4df2a07a0d61f70957c67b36ffa53d3c610ef7339901f2b330aec",
+    "logs/pre_editor/phase-21/analysis/Release-long-tail-01-01/analysis.json": "e60d46f1cbe4dc85c36ddd1f6cd25fbcd0b0caf6c57f51b5758f0b57985e575a",
+    "RigidBodySimulation/tests/RestingContactDiagnosis.h": "3461a5be578f4795c862c291b038f8e85981b0215399bd78bf445be00f714b89",
+    "tools/pre_editor_phase21_qualification.py": "7de9cc2e79a1bcc9f1d28ea7521b66bfc02023c3fba25cf7c047b2b0a1fdb109",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": "b3ac31167db276ddaf8b324eaf6e9d0577c3ca00681e05698d290b1a30fd7714",
+    "RigidBodySimulation/src/main.cpp": "beff8fbbcc76df8522656e6e9d1c32270a591d56bf945089fd7895072da192ee",
+    "tools/pre_editor_resting_contact_lattice.txt": "79eb5a76b06726b77333fff93ddb47999671df025ef1c75322494b8ac62116c6"
+  },
+  "usage_floor": {
+    "build_seconds": 461.7199999999939,
+    "native_seconds": 325.596000000005,
+    "native_launches": 5
+  },
+  "current_active_recovery_ms": {
+    "sphere_sphere": 100,
+    "sphere_boundary": 100
+  },
+  "proposed_recovery_ms": {
+    "sphere_sphere": 200,
+    "sphere_boundary": 100
+  },
+  "safe_confirmation_ms": 250,
+  "proposed_build_commands_max": 2,
+  "proposed_additional_native_attempts_max": 7,
+  "proposed_cumulative_native_attempts_max": 12,
+  "proposed_qualification_authority": "PHASE_21_QUALIFICATION_AUTHORITY_03",
+  "proposed_slots": [
+    [
+      "Debug",
+      "debug"
+    ],
+    [
+      "Release",
+      "prefix"
+    ],
+    [
+      "Release",
+      "L120"
+    ],
+    [
+      "Release",
+      "L60"
+    ],
+    [
+      "Release",
+      "small"
+    ],
+    [
+      "Release",
+      "LA"
+    ],
+    [
+      "Release",
+      "LP"
+    ]
+  ],
+  "blocking_dispositions": [
+    "P21-ANCHOR-01",
+    "P21-ENERGY-01"
+  ],
+  "P1_exception_proposed": false,
+  "P0_waiver_proposed": false,
+  "activation_authorized_now": false,
+  "implementation_authorized_now": false,
+  "build_authorized_now": false,
+  "native_launch_authorized_now": false,
+  "approval_seal_publication_authorized": false
+}

@@ -1,0 +1,231 @@
+{
+  "schema": 1,
+  "phase": 21,
+  "status": "PROPOSED_NOT_ACTIVE_OWNER_ACCEPTANCE_REQUIRED",
+  "created_utc": "2026-10-23T23:37:21.722245+00:00",
+  "continuation": "Existing START only; completed STOP07/reference audit not reopened",
+  "future_authority_name": "PHASE_21_COUPLED_REFINEMENT_EXECUTION_AUTHORITY_01",
+  "proposal": {
+    "path": "docs/pre_editor/proposals/PHASE_21_COUPLED_REFINEMENT_ADMISSION_01/PROPOSAL.md",
+    "sha256": "411f9b0531ef5ce4538045e99f170743f9b85591be60ee41dfb5f040fa89d040"
+  },
+  "evidence": {
+    "path": "docs/pre_editor/proposals/PHASE_21_COUPLED_REFINEMENT_ADMISSION_01/EVIDENCE.json",
+    "sha256": "832b08ef3b4eaa3176853be15a3f98d3361771e1f4ebbb0cb0076b9963c23767"
+  },
+  "already_accepted_source_scope": {
+    "production": [
+      "GEngine/include/GEngine/Physics/Manifold.cpp",
+      "GEngine/include/GEngine/Physics/Constraints/ConstraintPenetration.h",
+      "GEngine/include/GEngine/Physics/Constraints/ConstraintPenetration.cpp"
+    ],
+    "support": [
+      "RigidBodySimulation/tests/RestingContactDiagnosis.h",
+      "tools/pre_editor_phase21_qualification.py"
+    ]
+  },
+  "algorithm": {
+    "name": "LOADED_COMPONENT_BIDIRECTIONAL_VELOCITY_REFINEMENT_01",
+    "global_default": 1,
+    "additional_local_traversals": 2,
+    "order": [
+      "reverse retained manifold order",
+      "forward retained manifold order"
+    ],
+    "LP_total_traversals": 4,
+    "whole_collector_capacity": {
+      "dynamic_bodies": 180,
+      "contact_points": 480,
+      "nonempty_manifolds": 480,
+      "normal_tangent_scalar_rows": 1440,
+      "maximum_resistance_channels": 1440
+    },
+    "eligibility": "Complete prepared awake dynamic component with at least2 dynamics, a dynamic/dynamic contact and positively loaded nonintegrating nonkinematic boundary; no mixed sleeping/unprepared or kinematic boundary component",
+    "overflow": "No partial refinement; retain ordinary traversal, consume this step opportunity; mandatory supported lattice coverage blocked",
+    "position_correction": "UNCHANGED",
+    "warm_start": "Actual PreSolve once; no repeated warm impulses or accumulator resets",
+    "work_limits": {
+      "extra_contact_visits": 960,
+      "normal_scalar_updates": 2880,
+      "tangent_disk_solves": 2880,
+      "tangent_bisections": 92160,
+      "spin_attempts": 960,
+      "rolling_attempts": 960,
+      "rolling_bisections": 46080,
+      "normal_block_attempts": 480,
+      "normal_block_masks": 3840,
+      "graph_pointer_comparisons": 172800,
+      "graph_union_parent_hops": 171840,
+      "graph_final_compression_hops": 32220
+    },
+    "memory": {
+      "graph_scratch_bytes": 3072,
+      "graph_lifetime": "Non-inlined helper returns before solver; current-step private bits only",
+      "collector_work_counter_bytes": 64,
+      "maximum_added_constraint_bytes": 8,
+      "retained_storage_formula": "4*manifold_vector_capacity*added_constraint_bytes; prefer unchanged layout",
+      "compiled_additional_stack_limit_bytes": 4096,
+      "new_heap_allocations": 0,
+      "global_or_TLS_cache": false
+    },
+    "finite_failure": "Preflight new updates; stop extra work on invalid arithmetic, retain already applied finite operations and blocking failure evidence; no claim of baseline fallback"
+  },
+  "initial_matrix": [
+    {
+      "slot": "C1",
+      "configuration": "Debug",
+      "case": "debug",
+      "simulated_seconds": 45,
+      "completed_ticks": 3600,
+      "native_deadline_seconds": 180,
+      "purpose": "Existing three episodes plus bounded direct invariants",
+      "wrapper_reservation_seconds": 5
+    },
+    {
+      "slot": "C2",
+      "configuration": "Release",
+      "case": "prefix",
+      "simulated_seconds": 15,
+      "completed_ticks": 1800,
+      "native_deadline_seconds": 90,
+      "purpose": "Minimal observation; parity with C4 prefix",
+      "wrapper_reservation_seconds": 5
+    },
+    {
+      "slot": "C3",
+      "configuration": "Release",
+      "case": "phase20-original-candidate",
+      "simulated_seconds": 68,
+      "completed_ticks": 4980,
+      "native_deadline_seconds": 120,
+      "purpose": "Original 11-episode correctness/CPU protocol; Control02 conditional reuse",
+      "wrapper_reservation_seconds": 5
+    },
+    {
+      "slot": "C4",
+      "configuration": "Release",
+      "case": "L120",
+      "simulated_seconds": 120,
+      "completed_ticks": 14400,
+      "native_deadline_seconds": 240,
+      "purpose": "Formal one-pass sleep-enabled",
+      "wrapper_reservation_seconds": 5
+    },
+    {
+      "slot": "C5",
+      "configuration": "Release",
+      "case": "L60",
+      "simulated_seconds": 120,
+      "completed_ticks": 7200,
+      "native_deadline_seconds": 240,
+      "purpose": "Formal one-pass sleep-enabled",
+      "wrapper_reservation_seconds": 5
+    },
+    {
+      "slot": "C6",
+      "configuration": "Release",
+      "case": "small",
+      "simulated_seconds": 50,
+      "completed_ticks": 4200,
+      "native_deadline_seconds": 180,
+      "purpose": "stack60 1200 + stack120 2400 + wake60 600 ticks",
+      "wrapper_reservation_seconds": 5
+    },
+    {
+      "slot": "C7",
+      "configuration": "Release",
+      "case": "LA",
+      "simulated_seconds": 120,
+      "completed_ticks": 14400,
+      "native_deadline_seconds": 240,
+      "purpose": "Diagnostic sensitivity; unchanged safety gates",
+      "wrapper_reservation_seconds": 5
+    },
+    {
+      "slot": "C8",
+      "configuration": "Release",
+      "case": "LP",
+      "simulated_seconds": 120,
+      "completed_ticks": 14400,
+      "native_deadline_seconds": 240,
+      "purpose": "Diagnostic sensitivity; 2 global plus 2 local traversals",
+      "wrapper_reservation_seconds": 5
+    },
+    {
+      "slot": "C9",
+      "configuration": "Release",
+      "case": "spherebox-support",
+      "simulated_seconds": 40,
+      "completed_ticks": 2400,
+      "native_deadline_seconds": 180,
+      "purpose": "20s Focused1 plus20s normal-input SphereBoxStack; explicit rendered support route",
+      "wrapper_reservation_seconds": 5
+    }
+  ],
+  "budgets": {
+    "historical": {
+      "native_launches": 11,
+      "build_commands": 9,
+      "native_seconds": 829.847,
+      "build_seconds": 922.986
+    },
+    "old_cumulative_caps": {
+      "native_launches": 14,
+      "native_seconds": 1500,
+      "build_seconds": 2400
+    },
+    "old_remaining": {
+      "native_launches": 3,
+      "native_seconds": 670.153,
+      "build_seconds": 1477.014
+    },
+    "initial": {
+      "native_launches": 9,
+      "native_process_cap_sum": 1710,
+      "wrapper_reservation_seconds": 45,
+      "native_charge_reservation_seconds": 1755,
+      "build_commands": 2,
+      "build_charge_reservation_seconds": 2400
+    },
+    "conditional_reserve": {
+      "correction_waves": 1,
+      "native_launches": 9,
+      "native_charge_reservation_seconds": 1755,
+      "build_commands": 2,
+      "build_charge_reservation_seconds": 2400,
+      "condition": "One proven in-scope implementation/support correction and required affected revalidation; not algorithm redesign or repeat-to-pass"
+    },
+    "requested_cumulative_caps": {
+      "native_launches": 29,
+      "native_seconds": 4340,
+      "build_seconds": 5723
+    },
+    "remaining_if_accepted": {
+      "native_launches": 18,
+      "native_seconds": 3510.153,
+      "build_seconds": 4800.014
+    },
+    "build_per_command_charged_seconds": 1200,
+    "native_wrapper_allowance_per_slot_seconds": 5,
+    "actual_overrun": "Retain and charge full actual time; stop further work, no exclusions/dropped evidence",
+    "historical_projection_only": {
+      "original_seven_partial_overhead_seconds": 721.251,
+      "original_seven_seconds": 744.503,
+      "nine_slots_seconds": 862.301,
+      "nine_slot_shortfall_against_current_remaining_seconds": 192.148
+    },
+    "no_completion_runtime_guarantee": true
+  },
+  "physical_criteria_changes": false,
+  "support_fixture_selection": "C9 explicitly extends existing Focused1 original grounded predicates to1200ticks; normal-input22-bodySphereBoxStack20s has applicable existing guards and human visual gate, no revived superseded prerequisites",
+  "evidence_reuse": "Only genuinely unaffected inputs/checks; no historical physical PASS qualifies changed production",
+  "human_gate": "VALIDATED CANDIDATE; OWNER HUMAN VALIDATION REQUIRED BEFORE SEAL",
+  "human_requirements": [
+    "Visual Studio2026 full Release|x64 Rebuild Solution including PhysicsTests",
+    "Human-built RBS deliberate four-scenario inspection including explicit SphereBox-support",
+    "Impacts, settling, sustained rest, sleep/wake, interaction, runtime and clean shutdown"
+  ],
+  "visual_failure": "HUMAN_VISUAL_REGRESSION_FAIL; preserve candidate/evidence then selectively reverse new Physics remediation only; no destructive reset or automatic retry",
+  "activation": false,
+  "approval_seal_publication_next_phase": false
+}

@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "phase": "21",
+  "status": "PROPOSED_NOT_ACCEPTED_OR_ACTIVE",
+  "recorded_utc": "2026-10-22T01:46:01.788625+00:00",
+  "owner_request": "PRE_EDITOR PHASE 21 PROSPECTIVE GAME-ENGINE PENETRATION POLICY REVISION",
+  "baseline": "6263b3719bfd1b20d3ed8c40abf803580857a82c",
+  "proposal": {
+    "path": "docs/pre_editor/proposals/PHASE_21_OD06_PENETRATION_REVIEW_01/PROPOSAL.md",
+    "sha256": "7693bdab2b191eb748c5283ac46604a8191f93750d0ecba3aabf821f9dfa74be"
+  },
+  "prospective_amendment": {
+    "path": "docs/pre_editor/proposals/PHASE_21_OD06_PENETRATION_REVIEW_01/CONTRACT_AMENDMENT.md",
+    "sha256": "adba5e334816c382ce05841c426b21b25b835ee13ce9ca466728c3120553c473"
+  },
+  "proposed_only": {
+    "dynamic_depth_fraction_of_smaller_dimension": 0.1,
+    "dynamic_absolute_depth_cap": 0.2,
+    "sphere_sphere_fixture_cap": 0.2,
+    "sphere_boundary_fixture_cap": 0.1,
+    "rest_depth_unchanged": 0.05,
+    "unsafe_sample_seconds": 0.1,
+    "recovery_streak_start_deadline_seconds": 0.1,
+    "recovery_confirmation_seconds": 0.25,
+    "new_pair_storage_bytes_within_existing_limits": 2097152,
+    "pair_export_bytes_within_existing_limit": 8388608
+  },
+  "unchanged_inputs_and_provenance": {
+    "docs/pre_editor/active/PHASE_21_OD06_OD07_ACCEPTANCE_01.json": "5f9dabbf23a359df6020de6da8355d011a32e49037c4bcddec5f5178eaab6d48",
+    "docs/pre_editor/active/PHASE_21_OD06_OD07_PROPOSAL_01.md": "558053e24e5c138adec421be3a188b0f9b0d401e1b6f27fa8cb65342c95ea2a9",
+    "docs/pre_editor/active/PHASE_21_PROSPECTIVE_CONTRACT_AMENDMENT_01.md": "ff227b7809b024997a27661c2e5beb121ee816a17ce49a6d2bdd6773a5b14a19",
+    "docs/pre_editor/active/PHASE_21_REVIEW.md": "0ece255dbe75c1bcd8ead26af8f3e97190a47a56229fcd49a1b7fa2e2044c305",
+    "docs/pre_editor/active/REFACTOR_STATE.md": "89bb99e18949f100274e0611c83c8eff61db136fe216e8c9b0cb19fd834563db",
+    "docs/pre_editor/active/PHASE_21_PENETRATION_DIAGNOSTIC_ACCEPTANCE_01.json": "2af5135a10cc369ea0183931eb69642a7ef9fe368e7969b47b7311b6bcb190f6",
+    "logs/pre_editor/phase-21/stop-02/handoff.json": "c59d5d0b791ba261b753765374e0d1cc021af634a1bd98e06e0c53adf477528f",
+    "logs/pre_editor/phase-21/stop-02/causal-review.json": "759edab8847b2e5cdae266ccb98fb1118fcb4b8171905a7e92bfd4a2f4d68985",
+    "logs/pre_editor/phase-21/stop-02/checkpoint-spec.json": "dbc9eb45fb09736d47de90acaed0ec79b9ddfbbeadc4eaa949dfd281a1b47830",
+    "logs/pre_editor/phase-21/native/Debug-penetration-01/data/first-failure.bin": "2a77105462abfa5bca14cb82c287465ce54def26ca5b50ecb43c38f0e3915786",
+    "logs/pre_editor/phase-21/ledger.json": "5034a53e57482d8febabcb178e00255e25f564349b4b84ec46ea92d002701569",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": "b3ac31167db276ddaf8b324eaf6e9d0577c3ca00681e05698d290b1a30fd7714",
+    "RigidBodySimulation/src/main.cpp": "beff8fbbcc76df8522656e6e9d1c32270a591d56bf945089fd7895072da192ee",
+    "RigidBodySimulation/tests/RestingContactDiagnosis.h": "a055478bea3f29f6eff19d63437a9a50a4f83bff50295055af46e842a2e475f3",
+    "tools/pre_editor_phase21_qualification.py": "9512349ace82cb49b22c75306b64163e8d17bd8d0ecf95d89cb5a0f9027d2a27"
+  },
+  "source_edits": [],
+  "builds": 0,
+  "native_launches": 0,
+  "new_physics_measurements": 0,
+  "threshold_activation": false,
+  "phase_approval_seal_publication": false,
+  "review_outcome": "Pending owner decision; original 0.05 and NOT READY remain active.",
+  "static_review": {
+    "status": "PASS_PROPOSAL_CONSISTENCY_ONLY",
+    "reviewed_utc": "2026-10-22T01:47:36.617566+00:00",
+    "relative_links_resolve": true,
+    "dimensions_tick_counts_capacity_arithmetic_checked": true,
+    "active_rules_and_candidate_state_unchanged": true,
+    "implementation_and_historical_evidence_unchanged": true,
+    "no_execution_or_activation": true,
+    "numeric_budgets_require_explicit_owner_acceptance": true
+  }
+}

@@ -940,11 +940,11 @@ project "PhysicsTests"
 		}
 
 	filter { "system:windows", "configurations:Debug" }
-		-- Scene tests pull Debug renderer counters from GEngine. Keep CPU runs
-		-- independent of SDL2.dll by delaying its existing platform dependency.
-		libdirs { "%{externals.sdl2}/lib" }
-		links { "SDL2", "delayimp" }
-		linkoptions { "/DELAYLOAD:SDL2.dll" }
+		-- Scene ownership pulls the same render-resource imports in Debug and Release.
+		-- Delay existing native dependencies so CPU-only tests remain headless.
+		libdirs { "%{externals.sdl2}/lib", "%{externals.assimp}/lib" }
+		links { "SDL2", "SDL2_ttf", "assimp", "delayimp" }
+		linkoptions { "/DELAYLOAD:SDL2.dll", "/DELAYLOAD:SDL2_ttf.dll", "/DELAYLOAD:assimp-vc140-mt.dll" }
 
 	filter { "system:windows", "configurations:Release" }
 		-- Scene ownership pulls GEngine's render-resource object into CPU tests.

@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "phase": 21,
+  "package": "PHASE_21_OD06_RECOVERY_REVIEW_01",
+  "contract_amendment": 3,
+  "status": "PROPOSED_ONLY_NOT_ACTIVE",
+  "recorded_utc": "2026-10-22T06:44:50.961906+00:00",
+  "baseline": "6263b3719bfd1b20d3ed8c40abf803580857a82c",
+  "files": {
+    "PROPOSAL.md": "bfb9e7fbef6625e7528f575bf7b426b12c5f6f465ed24332d3ce07aa5721fbc3",
+    "CONTRACT_AMENDMENT.md": "384cd3787adcf5119acb8ffd7163e1fa9b3bd5c1ca902d77b3fa02d5da9d611d",
+    "proposal-inputs.json": "c82da51f8333c8d7d49c7a9529876bce70b494309099f5e58c2e3a665129caa2",
+    "static-validation.json": "10707b54f4940c808c257fca86475e84f6487fc226dadb7430c2f71ebf0efe58"
+  },
+  "historical_failures": [
+    "P21-PEN-01",
+    "P21-PEN-02"
+  ],
+  "blocking_findings": [
+    "P21-ANCHOR-01",
+    "P21-ENERGY-01"
+  ],
+  "requested_decision": "Accept amendment03 and the exact conditional qualification-authority03 scope together; no implicit P1/P0 exception.",
+  "current_authority_unchanged": true,
+  "current_100ms_criterion_unchanged": true,
+  "phase21_ready": false,
+  "qualification_or_publication_authorized": false
+}

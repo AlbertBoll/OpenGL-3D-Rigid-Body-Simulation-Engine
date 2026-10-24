@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "status": "PROPOSAL_STATIC_REVIEW_COMPLETE_NOT_QUALIFICATION",
+  "created_utc": "2026-10-23T23:38:22.924174+00:00",
+  "checks": {
+    "package_references": true,
+    "relevant_sources_unchanged": true,
+    "pinned_records_unchanged": true,
+    "historical_counts": true,
+    "historical_result_bytes": true,
+    "matrix_totals": true,
+    "native_envelope": true,
+    "build_envelope": true,
+    "caps_include_all_prior": true,
+    "usage_unchanged": true,
+    "index_unchanged": true,
+    "tracked_changes_unchanged": true,
+    "not_activated": true
+  },
+  "package": {
+    "ADMISSION.json": "224e7362dde834ee2d1a32dce5e51d53ecf4ed008153ae9939dc5e6bf16720d8",
+    "EVIDENCE.json": "832b08ef3b4eaa3176853be15a3f98d3361771e1f4ebbb0cb0076b9963c23767",
+    "PROPOSAL.md": "411f9b0531ef5ce4538045e99f170743f9b85591be60ee41dfb5f040fa89d040"
+  },
+  "no_production_or_support_changes": true,
+  "no_build_or_native_or_measurement": true,
+  "active_STOP08_authority_unchanged": true,
+  "owner_decision_pending": true
+}

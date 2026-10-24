@@ -45,16 +45,6 @@ void RigidBodySimulationApp::Update(Timestep ts)
 
     if (m_Launch.AsyncPerformanceEnabled())
         return;
-    if (m_Launch.targetedEntityDiagnostic)
-    {
-        auto& target=*Rbs::RestDiagnosis::targetSession;
-        if (!target.BeforeUpdate(*m_ActiveScene,ts.GetSecondsPrecise())) {
-            if (target.failed) FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Phase19 target","",
-                "target observation","",target.failure});
-            else ShutDown();
-            return;
-        }
-    }
     if (!ReplayMaterialValidation())
         UpdateMaterialAnimation(ts);
     // ImGui reports subpixel extents; retain whole-pixel truncation for framebuffer resize.
@@ -119,18 +109,6 @@ void RigidBodySimulationApp::Update(Timestep ts)
     }
     m_ActiveScene->SetPaused(m_IsPause);
     m_ActiveScene->Update(ts);
-    if (m_Launch.targetedEntityDiagnostic)
-    {
-        auto& target=*Rbs::RestDiagnosis::targetSession;
-        const auto logical=GetWindow()->GetLogicalSize();
-        const auto pixels=GetWindow()->GetFramebufferPixelSize();
-        target.FrameRow(0,HasVisibleViewport(),GetWindow()->GetSwapInterval(),GetManualFrameRateLimit(),m_IsPause,
-            m_IsShowDebugBoundingBox,logical.Width,logical.Height,pixels.Width,pixels.Height);
-        if (target.failed) {
-            FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Phase19 target","","record target","",target.failure});
-            return;
-        }
-    }
     if (m_Launch.restingContactDiagnostic)
     {
         auto& diagnostic=*Rbs::RestDiagnosis::session;
@@ -537,8 +515,6 @@ void RigidBodySimulationApp::Render()
                         {
                             auto& app = *static_cast<RigidBodySimulationApp*>(user);
                             app.ImGuiRender();
-                            if (app.m_Launch.targetedEntityDiagnostic && ImGui::IsKeyPressed(ImGuiKey_F10,false))
-                                Rbs::RestDiagnosis::targetSession->Bookmark(ImGui::GetFrameCount());
                             return {};
                         }};
     auto render = [&]() -> std::expected<ScheduledFrameStats, ScheduleError>
@@ -557,10 +533,6 @@ void RigidBodySimulationApp::Render()
                                     m_FarPlane};
         FrameSceneInput input{*m_ActiveScene, *m_SceneResources, *m_FrameSubmission,
                               targets,        m_PickTable,       {&camera, 1}};
-        if (m_Launch.targetedEntityDiagnostic) {
-            input.observationContext=Rbs::RestDiagnosis::targetSession.get();
-            input.observeFrame=Rbs::RestDiagnosis::TargetSession::ObserveFrame;
-        }
         // Preserve Phase 45's input/viewport snapshot: read this frame's IDs
         // before BeginUI refreshes ImGui mouse state or authors new panel bounds.
         input.pickingReadback = {this, [](void* user) -> ScheduleResult
@@ -591,14 +563,6 @@ void RigidBodySimulationApp::Render()
             return {};
         }};
         auto submitted = FrameScheduler::Render(context, &input);
-        if (m_Launch.targetedEntityDiagnostic) {
-            auto& target=*Rbs::RestDiagnosis::targetSession;
-            target.visible=context.visible; target.Submitted(bool(submitted));
-            const auto logical=GetWindow()->GetLogicalSize();
-            const auto pixels=GetWindow()->GetFramebufferPixelSize();
-            target.FrameRow(1,context.visible,GetWindow()->GetSwapInterval(),GetManualFrameRateLimit(),m_IsPause,
-                m_IsShowDebugBoundingBox,logical.Width,logical.Height,pixels.Width,pixels.Height);
-        }
         if (context.visible && m_CameraSnapshot)
             if (auto checked = ValidateSubmittedFrame(bool(submitted), input.targets, camera); !checked)
                 return std::unexpected(checked.error());

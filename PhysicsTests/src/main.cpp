@@ -2719,7 +2719,7 @@ namespace
 		b->m_Orientation = Quat(0, 0, 0, 0);
 		expectFallback(invalid);
 		b->m_Orientation = Quat(1, 0, 0, 0);
-		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		b->m_Shape = &sphere;
 		expectFallback(invalid);
 	}
@@ -2856,7 +2856,7 @@ namespace
 		using namespace GEngine;
 		// Observe warm-start impulses without exposing the manifold's private solver state.
 		for (bool reverse : { false, true }) {
-			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
+			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 			RigidBody3D a, b;
 			ConfigureSphereBody(a, sphere, Vec3f(0));
 			ConfigureSphereBody(b, sphere, Vec3f(0, 2, 0));
@@ -2896,7 +2896,7 @@ namespace
 		}
 
 		for (int mutation = 0; mutation < 4; ++mutation) {
-			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1)), replacement(MakeFixtureShape<ShapeSphere>(1));
+			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f)), replacement(MakeFixtureShape<ShapeSphere>(1.0f));
 			PhysicsWorld world(Vec3f(0));
 			auto* a = world.CreateRigidBody3D();
 			auto* b = world.CreateRigidBody3D();
@@ -2927,7 +2927,7 @@ namespace
 	void TestPersistenceBasisAndGuards()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		RigidBody3D a, b;
 		ConfigureSphereBody(a, sphere, Vec3f(0));
 		ConfigureSphereBody(b, sphere, Vec3f(0));
@@ -3008,7 +3008,7 @@ namespace
 	void TestPersistenceLifetimeAndQueryMetadata()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		PhysicsSystem system;
 		auto* world = new PhysicsWorld(Vec3f(0));
 		system.SetPhysicsWorld(world);
@@ -4824,7 +4824,7 @@ namespace
 		double stopping[2]{};int index=0;
 		for(int rate : {60,120}) {
 			for(bool enabled : {false,true}) {
-				ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));ShapeBox floor(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(30,0.5f,30))));
+				ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));ShapeBox floor(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(30,0.5f,30))));
 				PhysicsSystem system;auto*world=new PhysicsWorld();system.SetPhysicsWorld(world);system.SetSleepingEnabled(false);
 				auto*support=world->CreateRigidBody3D();auto*body=world->CreateRigidBody3D();
 				ConfigureBoxBody(*support,floor,Vec3f(0),Quat(1,0,0,0));support->SetBodyTypeAndInverseMass(BodyType::Static,0);
@@ -4855,7 +4855,7 @@ namespace
 				if(enabled) stopping[index]=stop;
 			}
 			++index;
-			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));PhysicsSystem system;auto*world=new PhysicsWorld(Vec3f(0));system.SetPhysicsWorld(world);
+			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));PhysicsSystem system;auto*world=new PhysicsWorld(Vec3f(0));system.SetPhysicsWorld(world);
 			auto*body=world->CreateRigidBody3D();auto*reference=world->CreateRigidBody3D();
 			ConfigureSphereBody(*body,sphere,Vec3f(0,20,0));ConfigureSphereBody(*reference,sphere,Vec3f(100,20,0));
 			body->SetRollingResistanceLength(0.05f);
@@ -4870,7 +4870,7 @@ namespace
 	void TestRollingMaterialAndWake()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		PhysicsSystem system; auto* world=new PhysicsWorld(); system.SetPhysicsWorld(world);
 		auto* support=world->CreateRigidBody3D(); auto* body=world->CreateRigidBody3D();
 		ConfigureSphereBody(*support,sphere,Vec3f(0)); support->SetBodyTypeAndInverseMass(BodyType::Static,0);
@@ -5010,7 +5010,7 @@ namespace
 	void TestSpinMaterialAndWake()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		PhysicsSystem system; auto* world=new PhysicsWorld(); system.SetPhysicsWorld(world);
 		auto* support=world->CreateRigidBody3D(); auto* body=world->CreateRigidBody3D();
 		ConfigureSphereBody(*support,sphere,Vec3f(0)); support->SetBodyTypeAndInverseMass(BodyType::Static,0);
@@ -5048,7 +5048,7 @@ namespace
 		int rateIndex=0;
 		for(int rate : {60,120}) {
 			for(bool enabled : {false,true}) {
-				ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1)); ShapeBox floor(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(20,0.5f,20))));
+				ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f)); ShapeBox floor(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(20,0.5f,20))));
 				PhysicsSystem system; auto* world=new PhysicsWorld(); system.SetPhysicsWorld(world);
 				system.SetSleepingEnabled(false); // Measure physical decay before sleep truncation.
 				auto* support=world->CreateRigidBody3D(); auto* body=world->CreateRigidBody3D();
@@ -5082,7 +5082,7 @@ namespace
 				if(enabled) stopped[rateIndex]=stop;
 			}
 			++rateIndex;
-			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));PhysicsSystem system;auto* world=new PhysicsWorld(Vec3f(0));system.SetPhysicsWorld(world);
+			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));PhysicsSystem system;auto* world=new PhysicsWorld(Vec3f(0));system.SetPhysicsWorld(world);
 			auto* body=world->CreateRigidBody3D();ConfigureSphereBody(*body,sphere,Vec3f(0,20,0));
 			body->SetSpinResistanceLength(1);body->m_AngularVelocity=Vec3f(1,4,2);
 			auto* reference=world->CreateRigidBody3D();ConfigureSphereBody(*reference,sphere,Vec3f(100,20,0));
@@ -6499,7 +6499,7 @@ namespace
 	void TestContactIslandConnectivity()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		PhysicsWorld world(Vec3f(0));
 		std::vector<RigidBody3D*> bodies;
 		for (int i = 0; i < 8; ++i)
@@ -6556,7 +6556,7 @@ namespace
 	void TestContactIslandGraphOracle()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		PhysicsWorld world(Vec3f(0));
 		constexpr int count = 32, dynamicCount = 24;
 		std::vector<RigidBody3D*> bodies;
@@ -6624,7 +6624,7 @@ namespace
 	void TestContactIslandStorageRebuild()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		PhysicsWorld world(Vec3f(0));
 		for (int i = 0; i < 2048; ++i)
 		{
@@ -6687,7 +6687,7 @@ namespace
 	void TestContactIslandIdentityLifetime()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		PhysicsWorld world(Vec3f(0));
 		auto* a = world.CreateRigidBody3D();
 		auto* b = world.CreateRigidBody3D();
@@ -6719,7 +6719,7 @@ namespace
 	void TestContactIslandSystemLifecycle()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		PhysicsSystem system;
 		Expect(system.GetContactIslands().empty(), "new system has no island snapshot");
 		auto* world = new PhysicsWorld(Vec3f(0));
@@ -6820,7 +6820,7 @@ namespace
 	{
 		using namespace GEngine;
 		for (int mutation = 0; mutation < 13; ++mutation) {
-			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
+			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 			PhysicsSystem system;
 			auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
 			auto* a = world->CreateRigidBody3D(); auto* b = world->CreateRigidBody3D();
@@ -6849,7 +6849,7 @@ namespace
 				"public edits, explicit wake and impulses wake the connected island while preserving unrelated sleep");
 		}
 		for (int mutation = 0; mutation < 6; ++mutation) {
-			ShapeSphere boundaryShape(MakeFixtureShape<ShapeSphere>(1)), sphere(MakeFixtureShape<ShapeSphere>(1));
+			ShapeSphere boundaryShape(MakeFixtureShape<ShapeSphere>(1.0f)), sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 			PhysicsSystem system; auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
 			auto* boundary = world->CreateRigidBody3D();
 			auto* a = world->CreateRigidBody3D(); auto* b = world->CreateRigidBody3D();
@@ -6874,7 +6874,7 @@ namespace
 	void TestSleepEligibilityAndInteraction()
 	{
 		using namespace GEngine;
-		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		PhysicsSystem system; auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
 		auto* a = world->CreateRigidBody3D(); auto* b = world->CreateRigidBody3D();
 		ConfigureSphereBody(*a, sphere, Vec3f(0)); ConfigureSphereBody(*b, sphere, Vec3f(2,0,0));
@@ -6942,7 +6942,7 @@ namespace
 		// A quiet body's reused eligibility must accumulate exactly like the primitive,
 		// and even a below-threshold public mutation must restart its dwell.
 		{
-			ShapeSphere shape(MakeFixtureShape<ShapeSphere>(1));
+			ShapeSphere shape(MakeFixtureShape<ShapeSphere>(1.0f));
 			PhysicsSystem system; auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
 			auto* body = world->CreateRigidBody3D(); ConfigureSphereBody(*body, shape, Vec3f(0));
 			system.Update(Timestep(1.0f/60));
@@ -6966,7 +6966,7 @@ namespace
 					"small explicit mutations invalidate a partially accumulated sleep dwell");
 			}
 		}
-		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1));
+		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		PhysicsSystem first, second;
 		for (auto* system : {&first,&second}) {
 			auto* world = new PhysicsWorld(Vec3f(0)); system->SetPhysicsWorld(world);

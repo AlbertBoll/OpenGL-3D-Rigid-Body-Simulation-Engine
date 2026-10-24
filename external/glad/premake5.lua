@@ -43,6 +43,8 @@ project "glad"
 	filter "configurations:Debug"
 		runtime "Debug"
 		symbols "on"
+		-- Static dependency also links into non-incremental/ASAN consumers. Keep symbols without /ZI.
+		editandcontinue "Off"
 
 	-- RELEASE
 	filter "configurations:Release"

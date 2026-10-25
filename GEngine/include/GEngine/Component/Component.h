@@ -12,6 +12,7 @@
 #include <cstdint>
 //#include "Events/Property.h"
 #include "Physics/Bounds.h"
+#include "Assets/AssetHandle.h"
 
 //#include <Assets/Textures/Texture.h>
 //#include <Assets/Shaders/Shader.h>
@@ -23,6 +24,8 @@
 
 namespace GEngine
 {
+	struct PhysicsBodyTag;
+	using PhysicsBodyHandle = Asset::AssetHandle<PhysicsBodyTag>;
 	class RigidBody3D;
 	class Geometry;
 
@@ -547,7 +550,8 @@ namespace GEngine
 			BodyType Type = BodyType::Static;
 			std::uint32_t CollisionLayer = 1u;
 			std::uint32_t CollisionMask = ~std::uint32_t{ 0 };
-			RigidBody3D* RuntimeBody{};
+			// Runtime-only, world-owned identity. Copies are cleared by the Scene bridge.
+			PhysicsBodyHandle RuntimeBody{};
 			//RigidBodyBody3DProperty Property{};
 
 		};

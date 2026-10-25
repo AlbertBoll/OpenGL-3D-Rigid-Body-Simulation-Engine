@@ -27,6 +27,30 @@
 #include <utility>
 #include <vector>
 
+// Test-only access to the engine's internal solver fixtures. No application API
+// exposes body pointers or transfers body ownership through this adapter.
+namespace GEngine
+{
+    struct PhysicsTestAccess
+    {
+        static RigidBody3D* Create(PhysicsWorld& w) { return w.CreateRigidBody3D(); }
+        static RigidBody3D* Create(PhysicsWorld* w) { return Create(*w); }
+        static void Remove(PhysicsWorld& w, RigidBody3D* b) { w.RemoveRigidBody3D(b); }
+        static void Remove(PhysicsWorld* w, RigidBody3D* b) { Remove(*w, b); }
+        static const auto& Bodies(const PhysicsWorld& w) { return w.GetPhysicsBodies(); }
+        static const auto& Bodies(const PhysicsWorld* w) { return Bodies(*w); }
+        static RigidBody3D* Resolve(PhysicsWorld& w, PhysicsBodyHandle h)
+        { auto body = w.Resolve(h, "test fixture"); return body ? *body : nullptr; }
+        static PhysicsBodyHandle Handle(const PhysicsWorld& w, const RigidBody3D& b)
+        { return w.HandleOf(b.GetIdentity()); }
+        template<class Entity> static RigidBody3D* Body(const Entity& e)
+        {
+            auto* w = e.GetSceneContext()->GetPhysicsSystem()->GetPhysicsWorld();
+            return w ? Resolve(*w, e.template GetComponent<Component::RigidBody3DComponent>().RuntimeBody) : nullptr;
+        }
+    };
+}
+
 namespace Rbs::RestDiagnosis
 {
     using namespace ::GEngine;
@@ -996,7 +1020,7 @@ namespace Rbs::RestDiagnosis
             explicit RefinementDirectFixture(unsigned count) {
                 body.reserve(count+1);
                 for (unsigned i=0;i<=count;++i) {
-                    auto* b=world.CreateRigidBody3D(); b->m_Shape=&shape;
+                    auto* b=::GEngine::PhysicsTestAccess::Create(world); b->m_Shape=&shape;
                     b->SetBodyTypeAndInverseMass(i?Component::BodyType::Dynamic:Component::BodyType::Static,i?1.f:0.f);
                     b->m_Position={0,float(i)*2,0}; b->m_Friction=.5f; b->m_Elasticity=.5f;
                     if (i) b->m_LinearVelocity={.125f,-1,0};
@@ -1054,7 +1078,7 @@ namespace Rbs::RestDiagnosis
                 record("LP-once-per-step",trace.valid && trace.graphs==graphs && trace.reverse==reverse && trace.forward==forward && trace.warm==warm);
                 f.collector.PostSolve();
                 record("PostSolve-single-translation",trace.valid && trace.positions==4 && f.Finite());
-                const auto identity=f.body[4]->GetIdentity(); f.collector.Clear(); f.world.RemoveRigidBody3D(f.body[4]); f.body.pop_back();
+                const auto identity=f.body[4]->GetIdentity(); f.collector.Clear(); ::GEngine::PhysicsTestAccess::Remove(f.world, f.body[4]); f.body.pop_back();
                 record("identity-lifecycle",!f.world.IsBodyIdentityValid(identity) && f.collector.GetContactCount()==0 && f.Finite());
             }
             {
@@ -1145,7 +1169,7 @@ namespace Rbs::RestDiagnosis
                 record("finite-arithmetic-abort",trace.finiteFailure==1 && trace.graphs==1 && trace.eligibleComponents==1 && trace.forward==0 && f.Finite());
             }
             {
-                RefinementDirectFixture f(0); auto* a=f.body[0]; auto* b=f.world.CreateRigidBody3D(); b->m_Shape=&f.shape;
+                RefinementDirectFixture f(0); auto* a=f.body[0]; auto* b=::GEngine::PhysicsTestAccess::Create(f.world); b->m_Shape=&f.shape;
                 ConstraintPenetration c; c.m_bodyA=a; c.m_bodyB=b; c.m_anchorA=c.m_anchorB={}; c.m_Normal={0,1,0};
                 attach(); c.PreSolve(1.f/60); const auto beforeA=PD::Capture(*a),beforeB=PD::Capture(*b); c.Solve();
                 record("zero-effective-denominator",PD::SameState(beforeA,PD::Capture(*a)) && PD::SameState(beforeB,PD::Capture(*b)) && Math::IsFinite(c.m_CachedLambda[0]));
@@ -1284,7 +1308,7 @@ namespace Rbs::RestDiagnosis
             auto& c=phase21->causal; const auto& entry=c.order[index];
             if (entry.warm<0) return;
             const auto& w=c.warm[entry.warm];
-            const auto& all=scene->GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies();
+            const auto& all=::GEngine::PhysicsTestAccess::Bodies(scene->GetPhysicsSystem()->GetPhysicsWorld());
             RigidBody3D a=*all[w.a],b=*all[w.b];
             a.m_Position=c.shadow[w.a].position; a.m_Orientation=c.shadow[w.a].orientation;
             b.m_Position=c.shadow[w.b].position; b.m_Orientation=c.shadow[w.b].orientation;
@@ -1372,7 +1396,7 @@ namespace Rbs::RestDiagnosis
         {
             if (!CausalWindow()) return;
             auto& c=phase21->causal;
-            const auto& all=world.GetPhysicsBodies();
+            const auto& all=::GEngine::PhysicsTestAccess::Bodies(world);
             if (!CausalCheck(all.size()==185 && all[4]->m_Position==inputs[4].position && all[4]->m_Orientation==inputs[4].orientation,"causal fixture geometry identity")) return;
             if (stage==PD::Stage::Begin) { c.contactUsed=c.warmUsed=c.cursor=c.orderUsed=c.sequence=0; }
             if (stage==PD::Stage::Narrowphase) {
@@ -1908,7 +1932,7 @@ namespace Rbs::RestDiagnosis
                 stage==PD::Stage::Correction?2u:stage==PD::Stage::End?3u:4u;
             if (k==4) return;
             d.correcting=stage==PD::Stage::Integration;
-            auto& s=d.stages[k]; const auto& all=world.GetPhysicsBodies();
+            auto& s=d.stages[k]; const auto& all=::GEngine::PhysicsTestAccess::Bodies(world);
             s.stage=unsigned(stage); s.tick=tick; s.count=unsigned(all.size()); s.contacts=0;
             if (all.size()!=185) { Fail("Phase21 packet membership"); return; }
             for (unsigned i=0;i<all.size();++i) {
@@ -1988,7 +2012,7 @@ namespace Rbs::RestDiagnosis
                     auto& a=p.audit; a.expected={}; a.measured={}; a.stageEnergy={}; a.stageMask=0;
                     a.beginEnergy=a.beginKinetic=a.impulseError=a.workError=0;
                     a.pairClass.fill(0);
-                    unsigned i=0; for (const auto* body:world.GetPhysicsBodies()) {
+                    unsigned i=0; for (const auto* body : ::GEngine::PhysicsTestAccess::Bodies(world)) {
                         const auto state=PD::Capture(*body); a.beginKinetic+=Kinetic(*body,state);
                         a.beginEnergy+=Kinetic(*body,state)+Potential(*body,state);
                         const RigidBody3D copy=*body;
@@ -2006,14 +2030,14 @@ namespace Rbs::RestDiagnosis
                 const unsigned si=unsigned(stage);
                 if (si>=12 || (p.audit.stageMask&(1u<<si))) { Fail("P21-ENERGY-01 stage coverage"); scene->SetPaused(true); return; }
                 p.audit.stageMask|=1u<<si;
-                for (const auto* body:world.GetPhysicsBodies()) { const auto state=PD::Capture(*body); p.audit.stageEnergy[si]+=Kinetic(*body,state)+Potential(*body,state); }
+                for (const auto* body : ::GEngine::PhysicsTestAccess::Bodies(world)) { const auto state=PD::Capture(*body); p.audit.stageEnergy[si]+=Kinetic(*body,state)+Potential(*body,state); }
             }
             if (p.run=="penetration") {
                 Phase21PenStage(stage,world,manifolds);
                 if (failed) { scene->SetPaused(true); return; }
             }
             if (stage==PD::Stage::End) {
-                const auto& all=world.GetPhysicsBodies(); row.count=unsigned(all.size()); row.islands=unsigned(islands.size());
+                const auto& all=::GEngine::PhysicsTestAccess::Bodies(world); row.count=unsigned(all.size()); row.islands=unsigned(islands.size());
                 if (all.size()!=inputs.size() || all.size()>row.body.size()) { Fail("Phase21 membership"); scene->SetPaused(true); return; }
                 auto hash=[&](auto value) { const auto data=std::bit_cast<std::array<unsigned char,sizeof(value)>>(value); for (auto c:data) { row.hash^=c; row.hash*=1099511628211ull; } };
                 for (unsigned i=0;i<all.size();++i) {
@@ -2169,7 +2193,7 @@ namespace Rbs::RestDiagnosis
             if (!std::isfinite(t.discardedSeconds) || t.discardedSeconds<0 || !frames) Fail("Phase21 invalid time/frame evidence");
             p.discardedWallSeconds+=t.discardedSeconds;
             if (p.impulsePending && !failed) {
-                auto* body=scene->GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies()[1];
+                auto* body=::GEngine::PhysicsTestAccess::Bodies(scene->GetPhysicsSystem()->GetPhysicsWorld())[1];
                 const bool slept=body->IsSleeping(); const auto before=Kinetic(*body,PD::Capture(*body))+Potential(*body,PD::Capture(*body));
                 if (!slept) Fail("Phase21 wake premise: sphere not sleeping at five seconds");
                 else {
@@ -2271,7 +2295,7 @@ namespace Rbs::RestDiagnosis
         {
             auto& audit=*postAudit; const auto op=e.operation;
             const auto* world=scene->GetPhysicsSystem()->GetPhysicsWorld();
-            const auto& all=world->GetPhysicsBodies();
+            const auto& all=::GEngine::PhysicsTestAccess::Bodies(world);
             bool identity=true;
             for (const auto* body:{e.a,e.b}) identity=identity && body && Index(body)<all.size() &&
                 all[Index(body)]==body && world->IsBodyIdentityValid(body->GetIdentity());
@@ -2550,7 +2574,7 @@ namespace Rbs::RestDiagnosis
         }
         void ConditionalNarrowphase(const PhysicsWorld& world,ManifoldCollector& manifolds) noexcept
         {
-            const auto& all=world.GetPhysicsBodies(); if (all.empty()) return;
+            const auto& all=::GEngine::PhysicsTestAccess::Bodies(world); if (all.empty()) return;
             const unsigned groundIndex=episode==0?4u:0u;
             std::array<bool,185> admitted{};
             for (auto& manifold:manifolds.m_Manifolds) for (int j=0;j<manifold.GetNumContacts();++j) {
@@ -2568,7 +2592,7 @@ namespace Rbs::RestDiagnosis
         }
         void ConditionalEndTick(const PhysicsWorld& world,ManifoldCollector& manifolds,std::size_t bytes)
         {
-            auto& r=currentTick; const auto& all=world.GetPhysicsBodies(); r.bodies=unsigned(all.size());
+            auto& r=currentTick; const auto& all=::GEngine::PhysicsTestAccess::Bodies(world); r.bodies=unsigned(all.size());
             if (all.size()!=inputs.size() || previous.size()!=all.size()) { Fail("conditional body membership mismatch"); return; }
             for (unsigned i=0;i<all.size();++i) {
                 const auto& b=*all[i]; const auto state=PD::Capture(b);
@@ -2803,7 +2827,7 @@ namespace Rbs::RestDiagnosis
             auto& self=*static_cast<Session*>(context);
             const auto start=PD::Nanoseconds(),oldRecorder=self.recorderNs;
             Boundary(context,stage,world,manifolds,islands,bytes,passes);
-            auto& audit=*self.postAudit; const auto& all=world.GetPhysicsBodies();
+            auto& audit=*self.postAudit; const auto& all=::GEngine::PhysicsTestAccess::Bodies(world);
             if (stage==PD::Stage::Begin) {
                 audit.current={}; audit.current.episode=self.episode; audit.current.tick=self.tick;
                 audit.responseOpen=audit.responseComplete=false; audit.cache={};
@@ -2911,7 +2935,7 @@ namespace Rbs::RestDiagnosis
         void RecordBodies(const PhysicsWorld& world)
         {
             if (conditional || phase21) return;
-            const auto& all=world.GetPhysicsBodies();
+            const auto& all=::GEngine::PhysicsTestAccess::Bodies(world);
             if (all.size()!=inputs.size()) { Fail("unexpected body membership"); return; }
             for (unsigned i=0;i<all.size();++i) {
                 const auto* b=all[i];
@@ -2952,7 +2976,7 @@ namespace Rbs::RestDiagnosis
                 if (passes!=1 || self.tick>self.TickLimit()) self.Fail("tick/pass budget mismatch");
             }
             const auto interval=now-self.stageClock;
-            const auto& all=world.GetPhysicsBodies();
+            const auto& all=::GEngine::PhysicsTestAccess::Bodies(world);
             for (unsigned i=0;i<all.size();++i) if (self.Selected(i)) {
                 Binary(self.stages,self.episode); Binary(self.stages,self.tick);
                 Binary(self.stages,static_cast<unsigned>(stage)); Binary(self.stages,i);
@@ -2971,7 +2995,7 @@ namespace Rbs::RestDiagnosis
             double energy=0,maxLinear=0,maxAngular=0,drift=0,penetration=0;
             unsigned active=0,sleeping=0,contactCount=0;
             bool finite=true;
-            const auto& all=world.GetPhysicsBodies();
+            const auto& all=::GEngine::PhysicsTestAccess::Bodies(world);
             if (all.size()!=inputs.size() || previous.size()!=all.size()) { Fail("unexpected tick membership"); return; }
             for (unsigned i=0;i<all.size();++i) {
                 const auto& b=*all[i]; const auto s=PD::Capture(b);
@@ -3106,8 +3130,7 @@ namespace Rbs::RestDiagnosis
             shapeOwners.reserve(inputs.size());
             if (auto started=scene->OnRuntimeStart();!started) { Fail("fixture runtime construction failed"); return false; }
             auto* system=scene->GetPhysicsSystem(); auto* world=system->GetPhysicsWorld();
-            const auto& all=world->GetPhysicsBodies();
-            for (auto* b:all) shapeOwners.emplace_back(b->m_Shape);
+            const auto& all=::GEngine::PhysicsTestAccess::Bodies(world);
             if (all.size()!=inputs.size() || system->GetSolverIterations()!=1 || !system->IsSleepingEnabled()) {
                 Fail("fixture membership or Physics policy differs"); return false;
             }
@@ -3119,7 +3142,7 @@ namespace Rbs::RestDiagnosis
             }
             for (unsigned i=0;i<all.size();++i) {
                 auto& b=*all[i]; const auto& source=inputs[i];
-                if (&b!=entities[i].GetComponent<Component::RigidBody3DComponent>().RuntimeBody || Index(&b)!=i) {
+                if (PhysicsTestAccess::Handle(*world,b)!=entities[i].GetComponent<Component::RigidBody3DComponent>().RuntimeBody || Index(&b)!=i) {
                     Fail("runtime creation order differs from frozen input"); return false;
                 }
                 // The historical text contains float quaternion bits. Configure
@@ -3410,7 +3433,7 @@ namespace Rbs::RestDiagnosis
     {
         if (!s.conditional || s.queriesComplete || PD::queryObserver || s.scene->GetPhysicsTiming().totalSteps!=0) { s.Fail("conditional query entry invariant"); return false; }
         if (!IsPhysicsProfilingEnabled()) { s.Fail("conditional original Physics timers disabled"); return false; }
-        const auto& world=s.scene->GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies();
+        const auto& world=::GEngine::PhysicsTestAccess::Bodies(s.scene->GetPhysicsSystem()->GetPhysicsWorld());
         if (world.size()!=185) { s.Fail("conditional original world membership"); return false; }
         const auto unitPoints=Box({},Vec3f(2),true).points;
         auto boxResult=ShapeBox::Create(unitPoints);

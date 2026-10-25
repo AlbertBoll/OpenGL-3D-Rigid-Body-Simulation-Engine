@@ -517,12 +517,10 @@ namespace PreEditorValidation
             struct RuntimeCleanup
             {
                 RefPtr<_Scene> scene;
-                std::vector<std::unique_ptr<PhysicalShape>> shapes;
                 ~RuntimeCleanup() { scene->OnRuntimeStop(); }
-            } cleanup{scene, {}};
-            for (auto* body : scene->GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies()) cleanup.shapes.emplace_back(body->m_Shape);
-            auto* sphereShape = dynamic_cast<ShapeSphere*>(sphere->GetComponent<RigidBody3DComponent>().RuntimeBody->m_Shape);
-            auto* boxShape = dynamic_cast<ShapeBox*>(box->GetComponent<RigidBody3DComponent>().RuntimeBody->m_Shape);
+            } cleanup{scene};
+            auto* sphereShape = dynamic_cast<ShapeSphere*>(::GEngine::PhysicsTestAccess::Body(*sphere)->m_Shape);
+            auto* boxShape = dynamic_cast<ShapeBox*>(::GEngine::PhysicsTestAccess::Body(*box)->m_Shape);
             GEOM08_REQUIRE(sphereShape && boxShape, "temporary shapes use existing providers");
             const auto sphereRevision = sphereShape->GetRevision();
             sphere->Transform().SetScale({1, 1, 1});

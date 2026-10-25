@@ -199,14 +199,12 @@ namespace PreEditorValidation
         struct Cleanup
         {
             RefPtr<_Scene> scene;
-            std::vector<std::unique_ptr<PhysicalShape>> shapes;
-            void Capture() { for (auto* body : scene->GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies()) shapes.emplace_back(body->m_Shape); }
             ~Cleanup() { scene->OnRuntimeStop(); }
         } cleanup{scene};
-        SUB13_REQUIRE(scene->OnRuntimeStart(), "bridge startup"); cleanup.Capture();
-        auto* sphereShape = dynamic_cast<ShapeSphere*>(sphere->GetComponent<RigidBody3DComponent>().RuntimeBody->m_Shape);
-        auto* boxShape = dynamic_cast<ShapeBox*>(box->GetComponent<RigidBody3DComponent>().RuntimeBody->m_Shape);
-        auto* convexShape = dynamic_cast<ShapeConvex*>(convex->GetComponent<RigidBody3DComponent>().RuntimeBody->m_Shape);
+        SUB13_REQUIRE(scene->OnRuntimeStart(), "bridge startup");
+        auto* sphereShape = dynamic_cast<ShapeSphere*>(::GEngine::PhysicsTestAccess::Body(*sphere)->m_Shape);
+        auto* boxShape = dynamic_cast<ShapeBox*>(::GEngine::PhysicsTestAccess::Body(*box)->m_Shape);
+        auto* convexShape = dynamic_cast<ShapeConvex*>(::GEngine::PhysicsTestAccess::Body(*convex)->m_Shape);
         SUB13_REQUIRE(sphereShape && boxShape && convexShape, "bridge shape classes");
         SUB13_REQUIRE(sphereShape->IsValid() && boxShape->IsValid() && convexShape->IsValid(),
             "bridge source geometry creates valid shapes before scale checks");
@@ -243,7 +241,7 @@ namespace PreEditorValidation
         }
         SUB13_REQUIRE(observed->Reset(), "detach observer before Scene copies");
         auto duplicate = sphere->Duplicate(); auto copied = _Scene::Copy(scene);
-        SUB13_REQUIRE(duplicate && copied && duplicate->GetComponent<RigidBody3DComponent>().RuntimeBody == nullptr,
+        SUB13_REQUIRE(duplicate && copied && duplicate->GetComponent<RigidBody3DComponent>().RuntimeBody == ::GEngine::PhysicsBodyHandle{},
             "live duplicate and Scene copy");
         duplicate->Transform().SetScale(7.f);
         auto copiedSphere = (*copied)->FindEntityByName("subscription-sphere");
@@ -252,11 +250,11 @@ namespace PreEditorValidation
         sphere->Transform().SetScale(3.f);
         SUB13_REQUIRE(sphereShape->GetRadius() == 9, "copy does not disconnect source");
         scene->OnRuntimeStop(); sphere->Transform().SetScale(4.f);
-        SUB13_REQUIRE(sphereShape->GetRadius() == 9 && !sphere->Transform().OnScaleChanged, "stop disconnects before shape retirement");
+        SUB13_REQUIRE(!::GEngine::PhysicsTestAccess::Body(*sphere) && !sphere->Transform().OnScaleChanged, "stop disconnects before shape retirement");
         SUB13_REQUIRE(scene->DestroyEntity(*duplicate), "remove copied authoring body before restart");
         box->Transform().Scale = {1,1,1}; convex->Transform().Scale = {1,1,1};
-        SUB13_REQUIRE(scene->OnRuntimeStart(), "bridge restart"); cleanup.Capture();
-        auto* restarted = dynamic_cast<ShapeSphere*>(sphere->GetComponent<RigidBody3DComponent>().RuntimeBody->m_Shape);
+        SUB13_REQUIRE(scene->OnRuntimeStart(), "bridge restart");
+        auto* restarted = dynamic_cast<ShapeSphere*>(::GEngine::PhysicsTestAccess::Body(*sphere)->m_Shape);
         sphere->Transform().SetScale(2.f);
         SUB13_REQUIRE(restarted && restarted->GetRadius() == 4, "fresh runtime connection after restart");
         scene->OnRuntimeStop();
@@ -269,8 +267,8 @@ namespace PreEditorValidation
             survivor->AddOrReplaceComponent<RigidBody3DComponent>();
             survivor->AddOrReplaceComponent<SphereFixture3DComponent>(sphereFixture);
             Cleanup relocationCleanup{relocation};
-            SUB13_REQUIRE(relocation->OnRuntimeStart(), "packed relocation runtime"); relocationCleanup.Capture();
-            auto* shape = dynamic_cast<ShapeSphere*>(survivor->GetComponent<RigidBody3DComponent>().RuntimeBody->m_Shape);
+            SUB13_REQUIRE(relocation->OnRuntimeStart(), "packed relocation runtime");
+            auto* shape = dynamic_cast<ShapeSphere*>(::GEngine::PhysicsTestAccess::Body(*survivor)->m_Shape);
             auto* previousAddress = &survivor->Transform();
             SUB13_REQUIRE(shape && relocation->DestroyEntity(*removed) && &survivor->Transform() != previousAddress,
                 "non-last entity removal relocates live Transform");
@@ -295,7 +293,7 @@ namespace PreEditorValidation
         auto visit = failedScene->GetAllEntitiesWith<RigidBody3DComponent>();
         SUB13_REQUIRE(*visit.begin() == static_cast<entt::entity>(*good), "rollback fixture visits valid body before invalid body");
         auto attempted = failedScene->OnRuntimeStart();
-        SUB13_REQUIRE(!attempted && good->GetComponent<RigidBody3DComponent>().RuntimeBody == nullptr &&
+        SUB13_REQUIRE(!attempted && good->GetComponent<RigidBody3DComponent>().RuntimeBody == ::GEngine::PhysicsBodyHandle{} &&
             !good->Transform().OnScaleChanged && !bad->Transform().OnScaleChanged, "failed startup releases partial bridge");
         Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_13_SCALE_PASS checks={}", checks);
         return {};

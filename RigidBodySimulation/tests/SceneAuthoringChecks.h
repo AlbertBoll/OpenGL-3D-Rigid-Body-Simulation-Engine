@@ -250,26 +250,26 @@ namespace PreEditorValidation
         // Exercise the existing Physics clone cleanup against an actual live body.
         auto live = active.FindEntityByName("wood_sphere0");
         PRE_EDITOR_REQUIRE(live && live.HasAllComponents<RigidBody3DComponent>(), "live sphere");
-        auto* body = live.GetComponent<RigidBody3DComponent>().RuntimeBody;
+        auto* body = ::GEngine::PhysicsTestAccess::Body(live);
         PRE_EDITOR_REQUIRE(body && body->m_Shape, "live Physics body");
         auto* shape = dynamic_cast<ShapeSphere*>(body->m_Shape);
         PRE_EDITOR_REQUIRE(shape, "sphere shape");
         const auto radius = shape->GetRadius();
-        const auto bodies = active.GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies().size();
+        const auto bodies = ::GEngine::PhysicsTestAccess::Bodies(active.GetPhysicsSystem()->GetPhysicsWorld()).size();
         const auto liveMesh = live.GetComponent<MeshRendererComponent>();
         auto clone = live.Duplicate();
         PRE_EDITOR_REQUIRE(clone &&
-                               clone->GetComponent<RigidBody3DComponent>().RuntimeBody == nullptr &&
+                               clone->GetComponent<RigidBody3DComponent>().RuntimeBody == ::GEngine::PhysicsBodyHandle{} &&
                                clone->GetComponent<MeshRendererComponent>() == liveMesh,
                            "duplicate clears runtime body");
         clone->Transform().SetScale(2.f);
         PRE_EDITOR_REQUIRE(shape->GetRadius() == radius &&
-                               live.GetComponent<RigidBody3DComponent>().RuntimeBody == body,
+                               ::GEngine::PhysicsTestAccess::Body(live) == body,
                            "scale callback detached");
         auto removed = active.DestroyEntity(*clone);
         PRE_EDITOR_REQUIRE(
             removed && shape->GetRadius() == radius &&
-                active.GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies().size() == bodies,
+                ::GEngine::PhysicsTestAccess::Bodies(active.GetPhysicsSystem()->GetPhysicsWorld()).size() == bodies,
             "duplicate cleanup preserves live Physics");
         PRE_EDITOR_REQUIRE(owner.Meshes().Size() == meshCount &&
                                owner.Materials().Size() == materialCount,

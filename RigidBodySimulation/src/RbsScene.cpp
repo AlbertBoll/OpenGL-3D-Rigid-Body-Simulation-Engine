@@ -957,12 +957,9 @@ void main() {
 
 ApplicationInitializationResult RigidBodySimulationApp::StartSceneRuntime()
 {
-    // Reserve before the Scene hands successful runtime shape ownership to this caller.
-    m_PhysicsShapes.reserve(m_ActiveScene->GetAllEntitiesWith<RigidBody3DComponent>().size());
+    // Scene's PhysicsWorld owns its runtime bodies and shapes through teardown.
     if (auto started = m_ActiveScene->OnRuntimeStart(); !started)
         return std::unexpected(started.error());
-    for (auto* body : m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies())
-        m_PhysicsShapes.emplace_back(body->m_Shape);
 
     return {};
 }

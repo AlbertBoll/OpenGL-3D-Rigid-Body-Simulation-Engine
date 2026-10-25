@@ -9,6 +9,7 @@
 #include "BaseApp.h"
 #include "Physics/PhysicsBody.h"
 #include "Physics/Shape.h"
+#include "Physics/PhysicsSystem.h"
 #include <imgui/imgui.h>
 #include <limits>
 #include <array>
@@ -1069,7 +1070,11 @@ namespace GEngine
 				}
 				auto& transform = entity.GetComponent<Transform3DComponent>();
 				auto& rigidBody = entity.GetComponent<RigidBody3DComponent>();
-				auto bound = rigidBody.RuntimeBody->m_Shape->GetBounds(transform.Translation, transform.QuatRotation);
+				auto* world = scene->GetPhysicsSystem()->GetPhysicsWorld();
+                if (!world) continue;
+                auto queried = world->GetBodyBoundsAt(rigidBody.RuntimeBody, transform.Translation, transform.QuatRotation);
+                if (!queried) continue;
+                const auto bound = *queried;
 				geo->LoadSubDataDynamically(bound);
 				ArraysDraw((unsigned int)debug_shader_comp.RenderSettings.DrawStyle, 72);
 			}
@@ -1104,7 +1109,11 @@ namespace GEngine
 					UpdateRenderSetting(renderComp.RenderSettings.m_PrimitivesSetting.lineSetting);
 					first_enter = false;
 				}
-				auto bound = rigidBody.RuntimeBody->m_Shape->GetBounds(transform.Translation, transform.QuatRotation);
+				auto* world = scene->GetPhysicsSystem()->GetPhysicsWorld();
+                if (!world) continue;
+                auto queried = world->GetBodyBoundsAt(rigidBody.RuntimeBody, transform.Translation, transform.QuatRotation);
+                if (!queried) continue;
+                const auto bound = *queried;
 				debug_bounding_box.LoadDynamicalBuffer(bound);
 				//debug_bounding_box.LoadUniforms(debug_shader);
 				

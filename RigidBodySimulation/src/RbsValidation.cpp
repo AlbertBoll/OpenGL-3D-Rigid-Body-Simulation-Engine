@@ -2195,7 +2195,7 @@ RigidBodySimulationApp::ValidatePhysicsScene(const Rbs::SceneAssets& assets)
     }
     if (actualGallery != galleryCount || assets.galleryFixtures != galleryCount ||
         assets.normalPhysicsBodies != dynamicCount + 5 ||
-        m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies().size() !=
+        m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld()->GetBodyCount() !=
             dynamicCount + 5)
         return failure("Gallery/default or total runtime body count changed");
     unsigned staticCount = 0;
@@ -2203,15 +2203,15 @@ RigidBodySimulationApp::ValidatePhysicsScene(const Rbs::SceneAssets& assets)
     {
         _Entity entity{id, m_ActiveScene.get()};
         const auto& component = entity.GetComponent<RigidBody3DComponent>();
-        const auto* body = component.RuntimeBody;
-        if (!body || !body->m_Shape || body->Type != component.Type ||
+        const auto body = m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld()->ReadBody(component.RuntimeBody);
+        if (!body || body->type != component.Type ||
             !entity.HasAllComponents<MeshRendererComponent, Transform3DComponent>())
             return failure("Missing fixture runtime body, shape or renderable");
         if (component.Type == BodyType::Static)
         {
             ++staticCount;
-            if (!entity.HasAllComponents<BoxFixture3DComponent>() || body->GetInverseMass() != 0 ||
-                body->m_Shape->GetShapeType() != ShapeType::Box)
+            if (!entity.HasAllComponents<BoxFixture3DComponent>() || body->inverseMass != 0 ||
+                body->shapeType != ShapeType::Box)
                 return failure("Common ground/wall body family changed");
             continue;
         }
@@ -2221,15 +2221,15 @@ RigidBodySimulationApp::ValidatePhysicsScene(const Rbs::SceneAssets& assets)
                                   {
                                       return fixture.name == entity.Name() &&
                                              fixture.position == transform.Translation &&
-                                             fixture.shape == body->m_Shape->GetShapeType();
+                                             fixture.shape == body->shapeType;
                                   });
         if (component.Type != BodyType::Dynamic || found == expected.end())
             return failure("Unexpected dynamic fixture family or initial position");
         if (transform.Scale != found->scale || transform.QuatRotation != Quat(1, 0, 0, 0) ||
-            body->m_Position != found->position || body->m_Orientation != transform.QuatRotation ||
-            body->GetLinearVelocity() != found->linear ||
-            body->GetAngularVelocity() != found->angular || body->GetInverseMass() != 1.f ||
-            body->m_Friction != .5f || body->m_Elasticity != .5f)
+            body->position != found->position || body->orientation != transform.QuatRotation ||
+            body->linearVelocity != found->linear ||
+            body->angularVelocity != found->angular || body->inverseMass != 1.f ||
+            body->material.friction != .5f || body->material.restitution != .5f)
             return failure("Initial transform, motion or material differs from Phase 13");
         const Fixture3DProperty* property = nullptr;
         switch (found->shape)

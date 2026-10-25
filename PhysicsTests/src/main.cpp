@@ -34,6 +34,30 @@
 #include <crtdbg.h>
 #endif
 
+// Test-only access to the engine's internal solver fixtures. No application API
+// exposes body pointers or transfers body ownership through this adapter.
+namespace GEngine
+{
+    struct PhysicsTestAccess
+    {
+        static RigidBody3D* Create(PhysicsWorld& w) { return w.CreateRigidBody3D(); }
+        static RigidBody3D* Create(PhysicsWorld* w) { return Create(*w); }
+        static void Remove(PhysicsWorld& w, RigidBody3D* b) { w.RemoveRigidBody3D(b); }
+        static void Remove(PhysicsWorld* w, RigidBody3D* b) { Remove(*w, b); }
+        static const auto& Bodies(const PhysicsWorld& w) { return w.GetPhysicsBodies(); }
+        static const auto& Bodies(const PhysicsWorld* w) { return Bodies(*w); }
+        static RigidBody3D* Resolve(PhysicsWorld& w, PhysicsBodyHandle h)
+        { auto body = w.Resolve(h, "test fixture"); return body ? *body : nullptr; }
+        static PhysicsBodyHandle Handle(const PhysicsWorld& w, const RigidBody3D& b)
+        { return w.HandleOf(b.GetIdentity()); }
+        template<class Entity> static RigidBody3D* Body(const Entity& e)
+        {
+            auto* w = e.GetSceneContext()->GetPhysicsSystem()->GetPhysicsWorld();
+            return w ? Resolve(*w, e.template GetComponent<Component::RigidBody3DComponent>().RuntimeBody) : nullptr;
+        }
+    };
+}
+
 namespace
 {
     // Test-only preparation for bounded Scene value/void result migrations.
@@ -897,10 +921,10 @@ namespace
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
 		system.SetPhysicsWorld(world);
 
-		GEngine::RigidBody3D* bodyA = world->CreateRigidBody3D();
-		GEngine::RigidBody3D* bodyB = world->CreateRigidBody3D();
-		GEngine::RigidBody3D* unrelatedA = world->CreateRigidBody3D();
-		GEngine::RigidBody3D* unrelatedB = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* bodyA = ::GEngine::PhysicsTestAccess::Create(world);
+		GEngine::RigidBody3D* bodyB = ::GEngine::PhysicsTestAccess::Create(world);
+		GEngine::RigidBody3D* unrelatedA = ::GEngine::PhysicsTestAccess::Create(world);
+		GEngine::RigidBody3D* unrelatedB = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureSphereBody(*bodyA, sphere, GEngine::Vec3f(0.0f, 0.0f, 0.0f));
 		ConfigureSphereBody(*bodyB, sphere, GEngine::Vec3f(2.0f, 0.0f, 0.0f));
 		ConfigureSphereBody(*unrelatedA, sphere, GEngine::Vec3f(10.0f, 0.0f, 0.0f));
@@ -914,8 +938,8 @@ namespace
 			(initialProfile.manifoldCount == 2 && initialProfile.manifoldContactCount == 2),
 			"body-removal fixture creates the target and unrelated active manifolds");
 
-		world->RemoveRigidBody3D(bodyA);
-		Expect(world->GetPhysicsBodies().size() == 3,
+		::GEngine::PhysicsTestAccess::Remove(world, bodyA);
+		Expect(::GEngine::PhysicsTestAccess::Bodies(world).size() == 3,
 			"removing the first body erases it from the world");
 
 		GEngine::ResetPhysicsProfile();
@@ -930,29 +954,29 @@ namespace
 		Expect(bodyB->HasFiniteState() && unrelatedA->HasFiniteState() && unrelatedB->HasFiniteState(),
 			"physics continues stepping safely after removing the first body");
 
-		GEngine::RigidBody3D* bodyWithoutManifold = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* bodyWithoutManifold = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureSphereBody(*bodyWithoutManifold, sphere, GEngine::Vec3f(100.0f, 0.0f, 0.0f));
-		world->RemoveRigidBody3D(bodyWithoutManifold);
+		::GEngine::PhysicsTestAccess::Remove(world, bodyWithoutManifold);
 		GEngine::ResetPhysicsProfile();
 		system.Update(GEngine::Timestep(dt));
 		const GEngine::PhysicsProfileSnapshot afterNoManifoldRemoval = GEngine::GetPhysicsProfileSnapshot();
-		Expect(world->GetPhysicsBodies().size() == 3 &&
+		Expect(::GEngine::PhysicsTestAccess::Bodies(world).size() == 3 &&
 			(!GEngine::IsPhysicsProfilingEnabled() || afterNoManifoldRemoval.manifoldCount == 1),
 			"removing a body without a manifold preserves unrelated manifolds");
 
 		GEngine::PhysicsSystem oppositeSystem;
 		auto* oppositeWorld = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
 		oppositeSystem.SetPhysicsWorld(oppositeWorld);
-		GEngine::RigidBody3D* oppositeA = oppositeWorld->CreateRigidBody3D();
-		GEngine::RigidBody3D* oppositeB = oppositeWorld->CreateRigidBody3D();
+		GEngine::RigidBody3D* oppositeA = ::GEngine::PhysicsTestAccess::Create(oppositeWorld);
+		GEngine::RigidBody3D* oppositeB = ::GEngine::PhysicsTestAccess::Create(oppositeWorld);
 		ConfigureSphereBody(*oppositeA, sphere, GEngine::Vec3f(0.0f, 0.0f, 0.0f));
 		ConfigureSphereBody(*oppositeB, sphere, GEngine::Vec3f(2.0f, 0.0f, 0.0f));
 		oppositeSystem.Update(GEngine::Timestep(dt));
-		oppositeWorld->RemoveRigidBody3D(oppositeB);
+		::GEngine::PhysicsTestAccess::Remove(oppositeWorld, oppositeB);
 		GEngine::ResetPhysicsProfile();
 		oppositeSystem.Update(GEngine::Timestep(dt));
 		const GEngine::PhysicsProfileSnapshot afterOppositeRemoval = GEngine::GetPhysicsProfileSnapshot();
-		Expect(oppositeWorld->GetPhysicsBodies().size() == 1 && oppositeA->HasFiniteState() &&
+		Expect(::GEngine::PhysicsTestAccess::Bodies(oppositeWorld).size() == 1 && oppositeA->HasFiniteState() &&
 			(!GEngine::IsPhysicsProfilingEnabled() || afterOppositeRemoval.manifoldCount == 0),
 			"removing the opposite body invalidates its manifold and permits another safe step");
 	}
@@ -964,11 +988,11 @@ namespace
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
 		system.SetPhysicsWorld(world);
 
-		GEngine::RigidBody3D* sharedBody = world->CreateRigidBody3D();
-		GEngine::RigidBody3D* leftBody = world->CreateRigidBody3D();
-		GEngine::RigidBody3D* rightBody = world->CreateRigidBody3D();
-		GEngine::RigidBody3D* unrelatedA = world->CreateRigidBody3D();
-		GEngine::RigidBody3D* unrelatedB = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* sharedBody = ::GEngine::PhysicsTestAccess::Create(world);
+		GEngine::RigidBody3D* leftBody = ::GEngine::PhysicsTestAccess::Create(world);
+		GEngine::RigidBody3D* rightBody = ::GEngine::PhysicsTestAccess::Create(world);
+		GEngine::RigidBody3D* unrelatedA = ::GEngine::PhysicsTestAccess::Create(world);
+		GEngine::RigidBody3D* unrelatedB = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureSphereBody(*sharedBody, sphere, GEngine::Vec3f(0.0f, 0.0f, 0.0f));
 		ConfigureSphereBody(*leftBody, sphere, GEngine::Vec3f(-2.0f, 0.0f, 0.0f));
 		ConfigureSphereBody(*rightBody, sphere, GEngine::Vec3f(2.0f, 0.0f, 0.0f));
@@ -981,7 +1005,7 @@ namespace
 		Expect(manifolds.m_Manifolds.size() == 3 && manifolds.GetContactCount() == 3,
 			"shared-body fixture creates two target manifolds and one unrelated manifold");
 
-		world->RemoveRigidBody3D(sharedBody);
+		::GEngine::PhysicsTestAccess::Remove(world, sharedBody);
 		const bool unrelatedManifoldPreserved = manifolds.m_Manifolds.size() == 1 &&
 			manifolds.GetContactCount() == 1 && manifolds.m_Manifolds[0].GetNumContacts() == 1;
 		GEngine::contact_t unrelatedContact{};
@@ -1009,10 +1033,10 @@ namespace
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
 		system.SetPhysicsWorld(world);
 
-		GEngine::RigidBody3D* removedBody = world->CreateRigidBody3D();
-		GEngine::RigidBody3D* targetBody = world->CreateRigidBody3D();
-		GEngine::RigidBody3D* unrelatedA = world->CreateRigidBody3D();
-		GEngine::RigidBody3D* unrelatedB = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* removedBody = ::GEngine::PhysicsTestAccess::Create(world);
+		GEngine::RigidBody3D* targetBody = ::GEngine::PhysicsTestAccess::Create(world);
+		GEngine::RigidBody3D* unrelatedA = ::GEngine::PhysicsTestAccess::Create(world);
+		GEngine::RigidBody3D* unrelatedB = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureSphereBody(*removedBody, sphere, GEngine::Vec3f(0.0f, 0.0f, 0.0f));
 		ConfigureSphereBody(*targetBody, sphere, GEngine::Vec3f(5.0f, 0.0f, 0.0f));
 		ConfigureSphereBody(*unrelatedA, sphere, GEngine::Vec3f(20.0f, 0.0f, 0.0f));
@@ -1037,7 +1061,7 @@ namespace
 		Expect(transientContacts.size() == 2,
 			"positive-TOI contacts are queued before body removal");
 
-		world->RemoveRigidBody3D(removedBody);
+		::GEngine::PhysicsTestAccess::Remove(world, removedBody);
 		const bool unrelatedContactPreserved = transientContacts.size() == 1 &&
 			((transientContacts[0].m_BodyA == unrelatedA && transientContacts[0].m_BodyB == unrelatedB) ||
 				(transientContacts[0].m_BodyA == unrelatedB && transientContacts[0].m_BodyB == unrelatedA));
@@ -1045,7 +1069,7 @@ namespace
 			"body removal invalidates its transient contact before deletion and preserves unrelated transient state");
 
 		system.Update(GEngine::Timestep(1.0f / 120.0f));
-		Expect(world->GetPhysicsBodies().size() == 3 && GetTransientContacts(system).empty() &&
+		Expect(::GEngine::PhysicsTestAccess::Bodies(world).size() == 3 && GetTransientContacts(system).empty() &&
 			targetBody->HasFiniteState() && unrelatedA->HasFiniteState() && unrelatedB->HasFiniteState(),
 			"transient-contact removal permits safe stepping with finite survivors");
 	}
@@ -1469,8 +1493,8 @@ namespace
 		Expect(!stackBody.GetIdentity().IsValid(),
 			"bodies outside world ownership do not impersonate world-managed identities");
 
-		GEngine::RigidBody3D* firstBody = world.CreateRigidBody3D();
-		GEngine::RigidBody3D* secondBody = world.CreateRigidBody3D();
+		GEngine::RigidBody3D* firstBody = ::GEngine::PhysicsTestAccess::Create(world);
+		GEngine::RigidBody3D* secondBody = ::GEngine::PhysicsTestAccess::Create(world);
 		const GEngine::RigidBodyIdentity firstIdentity = firstBody->GetIdentity();
 		const GEngine::RigidBodyIdentity secondIdentity = secondBody->GetIdentity();
 		Expect(firstIdentity.IsValid() && secondIdentity.IsValid() && firstIdentity != secondIdentity &&
@@ -1480,18 +1504,18 @@ namespace
 		const GEngine::RigidBodyIdentity stableSecondIdentity = secondBody->GetIdentity();
 		for (int index = 0; index < 32; ++index)
 		{
-			world.CreateRigidBody3D();
+			::GEngine::PhysicsTestAccess::Create(world);
 		}
 		Expect(secondBody->GetIdentity() == stableSecondIdentity &&
 			world.IsBodyIdentityValid(stableSecondIdentity),
 			"body identity remains stable when owning storage grows");
 
-		world.RemoveRigidBody3D(firstBody);
+		::GEngine::PhysicsTestAccess::Remove(world, firstBody);
 		Expect(!world.IsBodyIdentityValid(firstIdentity) &&
 			world.IsBodyIdentityValid(stableSecondIdentity),
 			"body removal invalidates only the removed identity");
 
-		GEngine::RigidBody3D* replacementBody = world.CreateRigidBody3D();
+		GEngine::RigidBody3D* replacementBody = ::GEngine::PhysicsTestAccess::Create(world);
 		const GEngine::RigidBodyIdentity replacementIdentity = replacementBody->GetIdentity();
 		Expect(replacementIdentity.IsValid() && world.IsBodyIdentityValid(replacementIdentity) &&
 			replacementIdentity.GetSlot() == firstIdentity.GetSlot() &&
@@ -1500,7 +1524,7 @@ namespace
 			"a reused identity slot receives a new generation and cannot impersonate the removed body");
 
 		GEngine::PhysicsWorld otherWorld;
-		GEngine::RigidBody3D* otherBody = otherWorld.CreateRigidBody3D();
+		GEngine::RigidBody3D* otherBody = ::GEngine::PhysicsTestAccess::Create(otherWorld);
 		Expect(otherBody->GetIdentity() != replacementIdentity &&
 			!otherWorld.IsBodyIdentityValid(replacementIdentity) &&
 			!world.IsBodyIdentityValid(otherBody->GetIdentity()),
@@ -1523,25 +1547,25 @@ namespace
 	void TestReadOnlyPhysicsBodyStorageRegression()
 	{
 		GEngine::PhysicsWorld world;
-		using PhysicsBodyView = decltype(world.GetPhysicsBodies());
-		using PhysicsBodyReference = decltype(world.GetPhysicsBodies()[0]);
+		using PhysicsBodyView = decltype(::GEngine::PhysicsTestAccess::Bodies(world));
+		using PhysicsBodyReference = decltype(::GEngine::PhysicsTestAccess::Bodies(world)[0]);
 		static_assert(std::is_same_v<PhysicsBodyView, const std::vector<GEngine::RigidBody3D*>&>,
 			"physics body storage must be exposed only through a const collection reference");
 		static_assert(std::is_same_v<PhysicsBodyReference, GEngine::RigidBody3D* const&> &&
 			!std::is_assignable_v<PhysicsBodyReference, GEngine::RigidBody3D*>,
 			"clients must not be able to replace pointers in the owning body collection");
 
-		GEngine::RigidBody3D* firstBody = world.CreateRigidBody3D();
-		GEngine::RigidBody3D* secondBody = world.CreateRigidBody3D();
-		const auto& bodies = world.GetPhysicsBodies();
+		GEngine::RigidBody3D* firstBody = ::GEngine::PhysicsTestAccess::Create(world);
+		GEngine::RigidBody3D* secondBody = ::GEngine::PhysicsTestAccess::Create(world);
+		const auto& bodies = ::GEngine::PhysicsTestAccess::Bodies(world);
 		Expect(bodies.size() == 2 && bodies[0] == firstBody && bodies[1] == secondBody,
 			"read-only body storage preserves deterministic creation order");
 
-		world.RemoveRigidBody3D(firstBody);
+		::GEngine::PhysicsTestAccess::Remove(world, firstBody);
 		Expect(bodies.size() == 1 && bodies[0] == secondBody,
 			"validated removal remains visible through the read-only body collection");
 
-		GEngine::RigidBody3D* replacementBody = world.CreateRigidBody3D();
+		GEngine::RigidBody3D* replacementBody = ::GEngine::PhysicsTestAccess::Create(world);
 		Expect(bodies.size() == 2 && bodies[0] == secondBody && bodies[1] == replacementBody,
 			"validated creation remains visible without exposing container mutation");
 	}
@@ -1572,8 +1596,8 @@ namespace
 	void PopulateCollidingWorld(GEngine::PhysicsSystem& system, GEngine::PhysicsWorld& world,
 		GEngine::ShapeSphere& sphere, float positionOffset)
 	{
-		GEngine::RigidBody3D* bodyA = world.CreateRigidBody3D();
-		GEngine::RigidBody3D* bodyB = world.CreateRigidBody3D();
+		GEngine::RigidBody3D* bodyA = ::GEngine::PhysicsTestAccess::Create(world);
+		GEngine::RigidBody3D* bodyB = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureSphereBody(*bodyA, sphere, GEngine::Vec3f(positionOffset, 0.0f, 0.0f));
 		ConfigureSphereBody(*bodyB, sphere, GEngine::Vec3f(positionOffset + 2.0f, 0.0f, 0.0f));
 		system.Update(GEngine::Timestep(1.0f / 120.0f));
@@ -1616,7 +1640,7 @@ namespace
 		system.SetPhysicsWorld(secondWorld);
 		PopulateCollidingWorld(system, *secondWorld, sphere, 10.0f);
 		system.SetPhysicsWorld(secondWorld);
-		Expect(system.GetPhysicsWorld() == secondWorld && secondWorld->GetPhysicsBodies().size() == 2 &&
+		Expect(system.GetPhysicsWorld() == secondWorld && ::GEngine::PhysicsTestAccess::Bodies(secondWorld).size() == 2 &&
 			GetManifolds(system).m_Manifolds.size() == 1,
 			"setting the active world again preserves the live world and its state");
 
@@ -1639,9 +1663,9 @@ namespace
 		auto* world = new PhysicsWorld(Vec3f(0.0f));
 		system.SetPhysicsWorld(world);
 		for (float x : { 0.0f, 2.0f, 20.0f, 22.0f })
-			ConfigureSphereBody(*world->CreateRigidBody3D(), sphere, Vec3f(x, 0.0f, 0.0f));
+			ConfigureSphereBody(*::GEngine::PhysicsTestAccess::Create(world), sphere, Vec3f(x, 0.0f, 0.0f));
 		system.Update(Timestep(1.0f / 120.0f));
-		auto* body = world->GetPhysicsBodies()[0];
+		auto* body = ::GEngine::PhysicsTestAccess::Bodies(world)[0];
 		auto& manifolds = GetManifolds(system).m_Manifolds;
 		Expect(manifolds.size() == 2, "pose API fixture has two independent warm-start pairs");
 		if (manifolds.size() != 2) return;
@@ -1694,12 +1718,12 @@ namespace
 		Expect(GetCollisionPairs(system).empty() && GetBroadphase(system).GetLastStats().fullSortCount == 0,
 			"teleport clears cached candidate and swept-bound state");
 		std::vector<collisionPair_t> pairs;
-		GetBroadphase(system).FindPairs(world->GetPhysicsBodies(), pairs, 0.0f);
+		GetBroadphase(system).FindPairs(::GEngine::PhysicsTestAccess::Bodies(world), pairs, 0.0f);
 		Expect(std::find(pairs.begin(), pairs.end(), collisionPair_t{0, 3}) != pairs.end() &&
 			std::find(pairs.begin(), pairs.end(), collisionPair_t{0, 1}) == pairs.end(),
 			"next broad-phase query finds the new neighbor and excludes the old neighbor");
 		contact_t contact{};
-		Expect(Collision::Intersect(body, world->GetPhysicsBodies()[3], contact) && Finite(contact),
+		Expect(Collision::Intersect(body, ::GEngine::PhysicsTestAccess::Bodies(world)[3], contact) && Finite(contact),
 			"narrow phase sees a finite contact at the teleported position");
 
 		body->m_Shape = &box;
@@ -1736,8 +1760,6 @@ namespace
 	{
 		using namespace GEngine;
 		using namespace GEngine::Component;
-		// Scene shape ownership is unchanged; release this fixture's shapes after the scene.
-		std::vector<std::unique_ptr<PhysicalShape>> shapes;
 		_Scene scene;
 		const BodyType types[] = { BodyType::Static, BodyType::Kinematic, BodyType::Dynamic };
 		std::vector<_Entity> entities;
@@ -1755,18 +1777,12 @@ namespace
 			transform.SetRotation(Vec3f(0.0f, 0.0f, 0.3f));
 			entities.push_back(entity);
 		}
-		auto captureShapes = [&]()
-		{
-			for (auto entity : entities)
-				shapes.emplace_back(entity.GetComponent<RigidBody3DComponent>().RuntimeBody->m_Shape);
-		};
 		StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });
-		captureShapes();
 		scene.GetPhysicsSystem()->GetPhysicsWorld()->SetGravity(Vec3f(0.0f));
 		for (int i = 0; i < 3; ++i)
 		{
 			auto& transform = entities[i].GetComponent<Transform3DComponent>();
-			auto* body = entities[i].GetComponent<RigidBody3DComponent>().RuntimeBody;
+			auto* body = ::GEngine::PhysicsTestAccess::Body(entities[i]);
 			Expect(body->m_Position == transform.Translation &&
 				glm::length(body->m_Orientation - transform.QuatRotation) < 1e-6f,
 				"startup pose comes from the entity transform for every body type");
@@ -1780,7 +1796,7 @@ namespace
 		for (int i = 0; i < 3; ++i)
 		{
 			auto& transform = entities[i].GetComponent<Transform3DComponent>();
-			auto* body = entities[i].GetComponent<RigidBody3DComponent>().RuntimeBody;
+			auto* body = ::GEngine::PhysicsTestAccess::Body(entities[i]);
 			Expect(body->m_Position == Vec3f(i * 20.0f, 30.0f, 4.0f) &&
 				glm::length(body->m_Orientation - Quat(Vec3f(0.0f, 0.0f, 1.0f))) < 1e-6f,
 				"runtime translation and Euler rotation edits reach static, kinematic and dynamic bodies");
@@ -1810,7 +1826,7 @@ namespace
 		}
 		for (int i = 0; i < 3; ++i)
 		{
-			auto* body = entities[i].GetComponent<RigidBody3DComponent>().RuntimeBody;
+			auto* body = ::GEngine::PhysicsTestAccess::Body(entities[i]);
 			const Vec3f before = body->m_Position;
 			scene.Update(Timestep(_Scene::PhysicsStepSeconds));
 			const Vec3f expected = before + (types[i] == BodyType::Static ? Vec3f(0.0f) :
@@ -1828,8 +1844,7 @@ namespace
 		entities[2].GetComponent<Transform3DComponent>().SetTranslation(Vec3f(90.0f, 40.0f, 0.0f));
 		scene.Update(Timestep(0.0f));
 		StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });
-		captureShapes();
-		Expect(entities[2].GetComponent<RigidBody3DComponent>().RuntimeBody->m_Position == Vec3f(90.0f, 40.0f, 0.0f),
+		Expect(::GEngine::PhysicsTestAccess::Body(entities[2])->m_Position == Vec3f(90.0f, 40.0f, 0.0f),
 			"restart imports the current transform without replaying stale fixture poses");
 		scene.OnRuntimeStop();
 		auto invalid = SceneOperationChecked([&] { return scene.CreateEntity("invalid startup pose"); });
@@ -1837,23 +1852,23 @@ namespace
 		invalid.AddOrReplaceComponent<SphereFixture3DComponent>();
 		invalid.GetComponent<Transform3DComponent>().SetRotation(Quat(0.0f, 0.0f, 0.0f, 0.0f));
 		StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });
-		captureShapes();
-		Expect(invalid.GetComponent<RigidBody3DComponent>().RuntimeBody == nullptr &&
-			scene.GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies().size() == 3,
+		Expect(invalid.GetComponent<RigidBody3DComponent>().RuntimeBody == ::GEngine::PhysicsBodyHandle{} &&
+			::GEngine::PhysicsTestAccess::Bodies(scene.GetPhysicsSystem()->GetPhysicsWorld()).size() == 3,
 			"invalid startup pose creates no runtime body or pose bridge");
 		scene.Update(Timestep(0.0f));
 		auto* world = scene.GetPhysicsSystem()->GetPhysicsWorld();
-		auto* removed = entities[2].GetComponent<RigidBody3DComponent>().RuntimeBody;
-		world->RemoveRigidBody3D(removed);
-		auto* replacement = world->CreateRigidBody3D();
-		ConfigureSphereBody(*replacement, *static_cast<ShapeSphere*>(shapes.back().get()), Vec3f(200.0f));
+		auto* removed = ::GEngine::PhysicsTestAccess::Body(entities[2]);
+		::GEngine::PhysicsTestAccess::Remove(world, removed);
+		auto* replacement = ::GEngine::PhysicsTestAccess::Create(world);
+		auto replacementShape = MakeFixtureShape<ShapeSphere>(0.5f);
+		ConfigureSphereBody(*replacement, replacementShape, Vec3f(200.0f));
 		entities[2].GetComponent<Transform3DComponent>().SetTranslation(Vec3f(500.0f));
 		scene.Update(Timestep(0.0f));
 		Expect(replacement->m_Position == Vec3f(200.0f),
 			"stale bridge generation cannot edit or publish a replacement body");
 		scene.GetPhysicsSystem()->SetPhysicsWorld(new PhysicsWorld(Vec3f(0.0f)));
 		scene.Update(Timestep(0.0f));
-		Expect(scene.GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies().empty(),
+		Expect(::GEngine::PhysicsTestAccess::Bodies(scene.GetPhysicsSystem()->GetPhysicsWorld()).empty(),
 			"world replacement leaves old scene pose bridges inert until restart");
 		scene.OnRuntimeStop();
 	}
@@ -1868,7 +1883,7 @@ namespace
 		std::size_t count = 0; input >> count;
 		bool valid = count == 21;
 		for (std::size_t i = 0; i < count; ++i) {
-			auto* body = world->CreateRigidBody3D();
+			auto* body = ::GEngine::PhysicsTestAccess::Create(world);
 			int shapeType = 0, type = 0; float radius = 0; std::size_t pointsCount = 0;
 			input >> shapeType >> type >> body->m_InvMass >> body->m_Elasticity >> body->m_Friction >>
 				body->m_CollisionLayer >> body->m_CollisionMask >>
@@ -1913,8 +1928,8 @@ namespace
 					reference.Update(Timestep(dt)); ++ticks;
 				}
 				conserved = conserved && std::abs(supplied - (ticks * dt + timing.pendingSeconds + discarded)) < 1e-10;
-				const auto& actual = scene.GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies();
-				const auto& expected = reference.GetPhysicsWorld()->GetPhysicsBodies();
+				const auto& actual = ::GEngine::PhysicsTestAccess::Bodies(scene.GetPhysicsSystem()->GetPhysicsWorld());
+				const auto& expected = ::GEngine::PhysicsTestAccess::Bodies(reference.GetPhysicsWorld());
 				for (std::size_t i = 0; i < actual.size(); ++i) {
 					finite = finite && actual[i]->HasFiniteState();
 					exact = exact && actual[i]->m_Position == expected[i]->m_Position &&
@@ -2016,12 +2031,11 @@ namespace
 	void TestPausedScenePoseSynchronization()
 	{
 		using namespace GEngine; using namespace GEngine::Component;
-		std::vector<std::unique_ptr<PhysicalShape>> shapes;
 		_Scene scene; auto entity = SceneOperationChecked([&] { return scene.CreateEntity("paused pose edit"); });
 		entity.AddOrReplaceComponent<RigidBody3DComponent>().Type = BodyType::Dynamic;
 		entity.AddOrReplaceComponent<SphereFixture3DComponent>(); StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });
-		auto* body = entity.GetComponent<RigidBody3DComponent>().RuntimeBody;
-		shapes.emplace_back(body->m_Shape); body->m_LinearVelocity = Vec3f(2, 0, 0);
+		auto* body = ::GEngine::PhysicsTestAccess::Body(entity);
+		body->m_LinearVelocity = Vec3f(2, 0, 0);
 		scene.Update(Timestep(_Scene::PhysicsStepSeconds / 2)); scene.SetPaused(true);
 		auto& transform = entity.GetComponent<Transform3DComponent>(); transform.SetTranslation(Vec3f(4, 5, 6));
 		scene.Update(Timestep(1));
@@ -2071,9 +2085,9 @@ namespace
 
 			StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });
 			GEngine::RigidBody3D* firstBodyA =
-				bodyEntityA.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody;
+				::GEngine::PhysicsTestAccess::Body(bodyEntityA);
 			GEngine::RigidBody3D* firstBodyB =
-				bodyEntityB.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody;
+				::GEngine::PhysicsTestAccess::Body(bodyEntityB);
 			Expect(scene.IsRunning() && scene.GetPhysicsSystem()->GetPhysicsWorld() != nullptr &&
 				firstBodyA != nullptr && firstBodyB != nullptr && firstBodyA->m_Shape != nullptr &&
 				firstBodyB->m_Shape != nullptr,
@@ -2085,27 +2099,27 @@ namespace
 
 			scene.OnRuntimeStop();
 			Expect(!scene.IsRunning() && scene.GetPhysicsSystem()->GetPhysicsWorld() == nullptr &&
-				bodyEntityA.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == nullptr &&
-				bodyEntityB.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == nullptr,
+				bodyEntityA.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == ::GEngine::PhysicsBodyHandle{} &&
+				bodyEntityB.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == ::GEngine::PhysicsBodyHandle{},
 				"scene runtime stop clears all runtime body links and shuts down the physics world");
 
 			scene.OnRuntimeStop();
 			Expect(!scene.IsRunning() && scene.GetPhysicsSystem()->GetPhysicsWorld() == nullptr &&
-				bodyEntityA.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == nullptr &&
-				bodyEntityB.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == nullptr,
+				bodyEntityA.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == ::GEngine::PhysicsBodyHandle{} &&
+				bodyEntityB.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == ::GEngine::PhysicsBodyHandle{},
 				"repeated scene runtime stop is safe");
 
 			scene.Update(GEngine::Timestep(1.0f / 120.0f));
 			Expect(scene.GetPhysicsSystem()->GetPhysicsWorld() == nullptr &&
-				bodyEntityA.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == nullptr &&
-				bodyEntityB.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == nullptr,
+				bodyEntityA.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == ::GEngine::PhysicsBodyHandle{} &&
+				bodyEntityB.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == ::GEngine::PhysicsBodyHandle{},
 				"updating the stopped scene does not restore or dereference cleared runtime bodies");
 
 			StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });
 			GEngine::RigidBody3D* restartedBodyA =
-				bodyEntityA.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody;
+				::GEngine::PhysicsTestAccess::Body(bodyEntityA);
 			GEngine::RigidBody3D* restartedBodyB =
-				bodyEntityB.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody;
+				::GEngine::PhysicsTestAccess::Body(bodyEntityB);
 			Expect(scene.IsRunning() && scene.GetPhysicsSystem()->GetPhysicsWorld() != nullptr &&
 				restartedBodyA != nullptr && restartedBodyB != nullptr && restartedBodyA->m_Shape != nullptr &&
 				restartedBodyB->m_Shape != nullptr,
@@ -2118,8 +2132,8 @@ namespace
 
 			scene.OnRuntimeStop();
 			Expect(!scene.IsRunning() && scene.GetPhysicsSystem()->GetPhysicsWorld() == nullptr &&
-				bodyEntityA.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == nullptr &&
-				bodyEntityB.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == nullptr,
+				bodyEntityA.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == ::GEngine::PhysicsBodyHandle{} &&
+				bodyEntityB.GetComponent<GEngine::Component::RigidBody3DComponent>().RuntimeBody == ::GEngine::PhysicsBodyHandle{},
 				"restarted scene stops cleanly before destruction");
 		}
 
@@ -2339,8 +2353,8 @@ namespace
 		using namespace GEngine;
 		ShapeBox box(MakeFixtureShape<ShapeBox>(UnitBoxPoints()));
 		PhysicsWorld world;
-		RigidBody3D* a = world.CreateRigidBody3D();
-		RigidBody3D* b = world.CreateRigidBody3D();
+		RigidBody3D* a = ::GEngine::PhysicsTestAccess::Create(world);
+		RigidBody3D* b = ::GEngine::PhysicsTestAccess::Create(world);
 		a->m_Shape = b->m_Shape = &box;
 		a->m_Position = Vec3f(0, 2, 0);
 		b->m_Position = Vec3f(0);
@@ -2448,8 +2462,8 @@ namespace
 		Expect(!largeBox.GetContactFace(Vec3f(1, 0, 0), Vec3f(largest), identity, overflowOutput) &&
 			SameBoxFace(overflowOutput, sentinel), "overflowing world vertices fail without writing output");
 		PhysicsWorld world;
-		RigidBody3D* a = world.CreateRigidBody3D();
-		RigidBody3D* b = world.CreateRigidBody3D();
+		RigidBody3D* a = ::GEngine::PhysicsTestAccess::Create(world);
+		RigidBody3D* b = ::GEngine::PhysicsTestAccess::Create(world);
 		a->m_Shape = b->m_Shape = &box;
 		BoxContactFeatures pair;
 		Expect(ExtractBoxContactFeatures(*a, *b, Vec3f(0, 1, 0), pair), "pair failure tests begin with valid features");
@@ -2550,8 +2564,8 @@ namespace
 						for (Vec3f& corner : corners) corner += modelOffset;
 						ShapeBox box(MakeFixtureShape<ShapeBox>(corners));
 						PhysicsWorld world(Vec3f(0));
-						auto* a = world.CreateRigidBody3D();
-						auto* b = world.CreateRigidBody3D();
+						auto* a = ::GEngine::PhysicsTestAccess::Create(world);
+						auto* b = ::GEngine::PhysicsTestAccess::Create(world);
 						const int u = (axis + 1) % 3, v = (axis + 2) % 3;
 						Vec3f outward(0), shift(0);
 						outward[axis] = sign;
@@ -2612,8 +2626,8 @@ namespace
 		using namespace GEngine;
 		ShapeBox box(MakeFixtureShape<ShapeBox>(UnitBoxPoints()));
 		PhysicsWorld world(Vec3f(0));
-		auto* a = world.CreateRigidBody3D();
-		auto* b = world.CreateRigidBody3D();
+		auto* a = ::GEngine::PhysicsTestAccess::Create(world);
+		auto* b = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureBoxBody(*a, box, Vec3f(0), Quat(1, 0, 0, 0));
 		ConfigureBoxBody(*b, box, Vec3f(0, 1.9f, 0), glm::angleAxis(glm::quarter_pi<float>(), Vec3f(0, 1, 0)));
 		auto seed = [&]() { return MakeContact(*a, *b, Vec3f(0, 1, 0), Vec3f(0, 0.9f, 0), Vec3f(0, -1, 0)); };
@@ -2735,8 +2749,8 @@ namespace
 					PhysicsSystem system;
 					auto* world = new PhysicsWorld(Vec3f(0.0f));
 					system.SetPhysicsWorld(world);
-					RigidBody3D* first = world->CreateRigidBody3D();
-					RigidBody3D* second = world->CreateRigidBody3D();
+					RigidBody3D* first = ::GEngine::PhysicsTestAccess::Create(world);
+					RigidBody3D* second = ::GEngine::PhysicsTestAccess::Create(world);
 					RigidBody3D* floorBody = reversed ? second : first;
 					RigidBody3D* boxBody = reversed ? first : second;
 					ConfigureBoxBody(*floorBody, floor, Vec3f(0), Quat(1, 0, 0, 0));
@@ -2798,8 +2812,8 @@ namespace
 					system.SetSolverIterations(iterations);
 					auto* world = new PhysicsWorld(Vec3f(0, -12, 0));
 					system.SetPhysicsWorld(world);
-					auto* first = world->CreateRigidBody3D();
-					auto* second = world->CreateRigidBody3D();
+					auto* first = ::GEngine::PhysicsTestAccess::Create(world);
+					auto* second = ::GEngine::PhysicsTestAccess::Create(world);
 					auto* support = reversed ? second : first;
 					auto* body = reversed ? first : second;
 					ConfigureBoxBody(*support, floor, Vec3f(0), Quat(1, 0, 0, 0));
@@ -2898,8 +2912,8 @@ namespace
 		for (int mutation = 0; mutation < 4; ++mutation) {
 			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f)), replacement(MakeFixtureShape<ShapeSphere>(1.0f));
 			PhysicsWorld world(Vec3f(0));
-			auto* a = world.CreateRigidBody3D();
-			auto* b = world.CreateRigidBody3D();
+			auto* a = ::GEngine::PhysicsTestAccess::Create(world);
+			auto* b = ::GEngine::PhysicsTestAccess::Create(world);
 			ConfigureSphereBody(*a, sphere, Vec3f(0));
 			ConfigureSphereBody(*b, sphere, Vec3f(0, 2, 0));
 			a->SetBodyTypeAndInverseMass(BodyType::Static, 0);
@@ -3012,8 +3026,8 @@ namespace
 		PhysicsSystem system;
 		auto* world = new PhysicsWorld(Vec3f(0));
 		system.SetPhysicsWorld(world);
-		auto* a = world->CreateRigidBody3D();
-		auto* b = world->CreateRigidBody3D();
+		auto* a = ::GEngine::PhysicsTestAccess::Create(world);
+		auto* b = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureSphereBody(*a, sphere, Vec3f(0));
 		ConfigureSphereBody(*b, sphere, Vec3f(0, 1.99f, 0));
 		auto seed = MakeContact(*a, *b, Vec3f(0, 1, 0), Vec3f(0, 0.99f, 0), Vec3f(0, -1, 0));
@@ -3033,9 +3047,9 @@ namespace
 		sphere.SetRadius(1.1f);
 		pair.PreSolve(1.0f / 120.0f);
 		Expect(pair.m_Manifolds.empty(), "PreSolve invalidation erases the empty pair before a body can be deleted");
-		world->RemoveRigidBody3D(b);
+		::GEngine::PhysicsTestAccess::Remove(world, b);
 		system.Update(Timestep(1.0f / 120.0f));
-		Expect(pair.m_Manifolds.empty() && world->GetPhysicsBodies().size() == 1,
+		Expect(pair.m_Manifolds.empty() && ::GEngine::PhysicsTestAccess::Bodies(world).size() == 1,
 			"body removal after cache invalidation leaves no stale pair on the next world step");
 	}
 
@@ -3046,8 +3060,8 @@ namespace
 			for (float yaw : { 0.0f, glm::quarter_pi<float>() }) {
 				ShapeBox box(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(scale))));
 				PhysicsWorld world(Vec3f(0));
-				auto* a = world.CreateRigidBody3D();
-				auto* b = world.CreateRigidBody3D();
+				auto* a = ::GEngine::PhysicsTestAccess::Create(world);
+				auto* b = ::GEngine::PhysicsTestAccess::Create(world);
 				ConfigureBoxBody(*a, box, Vec3f(0), Quat(1, 0, 0, 0));
 				ConfigureBoxBody(*b, box, Vec3f(0, 1.99f * scale, 0), glm::angleAxis(yaw, Vec3f(0, 1, 0)));
 				const auto seed = MakeContact(*a, *b, Vec3f(0, scale, 0), Vec3f(0, 0.99f * scale, 0), Vec3f(0, -1, 0));
@@ -3129,8 +3143,8 @@ namespace
 		for (bool reversed : { false, true }) {
 			ShapeBox box(MakeFixtureShape<ShapeBox>(UnitBoxPoints()));
 			PhysicsWorld world(Vec3f(0));
-			auto* a = world.CreateRigidBody3D();
-			auto* b = world.CreateRigidBody3D();
+			auto* a = ::GEngine::PhysicsTestAccess::Create(world);
+			auto* b = ::GEngine::PhysicsTestAccess::Create(world);
 			ConfigureBoxBody(*a, box, Vec3f(0), Quat(1, 0, 0, 0));
 			ConfigureBoxBody(*b, box, Vec3f(0, 1.99f, 0), Quat(1, 0, 0, 0));
 			const auto seed = MakeContact(*a, *b, Vec3f(0, 1, 0), Vec3f(0, 0.99f, 0), Vec3f(0, -1, 0));
@@ -3184,8 +3198,8 @@ namespace
 			for (bool permuted : { false, true }) {
 				ShapeBox box(MakeFixtureShape<ShapeBox>(UnitBoxPoints()));
 				PhysicsWorld world(Vec3f(0));
-				auto* a = world.CreateRigidBody3D();
-				auto* b = world.CreateRigidBody3D();
+				auto* a = ::GEngine::PhysicsTestAccess::Create(world);
+				auto* b = ::GEngine::PhysicsTestAccess::Create(world);
 				ConfigureBoxBody(*a, box, Vec3f(0), Quat(1,0,0,0));
 				ConfigureBoxBody(*b, box, Vec3f(0,1.99f,0), Quat(1,0,0,0));
 				a->SetBodyTypeAndInverseMass(BodyType::Static,0);
@@ -3248,7 +3262,7 @@ namespace
 			system.SetPhysicsWorld(world);
 			for (int i = 0; i < 3; ++i)
 			{
-				bodies[i] = world->CreateRigidBody3D();
+				bodies[i] = ::GEngine::PhysicsTestAccess::Create(world);
 				bodies[i]->m_Shape = &sphere;
 				bodies[i]->m_Position = GEngine::Vec3f(0.0f, 2.0f * i, 0.0f);
 				bodies[i]->m_Orientation = GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f);
@@ -3461,8 +3475,8 @@ namespace
 			system.SetSolverIterations(iterations);
 			auto* world = new PhysicsWorld(Vec3f(0.0f));
 			system.SetPhysicsWorld(world);
-			auto* support = world->CreateRigidBody3D();
-			auto* body = world->CreateRigidBody3D();
+			auto* support = ::GEngine::PhysicsTestAccess::Create(world);
+			auto* body = ::GEngine::PhysicsTestAccess::Create(world);
 			ConfigureSphereBody(*support, sphere, Vec3f(0.0f));
 			ConfigureSphereBody(*body, sphere, Vec3f(0.0f, 1.88f, 0.0f));
 			support->Type = Component::BodyType::Static;
@@ -3497,7 +3511,7 @@ namespace
 			PhysicsSystem system;
 			auto* world = new PhysicsWorld(Vec3f(0.0f));
 			system.SetPhysicsWorld(world);
-			auto* support = world->CreateRigidBody3D();
+			auto* support = ::GEngine::PhysicsTestAccess::Create(world);
 			ConfigureBoxBody(*support, floor, Vec3f(0.0f), Quat(1, 0, 0, 0));
 			support->Type = Component::BodyType::Static;
 			support->m_CollisionMask = 0;
@@ -3506,7 +3520,7 @@ namespace
 			for (int level = 0; level < 4; ++level)
 			{
 				const int index = 4 * column + level;
-				auto* body = bodies[index] = world->CreateRigidBody3D();
+				auto* body = bodies[index] = ::GEngine::PhysicsTestAccess::Create(world);
 				ConfigureBoxBody(*body, box, Vec3f(column * 2.01f, 1.38f + level * 1.88f, 0.0f), Quat(1, 0, 0, 0));
 				body->m_CollisionMask = 0;
 				auto* below = level == 0 ? support : bodies[index - 1];
@@ -3628,7 +3642,7 @@ namespace
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
 		physics.SetPhysicsWorld(world);
 
-		GEngine::RigidBody3D* floorBody = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* floorBody = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureBoxBody(*floorBody, floor, GEngine::Vec3f(0.0f, -0.5f, 0.0f),
 			GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f));
 		floorBody->Type = GEngine::Component::BodyType::Static;
@@ -3637,7 +3651,7 @@ namespace
 		std::array<GEngine::RigidBody3D*, 4> boxes{};
 		for (std::size_t index = 0; index < boxes.size(); ++index)
 		{
-			boxes[index] = world->CreateRigidBody3D();
+			boxes[index] = ::GEngine::PhysicsTestAccess::Create(world);
 			ConfigureBoxBody(*boxes[index], box,
 				GEngine::Vec3f(0.0f, 1.0f + 2.0f * static_cast<float>(index), 0.0f),
 				GEngine::Quat(1.0f, 0.0f, 0.0f, 0.0f));
@@ -4520,8 +4534,8 @@ namespace
 			GEngine::PhysicsSystem system;
 			auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
 			system.SetPhysicsWorld(world);
-			auto* first = world->CreateRigidBody3D();
-			auto* second = world->CreateRigidBody3D();
+			auto* first = ::GEngine::PhysicsTestAccess::Create(world);
+			auto* second = ::GEngine::PhysicsTestAccess::Create(world);
 			auto* body = reversed ? first : second;
 			auto* support = reversed ? second : first;
 			ConfigureSphereBody(*body, sphere, GEngine::Vec3f(0.0f, highDrop ? 1.5f : 1.02f, 0.0f));
@@ -4826,7 +4840,7 @@ namespace
 			for(bool enabled : {false,true}) {
 				ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));ShapeBox floor(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(30,0.5f,30))));
 				PhysicsSystem system;auto*world=new PhysicsWorld();system.SetPhysicsWorld(world);system.SetSleepingEnabled(false);
-				auto*support=world->CreateRigidBody3D();auto*body=world->CreateRigidBody3D();
+				auto*support=::GEngine::PhysicsTestAccess::Create(world);auto*body=::GEngine::PhysicsTestAccess::Create(world);
 				ConfigureBoxBody(*support,floor,Vec3f(0),Quat(1,0,0,0));support->SetBodyTypeAndInverseMass(BodyType::Static,0);
 				ConfigureSphereBody(*body,sphere,Vec3f(0,1.5f,0));
 				support->m_Friction=body->m_Friction=0.5f;support->m_Elasticity=body->m_Elasticity=0;
@@ -4856,7 +4870,7 @@ namespace
 			}
 			++index;
 			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));PhysicsSystem system;auto*world=new PhysicsWorld(Vec3f(0));system.SetPhysicsWorld(world);
-			auto*body=world->CreateRigidBody3D();auto*reference=world->CreateRigidBody3D();
+			auto*body=::GEngine::PhysicsTestAccess::Create(world);auto*reference=::GEngine::PhysicsTestAccess::Create(world);
 			ConfigureSphereBody(*body,sphere,Vec3f(0,20,0));ConfigureSphereBody(*reference,sphere,Vec3f(100,20,0));
 			body->SetRollingResistanceLength(0.05f);
 			body->m_AngularVelocity=reference->m_AngularVelocity=Vec3f(1,4,2);
@@ -4872,7 +4886,7 @@ namespace
 		using namespace GEngine;
 		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		PhysicsSystem system; auto* world=new PhysicsWorld(); system.SetPhysicsWorld(world);
-		auto* support=world->CreateRigidBody3D(); auto* body=world->CreateRigidBody3D();
+		auto* support=::GEngine::PhysicsTestAccess::Create(world); auto* body=::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureSphereBody(*support,sphere,Vec3f(0)); support->SetBodyTypeAndInverseMass(BodyType::Static,0);
 		ConfigureSphereBody(*body,sphere,Vec3f(0,2,0));
 		Expect(body->GetRollingResistanceLength()==0, "rolling resistance defaults to the approved reference behavior");
@@ -5012,7 +5026,7 @@ namespace
 		using namespace GEngine;
 		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		PhysicsSystem system; auto* world=new PhysicsWorld(); system.SetPhysicsWorld(world);
-		auto* support=world->CreateRigidBody3D(); auto* body=world->CreateRigidBody3D();
+		auto* support=::GEngine::PhysicsTestAccess::Create(world); auto* body=::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureSphereBody(*support,sphere,Vec3f(0)); support->SetBodyTypeAndInverseMass(BodyType::Static,0);
 		ConfigureSphereBody(*body,sphere,Vec3f(0,2,0));
 		Expect(body->GetSpinResistanceLength()==0, "spin resistance defaults to the approved reference behavior");
@@ -5051,7 +5065,7 @@ namespace
 				ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f)); ShapeBox floor(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(20,0.5f,20))));
 				PhysicsSystem system; auto* world=new PhysicsWorld(); system.SetPhysicsWorld(world);
 				system.SetSleepingEnabled(false); // Measure physical decay before sleep truncation.
-				auto* support=world->CreateRigidBody3D(); auto* body=world->CreateRigidBody3D();
+				auto* support=::GEngine::PhysicsTestAccess::Create(world); auto* body=::GEngine::PhysicsTestAccess::Create(world);
 				ConfigureBoxBody(*support,floor,Vec3f(0),Quat(1,0,0,0));
 				support->SetBodyTypeAndInverseMass(BodyType::Static,0);
 				ConfigureSphereBody(*body,sphere,Vec3f(0,1.5f,0));
@@ -5083,9 +5097,9 @@ namespace
 			}
 			++rateIndex;
 			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));PhysicsSystem system;auto* world=new PhysicsWorld(Vec3f(0));system.SetPhysicsWorld(world);
-			auto* body=world->CreateRigidBody3D();ConfigureSphereBody(*body,sphere,Vec3f(0,20,0));
+			auto* body=::GEngine::PhysicsTestAccess::Create(world);ConfigureSphereBody(*body,sphere,Vec3f(0,20,0));
 			body->SetSpinResistanceLength(1);body->m_AngularVelocity=Vec3f(1,4,2);
-			auto* reference=world->CreateRigidBody3D();ConfigureSphereBody(*reference,sphere,Vec3f(100,20,0));
+			auto* reference=::GEngine::PhysicsTestAccess::Create(world);ConfigureSphereBody(*reference,sphere,Vec3f(100,20,0));
 			reference->m_AngularVelocity=body->m_AngularVelocity;
 			ResetPhysicsProfile();
 			for(int tick=0;tick<4*rate;++tick) system.Update(Timestep(1.0f/rate));
@@ -5306,7 +5320,7 @@ namespace
 		for (const int rate : { 60, 120 })
 		{
 			PhysicsWorld world(Vec3f(0));
-			auto* a = world.CreateRigidBody3D(); auto* b = world.CreateRigidBody3D();
+			auto* a = ::GEngine::PhysicsTestAccess::Create(world); auto* b = ::GEngine::PhysicsTestAccess::Create(world);
 			const Quat rotation = glm::angleAxis(0.37f, glm::normalize(Vec3f(1, 2, 3)));
 			const Vec3f up = rotation * Vec3f(0, 1, 0);
 			ConfigureBoxBody(*a, box, Vec3f(0), rotation);
@@ -5424,7 +5438,7 @@ namespace
 			std::size_t count = 0; input >> count;
 			Expect(count == 21, "exact exported stack has sixteen boxes and five static boundaries");
 			for (std::size_t i = 0; i < count; ++i) {
-				auto* body = world->CreateRigidBody3D();
+				auto* body = ::GEngine::PhysicsTestAccess::Create(world);
 				int shapeType = 0, type = 0; float radius = 0; std::size_t pointsCount = 0;
 				input >> shapeType >> type >> body->m_InvMass >> body->m_Elasticity >> body->m_Friction >>
 					body->m_CollisionLayer >> body->m_CollisionMask >>
@@ -5452,7 +5466,7 @@ namespace
 			};
 			std::array<Window, 2> windows{ Window{5 * rate, 18 * rate}, Window{15 * rate, 20 * rate} };
 			bool finite = true; double peakEnergy = 864.0;
-			const auto& bodies = world->GetPhysicsBodies();
+			const auto& bodies = ::GEngine::PhysicsTestAccess::Bodies(world);
 			for (int tick = 1; tick <= 20 * rate; ++tick) {
 				system.Update(Timestep(1.0f / rate));
 				double energy = 0, averageY = 0; int dynamicCount = 0;
@@ -5558,11 +5572,11 @@ namespace
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
 		system.SetPhysicsWorld(world);
 
-		GEngine::RigidBody3D* dynamicBody = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* dynamicBody = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureSphereBody(*dynamicBody, sphere, GEngine::Vec3f(0.0f));
 		dynamicBody->m_InvMass = 0.5f;
 
-		GEngine::RigidBody3D* infiniteMassBody = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* infiniteMassBody = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureSphereBody(*infiniteMassBody, sphere, GEngine::Vec3f(10.0f, 0.0f, 0.0f));
 		infiniteMassBody->m_InvMass = 0.0f;
 
@@ -5633,14 +5647,14 @@ namespace
 		int index = 0;
 		for (const auto type : { BodyType::Static, BodyType::Kinematic, BodyType::Dynamic })
 		{
-			auto* body = world->CreateRigidBody3D();
+			auto* body = ::GEngine::PhysicsTestAccess::Create(world);
 			ConfigureSphereBody(*body, sphere, GEngine::Vec3f(10.0f * index++, 0.0f, 0.0f));
 			body->Type = type;
 			body->m_InvMass = 0.5f;
 			body->m_LinearVelocity = GEngine::Vec3f(1.0f, 0.0f, 0.0f);
 		}
 		system.Update(GEngine::Timestep(0.25f));
-		const auto& bodies = world->GetPhysicsBodies();
+		const auto& bodies = ::GEngine::PhysicsTestAccess::Bodies(world);
 		Expect(Near(bodies[0]->m_Position, GEngine::Vec3f(0.0f), 0.0f),
 			"world integration leaves a positive-mass moving Static body fixed");
 		Expect(Near(bodies[1]->m_Position, GEngine::Vec3f(10.25f, 0.0f, 0.0f)) &&
@@ -5952,9 +5966,9 @@ namespace
 
 		ShapeBox box(MakeFixtureShape<ShapeBox>(BoxPoints(Vec3f(1, 2, 3))));
 		PhysicsWorld world;
-		auto* a = world.CreateRigidBody3D();
-		auto* b = world.CreateRigidBody3D();
-		auto* c = world.CreateRigidBody3D();
+		auto* a = ::GEngine::PhysicsTestAccess::Create(world);
+		auto* b = ::GEngine::PhysicsTestAccess::Create(world);
+		auto* c = ::GEngine::PhysicsTestAccess::Create(world);
 		for (auto* body : { a, b, c })
 		{
 			body->m_Shape = &box;
@@ -5998,7 +6012,7 @@ namespace
 			for (int i = 0; i < 3; ++i)
 			{
 				const int index = reversed ? 2 - i : i;
-				auto* body = world->CreateRigidBody3D();
+				auto* body = ::GEngine::PhysicsTestAccess::Create(world);
 				bodies[index] = body;
 				ConfigureSphereBody(*body, sphere, GEngine::Vec3f(4.0f * index, 0.0f, 0.0f));
 				body->m_Friction = 0.0f;
@@ -6142,7 +6156,7 @@ namespace
 		{
 			ToiWorldFixture fixture(reversed);
 			auto& a = *fixture.bodies[0]; auto& b = *fixture.bodies[1]; auto& c = *fixture.bodies[2];
-			auto* driver = fixture.system.GetPhysicsWorld()->CreateRigidBody3D();
+			auto* driver = ::GEngine::PhysicsTestAccess::Create(fixture.system.GetPhysicsWorld());
 			ConfigureSphereBody(*driver, fixture.sphere, Vec3f(14, 0, 0));
 			driver->SetBodyTypeAndInverseMass(BodyType::Kinematic, 0.0f);
 			driver->m_LinearVelocity.x = -10.0f;
@@ -6441,13 +6455,13 @@ namespace
 		candidate.SetPhysicsWorld(candidateWorld);
 		for (auto* world : { controlWorld, candidateWorld })
 		{
-			auto* floor = world->CreateRigidBody3D();
+			auto* floor = ::GEngine::PhysicsTestAccess::Create(world);
 			ConfigureSphereBody(*floor, sphere, GEngine::Vec3f(0.0f));
 			floor->SetBodyTypeAndInverseMass(BodyType::Static, 0.0f);
-			auto* dynamic = world->CreateRigidBody3D();
+			auto* dynamic = ::GEngine::PhysicsTestAccess::Create(world);
 			ConfigureSphereBody(*dynamic, sphere, GEngine::Vec3f(0.0f, 2.0f, 0.0f));
 		}
-		auto* passive = candidateWorld->GetPhysicsBodies()[1];
+		auto* passive = ::GEngine::PhysicsTestAccess::Bodies(candidateWorld)[1];
 		passive->UpdateSleepTimer(0.5);
 		Expect(passive->TrySleep(), "world fixture explicitly sets the passive flag");
 		bool same = true, contactsObserved = false;
@@ -6455,16 +6469,16 @@ namespace
 		{
 			control.Update(GEngine::Timestep(1.0f / 60.0f));
 			candidate.Update(GEngine::Timestep(1.0f / 60.0f));
-			same &= physicalState(*controlWorld->GetPhysicsBodies()[1]) == physicalState(*passive) &&
+			same &= physicalState(*::GEngine::PhysicsTestAccess::Bodies(controlWorld)[1]) == physicalState(*passive) &&
 				GetManifolds(control).GetContactCount() == GetManifolds(candidate).GetContactCount();
 			contactsObserved |= GetManifolds(candidate).GetContactCount() > 0;
 		}
 		Expect(same && contactsObserved, "disabled sleeping preserves the fully active gravity/contact reference trajectories exactly");
-		Expect(!controlWorld->GetPhysicsBodies()[1]->IsSleeping() && controlWorld->GetPhysicsBodies()[1]->GetInactiveSeconds() == 0.0,
+		Expect(!::GEngine::PhysicsTestAccess::Bodies(controlWorld)[1]->IsSleeping() && ::GEngine::PhysicsTestAccess::Bodies(controlWorld)[1]->GetInactiveSeconds() == 0.0,
 			"disabled sleeping does not accumulate inactivity or automatically sleep a quiet body");
 		const auto oldIdentity = passive->GetIdentity();
-		candidateWorld->RemoveRigidBody3D(passive);
-		auto* replacement = candidateWorld->CreateRigidBody3D();
+		::GEngine::PhysicsTestAccess::Remove(candidateWorld, passive);
+		auto* replacement = ::GEngine::PhysicsTestAccess::Create(candidateWorld);
 		Expect(!candidateWorld->IsBodyIdentityValid(oldIdentity) && replacement->GetIdentity() != oldIdentity &&
 			!replacement->IsSleeping() && replacement->GetInactiveSeconds() == 0.0 &&
 			replacement->GetSleepSettings() == GEngine::RigidBody3D::SleepSettings{},
@@ -6504,7 +6518,7 @@ namespace
 		std::vector<RigidBody3D*> bodies;
 		for (int i = 0; i < 8; ++i)
 		{
-			auto* body = world.CreateRigidBody3D();
+			auto* body = ::GEngine::PhysicsTestAccess::Create(world);
 			ConfigureSphereBody(*body, sphere, Vec3f(0));
 			if (i >= 6) body->SetBodyTypeAndInverseMass(i == 6 ? BodyType::Static : BodyType::Kinematic, 0);
 			bodies.push_back(body);
@@ -6562,7 +6576,7 @@ namespace
 		std::vector<RigidBody3D*> bodies;
 		for (int i = 0; i < count; ++i)
 		{
-			auto* body = world.CreateRigidBody3D();
+			auto* body = ::GEngine::PhysicsTestAccess::Create(world);
 			ConfigureSphereBody(*body, sphere, Vec3f(0));
 			if (i >= dynamicCount) body->SetBodyTypeAndInverseMass(i % 2 ? BodyType::Static : BodyType::Kinematic, 0);
 			bodies.push_back(body);
@@ -6628,11 +6642,11 @@ namespace
 		PhysicsWorld world(Vec3f(0));
 		for (int i = 0; i < 2048; ++i)
 		{
-			auto* body = world.CreateRigidBody3D();
+			auto* body = ::GEngine::PhysicsTestAccess::Create(world);
 			ConfigureSphereBody(*body, sphere, Vec3f(0));
 			if (i % 2) body->SetBodyTypeAndInverseMass(BodyType::Static, 0);
 		}
-		auto bodies = world.GetPhysicsBodies();
+		auto bodies = ::GEngine::PhysicsTestAccess::Bodies(world);
 		ContactIslandScratch scratch;
 		std::vector<ContactIsland> islands;
 		BuildContactIslands(bodies, {}, islands, scratch);
@@ -6649,7 +6663,7 @@ namespace
 		Expect(islands == singleton && islands.size() == 1024 && sameStorage,
 			"large separated graphs rebuild exact ordered singleton output without replacing retained storage");
 		ManifoldCollector contacts;
-		const auto& live = world.GetPhysicsBodies();
+		const auto& live = ::GEngine::PhysicsTestAccess::Bodies(world);
 		AddIslandEdge(contacts, live[0], live[2]);
 		AddIslandEdge(contacts, live[0], live[1]);
 		AddIslandEdge(contacts, live[2], live[1]); // Repeated boundary, distinct pair.
@@ -6668,8 +6682,8 @@ namespace
 		// Non-contiguous live slots force binary lookup. Same-slot foreign bodies
 		// also prevent dense indexing and must remain distinct by generation.
 		PhysicsWorld foreign(Vec3f(0));
-		auto* foreignA = foreign.CreateRigidBody3D();
-		auto* foreignB = foreign.CreateRigidBody3D();
+		auto* foreignA = ::GEngine::PhysicsTestAccess::Create(foreign);
+		auto* foreignB = ::GEngine::PhysicsTestAccess::Create(foreign);
 		ConfigureSphereBody(*foreignA, sphere, Vec3f(0));
 		ConfigureSphereBody(*foreignB, sphere, Vec3f(0));
 		ManifoldCollector sparse;
@@ -6689,30 +6703,30 @@ namespace
 		using namespace GEngine;
 		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		PhysicsWorld world(Vec3f(0));
-		auto* a = world.CreateRigidBody3D();
-		auto* b = world.CreateRigidBody3D();
+		auto* a = ::GEngine::PhysicsTestAccess::Create(world);
+		auto* b = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureSphereBody(*a, sphere, Vec3f(0));
 		ConfigureSphereBody(*b, sphere, Vec3f(0));
 		ManifoldCollector stale;
 		AddIslandEdge(stale, a, b);
 		const auto oldIdentity = a->GetIdentity();
-		world.RemoveRigidBody3D(a);
-		auto* replacement = world.CreateRigidBody3D();
+		::GEngine::PhysicsTestAccess::Remove(world, a);
+		auto* replacement = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureSphereBody(*replacement, sphere, Vec3f(0));
 		Expect(replacement->GetIdentity().GetSlot() == oldIdentity.GetSlot() && replacement->GetIdentity() != oldIdentity,
 			"island lifetime fixture reuses an identity slot with a new generation");
-		const auto graph = BuildContactIslands(world.GetPhysicsBodies(), stale.m_Manifolds);
+		const auto graph = BuildContactIslands(::GEngine::PhysicsTestAccess::Bodies(world), stale.m_Manifolds);
 		Expect(graph.size() == 2 && graph[0].dynamicBodies == std::vector<RigidBodyIdentity>{replacement->GetIdentity()} &&
 			graph[1].dynamicBodies == std::vector<RigidBodyIdentity>{b->GetIdentity()} && graph[0].contactPairs.empty() && graph[1].contactPairs.empty(),
 			"stale manifold stamps cannot bind a reused slot; graph reads no deleted body pointer");
 		PhysicsWorld foreign(Vec3f(0));
-		for (int i = 0; i < 2; ++i) ConfigureSphereBody(*foreign.CreateRigidBody3D(), sphere, Vec3f(0));
-		const auto foreignGraph = BuildContactIslands(foreign.GetPhysicsBodies(), stale.m_Manifolds);
+		for (int i = 0; i < 2; ++i) ConfigureSphereBody(*::GEngine::PhysicsTestAccess::Create(foreign), sphere, Vec3f(0));
+		const auto foreignGraph = BuildContactIslands(::GEngine::PhysicsTestAccess::Bodies(foreign), stale.m_Manifolds);
 		Expect(foreignGraph.size() == 2 && foreignGraph[0].contactPairs.empty() && foreignGraph[1].contactPairs.empty(),
 			"foreign-world generations cannot impersonate stamped contact endpoints");
 		ManifoldCollector fresh;
 		AddIslandEdge(fresh, replacement, b);
-		Expect(BuildContactIslands(world.GetPhysicsBodies(), fresh.m_Manifolds).size() == 1,
+		Expect(BuildContactIslands(::GEngine::PhysicsTestAccess::Bodies(world), fresh.m_Manifolds).size() == 1,
 			"fresh contacts reconnect replacement bodies using their current full identities");
 	}
 
@@ -6725,14 +6739,14 @@ namespace
 		auto* world = new PhysicsWorld(Vec3f(0));
 		system.SetPhysicsWorld(world);
 		for (float x : {0.0f, 2.0f, 4.0f, 20.0f})
-			ConfigureSphereBody(*world->CreateRigidBody3D(), sphere, Vec3f(x,0,0));
+			ConfigureSphereBody(*::GEngine::PhysicsTestAccess::Create(world), sphere, Vec3f(x,0,0));
 		system.Update(Timestep(1.0f/120));
 		const auto initial = system.GetContactIslands();
 		Expect(initial.size() == 2 && initial[0].dynamicBodies.size() == 3 && initial[0].contactPairs.size() == 2 &&
 			initial[1].dynamicBodies.size() == 1, "normal stepping constructs the current resting graph plus isolated dynamics");
-		Expect(initial == BuildContactIslands(world->GetPhysicsBodies(), GetManifolds(system).m_Manifolds),
+		Expect(initial == BuildContactIslands(::GEngine::PhysicsTestAccess::Bodies(world), GetManifolds(system).m_Manifolds),
 			"stored islands describe the manifolds retained for the solve");
-		auto* middle = world->GetPhysicsBodies()[1];
+		auto* middle = ::GEngine::PhysicsTestAccess::Bodies(world)[1];
 		Expect(system.SetBodyPose(middle, middle->m_Position, middle->m_Orientation) && system.GetContactIslands() == initial,
 			"no-op pose edits preserve the snapshot");
 		Expect(!system.SetBodyPose(nullptr, Vec3f(0), Quat(1,0,0,0)) && system.GetContactIslands() == initial,
@@ -6748,11 +6762,11 @@ namespace
 		middle->m_Position = Vec3f(2,10,0); // Tangential drift expires both retained anchors.
 		system.Update(Timestep(1.0f/120));
 		Expect(system.GetContactIslands().size() == 4, "expired contacts do not remain as island edges");
-		world->RemoveRigidBody3D(middle);
+		::GEngine::PhysicsTestAccess::Remove(world, middle);
 		Expect(system.GetContactIslands().empty(), "body removal invalidates all cached island membership before deletion");
 		system.Update(Timestep(1.0f/120));
 		Expect(system.GetContactIslands().size() == 3, "post-removal rebuild contains only remaining live identities");
-		auto* added = world->CreateRigidBody3D();
+		auto* added = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureSphereBody(*added, sphere, Vec3f(40,0,0));
 		system.Update(Timestep(1.0f/120));
 		Expect(system.GetContactIslands().size() == 4, "newly created dynamics are included on the next update");
@@ -6772,8 +6786,8 @@ namespace
 		// Predicted future collisions do not supply resting graph edges.
 		auto* movingWorld = new PhysicsWorld(Vec3f(0));
 		system.SetPhysicsWorld(movingWorld);
-		auto* a = movingWorld->CreateRigidBody3D();
-		auto* b = movingWorld->CreateRigidBody3D();
+		auto* a = ::GEngine::PhysicsTestAccess::Create(movingWorld);
+		auto* b = ::GEngine::PhysicsTestAccess::Create(movingWorld);
 		ConfigureSphereBody(*a, sphere, Vec3f(0));
 		ConfigureSphereBody(*b, sphere, Vec3f(3,0,0));
 		a->m_LinearVelocity = Vec3f(10,0,0);
@@ -6794,9 +6808,9 @@ namespace
 		PhysicsSystem system;
 		auto* world = new PhysicsWorld(Vec3f(0));
 		system.SetPhysicsWorld(world);
-		auto* a = world->CreateRigidBody3D();
-		auto* b = world->CreateRigidBody3D();
-		auto* unrelated = world->CreateRigidBody3D();
+		auto* a = ::GEngine::PhysicsTestAccess::Create(world);
+		auto* b = ::GEngine::PhysicsTestAccess::Create(world);
+		auto* unrelated = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureSphereBody(*a, sphere, Vec3f(0));
 		ConfigureSphereBody(*b, sphere, Vec3f(2,0,0));
 		ConfigureSphereBody(*unrelated, sphere, Vec3f(20,0,0));
@@ -6823,8 +6837,8 @@ namespace
 			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 			PhysicsSystem system;
 			auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
-			auto* a = world->CreateRigidBody3D(); auto* b = world->CreateRigidBody3D();
-			auto* distant = world->CreateRigidBody3D();
+			auto* a = ::GEngine::PhysicsTestAccess::Create(world); auto* b = ::GEngine::PhysicsTestAccess::Create(world);
+			auto* distant = ::GEngine::PhysicsTestAccess::Create(world);
 			ConfigureSphereBody(*a, sphere, Vec3f(0)); ConfigureSphereBody(*b, sphere, Vec3f(2,0,0));
 			ConfigureSphereBody(*distant, sphere, Vec3f(20,0,0));
 			for (int tick = 0; tick < 40; ++tick) system.Update(Timestep(1.0f/60));
@@ -6851,8 +6865,8 @@ namespace
 		for (int mutation = 0; mutation < 6; ++mutation) {
 			ShapeSphere boundaryShape(MakeFixtureShape<ShapeSphere>(1.0f)), sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 			PhysicsSystem system; auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
-			auto* boundary = world->CreateRigidBody3D();
-			auto* a = world->CreateRigidBody3D(); auto* b = world->CreateRigidBody3D();
+			auto* boundary = ::GEngine::PhysicsTestAccess::Create(world);
+			auto* a = ::GEngine::PhysicsTestAccess::Create(world); auto* b = ::GEngine::PhysicsTestAccess::Create(world);
 			ConfigureSphereBody(*boundary, boundaryShape, Vec3f(0));
 			boundary->SetBodyTypeAndInverseMass(mutation == 1 ? BodyType::Kinematic : BodyType::Static, 0);
 			ConfigureSphereBody(*a, sphere, Vec3f(-2,0,0)); ConfigureSphereBody(*b, sphere, Vec3f(2,0,0));
@@ -6864,7 +6878,7 @@ namespace
 			if (mutation == 2) boundary->m_Position.y += 0.1f;
 			if (mutation == 3) boundaryShape.SetRadius(1.1f);
 			if (mutation == 4) system.SetBodyPose(boundary, Vec3f(0,0.1f,0), boundary->m_Orientation);
-			if (mutation == 5) world->RemoveRigidBody3D(boundary);
+			if (mutation == 5) ::GEngine::PhysicsTestAccess::Remove(world, boundary);
 			system.Update(Timestep(1.0f/60));
 			Expect(!a->IsSleeping() && (mutation == 0 ? b->IsSleeping() : !b->IsSleeping()),
 				"a boundary never transmits a dynamic wake, but its own motion, geometry edit or removal wakes all dependants");
@@ -6876,7 +6890,7 @@ namespace
 		using namespace GEngine;
 		ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(1.0f));
 		PhysicsSystem system; auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
-		auto* a = world->CreateRigidBody3D(); auto* b = world->CreateRigidBody3D();
+		auto* a = ::GEngine::PhysicsTestAccess::Create(world); auto* b = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureSphereBody(*a, sphere, Vec3f(0)); ConfigureSphereBody(*b, sphere, Vec3f(2,0,0));
 		a->SetSleepSettings({0.05f,0.02f,0.1}); b->SetSleepSettings({0.05f,0.02f,0.75});
 		for (int tick = 0; tick < 20; ++tick) system.Update(Timestep(1.0f/60));
@@ -6888,13 +6902,13 @@ namespace
 		const auto pose = a->m_Position; const auto timer = a->GetInactiveSeconds();
 		system.Update(Timestep(0));
 		Expect(a->IsSleeping() && a->m_Position == pose && a->GetInactiveSeconds() == timer, "paused steps preserve sleeping state and pose");
-		auto* projectile = world->CreateRigidBody3D(); ConfigureSphereBody(*projectile, sphere, Vec3f(-5,0,0));
+		auto* projectile = ::GEngine::PhysicsTestAccess::Create(world); ConfigureSphereBody(*projectile, sphere, Vec3f(-5,0,0));
 		projectile->m_LinearVelocity = Vec3f(60,0,0);
 		system.Update(Timestep(0.1f));
 		Expect(!a->IsSleeping() && !b->IsSleeping() && a->m_LinearVelocity.x > 0,
 			"a newly created positive-TOI impact discovers and wakes the sleeping group before response");
-		const auto stale = b->GetIdentity(); world->RemoveRigidBody3D(b);
-		auto* fresh = world->CreateRigidBody3D(); ConfigureSphereBody(*fresh, sphere, Vec3f(400,0,0));
+		const auto stale = b->GetIdentity(); ::GEngine::PhysicsTestAccess::Remove(world, b);
+		auto* fresh = ::GEngine::PhysicsTestAccess::Create(world); ConfigureSphereBody(*fresh, sphere, Vec3f(400,0,0));
 		Expect(!fresh->IsSleeping() && fresh->GetIdentity() != stale && !world->IsBodyIdentityValid(stale),
 			"reused identity slots cannot inherit an old island's sleeping state");
 		for (int tick = 0; tick < 40; ++tick) system.Update(Timestep(1.0f/60));
@@ -6909,7 +6923,7 @@ namespace
 		system.OnExit(); system.OnExit(); system.Update(Timestep(1.0f/60));
 
 		PhysicsSystem penetrated; auto* overlap = new PhysicsWorld(Vec3f(0)); penetrated.SetPhysicsWorld(overlap);
-		auto* fixed = overlap->CreateRigidBody3D(); auto* moving = overlap->CreateRigidBody3D();
+		auto* fixed = ::GEngine::PhysicsTestAccess::Create(overlap); auto* moving = ::GEngine::PhysicsTestAccess::Create(overlap);
 		ConfigureSphereBody(*fixed, sphere, Vec3f(0)); fixed->SetBodyTypeAndInverseMass(BodyType::Static, 0);
 		ConfigureSphereBody(*moving, sphere, Vec3f(1,0,0)); moving->SetSleepSettings({0.05f,0.02f,0.001});
 		for (int tick = 0; tick < 8; ++tick) {
@@ -6930,7 +6944,7 @@ namespace
 				bool IsValid() const override { ++queries; return ShapeSphere::IsValid(); }
 			} shape;
 			PhysicsSystem system; auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
-			auto* body = world->CreateRigidBody3D(); ConfigureSphereBody(*body, shape, Vec3f(0));
+			auto* body = ::GEngine::PhysicsTestAccess::Create(world); ConfigureSphereBody(*body, shape, Vec3f(0));
 			for (int tick=0;tick<3;++tick) system.Update(Timestep(1.0f/60));
 			shape.queries=0;
 			for (int tick=0;tick<10;++tick) system.Update(Timestep(1.0f/60));
@@ -6944,7 +6958,7 @@ namespace
 		{
 			ShapeSphere shape(MakeFixtureShape<ShapeSphere>(1.0f));
 			PhysicsSystem system; auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
-			auto* body = world->CreateRigidBody3D(); ConfigureSphereBody(*body, shape, Vec3f(0));
+			auto* body = ::GEngine::PhysicsTestAccess::Create(world); ConfigureSphereBody(*body, shape, Vec3f(0));
 			system.Update(Timestep(1.0f/60));
 			RigidBody3D reference = *body;
 			bool exactDwell = true;
@@ -6970,19 +6984,19 @@ namespace
 		PhysicsSystem first, second;
 		for (auto* system : {&first,&second}) {
 			auto* world = new PhysicsWorld(Vec3f(0)); system->SetPhysicsWorld(world);
-			for (int i=0;i<4;++i) ConfigureSphereBody(*world->CreateRigidBody3D(),sphere,Vec3f(i*2.0f,0,0));
+			for (int i=0;i<4;++i) ConfigureSphereBody(*::GEngine::PhysicsTestAccess::Create(world),sphere,Vec3f(i*2.0f,0,0));
 		}
 		bool exact = true, slept = false;
 		for (int tick=0;tick<240;++tick) {
 			for (auto* system : {&first,&second}) {
-				auto* body = system->GetPhysicsWorld()->GetPhysicsBodies()[0];
+				auto* body = ::GEngine::PhysicsTestAccess::Bodies(system->GetPhysicsWorld())[0];
 				if(tick==60) body->ApplyImpulseLinear(Vec3f(1,0,0));
 				if(tick==120) system->SetBodyPose(body,body->m_Position+Vec3f(0,1,0),body->m_Orientation);
 				system->Update(Timestep(1.0f/60));
 			}
 			for (int i=0;i<4;++i) {
-				const auto* a=first.GetPhysicsWorld()->GetPhysicsBodies()[i];
-				const auto* b=second.GetPhysicsWorld()->GetPhysicsBodies()[i];
+				const auto* a=::GEngine::PhysicsTestAccess::Bodies(first.GetPhysicsWorld())[i];
+				const auto* b=::GEngine::PhysicsTestAccess::Bodies(second.GetPhysicsWorld())[i];
 				exact &= a->m_Position==b->m_Position && a->m_Orientation==b->m_Orientation &&
 					a->m_LinearVelocity==b->m_LinearVelocity && a->m_AngularVelocity==b->m_AngularVelocity &&
 					a->IsSleeping()==b->IsSleeping() && a->GetInactiveSeconds()==b->GetInactiveSeconds();
@@ -6992,7 +7006,7 @@ namespace
 		Expect(exact && slept,"repeated creation order and wake inputs preserve exact physical, timer and sleep state");
 
 		PhysicsSystem supported; auto* world=new PhysicsWorld(); supported.SetPhysicsWorld(world);
-		auto* support=world->CreateRigidBody3D(); auto* body=world->CreateRigidBody3D();
+		auto* support=::GEngine::PhysicsTestAccess::Create(world); auto* body=::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureSphereBody(*support,sphere,Vec3f(0)); support->SetBodyTypeAndInverseMass(BodyType::Static,0);
 		ConfigureSphereBody(*body,sphere,Vec3f(0,2,0));
 		for(int tick=0;tick<120;++tick) supported.Update(Timestep(1.0f/60));
@@ -7000,14 +7014,14 @@ namespace
 		Expect(supported.SetBodyPose(body,body->m_Position,body->m_Orientation) && body->IsSleeping(),
 			"identical pose resubmission preserves sleep and support caches");
 		const auto position=body->m_Position;
-		world->RemoveRigidBody3D(support);
+		::GEngine::PhysicsTestAccess::Remove(world, support);
 		Expect(!body->IsSleeping(),"support removal wakes its dependent body before the support is freed");
 		supported.Update(Timestep(1.0f/60));
 		Expect(body->m_Position.y<position.y && body->m_LinearVelocity.y<0,
 			"a sleeper falls immediately after support removal");
 
 		PhysicsSystem driven; auto* movingWorld=new PhysicsWorld(Vec3f(0)); driven.SetPhysicsWorld(movingWorld);
-		auto* kinematic=movingWorld->CreateRigidBody3D(); auto* dynamic=movingWorld->CreateRigidBody3D();
+		auto* kinematic=::GEngine::PhysicsTestAccess::Create(movingWorld); auto* dynamic=::GEngine::PhysicsTestAccess::Create(movingWorld);
 		ConfigureSphereBody(*kinematic,sphere,Vec3f(0)); kinematic->SetBodyTypeAndInverseMass(BodyType::Kinematic,0);
 		ConfigureSphereBody(*dynamic,sphere,Vec3f(2,0,0));
 		kinematic->m_AngularVelocity=Vec3f(0.001f,0,0); // Motion about the contact normal: no tangential push.
@@ -7137,8 +7151,8 @@ namespace
 			GEngine::PhysicsSystem system;
 			auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f));
 			system.SetPhysicsWorld(world);
-			auto* dynamic = world->CreateRigidBody3D();
-			auto* driver = world->CreateRigidBody3D();
+			auto* dynamic = ::GEngine::PhysicsTestAccess::Create(world);
+			auto* driver = ::GEngine::PhysicsTestAccess::Create(world);
 			ConfigureSphereBody(*dynamic, sphere, GEngine::Vec3f(0.0f));
 			ConfigureSphereBody(*driver, sphere, GEngine::Vec3f(2.5f, 0.0f, 0.0f));
 			driver->Type = type;
@@ -7532,7 +7546,7 @@ namespace
 			ShapeSphere sphere(MakeFixtureShape<ShapeSphere>(0.25f));
 			PhysicsSystem system;
 			auto* world = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(world);
-			auto* first = world->CreateRigidBody3D(); auto* second = world->CreateRigidBody3D();
+			auto* first = ::GEngine::PhysicsTestAccess::Create(world); auto* second = ::GEngine::PhysicsTestAccess::Create(world);
 			auto* a = reversed ? second : first; auto* b = reversed ? first : second;
 			const Quat orientation = glm::angleAxis(angle, Vec3f(0, 0, 1));
 			ConfigureBoxBody(*a, rod, Vec3f(0), orientation);
@@ -7973,6 +7987,184 @@ namespace
 		return 0;
 	}
 
+
+    void TestTypedBodyOwnership()
+    {
+        using namespace GEngine;
+        using Code = PhysicsBodyErrorCode;
+        static_assert(!std::is_copy_constructible_v<PhysicsWorld> && !std::is_move_constructible_v<PhysicsWorld>);
+        struct CountedSphere : ShapeSphere
+        {
+            int& retired;
+            explicit CountedSphere(int& count) : retired(count) {}
+            ~CountedSphere() override { ++retired; }
+        };
+        auto errorIs = [](const auto& result, Code code) { return !result && result.error().code == code; };
+        int retired = 0;
+        PhysicsWorld world, foreign;
+        PhysicsBodyDesc desc; desc.mass = 2; desc.position = Vec3f(0, 5, 0);
+        std::unique_ptr<PhysicalShape> shape = std::make_unique<CountedSphere>(retired);
+        desc.mass = 0;
+        Expect(errorIs(world.CreateBody(desc, shape), Code::InvalidMass) && shape && world.GetBodyCount() == 0,
+            "typed creation rejection retains caller ownership and publishes no identity");
+        desc.mass = 2;
+        desc.orientation = Quat(0,0,0,0);
+        Expect(errorIs(world.CreateBody(desc, shape), Code::InvalidPose) && shape, "invalid pose retains shape owner");
+        desc.orientation = Quat(1,0,0,0);
+        desc.material.restitution = -1;
+        Expect(errorIs(world.CreateBody(desc, shape), Code::InvalidMaterial) && shape, "invalid creation material rejected");
+        desc.material.restitution = .5f;
+        auto made = world.CreateBody(desc, shape);
+        Expect(bool(made) && !shape && world.GetBodyCount() == 1, "world adopts shape only on successful create");
+        if (!made) return;
+        const auto handle = *made;
+        const auto state = world.ReadBody(handle);
+        Expect(state && state->position == desc.position && state->inverseMass == .5f &&
+            state->material == desc.material && world.BodyAt(0) && *world.BodyAt(0) == handle, "typed body value snapshot and enumeration");
+        Expect(errorIs(world.ReadBody({}), Code::InvalidHandle) && errorIs(foreign.ReadBody(handle), Code::WrongWorld),
+            "null and foreign world handles are distinct typed failures");
+        PhysicsBodyErrorCode threadError{};
+        std::thread other([&] { auto result = world.DestroyBody(handle); if (!result) threadError = result.error().code; });
+        other.join();
+        Expect(threadError == Code::WrongThread && world.IsBodyValid(handle), "foreign thread cannot retire world-owned body");
+        const float nan = std::numeric_limits<float>::quiet_NaN();
+        const float huge = std::numeric_limits<float>::max();
+        std::unique_ptr<PhysicalShape> oversized = std::make_unique<ShapeSphere>();
+        static_cast<ShapeSphere*>(oversized.get())->SetRadius(huge);
+        Expect(errorIs(world.CreateBody(desc, oversized), Code::NonFiniteResult) && oversized && world.GetBodyCount() == 1,
+            "finite shape input with overflowing inertia is rejected before ownership publication");
+        Expect(errorIs(world.SetBodyMass(handle, std::numeric_limits<float>::min() * .5f), Code::NonFiniteResult) &&
+            world.ReadBody(handle)->inverseMass == .5f, "finite reciprocal mass with overflowing inertia is transactional");
+        Expect(errorIs(world.SetBodyMass(handle, -1), Code::InvalidMass) &&
+            errorIs(world.SetBodyVelocity(handle, Vec3f(nan), Vec3f(0)), Code::InvalidVelocity) &&
+            errorIs(world.SetBodyMaterial(handle, {-1, .5f}), Code::InvalidMaterial) &&
+            errorIs(world.SetBodyMaterial(handle, {.5f, 2}), Code::InvalidMaterial) &&
+            errorIs(world.ApplyLinearImpulse(handle, Vec3f(nan)), Code::InvalidForce) &&
+            errorIs(world.ApplyForceForDuration(handle, Vec3f(1), 0), Code::InvalidDuration) &&
+            errorIs(world.ApplyForceForDuration(handle, Vec3f(huge), 2), Code::NonFiniteResult),
+            "invalid mass material velocity force and duration produce typed errors");
+        const auto unchanged = world.ReadBody(handle);
+        auto* internal = PhysicsTestAccess::Resolve(world, handle);
+        internal->m_LinearVelocity.x = nan;
+        Expect(errorIs(world.ReadBody(handle), Code::NonFiniteResult), "snapshot rejects an independently injected nonfinite internal state");
+        internal->m_LinearVelocity = state->linearVelocity;
+        Expect(unchanged && unchanged->position == state->position && unchanged->linearVelocity == state->linearVelocity &&
+            unchanged->angularVelocity == state->angularVelocity && unchanged->material == state->material &&
+            unchanged->inverseMass == state->inverseMass, "rejected operations leave physical state unchanged");
+        RigidBody3D reference;
+        ShapeSphere referenceShape;
+        reference.m_Shape = &referenceShape; reference.m_Position = desc.position; reference.m_InvMass = .5f;
+        reference.Type = Component::BodyType::Dynamic;
+        Expect(bool(world.ApplyLinearImpulse(handle, Vec3f(2,0,0))), "typed linear impulse");
+        reference.ApplyImpulseLinear(Vec3f(2,0,0));
+        Expect(bool(world.ApplyImpulse(handle, desc.position + Vec3f(0,1,0), Vec3f(1,0,0))), "typed off-center impulse");
+        reference.ApplyImpulse(desc.position + Vec3f(0,1,0), Vec3f(1,0,0));
+        Expect(bool(world.ApplyAngularImpulse(handle, Vec3f(0,1,0))), "typed angular impulse");
+        reference.ApplyImpulseAngular(Vec3f(0,1,0));
+        Expect(bool(world.ApplyForceForDuration(handle, Vec3f(0,2,0), .5f)), "explicit force integral");
+        reference.ApplyImpulseLinear(Vec3f(0,1,0));
+        const auto impulses = world.ReadBody(handle);
+        Expect(impulses && impulses->linearVelocity == reference.m_LinearVelocity &&
+            impulses->angularVelocity == reference.m_AngularVelocity, "typed operations preserve approved impulse arithmetic exactly");
+        Expect(bool(world.SetBodyMass(handle, 4)) && world.ReadBody(handle)->inverseMass == .25f &&
+            world.ReadBody(handle)->inverseInertiaBody == state->inverseInertiaBody * .5f,
+            "mass update derives effective inertia through existing body cache");
+        Expect(errorIs(world.TrySleepBody(handle), Code::NotSleepEligible), "sleep API cannot bypass existing eligibility");
+        Expect(bool(world.SetBodyVelocity(handle, Vec3f(0), Vec3f(0))), "zero velocity through typed API");
+        PhysicsTestAccess::Resolve(world, handle)->UpdateSleepTimer(.5);
+        Expect(bool(world.TrySleepBody(handle)) && world.ReadBody(handle)->sleeping, "sleep after original dwell threshold");
+        Expect(errorIs(world.ApplyLinearImpulse(handle, Vec3f(nan)), Code::InvalidForce) && world.ReadBody(handle)->sleeping,
+            "invalid impulse does not wake sleeping body");
+        Expect(bool(world.ApplyLinearImpulse(handle, Vec3f(1,0,0))) && !world.ReadBody(handle)->sleeping,
+            "valid external impulse wakes immediately for next fixed tick");
+        Expect(bool(world.DestroyBody(handle)) && retired == 1 && errorIs(world.ReadBody(handle), Code::StaleHandle),
+            "retirement destroys adopted shape exactly once and rejects stale handle");
+        shape = std::make_unique<CountedSphere>(retired);
+        auto reused = world.CreateBody(desc, shape);
+        Expect(reused && reused->index == handle.index && reused->generation != handle.generation &&
+            errorIs(world.DestroyBody(handle), Code::StaleHandle), "slot reuse cannot resurrect a stale generation");
+        Expect(bool(world.Close()) && bool(world.Close()) && retired == 2 &&
+            errorIs(world.ReadBody(*reused), Code::Closed), "world close is deterministic and idempotent");
+        {
+            PhysicsWorld dying;
+            shape = std::make_unique<CountedSphere>(retired);
+            Expect(bool(dying.CreateBody(desc, shape)), "destructor ownership fixture");
+        }
+        Expect(retired == 3, "world destruction retires remaining owned shapes exactly once");
+        for (auto type : {Component::BodyType::Static, Component::BodyType::Kinematic, Component::BodyType::Dynamic})
+        {
+            PhysicsSystem system;
+            auto* simulation = new PhysicsWorld(Vec3f(0)); system.SetPhysicsWorld(simulation);
+            desc.type = type; desc.position = Vec3f(0); desc.linearVelocity = Vec3f(2,0,0);
+            shape = std::make_unique<ShapeSphere>(); auto body = simulation->CreateBody(desc, shape);
+            Expect(bool(body), "typed body type fixture creation"); if (!body) continue;
+            system.Update(1.f/120.f);
+            auto after = simulation->ReadBody(*body);
+            Expect(after && after->position == (type == Component::BodyType::Static ? Vec3f(0) : Vec3f(2.f/120.f,0,0)),
+                "typed static kinematic and dynamic bodies retain original integration behavior");
+            if (type != Component::BodyType::Dynamic)
+                Expect(errorIs(simulation->ApplyLinearImpulse(*body, Vec3f(1)), Code::WrongBodyType),
+                    "non-dynamic force operation reports explicit body-type failure");
+            Expect(bool(simulation->Close()) && errorIs(simulation->ReadBody(*body), Code::Closed),
+                "typed close retires a world attached to the existing PhysicsSystem");
+            system.Update(1.f/120.f);
+            Expect(simulation->GetBodyCount() == 0 && GetManifolds(system).m_Manifolds.empty(),
+                "closed attached world has no surviving contact or body work");
+        }
+    }
+    void TestTypedSceneRetirement()
+    {
+        using namespace GEngine; using namespace Component;
+        _Scene scene;
+        auto entity = SceneOperationChecked([&] { return scene.CreateEntity("typed retirement"); });
+        entity.AddOrReplaceComponent<RigidBody3DComponent>(); entity.AddOrReplaceComponent<SphereFixture3DComponent>();
+        StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });
+        auto* world = scene.GetPhysicsSystem()->GetPhysicsWorld();
+        const auto handle = entity.GetComponent<RigidBody3DComponent>().RuntimeBody;
+        auto parent = SceneOperationChecked([&] { return scene.CreateEntity("retirement parent"); });
+        Expect(bool(entity.SetParent(parent)), "retirement hierarchy fixture");
+        PhysicsWorld foreign;
+        std::unique_ptr<PhysicalShape> foreignShape = std::make_unique<ShapeSphere>();
+        auto foreignBody = foreign.CreateBody(PhysicsBodyDesc{}, foreignShape);
+        Expect(bool(foreignBody), "foreign binding fixture");
+        entity.GetComponent<RigidBody3DComponent>().RuntimeBody = *foreignBody;
+        auto rejected = scene.DestroyEntity(entity);
+        Expect(!rejected && rejected.error().code == SceneErrorCode::InvalidIdentity && entity &&
+            entity.GetParent() == parent && world->IsBodyValid(handle) && foreign.IsBodyValid(*foreignBody),
+            "invalid body binding rejects entity deletion before hierarchy or body mutation");
+        entity.GetComponent<RigidBody3DComponent>().RuntimeBody = handle;
+        Expect(handle && entity.Transform().OnScaleChanged && bool(world->DestroyBody(handle)), "retire scene body through public typed API");
+        Expect(!entity.GetComponent<RigidBody3DComponent>().RuntimeBody && !entity.Transform().OnScaleChanged &&
+            !world->IsBodyValid(handle), "retirement disconnects Scene shape callbacks before releasing ownership");
+        entity.Transform().SetScale(2.f); scene.Update(Timestep(0));
+        Expect(bool(scene.DestroyEntity(entity)), "entity deletion remains safe after independent typed body retirement");
+        scene.OnRuntimeStop(); scene.OnRuntimeStop();
+        auto replaced = SceneOperationChecked([&] { return scene.CreateEntity("replaced binding"); });
+        replaced.AddOrReplaceComponent<RigidBody3DComponent>(); replaced.AddOrReplaceComponent<SphereFixture3DComponent>();
+        StartRuntimeChecked([&] { return scene.OnRuntimeStart(); });
+        world = scene.GetPhysicsSystem()->GetPhysicsWorld();
+        const auto original = replaced.GetComponent<RigidBody3DComponent>().RuntimeBody;
+        replaced.GetComponent<RigidBody3DComponent>().RuntimeBody = {};
+        Expect(bool(world->DestroyBody(original)) && !replaced.Transform().OnScaleChanged,
+            "private callback retires even when exposed component binding was cleared");
+        scene.GetPhysicsSystem()->SetPhysicsWorld(new PhysicsWorld);
+        replaced.Transform().SetScale(3.f); scene.Update(Timestep(0));
+        Expect(!replaced.Transform().OnScaleChanged, "world replacement leaves no callback to a destroyed world");
+        scene.OnRuntimeStop();
+    }
+    int RunTypedBodyOwnership()
+    {
+        TestTypedBodyOwnership(); TestTypedSceneRetirement();
+        TestBodyRemovalLifetimeRegression(); TestMultiManifoldBodyRemovalRegression();
+        TestTransientContactBodyRemovalRegression(); TestStableBodyIdentityRegression(); TestReadOnlyPhysicsBodyStorageRegression();
+        TestPhysicsWorldResetAndRestartRegression(); TestRuntimePoseApi(); TestRuntimeTransformSynchronization();
+        TestPausedScenePoseSynchronization(); TestSceneRuntimeLifecycleRegression();
+        TestBodyTypeInvariants(); TestBodyTypeConfigurationAndTransitions(); TestBodyTypeWorldContacts();
+        TestSleepSettingsAndTimer(); TestSleepPhysicalStateAndLifetime(); TestContactIslandSystemLifecycle();
+        std::cout << "Typed body ownership: " << testCount << " checks, " << failureCount << " failures\n";
+        return failureCount ? 1 : 0;
+    }
+
 }
 
 int RunProgramGroupingRegression();
@@ -7983,6 +8175,7 @@ int main(int argc, char** argv)
 	if (argc == 2)
 	{
 		const std::string_view argument(argv[1]);
+		if (argument == "--body-ownership") return RunTypedBodyOwnership();
 		if (argument == "--program-grouping") return RunProgramGroupingRegression();
 		if (argument == "--solver-storage") { TestSolverStorage(); return failureCount ? 1 : 0; }
 		if (argument == "--angular-resistance-coupling") { TestCombinedAngularResistanceAnisotropy(); return failureCount ? 1 : 0; }

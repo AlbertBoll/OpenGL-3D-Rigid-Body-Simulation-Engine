@@ -244,13 +244,6 @@ namespace PreEditorValidation
     struct TransformPhysicsFixture
     {
         ::GEngine::RefPtr<::GEngine::_Scene> scene = ::GEngine::CreateRefPtr<::GEngine::_Scene>();
-        std::vector<std::unique_ptr<::GEngine::PhysicalShape>> shapes;
-        void CaptureShapes()
-        {
-            for (auto* body : scene->GetPhysicsSystem()->GetPhysicsWorld()->GetPhysicsBodies())
-                shapes.emplace_back(body->m_Shape);
-        }
-        // Existing runtime startup transfers shapes to this fixture, not the Physics world.
         ~TransformPhysicsFixture()
         {
             scene->OnRuntimeStop();
@@ -286,13 +279,12 @@ namespace PreEditorValidation
         box->Transform().SetScale({2, 3, 4});
         convex->Transform().SetScale({2, 3, 4});
         TRANSFORM14_REQUIRE(scene->OnRuntimeStart(), "collider startup");
-        fixture.CaptureShapes();
         auto* sphereShape = dynamic_cast<ShapeSphere*>(
-            sphere->GetComponent<RigidBody3DComponent>().RuntimeBody->m_Shape);
+            ::GEngine::PhysicsTestAccess::Body(*sphere)->m_Shape);
         auto* boxShape =
-            dynamic_cast<ShapeBox*>(box->GetComponent<RigidBody3DComponent>().RuntimeBody->m_Shape);
+            dynamic_cast<ShapeBox*>(::GEngine::PhysicsTestAccess::Body(*box)->m_Shape);
         auto* convexShape = dynamic_cast<ShapeConvex*>(
-            convex->GetComponent<RigidBody3DComponent>().RuntimeBody->m_Shape);
+            ::GEngine::PhysicsTestAccess::Body(*convex)->m_Shape);
         TRANSFORM14_REQUIRE(sphereShape && boxShape && convexShape, "expected collider families");
         unsigned notifications = 0;
         auto token = scene->SubscribeToAuthoritativeTransformChanges(
@@ -356,8 +348,7 @@ namespace PreEditorValidation
         entity->AddOrReplaceComponent<RigidBody3DComponent>(bodyDescription);
         entity->AddOrReplaceComponent<SphereFixture3DComponent>();
         TRANSFORM14_REQUIRE(scene->OnRuntimeStart(), "interpolation startup");
-        fixture.CaptureShapes();
-        auto* body = entity->GetComponent<RigidBody3DComponent>().RuntimeBody;
+        auto* body = ::GEngine::PhysicsTestAccess::Body(*entity);
         body->m_LinearVelocity = {6, 0, 0};
         unsigned notifications = 0;
         auto token = scene->SubscribeToAuthoritativeTransformChanges(

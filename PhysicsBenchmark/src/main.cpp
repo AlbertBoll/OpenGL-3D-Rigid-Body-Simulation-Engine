@@ -20,6 +20,30 @@
 #include <string_view>
 #include <vector>
 
+// Test-only access to the engine's internal solver fixtures. No application API
+// exposes body pointers or transfers body ownership through this adapter.
+namespace GEngine
+{
+    struct PhysicsTestAccess
+    {
+        static RigidBody3D* Create(PhysicsWorld& w) { return w.CreateRigidBody3D(); }
+        static RigidBody3D* Create(PhysicsWorld* w) { return Create(*w); }
+        static void Remove(PhysicsWorld& w, RigidBody3D* b) { w.RemoveRigidBody3D(b); }
+        static void Remove(PhysicsWorld* w, RigidBody3D* b) { Remove(*w, b); }
+        static const auto& Bodies(const PhysicsWorld& w) { return w.GetPhysicsBodies(); }
+        static const auto& Bodies(const PhysicsWorld* w) { return Bodies(*w); }
+        static RigidBody3D* Resolve(PhysicsWorld& w, PhysicsBodyHandle h)
+        { auto body = w.Resolve(h, "test fixture"); return body ? *body : nullptr; }
+        static PhysicsBodyHandle Handle(const PhysicsWorld& w, const RigidBody3D& b)
+        { return w.HandleOf(b.GetIdentity()); }
+        template<class Entity> static RigidBody3D* Body(const Entity& e)
+        {
+            auto* w = e.GetSceneContext()->GetPhysicsSystem()->GetPhysicsWorld();
+            return w ? Resolve(*w, e.template GetComponent<Component::RigidBody3DComponent>().RuntimeBody) : nullptr;
+        }
+    };
+}
+
 namespace
 {
     // Valid test inputs use the same typed construction contract as production callers.
@@ -430,7 +454,7 @@ namespace
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
 		system.SetPhysicsWorld(world);
 
-		GEngine::RigidBody3D* floorBody = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* floorBody = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureProbeBody(*floorBody, floor, GEngine::Vec3f(0.0f),
 			GEngine::Component::BodyType::Static, 0.0f);
 
@@ -440,7 +464,7 @@ namespace
 		{
 			for (int x = 0; x < 4; ++x)
 			{
-				GEngine::RigidBody3D* body = world->CreateRigidBody3D();
+				GEngine::RigidBody3D* body = ::GEngine::PhysicsTestAccess::Create(world);
 				ConfigureProbeBody(*body, box,
 					GEngine::Vec3f(static_cast<float>(x) * 2.01f, 1.5f + static_cast<float>(y) * 2.0f, 0.0f),
 					GEngine::Component::BodyType::Dynamic, 1.0f);
@@ -460,10 +484,10 @@ namespace
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
 		system.SetPhysicsWorld(world);
 
-		GEngine::RigidBody3D* floorBody = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* floorBody = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureProbeBody(*floorBody, floor, GEngine::Vec3f(0.0f),
 			GEngine::Component::BodyType::Static, 0.0f);
-		GEngine::RigidBody3D* sphereBody = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* sphereBody = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureProbeBody(*sphereBody, sphere, GEngine::Vec3f(0.0f, 10.0f, 0.0f),
 			GEngine::Component::BodyType::Dynamic, 1.0f);
 
@@ -479,7 +503,7 @@ namespace
 		auto* world = new GEngine::PhysicsWorld(GEngine::Vec3f(0.0f, -12.0f, 0.0f));
 		system.SetPhysicsWorld(world);
 
-		GEngine::RigidBody3D* floorBody = world->CreateRigidBody3D();
+		GEngine::RigidBody3D* floorBody = ::GEngine::PhysicsTestAccess::Create(world);
 		ConfigureProbeBody(*floorBody, floor, GEngine::Vec3f(0.0f),
 			GEngine::Component::BodyType::Static, 0.0f);
 
@@ -491,7 +515,7 @@ namespace
 			{
 				for (int z = 0; z < 6; ++z)
 				{
-					GEngine::RigidBody3D* body = world->CreateRigidBody3D();
+					GEngine::RigidBody3D* body = ::GEngine::PhysicsTestAccess::Create(world);
 					ConfigureProbeBody(*body, sphere, GEngine::Vec3f(
 						static_cast<float>(x - 1) * 2.0f,
 						10.0f + static_cast<float>(vertical) * 2.0f,
@@ -577,7 +601,7 @@ namespace
 
 		for (int bodyIndex = 0; bodyIndex < bodyCount; ++bodyIndex)
 		{
-			GEngine::RigidBody3D* body = world->CreateRigidBody3D();
+			GEngine::RigidBody3D* body = ::GEngine::PhysicsTestAccess::Create(world);
 			body->SetSpinResistanceLength(options.spinResistanceLength);
 			body->SetRollingResistanceLength(options.rollingResistanceLength);
 			const int pairIndex = bodyIndex / 2;
@@ -624,7 +648,7 @@ namespace
 			static_cast<double>(measuredSteps);
 		sample.measuredSteps = measuredSteps;
 		sample.profile = GEngine::GetPhysicsProfileSnapshot();
-		for (const GEngine::RigidBody3D* body : world->GetPhysicsBodies())
+		for (const GEngine::RigidBody3D* body : ::GEngine::PhysicsTestAccess::Bodies(world))
 		{
 			sample.finiteState = sample.finiteState && IsFinite(body->m_Position) &&
 				IsFinite(body->m_LinearVelocity) && IsFinite(body->m_AngularVelocity) &&

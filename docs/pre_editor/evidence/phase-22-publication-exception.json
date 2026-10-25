@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "phase": "22",
+  "status": "ACTIVE_OWNER_AUTHORIZED",
+  "authorization": "APPROVE PRE_EDITOR PHASE 22; Owner confirms Candidate06 human RBS acceptance PASS and explicitly authorizes the Phase22-only publication-guard exception using the verified frozen Phase21 checkpoint.",
+  "candidate": "06",
+  "human_rbs_acceptance": "PASS_OWNER_REPORTED",
+  "baseline": "3ce1f6cbd9245893876c34441055e3a63ed1f7b6",
+  "frozen_tag": "pre-editor-phase-21-frozen-unapproved",
+  "frozen_tag_object": "86ab5b8373c1cbc37357d084509f828a939d7a2a",
+  "approved_predecessor_phase": "20",
+  "approved_predecessor_commit": "6263b3719bfd1b20d3ed8c40abf803580857a82c",
+  "phase21_status": "FROZEN_UNAPPROVED",
+  "phase21_freeze_sha256": "79cb382c21e937d0af7be5b1e36da5c2730ad1cffdacfe4acdbf0ec5e3d9844a",
+  "proposal": "logs/pre_editor/phase-22/candidate-06/publication-guard-disposition.json",
+  "proposal_sha256": "fa90be772dff64ccdda2274f816b3cd46665e050cbd12144495202e27c04e75b",
+  "ready_sha256": "3c887d5fe21aefb46d31c8430d8ae5d6c9f3614be848b770aa12587f363e38f3",
+  "scope": "Replace only Phase22 predecessor/next-expected admission, against these exact identities and truthful Phase20/next21 state. Require published approved Phase20 ancestor, exact annotated frozen tag, direct frozen parent, unchanged freeze record and absent Phase21 approved tag. All phase validation, raw/index, snapshot, protected-work, index, destination, transaction, tag, push and remote-verification guards remain unchanged.",
+  "effect": "Successful Phase22 finish updates approved phase to22 and next expected to23; it does not approve Phase21 or authorize START23.",
+  "prohibitions": [
+    "No Phase21 approved tag/receipt or fabricated qualification PASS",
+    "No historical source/evidence/outcome rewrite",
+    "No Solver remediation or numerical/visual/performance waiver",
+    "No automatic release of Phase26-29 stability gates",
+    "No other phase or Rendering predecessor exception"
+  ],
+  "recorded_utc": "2026-10-25T15:06:42.952642+00:00"
+}

@@ -99,7 +99,7 @@ namespace GEngine
         void ClearCopiedRuntimeBindings(entt::registry& destination, entt::entity entity,
             const RuntimePhysicsPose* sourceRuntime)
         {
-            if (auto* body = destination.try_get<Component::RigidBody3DComponent>(entity)) body->RuntimeBody = nullptr;
+            if (auto* body = destination.try_get<Component::RigidBody3DComponent>(entity)) body->RuntimeBody = {};
             // Signal copies omit scoped runtime subscriptions; the source token
             // remains owned exclusively by the source RuntimePhysicsPose.
             (void)sourceRuntime;
@@ -107,8 +107,10 @@ namespace GEngine
 
 		bool ValidPhysicsPose(PhysicsWorld* world, const Component::RigidBody3DComponent& rigidBody, const RuntimePhysicsPose& pose)
 		{
-			return world && rigidBody.RuntimeBody && rigidBody.RuntimeBody == pose.body
-				&& world->IsBodyIdentityValid(pose.identity);
+			return world && world->IsBodyValid(rigidBody.RuntimeBody)
+                && world->IsBodyIdentityValid(pose.identity)
+                && rigidBody.RuntimeBody.index + 1 == pose.identity.GetSlot()
+                && rigidBody.RuntimeBody.generation == pose.identity.GetGeneration();
 		}
 
 		void ResetPhysicsHistory(RuntimePhysicsPose& pose, const Component::Transform3DComponent& transform,
@@ -387,10 +389,9 @@ namespace GEngine
 			auto& rigidBody = m_Registry.get<RigidBody3DComponent>(e);
 			auto& pose = m_Registry.get<RuntimePhysicsPose>(e);
 			auto* world = m_PhysicsSystem->GetPhysicsWorld();
-			if (!world || !rigidBody.RuntimeBody || rigidBody.RuntimeBody != pose.body ||
-				!world->IsBodyIdentityValid(pose.identity)) continue;
+			if (!ValidPhysicsPose(world, rigidBody, pose)) continue;
 			auto& transform = m_Registry.get<Transform3DComponent>(e);
-			auto* body = rigidBody.RuntimeBody;
+			auto* body = pose.body;
 			// Static transforms are authoritative. Kinematic bodies retain prescribed-velocity
 			// motion; dynamic bodies retain simulated motion. Both consume authored pose edits
 			// as teleports, then publish their next physics pose without replaying that output.
@@ -452,10 +453,9 @@ namespace GEngine
 			auto& rigidBody = m_Registry.get<RigidBody3DComponent>(e);
 			auto& pose = m_Registry.get<RuntimePhysicsPose>(e);
 			auto* world = m_PhysicsSystem->GetPhysicsWorld();
-			if (!world || !rigidBody.RuntimeBody || rigidBody.RuntimeBody != pose.body ||
-				!world->IsBodyIdentityValid(pose.identity)) continue;
+			if (!ValidPhysicsPose(world, rigidBody, pose)) continue;
 			auto& transform = m_Registry.get<Transform3DComponent>(e);
-			PublishPhysicsPose(transform, pose, *rigidBody.RuntimeBody);
+			PublishPhysicsPose(transform, pose, *pose.body);
 		}
 	}
 
@@ -500,7 +500,7 @@ namespace GEngine
             const bool authoredEdit = transform.Translation != pose->translation || transform.QuatRotation != pose->rotation;
             if (!authoredEdit)
             {
-                const auto* body = rigidBody->RuntimeBody;
+                const auto* body = pose->body;
                 input.translation = body->m_Position;
                 input.rotation = body->m_Orientation;
                 if (m_RenderInterpolationEnabled && !m_IsPaused && transform.Scale == pose->scale
@@ -756,7 +756,7 @@ namespace GEngine
 		const auto* rigidBody = m_Registry.try_get<RigidBody3DComponent>(handle);
 		const auto* transform = m_Registry.try_get<Transform3DComponent>(handle);
 		if (pose && rigidBody && transform && ValidPhysicsPose(m_PhysicsSystem->GetPhysicsWorld(), *rigidBody, *pose))
-			ResetPhysicsHistory(*pose, *transform, *rigidBody->RuntimeBody, entity.GetParentUUID());
+			ResetPhysicsHistory(*pose, *transform, *pose->body, entity.GetParentUUID());
 		return {};
 	}
 
@@ -1355,7 +1355,7 @@ namespace GEngine
 			return std::unexpected(SceneError{SceneErrorCode::MissingIdentity, "_Scene::DestroyEntity",
                 "Destroy requires a scene entity with an ID", 0});
 
-		// Detach while parents are still alive, then retire descendants before parents.
+		// Gather without mutation; validate all body bindings before detaching anything.
 		// The explicit worklist also makes destruction safe for very deep hierarchies.
 		std::vector<_Entity> pending{entity}, retiring;
 		std::unordered_set<entt::entity> visited;
@@ -1365,20 +1365,41 @@ namespace GEngine
 			pending.pop_back();
 			if (!visited.insert(static_cast<entt::entity>(current)).second) continue;
 			const auto children = std::as_const(current).Children();
-			(void)current.SetParent({}); // Live ID and null parent: cannot fail.
 			for (const auto childId : children)
 			{
 				auto child = GetEntityByUUID(childId);
 				if (child && child.GetParent() == current)
 				{
-					if (excludeChildren)
-						(void)child.SetParent({});
-					else
-						pending.push_back(child);
+                    if (!excludeChildren) pending.push_back(child);
 				}
 			}
 			retiring.push_back(current);
 		}
+        auto* retirementWorld = m_PhysicsSystem->GetPhysicsWorld();
+        for (const auto current : retiring)
+        {
+            const auto e = static_cast<entt::entity>(current);
+            const auto* binding = m_Registry.try_get<RigidBody3DComponent>(e);
+            const auto* pose = m_Registry.try_get<RuntimePhysicsPose>(e);
+            const auto handle = binding ? binding->RuntimeBody : PhysicsBodyHandle{};
+            if (!handle && !pose) continue;
+            if (!retirementWorld || !pose || !handle)
+                return std::unexpected(SceneError{SceneErrorCode::InvalidIdentity, "DestroyEntity",
+                    "Physics runtime binding is incomplete", std::uint64_t(current.GetUUID())});
+            auto live = retirementWorld->Resolve(handle, "DestroyEntity", true);
+            if (!live || (*live)->GetIdentity() != pose->identity)
+                return std::unexpected(SceneError{SceneErrorCode::InvalidIdentity, "DestroyEntity",
+                    "Physics body does not match its scene binding", std::uint64_t(current.GetUUID())});
+        }
+        for (auto current : retiring)
+        {
+            const auto children = std::as_const(current).Children();
+            (void)current.SetParent({}); // Live ID and null parent: cannot fail.
+            if (excludeChildren)
+                for (const auto childId : children)
+                    if (auto child = GetEntityByUUID(childId); child && child.GetParent() == current)
+                        (void)child.SetParent({});
+        }
 		for (auto it = retiring.rbegin(); it != retiring.rend(); ++it)
 		{
 			const auto current = *it;
@@ -1387,13 +1408,16 @@ namespace GEngine
                 if (auto active = m_RenderData.Resolve(*m_ActiveSceneCamera);
                     active && *active == static_cast<entt::entity>(current))
                     m_ActiveSceneCamera.reset();
-			RemoveFromRenderLists(current);
 			if (current.HasAllComponents<RigidBody3DComponent>())
 			{
-				auto* body = current.GetComponent<RigidBody3DComponent>().RuntimeBody;
+				const auto body = current.GetComponent<RigidBody3DComponent>().RuntimeBody;
 				auto* world = m_PhysicsSystem->GetPhysicsWorld();
-				if (world && body) world->RemoveRigidBody3D(body);
+				if (world && body)
+                    if (auto retired = world->DestroyBody(body); !retired)
+                        return std::unexpected(SceneError{SceneErrorCode::InvalidIdentity,
+                            "DestroyEntity", "Physics body handle could not be retired", std::uint64_t(id)});
 			}
+			RemoveFromRenderLists(current);
 			m_Registry.destroy(static_cast<entt::entity>(current));
 			m_EntityMap.erase(id);
 		}
@@ -1468,173 +1492,107 @@ namespace GEngine
     std::expected<void, PhysicsShapeError> _Scene::OnPhysics3DStart()
     {
         OnPhysics3DStop();
-        struct PendingShape
-        {
-            entt::entity entity;
-            std::unique_ptr<PhysicalShape> shape;
-        };
-        std::vector<PendingShape> pending;
         struct Rollback
         {
             _Scene& scene;
-            std::vector<PendingShape>& pending;
             bool complete = false;
-            ~Rollback()
-            {
-                if (complete) return;
-                // Startup does not remove authoring entities; only these new slots are ours.
-                scene.m_IsRunning = false;
-                scene.OnPhysics3DStop(); // Body borrowers retire before pending shape owners.
-            }
-        } rollback{*this, pending};
-        auto m_PhysicsWorld = new (std::nothrow) PhysicsWorld{};
-        if (!m_PhysicsWorld)
+            ~Rollback() { if (!complete) { scene.m_IsRunning = false; scene.OnPhysics3DStop(); } }
+        } rollback{*this};
+        auto* world = new (std::nothrow) PhysicsWorld{};
+        if (!world)
             return std::unexpected(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
                 "_Scene::OnPhysics3DStart", "Physics world allocation failed"});
-		m_PhysicsSystem->SetPhysicsWorld(m_PhysicsWorld);
-		//auto view = m_Registry.view<RigidBody3DComponent>();
-		for (auto& e : m_Registry.view<RigidBody3DComponent>())
-		{
-			_Entity entity{ e, this };
-			auto& transform = entity.GetComponent<Transform3DComponent>();
-			auto& rigid_body = entity.GetComponent<RigidBody3DComponent>();
+        m_PhysicsSystem->SetPhysicsWorld(world);
+        for (auto e : m_Registry.view<RigidBody3DComponent>())
+        {
+            _Entity entity{e, this};
+            auto& transform = entity.GetComponent<Transform3DComponent>();
+            auto& rigid = entity.GetComponent<RigidBody3DComponent>();
+            const Fixture3DProperty* property = nullptr;
             std::unique_ptr<PhysicalShape> shape;
             auto failure = [&](PhysicsShapeError error) -> std::expected<void, PhysicsShapeError>
             { error.entity = entity.GetUUID(); return std::unexpected(error); };
-
-			if (entity.HasAllComponents<SphereFixture3DComponent>())
-			{
-				auto& sphere_fixure = entity.GetComponent<SphereFixture3DComponent>();
-                auto created = ShapeSphere::Create(sphere_fixure.Radius);
+            if (entity.HasAllComponents<SphereFixture3DComponent>())
+            {
+                const auto& fixture = entity.GetComponent<SphereFixture3DComponent>();
+                property = &fixture.Property;
+                auto created = ShapeSphere::Create(fixture.Radius);
                 if (!created) return failure(created.error());
                 shape.reset(new (std::nothrow) ShapeSphere(std::move(*created)));
-                if (!shape) return failure(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
-                    "_Scene::OnPhysics3DStart", "Sphere shape allocation failed", sphere_fixure.Radius});
-				RigidBody3D* body = m_PhysicsWorld->CreateRigidBody3D();
-
-				body->m_LinearVelocity = sphere_fixure.Property.m_LinearVelocity;//rigid_body.Property.m_LinearVelocity;
-				body->m_AngularVelocity = sphere_fixure.Property.m_AngularVelocity;
-				body->m_InvMass = sphere_fixure.Property.m_InvMass;
-				body->m_Elasticity = sphere_fixure.Property.m_Elasticity;
-				body->m_Friction = sphere_fixure.Property.m_Friction;
-				body->Type = rigid_body.Type;
-				body->m_CollisionLayer = rigid_body.CollisionLayer;
-				body->m_CollisionMask = rigid_body.CollisionMask;
-				body->m_Shape = shape.get();
-
-				
-				
-				rigid_body.RuntimeBody = body;
-			}
-
-			else if (entity.HasAllComponents<BoxFixture3DComponent>())
-			{
-				auto& box_fixure = entity.GetComponent<BoxFixture3DComponent>();
-				if (!entity.HasAllComponents<MeshComponent>())
-				{
-					GENGINE_CORE_ERROR("Cannot create box rigid body without a mesh component");
-					continue;
-				}
-				auto* geometry = entity.GetComponent<MeshComponent>().m_Geometry;
-				if (!geometry)
-				{
-					GENGINE_CORE_ERROR("Cannot create box rigid body without mesh geometry");
-					continue;
-				}
-				auto pts = geometry->GetPoints(transform.Scale);
-				if (!ShapeBox::IsValidPointSet(pts))
-				{
-					GENGINE_CORE_ERROR("Cannot create box rigid body from empty, non-finite, or degenerate geometry");
-					continue;
-				}
-                auto created = ShapeBox::Create(pts);
+            }
+            else if (entity.HasAllComponents<BoxFixture3DComponent>())
+            {
+                property = &entity.GetComponent<BoxFixture3DComponent>().Property;
+                if (!entity.HasAllComponents<MeshComponent>() || !entity.GetComponent<MeshComponent>().m_Geometry)
+                { GENGINE_CORE_ERROR("Cannot create box rigid body without mesh geometry"); continue; }
+                auto points = entity.GetComponent<MeshComponent>().m_Geometry->GetPoints(transform.Scale);
+                if (!ShapeBox::IsValidPointSet(points))
+                { GENGINE_CORE_ERROR("Cannot create box rigid body from invalid geometry"); continue; }
+                auto created = ShapeBox::Create(points);
                 if (!created) return failure(created.error());
                 shape.reset(new (std::nothrow) ShapeBox(std::move(*created)));
-                if (!shape) return failure(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
-                    "_Scene::OnPhysics3DStart", "Box shape allocation failed", 0.0f, pts.size()});
-				RigidBody3D* body = m_PhysicsWorld->CreateRigidBody3D();
-
-				body->m_LinearVelocity = box_fixure.Property.m_LinearVelocity;//rigid_body.Property.m_LinearVelocity;
-				body->m_AngularVelocity = box_fixure.Property.m_AngularVelocity;
-				body->m_InvMass = box_fixure.Property.m_InvMass;
-				body->m_Elasticity = box_fixure.Property.m_Elasticity;
-				body->m_Friction = box_fixure.Property.m_Friction;
-				body->Type = rigid_body.Type;
-				body->m_CollisionLayer = rigid_body.CollisionLayer;
-				body->m_CollisionMask = rigid_body.CollisionMask;
-				//std::cout << entity.GetComponent<TagComponent>().Name << std::endl;
-				/*for (auto& pt : pts)
-				{
-					std::cout << pt.x << " " << pt.y << " " << pt.z << std::endl;
-				}*/
-				body->m_Shape = shape.get();
-
-
-				//transform.SetScale(2);
-				/*auto bound = body->m_Shape->GetBounds();
-				std::cout << "Box Bounds: " << bound.mins.x << " " << bound.mins.y << " " << bound.mins.z << std::endl;
-				std::cout << "Box Bounds: " << bound.maxs.x << " " << bound.maxs.y << " " << bound.maxs.z << std::endl;*/
-				rigid_body.RuntimeBody = body;
-			}
-			else if(entity.HasAllComponents<ConvexFixture3DComponent>())
-			{
-				auto& convex_fixure = entity.GetComponent<ConvexFixture3DComponent>();
-				RigidBody3D* body = m_PhysicsWorld->CreateRigidBody3D();
-
-				body->m_LinearVelocity = convex_fixure.Property.m_LinearVelocity;//rigid_body.Property.m_LinearVelocity;
-				body->m_AngularVelocity = convex_fixure.Property.m_AngularVelocity;
-				body->m_InvMass = convex_fixure.Property.m_InvMass;
-				body->m_Elasticity = convex_fixure.Property.m_Elasticity;
-				body->m_Friction = convex_fixure.Property.m_Friction;
-				body->m_LinearVelocity = convex_fixure.Property.m_LinearVelocity;
-				body->Type = rigid_body.Type;
-				body->m_CollisionLayer = rigid_body.CollisionLayer;
-				body->m_CollisionMask = rigid_body.CollisionMask;
-				auto pts = entity.GetComponent<MeshComponent>().m_Geometry->GetUniquePoints();
-				
-				//std::cout << entity.GetComponent<TagComponent>().Name << std::endl;
-				/*for (auto& pt : pts)
-				{
-					std::cout << pt.x << " " << pt.y << " " << pt.z << std::endl;
-				}*/
-                shape.reset(new (std::nothrow) ShapeConvex(pts));
-                if (!shape) return failure(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
-                    "_Scene::OnPhysics3DStart", "Convex shape allocation failed", 0.0f, pts.size()});
-                body->m_Shape = shape.get();
-
-				
-				/*auto bound = body->m_Shape->GetBounds();
-				std::cout << "Box Bounds: " << bound.mins.x << " " << bound.mins.y << " " << bound.mins.z << std::endl;
-				std::cout << "Box Bounds: " << bound.maxs.x << " " << bound.maxs.y << " " << bound.maxs.z << std::endl;*/
-				rigid_body.RuntimeBody = body;
-			}
-
-
-			if (auto* body = rigid_body.RuntimeBody)
-			{
-				if (!m_PhysicsSystem->SetBodyPose(body, transform.Translation, transform.QuatRotation))
-				{
-					GENGINE_CORE_ERROR("Cannot create rigid body from an invalid entity pose");
-					body->m_Shape = nullptr; // Local owner retires the rejected shape.
-					m_PhysicsWorld->RemoveRigidBody3D(body);
-					rigid_body.RuntimeBody = nullptr;
-					continue;
-				}
-				auto& pose = m_Registry.emplace_or_replace<RuntimePhysicsPose>(e);
-				pose.identity = body->GetIdentity();
-				pose.body = body;
-				PublishPhysicsPose(transform, pose, *body);
-				ResetPhysicsHistory(pose, transform, *body, entity.GetParentUUID());
-                pending.push_back(PendingShape{e, std::move(shape)});
-                auto connected = transform.OnScaleChanged.ConnectScoped(
-                    [shape = body->m_Shape](const Vec3f& scale) { shape->HandleScaleChanged(scale); });
-                if (!connected)
-                    return std::unexpected(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
-                        "_Scene::OnPhysics3DStart", "Scale subscription could not be established"});
-                pose.scaleConnection = std::move(*connected);
-			}
-		}
-        for (auto& owner : pending) owner.shape.release(); // Existing successful caller handoff.
+            }
+            else if (entity.HasAllComponents<ConvexFixture3DComponent>())
+            {
+                property = &entity.GetComponent<ConvexFixture3DComponent>().Property;
+                auto points = entity.GetComponent<MeshComponent>().m_Geometry->GetUniquePoints();
+                shape.reset(new (std::nothrow) ShapeConvex(points));
+            }
+            else continue;
+            if (!shape) return failure(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
+                "_Scene::OnPhysics3DStart", "Physics shape allocation failed"});
+            if (!Math::IsFinite(property->m_InvMass) || property->m_InvMass < 0)
+            {
+                GENGINE_CORE_ERROR("Physics body input rejected: invalid inverse mass entity={}", std::uint64_t(entity.GetUUID()));
+                continue;
+            }
+            PhysicsBodyDesc desc;
+            desc.type = rigid.Type;
+            desc.position = transform.Translation; desc.orientation = transform.QuatRotation;
+            desc.linearVelocity = property->m_LinearVelocity; desc.angularVelocity = property->m_AngularVelocity;
+            desc.mass = rigid.Type == BodyType::Dynamic && property->m_InvMass > 0 ? 1.f / property->m_InvMass : 0.f;
+            desc.material = {property->m_Friction, property->m_Elasticity};
+            desc.collisionLayer = rigid.CollisionLayer; desc.collisionMask = rigid.CollisionMask;
+            auto created = world->CreateBody(desc, shape);
+            if (!created)
+            {
+                if (created.error().code == PhysicsBodyErrorCode::Allocation ||
+                    created.error().code == PhysicsBodyErrorCode::IdentityExhausted)
+                    return failure(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
+                        "_Scene::OnPhysics3DStart", "Physics body allocation or identity capacity exhausted"});
+                // Retain the existing authored-input rejection policy: no invalid body is published.
+                GENGINE_CORE_ERROR("Physics body input rejected: operation={} code={} entity={}",
+                    created.error().operation, unsigned(created.error().code), std::uint64_t(entity.GetUUID()));
+                continue;
+            }
+            const auto handle = *created;
+            rigid.RuntimeBody = handle;
+            auto* body = *world->Resolve(handle, "Scene startup");
+            // Preserve the exact existing authored inverse-mass bits (including inactive static storage).
+            body->m_InvMass = property->m_InvMass;
+            auto& pose = m_Registry.emplace_or_replace<RuntimePhysicsPose>(e);
+            pose.identity = body->GetIdentity(); pose.body = body;
+            PublishPhysicsPose(transform, pose, *body);
+            ResetPhysicsHistory(pose, transform, *body, entity.GetParentUUID());
+            auto connected = transform.OnScaleChanged.ConnectScoped([world, handle](const Vec3f& scale) {
+                if (auto live = world->Resolve(handle, "Scene scale", true); live)
+                    (*live)->m_Shape->HandleScaleChanged(scale);
+            });
+            if (!connected) return failure(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
+                "_Scene::OnPhysics3DStart", "Scale subscription could not be established"});
+            pose.scaleConnection = std::move(*connected);
+            world->SetSceneRetirement(handle, [this, e, handle] {
+                if (!m_Registry.valid(e)) return;
+                auto* binding = m_Registry.try_get<RigidBody3DComponent>(e);
+                if (binding && binding->RuntimeBody == handle) binding->RuntimeBody = {};
+                // The private pose owns the connection even if an authored component
+                // handle was replaced or cleared. Never retain a callback into this world.
+                const auto* retiringPose = m_Registry.try_get<RuntimePhysicsPose>(e);
+                if (retiringPose && retiringPose->identity.GetSlot() == std::uint64_t(handle.index) + 1 &&
+                    retiringPose->identity.GetGeneration() == handle.generation)
+                    m_Registry.remove<RuntimePhysicsPose>(e);
+            });
+        }
         rollback.complete = true;
         return {};
     }
@@ -1647,7 +1605,7 @@ namespace GEngine
 		m_Registry.clear<RuntimePhysicsPose>();
 		for (auto& e : m_Registry.view<RigidBody3DComponent>())
 		{
-			m_Registry.get<RigidBody3DComponent>(e).RuntimeBody = nullptr;
+			m_Registry.get<RigidBody3DComponent>(e).RuntimeBody = {};
 		}
 
 		m_PhysicsSystem->OnExit();

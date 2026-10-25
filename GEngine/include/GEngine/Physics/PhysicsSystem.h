@@ -9,6 +9,7 @@
 #include "PhysicsWorld.h"
 #include "ShapeSphere.h"
 #include "ShapeConvex.h"
+#include "ShapeCapsule.h"
 #include "Renderer/DebugGeometry.h"
 
 
@@ -85,7 +86,7 @@ namespace GEngine
 		const std::vector<ContactIsland>& GetContactIslands() const { return m_ContactIslands; }
 
         // Owner thread, between updates. No stepping or cache/body mutation.
-        // Cyan: authoritative sphere/box/convex collider; yellow: Physics world
+        // Cyan: authoritative sphere/box/convex/capsule collider; yellow: Physics world
         // AABB (possibly conservative); RGB: COM axes. Contact anchors follow current poses;
         // the labelled world B->A normal is from the last solve, not a new query.
         [[nodiscard]] DebugGeometryResult AppendDebugGeometry(DebugGeometry& out)
@@ -98,6 +99,39 @@ namespace GEngine
                 DebugGeometryResult collider;
                 if (shape.GetShapeType()==ShapeType::Sphere)
                     collider=out.Sphere(body->m_Position,static_cast<const ShapeSphere&>(shape).GetRadius(),{0,1,1,1});
+                else if (shape.GetShapeType()==ShapeType::Capsule) {
+                    const auto& capsule=static_cast<const ShapeCapsule&>(shape);
+                    const float radius=capsule.GetRadius(), half=capsule.GetHalfLength();
+                    // Two meridian outlines and both cap seams, using the same
+                    // dimensions as Support(). Append once: capacity is atomic.
+                    std::array<FrameDebugLine,100> lines; std::size_t count=0;
+                    const auto append=[&](Vec3f a,Vec3f b) {
+                        lines[count++]={body->m_Position+body->m_Orientation*a,
+                            body->m_Position+body->m_Orientation*b,{0,1,1,1},{},DebugDepth::Tested};
+                    };
+                    for (int axis : {0,2}) {
+                        for (float sign : {-1.f,1.f}) {
+                            for (unsigned i=0;i<16;++i) {
+                                const auto point=[&](unsigned j) {
+                                    const float angle=float(j)*Math::Pi/16.f;
+                                    Vec3f p(0); p[axis]=radius*std::cos(angle);
+                                    p.y=sign*(half+radius*std::sin(angle)); return p;
+                                };
+                                append(point(i),point(i+1));
+                            }
+                            Vec3f a(0),b(0); a[axis]=b[axis]=sign*radius;
+                            a.y=-half; b.y=half; append(a,b);
+                        }
+                    }
+                    for (float sign : {-1.f,1.f}) for (unsigned i=0;i<16;++i) {
+                        const auto point=[&](unsigned j) {
+                            const float angle=float(j%16)*Math::TwoPi/16.f;
+                            return Vec3f(radius*std::cos(angle),sign*half,radius*std::sin(angle));
+                        };
+                        append(point(i),point(i+1));
+                    }
+                    collider=out.Append(lines);
+                }
                 else if (shape.GetShapeType()==ShapeType::Convex) {
                     const auto& convex=static_cast<const ShapeConvex&>(shape);
                     collider=out.IndexedLines(convex.GetPoints(),convex.GetBoundaryEdges(),
@@ -122,9 +156,17 @@ namespace GEngine
                     const auto contact=manifold.GetContact(i);
                     const auto a=contact.m_BodyA->BodySpaceToWorldSpace(contact.ptOnA_LocalSpace);
                     const auto b=contact.m_BodyB->BodySpaceToWorldSpace(contact.ptOnB_LocalSpace);
-                    if (auto r=out.Line(a,b,{1,.25f,0,1},DebugDepth::Overlay);!r) return r;
-                    if (auto r=out.Ray(a,contact.normal*.4f,{1,.4f,0,1},DebugDepth::Overlay);!r) return r;
-                    if (auto r=out.Sphere(a,.025f,{1,1,1,1},DebugDepth::Overlay);!r) return r;
+                    // A contact is a point, not another collider. Three centered
+                    // ticks preserve its extent/position without spending48 lines
+                    // on a tiny sphere. Keep the full contact glyph atomic.
+                    std::array<FrameDebugLine,5> lines{{
+                        {a,b,{1,.25f,0,1},{},DebugDepth::Overlay},
+                        {a,a+contact.normal*.4f,{1,.4f,0,1},{},DebugDepth::Overlay}}};
+                    for (unsigned axis=0;axis<3;++axis) {
+                        Vec3f extent(0);extent[axis]=.025f;
+                        lines[axis+2]={a-extent,a+extent,{1,1,1,1},{},DebugDepth::Overlay};
+                    }
+                    if (auto r=out.Append(lines);!r) return r;
                 }
             }
             return {};

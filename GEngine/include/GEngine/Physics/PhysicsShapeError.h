@@ -5,7 +5,11 @@
 
 namespace GEngine
 {
-    enum class PhysicsShapeErrorCode { InvalidRadius, InvalidPointSet, Allocation };
+    enum class PhysicsShapeErrorCode
+    {
+        InvalidRadius, InvalidPointSet, Allocation,
+        InvalidDimensions, InvalidScale, InvalidInertia
+    };
     struct PhysicsShapeError
     {
         PhysicsShapeErrorCode code;

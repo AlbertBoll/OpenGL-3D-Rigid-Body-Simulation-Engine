@@ -3,8 +3,11 @@
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/ext/quaternion_float.hpp>
 #include "Bounds.h"
-#include <Component/Component.h>
+#include "PhysicsShapeError.h"
 #include <cstdint>
+#include <expected>
+#include <memory>
+#include <variant>
 
 
 
@@ -16,8 +19,18 @@ namespace GEngine
 		Invalid = -1,
 		Sphere = 0,
 		Box = 1,
-		Convex = 2
+		Convex = 2,
+        Capsule = 3
 	};
+
+    // CPU values own their inputs. Visual meshes and GPU resources are unrelated.
+    struct BoxShapeDesc { Vec3f halfExtents{.5f}; Vec3f center{}; };
+    struct SphereShapeDesc { float radius{1}; };
+    // Local Y axis; halfLength excludes the two hemispherical end caps.
+    struct CapsuleShapeDesc { float radius{1}; float halfLength{.5f}; };
+    struct ConvexHullShapeDesc { std::vector<Vec3f> points; };
+    using CollisionShapeDesc = std::variant<BoxShapeDesc, SphereShapeDesc,
+                                           CapsuleShapeDesc, ConvexHullShapeDesc>;
 
 	class PhysicalShape
 	{
@@ -58,4 +71,10 @@ namespace GEngine
 		std::uint64_t m_Revision{};
 
 	};
+
+    // Box/hull scale is component-wise; Sphere retains its existing X-axis policy.
+    // Capsule accepts positive uniform scale only. A rejected description publishes
+    // no shape. PhysicsWorld::CreateBody adopts the returned owner only on success.
+    [[nodiscard]] std::expected<std::unique_ptr<PhysicalShape>, PhysicsShapeError>
+    CreateCollisionShape(const CollisionShapeDesc&, const Vec3f& scale = Vec3f{1});
 }

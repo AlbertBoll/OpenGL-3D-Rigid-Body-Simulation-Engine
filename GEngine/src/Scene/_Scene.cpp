@@ -1516,27 +1516,35 @@ namespace GEngine
             {
                 const auto& fixture = entity.GetComponent<SphereFixture3DComponent>();
                 property = &fixture.Property;
-                auto created = ShapeSphere::Create(fixture.Radius);
+                auto created = CreateCollisionShape(SphereShapeDesc{fixture.Radius});
                 if (!created) return failure(created.error());
-                shape.reset(new (std::nothrow) ShapeSphere(std::move(*created)));
+                shape = std::move(*created);
             }
             else if (entity.HasAllComponents<BoxFixture3DComponent>())
             {
-                property = &entity.GetComponent<BoxFixture3DComponent>().Property;
-                if (!entity.HasAllComponents<MeshComponent>() || !entity.GetComponent<MeshComponent>().m_Geometry)
-                { GENGINE_CORE_ERROR("Cannot create box rigid body without mesh geometry"); continue; }
-                auto points = entity.GetComponent<MeshComponent>().m_Geometry->GetPoints(transform.Scale);
-                if (!ShapeBox::IsValidPointSet(points))
-                { GENGINE_CORE_ERROR("Cannot create box rigid body from invalid geometry"); continue; }
-                auto created = ShapeBox::Create(points);
+                const auto& fixture = entity.GetComponent<BoxFixture3DComponent>();
+                property = &fixture.Property;
+                auto created = CreateCollisionShape(fixture.Shape, transform.Scale);
                 if (!created) return failure(created.error());
-                shape.reset(new (std::nothrow) ShapeBox(std::move(*created)));
+                shape = std::move(*created);
             }
             else if (entity.HasAllComponents<ConvexFixture3DComponent>())
             {
-                property = &entity.GetComponent<ConvexFixture3DComponent>().Property;
-                auto points = entity.GetComponent<MeshComponent>().m_Geometry->GetUniquePoints();
-                shape.reset(new (std::nothrow) ShapeConvex(points));
+                const auto& fixture = entity.GetComponent<ConvexFixture3DComponent>();
+                property = &fixture.Property;
+                // Preserve the existing convex startup convention: explicit local
+                // points are unscaled until a connected scale mutation occurs.
+                auto created = CreateCollisionShape(fixture.Shape);
+                if (!created) return failure(created.error());
+                shape = std::move(*created);
+            }
+            else if (entity.HasAllComponents<CapsuleFixture3DComponent>())
+            {
+                const auto& fixture = entity.GetComponent<CapsuleFixture3DComponent>();
+                property = &fixture.Property;
+                auto created = CreateCollisionShape(fixture.Shape, transform.Scale);
+                if (!created) return failure(created.error());
+                shape = std::move(*created);
             }
             else continue;
             if (!shape) return failure(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,

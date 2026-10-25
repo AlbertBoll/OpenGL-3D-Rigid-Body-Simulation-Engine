@@ -35,6 +35,9 @@
 #include "../tests/GeometryTemplateChecks.h"
 #include "../tests/ParametricGeometryChecks.h"
 #include "../tests/GeometryAuthoringChecks.h"
+#if defined(GENGINE_COLLISION_SHAPE_VALIDATION) || defined(GENGINE_PHASE23_DEBUG_REPRO) || defined(GENGINE_PHASE23_DEBUG_VALIDATION)
+#include "../tests/CollisionShapeChecks.h"
+#endif
 #include "../tests/MaterialAuthoringChecks.h"
 #include "../tests/ShaderDescriptionChecks.h"
 #include "../tests/ShaderReloadChecks.h"
@@ -1148,6 +1151,15 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeValidationPlat
 ApplicationInitializationResult
 RigidBodySimulationApp::ValidateRuntimeScene(const Rbs::SceneAssets& assets)
 {
+#if defined(GENGINE_PHASE23_DEBUG_REPRO) || defined(GENGINE_PHASE23_DEBUG_VALIDATION)
+    if (!PreEditorValidation::phase23Debug.Begin())
+        return std::unexpected(PlatformError{PlatformErrorCode::Initialization,"Phase23 debug probe","Observer already installed"});
+#endif
+#ifdef GENGINE_COLLISION_SHAPE_VALIDATION
+    auto shapes = PreEditorValidation::CheckCollisionShapes(
+        *m_ActiveScene, *m_SceneResources, assets.boxMesh, assets.floorMaterial);
+    if (!shapes) return std::unexpected(shapes.error());
+#endif
     if (m_Launch.validation.Includes(Rbs::ValidationCheck::SceneAuthoring))
     {
         auto checked = PreEditorValidation::CheckSceneAuthoring(
@@ -1585,6 +1597,48 @@ ScheduleResult RigidBodySimulationApp::ValidateSubmittedFrame(bool submitted,
                                                               const FrameSubmissionDesc& targets,
                                                               const FrameCamera& camera)
 {
+#if defined(GENGINE_PHASE23_DEBUG_REPRO) || defined(GENGINE_PHASE23_DEBUG_VALIDATION)
+    auto& probe=PreEditorValidation::phase23Debug;
+    const auto failDebug=[&](const char* reason)->ScheduleResult {
+        probe.End();
+        return std::unexpected(ScheduleError{FrameStage::BuildRenderFrame,
+            SubmissionError{reason,SubmissionCode::InvalidDraw}});
+    };
+    if (submitted) {
+        ++probe.frames;
+        if (!probe.enabled && probe.steps && (probe.capsules || probe.bodyLines+50*probe.contacts.size()>32768)) {
+            if (!probe.Inspect(*m_ActiveScene->GetPhysicsSystem()))
+                return failDebug("Phase23 debug producer attribution/regression failed");
+            auto& input=*GetInputManager();const auto routing=input.Routing();
+            input.BeginUIRouting();
+            if (!input.PublishRouting({GetWindow()->GetWindowID(),0,0,1280,720,true,true,false,false}))
+                return failDebug("Phase23 debug input routing failed");
+            InputEvent event;event.window=GetWindow()->GetWindowID();
+            event.kind=InputKind::KeyDown;event.key=GENGINE_KEY_SPACE;
+            const bool down=bool(input.Route(event));event.kind=InputKind::KeyUp;
+            const bool up=bool(input.Route(event));
+            if (!input.PublishRouting(routing) || !down || !up || !m_IsShowDebugBoundingBox)
+                return failDebug("Phase23 Space did not enable Physics Debug Geometry");
+            probe.enabled=true;
+            Log::GetCoreLogger()->info("PHASE23_DEBUG_SPACE enabled=true frame={} steps={}",probe.frames,probe.steps);
+        } else if (probe.enabled && ++probe.enabledFrames==120) {
+            if (!m_IsShowDebugBoundingBox || !probe.Inspect(*m_ActiveScene->GetPhysicsSystem()))
+                return failDebug("Phase23 debug sustained-frame regression failed");
+            Log::GetCoreLogger()->info("PHASE23_DEBUG_RUNTIME_PASS frames=120 bodies={} capsules={} peak_contacts={} peak_lines={} clean_shutdown_requested=true",
+                probe.bodies,probe.capsules,probe.peakContacts,probe.peakLines);
+            probe.End();ShutDown();
+        }
+        if (!probe.enabled && probe.frames>=600) return failDebug("Phase23 overload premise not reached within600 frames");
+    }
+#endif
+#ifdef GENGINE_COLLISION_SHAPE_VALIDATION
+    static unsigned shapeFrames = 0;
+    if (submitted && ++shapeFrames == 120)
+    {
+        Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_23_FRAMES_PASS submitted=120 clean_shutdown_requested=true");
+        ShutDown();
+    }
+#endif
 #ifdef GENGINE_LIFECYCLE_VALIDATION
     if (submitted)
         if (auto checked = ValidateLifecycleFrame(camera); !checked) return checked;
@@ -2054,6 +2108,7 @@ namespace
         Sphere,
         Box,
         Convex,
+        Capsule,
         AuthoringParent,
         Demo
     };
@@ -2088,7 +2143,7 @@ namespace
         for (const auto* family : {"Sphere", "Cylinder", "Cone", "Capsule", "Torus", "Diamond"})
             for (const auto* shading : {"Smooth", "Flat"})
                 expected.emplace(std::format("Template {} {}", family, shading),
-                                 SceneCategory::Demo);
+                                 std::string_view(family)=="Capsule" ? SceneCategory::Capsule : SceneCategory::Demo);
         for (const auto* family : {"Plane", "Cube", "Sphere", "Capsule", "Torus", "Diamond"})
             for (const auto* mapping : {"UV", "Triplanar"})
                 expected.emplace(std::format("{} {}", family, mapping), SceneCategory::Demo);
@@ -2103,7 +2158,7 @@ namespace
     {
         const bool physics = category == SceneCategory::Ground ||
                              category == SceneCategory::Sphere || category == SceneCategory::Box ||
-                             category == SceneCategory::Convex;
+                             category == SceneCategory::Convex || category == SceneCategory::Capsule;
         const bool light =
             category == SceneCategory::DirectionalLight || category == SceneCategory::PointLight;
         const bool renderable = category != SceneCategory::Camera &&
@@ -2120,7 +2175,9 @@ namespace
             entity.HasAllComponents<BoxFixture3DComponent>() !=
                 (category == SceneCategory::Box || category == SceneCategory::Ground) ||
             entity.HasAllComponents<ConvexFixture3DComponent>() !=
-                (category == SceneCategory::Convex))
+                (category == SceneCategory::Convex) ||
+            entity.HasAllComponents<CapsuleFixture3DComponent>() !=
+                (category == SceneCategory::Capsule))
             return false;
         if (light && entity.GetComponent<RenderLightComponent>().kind !=
                          (category == SceneCategory::PointLight ? RenderLightKind::Point
@@ -2128,7 +2185,7 @@ namespace
             return false;
         return !physics ||
                entity.GetComponent<RigidBody3DComponent>().Type ==
-                   (category == SceneCategory::Ground ? BodyType::Static : BodyType::Dynamic);
+                   (category == SceneCategory::Ground || category == SceneCategory::Capsule ? BodyType::Static : BodyType::Dynamic);
     }
 }
 
@@ -2181,6 +2238,7 @@ RigidBodySimulationApp::ValidatePhysicsScene(const Rbs::SceneAssets& assets)
                                              std::move(message)});
     };
     const unsigned galleryCount = m_Launch.scene == Rbs::RbsScenePreset::GeometryGallery ? 15 : 0;
+    const unsigned capsuleCount = galleryCount ? 2 : 0;
     unsigned actualGallery = 0;
     for (auto id : m_ActiveScene->GetAllEntitiesWith<TagComponent>())
     {
@@ -2188,17 +2246,20 @@ RigidBodySimulationApp::ValidatePhysicsScene(const Rbs::SceneAssets& assets)
         if (entity.Name().starts_with("Template "))
         {
             ++actualGallery;
+            const bool capsule=entity.Name().starts_with("Template Capsule ");
             if (!entity.HasAllComponents<MeshRendererComponent>() ||
-                entity.HasAllComponents<RigidBody3DComponent>())
-                return failure("Template gallery must contain only render fixtures");
+                entity.HasAllComponents<RigidBody3DComponent>() != capsule ||
+                entity.HasAllComponents<CapsuleFixture3DComponent>() != capsule)
+                return failure("Template gallery collider/visual membership changed");
         }
     }
     if (actualGallery != galleryCount || assets.galleryFixtures != galleryCount ||
         assets.normalPhysicsBodies != dynamicCount + 5 ||
         m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld()->GetBodyCount() !=
-            dynamicCount + 5)
+            dynamicCount + 5 + capsuleCount)
         return failure("Gallery/default or total runtime body count changed");
     unsigned staticCount = 0;
+    unsigned actualCapsules = 0;
     for (auto id : m_ActiveScene->GetAllEntitiesWith<RigidBody3DComponent>())
     {
         _Entity entity{id, m_ActiveScene.get()};
@@ -2209,6 +2270,17 @@ RigidBodySimulationApp::ValidatePhysicsScene(const Rbs::SceneAssets& assets)
             return failure("Missing fixture runtime body, shape or renderable");
         if (component.Type == BodyType::Static)
         {
+            if (entity.HasAllComponents<CapsuleFixture3DComponent>())
+            {
+                const auto& shape=entity.GetComponent<CapsuleFixture3DComponent>().Shape;
+                if (body->shapeType!=ShapeType::Capsule || body->inverseMass!=0 ||
+                    shape.radius!=1 || shape.halfLength!=.5f ||
+                    body->localBounds.mins!=Vec3f(-1,-1.5f,-1) ||
+                    body->localBounds.maxs!=Vec3f(1,1.5f,1))
+                    return failure("Gallery Capsule dimensions or ownership changed");
+                ++actualCapsules;
+                continue;
+            }
             ++staticCount;
             if (!entity.HasAllComponents<BoxFixture3DComponent>() || body->inverseMass != 0 ||
                 body->shapeType != ShapeType::Box)
@@ -2258,7 +2330,7 @@ RigidBodySimulationApp::ValidatePhysicsScene(const Rbs::SceneAssets& assets)
             return failure("Authored fixture component differs from Phase 13");
         expected.erase(found);
     }
-    if (staticCount != 5 || !expected.empty())
+    if (staticCount != 5 || actualCapsules != capsuleCount || !expected.empty())
         return failure("Missing expected static or dynamic fixture");
     Log::GetCoreLogger()->info(
         "PRE_EDITOR_PACKET_A_SCENE_PASS preset={} dynamic={} static=5 gallery={} before_step=true",

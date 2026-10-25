@@ -12,6 +12,7 @@
 #include <cstdint>
 //#include "Events/Property.h"
 #include "Physics/Bounds.h"
+#include "Physics/Shape.h"
 #include "Assets/AssetHandle.h"
 
 //#include <Assets/Textures/Texture.h>
@@ -526,20 +527,23 @@ namespace GEngine
 		struct BoxFixture3DComponent
 		{
 			Fixture3DProperty Property{};
-			//std::vector<Vec3f> Points;
-			//Bounds Builds;
-			//void BuildPoints();
 
+            // Authored local dimensions; startup retains the existing Transform
+            // scale/base-source convention without reading a visual mesh.
+            BoxShapeDesc Shape{};
 		};
 
 		struct ConvexFixture3DComponent
 		{
 			Fixture3DProperty Property{};
-			//std::vector<Vec3f> Points;
-			//Bounds Builds;
-			//void BuildPoints();
-
+            ConvexHullShapeDesc Shape;
 		};
+
+        struct CapsuleFixture3DComponent
+        {
+            Fixture3DProperty Property{};
+            CapsuleShapeDesc Shape{};
+        };
 
 		struct RigidBody3DComponent
 		{
@@ -604,7 +608,7 @@ namespace GEngine
 		};
 
 		using AllComponents = ComponentGroup<HelperMaterialComponent, DirectionalLightComponent, PointLightComponent, SpotLightComponent, PreRenderPassComponent, Transform3DComponent, CameraComponent, TexturesComponent, RigidBody3DComponent, RenderComponent, RelationshipComponent,
-			SphereFixture3DComponent, MeshComponent, BoxFixture3DComponent, ConvexFixture3DComponent, MaterialComponent,
+			SphereFixture3DComponent, MeshComponent, BoxFixture3DComponent, ConvexFixture3DComponent, CapsuleFixture3DComponent, MaterialComponent,
 			MeshRendererComponent, VisibilityComponent, RenderCameraComponent, RenderLightComponent>;
 
 

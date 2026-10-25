@@ -18,6 +18,15 @@ using namespace ::GEngine::Camera;
 
 namespace
 {
+    Rbs::RbsScenePreset DebugValidationScene(Rbs::RbsScenePreset selected)
+    {
+#ifdef GENGINE_PHASE23_DEBUG_GALLERY
+        return Rbs::RbsScenePreset::GeometryGallery;
+#else
+        return selected;
+#endif
+    }
+
     std::expected<MaterialHandle, SceneResourceError>
     CreateSurfaceMaterial(SceneRenderResources& resources,
                           const std::array<Asset::Texture*, 5>& images, MaterialAuthoringDesc desc)
@@ -134,12 +143,9 @@ RigidBodySimulationApp::CreateRenderable(_Entity entity, Asset::MeshHandle mesh,
 {
     if (auto assigned = AssignRenderable(entity, {mesh, material}); !assigned)
         return assigned;
-    if (!physicsShape.empty())
-    {
-        auto attached = m_SceneResources->AttachPhysicsShape(entity, physicsShape);
-        if (!attached)
-            return SceneFailure(attached.error());
-    }
+    // Kept for source compatibility with the existing scene helpers. Fixtures now
+    // author their own semantic dimensions/points; visuals need no CPU Geometry owner.
+    (void)physicsShape;
     return {};
 }
 
@@ -423,11 +429,12 @@ ApplicationInitializationResult RigidBodySimulationApp::CreatePhysicsScene(Rbs::
     sphereFixtureComp.Property.m_InvMass = 1.f;
 
     BoxFixture3DComponent boxFixtureComp;
+    boxFixtureComp.Shape.halfExtents = Vec3f{.5f};
     boxFixtureComp.Property.m_InvMass = 1.f;
     boxFixtureComp.Property.m_Friction = 0.5f;
     boxFixtureComp.Property.m_Elasticity = 0.5f;
 
-    switch (m_Launch.scene)
+    switch (DebugValidationScene(m_Launch.scene))
     {
     case Rbs::RbsScenePreset::GeometryGallery:
         return {};
@@ -521,6 +528,7 @@ RigidBodySimulationApp::CreateGroundAndWalls(const Rbs::SceneAssets& assets)
     _Entity planeEntity = *createdSceneEntity12;
     const auto planeGeo = assets.boxMesh;
     BoxFixture3DComponent planeFixtureComp;
+    planeFixtureComp.Shape.halfExtents = Vec3f{.5f};
     planeFixtureComp.Property.m_InvMass = 0.f;
     planeFixtureComp.Property.m_Friction = 0.5f;
     planeFixtureComp.Property.m_Elasticity = 0.5f;
@@ -607,9 +615,10 @@ RigidBodySimulationApp::CreateTemplateGallery(Rbs::SceneAssets& assets)
 {
     assets.normalPhysicsBodies = m_ActiveScene->GetAllEntitiesWith<RigidBody3DComponent>().size();
     assets.galleryFixtures = 0;
-    if (m_Launch.scene == Rbs::RbsScenePreset::GeometryGallery)
+    if (DebugValidationScene(m_Launch.scene) == Rbs::RbsScenePreset::GeometryGallery)
     {
-        // Render-only template examples; transform scale remains independent of dimensions.
+        // Template dimensions remain independent of Transform scale. The two
+        // Capsule examples also carry explicit static colliders for inspection.
         struct TemplateFixture
         {
             const char* name;
@@ -671,21 +680,37 @@ RigidBodySimulationApp::CreateTemplateGallery(Rbs::SceneAssets& assets)
                 if (auto authored = CreateRenderable(*created, *mesh, assets.sphereMaterial);
                     !authored)
                     return authored;
+                if (const auto* capsule = std::get_if<GeometryTemplates::Capsule>(&request))
+                {
+#ifdef GENGINE_PHASE23_DEBUG_GALLERY
+                    // The existing gallery supplies identity and oblique poses
+                    // to the opt-in debug regression; normal authoring is intact.
+                    if (row==1) created->Transform().SetRotation(Vec3f{.3f,.4f,.2f});
+#endif
+                    RigidBody3DComponent body;
+                    body.Type = BodyType::Static;
+                    CapsuleFixture3DComponent fixture;
+                    fixture.Property.m_InvMass = 0;
+                    fixture.Shape = {capsule->radius, capsule->height*.5f-capsule->radius};
+                    created->AddOrReplaceComponent<RigidBody3DComponent>(body);
+                    created->AddOrReplaceComponent<CapsuleFixture3DComponent>(fixture);
+                }
                 ++assets.galleryFixtures;
             }
     }
     if (m_Launch.validation.Includes(Rbs::ValidationCheck::ParametricGeometry))
     {
-        if (assets.normalPhysicsBodies !=
+        const std::size_t capsuleBodies = DebugValidationScene(m_Launch.scene) == Rbs::RbsScenePreset::GeometryGallery ? 2 : 0;
+        if (assets.normalPhysicsBodies + capsuleBodies !=
                 m_ActiveScene->GetAllEntitiesWith<RigidBody3DComponent>().size() ||
             assets.galleryFixtures !=
-                ((m_Launch.scene == Rbs::RbsScenePreset::GeometryGallery) ? 15u : 0u))
+                ((DebugValidationScene(m_Launch.scene) == Rbs::RbsScenePreset::GeometryGallery) ? 15u : 0u))
             return std::unexpected(
                 PlatformError{PlatformErrorCode::Initialization, "Phase 07 gallery",
-                              "Gallery altered Physics membership or fixture count"});
+                              "Gallery altered expected Physics membership or fixture count"});
         Log::GetCoreLogger()->info(
             "PRE_EDITOR_PHASE_07_GALLERY_PASS enabled={} fixtures={} physics_bodies={}",
-            (m_Launch.scene == Rbs::RbsScenePreset::GeometryGallery), assets.galleryFixtures,
+            (DebugValidationScene(m_Launch.scene) == Rbs::RbsScenePreset::GeometryGallery), assets.galleryFixtures,
             assets.normalPhysicsBodies);
     }
 
@@ -738,7 +763,7 @@ RigidBodySimulationApp::CreateGeometryExamples(Rbs::SceneAssets& assets)
 
     if (m_Launch.validation.Includes(Rbs::ValidationCheck::GeometryAuthoring))
     {
-        if (!(m_Launch.scene == Rbs::RbsScenePreset::GeometryGallery) ||
+        if (!(DebugValidationScene(m_Launch.scene) == Rbs::RbsScenePreset::GeometryGallery) ||
             assets.galleryFixtures != 15u ||
             assets.normalPhysicsBodies !=
                 m_ActiveScene->GetAllEntitiesWith<RigidBody3DComponent>().size())
@@ -747,7 +772,7 @@ RigidBodySimulationApp::CreateGeometryExamples(Rbs::SceneAssets& assets)
                 "Authoring preset requires the existing gallery and Physics membership"});
         Log::GetCoreLogger()->info(
             "PRE_EDITOR_PHASE_08_GALLERY_PASS enabled={} fixtures={} physics_bodies={}",
-            (m_Launch.scene == Rbs::RbsScenePreset::GeometryGallery), assets.galleryFixtures,
+            (DebugValidationScene(m_Launch.scene) == Rbs::RbsScenePreset::GeometryGallery), assets.galleryFixtures,
             assets.normalPhysicsBodies);
     }
 
@@ -1048,7 +1073,7 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeScene()
         return result;
     // The preset owns the complete scene. Authoring demos are never shared
     // infrastructure for the Physics fixtures, and UI cannot create them later.
-    if (m_Launch.scene == Rbs::RbsScenePreset::GeometryGallery)
+    if (DebugValidationScene(m_Launch.scene) == Rbs::RbsScenePreset::GeometryGallery)
     {
         if (auto result = CreateGeometryExamples(assets); !result)
             return result;
@@ -1065,7 +1090,7 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeScene()
         return result;
     if (auto result = ValidateScaleBridge(assets); !result)
         return result;
-    if (m_Launch.scene == Rbs::RbsScenePreset::GeometryGallery)
+    if (DebugValidationScene(m_Launch.scene) == Rbs::RbsScenePreset::GeometryGallery)
         if (auto result = CreateAsyncExamples(assets); !result)
             return result;
 #ifdef GENGINE_RBS_SCENE_VALIDATION
@@ -1104,6 +1129,9 @@ RigidBodySimulationApp::CreateSphereDiamond(const Rbs::SceneAssets& assets,
         return authored;
 
     ConvexFixture3DComponent convexFixtureComp;
+    // Same historical CPU point generator, owned directly by the collider fixture.
+    // Visual replacement never changes these points.
+    convexFixtureComp.Shape.points = Math::GenerateDiamond();
 
     convexFixtureComp.Property.m_Elasticity = 0.5f;
     convexFixtureComp.Property.m_Friction = 0.5f;

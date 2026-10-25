@@ -60,6 +60,80 @@ namespace PreEditorValidation
         return actual && *actual == code;
     }
 
+    // Reused unchanged bridge assertions, callable without unrelated authoring campaigns.
+    inline std::expected<std::size_t, ::GEngine::PlatformError>
+    CheckGeometryPhysicsBridge(::GEngine::SceneRenderResources& owner,
+        ::GEngine::Asset::MeshHandle cube, ::GEngine::Asset::MaterialInstanceHandle material)
+    {
+        using namespace ::GEngine;
+        using namespace ::GEngine::Component;
+        using namespace ::GEngine::Math;
+        std::size_t checks = 0;
+        auto require = [&](bool condition, const char* name) {
+            ++checks;
+            if (!condition) Log::GetCoreLogger()->error("PRE_EDITOR_SCALE_BRIDGE_FAIL {}", name);
+            return condition;
+        };
+#define BRIDGE23_REQUIRE(condition, name) \
+        if (!require(bool(condition), name)) return std::unexpected(PlatformError{PlatformErrorCode::Initialization, "Physics scale bridge", name})
+        // Existing S22 callbacks, including the initial point-source scale policy.
+        {
+            auto scene = CreateRefPtr<_Scene>();
+            auto sphere = scene->CreateEntity("sphere-bridge"); auto box = scene->CreateEntity("box-bridge");
+            BRIDGE23_REQUIRE(sphere && box, "Physics bridge entities");
+            auto sphereGeometry = owner.CloneGeometry(cube), boxGeometry = owner.CloneGeometry(cube);
+            BRIDGE23_REQUIRE(sphereGeometry && boxGeometry && owner.AssignRenderable(*sphere, {sphereGeometry->handle, material}) &&
+                owner.AssignRenderable(*box, {boxGeometry->handle, material}), "unique render geometry for bridge cases");
+            BRIDGE23_REQUIRE(!sphere->HasAllComponents<MeshComponent>() && !box->HasAllComponents<MeshComponent>(),
+                "semantic collider sources need no legacy render Geometry");
+            sphere->AddOrReplaceComponent<RigidBody3DComponent>(); box->AddOrReplaceComponent<RigidBody3DComponent>();
+            SphereFixture3DComponent sphereFixture; sphereFixture.Radius = 2;
+            sphere->AddOrReplaceComponent<SphereFixture3DComponent>(sphereFixture);
+            BoxFixture3DComponent boxFixture;
+            boxFixture.Shape.halfExtents = Vec3f{.5f}; // Same unit Box formerly attached by name.
+            box->AddOrReplaceComponent<BoxFixture3DComponent>(boxFixture); box->Transform().SetScale({2, 3, 4});
+            auto started = scene->OnRuntimeStart();
+            BRIDGE23_REQUIRE(started, "temporary Physics runtime");
+            struct RuntimeCleanup
+            {
+                RefPtr<_Scene> scene;
+                ~RuntimeCleanup() { scene->OnRuntimeStop(); }
+            } cleanup{scene};
+            auto* sphereShape = dynamic_cast<ShapeSphere*>(::GEngine::PhysicsTestAccess::Body(*sphere)->m_Shape);
+            auto* boxShape = dynamic_cast<ShapeBox*>(::GEngine::PhysicsTestAccess::Body(*box)->m_Shape);
+            BRIDGE23_REQUIRE(sphereShape && boxShape, "temporary shapes use existing providers");
+            const auto sphereRevision = sphereShape->GetRevision();
+            sphere->Transform().SetScale({1, 1, 1});
+            BRIDGE23_REQUIRE(sphereShape->GetRadius() == 2 && sphereShape->GetRevision() == sphereRevision, "unchanged setter does not notify live bridge");
+            auto resized = owner.SetDimensions(*sphere, {4, 9, 16}); // Cube local extents 2,3,4 -> scale 2,3,4.
+            BRIDGE23_REQUIRE(resized && sphereShape->GetRadius() == 4, "dimension setter preserves sphere X-axis bridge policy");
+            sphere->Transform().Scale = {3, 3, 3};
+            BRIDGE23_REQUIRE(sphereShape->GetRadius() == 4, "direct Scale write does not invoke collider callback");
+            sphere->Transform().SetScale({4, 1, 1});
+            BRIDGE23_REQUIRE(sphereShape->GetRadius() == 8, "repeated sphere scale is absolute from base source");
+            sphereShape->SetRadius(3); sphere->Transform().SetScale({2, 1, 1});
+            BRIDGE23_REQUIRE(sphereShape->GetRadius() == 6, "explicit collider radius updates independent base source");
+            const auto oldIntent = sphere->GetComponent<MeshRendererComponent>(); const auto oldScale = sphere->Transform().Scale;
+            const auto oldAssignment = scene->GetRenderAssignmentRevision();
+            auto denied = owner.BakeGeometry(*sphere);
+            BRIDGE23_REQUIRE(!denied && GeometryFailure(denied.error(), GeometryAuthoringCode::LiveScaleBinding) &&
+                sphere->GetComponent<MeshRendererComponent>() == oldIntent && sphere->Transform().Scale == oldScale &&
+                scene->GetRenderAssignmentRevision() == oldAssignment && sphereShape->GetRadius() == 6, "Bake live bridge rejected before any reset");
+            const auto base = boxShape->GetBounds();
+            box->Transform().SetScale({.5f, 1.5f, 2}); const auto scaled = boxShape->GetBounds();
+            BRIDGE23_REQUIRE(AuthoredClose(scaled.WidthX(), base.WidthX() * .5) && AuthoredClose(scaled.WidthY(), base.WidthY() * 1.5) &&
+                AuthoredClose(scaled.WidthZ(), base.WidthZ() * 2), "box source includes initial Transform scale");
+            box->Transform().SetScale({2, 2, 2}); box->Transform().SetScale({.5f, 1.5f, 2});
+            BRIDGE23_REQUIRE(boxShape->GetBounds().mins == scaled.mins && boxShape->GetBounds().maxs == scaled.maxs, "repeated point scale uses source not previous output");
+            const auto boxRevision = boxShape->GetRevision();
+            box->Transform().SetScale({0, 1, 1});
+            BRIDGE23_REQUIRE(boxShape->GetRevision() == boxRevision && boxShape->GetBounds().mins == scaled.mins, "invalid collider rebuild retains old shape while setter policy remains unchanged");
+        }
+#undef BRIDGE23_REQUIRE
+        Log::GetCoreLogger()->info("PRE_EDITOR_SCALE_BRIDGE_PASS checks={}", checks);
+        return checks;
+    }
+
     inline std::expected<void, ::GEngine::PlatformError>
     CheckGeometryAuthoring(::GEngine::EngineContext& root, ::GEngine::_Scene& active,
                            ::GEngine::SceneRenderResources& owner, ::GEngine::Asset::MeshHandle cube,
@@ -499,56 +573,9 @@ namespace PreEditorValidation
             GEOM08_REQUIRE((*exhausted)->GeometrySource(*revisionMesh)->geometry.revision == 1, "failed replacement retains CPU pairing");
         }
 
-        // Existing S22 callbacks, including the initial point-source scale policy.
-        {
-            auto scene = CreateRefPtr<_Scene>();
-            auto sphere = scene->CreateEntity("sphere-bridge"); auto box = scene->CreateEntity("box-bridge");
-            GEOM08_REQUIRE(sphere && box, "Physics bridge entities");
-            auto sphereGeometry = owner.CloneGeometry(cube), boxGeometry = owner.CloneGeometry(cube);
-            GEOM08_REQUIRE(sphereGeometry && boxGeometry && owner.AssignRenderable(*sphere, {sphereGeometry->handle, material}) &&
-                owner.AssignRenderable(*box, {boxGeometry->handle, material}), "unique render geometry for bridge cases");
-            GEOM08_REQUIRE(owner.AttachPhysicsShape(*sphere, "Sphere") && owner.AttachPhysicsShape(*box, "Box"), "existing CPU collider sources");
-            sphere->AddOrReplaceComponent<RigidBody3DComponent>(); box->AddOrReplaceComponent<RigidBody3DComponent>();
-            SphereFixture3DComponent sphereFixture; sphereFixture.Radius = 2;
-            sphere->AddOrReplaceComponent<SphereFixture3DComponent>(sphereFixture);
-            box->AddOrReplaceComponent<BoxFixture3DComponent>(); box->Transform().SetScale({2, 3, 4});
-            auto started = scene->OnRuntimeStart();
-            GEOM08_REQUIRE(started, "temporary Physics runtime");
-            struct RuntimeCleanup
-            {
-                RefPtr<_Scene> scene;
-                ~RuntimeCleanup() { scene->OnRuntimeStop(); }
-            } cleanup{scene};
-            auto* sphereShape = dynamic_cast<ShapeSphere*>(::GEngine::PhysicsTestAccess::Body(*sphere)->m_Shape);
-            auto* boxShape = dynamic_cast<ShapeBox*>(::GEngine::PhysicsTestAccess::Body(*box)->m_Shape);
-            GEOM08_REQUIRE(sphereShape && boxShape, "temporary shapes use existing providers");
-            const auto sphereRevision = sphereShape->GetRevision();
-            sphere->Transform().SetScale({1, 1, 1});
-            GEOM08_REQUIRE(sphereShape->GetRadius() == 2 && sphereShape->GetRevision() == sphereRevision, "unchanged setter does not notify live bridge");
-            auto resized = owner.SetDimensions(*sphere, {4, 9, 16}); // Cube local extents 2,3,4 -> scale 2,3,4.
-            GEOM08_REQUIRE(resized && sphereShape->GetRadius() == 4, "dimension setter preserves sphere X-axis bridge policy");
-            sphere->Transform().Scale = {3, 3, 3};
-            GEOM08_REQUIRE(sphereShape->GetRadius() == 4, "direct Scale write does not invoke collider callback");
-            sphere->Transform().SetScale({4, 1, 1});
-            GEOM08_REQUIRE(sphereShape->GetRadius() == 8, "repeated sphere scale is absolute from base source");
-            sphereShape->SetRadius(3); sphere->Transform().SetScale({2, 1, 1});
-            GEOM08_REQUIRE(sphereShape->GetRadius() == 6, "explicit collider radius updates independent base source");
-            const auto oldIntent = sphere->GetComponent<MeshRendererComponent>(); const auto oldScale = sphere->Transform().Scale;
-            const auto oldAssignment = scene->GetRenderAssignmentRevision();
-            auto denied = owner.BakeGeometry(*sphere);
-            GEOM08_REQUIRE(!denied && GeometryFailure(denied.error(), GeometryAuthoringCode::LiveScaleBinding) &&
-                sphere->GetComponent<MeshRendererComponent>() == oldIntent && sphere->Transform().Scale == oldScale &&
-                scene->GetRenderAssignmentRevision() == oldAssignment && sphereShape->GetRadius() == 6, "Bake live bridge rejected before any reset");
-            const auto base = boxShape->GetBounds();
-            box->Transform().SetScale({.5f, 1.5f, 2}); const auto scaled = boxShape->GetBounds();
-            GEOM08_REQUIRE(AuthoredClose(scaled.WidthX(), base.WidthX() * .5) && AuthoredClose(scaled.WidthY(), base.WidthY() * 1.5) &&
-                AuthoredClose(scaled.WidthZ(), base.WidthZ() * 2), "box source includes initial Transform scale");
-            box->Transform().SetScale({2, 2, 2}); box->Transform().SetScale({.5f, 1.5f, 2});
-            GEOM08_REQUIRE(boxShape->GetBounds().mins == scaled.mins && boxShape->GetBounds().maxs == scaled.maxs, "repeated point scale uses source not previous output");
-            const auto boxRevision = boxShape->GetRevision();
-            box->Transform().SetScale({0, 1, 1});
-            GEOM08_REQUIRE(boxShape->GetRevision() == boxRevision && boxShape->GetBounds().mins == scaled.mins, "invalid collider rebuild retains old shape while setter policy remains unchanged");
-        }
+        auto bridge = CheckGeometryPhysicsBridge(owner, cube, material);
+        if (!bridge) return std::unexpected(bridge.error());
+        checks += *bridge;
         GEOM08_REQUIRE(active.GetAllEntitiesWith<RigidBody3DComponent>().size() == originalBodies &&
             owner.GeometryOwners(cube)->entityOwners == baseOwners, "normal Physics and authoring owner membership preserved");
         const auto work = owner.GeometryWork();

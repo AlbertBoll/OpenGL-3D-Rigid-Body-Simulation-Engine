@@ -1,0 +1,284 @@
+{
+  "schema": 1,
+  "phase": "24",
+  "recorded_utc": "2026-10-28T01:31:53.090482+00:00",
+  "status": "FINAL_OWNER_ACCEPTANCE_RECORDED",
+  "baseline": "6ad32049ca95fbb81c29a2738602450d7cd1557a",
+  "functionality": [
+    "Typed Transform/Physics ownership and transactional live scale; existing pure presentation interpolation.",
+    "Command-only mesh-fitted RBS collider replacement, explicit authored Physics dimensions retained.",
+    "Derived-data invalidation after successful collider replacement; rejected operations unchanged.",
+    "Frozen gold mesh-silhouette outline with original mesh interior preserved and independent cyan/magenta diagnostics.",
+    "Ordinary and explicitly instrumented build products remain isolated."
+  ],
+  "scope": {
+    "production": [
+      "GEngine/include/GEngine/Scene/_Scene.h",
+      "GEngine/src/Scene/_Scene.cpp",
+      "GEngine/include/GEngine/Physics/PhysicsSystem.h",
+      "GEngine/include/GEngine/Physics/PhysicsSystem.cpp",
+      "GEngine/include/GEngine/Physics/Shape.h",
+      "GEngine/include/GEngine/Physics/Shape.cpp",
+      "GEngine/include/GEngine/Physics/ShapeSphere.h",
+      "GEngine/include/GEngine/Physics/ShapeSphere.cpp",
+      "GEngine/include/GEngine/Physics/ShapeCapsule.h",
+      "RigidBodySimulation/src/RbsFrame.cpp",
+      "RigidBodySimulation/src/RbsUi.cpp",
+      "RigidBodySimulation/src/RbsValidation.cpp",
+      "GEngine/include/GEngine/Renderer/FrameSubmission.h",
+      "GEngine/src/Renderer/FrameSubmission.cpp",
+      "GEngine/src/Renderer/FrameScheduler.cpp",
+      "GEngine/src/Renderer/PassTiming.cpp",
+      "GEngine/src/Core/BaseApp.cpp"
+    ],
+    "checks_and_contract": [
+      "RigidBodySimulation/tests/TransformMutationChecks.h",
+      "RigidBodySimulation/tests/PhysicsSceneTransformChecks.h",
+      "docs/pre_editor/PHASE_24_TRANSFORM_CONTRACT.md",
+      "RigidBodySimulation/tests/SelectionOutlineChecks.h"
+    ],
+    "canonical_checkpoint_member": "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "owner_final_preset_member": "RigidBodySimulation/src/main.cpp",
+    "this_file_role": "Compact approval/evidence workflow record; no additional production ownership"
+  },
+  "source_sha256": {
+    "GEngine/include/GEngine/Scene/_Scene.h": "8a4398d18db5954afda24f2e5c6aa18cc45d7dfe71583bb93c5a6b8b3be66b71",
+    "GEngine/src/Scene/_Scene.cpp": "ff5b640b7ff441909427cece3ad1c90609e593140f7350d1c384b034d15f5c10",
+    "GEngine/include/GEngine/Physics/PhysicsSystem.h": "d1a34f75b1d516a7d033fef605c1c4c4f207c63cbc145cffdfd1a9f3742f508f",
+    "GEngine/include/GEngine/Physics/PhysicsSystem.cpp": "b849af78b9198f12d9d41434316c9dde78bb381f06b62d14ca14d9758e4224bc",
+    "GEngine/include/GEngine/Physics/Shape.h": "2030d5a5dc277ff1dc95c86971e449a8e236a5c94997d6a1f79be635ada49d71",
+    "GEngine/include/GEngine/Physics/Shape.cpp": "66f6f0706e26b4b8ad2e85477ee3e7f327395dab47dcc69fca52fafffbbf904a",
+    "GEngine/include/GEngine/Physics/ShapeSphere.h": "1bdd94828e05b418779702f969ab19522e8c87ed51ccae494dd42315604d3490",
+    "GEngine/include/GEngine/Physics/ShapeSphere.cpp": "49e9502ea14021afdf81eb4f3d4cf561db772995649cbad4136988868a8444e4",
+    "GEngine/include/GEngine/Physics/ShapeCapsule.h": "c584fe6604526c7fe2b6eb2e3d8f04a611ff83a5afc23ebfade77b4eefe79fb8",
+    "RigidBodySimulation/src/RbsFrame.cpp": "da8616a1cc89d8a4cd289265ca3fa85fbeaa42366b6c9aae0c45dd11c2d4b735",
+    "RigidBodySimulation/src/RbsUi.cpp": "c677559321d485378507036928ab446a7afb3bdabe0fb9eee38fee920ba2d284",
+    "RigidBodySimulation/src/RbsValidation.cpp": "0370376151cd9d7f3898388db12b7882884ae85a3a6b1bd18d33f0ecb4946929",
+    "GEngine/include/GEngine/Renderer/FrameSubmission.h": "a44c76597a669d175d46efee83df3deb79f63e1ab80a5d92e1f6124a7f07de7a",
+    "GEngine/src/Renderer/FrameSubmission.cpp": "95071348d1e30343ba22d84905707fcb78cab0a7daaefe5c0f22f0728e5b5040",
+    "GEngine/src/Renderer/FrameScheduler.cpp": "b51a782b9bc724ebbae744868d4cfae62915e6ea0f334ba28d8a289f15edee00",
+    "GEngine/src/Renderer/PassTiming.cpp": "8ef09aea96333f8c86e0bffddfcf5587dda3ac6455c5bf965201ade1c407a2ba",
+    "GEngine/src/Core/BaseApp.cpp": "d740176caf4e702b579195da1d8924539cdad7806ca34d4573ecbc537a9236dc",
+    "RigidBodySimulation/tests/TransformMutationChecks.h": "58d77b5873133711e23e0b00e902194eab92d174d784216748490234023e0569",
+    "RigidBodySimulation/tests/PhysicsSceneTransformChecks.h": "4b82b72aac9d40bd75af174fc97d969710e630c238f7a473ac98eaf7a083954f",
+    "docs/pre_editor/PHASE_24_TRANSFORM_CONTRACT.md": "6f599c8a1b51619e1b531f8b416735450dd10b249133001709ab8e2eb00077ab",
+    "RigidBodySimulation/tests/SelectionOutlineChecks.h": "31bcb681c9fba04f78e899e958ef26a86c640d7adab706bf11d2746ca5cdbb04",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": "b3ac31167db276ddaf8b324eaf6e9d0577c3ca00681e05698d290b1a30fd7714",
+    "RigidBodySimulation/src/main.cpp": "28be44b84fa0db79180913405620a1ad52853121b830102eab2c1accc7169311"
+  },
+  "human": {
+    "owner_command": "FINALIZE AND APPROVE PRE_EDITOR PHASE 24",
+    "owner_statement": "Owner confirms final human Release RBS validation: PASS. Accept the completed human validation under the previously recorded Phase 24 conditional approval authority.",
+    "human_result": "PASS_OWNER_REPORTED",
+    "human_build_and_runtime": "Final ordinary Release RBS validation accepted under the completed conditional authority; detailed full-solution counts and executable identity were not supplied.",
+    "human_binary_identity": "NOT_REPORTED; no owner-rebuilt executable is claimed to be an earlier automated tested product",
+    "floor_concern": {
+      "status": "FINAL_CURRENT_CANDIDATE_HUMAN_ACCEPTANCE_SATISFIED",
+      "basis": "Owner explicitly accepts completed human validation under the prior conditional authority, whose conditions included the final floor-through correctness gate.",
+      "historical_limit": "Earlier complete-floor-escape observation and unreproduced causal chain remain historical evidence. No universal Solver fix or Phase21 stability approval is inferred.",
+      "critical_failure_waived": false
+    },
+    "owner_main": {
+      "path": "RigidBodySimulation/src/main.cpp",
+      "sha256": "28be44b84fa0db79180913405620a1ad52853121b830102eab2c1accc7169311",
+      "source_preset": "SphereBoxStack",
+      "inspected_preset_not_separately_reported": true,
+      "role": "Previously disclosed Owner edit, accepted with final source bytes; no agent edit"
+    }
+  },
+  "nonperformance": {
+    "result": "PASS_REUSED_AND_OWNER_ACCEPTED",
+    "release_assertions": 128226,
+    "debug_split_assertions": [
+      89740,
+      40608
+    ],
+    "runtime_per_successful_functional_run": "210 frames, 190 observations, exit 0",
+    "frozen_outline": "Strict Cube/Sphere zoom, near-plane/interior, occlusion and lifecycle evidence reused with matching relevant inputs",
+    "source_input_match": "Original 1345-input comparison reused with the sole Owner-authorized nonsemantic one-byte document EOF correction recorded below; production inputs unchanged.",
+    "prior_evidence": {
+      "docs/pre_editor/active/PHASE_24_CONDITIONAL_APPROVAL_REVIEW_01.md": "ed06295d8284069e92b4a26b56da6905322a91ff07b2fe4476b20e0fee6e1778",
+      "docs/pre_editor/active/PHASE_24_FINAL_PERFORMANCE_DISPOSITION_01.json": "9e7ca588a3c402669067a1a45ff10f85c25956aa37c6ffe02e55897f001e84f9",
+      "logs/pre_editor/phase-24/final-disposition-01/input-reuse-check.json": "a9d55716d7570e4e4890531010962e4b1e4a3a8d8cd42753c3c1651606823638",
+      "logs/pre_editor/phase-24/final-disposition-01/owner-directive.md": "922705f39a4988398915f4f80aa61d84f20d30b1ace83482aece7b1a166bf647",
+      "logs/pre_editor/phase-24/final-disposition-01/handoff.json": "7e462edf9e4a7c6131a8bb00acc21fa97adc18c78f4df5c36d8a99087b545443"
+    },
+    "original_commands_products_and_raw_results": "Retained by original immutable handoffs; not regenerated or reattributed to Owner rebuilt products"
+  },
+  "performance": {
+    "disposition": "OWNER-ACCEPTED PERFORMANCE EXCEPTION",
+    "actual_outcome": "INCONCLUSIVE",
+    "validation_result": "ACCEPTED_EXCEPTION",
+    "source": "docs/pre_editor/active/PHASE_24_FINAL_PERFORMANCE_DISPOSITION_01.json",
+    "source_sha256": "9e7ca588a3c402669067a1a45ff10f85c25956aa37c6ffe02e55897f001e84f9",
+    "final_attempt": {
+      "diagnostic_captures": 12,
+      "diagnostic_limit": 12,
+      "calibration_captures": 6,
+      "calibration_limit": 6,
+      "steps_per_calibration": 7200,
+      "measured_frames": 78102,
+      "uncertainty_ceilings_exceeded": 41,
+      "required_uncertainty_checks": 84,
+      "AB_captures": 0,
+      "revision_timings": 0,
+      "numeric_U_admitted": false,
+      "performance_handoff": "logs/pre_editor/phase-24/revision-10/stop-01/handoff.json",
+      "performance_handoff_sha256": "985b33e13938f60bc36294f6048f14123628e1e7ca03a6423afd490833da6047"
+    },
+    "new_captures": 0,
+    "new_thresholds_or_overhead_subtraction": false
+  },
+  "performance_residuals": [
+    {
+      "id": "P24-PERF-CPU",
+      "affected_criterion": "Physics CPU/PHY-03 conditional, weighted and tail non-regression",
+      "technical_status": "INCONCLUSIVE_OR_UNQUALIFIED",
+      "acceptance_status": "OWNER-ACCEPTED PERFORMANCE EXCEPTION",
+      "accountable_owner": "Owner",
+      "responsible_owner": "Physics performance owner",
+      "future_phases": [
+        "25"
+      ],
+      "revisit_trigger": "Before Physics CPU/scaling acceptance and later joint admission",
+      "closure": "Evidence-backed technical closure under original applicable criteria, or a separately explicit future Owner disposition; never infer PASS from this exception.",
+      "risk": "Performance regression or cost remains unknown; no critical correctness risk is accepted by this record.",
+      "mitigation": "Preserve raw evidence, separate subsystem ownership, unchanged quality and original applicable criteria; no guaranteed non-regression claim."
+    },
+    {
+      "id": "P24-PERF-REPLACE",
+      "affected_criterion": "Replacement latency, allocations, mass/inertia, broadphase/contact and fallback fitting comparison",
+      "technical_status": "INCONCLUSIVE_OR_UNQUALIFIED",
+      "acceptance_status": "OWNER-ACCEPTED PERFORMANCE EXCEPTION",
+      "accountable_owner": "Owner",
+      "responsible_owner": "Physics integration performance owner",
+      "future_phases": [
+        "25"
+      ],
+      "revisit_trigger": "Before replacement/scaling cost acceptance; match geometry and disclose historical differences",
+      "closure": "Evidence-backed technical closure under original applicable criteria, or a separately explicit future Owner disposition; never infer PASS from this exception.",
+      "risk": "Performance regression or cost remains unknown; no critical correctness risk is accepted by this record.",
+      "mitigation": "Preserve raw evidence, separate subsystem ownership, unchanged quality and original applicable criteria; no guaranteed non-regression claim."
+    },
+    {
+      "id": "P24-PERF-OBSERVER",
+      "affected_criterion": "Complete symmetric revision coverage and causal observer uncertainty",
+      "technical_status": "INCONCLUSIVE_OR_UNQUALIFIED",
+      "acceptance_status": "OWNER-ACCEPTED PERFORMANCE EXCEPTION",
+      "accountable_owner": "Owner",
+      "responsible_owner": "Physics performance measurement owner; Renderer measurement owner separately for GPU",
+      "future_phases": [
+        "25",
+        "40"
+      ],
+      "revisit_trigger": "Before respective Physics or Renderer measurement admission",
+      "closure": "Evidence-backed technical closure under original applicable criteria, or a separately explicit future Owner disposition; never infer PASS from this exception.",
+      "risk": "Performance regression or cost remains unknown; no critical correctness risk is accepted by this record.",
+      "mitigation": "Preserve raw evidence, separate subsystem ownership, unchanged quality and original applicable criteria; no guaranteed non-regression claim."
+    },
+    {
+      "id": "P24-PERF-RENDER-CPU",
+      "affected_criterion": "Extraction/submission and rendering CPU non-regression",
+      "technical_status": "INCONCLUSIVE_OR_UNQUALIFIED",
+      "acceptance_status": "OWNER-ACCEPTED PERFORMANCE EXCEPTION",
+      "accountable_owner": "Owner",
+      "responsible_owner": "Renderer/Outline performance owner",
+      "future_phases": [
+        "40"
+      ],
+      "revisit_trigger": "Before Renderer default-profile/cost acceptance or on relevant renderer change",
+      "closure": "Evidence-backed technical closure under original applicable criteria, or a separately explicit future Owner disposition; never infer PASS from this exception.",
+      "risk": "Performance regression or cost remains unknown; no critical correctness risk is accepted by this record.",
+      "mitigation": "Preserve raw evidence, separate subsystem ownership, unchanged quality and original applicable criteria; no guaranteed non-regression claim."
+    },
+    {
+      "id": "P24-PERF-GPU",
+      "affected_criterion": "GPU repeatability, median/p95/p99 and separate outline-specific overhead",
+      "technical_status": "INCONCLUSIVE_OR_UNQUALIFIED",
+      "acceptance_status": "OWNER-ACCEPTED PERFORMANCE EXCEPTION",
+      "accountable_owner": "Owner",
+      "responsible_owner": "Renderer/Outline performance owner",
+      "future_phases": [
+        "40"
+      ],
+      "revisit_trigger": "Before Renderer cost/tail acceptance",
+      "closure": "Evidence-backed technical closure under original applicable criteria, or a separately explicit future Owner disposition; never infer PASS from this exception.",
+      "risk": "Performance regression or cost remains unknown; no critical correctness risk is accepted by this record.",
+      "mitigation": "Preserve raw evidence, separate subsystem ownership, unchanged quality and original applicable criteria; no guaranteed non-regression claim."
+    },
+    {
+      "id": "P24-PERF-DELIVERY",
+      "affected_criterion": "CPU including Present, raw frame latency tails, throughput and overall non-regression",
+      "technical_status": "INCONCLUSIVE_OR_UNQUALIFIED",
+      "acceptance_status": "OWNER-ACCEPTED PERFORMANCE EXCEPTION",
+      "accountable_owner": "Owner",
+      "responsible_owner": "RBS rendering integration performance owner",
+      "future_phases": [
+        "40"
+      ],
+      "revisit_trigger": "Before full-pipeline delivery acceptance",
+      "closure": "Evidence-backed technical closure under original applicable criteria, or a separately explicit future Owner disposition; never infer PASS from this exception.",
+      "risk": "Performance regression or cost remains unknown; no critical correctness risk is accepted by this record.",
+      "mitigation": "Preserve raw evidence, separate subsystem ownership, unchanged quality and original applicable criteria; no guaranteed non-regression claim."
+    },
+    {
+      "id": "P24-PERF-ZERO",
+      "affected_criterion": "Exact no-selection A/B work, native allocations, synchronization and timing delta",
+      "technical_status": "INCONCLUSIVE_OR_UNQUALIFIED",
+      "acceptance_status": "OWNER-ACCEPTED PERFORMANCE EXCEPTION",
+      "accountable_owner": "Owner",
+      "responsible_owner": "Renderer/Outline performance owner",
+      "future_phases": [
+        "40"
+      ],
+      "revisit_trigger": "Before disabled-highlight performance acceptance",
+      "closure": "Evidence-backed technical closure under original applicable criteria, or a separately explicit future Owner disposition; never infer PASS from this exception.",
+      "risk": "Performance regression or cost remains unknown; no critical correctness risk is accepted by this record.",
+      "mitigation": "Preserve raw evidence, separate subsystem ownership, unchanged quality and original applicable criteria; no guaranteed non-regression claim."
+    },
+    {
+      "id": "P24-PERF-MEMORY",
+      "affected_criterion": "A/B memory, scratch after deselection and residency",
+      "technical_status": "INCONCLUSIVE_OR_UNQUALIFIED",
+      "acceptance_status": "OWNER-ACCEPTED PERFORMANCE EXCEPTION",
+      "accountable_owner": "Owner",
+      "responsible_owner": "Renderer resource/performance owner",
+      "future_phases": [
+        "40"
+      ],
+      "revisit_trigger": "Before Renderer memory acceptance",
+      "closure": "Evidence-backed technical closure under original applicable criteria, or a separately explicit future Owner disposition; never infer PASS from this exception.",
+      "risk": "Performance regression or cost remains unknown; no critical correctness risk is accepted by this record.",
+      "mitigation": "Preserve raw evidence, separate subsystem ownership, unchanged quality and original applicable criteria; no guaranteed non-regression claim."
+    },
+    {
+      "id": "P24-PERF-ABSOLUTE",
+      "affected_criterion": "Applicable absolute budgets and historical CPU lineage",
+      "technical_status": "INCONCLUSIVE_OR_UNQUALIFIED",
+      "acceptance_status": "OWNER-ACCEPTED PERFORMANCE EXCEPTION",
+      "accountable_owner": "Owner",
+      "responsible_owner": "Physics owner for CPU; Renderer owner for GPU/delivery; historical performance ledger owner",
+      "future_phases": [
+        "25",
+        "40",
+        "53"
+      ],
+      "revisit_trigger": "At corresponding CPU, Renderer and original historical lineage gates",
+      "closure": "Evidence-backed technical closure under original applicable criteria, or a separately explicit future Owner disposition; never infer PASS from this exception.",
+      "risk": "Performance regression or cost remains unknown; no critical correctness risk is accepted by this record.",
+      "mitigation": "Preserve raw evidence, separate subsystem ownership, unchanged quality and original applicable criteria; no guaranteed non-regression claim."
+    }
+  ],
+  "historical_failures": "Every original FAIL/INCONCLUSIVE and unexecuted A/B remains unchanged. This exception is not a technical performance PASS.",
+  "phase21": "FROZEN_UNAPPROVED",
+  "phase25_started": false,
+  "publication": "Actual approval commit, annotated tag and verified remote publication are established only by the existing guarded seal/finish journal and tag.",
+  "whitespace_recovery": {
+    "path": "logs/pre_editor/phase-24/approval-04/correction.json",
+    "sha256": "c6c0ebbfd2d231423255a0b380b0e0cb66f5ba9c13bd8ea4b371dcb8ed97900e"
+  },
+  "prior_public_record": {
+    "path": "docs/pre_editor/evidence/phase-24-approval.json",
+    "sha256": "9ac6369816c2b83923293f13830674e4bdc993a8cf1395e0d3382965ed30803c"
+  }
+}

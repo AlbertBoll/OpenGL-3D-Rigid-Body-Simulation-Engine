@@ -4,6 +4,7 @@
 #include "Scene/SceneError.h"
 #include "Scene/RenderState.h"
 #include "Physics/PhysicsShapeError.h"
+#include "Physics/PhysicsWorld.h"
 #include "Events/Event.h"
 #include "Math/Math.h"
 #include <Core/Timestep.h>
@@ -68,13 +69,16 @@ namespace GEngine
         InvalidParent,
         Cycle,
         IdentityExhausted,
-        PhysicsPoseRejected
+        PhysicsPoseRejected,
+        PhysicsScaleRejected,
+        MissingPhysicsBody
     };
     struct TransformMutationError
     {
         TransformMutationErrorCode code;
         UUID entity{0};
         UUID parent{0};
+        std::optional<PhysicsBodyError> physics;
     };
     enum class AuthoritativeTransformChangeKind
     {
@@ -93,12 +97,19 @@ namespace GEngine
     };
     struct AuthoritativeTransformMutation
     {
-        // Success means authoritative Transform mutation only. The legacy void scale
-        // bridge cannot report collider acceptance or Physics synchronization. A collider
-        // may retain its prior shape; no Transform-plus-collider atomicity is promised.
+        // Scene scale success includes live collider acceptance. Legacy Component
+        // setters remain separate Transform-only compatibility operations.
         bool changed = false;
         // A delivery failure follows a committed change; it does not roll that change back.
         SubscriptionResult notification{};
+    };
+
+    struct SceneBodyPose { Vec3f translation{}; Quat rotation{1, 0, 0, 0}; };
+    struct SceneBodyTransform
+    {
+        PhysicsBodyHandle body;
+        Component::BodyType type;
+        SceneBodyPose authored, previous, current, presentation;
     };
 
     enum class SceneAssignmentError
@@ -144,8 +155,8 @@ namespace GEngine
 		[[nodiscard]] std::expected<void, SceneError> DestroyEntity(UUID entityID, bool excludeChildren = false, bool first = true);
 
         // Owner-thread authoring before extraction. Rejections/no-ops do not notify.
-        // Finite signed/nonuniform/zero scales retain the independent legacy collider
-        // policy. Direct fields/Component setters remain compatibility paths, not these
+        // Unbound transforms accept finite signed/nonuniform/zero scales. A live
+        // body additionally requires transactional shape acceptance. Component setters remain compatibility paths, not these
         // Scene-level successful-change operations. Pose changes are authoring teleports;
         // ordinary Physics publication never passes through this API.
         [[nodiscard]] std::expected<AuthoritativeTransformMutation, TransformMutationError>
@@ -164,6 +175,14 @@ namespace GEngine
         // Keeps local TRS. Rigid bodies remain world-space anchors even with a parent link.
         [[nodiscard]] std::expected<AuthoritativeTransformMutation, TransformMutationError>
         SetParent(const _Entity& entity, const _Entity& parent);
+
+        [[nodiscard]] std::expected<PhysicsBodyHandle, TransformMutationError>
+        GetBodyBinding(const _Entity&) const;
+        [[nodiscard]] std::expected<SceneBodyTransform, TransformMutationError>
+        ReadBodyTransform(const _Entity&) const;
+        // Explicit runtime edit only; does not rewrite authored fixtures or visual meshes.
+        [[nodiscard]] std::expected<void, TransformMutationError>
+        ReplaceBodyCollider(const _Entity&, const CollisionShapeDesc&);
 
         // Scoped listeners borrow neither an entity nor this Scene through the payload.
         // Phase 13 owner-thread/lifetime/registration/nested-delivery rules apply.
@@ -365,6 +384,7 @@ namespace GEngine
                                             AuthoritativeTransformChangeKind);
         // Guards the pre-store compatibility callback, not post-commit notification dispatch.
         bool m_ApplyingTransform = false;
+        PhysicsBodyHandle m_CommittingScaleBody{};
         TypedSubscriptions<void(const AuthoritativeTransformChange&)>
             m_AuthoritativeTransformChanges;
 
@@ -375,6 +395,7 @@ namespace GEngine
 		void RemoveFromRenderLists(const _Entity& entity);
         RenderPresentationInput ObserveRenderPresentation(entt::entity entity) const;
         static Mat4 EvaluateRenderPresentation(const RenderPresentationInput&);
+        static SceneBodyPose EvaluateRenderPose(const RenderPresentationInput&);
 		Mat4 SampleRenderMatrix(entt::entity entity) const;
 
 		template<typename T>
@@ -392,6 +413,7 @@ namespace GEngine
         bool PrepareGeometryReceipt(entt::entity);
         void ObserveGeometryOwner(entt::registry&, entt::entity);
         void RemoveGeometryOwner(entt::registry&, entt::entity);
+        void RetirePhysicsBinding(entt::registry&, entt::entity);
         void InvalidateGeometryOwnership();
         bool HasLiveGeometryScaleBinding(entt::entity) const;
         std::unique_ptr<GeometryOwnerReceipt[]> m_GeometryReceipts;

@@ -20,6 +20,8 @@ namespace GEngine
 		Bounds GetBounds(const Vec3f& pos, const Quat& orient) const override;
 		// Absolute scale of the base radius. Retains the existing X-axis sphere policy.
 		void HandleScaleChanged(const Vec3f& new_scale) override;
+        [[nodiscard]] std::expected<std::unique_ptr<PhysicalShape>, PhysicsShapeError>
+        PrepareScale(const Vec3f& scale) const override;
 		
 		Bounds GetBounds() const override;
 

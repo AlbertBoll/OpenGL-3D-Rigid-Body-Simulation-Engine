@@ -1,5 +1,26 @@
 #pragma once
 
+// Qualification has an application-owned observer. Never compile that observer's
+// imports into the ordinary shared library through an ambient CL definition.
+#if (defined(GENGINE_PHASE24_OUTLINE_QUALIFICATION) || defined(GENGINE_PHASE24_COLLIDER_VALIDATION)) && !defined(GENGINE_PHASE24_ISOLATED_BUILD)
+#error Phase24 qualification requires the isolated build runner; ordinary GEngine outputs must not be instrumented.
+#endif
+#if defined(GENGINE_PHASE24_ISOLATED_BUILD) && !defined(GENGINE_PHASE24_OUTLINE_QUALIFICATION) && !defined(GENGINE_PHASE24_COLLIDER_VALIDATION)
+#error Phase24 isolated mode requires explicit qualification instrumentation.
+#endif
+#if defined(GENGINE_PHASE24_OUTLINE_QUALIFICATION) && defined(GENGINE_PHASE24_COLLIDER_VALIDATION)
+#error Select exactly one isolated Phase24 qualification mode.
+#endif
+#ifdef _MSC_VER
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+#pragma detect_mismatch("GEngine.Phase24BuildMode", "qualification")
+#elif defined(GENGINE_PHASE24_COLLIDER_VALIDATION)
+#pragma detect_mismatch("GEngine.Phase24BuildMode", "collider-qualification")
+#else
+#pragma detect_mismatch("GEngine.Phase24BuildMode", "ordinary")
+#endif
+#endif
+
 #include "Renderer/RenderFrame.h"
 #include "Renderer/SceneRenderResources.h"
 #include "Scene/RenderEcs.h"
@@ -10,8 +31,11 @@ namespace GEngine
     enum class FrameStage { BeginFrame, UpdateFrameResources, FreezeFrameInputs, BuildRenderFrame, Pass };
     enum class RenderPass { DirectionalShadow, PointShadow, Picking, Opaque, Masked, Skybox,
         Transparent, Debug, Resolve, EditorUI, Present, LegacyScene,
-        PickingReadback }; // CPU wait/transfer timing, not a scheduled draw pass.
-    enum class PassTarget { None, DirectionalDepth, PointDepth, Picking, SceneColor, ResolvedColor, Window };
+        PickingReadback, // CPU wait/transfer timing, not a scheduled draw pass.
+        SelectionDepth, SelectionMask, SelectionResolve, SelectionComposite, SelectionTotal,
+        QualificationFrame, QualificationSubmission };
+    enum class PassTarget { None, DirectionalDepth, PointDepth, Picking, SceneColor, ResolvedColor, Window,
+        SelectionMask, SelectionResolved };
     enum class PassLoad { Load, Clear, Discard };
     enum class PassBoundary { Internal, RestoreAfterLegacy, EstablishBeforeUI, Presentation };
     enum class PassDirtyReason : std::uint32_t
@@ -92,6 +116,10 @@ namespace GEngine
         bool instancingEnabled = true;
         // Conservative shadow relevance; false retains the broadcast reference.
         bool shadowCullingEnabled = true;
+        // Empty identity means no selection work. Identity is resolved only against
+        // this immutable frame; no scene access, retained entity or picking request.
+        EntityRenderId selectedEntity;
+        glm::vec2 selectionPixelsPerDip{1.f};
     };
     inline constexpr std::size_t MinimumRenderInstances = 4;
     struct ShadowCasterStats
@@ -118,6 +146,8 @@ namespace GEngine
         FrameTrace trace;
         // Directional shadow, point shadow, picking; includes deferred/clean passes.
         std::array<PassDecision, 3> decisions{};
+        std::size_t selectionDrawCalls{}, selectionPasses{}, selectionScratchBytes{};
+        PassViewport selectionRegion;
     };
     // Serial owner-context submission only. All scene/resource reads are complete
     // before entry; only immutable frame leases and retained targets are consumed.
@@ -145,4 +175,18 @@ namespace GEngine
         struct Storage;
         std::unique_ptr<Storage> m_Storage;
     };
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+    // Qualification-only entry points, identically instrumented in the archived
+    // C05 control and revised builds. No production observer service is introduced.
+    class PassTiming;
+    struct ScheduledFrameStats;
+    namespace Phase24Qualification
+    {
+        void WorkBegin() noexcept;
+        void Pacing(bool begin) noexcept;
+        void WorkEnd(bool success) noexcept;
+        void CollectTimings(const PassTiming&) noexcept;
+        void CollectSubmission(const ScheduledFrameStats&) noexcept;
+    }
+#endif
 }

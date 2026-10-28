@@ -94,9 +94,18 @@ namespace GEngine
         // creating context before callbacks can switch windows.
         struct EndTimings {
             Manager::WindowManager& windows;
-            ~EndTimings() {for(auto& [id,window]:windows.GetWindows()) window->Timings().EndFrame();}
+            ~EndTimings() {for(auto& [id,window]:windows.GetWindows()) {
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+                Phase24Qualification::CollectTimings(window->Timings());
+#endif
+                window->Timings().EndFrame();
+            }}
         } endTimings{context.windows};
         PassTiming::Activation timingActivation(timings);
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+        std::optional<PassTiming::Scope> qualificationGpu;
+        qualificationGpu.emplace(timings,RenderPass::QualificationFrame,TimingCounts::Unavailable);
+#endif
         ScheduledFrameStats stats;
         stats.trace.Stage(FrameStage::BeginFrame);
         stats.trace.Stage(FrameStage::UpdateFrameResources);
@@ -120,7 +129,16 @@ namespace GEngine
             // current storage only after publication has completed.
             targets.pipelines=scene->resources.Pipelines();
             if (scene->observeFrame) scene->observeFrame(scene->observationContext,*frame);
-            auto submitted=scene->submission.Submit(*frame,targets,scene->picks);
+            auto submitted=[&] {
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+                PassTiming::Scope measured(timings,RenderPass::QualificationSubmission,TimingCounts::Unavailable,false);
+#endif
+                auto result=scene->submission.Submit(*frame,targets,scene->picks);
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+                if(result) measured.Complete();
+#endif
+                return result;
+            }();
             if (!submitted) return std::unexpected(ScheduleError{FrameStage::Pass,submitted.error()});
             stats.submission=std::move(*submitted);
             for (auto event:stats.submission.trace.Events()) stats.trace.Pass(event.contract);
@@ -183,6 +201,13 @@ namespace GEngine
                 timing.Complete();
             }
         }
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+        // UI restores its creating context; include every primary-context command
+        // through UI, excluding SwapBuffer's pacing. The probe checks context count.
+        if(auto current=context.window.BeginRender(); !current)
+            return std::unexpected(ScheduleError{FrameStage::Pass,current.error()});
+        qualificationGpu->Complete(); qualificationGpu.reset();
+#endif
         stats.trace.Pass(DescribeBoundary(RenderPass::Present,context));
         for(auto* window=nextWindow(0);window;window=nextWindow(window->GetWindowID()))
         {

@@ -35,6 +35,24 @@
 #include "../tests/GeometryTemplateChecks.h"
 #include "../tests/ParametricGeometryChecks.h"
 #include "../tests/GeometryAuthoringChecks.h"
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+#include "../tests/SelectionOutlineChecks.h"
+#endif
+#ifdef GENGINE_PHASE24_COLLIDER_VALIDATION
+#include "../tests/PhysicsSceneTransformChecks.h"
+#include "../../external/sdl2/include/sdl2/SDL.h"
+namespace PreEditorValidation::ColliderReplacement
+{
+    void ObserveColliderRuntime(const ::GEngine::RenderFrame& frame) { ObserveRuntime(frame); }
+}
+#endif
+#ifdef GENGINE_PHASE24_VALIDATION
+#include "../tests/PhysicsSceneTransformChecks.h"
+namespace PreEditorValidation
+{
+    void ObservePhase24Frame(const ::GEngine::RenderFrame& frame) { phase24Frame.Observe(frame); }
+}
+#endif
 #if defined(GENGINE_COLLISION_SHAPE_VALIDATION) || defined(GENGINE_PHASE23_DEBUG_REPRO) || defined(GENGINE_PHASE23_DEBUG_VALIDATION)
 #include "../tests/CollisionShapeChecks.h"
 #endif
@@ -1151,6 +1169,134 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeValidationPlat
 ApplicationInitializationResult
 RigidBodySimulationApp::ValidateRuntimeScene(const Rbs::SceneAssets& assets)
 {
+#ifdef GENGINE_PHASE24_COLLIDER_VALIDATION
+#ifdef GENGINE_PHASE24_REPLACEMENT_MEASUREMENT
+    if(auto result=PreEditorValidation::ColliderReplacement::Cost::Run(*m_SceneResources,assets.smoothSphereGeo,assets.sphereMaterial);!result)return result;
+    m_Running=false;
+    return {};
+#endif
+    if(auto checked=PreEditorValidation::CheckPhysicsSceneTransforms(*m_SceneResources,assets.smoothSphereGeo,assets.sphereMaterial);!checked)
+        return checked;
+    if(auto checked=PreEditorValidation::ColliderReplacement::Run(*m_SceneResources,assets.smoothSphereGeo,assets.sphereMaterial);!checked)
+        return checked;
+    {
+        namespace C=PreEditorValidation::ColliderReplacement;
+        auto floor=C::Make(*m_ActiveScene,"collider runtime floor",1,{400,0,0},{1,0,0,0},{8,1,8},false);
+        auto sphere=C::Make(*m_ActiveScene,"collider runtime Sphere",0,{400,1.5f,0});
+        if(!floor || !sphere || !m_SceneResources->AssignRenderable(floor,{assets.boxMesh,assets.floorMaterial}) ||
+           !m_SceneResources->AssignRenderable(sphere,{assets.smoothSphereGeo,assets.sphereMaterial}) || !m_ActiveScene->OnRuntimeStart())
+            return PreEditorValidation::Phase24Failure("maintained collider fixture startup");
+        const auto source=m_SceneResources->GeometrySource(assets.smoothSphereGeo);
+        if(!source)return PreEditorValidation::Phase24Failure("fitted runtime Sphere CPU geometry");
+        C::BeginRuntime(*m_ActiveScene,sphere,assets.smoothSphereGeo,assets.sphereMaterial,*source->source);
+        m_HoveredEntity={};m_IsShowDebugBoundingBox=true;m_IsPause=false;
+        FocusMaterialCamera(m_EditorCamera_,{400,1.5f,0},.35f,.1f,10);
+    }
+#endif
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+    if(auto result=Phase24Qualification::Initialize();!result) return std::unexpected(result.error());
+    auto& outline=Phase24Qualification::probe;
+    if(const auto sky=m_ActiveScene->RenderData().Identify(m_SkyBoxEntity))outline.skyIdentity=*sky;
+    if(outline.functional) {
+        auto first=PreEditorValidation::Phase24Sphere(*m_ActiveScene,"Phase24 outline cube",BodyType::Kinematic,{400,20,0});
+        auto second=PreEditorValidation::Phase24Sphere(*m_ActiveScene,"Phase24 outline sphere",BodyType::Static,{403,20,0});
+        auto occluder=m_ActiveScene->CreateEntity("Phase24 outline occluder");
+        if(!first || !second || !occluder) return PreEditorValidation::Phase24Failure("outline fixture creation");
+        outline.target=*first;outline.second=*second;outline.occluder=*occluder;
+        if(!m_SceneResources->AssignRenderable(*first,{assets.boxMesh,assets.floorMaterial}) ||
+           !m_SceneResources->AssignRenderable(*second,{assets.smoothSphereGeo,assets.floorMaterial}) ||
+           !m_SceneResources->AssignRenderable(*occluder,{assets.boxMesh,assets.floorMaterial}) ||
+           !m_ActiveScene->SetLocalTranslation(*occluder,{450,20,0}) ||
+           !m_ActiveScene->SetLocalRotation(*first,{.15f,.6f,.3f}) ||
+           !m_ActiveScene->SetLocalScale(*first,{1,1.5f,1}))
+            return PreEditorValidation::Phase24Failure("outline fixture render setup");
+        if(!m_ActiveScene->OnRuntimeStart()) return PreEditorValidation::Phase24Failure("outline fixture body startup");
+        FocusMaterialCamera(m_EditorCamera_,{400,20,0},.4f,.1f,12);
+        if(outline.zoomCase) {
+            // Qualification-only camera stimuli; use the actual published Sphere
+            // mesh/material and ordinary camera/picking/presentation routes.
+            outline.target=*second;
+            if(!m_SceneResources->AssignRenderable(*second,{assets.smoothSphereGeo,assets.sphereMaterial}))
+                return PreEditorValidation::Phase24Failure("Sphere zoom material");
+            const std::string_view variant(outline.zoomCase);
+            if(variant=="masked" || variant=="transparent") {
+                // Unique qualification material; original shared PBR materials
+                // remain untouched. A known alpha pattern exercises real discard.
+                constexpr unsigned side=16;std::array<unsigned char,side*side*4> texels{};
+                for(unsigned y=0;y<side;++y) for(unsigned x=0;x<side;++x) {
+                    const auto i=(y*side+x)*4;
+                    texels[i]=texels[i+1]=texels[i+2]=180;
+                    texels[i+3]=((x/4+y/4)%2)?0:255;
+                }
+                const auto texturePath=(outline.output/"alpha-fixture.png").string();
+                stbi_flip_vertically_on_write(0);
+                if(!stbi_write_png(texturePath.c_str(),side,side,4,texels.data(),side*4))
+                    return PreEditorValidation::Phase24Failure("outline alpha fixture write");
+                auto image=Manager::AssetsManager::LoadTexture(texturePath);
+                Asset::SamplerDesc samplerDesc;samplerDesc.minFilter=samplerDesc.magFilter=Asset::SamplerFilter::Nearest;
+                auto sampler=Manager::AssetsManager::GetSampler(samplerDesc);
+                if(!image || !sampler) return PreEditorValidation::Phase24Failure("outline alpha fixture publication");
+                MaterialAuthoringDesc material;material.kind=variant=="masked"?MaterialKind::Masked:MaterialKind::Transparent;
+                material.opacity=variant=="transparent"?.5f:1.f;material.roughness=.45f;
+                material.textures[0]=MaterialTextureValue{*image,*sampler};
+                auto created=m_SceneResources->CreateMaterial(material);
+                if(!created) return PreEditorValidation::Phase24Failure("outline alpha material");
+                outline.variantMaterial=*created;
+            }
+            FocusMaterialCamera(m_EditorCamera_,{403,20,0},0,0,8);
+        }
+        m_HoveredEntity={};
+    } else {
+        // Typed launch configuration owns timing; the old environment flag does
+        // not enable it. This existing API creates an in-memory collector only.
+        if(auto timing=GetWindow()->Timings().Initialize(true);!timing)
+            return PreEditorValidation::Phase24Failure("qualification timing initialization");
+        FocusMaterialCamera(m_EditorCamera_,{3,5,3},.4f,.35f,35);
+        // Identical control/revision fixture. Rotation uses the normal kinematic
+        // integration/presentation route; the foreground center cannot drift out
+        // of view as the previous free dynamic Sphere did.
+        const auto center=m_EditorCamera_.GetPosition()+m_EditorCamera_.GetForwardDirection()*8.f;
+        auto sphere=PreEditorValidation::Phase24Sphere(*m_ActiveScene,"Phase24 performance sphere",BodyType::Kinematic,center);
+        if(!sphere || !m_SceneResources->AssignRenderable(*sphere,{assets.smoothSphereGeo,assets.sphereMaterial}) ||
+           !m_ActiveScene->OnRuntimeStart())return PreEditorValidation::Phase24Failure("visible performance Sphere setup");
+        outline.target=*sphere;
+        const auto body=m_ActiveScene->GetBodyBinding(outline.target);
+        if(!body || !m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld()->SetBodyVelocity(*body,{}, {0,.5f,0}))
+            return PreEditorValidation::Phase24Failure("performance Sphere normal kinematic rotation");
+        m_HoveredEntity=outline.selected?outline.target:_Entity{};
+    }
+    const auto outlineId=m_ActiveScene->RenderData().Identify(outline.target);
+    if(!outlineId) return PreEditorValidation::Phase24Failure("outline fixture typed identity");
+    outline.identity=*outlineId;m_IsShowDebugBoundingBox=false;
+    if(!Phase24Qualification::Native::Arm())return PreEditorValidation::Phase24Failure("complete native heap observer startup");
+#endif
+#ifdef GENGINE_PHASE24_VALIDATION
+    GeometryTemplates::Cube fixtureCube{2,3,4};
+    fixtureCube.Options.Tangents=GeometryTemplates::TangentMode::Generate;
+    auto fixtureMesh=m_SceneResources->PublishGeometry(fixtureCube);
+    if (!fixtureMesh) return PreEditorValidation::Phase24Failure("qualifier render mesh publication");
+    if (auto checked=PreEditorValidation::CheckPhysicsSceneTransforms(*m_SceneResources,*fixtureMesh,assets.floorMaterial);!checked)
+        return checked;
+    if (auto checked=PreEditorValidation::CheckGeometryPhysicsBridge(*m_SceneResources,*fixtureMesh,assets.floorMaterial);!checked)
+        return std::unexpected(checked.error());
+    auto& probe=PreEditorValidation::phase24Frame;probe.scene=m_ActiveScene.get();
+    unsigned ordinal=0;
+    for (auto type:{BodyType::Static,BodyType::Kinematic,BodyType::Dynamic})
+    {
+        auto entity=PreEditorValidation::Phase24Sphere(*m_ActiveScene,"Phase24 inspection",type,{400.f+4.f*ordinal++,20,0});
+        if (!entity) return PreEditorValidation::Phase24Failure("maintained-loop fixture creation");
+        if (auto assigned=m_SceneResources->AssignRenderable(*entity,{assets.smoothSphereGeo,assets.sphereMaterial});!assigned)
+            return PreEditorValidation::Phase24Failure("maintained-loop visual assignment");
+        if (type==BodyType::Kinematic) probe.selected=*entity;
+    }
+    if (auto restarted=m_ActiveScene->OnRuntimeStart();!restarted)
+        return PreEditorValidation::Phase24Failure("maintained-loop body startup");
+    auto* world=m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();world->SetGravity({});
+    if (!world->SetBodyVelocity(*m_ActiveScene->GetBodyBinding(probe.selected),{.5f,0,0},{}))
+        return PreEditorValidation::Phase24Failure("maintained-loop prescribed velocity");
+    m_HoveredEntity=probe.selected;m_IsShowDebugBoundingBox=true;m_IsPause=false;
+    FocusMaterialCamera(m_EditorCamera_,{404,20,0},.25f,0,15);
+#endif
 #if defined(GENGINE_PHASE23_DEBUG_REPRO) || defined(GENGINE_PHASE23_DEBUG_VALIDATION)
     if (!PreEditorValidation::phase23Debug.Begin())
         return std::unexpected(PlatformError{PlatformErrorCode::Initialization,"Phase23 debug probe","Observer already installed"});
@@ -1274,6 +1420,26 @@ ApplicationInitializationResult RigidBodySimulationApp::ValidateShaderDescriptio
 
 bool RigidBodySimulationApp::ValidateUpdate()
 {
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+    auto& outline=Phase24Qualification::probe;
+    if(outline.enabled && outline.failed) {
+        Phase24Qualification::Write();
+        FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Phase24 outline",{},"qualification",{},outline.failure});
+        return false;
+    }
+    if(outline.enabled && !outline.functional && outline.measurementEnd &&
+        Phase24Qualification::Now()-outline.measurementEnd>=2000000000ull) {
+        for(std::size_t i=outline.firstMeasured;i<=outline.lastMeasured;++i) {
+            const auto& row=outline.rows[i];
+            if(row.pending!=row.available || !row.successful || !row.submitted)
+                outline.Fail("incomplete measured CPU/GPU frame");
+        }
+        outline.done=true;Phase24Qualification::Native::Finish();Phase24Qualification::Write();
+        if(outline.failed) FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Phase24 outline",{},"measurement completeness",{},outline.failure});
+        else ShutDown();
+        return false;
+    }
+#endif
 #ifdef GENGINE_LIFECYCLE_VALIDATION
     if (!ValidateLifecycleUpdate()) return false;
 #endif
@@ -1597,6 +1763,224 @@ ScheduleResult RigidBodySimulationApp::ValidateSubmittedFrame(bool submitted,
                                                               const FrameSubmissionDesc& targets,
                                                               const FrameCamera& camera)
 {
+#ifdef GENGINE_PHASE24_COLLIDER_VALIDATION
+    if(submitted && m_CameraSnapshot) {
+        namespace C=PreEditorValidation::ColliderReplacement;
+        const auto f=++C::runtimeFrames;C::tick=f;
+        if(C::target)C::Snapshot("native-frame-end");
+        if(f==10) {
+            const auto pose=m_ActiveScene->ReadBodyTransform(C::target);
+            bool picked=false;
+            if(pose){const auto projected=m_CameraSnapshot->WorldToPixel(pose->presentation.translation);
+              if(projected && projected->insideFrustum){const auto& vp=m_CameraSnapshot->Description().viewport;
+                const auto pixel=m_CameraSnapshot->ReadbackPixelAt(vp.logicalOrigin+projected->value*vp.logicalSize/glm::dvec2(vp.pixelSize));
+                if(pixel){m_FramePickPixel=*pixel;OnMouseClicked();picked=m_HoveredEntity==C::target;}}}
+            C::Check(picked,"native GPU pick selects the actual Sphere");C::runtimeSelected=picked;
+        }
+        if(f==25 || f==55 || f==85 || f==115 || f==145 || f==170)
+            C::CaptureRuntime(targets.color,std::format("runtime-{:03}",f).c_str());
+        if(f==30)C::FitReplace(*m_SceneResources,ShapeType::Box);
+        if(f==60)C::FitReplace(*m_SceneResources,ShapeType::Sphere);
+        if(f==90)C::FitReplace(*m_SceneResources,ShapeType::Capsule);
+        static std::uint64_t pausedSteps{};
+        if(f==119){m_IsPause=true;pausedSteps=m_ActiveScene->GetPhysicsTiming().totalSteps;}
+        if(f==120){for(unsigned i=0;i<8;++i)for(const auto type:{ShapeType::Sphere,ShapeType::Box,ShapeType::Capsule})C::FitReplace(*m_SceneResources,type);C::FitReplace(*m_SceneResources,ShapeType::Sphere);}
+        if(f==129){C::Check(m_ActiveScene->GetPhysicsTiming().totalSteps==pausedSteps,"native paused swaps do not advance fixed clock");m_IsPause=false;}
+        if(f==150)SDL_SetWindowSize(SDL_GetWindowFromID(GetWindow()->GetWindowID()),960,640);
+        if(f==170){const auto& vp=m_CameraSnapshot->Description().viewport;
+            C::Check(glm::length(glm::dvec2(targets.selectionPixelsPerDip)-glm::dvec2(vp.pixelSize)/vp.logicalSize)<1e-5,"runtime resize physical logical mapping");}
+        if(f==180){const auto old=*m_ActiveScene->GetBodyBinding(C::target);
+            C::Check(bool(m_ActiveScene->OnRuntimeStart()) && *m_ActiveScene->GetBodyBinding(C::target)!=old &&
+                !m_ActiveScene->GetPhysicsSystem()->ReplaceBodyCollider(old,SphereShapeDesc{1}),"native scene restart retires body identity");}
+        if(f==190){const auto old=*m_ActiveScene->GetBodyBinding(C::target);
+            C::Check(bool(m_ActiveScene->DestroyEntity(C::target)) && !m_ActiveScene->GetPhysicsSystem()->ReplaceBodyCollider(old,SphereShapeDesc{1}),"native selected body deletion retires shape and handle");
+            C::target={};C::runtimeSelected=false;}
+        if(f==194)C::Check(!m_HoveredEntity,"native deleted selection safely cleared");
+        if(f==200){const auto original=m_ActiveScene;auto replacement=CreateRefPtr<_Scene>();
+            C::Check(BindCameraScene(replacement) && !m_HoveredEntity && BindCameraScene(original) && !m_HoveredEntity,"native scene replacement preserves safe selection lifecycle");}
+        if(C::failures || f==210){C::Check(C::observedFrames>=190,"maintained actual collider rendering observed");C::EndRuntime();
+            if(C::failures)return std::unexpected(ScheduleError{FrameStage::Pass,SubmissionError{"collider runtime validation",SubmissionCode::InvalidDraw}});
+            ShutDown();}
+    }
+#endif
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+    auto& outline=Phase24Qualification::probe;
+    if(outline.enabled && !outline.functional && submitted && outline.current==100) {
+        const auto& vp=m_CameraSnapshot->Description().viewport;
+        auto metadata=std::format("gpu_vendor={}\ngpu_renderer={}\ngpu_version={}\nphysical_width={}\nphysical_height={}\nlogical_width={}\nlogical_height={}\nsamples={}\nswap_interval={}\nmanual_cap={}\nqpc_frequency={}\nidentity={}/{}/{}\nselected={}\n",
+            reinterpret_cast<const char*>(glGetString(GL_VENDOR)),reinterpret_cast<const char*>(glGetString(GL_RENDERER)),reinterpret_cast<const char*>(glGetString(GL_VERSION)),
+            targets.color.Description().Storage.Width,targets.color.Description().Storage.Height,vp.logicalSize.x,vp.logicalSize.y,
+            targets.color.Description().Storage.Samples,GetWindow()->GetSwapInterval(),GetManualFrameRateLimit(),outline.qpcFrequency,
+            outline.identity.index,outline.identity.generation,outline.identity.registry,outline.selected);
+        for(unsigned i=0;i<16;++i) metadata+=std::format("view{}={}\nprojection{}={}\nmodel{}={}\n",i,glm::value_ptr(camera.view)[i],i,glm::value_ptr(camera.projection)[i],i,glm::value_ptr(outline.observed)[i]);
+        Phase24Qualification::Diagnostic::Binary("workload.txt",metadata.data(),metadata.size());
+        Phase24Qualification::Capture(targets.color,"warmup-workload");
+    }
+    if(outline.enabled && outline.functional && submitted && m_CameraSnapshot) {
+        ++outline.functionalFrames;const auto frame=outline.functionalFrames;
+        auto& row=outline.rows[outline.current];
+        const auto pick=[&](_Entity entity)->bool {
+            const auto pose=m_ActiveScene->ReadBodyTransform(entity);
+            if(!pose) return false;
+            const auto projected=m_CameraSnapshot->WorldToPixel(pose->presentation.translation);
+            if(!projected || !projected->insideFrustum) return false;
+            const auto& vp=m_CameraSnapshot->Description().viewport;
+            const auto logical=vp.logicalOrigin+projected->value*vp.logicalSize/glm::dvec2(vp.pixelSize);
+            const auto pixel=m_CameraSnapshot->ReadbackPixelAt(logical);
+            if(!pixel) return false;
+            m_FramePickPixel=*pixel;OnMouseClicked();return m_HoveredEntity==entity;
+        };
+        if(outline.zoomCase) {
+            if(frame==60) {
+                outline.Require(!m_HoveredEntity && !row.outlineDraws && !row.outlinePasses,"Sphere zoom initial zero work");
+                outline.Require(pick(outline.target),"Sphere zoom actual GPU selection");
+                if(outline.variantMaterial)
+                    outline.Require(bool(m_SceneResources->AssignRenderable(outline.target,
+                        {outline.target.GetComponent<MeshRendererComponent>().mesh,outline.variantMaterial})),"selected alpha fixture material assignment");
+                if(std::string_view(outline.zoomCase)=="partial")
+                    outline.Require(bool(m_ActiveScene->SetLocalTranslation(outline.occluder,{403.85f,20,2})) &&
+                        bool(m_ActiveScene->SetLocalScale(outline.occluder,{.6f,2,1})),"partial occlusion and foreground neighbor fixture");
+                const float offset=std::string_view(outline.zoomCase)=="near"?.4f:0.f;
+                FocusMaterialCamera(m_EditorCamera_,{403+offset,20,0},0,0,outline.zoomDistance);
+            }
+            if(frame==64) {
+                outline.Require(m_HoveredEntity==outline.target && outline.observedDraws>0,"Sphere zoom persistent frozen mesh identity");
+                Phase24Qualification::Capture(targets.color,"sphere-selected");
+                const auto& vp=m_CameraSnapshot->Description().viewport;
+                std::string metadata=std::format("case={}\ndistance={}\nphysical_width={}\nphysical_height={}\nlogical_width={}\nlogical_height={}\npixels_per_dip_x={}\npixels_per_dip_y={}\nnear={}\nfar={}\nsamples={}\nregion_x={}\nregion_y={}\nregion_width={}\nregion_height={}\nobserved_mesh_draws={}\n",
+                    outline.zoomCase,outline.zoomDistance,targets.color.Description().Storage.Width,targets.color.Description().Storage.Height,
+                    vp.logicalSize.x,vp.logicalSize.y,targets.selectionPixelsPerDip.x,targets.selectionPixelsPerDip.y,
+                    m_EditorCamera_.GetNearClip(),m_EditorCamera_.GetFarClip(),targets.color.Description().Storage.Samples,
+                    row.region.x,row.region.y,row.region.width,row.region.height,outline.observedDraws);
+                for(unsigned i=0;i<16;++i) metadata+=std::format("view{}={}\nprojection{}={}\nmodel{}={}\n",i,glm::value_ptr(camera.view)[i],i,glm::value_ptr(camera.projection)[i],i,glm::value_ptr(outline.observed)[i]);
+                Phase24Qualification::Diagnostic::Binary("zoom-scene.txt",metadata.data(),metadata.size());
+                outline.Require(Phase24Qualification::Diagnostic::captured && Phase24Qualification::Diagnostic::composited,"Sphere zoom complete same-frame diagnostic capture");
+                outline.done=true;Phase24Qualification::Write();
+                Log::GetCoreLogger()->info("PHASE24_SPHERE_ZOOM_CAPTURE case={} failed={}",outline.zoomCase,outline.failed);
+                if(!outline.failed) ShutDown();
+            }
+            if(outline.failed) return std::unexpected(ScheduleError{FrameStage::Pass,SubmissionError{outline.failure,SubmissionCode::InvalidDraw}});
+            return {};
+        }
+        if(frame==60) {
+            outline.Require(!m_HoveredEntity && !row.outlineDraws && !row.outlinePasses && !row.scratch,"initial zero-selection work/resources");
+            Phase24Qualification::Capture(targets.color,"01-before-selection");
+            outline.Require(pick(outline.target),"actual GPU picking selects first mesh");
+        }
+        if(frame==64) {
+            outline.Require(m_HoveredEntity==outline.target && row.outlineDraws==2 && row.outlinePasses==4 && row.scratch>0,"persistent selected-only rendering");
+            outline.Require(outline.observedDraws>0,"selected immutable mesh frame observed");
+            Phase24Qualification::Capture(targets.color,"02-gold-mesh-outline");
+            outline.Require(Phase24Qualification::GoldPixels()>40,"actual gold outline pixels with physics debug disabled");
+        }
+        if(frame==70) m_IsShowDebugBoundingBox=true;
+        if(frame==74) {
+            outline.Require(row.outlineDraws==2,"gold outline independent of collider debug");
+            Phase24Qualification::Capture(targets.color,"03-gold-cyan-magenta");m_IsShowDebugBoundingBox=false;
+        }
+        if(frame==80) {
+            const auto& size=targets.picking.Buffer().Description();bool empty=false;
+            for(unsigned y=1;y<size.Height && !empty;y+=(std::max)(1u,size.Height/8))
+                for(unsigned x=1;x<size.Width && !empty;x+=(std::max)(1u,size.Width/8)) {
+                    const auto value=targets.picking.ReadPixel(x,y);
+                    if(value && *value==EntityPickTable::InvalidPixel) {
+                        m_FramePickPixel=glm::uvec2{x,y};OnMouseClicked();empty=true;
+                    }
+                }
+            outline.Require(empty && !m_HoveredEntity,"empty GPU click clears persistent selection");
+        }
+        if(frame==84) outline.Require(!row.outlineDraws && !row.outlinePasses && row.scratch>0,"deselection zero work with reported retained scratch");
+        if(frame==90) outline.Require(pick(outline.second),"GPU target switching");
+        if(frame==94) {
+            outline.Require(m_HoveredEntity==outline.second && row.outlineDraws==2,"second target persists");
+            Phase24Qualification::Capture(targets.color,"04-selected-sphere");
+        }
+        if(frame==100) outline.Require(pick(outline.target),"GPU switch back");
+        if(frame==104) outline.Require(bool(m_ActiveScene->SetLocalTranslation(outline.target,{400,21,0})),"live teleport");
+        if(frame==108) {outline.Require(row.outlineDraws==2,"outline after teleport");Phase24Qualification::Capture(targets.color,"05-teleport");}
+        if(frame==112) {
+            const auto body=m_ActiveScene->GetBodyBinding(outline.target);
+            outline.Require(body && bool(m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld()->SetBodyVelocity(*body,{.5f,0,0},{})),"kinematic movement setup");
+        }
+        if(frame==120) m_IsPause=true;
+        if(frame==128) {outline.Require(row.outlineDraws==2,"paused presentation outline");Phase24Qualification::Capture(targets.color,"06-pause");}
+        if(frame==136) m_IsPause=false;
+        if(frame==144) {
+            const auto pose=m_ActiveScene->ReadBodyTransform(outline.target);
+            if(pose) {
+                const auto point=pose->presentation.translation;
+                const auto toward=glm::normalize(m_EditorCamera_.GetPosition()-point);
+                outline.Require(bool(m_ActiveScene->SetLocalTranslation(outline.occluder,point+toward*4.f)) &&
+                    bool(m_ActiveScene->SetLocalScale(outline.occluder,Vec3f(3))),"occlusion fixture positioning");
+            } else outline.Fail("occlusion pose unavailable");
+        }
+        if(frame==148) {
+            Phase24Qualification::Capture(targets.color,"07-fully-occluded");
+            outline.Require(Phase24Qualification::GoldPixels()==0,"foreground occluder excludes gold/glow");
+        }
+        if(frame==154) outline.Require(bool(m_ActiveScene->SetLocalTranslation(outline.occluder,{450,20,0})),"occluder retirement");
+        if(frame==160) {Phase24Qualification::Capture(targets.color,"08-moving");outline.Require(row.outlineDraws==2,"moving presentation highlight");}
+        if(frame==170) {
+            SDL_SetWindowSize(SDL_GetWindowFromID(GetWindow()->GetWindowID()),(std::max)(640,int(GetWindow()->GetScreenWidth())-120),(std::max)(480,int(GetWindow()->GetScreenHeight())-80));
+        }
+        if(frame==180) {
+            Phase24Qualification::Capture(targets.color,"09-resized");
+            const auto& vp=m_CameraSnapshot->Description().viewport;
+            outline.Require(row.outlineDraws==2 && glm::length(glm::dvec2(targets.selectionPixelsPerDip)-glm::dvec2(vp.pixelSize)/vp.logicalSize)<1e-5,"resized physical/logical pixel mapping");
+            outline.Require(bool(m_ActiveScene->DestroyEntity(outline.target)),"selected entity deletion");
+        }
+        if(frame==184) outline.Require(!m_HoveredEntity && !row.outlineDraws && !row.outlinePasses,"deleted identity clears without rendering");
+        if(frame==190) {
+            outline.Require(pick(outline.second),"surviving identity pick");
+            const auto original=m_ActiveScene;auto replacement=CreateRefPtr<_Scene>();
+            outline.Require(BindCameraScene(replacement) && !m_HoveredEntity,"scene replacement clears selection");
+            outline.Require(BindCameraScene(original) && !m_HoveredEntity,"scene restoration keeps selection cleared");
+        }
+        if(frame==194) outline.Require(!row.outlineDraws && !row.outlinePasses,"replacement zero-work frame");
+        if(frame==200) {
+            outline.done=true;Phase24Qualification::Write();
+            Log::GetCoreLogger()->info("PHASE24_OUTLINE_FUNCTIONAL_END checks={} failed={} reason={}",outline.checks,outline.failed,outline.failure);
+            if(!outline.failed) ShutDown();
+        }
+        if(outline.failed) {
+            Phase24Qualification::Write();
+            return std::unexpected(ScheduleError{FrameStage::Pass,SubmissionError{outline.failure,SubmissionCode::InvalidDraw}});
+        }
+    }
+#endif
+#ifdef GENGINE_PHASE24_VALIDATION
+    auto& p24=PreEditorValidation::phase24Frame;
+    const auto fail24=[](const char* reason)->ScheduleResult {
+        return std::unexpected(ScheduleError{FrameStage::BuildRenderFrame,
+            SubmissionError{reason,SubmissionCode::InvalidDraw}});
+    };
+    if (p24.failed) return fail24(p24.failure);
+    if (submitted && m_CameraSnapshot && p24.observations)
+    {
+        ++p24.frames;
+        const auto pixel=m_CameraSnapshot->WorldToPixel(p24.position);
+        if (!pixel || !pixel->insideFrustum) return fail24("Phase24 picking premise outside camera");
+        const auto& viewport=m_CameraSnapshot->Description().viewport;
+        const auto logical=viewport.logicalOrigin+pixel->value*viewport.logicalSize/glm::dvec2(viewport.pixelSize);
+        const auto read=m_CameraSnapshot->ReadbackPixelAt(logical);
+        if (!read) return fail24("Phase24 picking pixel conversion");
+        const auto value=targets.picking.ReadPixel(int(read->x),int(read->y));
+        if (!value) return fail24("Phase24 GPU picking readback");
+        const auto picked=m_ActiveScene->RenderData().ResolvePick(m_PickTable,*value);
+        const auto expected=m_ActiveScene->RenderData().Identify(p24.selected);
+        if (!picked || !expected || *picked!=*expected) return fail24("Phase24 GPU pick and frozen presentation disagree");
+        ++p24.picks;
+        if (p24.frames==30 && !m_ActiveScene->SetLocalTranslation(p24.selected,{404,21,0})) return fail24("Phase24 runtime teleport");
+        if (p24.frames==60 && !m_ActiveScene->SetLocalScale(p24.selected,1.2f)) return fail24("Phase24 runtime scale");
+        if (p24.frames==80) m_IsPause=true;
+        if (p24.frames==90) m_IsPause=false;
+        if (p24.frames==120)
+        {
+            Log::GetCoreLogger()->info("PHASE24_RUNTIME_PASS frames={} frozen_observations={} gpu_picks={} clean_shutdown_requested=true",p24.frames,p24.observations,p24.picks);
+            ShutDown();
+        }
+    }
+#endif
 #if defined(GENGINE_PHASE23_DEBUG_REPRO) || defined(GENGINE_PHASE23_DEBUG_VALIDATION)
     auto& probe=PreEditorValidation::phase23Debug;
     const auto failDebug=[&](const char* reason)->ScheduleResult {

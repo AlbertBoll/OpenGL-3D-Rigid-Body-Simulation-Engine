@@ -2,9 +2,13 @@
 #include "Core/Log.h"
 #include "Core/Window.h"
 #include "Scene/_Scene.h"
+#include "Physics/PhysicsSystem.h"
+#include "Renderer/SceneRenderResources.h"
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <format>
+#include <limits>
 
 #include "UI/Dockspace.h"
 #include "UI/FramebufferImage.h"
@@ -17,6 +21,122 @@ using namespace ::GEngine::Component;
 using namespace ::GEngine::Manager;
 using namespace ::GEngine::Math;
 using namespace ::GEngine::Camera;
+
+namespace Rbs
+{
+#ifdef GENGINE_PHASE24_COLLIDER_VALIDATION
+    static std::uint64_t meshColliderFitCalls{};
+    std::uint64_t MeshColliderFitCalls() { return meshColliderFitCalls; }
+#endif
+
+    // Command-only CPU preparation. Current scale becomes the replacement's
+    // explicit unit-scale base; ordinary Physics creation/scaling is unchanged.
+    std::expected<CollisionShapeDesc, GeometryAuthoringCode>
+    FitMeshCollider(const MeshAsset& mesh, const Vec3f& scale, ShapeType type)
+    {
+#ifdef GENGINE_PHASE24_COLLIDER_VALIDATION
+        ++meshColliderFitCalls;
+#endif
+        using Error = GeometryAuthoringCode;
+        if (!Math::IsFinite(scale)) return std::unexpected(Error::InvalidScale);
+        const auto& bounds = mesh.Bounds();
+        if (bounds.empty || !mesh.VertexCount()) return std::unexpected(Error::EmptyBounds);
+        const auto outward = [](double value) {
+            float result = static_cast<float>(value);
+            if (double(result) < value)
+                result = std::nextafter(result, std::numeric_limits<float>::infinity());
+            return result;
+        };
+        if (type == ShapeType::Box)
+        {
+            BoxShapeDesc box;
+            for (unsigned axis = 0; axis < 3; ++axis)
+            {
+                const double a = bounds.minimum[axis] * double(scale[axis]);
+                const double b = bounds.maximum[axis] * double(scale[axis]);
+                const double lower = (std::min)(a, b), upper = (std::max)(a, b);
+                box.center[axis] = static_cast<float>((lower + upper) * .5);
+                box.halfExtents[axis] = outward((std::max)(upper - double(box.center[axis]),
+                                                                        double(box.center[axis]) - lower));
+                if (!std::isfinite(box.center[axis]) || !std::isfinite(box.halfExtents[axis]) ||
+                    box.halfExtents[axis] <= 0)
+                    return std::unexpected(Error::DegenerateExtent);
+            }
+            return CollisionShapeDesc{box};
+        }
+        if (type != ShapeType::Sphere && type != ShapeType::Capsule)
+            return std::unexpected(Error::InvalidDimensions);
+
+        const Vec3f magnitude = glm::abs(scale);
+        if (bounds.sphereCenter == std::array<double, 3>{} &&
+            magnitude.x == magnitude.y && magnitude.x == magnitude.z)
+        {
+            const float radius = outward(bounds.sphereRadius * double(magnitude.x));
+            if (!std::isfinite(radius) || radius <= 0)
+                return std::unexpected(Error::InvalidDimensions);
+            if (type == ShapeType::Sphere) return CollisionShapeDesc{SphereShapeDesc{radius}};
+            const double radialExtent = (std::max)({std::abs(bounds.minimum[0]), std::abs(bounds.maximum[0]),
+                                                    std::abs(bounds.minimum[2]), std::abs(bounds.maximum[2])}) * magnitude.x;
+            // A spherical mesh needs no cylinder segment. The cached sphere is
+            // already conservative; allow only its Float32 outward rounding.
+            if (radius <= std::nextafter(static_cast<float>(radialExtent), std::numeric_limits<float>::infinity()))
+                return CollisionShapeDesc{CapsuleShapeDesc{radius, 0.f}};
+        }
+
+        const auto layout = mesh.Layout();
+        const VertexAttribute* position = nullptr;
+        for (const auto& attribute : layout.attributes)
+            if (attribute.semantic == VertexSemantic::Position) position = &attribute;
+        if (!position || position->scalar != VertexScalarFormat::Float32 || position->components != 3 ||
+            position->offsetBytes + sizeof(float) * 3 > layout.strideBytes)
+            return std::unexpected(Error::UnsupportedLayout);
+        const auto vertex = [&](std::size_t index) {
+            std::array<float, 3> values;
+            std::memcpy(values.data(), mesh.Vertices().data() + index * layout.strideBytes + position->offsetBytes,
+                        sizeof(values));
+            return glm::dvec3(values[0] * double(scale.x), values[1] * double(scale.y), values[2] * double(scale.z));
+        };
+        double squaredRadius = 0;
+        for (std::size_t index = 0; index < mesh.VertexCount(); ++index)
+        {
+            const auto p = vertex(index);
+            squaredRadius = (std::max)(squaredRadius, type == ShapeType::Sphere ? glm::dot(p, p) : p.x*p.x + p.z*p.z);
+        }
+        const float radius = outward(std::sqrt(squaredRadius));
+        if (!std::isfinite(radius) || radius <= 0) return std::unexpected(Error::InvalidDimensions);
+        if (type == ShapeType::Sphere) return CollisionShapeDesc{SphereShapeDesc{radius}};
+
+        // Fixed local-Y axis and existing pivot. For the chosen enclosing radial
+        // radius, this is the shortest symmetric segment containing all vertices.
+        double halfLength = 0;
+        for (std::size_t index = 0; index < mesh.VertexCount(); ++index)
+        {
+            const auto p = vertex(index);
+            const double cap = std::sqrt((std::max)(0.0, double(radius)*radius - p.x*p.x - p.z*p.z));
+            halfLength = (std::max)(halfLength, std::abs(p.y) - cap);
+        }
+        const float length = outward(halfLength);
+        if (!std::isfinite(length) || !std::isfinite(radius + length))
+            return std::unexpected(Error::InvalidDimensions);
+        return CollisionShapeDesc{CapsuleShapeDesc{radius, length}};
+    }
+
+    std::expected<void, std::string> ReplaceMeshCollider(_Scene& scene, SceneRenderResources& resources,
+                                                       _Entity entity, ShapeType type)
+    {
+        if (!entity || entity.GetSceneContext() != &scene ||
+            !entity.HasAllComponents<MeshRendererComponent, Transform3DComponent>() || !scene.GetBodyBinding(entity))
+            return std::unexpected(std::string("Mesh fitting requires a live rendered body."));
+        const auto source = resources.GeometrySource(entity.GetComponent<MeshRendererComponent>().mesh);
+        if (!source) return std::unexpected(DescribeSceneResourceError(source.error()));
+        if (!source->source) return std::unexpected(std::string("Mesh CPU geometry is unavailable."));
+        auto description = FitMeshCollider(*source->source, entity.GetComponent<Transform3DComponent>().Scale, type);
+        if (!description) return std::unexpected(std::format("Mesh collider fit rejected ({})", int(description.error())));
+        if (auto replaced = scene.ReplaceBodyCollider(entity, *description); !replaced)
+            return std::unexpected(std::format("Runtime collider replacement rejected ({})", int(replaced.error().code)));
+        return {};
+    }
+}
 #ifdef GENGINE_LIFECYCLE_VALIDATION
 namespace PreEditorLifecycle
 {
@@ -92,6 +212,78 @@ void RigidBodySimulationApp::ImGuiRender()
         ImGui::LogToFile(-1, "scene-ui-text.log");
 #endif
     DrawMaterialPanel();
+    if (ImGui::Begin("Body Transform"))
+    {
+        PublishPanelInputRegion();
+        ImGui::Checkbox("Pause simulation", &m_IsPause);
+        bool interpolate = m_ActiveScene->IsRenderInterpolationEnabled();
+        if (ImGui::Checkbox("Interpolate presentation", &interpolate))
+            m_ActiveScene->SetRenderInterpolationEnabled(interpolate);
+        ImGui::Checkbox("Physics and selected presentation outlines", &m_IsShowDebugBoundingBox);
+        ImGui::TextWrapped("Gold: selected visible mesh. Cyan: current Physics collider. Magenta: selected presentation collider. Interpolation can separate the collider diagnostics.");
+        if (auto pose = m_ActiveScene->ReadBodyTransform(m_HoveredEntity); pose)
+        {
+            ImGui::Text("Selected: %s", m_HoveredEntity.GetName().c_str());
+            ImGui::Text("Mode: %s", pose->type == BodyType::Static ? "Static" :
+                pose->type == BodyType::Kinematic ? "Kinematic" : "Dynamic");
+            static std::string diagnostic;
+            const auto report = [&](const auto& result) {
+                diagnostic = result ? "Edit accepted" : std::format("Edit rejected (code {}). Previous state preserved.", int(result.error().code));
+            };
+            auto position = m_HoveredEntity.Transform().Translation;
+            auto rotation = m_HoveredEntity.Transform().EulerRotation;
+            auto scale = m_HoveredEntity.Transform().Scale;
+            if (ImGui::DragFloat3("Teleport position", &position.x, .05f))
+                report(m_ActiveScene->SetLocalTranslation(m_HoveredEntity, position));
+            if (ImGui::DragFloat3("Teleport rotation (radians)", &rotation.x, .01f))
+                report(m_ActiveScene->SetLocalRotation(m_HoveredEntity, rotation));
+            if (ImGui::DragFloat3("Transform scale", &scale.x, .02f))
+                report(m_ActiveScene->SetLocalScale(m_HoveredEntity, scale));
+            auto* world = m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
+            if (auto body = world->ReadBody(pose->body); body && pose->type != BodyType::Static)
+            {
+                auto linear = body->linearVelocity, angular = body->angularVelocity;
+                bool changed = ImGui::DragFloat3("Linear velocity", &linear.x, .05f);
+                changed |= ImGui::DragFloat3("Angular velocity", &angular.x, .02f);
+                if (changed) report(world->SetBodyVelocity(pose->body, linear, angular));
+            }
+            static int replacement = 0;
+            static bool fitMesh = true;
+            static float radius = 1, halfLength = .5f;
+            static Vec3f halfExtents(.5f);
+            ImGui::Combo("Collider type", &replacement, "Sphere\0Box\0Capsule\0");
+            ImGui::Checkbox("Fit current mesh", &fitMesh);
+            if (!fitMesh)
+            {
+                if (replacement == 1) ImGui::InputFloat3("Half extents", &halfExtents.x);
+                else
+                {
+                    ImGui::InputFloat("Radius", &radius);
+                    if (replacement == 2) ImGui::InputFloat("Segment half length", &halfLength);
+                }
+            }
+            if (ImGui::Button("Replace runtime collider"))
+            {
+                if (fitMesh)
+                {
+                    const auto type = replacement == 1 ? ShapeType::Box : replacement == 2 ? ShapeType::Capsule : ShapeType::Sphere;
+                    const auto changed = Rbs::ReplaceMeshCollider(*m_ActiveScene, *m_SceneResources, m_HoveredEntity, type);
+                    diagnostic = changed ? "" : changed.error();
+                }
+                else
+                {
+                    CollisionShapeDesc desc = SphereShapeDesc{radius};
+                    if (replacement == 1) desc = BoxShapeDesc{halfExtents};
+                    if (replacement == 2) desc = CapsuleShapeDesc{radius, halfLength};
+                    report(m_ActiveScene->ReplaceBodyCollider(m_HoveredEntity, desc));
+                }
+            }
+            ImGui::TextWrapped("Mesh fitting uses the current mesh and scale only when replacing. Sphere and Capsule fit around the existing pivot. Mesh and startup fixtures stay unchanged.");
+            if (!diagnostic.empty()) ImGui::TextWrapped("%s", diagnostic.c_str());
+        }
+        else ImGui::TextWrapped("Click a rendered body to inspect or edit it.");
+    }
+    ImGui::End();
 #ifdef GENGINE_RBS_SCENE_VALIDATION
     if (ImGui::GetFrameCount() == 4)
         ImGui::LogToFile(-1, "scene-ui-text.log");

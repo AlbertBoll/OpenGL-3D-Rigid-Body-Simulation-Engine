@@ -50,6 +50,12 @@ namespace GEngine
 		virtual void Build(const std::vector<Vec3f>& pts) {};
 		// Rebuild at an absolute component-wise scale without replacing that source.
 		virtual void HandleScaleChanged(const Vec3f& new_scale);
+
+        // Stage a scale edit without touching this shape. The world validates the
+        // resulting body geometry before committing the same concrete object's payload.
+        // Legacy HandleScaleChanged remains an independent void compatibility path.
+        [[nodiscard]] virtual std::expected<std::unique_ptr<PhysicalShape>, PhysicsShapeError>
+        PrepareScale(const Vec3f& scale) const;
 		//virtual void HandleScaleChanged(float new_scale) {};
 		virtual Vec3f GetCenterOfMass() const { return m_CenterOfMass; }
 		virtual Vec3f Support(const Vec3f& dir, const Vec3f& pos, const Quat& orient, const float bias) const = 0;
@@ -69,6 +75,10 @@ namespace GEngine
 		std::vector<Vec3f> m_MeshPoints; // Owned base points, preserved across scale callbacks.
 		ShapeType m_ShapeType = ShapeType::Invalid;
 		std::uint64_t m_Revision{};
+
+    private:
+        friend class PhysicsSystem;
+        void CommitScale(PhysicalShape& prepared) noexcept;
 
 	};
 

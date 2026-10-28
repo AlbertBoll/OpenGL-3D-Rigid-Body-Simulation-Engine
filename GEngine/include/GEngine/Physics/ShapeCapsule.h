@@ -1,5 +1,6 @@
 #pragma once
 #include "Shape.h"
+#include <new>
 
 namespace GEngine
 {
@@ -12,6 +13,17 @@ namespace GEngine
         Create(float radius, float halfLength);
         [[nodiscard]] std::expected<void, PhysicsShapeError> SetScale(const Vec3f& scale);
         void HandleScaleChanged(const Vec3f& scale) override { (void)SetScale(scale); }
+        [[nodiscard]] std::expected<std::unique_ptr<PhysicalShape>, PhysicsShapeError>
+        PrepareScale(const Vec3f& scale) const override
+        {
+            std::unique_ptr<ShapeCapsule> staged(new (std::nothrow) ShapeCapsule(*this));
+            if (!staged)
+                return std::unexpected(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
+                    "ShapeCapsule::PrepareScale", "Scale staging allocation failed"});
+            if (auto changed = staged->SetScale(scale); !changed)
+                return std::unexpected(changed.error());
+            return staged;
+        }
         float GetRadius() const { return m_Radius; }
         float GetHalfLength() const { return m_HalfLength; }
         bool IsValid() const override;

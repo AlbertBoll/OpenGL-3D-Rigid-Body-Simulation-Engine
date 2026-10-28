@@ -275,7 +275,10 @@ namespace PreEditorValidation
         sphereFixture.Radius = 2;
         sphere->AddOrReplaceComponent<SphereFixture3DComponent>(sphereFixture);
         box->AddOrReplaceComponent<BoxFixture3DComponent>();
-        convex->AddOrReplaceComponent<ConvexFixture3DComponent>();
+        ConvexFixture3DComponent hullFixture;
+        for (unsigned i = 0; i < 8; ++i)
+            hullFixture.Shape.points.push_back(Vec3f(i&1 ? .5f : -.5f, i&2 ? .5f : -.5f, i&4 ? .5f : -.5f));
+        convex->AddOrReplaceComponent<ConvexFixture3DComponent>(hullFixture);
         box->Transform().SetScale({2, 3, 4});
         convex->Transform().SetScale({2, 3, 4});
         TRANSFORM14_REQUIRE(scene->OnRuntimeStart(), "collider startup");
@@ -300,10 +303,10 @@ namespace PreEditorValidation
         const auto sphereRevision = sphereShape->GetRevision();
         auto rejectedCollider = scene->SetLocalScale(*sphere, Vec3f{-1, 2, 3});
         TRANSFORM14_REQUIRE(
-            rejectedCollider && rejectedCollider->changed && rejectedCollider->notification &&
-                sphere->Transform().Scale == Vec3f(-1, 2, 3) && notifications == 2 &&
+            !rejectedCollider && rejectedCollider.error().code == TransformMutationErrorCode::PhysicsScaleRejected &&
+                sphere->Transform().Scale == Vec3f(2, 9, -4) && notifications == 1 &&
                 sphereShape->GetRadius() == 4 && sphereShape->GetRevision() == sphereRevision,
-            "Transform commits and notifies while sphere independently rejects collider scale");
+            "Scene rejects collider scale before Transform or notification commit");
         sphereShape->SetRadius(3);
         TRANSFORM14_REQUIRE(scene->SetLocalScale(*sphere, 2.f) && sphereShape->GetRadius() == 6,
                             "explicit radius establishes base independently");
@@ -322,15 +325,15 @@ namespace PreEditorValidation
             const auto before = notifications;
             auto zero = scene->SetLocalScale(pair.first, Vec3f{0, 1, 1});
             TRANSFORM14_REQUIRE(
-                zero && zero->changed && zero->notification && notifications == before + 1 &&
-                    pair.first.Transform().Scale == Vec3f(0, 1, 1) &&
+                !zero && notifications == before &&
+                    pair.first.Transform().Scale == Vec3f(-.5f, 1.5f, 2) &&
                     pair.second->GetRevision() == revision &&
                     pair.second->GetBounds().mins == bounds.mins,
-                "Transform-only zero-scale success preserves rejected point collider");
+                "Rejected point collider preserves both Transform and collider");
         }
         TRANSFORM14_REQUIRE(token->Reset(), "collider policy observer detached");
         Log::GetCoreLogger()->info(
-            "PRE_EDITOR_PACKET_B_COLLIDER_POLICY_PASS checks={} atomicity=false", checks);
+            "PRE_EDITOR_PHASE24_COLLIDER_POLICY_PASS checks={} atomicity=live_scene", checks);
         return {};
     }
 

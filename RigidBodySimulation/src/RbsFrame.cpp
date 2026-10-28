@@ -1,4 +1,13 @@
 #include "RigidBodySimulation.h"
+#ifdef GENGINE_PHASE24_VALIDATION
+namespace PreEditorValidation { void ObservePhase24Frame(const ::GEngine::RenderFrame&); }
+#endif
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+namespace GEngine::Phase24Qualification { bool Functional() noexcept; void Observe(const RenderFrame&) noexcept; }
+#endif
+#ifdef GENGINE_PHASE24_COLLIDER_VALIDATION
+namespace PreEditorValidation::ColliderReplacement { void ObserveColliderRuntime(const ::GEngine::RenderFrame&); }
+#endif
 #include "Core/Log.h"
 #include "Core/Window.h"
 #include "Scene/_Scene.h"
@@ -533,6 +542,15 @@ void RigidBodySimulationApp::Render()
                                     m_FarPlane};
         FrameSceneInput input{*m_ActiveScene, *m_SceneResources, *m_FrameSubmission,
                               targets,        m_PickTable,       {&camera, 1}};
+#ifdef GENGINE_PHASE24_VALIDATION
+        input.observeFrame = [](void*, const RenderFrame& frame) noexcept { PreEditorValidation::ObservePhase24Frame(frame); };
+#endif
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+        input.observeFrame=[](void*,const RenderFrame& frame) noexcept { Phase24Qualification::Observe(frame); };
+#endif
+#ifdef GENGINE_PHASE24_COLLIDER_VALIDATION
+        input.observeFrame=[](void*,const RenderFrame& frame) noexcept { PreEditorValidation::ColliderReplacement::ObserveColliderRuntime(frame); };
+#endif
         // Preserve Phase 45's input/viewport snapshot: read this frame's IDs
         // before BeginUI refreshes ImGui mouse state or authors new panel bounds.
         input.pickingReadback = {this, [](void* user) -> ScheduleResult
@@ -548,6 +566,24 @@ void RigidBodySimulationApp::Render()
             auto& p = *static_cast<Preparation*>(user);
             if (auto updated = p.app.UpdateFrameResources(); !updated) return updated;
             if (auto camera=p.app.PrepareCameraFrame(p.context,p.input,p.camera);!camera) return camera;
+            if(p.app.m_HoveredEntity) {
+                const auto selected=p.app.m_ActiveScene->RenderData().Identify(p.app.m_HoveredEntity);
+                if(selected) p.input.targets.selectedEntity=*selected;
+                else p.app.m_HoveredEntity={};
+            } else p.app.m_HoveredEntity={};
+            if(p.app.m_CameraSnapshot) {
+                const auto& viewport=p.app.m_CameraSnapshot->Description().viewport;
+                p.input.targets.selectionPixelsPerDip=glm::vec2(glm::dvec2(viewport.pixelSize)/viewport.logicalSize);
+            }
+#ifdef GENGINE_PHASE24_VALIDATION
+            p.input.targets.pickingEnabled=true;
+#endif
+#ifdef GENGINE_PHASE24_COLLIDER_VALIDATION
+            p.input.targets.pickingEnabled=true;
+#endif
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+            if(Phase24Qualification::Functional()) p.input.targets.pickingEnabled=true;
+#endif
             if (p.context.visible && p.app.m_IsShowDebugBoundingBox) {
                 const std::size_t capacity=p.app.m_Launch.restingContactDiagnostic && Rbs::RestDiagnosis::session
                     ? Rbs::RestDiagnosis::session->debugLineCapacity : 32768;
@@ -558,11 +594,21 @@ void RigidBodySimulationApp::Render()
                 if (auto result=p.app.m_ActiveScene->GetPhysicsSystem()->AppendDebugGeometry(geometry);!result)
                     return std::unexpected(ScheduleError{FrameStage::BuildRenderFrame,
                         SubmissionError{std::format("physics debug geometry code={}",int(result.error())),SubmissionCode::InvalidDraw}});
+                // Same Scene presentation operands as the immediately following freeze.
+                // Authoritative cyan geometry stays at the actual simulation pose.
+                if (auto pose = p.app.m_ActiveScene->ReadBodyTransform(p.app.m_HoveredEntity); pose)
+                    if (auto result = p.app.m_ActiveScene->GetPhysicsSystem()->AppendPresentationGeometry(
+                            geometry, pose->body, pose->presentation.translation, pose->presentation.rotation); !result)
+                        return std::unexpected(ScheduleError{FrameStage::BuildRenderFrame,
+                            SubmissionError{"presentation collider outline", SubmissionCode::InvalidDraw}});
                 p.input.debugLines=geometry.Lines();
             }
             return {};
         }};
         auto submitted = FrameScheduler::Render(context, &input);
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+        if(submitted) Phase24Qualification::CollectSubmission(*submitted);
+#endif
         if (context.visible && m_CameraSnapshot)
             if (auto checked = ValidateSubmittedFrame(bool(submitted), input.targets, camera); !checked)
                 return std::unexpected(checked.error());

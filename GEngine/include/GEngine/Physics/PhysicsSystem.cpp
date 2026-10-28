@@ -1097,6 +1097,180 @@ namespace GEngine
         observe(PhysicsDiagnostic::Stage::End);
 	}
 
+    DebugGeometryResult PhysicsSystem::AppendColliderGeometry(DebugGeometry& out, const PhysicalShape& shape,
+        const Vec3f& position, const Quat& orientation, const glm::vec4& color)
+    {
+        DebugGeometryResult collider;
+                if (shape.GetShapeType()==ShapeType::Sphere)
+                    collider=out.Sphere(position,static_cast<const ShapeSphere&>(shape).GetRadius(),color);
+                else if (shape.GetShapeType()==ShapeType::Capsule) {
+                    const auto& capsule=static_cast<const ShapeCapsule&>(shape);
+                    const float radius=capsule.GetRadius(), half=capsule.GetHalfLength();
+                    // Two meridian outlines and both cap seams, using the same
+                    // dimensions as Support(). Append once: capacity is atomic.
+                    std::array<FrameDebugLine,100> lines; std::size_t count=0;
+                    const auto append=[&](Vec3f a,Vec3f b) {
+                        lines[count++]={position+orientation*a,
+                            position+orientation*b,color,{},DebugDepth::Tested};
+                    };
+                    for (int axis : {0,2}) {
+                        for (float sign : {-1.f,1.f}) {
+                            for (unsigned i=0;i<16;++i) {
+                                const auto point=[&](unsigned j) {
+                                    const float angle=float(j)*Math::Pi/16.f;
+                                    Vec3f p(0); p[axis]=radius*std::cos(angle);
+                                    p.y=sign*(half+radius*std::sin(angle)); return p;
+                                };
+                                append(point(i),point(i+1));
+                            }
+                            Vec3f a(0),b(0); a[axis]=b[axis]=sign*radius;
+                            a.y=-half; b.y=half; append(a,b);
+                        }
+                    }
+                    for (float sign : {-1.f,1.f}) for (unsigned i=0;i<16;++i) {
+                        const auto point=[&](unsigned j) {
+                            const float angle=float(j%16)*Math::TwoPi/16.f;
+                            return Vec3f(radius*std::cos(angle),sign*half,radius*std::sin(angle));
+                        };
+                        append(point(i),point(i+1));
+                    }
+                    collider=out.Append(lines);
+                }
+                else if (shape.GetShapeType()==ShapeType::Convex) {
+                    const auto& convex=static_cast<const ShapeConvex&>(shape);
+                    collider=out.IndexedLines(convex.GetPoints(),convex.GetBoundaryEdges(),
+                        position,orientation,color);
+                }
+                else {
+                    const auto bounds=shape.GetBounds();
+                    collider=out.Box(bounds.mins,bounds.maxs,position,orientation,
+                        shape.GetShapeType()==ShapeType::Box?color:glm::vec4(1,0,1,1));
+                }
+        return collider;
+    }
+
+    namespace
+    {
+        auto TransformBodyFailure(PhysicsBodyErrorCode code, PhysicsBodyHandle handle, std::string_view op)
+        { return std::unexpected(PhysicsBodyError{code, handle, op}); }
+
+        bool AcceptBodyShape(const RigidBody3D& body, PhysicalShape& shape)
+        {
+            // All derived-data work is on a disposable probe: rejection cannot even
+            // refresh a live body's lazy caches, let alone wake or invalidate it.
+            RigidBody3D probe;
+            probe.Type = body.Type; probe.m_InvMass = body.m_InvMass;
+            probe.m_Position = body.m_Position; probe.m_Orientation = body.m_Orientation;
+            probe.m_Shape = &shape;
+            const auto matrixFinite = [](const Mat3& m) {
+                return Math::IsFinite(m[0]) && Math::IsFinite(m[1]) && Math::IsFinite(m[2]);
+            };
+            const auto bounds = probe.GetWorldBounds();
+            return shape.IsValid() && Math::IsFinite(bounds.mins) && Math::IsFinite(bounds.maxs) &&
+                Math::IsFinite(probe.GetCenterOfMassWorldSpace()) && matrixFinite(shape.InertiaTensor()) &&
+                matrixFinite(probe.GetInverseInertiaTensorBodySpace()) &&
+                matrixFinite(probe.GetInverseInertiaTensorWorldSpace());
+        }
+    }
+
+    PhysicsBodyResult<PhysicsBodyPose> PhysicsSystem::ReadBodyPose(PhysicsBodyHandle handle) const
+    {
+        if (!m_PhysicsWorld) return TransformBodyFailure(PhysicsBodyErrorCode::Closed, handle, "ReadBodyPose");
+        auto resolved = m_PhysicsWorld->Resolve(handle, "ReadBodyPose");
+        if (!resolved) return std::unexpected(resolved.error());
+        const auto& b = **resolved;
+        return PhysicsBodyPose{b.Type, b.m_Position, b.m_Orientation};
+    }
+
+    PhysicsBodyResult<bool> PhysicsSystem::SetBodyPose(PhysicsBodyHandle handle, const Vec3f& p, const Quat& q)
+    {
+        if (!m_PhysicsWorld) return TransformBodyFailure(PhysicsBodyErrorCode::Closed, handle, "SetBodyPose");
+        auto resolved = m_PhysicsWorld->Resolve(handle, "SetBodyPose", true);
+        if (!resolved) return std::unexpected(resolved.error());
+        const auto position = (*resolved)->m_Position;
+        const auto rotation = (*resolved)->m_Orientation;
+        if (!SetBodyPose(*resolved, p, q))
+            return TransformBodyFailure(PhysicsBodyErrorCode::InvalidPose, handle, "SetBodyPose");
+        return position != (*resolved)->m_Position || rotation != (*resolved)->m_Orientation;
+    }
+
+    void PhysicsSystem::InvalidateBodyContacts(RigidBody3D* body)
+    {
+        WakeConnectedTo(body);
+        m_ContactIslands.clear();
+        RemoveManifoldsForBody(m_Manifolds, body);
+        RemoveContactsForBody(m_Contacts, body);
+        m_CollisionPairs.clear();
+        m_Broadphase.Clear();
+    }
+
+    PhysicsBodyResult<bool> PhysicsSystem::SetBodyScale(PhysicsBodyHandle handle, const Vec3f& scale)
+    {
+        constexpr auto op = "SetBodyScale";
+        if (!m_PhysicsWorld) return TransformBodyFailure(PhysicsBodyErrorCode::Closed, handle, op);
+        auto resolved = m_PhysicsWorld->Resolve(handle, op, true);
+        if (!resolved) return std::unexpected(resolved.error());
+        auto* body = *resolved;
+        if (!body->m_Shape) return TransformBodyFailure(PhysicsBodyErrorCode::InvalidShape, handle, op);
+        auto staged = body->m_Shape->PrepareScale(scale);
+        if (!staged)
+            return TransformBodyFailure(staged.error().code == PhysicsShapeErrorCode::Allocation ?
+                PhysicsBodyErrorCode::Allocation : PhysicsBodyErrorCode::InvalidShape, handle, op);
+        if ((*staged)->GetRevision() < body->m_Shape->GetRevision() || !AcceptBodyShape(*body, **staged))
+            return TransformBodyFailure(PhysicsBodyErrorCode::NonFiniteResult, handle, op);
+        if ((*staged)->GetRevision() == body->m_Shape->GetRevision()) return false;
+        InvalidateBodyContacts(body);
+        body->m_Shape->CommitScale(**staged);
+        return true;
+    }
+
+    PhysicsBodyResult<> PhysicsSystem::ReplaceBodyCollider(PhysicsBodyHandle handle, const CollisionShapeDesc& desc)
+    {
+        constexpr auto op = "ReplaceBodyCollider";
+        if (!m_PhysicsWorld) return TransformBodyFailure(PhysicsBodyErrorCode::Closed, handle, op);
+        auto resolved = m_PhysicsWorld->Resolve(handle, op, true);
+        if (!resolved) return std::unexpected(resolved.error());
+        auto& owned = m_PhysicsWorld->m_OwnedResources[handle.index].shape;
+        if (!owned || owned.get() != (*resolved)->m_Shape)
+            return TransformBodyFailure(PhysicsBodyErrorCode::InvalidShape, handle, op);
+        auto staged = CreateCollisionShape(desc);
+        if (!staged)
+            return TransformBodyFailure(staged.error().code == PhysicsShapeErrorCode::Allocation ?
+                PhysicsBodyErrorCode::Allocation : PhysicsBodyErrorCode::InvalidShape, handle, op);
+        if (!AcceptBodyShape(**resolved, **staged))
+            return TransformBodyFailure(PhysicsBodyErrorCode::NonFiniteResult, handle, op);
+        InvalidateBodyContacts(*resolved);
+        (*resolved)->m_Shape = staged->get();
+        owned.swap(*staged); // Old owner retires here; handle, body and binding are unchanged.
+        // A replacement may reuse an earlier shape address and local revision.
+        // Retire all derived data at commit, even if its lazy source keys match.
+        (*resolved)->m_DerivedData = {};
+        return {};
+    }
+
+    void PhysicsSystem::ApplyLegacyBodyScale(PhysicsBodyHandle handle, const Vec3f& scale)
+    {
+        if (!m_PhysicsWorld) return;
+        auto resolved = m_PhysicsWorld->Resolve(handle, "Component scale", true);
+        if (!resolved || !(*resolved)->m_Shape) return;
+        auto* body = *resolved;
+        const auto revision = body->m_Shape->GetRevision();
+        body->m_Shape->HandleScaleChanged(scale);
+        if (body->m_Shape->GetRevision() != revision) InvalidateBodyContacts(body);
+    }
+
+    DebugGeometryResult PhysicsSystem::AppendPresentationGeometry(DebugGeometry& out, PhysicsBodyHandle handle,
+        const Vec3f& position, const Quat& orientation) const
+    {
+        if (!m_PhysicsWorld) return std::unexpected(DebugGeometryCode::InvalidInput);
+        auto resolved = m_PhysicsWorld->Resolve(handle, "AppendPresentationGeometry");
+        if (!resolved || !(*resolved)->m_Shape || !(*resolved)->m_Shape->IsValid() ||
+            !Math::IsFinite(position) || !Math::IsFinite(orientation) ||
+            std::abs(glm::dot(orientation, orientation) - 1.f) > 1e-4f)
+            return std::unexpected(DebugGeometryCode::InvalidInput);
+        return AppendColliderGeometry(out, *(*resolved)->m_Shape, position, orientation, {1, .2f, 1, 1});
+    }
+
 	bool PhysicsSystem::SetBodyPose(RigidBody3D* body, const Vec3f& position, const Quat& orientation)
 	{
 		if (!m_PhysicsWorld || !body || !Math::IsFinite(position) || !Math::IsFinite(orientation))
@@ -1116,12 +1290,7 @@ namespace GEngine
 		if (body->m_Position == position &&
 			(body->m_Orientation == normalized || body->m_Orientation == -normalized)) return true;
 
-		WakeConnectedTo(body);
-		m_ContactIslands.clear();
-		RemoveManifoldsForBody(m_Manifolds, body);
-		RemoveContactsForBody(m_Contacts, body);
-		m_CollisionPairs.clear();
-		m_Broadphase.Clear();
+		InvalidateBodyContacts(body);
 		body->m_Position = position;
 		body->m_Orientation = normalized;
 		// Derived body data already observes source pose changes lazily.

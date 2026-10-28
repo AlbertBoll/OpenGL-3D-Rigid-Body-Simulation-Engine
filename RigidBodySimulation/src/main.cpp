@@ -20,7 +20,7 @@ WindowProperties winProp{.m_Title = "RigidBodySimulation",
 int main(int argc, char* args[])
 {
     // Select exactly one scene for the normal application.
-    constexpr auto scenePreset = Rbs::RbsScenePreset::SphereLattice;
+    constexpr auto scenePreset = Rbs::RbsScenePreset::SphereBoxStack;
     // All consumers borrow this immutable value; it outlives app/EngineContext.
     const Rbs::LaunchConfig launch{.scene = scenePreset};
     if (argc < 1 || !args || !args[0])

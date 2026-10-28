@@ -36,6 +36,13 @@ namespace GEngine
 
 	class PhysicsWorld;
 
+    struct PhysicsBodyPose
+    {
+        Component::BodyType type;
+        Vec3f position;
+        Quat orientation;
+    };
+
 	class PhysicsSystem : public System
 	{
 		// Inherited via System
@@ -59,6 +66,43 @@ namespace GEngine
 		// Reject invalid poses transactionally; accepted quaternions are normalized.
 		// Changed poses retire this body's contacts and refresh broad-phase state.
 		bool SetBodyPose(RigidBody3D* body, const Vec3f& position, const Quat& orientation);
+
+        // Normal Scene callers retain handles and values, never solver pointers.
+        [[nodiscard]] PhysicsBodyResult<PhysicsBodyPose> ReadBodyPose(PhysicsBodyHandle) const;
+        [[nodiscard]] PhysicsBodyResult<bool> SetBodyPose(PhysicsBodyHandle, const Vec3f&, const Quat&);
+        [[nodiscard]] PhysicsBodyResult<bool> SetBodyScale(PhysicsBodyHandle, const Vec3f&);
+        // Explicit runtime collider replacement; unit-scale description becomes the new base.
+        [[nodiscard]] PhysicsBodyResult<> ReplaceBodyCollider(PhysicsBodyHandle, const CollisionShapeDesc&);
+#ifdef GENGINE_PHASE24_COLLIDER_VALIDATION
+#ifndef GENGINE_PHASE24_ISOLATED_BUILD
+#error Collider diagnostics require an explicitly isolated qualification build.
+#endif
+        // Read-only diagnostic snapshot. In particular, do not call lazy cache
+        // getters: observing intermediate replacements must not repair them.
+        struct ColliderCacheInspection
+        {
+            const PhysicalShape *shape{}, *owner{}, *inertiaShape{}, *boundsShape{};
+            std::uint64_t revision{}, inertiaRevision{}, boundsRevision{};
+            bool inertiaValid{}, boundsValid{};
+            Mat3 inverseInertiaBody{}, inverseInertiaWorld{};
+            Bounds bounds;
+        };
+        [[nodiscard]] PhysicsBodyResult<ColliderCacheInspection> InspectColliderCache(PhysicsBodyHandle h) const
+        {
+            if(!m_PhysicsWorld)return std::unexpected(PhysicsBodyError{PhysicsBodyErrorCode::Closed,h,"collider diagnostic"});
+            auto body=m_PhysicsWorld->Resolve(h,"collider diagnostic");if(!body)return std::unexpected(body.error());
+            const auto& b=**body;const auto& c=b.m_DerivedData;
+            return ColliderCacheInspection{b.m_Shape,m_PhysicsWorld->m_OwnedResources[h.index].shape.get(),
+                c.inertiaSourceShape,c.boundsSourceShape,b.m_Shape->GetRevision(),c.inertiaSourceShapeRevision,
+                c.boundsSourceShapeRevision,c.bodyInertiaValid,c.boundsValid,c.inverseInertiaBody,
+                c.inverseInertiaWorld,c.worldBounds};
+        }
+        friend struct Phase24ColliderCheckAccess;
+#endif
+        // Retained Component compatibility: shape rejection does not reject Transform storage.
+        void ApplyLegacyBodyScale(PhysicsBodyHandle, const Vec3f&);
+        [[nodiscard]] DebugGeometryResult AppendPresentationGeometry(DebugGeometry&, PhysicsBodyHandle,
+            const Vec3f& position, const Quat& orientation) const;
 
 		static constexpr int MinSolverIterations = 1;
 		static constexpr int MaxSolverIterations = 32;
@@ -96,52 +140,7 @@ namespace GEngine
             {
                 if (!body || !body->m_Shape || !body->m_Shape->IsValid()) continue;
                 const auto& shape=*body->m_Shape;
-                DebugGeometryResult collider;
-                if (shape.GetShapeType()==ShapeType::Sphere)
-                    collider=out.Sphere(body->m_Position,static_cast<const ShapeSphere&>(shape).GetRadius(),{0,1,1,1});
-                else if (shape.GetShapeType()==ShapeType::Capsule) {
-                    const auto& capsule=static_cast<const ShapeCapsule&>(shape);
-                    const float radius=capsule.GetRadius(), half=capsule.GetHalfLength();
-                    // Two meridian outlines and both cap seams, using the same
-                    // dimensions as Support(). Append once: capacity is atomic.
-                    std::array<FrameDebugLine,100> lines; std::size_t count=0;
-                    const auto append=[&](Vec3f a,Vec3f b) {
-                        lines[count++]={body->m_Position+body->m_Orientation*a,
-                            body->m_Position+body->m_Orientation*b,{0,1,1,1},{},DebugDepth::Tested};
-                    };
-                    for (int axis : {0,2}) {
-                        for (float sign : {-1.f,1.f}) {
-                            for (unsigned i=0;i<16;++i) {
-                                const auto point=[&](unsigned j) {
-                                    const float angle=float(j)*Math::Pi/16.f;
-                                    Vec3f p(0); p[axis]=radius*std::cos(angle);
-                                    p.y=sign*(half+radius*std::sin(angle)); return p;
-                                };
-                                append(point(i),point(i+1));
-                            }
-                            Vec3f a(0),b(0); a[axis]=b[axis]=sign*radius;
-                            a.y=-half; b.y=half; append(a,b);
-                        }
-                    }
-                    for (float sign : {-1.f,1.f}) for (unsigned i=0;i<16;++i) {
-                        const auto point=[&](unsigned j) {
-                            const float angle=float(j%16)*Math::TwoPi/16.f;
-                            return Vec3f(radius*std::cos(angle),sign*half,radius*std::sin(angle));
-                        };
-                        append(point(i),point(i+1));
-                    }
-                    collider=out.Append(lines);
-                }
-                else if (shape.GetShapeType()==ShapeType::Convex) {
-                    const auto& convex=static_cast<const ShapeConvex&>(shape);
-                    collider=out.IndexedLines(convex.GetPoints(),convex.GetBoundaryEdges(),
-                        body->m_Position,body->m_Orientation,{0,1,1,1});
-                }
-                else {
-                    const auto bounds=shape.GetBounds();
-                    collider=out.Box(bounds.mins,bounds.maxs,body->m_Position,body->m_Orientation,
-                        shape.GetShapeType()==ShapeType::Box?glm::vec4(0,1,1,1):glm::vec4(1,0,1,1));
-                }
+                auto collider = AppendColliderGeometry(out, shape, body->m_Position, body->m_Orientation, {0,1,1,1});
                 if (!collider) return collider;
                 const auto& bounds=body->GetWorldBounds();
                 if (auto r=out.Box(bounds.mins,bounds.maxs,{},glm::quat(1,0,0,0),{1,1,0,.6f});!r) return r;
@@ -175,6 +174,10 @@ namespace GEngine
 		
 
 	private:
+
+        static DebugGeometryResult AppendColliderGeometry(DebugGeometry&, const PhysicalShape&,
+            const Vec3f&, const Quat&, const glm::vec4&);
+        void InvalidateBodyContacts(RigidBody3D*);
 		RigidBody3D* ResolveBody(RigidBodyIdentity identity) const;
 		void WakeConnectedTo(RigidBody3D* body);
 		SleepTimings m_SleepTimings;

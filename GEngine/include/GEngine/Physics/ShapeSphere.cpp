@@ -3,6 +3,7 @@
 #include "ShapeSphere.h"
 
 #include <cmath>
+#include <new>
 
 
 namespace GEngine
@@ -39,6 +40,24 @@ namespace GEngine
 		m_Radius = radius;
 		MarkGeometryChanged();
 	}
+
+    std::expected<std::unique_ptr<PhysicalShape>, PhysicsShapeError>
+    ShapeSphere::PrepareScale(const Vec3f& scale) const
+    {
+        const float radius = m_BaseRadius * scale.x;
+        const double inertia = 2.0 * double(radius) * radius / 5.0;
+        if (!Math::IsFinite(scale) || !std::isfinite(radius) || radius <= 0 ||
+            !std::isfinite(float(inertia)) || float(inertia) <= 0 ||
+            !std::isfinite(1.f / float(inertia)))
+            return std::unexpected(PhysicsShapeError{PhysicsShapeErrorCode::InvalidScale,
+                "ShapeSphere::PrepareScale", "Scale requires a representable positive X-axis radius/inertia"});
+        std::unique_ptr<ShapeSphere> staged(new (std::nothrow) ShapeSphere(*this));
+        if (!staged)
+            return std::unexpected(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
+                "ShapeSphere::PrepareScale", "Scale staging allocation failed"});
+        staged->HandleScaleChanged(scale);
+        return staged;
+    }
 
 	Mat3 ShapeSphere::InertiaTensor() const
 	{

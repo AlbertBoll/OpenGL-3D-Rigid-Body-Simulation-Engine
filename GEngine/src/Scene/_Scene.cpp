@@ -85,8 +85,8 @@ namespace GEngine
 		// Runtime-only bridge state: not copied with authoring components or serialized.
 		struct RuntimePhysicsPose
 		{
-			RigidBodyIdentity identity;
-			RigidBody3D* body{};
+			PhysicsBodyHandle handle;
+            SceneBodyPose authored;
             Subscription scaleConnection;
 			Vec3f translation{};
 			Quat rotation{ 1.0f, 0.0f, 0.0f, 0.0f };
@@ -107,26 +107,23 @@ namespace GEngine
 
 		bool ValidPhysicsPose(PhysicsWorld* world, const Component::RigidBody3DComponent& rigidBody, const RuntimePhysicsPose& pose)
 		{
-			return world && world->IsBodyValid(rigidBody.RuntimeBody)
-                && world->IsBodyIdentityValid(pose.identity)
-                && rigidBody.RuntimeBody.index + 1 == pose.identity.GetSlot()
-                && rigidBody.RuntimeBody.generation == pose.identity.GetGeneration();
+			return world && rigidBody.RuntimeBody == pose.handle && world->IsBodyValid(pose.handle);
 		}
 
 		void ResetPhysicsHistory(RuntimePhysicsPose& pose, const Component::Transform3DComponent& transform,
-			const RigidBody3D& body, UUID parent)
+			const PhysicsBodyPose& body, UUID parent)
 		{
-			pose.previousTranslation = pose.currentTranslation = body.m_Position;
-			pose.previousRotation = pose.currentRotation = body.m_Orientation;
+			pose.previousTranslation = pose.currentTranslation = body.position;
+			pose.previousRotation = pose.currentRotation = body.orientation;
 			pose.scale = transform.Scale;
 			pose.parent = parent;
 		}
 
 		void PublishPhysicsPose(Component::Transform3DComponent& transform, RuntimePhysicsPose& pose,
-			const RigidBody3D& body)
+			const PhysicsBodyPose& body)
 		{
-			transform.SetTranslation(body.m_Position);
-			transform.SetRotation(body.m_Orientation);
+			transform.SetTranslation(body.position);
+			transform.SetRotation(body.orientation);
 			pose.translation = transform.Translation;
 			pose.rotation = transform.QuatRotation;
 		}
@@ -177,6 +174,8 @@ namespace GEngine
 	using namespace Component;
 	_Scene::_Scene()
 	{
+        m_Registry.on_destroy<RigidBody3DComponent>().connect<&_Scene::RetirePhysicsBinding>(*this);
+        m_Registry.on_destroy<Transform3DComponent>().connect<&_Scene::RetirePhysicsBinding>(*this);
         m_Registry.on_construct<MeshRendererComponent>().connect<&_Scene::ObserveGeometryOwner>(*this);
         m_Registry.on_update<MeshRendererComponent>().connect<&_Scene::ObserveGeometryOwner>(*this);
         m_Registry.on_destroy<MeshRendererComponent>().connect<&_Scene::RemoveGeometryOwner>(*this);
@@ -197,6 +196,8 @@ namespace GEngine
 	{
 		m_RenderData.RequireMutable();
 		OnPhysics3DStop();
+        m_Registry.on_destroy<RigidBody3DComponent>().disconnect(*this);
+        m_Registry.on_destroy<Transform3DComponent>().disconnect(*this);
 		delete m_PhysicsSystem;
         // Observe removals while receipts/resources are still alive, then disconnect.
         m_Registry.clear<MeshRendererComponent>();
@@ -274,6 +275,18 @@ namespace GEngine
     {
         const auto* pose = m_Registry.try_get<RuntimePhysicsPose>(entity);
         return pose && bool(pose->scaleConnection);
+    }
+
+    void _Scene::RetirePhysicsBinding(entt::registry&, entt::entity entity)
+    {
+        const auto* pose = m_Registry.try_get<RuntimePhysicsPose>(entity);
+        if (!pose) return;
+        const auto handle = pose->handle;
+        auto* world = m_PhysicsSystem->GetPhysicsWorld();
+        if (world && world->IsBodyValid(handle))
+            (void)world->DestroyBody(handle); // Retirement disconnects the subscription first.
+        else
+            m_Registry.remove<RuntimePhysicsPose>(entity);
     }
 
 	std::expected<RefPtr<_Scene>, SceneError> _Scene::Copy(RefPtr<_Scene> other)
@@ -391,19 +404,22 @@ namespace GEngine
 			auto* world = m_PhysicsSystem->GetPhysicsWorld();
 			if (!ValidPhysicsPose(world, rigidBody, pose)) continue;
 			auto& transform = m_Registry.get<Transform3DComponent>(e);
-			auto* body = pose.body;
+			auto body = m_PhysicsSystem->ReadBodyPose(pose.handle);
+            if (!body) continue;
 			// Static transforms are authoritative. Kinematic bodies retain prescribed-velocity
 			// motion; dynamic bodies retain simulated motion. Both consume authored pose edits
 			// as teleports, then publish their next physics pose without replaying that output.
 			const bool authoredEdit = transform.Translation != pose.translation || transform.QuatRotation != pose.rotation;
-			const bool staticPoseChanged = body->Type == BodyType::Static &&
-				(transform.Translation != body->m_Position || transform.QuatRotation != body->m_Orientation);
+			const bool staticPoseChanged = body->type == BodyType::Static &&
+				(transform.Translation != body->position || transform.QuatRotation != body->orientation);
 			const auto parent = _Entity(e, this).GetParentUUID();
-			const bool discontinuity = body->m_Position != pose.currentTranslation
-				|| body->m_Orientation != pose.currentRotation || transform.Scale != pose.scale || parent != pose.parent;
+			const bool discontinuity = body->position != pose.currentTranslation
+				|| body->orientation != pose.currentRotation || transform.Scale != pose.scale || parent != pose.parent;
 			if (authoredEdit || staticPoseChanged)
 			{
-				m_PhysicsSystem->SetBodyPose(body, transform.Translation, transform.QuatRotation);
+				const auto changed = m_PhysicsSystem->SetBodyPose(pose.handle, transform.Translation, transform.QuatRotation);
+                body = m_PhysicsSystem->ReadBodyPose(pose.handle);
+                if (changed && body) pose.authored = {body->position, body->orientation};
 				// Rejected edits restore the last accepted body pose, including Euler display data.
 				PublishPhysicsPose(transform, pose, *body);
 			}
@@ -438,8 +454,11 @@ namespace GEngine
 				{
 					auto& pose = m_Registry.get<RuntimePhysicsPose>(e);
 					if (!ValidPhysicsPose(timingWorld, m_Registry.get<RigidBody3DComponent>(e), pose)) continue;
-					pose.currentTranslation = pose.body->m_Position;
-					pose.currentRotation = pose.body->m_Orientation;
+                    if (auto body = m_PhysicsSystem->ReadBodyPose(pose.handle))
+                    {
+                        pose.currentTranslation = body->position;
+                        pose.currentRotation = body->orientation;
+                    }
 				}
 				m_PhysicsTiming.pendingSeconds = std::max(0.0, m_PhysicsTiming.pendingSeconds - m_PhysicsStepSeconds);
 				++m_PhysicsTiming.stepsLastUpdate;
@@ -455,7 +474,8 @@ namespace GEngine
 			auto* world = m_PhysicsSystem->GetPhysicsWorld();
 			if (!ValidPhysicsPose(world, rigidBody, pose)) continue;
 			auto& transform = m_Registry.get<Transform3DComponent>(e);
-			PublishPhysicsPose(transform, pose, *pose.body);
+			if (auto body = m_PhysicsSystem->ReadBodyPose(pose.handle))
+                PublishPhysicsPose(transform, pose, *body);
 		}
 	}
 
@@ -500,9 +520,10 @@ namespace GEngine
             const bool authoredEdit = transform.Translation != pose->translation || transform.QuatRotation != pose->rotation;
             if (!authoredEdit)
             {
-                const auto* body = pose->body;
-                input.translation = body->m_Position;
-                input.rotation = body->m_Orientation;
+                const auto body = m_PhysicsSystem->ReadBodyPose(pose->handle);
+                if (!body) return input;
+                input.translation = body->position;
+                input.rotation = body->orientation;
                 if (m_RenderInterpolationEnabled && !m_IsPaused && transform.Scale == pose->scale
                     && parent == pose->parent && input.translation == pose->currentTranslation
                     && input.rotation == pose->currentRotation)
@@ -518,7 +539,7 @@ namespace GEngine
         }
         return input;
     }
-    Mat4 _Scene::EvaluateRenderPresentation(const RenderPresentationInput& input)
+    SceneBodyPose _Scene::EvaluateRenderPose(const RenderPresentationInput& input)
     {
         auto translation = input.translation;
         auto rotation = input.rotation;
@@ -527,7 +548,12 @@ namespace GEngine
             translation = glm::mix(input.previousTranslation, input.currentTranslation, input.alpha);
             rotation = glm::normalize(glm::slerp(input.previousRotation, input.currentRotation, input.alpha));
         }
-        return glm::translate(Mat4(1.0f), translation) * glm::toMat4(glm::normalize(rotation))
+        return {translation, glm::normalize(rotation)};
+    }
+    Mat4 _Scene::EvaluateRenderPresentation(const RenderPresentationInput& input)
+    {
+        const auto pose = EvaluateRenderPose(input);
+        return glm::translate(Mat4(1.0f), pose.translation) * glm::toMat4(pose.rotation)
             * glm::scale(Mat4(1.0f), input.scale);
     }
     Mat4 _Scene::SampleRenderMatrix(entt::entity handle) const
@@ -602,23 +628,28 @@ namespace GEngine
         const auto* rigidBody = m_Registry.try_get<RigidBody3DComponent>(handle);
         const bool live = pose && rigidBody &&
                           ValidPhysicsPose(m_PhysicsSystem->GetPhysicsWorld(), *rigidBody, *pose);
-        if (rigidBody && rigidBody->RuntimeBody && !live)
+        if ((pose || (rigidBody && rigidBody->RuntimeBody)) && !live)
             return std::unexpected(TransformMutationError{Error::PhysicsPoseRejected, id});
-        const Vec3f previousPosition = live ? pose->body->m_Position : Vec3f{};
-        const Quat previousRotation = live ? pose->body->m_Orientation : Quat{1, 0, 0, 0};
-        if (live && !m_PhysicsSystem->SetBodyPose(pose->body, translation, rotation))
-            return std::unexpected(TransformMutationError{Error::PhysicsPoseRejected, id});
+        bool bodyChanged = false;
+        if (live)
+        {
+            const auto changed = m_PhysicsSystem->SetBodyPose(pose->handle, translation, rotation);
+            if (!changed)
+                return std::unexpected(TransformMutationError{Error::PhysicsPoseRejected, id, UUID{0}, changed.error()});
+            bodyChanged = *changed;
+        }
         transform.SetTranslation(translation);
-        transform.SetRotation(live ? pose->body->m_Orientation : rotation);
+        const auto acceptedRotation = live ? m_PhysicsSystem->ReadBodyPose(pose->handle)->orientation : rotation;
+        transform.SetRotation(acceptedRotation);
         transform.EulerRotation = eulerRotation;
         if (live)
         {
             // Record the authoring teleport now so Update does not replay it as an edit.
             pose->translation = transform.Translation;
             pose->rotation = transform.QuatRotation;
-            if (previousPosition != pose->body->m_Position ||
-                previousRotation != pose->body->m_Orientation)
-                ResetPhysicsHistory(*pose, transform, *pose->body, entity.GetParentUUID());
+            pose->authored = {transform.Translation, transform.QuatRotation};
+            if (bodyChanged)
+                ResetPhysicsHistory(*pose, transform, *m_PhysicsSystem->ReadBodyPose(pose->handle), entity.GetParentUUID());
         }
         return PublishAuthoritativeTransformChange(entity, *identity,
                                                    AuthoritativeTransformChangeKind::Pose);
@@ -665,26 +696,92 @@ namespace GEngine
                 TransformMutationError{Error::NonFiniteTransform, entity.GetUUID()});
         if (transform.Scale == scale)
             return AuthoritativeTransformMutation{};
-        // The legacy callback runs before storage and may independently reject a collider
-        // update. Its void result is deliberately not interpreted as Physics success.
+        const auto e = static_cast<entt::entity>(entity);
+        const auto* pose = m_Registry.try_get<RuntimePhysicsPose>(e);
+        const auto* binding = m_Registry.try_get<RigidBody3DComponent>(e);
+        PhysicsBodyHandle liveHandle{};
+        if (pose || (binding && binding->RuntimeBody))
+        {
+            auto body = GetBodyBinding(entity);
+            if (!body) return std::unexpected(body.error());
+            liveHandle = *body;
+            // Shape allocation, validation and body-space representability checks
+            // complete before either live shape or authoritative Transform commits.
+            auto scaled = m_PhysicsSystem->SetBodyScale(liveHandle, scale);
+            if (!scaled)
+                return std::unexpected(TransformMutationError{Error::PhysicsScaleRejected,
+                    entity.GetUUID(), UUID{0}, scaled.error()});
+        }
         {
             struct ApplyingTransform
             {
                 bool& active;
-                explicit ApplyingTransform(bool& value) : active(value)
+                PhysicsBodyHandle& committing;
+                explicit ApplyingTransform(bool& value, PhysicsBodyHandle& target, PhysicsBodyHandle body)
+                    : active(value), committing(target)
                 {
                     active = true;
+                    committing = body;
                 }
                 ~ApplyingTransform()
                 {
+                    committing = {};
                     active = false;
                 }
-            } applying(m_ApplyingTransform);
+            } applying(m_ApplyingTransform, m_CommittingScaleBody, liveHandle);
             transform.SetScale(scale);
         }
         (void)ResetRenderInterpolation(entity); // Validated member; changed authoring scale only.
         return PublishAuthoritativeTransformChange(entity, *identity,
                                                    AuthoritativeTransformChangeKind::Scale);
+    }
+
+    std::expected<PhysicsBodyHandle, TransformMutationError>
+    _Scene::GetBodyBinding(const _Entity& entity) const
+    {
+        using Error = TransformMutationErrorCode;
+        (void)m_RenderData.IsExtracting();
+        if (entity.GetSceneContext() != this)
+            return std::unexpected(TransformMutationError{Error::ForeignEntity, {0}});
+        if (!entity.HasAllComponents<IDComponent, Transform3DComponent>())
+            return std::unexpected(TransformMutationError{Error::InvalidEntity, {0}});
+        const auto e = static_cast<entt::entity>(entity);
+        const auto* binding = m_Registry.try_get<RigidBody3DComponent>(e);
+        const auto* pose = m_Registry.try_get<RuntimePhysicsPose>(e);
+        if (!binding || !pose)
+            return std::unexpected(TransformMutationError{Error::MissingPhysicsBody, entity.GetUUID()});
+        if (!ValidPhysicsPose(m_PhysicsSystem->GetPhysicsWorld(), *binding, *pose))
+            return std::unexpected(TransformMutationError{Error::PhysicsPoseRejected, entity.GetUUID()});
+        return pose->handle;
+    }
+
+    std::expected<SceneBodyTransform, TransformMutationError>
+    _Scene::ReadBodyTransform(const _Entity& entity) const
+    {
+        auto binding = GetBodyBinding(entity);
+        if (!binding) return std::unexpected(binding.error());
+        const auto e = static_cast<entt::entity>(entity);
+        const auto& pose = m_Registry.get<RuntimePhysicsPose>(e);
+        const auto body = m_PhysicsSystem->ReadBodyPose(*binding);
+        if (!body) return std::unexpected(TransformMutationError{
+            TransformMutationErrorCode::PhysicsPoseRejected, entity.GetUUID(), UUID{0}, body.error()});
+        return SceneBodyTransform{*binding, body->type, pose.authored,
+            {pose.previousTranslation, pose.previousRotation}, {body->position, body->orientation},
+            EvaluateRenderPose(ObserveRenderPresentation(e))};
+    }
+
+    std::expected<void, TransformMutationError>
+    _Scene::ReplaceBodyCollider(const _Entity& entity, const CollisionShapeDesc& desc)
+    {
+        if (auto mutableEntity = ValidateTransformMutation(entity); !mutableEntity)
+            return std::unexpected(mutableEntity.error());
+        auto binding = GetBodyBinding(entity);
+        if (!binding) return std::unexpected(binding.error());
+        if (auto replaced = m_PhysicsSystem->ReplaceBodyCollider(*binding, desc); !replaced)
+            return std::unexpected(TransformMutationError{TransformMutationErrorCode::PhysicsScaleRejected,
+                entity.GetUUID(), UUID{0}, replaced.error()});
+        (void)ResetRenderInterpolation(entity);
+        return {};
     }
 
     std::expected<AuthoritativeTransformMutation, TransformMutationError>
@@ -756,7 +853,8 @@ namespace GEngine
 		const auto* rigidBody = m_Registry.try_get<RigidBody3DComponent>(handle);
 		const auto* transform = m_Registry.try_get<Transform3DComponent>(handle);
 		if (pose && rigidBody && transform && ValidPhysicsPose(m_PhysicsSystem->GetPhysicsWorld(), *rigidBody, *pose))
-			ResetPhysicsHistory(*pose, *transform, *pose->body, entity.GetParentUUID());
+			if (auto body = m_PhysicsSystem->ReadBodyPose(pose->handle))
+                ResetPhysicsHistory(*pose, *transform, *body, entity.GetParentUUID());
 		return {};
 	}
 
@@ -1386,8 +1484,7 @@ namespace GEngine
             if (!retirementWorld || !pose || !handle)
                 return std::unexpected(SceneError{SceneErrorCode::InvalidIdentity, "DestroyEntity",
                     "Physics runtime binding is incomplete", std::uint64_t(current.GetUUID())});
-            auto live = retirementWorld->Resolve(handle, "DestroyEntity", true);
-            if (!live || (*live)->GetIdentity() != pose->identity)
+            if (handle != pose->handle || !retirementWorld->IsBodyValid(handle))
                 return std::unexpected(SceneError{SceneErrorCode::InvalidIdentity, "DestroyEntity",
                     "Physics body does not match its scene binding", std::uint64_t(current.GetUUID())});
         }
@@ -1579,12 +1676,14 @@ namespace GEngine
             // Preserve the exact existing authored inverse-mass bits (including inactive static storage).
             body->m_InvMass = property->m_InvMass;
             auto& pose = m_Registry.emplace_or_replace<RuntimePhysicsPose>(e);
-            pose.identity = body->GetIdentity(); pose.body = body;
-            PublishPhysicsPose(transform, pose, *body);
-            ResetPhysicsHistory(pose, transform, *body, entity.GetParentUUID());
-            auto connected = transform.OnScaleChanged.ConnectScoped([world, handle](const Vec3f& scale) {
-                if (auto live = world->Resolve(handle, "Scene scale", true); live)
-                    (*live)->m_Shape->HandleScaleChanged(scale);
+            pose.handle = handle;
+            const auto initial = *m_PhysicsSystem->ReadBodyPose(handle);
+            PublishPhysicsPose(transform, pose, initial);
+            pose.authored = {transform.Translation, transform.QuatRotation};
+            ResetPhysicsHistory(pose, transform, initial, entity.GetParentUUID());
+            auto connected = transform.OnScaleChanged.ConnectScoped([this, world, handle](const Vec3f& scale) {
+                if (m_CommittingScaleBody != handle && m_PhysicsSystem->GetPhysicsWorld() == world)
+                    m_PhysicsSystem->ApplyLegacyBodyScale(handle, scale);
             });
             if (!connected) return failure(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
                 "_Scene::OnPhysics3DStart", "Scale subscription could not be established"});
@@ -1596,8 +1695,7 @@ namespace GEngine
                 // The private pose owns the connection even if an authored component
                 // handle was replaced or cleared. Never retain a callback into this world.
                 const auto* retiringPose = m_Registry.try_get<RuntimePhysicsPose>(e);
-                if (retiringPose && retiringPose->identity.GetSlot() == std::uint64_t(handle.index) + 1 &&
-                    retiringPose->identity.GetGeneration() == handle.generation)
+                if (retiringPose && retiringPose->handle == handle)
                     m_Registry.remove<RuntimePhysicsPose>(e);
             });
         }

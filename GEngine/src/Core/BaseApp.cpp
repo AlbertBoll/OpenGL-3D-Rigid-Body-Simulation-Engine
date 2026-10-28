@@ -520,6 +520,13 @@ namespace GEngine
 
             if (!IsRenderingSuspended())
             {
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+                Phase24Qualification::WorkBegin();
+                struct QualificationEnd {
+                    bool success = false;
+                    ~QualificationEnd() { Phase24Qualification::WorkEnd(success); }
+                } qualificationEnd;
+#endif
 
                 // Query the main context on its owning thread. VSYNC (including
                 // adaptive -1) owns pacing when active; otherwise use the manual cap.
@@ -531,8 +538,15 @@ namespace GEngine
                         {}, current.error().message});
                     break;
                 }
-                if (m_Window->GetSwapInterval() == 0 && m_ManualFrameRateLimit != 0)
+                if (m_Window->GetSwapInterval() == 0 && m_ManualFrameRateLimit != 0) {
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+                    Phase24Qualification::Pacing(true);
+#endif
                     std::this_thread::sleep_until(clock.LastSample() + Seconds(1.0 / m_ManualFrameRateLimit));
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+                    Phase24Qualification::Pacing(false);
+#endif
+                }
                 m_FrameTime = clock.Tick();
                 const Timestep inputTime(m_FrameTime.renderDelta);
                 // Preserve all elapsed time for the scene's existing overload accounting.
@@ -584,6 +598,9 @@ namespace GEngine
                 }
                 if (m_RuntimeFailure) break;
                 RenderCounters::EndFrame();
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+                qualificationEnd.success = !m_RuntimeFailure;
+#endif
 #ifdef GENGINE_RENDER_BASELINE
                 if (auto captured = baseline.CaptureScene(m_RenderTarget.get()); !captured)
                 { failBaseline(captured.error()); break; }

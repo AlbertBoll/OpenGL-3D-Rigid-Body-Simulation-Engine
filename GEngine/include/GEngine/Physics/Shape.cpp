@@ -128,4 +128,63 @@ namespace GEngine
 		Build(pts);
 	}
 
+    std::expected<std::unique_ptr<PhysicalShape>, PhysicsShapeError>
+    PhysicalShape::PrepareScale(const Vec3f& scale) const
+    {
+        if (!Math::IsFinite(scale))
+            return ShapeFailure(PhysicsShapeErrorCode::InvalidScale, "Scale must be finite");
+        std::unique_ptr<PhysicalShape> staged;
+        if (const auto* box = dynamic_cast<const ShapeBox*>(this))
+            staged.reset(new (std::nothrow) ShapeBox(*box));
+        else if (const auto* hull = dynamic_cast<const ShapeConvex*>(this))
+            staged.reset(new (std::nothrow) ShapeConvex(*hull));
+        else
+            return ShapeFailure(PhysicsShapeErrorCode::InvalidScale, "Shape has no typed scale provider");
+        if (!staged) return ShapeFailure(PhysicsShapeErrorCode::Allocation, "Scale staging allocation failed");
+        staged->HandleScaleChanged(scale);
+        // Point builders increment on every accepted build, even equivalent geometry.
+        // A silent builder rejection must never become typed Scene success.
+        if (staged->GetRevision() == GetRevision() || !staged->IsValid() || !UsableInertia(*staged) ||
+            !Math::IsFinite(staged->GetCenterOfMass()))
+            return ShapeFailure(PhysicsShapeErrorCode::InvalidScale, "Scale produces invalid point geometry/inertia");
+        const auto bounds = staged->GetBounds();
+        if (!Math::IsFinite(bounds.mins) || !Math::IsFinite(bounds.maxs))
+            return ShapeFailure(PhysicsShapeErrorCode::InvalidScale, "Scaled bounds are not representable");
+        bool same = bounds.mins == GetBounds().mins && bounds.maxs == GetBounds().maxs &&
+            staged->GetCenterOfMass() == GetCenterOfMass() && staged->InertiaTensor() == InertiaTensor();
+        if (same && GetShapeType() == ShapeType::Convex)
+        {
+            const auto& a = static_cast<const ShapeConvex&>(*this);
+            const auto& b = static_cast<const ShapeConvex&>(*staged);
+            same = a.GetPoints() == b.GetPoints() && a.GetBoundaryEdges() == b.GetBoundaryEdges();
+        }
+        if (same) staged->m_Revision = m_Revision;
+        return staged;
+    }
+
+    void PhysicalShape::CommitScale(PhysicalShape& prepared) noexcept
+    {
+        // Only PhysicsSystem consumes a stage made by this same concrete shape.
+        // Move assignment preserves the world-owned object address and base source.
+        const auto commit = [&]<class T>() {
+            // Box/Hull contain Bounds, whose existing assignment lacks noexcept
+            // but only copies mins/maxs (Bounds.cpp). No allocation or callback
+            // occurs in that assignment. All owned vectors move their storage.
+            static_assert(std::is_move_assignable_v<T>);
+            static_assert(std::is_nothrow_move_assignable_v<T> ||
+                std::is_same_v<T, ShapeBox> || std::is_same_v<T, ShapeConvex>);
+            static_assert(std::is_nothrow_move_assignable_v<PhysicalShape>);
+            static_assert(std::is_nothrow_move_assignable_v<std::vector<Vec3f>>);
+            static_cast<T&>(*this) = std::move(static_cast<T&>(prepared));
+        };
+        switch (GetShapeType())
+        {
+        case ShapeType::Sphere: commit.template operator()<ShapeSphere>(); break;
+        case ShapeType::Box: commit.template operator()<ShapeBox>(); break;
+        case ShapeType::Convex: commit.template operator()<ShapeConvex>(); break;
+        case ShapeType::Capsule: commit.template operator()<ShapeCapsule>(); break;
+        default: GENGINE_CORE_ASSERT(false, "Unsupported staged collider"); break;
+        }
+    }
+
 }

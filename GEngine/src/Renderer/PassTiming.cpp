@@ -24,6 +24,13 @@ namespace GEngine
         case RenderPass::EditorUI:return "editor-ui";
         case RenderPass::Present:return "present";
         case RenderPass::LegacyScene:return "legacy-scene";
+        case RenderPass::SelectionDepth:return "selection-depth-copy";
+        case RenderPass::SelectionMask:return "selection-mask";
+        case RenderPass::SelectionResolve:return "selection-mask-resolve";
+        case RenderPass::SelectionComposite:return "selection-composite";
+        case RenderPass::SelectionTotal:return "selection-total";
+        case RenderPass::QualificationFrame:return "qualification-gpu-frame";
+        case RenderPass::QualificationSubmission:return "qualification-cpu-submission";
         }
         return "unknown";
     }
@@ -51,6 +58,9 @@ namespace GEngine
         std::thread::id thread = std::this_thread::get_id();
         bool supported = false, active = false, healthy = true;
         GLint bits{};
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+        bool qualificationMinimal = std::getenv("GENGINE_PHASE24_OBSERVER_MINIMAL")!=nullptr;
+#endif
         FILE* output{};
         void RequireContext() const noexcept
         {
@@ -182,6 +192,10 @@ namespace GEngine
     {
         if(!timing.Active()) return;
         auto& s=*timing.storage;
+#ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
+        if(s.qualificationMinimal && pass!=RenderPass::QualificationFrame &&
+           pass!=RenderPass::QualificationSubmission && pass!=RenderPass::Present)return;
+#endif
         s.RequireContext();
         Asset::AssetDetail::RequireInvariant(s.count<s.current.size());
         owner=&timing; sample=s.count++; previous=scope; scope=this;

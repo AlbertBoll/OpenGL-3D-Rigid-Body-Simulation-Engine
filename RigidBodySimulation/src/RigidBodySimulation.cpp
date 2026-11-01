@@ -203,7 +203,10 @@ ApplicationInitializationResult RigidBodySimulationApp::ConnectApplicationEventH
                                         const bool eligible = m_ViewportActive && !m_ViewportActivationButtons &&
                                             (inside || (!fresh && GetInputManager()->PointerCapture() == InputLayer::View));
                                         if (eligible && fresh && event.button == GENGINE_BUTTON_LEFT)
+                                        {
                                             m_ViewPickRequested = (event.modifiers & LeftAlt) == 0;
+                                            m_OutlineToggleRequested = (event.modifiers & (LeftControl | RightControl)) != 0;
+                                        }
                                         if ((event.modifiers & LeftAlt) &&
                                             GetInputManager()->GetViewState().m_Mouse.m_CurrentButtons)
                                         {
@@ -220,6 +223,13 @@ ApplicationInitializationResult RigidBodySimulationApp::ConnectApplicationEventH
                                     std::optional<ViewportMode> direction;
                                     switch (event.key)
                                     {
+                                    case GENGINE_KEY_ESCAPE:
+                                        if (m_ViewportActive && !event.repeated)
+                                        {
+                                            delivery.Handle();
+                                            m_ColliderEscapeRequested = true;
+                                        }
+                                        return;
                                     case GENGINE_KEY_I:
                                         direction = ViewportMode::FRONT;
                                         break;
@@ -291,6 +301,8 @@ ApplicationInitializationResult RigidBodySimulationApp::ConnectApplicationEventH
                                         m_IsPause = false;
                                     else
                                         m_IsShowDebugBoundingBox = !m_IsShowDebugBoundingBox;
+                                    if (event.key != GENGINE_KEY_SPACE && m_ActiveScene)
+                                        Rbs::SetColliderUserPause(*m_ActiveScene, m_IsPause);
                                 });
     auto focus = input.Observe([this](const InputEvent& event)
     {

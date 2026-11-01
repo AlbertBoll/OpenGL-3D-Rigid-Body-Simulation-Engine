@@ -1,0 +1,27 @@
+{
+  "files": {
+    "RigidBodySimulation\\tests\\fixtures\\collider_c04\\variant-0.original.txt": {
+      "source": "C:\\dev\\GEngine-collider-replacement\\campaign\\replay-inputs-01\\variant-0.txt",
+      "sha256": "31a44e6f3e191f1fcd0a7b2940b0e3e44c2b508039e268fbd2b8702c97cc25bd"
+    },
+    "RigidBodySimulation\\tests\\fixtures\\collider_c04\\observer-cache-initial.bin": {
+      "source": "C:\\dev\\GEngine-collider-replacement\\campaign\\native\\Debug-selection-03\\data\\observer-cache-initial.bin",
+      "sha256": "ecb0a8cb6161119feb448cc504a007c3f8bc221484549e164ccc94d1a53b57d6"
+    },
+    "RigidBodySimulation\\tests\\fixtures\\collider_c04\\observer-cache-command.bin": {
+      "source": "C:\\dev\\GEngine-collider-replacement\\campaign\\native\\Debug-selection-03\\data\\observer-cache-command.bin",
+      "sha256": "b683174e5b8e1dddf4219a12adc60884d8e0f6b3aab2d32ee183d3b4c0e87176"
+    },
+    "RigidBodySimulation\\tests\\fixtures\\collider_c04\\phase24-single-gold.frag": {
+      "source": "C:\\dev\\GEngine-collider-integration\\logs\\collider-integration\\c04-r05\\reference\\phase24-single-gold.frag",
+      "sha256": "57bec1a4ca9b91293abd53a53d82ae0bd1e0ae5fa90c153a0c633376aa3ec706"
+    },
+    "tools\\collider_validation.py": {
+      "derived_from": "C:\\dev\\GEngine-collider-replacement\\integration-c04-r05\\qualification.py",
+      "original_sha256": "b2c2dc29922d98391e8b0e64fbca78a213842820cb19ea0e3ab7331516d6ab8d",
+      "sha256": "9373944c1bd58f04b08c8c1ccfc277ce7fca5f306c6bd828c0d080a4bf9d8ee6",
+      "changes": "Portable local root, explicit confined output directory, init fixture relocation, complete C++ input inventory, historical controls disabled; same owned build/native execution and gates."
+    }
+  },
+  "semantics": "Native replay fixture bytes are preserved exactly; only absolute cache paths are relocated into a confined output directory at init. No threshold or production geometry change."
+}

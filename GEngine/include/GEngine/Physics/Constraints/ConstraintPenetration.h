@@ -4,8 +4,16 @@
 
 namespace GEngine
 {
+#ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
+    namespace PhysicsDiagnostic { struct ColliderObservationAccess; }
+#endif
 	class ConstraintPenetration :public Constraint
 	{
+#ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
+        // Isolated read-only semantic capture; no ownership, layout or runtime change.
+        friend struct PhysicsDiagnostic::ColliderObservationAccess;
+#endif
+
 	public:
 		ConstraintPenetration() : Constraint()
 		{

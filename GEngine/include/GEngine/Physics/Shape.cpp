@@ -59,7 +59,7 @@ namespace GEngine
                     glm::any(glm::lessThanEqual(desc.halfExtents, Vec3f(0))))
                     return ShapeFailure(PhysicsShapeErrorCode::InvalidDimensions,
                                         "Box requires finite center and positive half extents");
-                std::vector<Vec3f> points;
+                std::vector<Vec3f> points(std::size_t(0));
                 points.reserve(8);
                 for (unsigned i = 0; i < 8; ++i)
                     points.push_back((desc.center + desc.halfExtents *

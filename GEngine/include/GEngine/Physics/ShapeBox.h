@@ -29,6 +29,12 @@ namespace GEngine
 	class ShapeBox : public PhysicalShape
 	{
 	public:
+        ShapeBox(const ShapeBox&) = default;
+        ShapeBox& operator=(const ShapeBox&) = default;
+        ShapeBox(ShapeBox&& other)
+            : PhysicalShape(std::move(other)), m_points(std::size_t(0)), m_bounds(other.m_bounds)
+        { m_points.swap(other.m_points); }
+        ShapeBox& operator=(ShapeBox&&) = default;
         [[nodiscard]] static std::expected<ShapeBox, PhysicsShapeError> Create(const std::vector<Vec3f>& pts);
 		void Build(const std::vector<Vec3f>& pts);
 		static bool IsValidPointSet(const std::vector<Vec3f>& pts);
@@ -51,7 +57,7 @@ namespace GEngine
 		float FastestLinearSpeed(const Vec3f& angularVelocity, const Vec3f& dir) const override;
 
 	private:
-        ShapeBox() = default;
+        ShapeBox() : m_points(std::size_t(0)) {}
 		std::vector<Vec3f> m_points;
 		Bounds m_bounds;
 	};

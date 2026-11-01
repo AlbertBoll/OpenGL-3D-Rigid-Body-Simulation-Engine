@@ -10,6 +10,9 @@
 
 namespace GEngine
 {
+#ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
+    namespace PhysicsDiagnostic { struct ColliderObservationAccess; }
+#endif
 
 
 	class PhysicalShape;
@@ -41,6 +44,11 @@ namespace GEngine
 
 	class RigidBody3D
 	{
+#ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
+        // Isolated read-only semantic capture; no ownership, layout or runtime change.
+        friend struct PhysicsDiagnostic::ColliderObservationAccess;
+#endif
+
 	public:
 		RigidBody3D() = default;
 		Vec3f GetCenterOfMassWorldSpace() const;

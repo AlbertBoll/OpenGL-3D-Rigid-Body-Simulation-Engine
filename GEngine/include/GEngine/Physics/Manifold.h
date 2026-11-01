@@ -8,6 +8,9 @@
 
 namespace GEngine
 {
+#ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
+    namespace PhysicsDiagnostic { struct ColliderObservationAccess; }
+#endif
 	class RigidBody3D;
 	struct collisionPair_t;
 #ifdef GE_ENABLE_COUPLED_SOLVER_REPLAY
@@ -16,6 +19,11 @@ namespace GEngine
 
 	class Manifold
 	{
+#ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
+        // Isolated read-only semantic capture; no ownership, layout or runtime change.
+        friend struct PhysicsDiagnostic::ColliderObservationAccess;
+#endif
+
 	public:
 		Manifold() : m_BodyA(nullptr), m_BodyB(nullptr), m_NumContacts(0) {}
 

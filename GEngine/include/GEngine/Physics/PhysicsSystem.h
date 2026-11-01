@@ -11,6 +11,11 @@
 #include "ShapeConvex.h"
 #include "ShapeCapsule.h"
 #include "Renderer/DebugGeometry.h"
+#include <expected>
+#include <memory>
+#include <new>
+#include <type_traits>
+#include <utility>
 
 
 
@@ -41,6 +46,120 @@ namespace GEngine
         Component::BodyType type;
         Vec3f position;
         Quat orientation;
+    };
+
+    enum class ColliderAdmissionOutcome { NoAddedOverlap, RejectedRisk, Indeterminate };
+    enum class ColliderAdmissionError { None, Unassessed, InvalidIdentity, Busy, UnsupportedShape, InvalidShape, AllocationFailure, BodyLimit, QueryLimit, StorageLimit, Deadline, Unproved, StaleConfirmation };
+    enum class ColliderPairOutcome { NotRequired, SeparatedByBounds, Contact, SeparatedQuery, Failed, Unsupported };
+    struct ColliderAdmissionPair
+    {
+        PhysicsBodyHandle other{};
+        ColliderPairOutcome oldOutcome{ColliderPairOutcome::NotRequired}, newOutcome{ColliderPairOutcome::NotRequired};
+        const char* reason{"unassessed"};
+        const char* method{"none"};
+        int oldTermination{}, newTermination{};
+        bool comparableMeasure{};
+        double oldMeasure{}, newMeasure{};
+    };
+    // Empty/error construction and ownership moves allocate nothing, including in
+    // checked-iterator builds. Detailed storage is bounded, explicit and fallible.
+    class ColliderAdmissionPairs
+    {
+    public:
+        ColliderAdmissionPairs() noexcept = default;
+        ColliderAdmissionPairs(const ColliderAdmissionPairs&) = delete;
+        ColliderAdmissionPairs& operator=(const ColliderAdmissionPairs&) = delete;
+        ColliderAdmissionPairs(ColliderAdmissionPairs&& other) noexcept
+            : m_Data(std::move(other.m_Data)), m_Size(std::exchange(other.m_Size,0)),
+              m_Capacity(std::exchange(other.m_Capacity,0)) {}
+        ColliderAdmissionPairs& operator=(ColliderAdmissionPairs&& other) noexcept
+        {
+            if(this!=&other){m_Data=std::move(other.m_Data);m_Size=std::exchange(other.m_Size,0);m_Capacity=std::exchange(other.m_Capacity,0);}return *this;
+        }
+        [[nodiscard]] std::expected<void,ColliderAdmissionError> TryReserve(std::size_t count) noexcept
+        {
+            if(count<=m_Capacity)return {};
+            if(count>4096||m_Size)return std::unexpected(ColliderAdmissionError::StorageLimit);
+            static_assert(std::is_nothrow_default_constructible_v<ColliderAdmissionPair>);
+            std::unique_ptr<ColliderAdmissionPair[]> owned(new(std::nothrow) ColliderAdmissionPair[count]);
+            if(!owned)return std::unexpected(ColliderAdmissionError::AllocationFailure);
+            m_Data=std::move(owned);m_Capacity=count;return {};
+        }
+        [[nodiscard]] bool TryAppend(const ColliderAdmissionPair& value) noexcept
+        {if(m_Size==m_Capacity)return false;m_Data[m_Size++]=value;return true;}
+        const ColliderAdmissionPair* begin() const noexcept{return m_Data.get();}
+        const ColliderAdmissionPair* end() const noexcept{return m_Size?m_Data.get()+m_Size:m_Data.get();}
+        std::size_t size() const noexcept{return m_Size;}
+        bool empty() const noexcept{return m_Size==0;}
+    private:
+        std::unique_ptr<ColliderAdmissionPair[]> m_Data;
+        std::size_t m_Size{},m_Capacity{};
+    };
+    using ColliderAdmissionDescriptor = std::variant<BoxShapeDesc,SphereShapeDesc,CapsuleShapeDesc>;
+    struct ColliderAdmissionReport
+    {
+        ColliderAdmissionReport() noexcept = default;
+        ColliderAdmissionReport(const ColliderAdmissionReport&) = delete;
+        ColliderAdmissionReport& operator=(const ColliderAdmissionReport&) = delete;
+        ColliderAdmissionReport(ColliderAdmissionReport&&) noexcept = default;
+        ColliderAdmissionReport& operator=(ColliderAdmissionReport&&) noexcept = default;
+        ColliderAdmissionOutcome outcome{ColliderAdmissionOutcome::Indeterminate};
+        ColliderAdmissionError error{ColliderAdmissionError::Unassessed};
+        // Only admitted fixed-size descriptors can enter a report. A caller
+        // cannot introduce an owning Convex vector into its no-heap move path.
+        ColliderAdmissionDescriptor descriptor{};
+        [[nodiscard]] bool SetDescriptor(const CollisionShapeDesc& source) noexcept
+        {
+            if(auto* value=std::get_if<BoxShapeDesc>(&source)){descriptor=*value;return true;}
+            if(auto* value=std::get_if<SphereShapeDesc>(&source)){descriptor=*value;return true;}
+            if(auto* value=std::get_if<CapsuleShapeDesc>(&source)){descriptor=*value;return true;}
+            return false;
+        }
+        PhysicsBodyHandle body{};
+        bool complete{}, committed{};
+        const char* reason{"unassessed"};
+        ColliderAdmissionPairs pairs;
+        std::size_t assessedBodies{}, candidatePairs{}, queryCount{}, trackedPeakBytes{}, temporaryAllocations{};
+        double elapsedMs{}, certificateMargin{};
+    };
+
+    struct ColliderShapeState
+    {
+        ShapeType type{ShapeType::Invalid};
+        ColliderAdmissionDescriptor dimensions{};
+        bool editable{};
+        std::uintptr_t identity{};
+        std::uint64_t revision{};
+    };
+
+    // Opaque, move-only consent context. Exact world values, not a hash or a
+    // cached safe verdict. No live pointers are exposed or dereferenced later.
+    class ColliderReplacementConfirmation
+    {
+    public:
+        ColliderReplacementConfirmation() noexcept = default;
+        ColliderReplacementConfirmation(ColliderReplacementConfirmation&&) noexcept = default;
+        ColliderReplacementConfirmation& operator=(ColliderReplacementConfirmation&&) noexcept = default;
+    private:
+        struct BodyContext
+        {
+            PhysicsBodyHandle handle{};
+            std::uintptr_t shape{};
+            std::uint64_t revision{};
+            ShapeType shapeType{ShapeType::Invalid};
+            Vec3f position{}, linear{}, angular{}, minimum{}, maximum{};
+            Quat orientation{};
+            float inverseMass{};
+            Component::BodyType type{};
+            std::uint32_t layer{}, mask{};
+            friend bool operator==(const BodyContext&, const BodyContext&) = default;
+        };
+        PhysicsBodyHandle m_Body{};
+        ColliderAdmissionDescriptor m_Descriptor{};
+        std::uint64_t m_Revision{};
+        std::unique_ptr<BodyContext[]> m_Bodies;
+        std::size_t m_Count{};
+        friend class PhysicsSystem;
     };
 
 	class PhysicsSystem : public System
@@ -99,10 +218,27 @@ namespace GEngine
         }
         friend struct Phase24ColliderCheckAccess;
 #endif
+        // Owner thread, between updates. Preview grants no later commit authority.
+        [[nodiscard]] ColliderAdmissionReport AssessBodyColliderReplacement(PhysicsBodyHandle,
+            const CollisionShapeDesc&, std::unique_ptr<PhysicalShape>* preview = nullptr) const;
+        [[nodiscard]] ColliderAdmissionReport ReplaceBodyColliderIfNoAddedOverlap(PhysicsBodyHandle, const CollisionShapeDesc&);
+        [[nodiscard]] PhysicsBodyResult<ColliderShapeState> ReadBodyCollider(PhysicsBodyHandle) const;
+        static bool CanConfirmColliderRisk(const ColliderAdmissionReport&) noexcept;
+        [[nodiscard]] std::expected<ColliderReplacementConfirmation, ColliderAdmissionError>
+        PrepareColliderConfirmation(const ColliderAdmissionReport&) const;
+        [[nodiscard]] bool IsColliderConfirmationCurrent(const ColliderReplacementConfirmation&,
+            PhysicsBodyHandle, const CollisionShapeDesc&) const;
+        [[nodiscard]] ColliderAdmissionReport ReplaceBodyColliderConfirmed(PhysicsBodyHandle,
+            const CollisionShapeDesc&, const ColliderReplacementConfirmation&);
+
         // Retained Component compatibility: shape rejection does not reject Transform storage.
         void ApplyLegacyBodyScale(PhysicsBodyHandle, const Vec3f&);
         [[nodiscard]] DebugGeometryResult AppendPresentationGeometry(DebugGeometry&, PhysicsBodyHandle,
             const Vec3f& position, const Quat& orientation) const;
+        [[nodiscard]] static DebugGeometryResult AppendColliderPreview(DebugGeometry& out,
+            const PhysicalShape& shape, const Vec3f& position, const Quat& orientation, const glm::vec4& color)
+        { return AppendColliderGeometry(out, shape, position, orientation, color); }
+        std::uint64_t ColliderContextRevision() const { return m_ColliderContextRevision; }
 
 		static constexpr int MinSolverIterations = 1;
 		static constexpr int MaxSolverIterations = 32;
@@ -129,55 +265,96 @@ namespace GEngine
 		// final-pose/CCD graph. Sleep decisions use its dynamic groups after integration.
 		const std::vector<ContactIsland>& GetContactIslands() const { return m_ContactIslands; }
 
-        // Owner thread, between updates. No stepping or cache/body mutation.
-        // Cyan: authoritative sphere/box/convex/capsule collider; yellow: Physics world
-        // AABB (possibly conservative); RGB: COM axes. Contact anchors follow current poses;
-        // the labelled world B->A normal is from the last solve, not a new query.
-        [[nodiscard]] DebugGeometryResult AppendDebugGeometry(DebugGeometry& out)
+        struct DebugLayers
         {
-            if (!m_PhysicsWorld) return {};
-            for (const auto* body:m_PhysicsWorld->GetPhysicsBodies())
+            bool colliders{true}, worldAabbs{}, contactPoints{}, contactNormals{}, bodyAxes{};
+            bool Any() const { return colliders || worldAabbs || contactPoints || contactNormals || bodyAxes; }
+        };
+
+        // Scope filters emission only. Retained contacts are visited exactly once;
+        // their stored world B-to-A normal never changes with selection order.
+        [[nodiscard]] DebugGeometryResult AppendDebugGeometry(DebugGeometry& out,
+            const DebugLayers& layers, std::span<const PhysicsBodyHandle> selected, bool all)
+        {
+            if (!m_PhysicsWorld || !layers.Any() || (!all && selected.empty())) return {};
+            const auto includes = [&](RigidBodyIdentity identity)
             {
-                if (!body || !body->m_Shape || !body->m_Shape->IsValid()) continue;
-                const auto& shape=*body->m_Shape;
-                auto collider = AppendColliderGeometry(out, shape, body->m_Position, body->m_Orientation, {0,1,1,1});
-                if (!collider) return collider;
-                const auto& bounds=body->GetWorldBounds();
-                if (auto r=out.Box(bounds.mins,bounds.maxs,{},glm::quat(1,0,0,0),{1,1,0,.6f});!r) return r;
-                if (auto r=out.Axes(body->GetCenterOfMassWorldSpace(),body->m_Orientation,.2f);!r) return r;
-            }
-            for (auto& manifold:m_Manifolds.m_Manifolds)
-            {
-                if (!m_PhysicsWorld->IsBodyIdentityValid(manifold.GetBodyAIdentity()) ||
-                    !m_PhysicsWorld->IsBodyIdentityValid(manifold.GetBodyBIdentity())) continue;
-                for (int i=0;i<manifold.GetNumContacts();++i)
+                if (all) return true;
+                const auto handle = m_PhysicsWorld->HandleOf(identity);
+                for (const auto member : selected) if (member == handle) return true;
+                return false;
+            };
+            if (layers.colliders || layers.worldAabbs || layers.bodyAxes)
+                for (const auto* body : m_PhysicsWorld->GetPhysicsBodies())
                 {
-                    const auto contact=manifold.GetContact(i);
-                    const auto a=contact.m_BodyA->BodySpaceToWorldSpace(contact.ptOnA_LocalSpace);
-                    const auto b=contact.m_BodyB->BodySpaceToWorldSpace(contact.ptOnB_LocalSpace);
-                    // A contact is a point, not another collider. Three centered
-                    // ticks preserve its extent/position without spending48 lines
-                    // on a tiny sphere. Keep the full contact glyph atomic.
-                    std::array<FrameDebugLine,5> lines{{
-                        {a,b,{1,.25f,0,1},{},DebugDepth::Overlay},
-                        {a,a+contact.normal*.4f,{1,.4f,0,1},{},DebugDepth::Overlay}}};
-                    for (unsigned axis=0;axis<3;++axis) {
-                        Vec3f extent(0);extent[axis]=.025f;
-                        lines[axis+2]={a-extent,a+extent,{1,1,1,1},{},DebugDepth::Overlay};
+                    if (!body || !includes(body->GetIdentity()) || !body->m_Shape || !body->m_Shape->IsValid()) continue;
+                    if (layers.colliders)
+                        if (auto r = AppendColliderGeometry(out, *body->m_Shape, body->m_Position,
+                                body->m_Orientation, {0, 1, 1, 1}); !r) return r;
+                    if (layers.worldAabbs)
+                    {
+                        const auto& bounds = body->GetWorldBounds();
+                        if (auto r = out.Box(bounds.mins, bounds.maxs, {}, glm::quat(1, 0, 0, 0),
+                                {1, 1, 0, .6f}); !r) return r;
                     }
-                    if (auto r=out.Append(lines);!r) return r;
+                    if (layers.bodyAxes)
+                        if (auto r = out.Axes(body->GetCenterOfMassWorldSpace(), body->m_Orientation, .2f); !r) return r;
                 }
-            }
+            if (layers.contactPoints || layers.contactNormals)
+                for (auto& manifold : m_Manifolds.m_Manifolds)
+                {
+                    if (!m_PhysicsWorld->IsBodyIdentityValid(manifold.GetBodyAIdentity()) ||
+                        !m_PhysicsWorld->IsBodyIdentityValid(manifold.GetBodyBIdentity()) ||
+                        (!includes(manifold.GetBodyAIdentity()) && !includes(manifold.GetBodyBIdentity()))) continue;
+                    for (int i = 0; i < manifold.GetNumContacts(); ++i)
+                    {
+                        const auto contact = manifold.GetContact(i);
+                        const auto a = contact.m_BodyA->BodySpaceToWorldSpace(contact.ptOnA_LocalSpace);
+                        const auto b = contact.m_BodyB->BodySpaceToWorldSpace(contact.ptOnB_LocalSpace);
+                        std::array<FrameDebugLine, 5> lines;
+                        std::size_t count = 0;
+                        if (layers.contactPoints)
+                            lines[count++] = {a, b, {1, .25f, 0, 1}, {}, DebugDepth::Overlay};
+                        if (layers.contactNormals)
+                            lines[count++] = {a, a + contact.normal * .4f, {1, .4f, 0, 1}, {}, DebugDepth::Overlay};
+                        if (layers.contactPoints)
+                            for (unsigned axis = 0; axis < 3; ++axis)
+                            {
+                                Vec3f extent(0); extent[axis] = .025f;
+                                lines[count++] = {a - extent, a + extent, {1, 1, 1, 1}, {}, DebugDepth::Overlay};
+                            }
+                        if (auto r = out.Append({lines.data(), count}); !r) return r;
+                    }
+                }
             return {};
         }
 
-		
+        // Legacy global debug entry point preserves its layers and colors.
+        [[nodiscard]] DebugGeometryResult AppendDebugGeometry(DebugGeometry& out)
+        {
+            return AppendDebugGeometry(out, {true, true, true, true, true}, {}, true);
+        }
+
 
 	private:
 
         static DebugGeometryResult AppendColliderGeometry(DebugGeometry&, const PhysicalShape&,
             const Vec3f&, const Quat&, const glm::vec4&);
         void InvalidateBodyContacts(RigidBody3D*);
+        void CommitStagedCollider(PhysicsBodyHandle, RigidBody3D*, std::unique_ptr<PhysicalShape>&, bool preparedWake = false);
+        ColliderAdmissionReport AssessStagedCollider(PhysicsBodyHandle, const CollisionShapeDesc&, RigidBody3D*, PhysicalShape&) const;
+        ColliderAdmissionReport ReplaceBodyColliderWithAdmission(PhysicsBodyHandle,
+            const CollisionShapeDesc&, const ColliderReplacementConfirmation*);
+        ColliderReplacementConfirmation::BodyContext ColliderContext(const RigidBody3D&) const;
+        std::uint64_t m_ColliderContextRevision{};
+#ifdef GENGINE_COLLIDER_ADMISSION_VALIDATION
+        friend struct ColliderAdmissionCheckAccess;
+        bool m_AdmissionTestExpired{};
+        int m_AdmissionTestQueryFailureReason{};
+        std::size_t m_AdmissionTestBodyLimit{4096}, m_AdmissionTestQueryLimit{8190}, m_AdmissionTestStorageLimit{4194304};
+#endif
+
+
 		RigidBody3D* ResolveBody(RigidBodyIdentity identity) const;
 		void WakeConnectedTo(RigidBody3D* body);
 		SleepTimings m_SleepTimings;

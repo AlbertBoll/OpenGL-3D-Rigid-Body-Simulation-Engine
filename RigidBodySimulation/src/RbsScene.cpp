@@ -8,6 +8,8 @@
 #include "Physics/PhysicsWorld.h"
 #include <glm/gtx/quaternion.hpp>
 #include "../tests/RestingContactDiagnosis.h"
+#include "../tests/ColliderReplacementReplay.h"
+#include "../tests/OrdinaryMeshHighlightFixture.h"
 
 using namespace ::GEngine;
 using namespace ::GEngine::Asset;
@@ -418,6 +420,10 @@ ApplicationInitializationResult RigidBodySimulationApp::CreateSceneLights(Rbs::S
 
 ApplicationInitializationResult RigidBodySimulationApp::CreatePhysicsScene(Rbs::SceneAssets& assets)
 {
+#ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
+    if (Rbs::ColliderReplay::Enabled() && DebugValidationScene(m_Launch.scene) != Rbs::RbsScenePreset::SphereBoxStack)
+        return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"Collider replay","Replay manifest requires SphereBoxStack"});
+#endif
     RigidBody3DComponent rigidBodyComp;
     rigidBodyComp.Type = BodyType::Dynamic;
 
@@ -522,7 +528,7 @@ RigidBodySimulationApp::CreateGroundAndWalls(const Rbs::SceneAssets& assets)
     RigidBody3DComponent rigidBodyComp;
     rigidBodyComp.Type = BodyType::Static;
 
-    auto createdSceneEntity12 = m_ActiveScene->CreateEntity("wood_plane");
+    auto createdSceneEntity12 = Rbs::OrdinaryHighlightFixture::Create(*m_ActiveScene,"wood_plane","wood_plane");
     if (!createdSceneEntity12)
         return std::unexpected(createdSceneEntity12.error());
     _Entity planeEntity = *createdSceneEntity12;
@@ -543,7 +549,7 @@ RigidBodySimulationApp::CreateGroundAndWalls(const Rbs::SceneAssets& assets)
         planeEntity.GetComponent<Transform3DComponent>().QuatRotation;
     planeEntity.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
 
-    auto createdSceneEntity13 = m_ActiveScene->CreateEntity("wall_entity_1");
+    auto createdSceneEntity13 = Rbs::OrdinaryHighlightFixture::Create(*m_ActiveScene,"wall_entity_1","wall_entity_1");
     if (!createdSceneEntity13)
         return std::unexpected(createdSceneEntity13.error());
     _Entity wallEntity_1 = *createdSceneEntity13;
@@ -559,7 +565,7 @@ RigidBodySimulationApp::CreateGroundAndWalls(const Rbs::SceneAssets& assets)
         wallEntity_1.GetComponent<Transform3DComponent>().QuatRotation;
     wallEntity_1.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
 
-    auto createdSceneEntity14 = m_ActiveScene->CreateEntity("wall_entity_2");
+    auto createdSceneEntity14 = Rbs::OrdinaryHighlightFixture::Create(*m_ActiveScene,"wall_entity_2","wall_entity_2");
     if (!createdSceneEntity14)
         return std::unexpected(createdSceneEntity14.error());
     _Entity wallEntity_2 = *createdSceneEntity14;
@@ -575,7 +581,7 @@ RigidBodySimulationApp::CreateGroundAndWalls(const Rbs::SceneAssets& assets)
         wallEntity_2.GetComponent<Transform3DComponent>().QuatRotation;
     wallEntity_2.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
 
-    auto createdSceneEntity15 = m_ActiveScene->CreateEntity("wall_entity_3");
+    auto createdSceneEntity15 = Rbs::OrdinaryHighlightFixture::Create(*m_ActiveScene,"wall_entity_3","wall_entity_3");
     if (!createdSceneEntity15)
         return std::unexpected(createdSceneEntity15.error());
     _Entity wallEntity_3 = *createdSceneEntity15;
@@ -591,7 +597,7 @@ RigidBodySimulationApp::CreateGroundAndWalls(const Rbs::SceneAssets& assets)
         wallEntity_3.GetComponent<Transform3DComponent>().QuatRotation;
     wallEntity_3.AddOrReplaceComponent<BoxFixture3DComponent>(planeFixtureComp);
 
-    auto createdSceneEntity16 = m_ActiveScene->CreateEntity("wall_entity_4");
+    auto createdSceneEntity16 = Rbs::OrdinaryHighlightFixture::Create(*m_ActiveScene,"wall_entity_4","wall_entity_4");
     if (!createdSceneEntity16)
         return std::unexpected(createdSceneEntity16.error());
     _Entity wallEntity_4 = *createdSceneEntity16;
@@ -1249,7 +1255,7 @@ ApplicationInitializationResult RigidBodySimulationApp::CreateSphereBoxStack(
         for (int x = 0; x < 4; x++)
         {
 
-            auto createdSceneEntity7 = m_ActiveScene->CreateEntity("wood_box");
+            auto createdSceneEntity7 = Rbs::OrdinaryHighlightFixture::Create(*m_ActiveScene,"wood_box","box_"+std::to_string(y)+"_"+std::to_string(x));
             if (!createdSceneEntity7)
                 return std::unexpected(createdSceneEntity7.error());
             _Entity woodBoxEntity = *createdSceneEntity7;
@@ -1271,7 +1277,7 @@ ApplicationInitializationResult RigidBodySimulationApp::CreateSphereBoxStack(
     }
 
     sphereFixtureComp.Property.m_LinearVelocity = {0.f, 0.f, 40.f};
-    auto createdSceneEntity8 = m_ActiveScene->CreateEntity("wood_sphere_0");
+    auto createdSceneEntity8 = Rbs::OrdinaryHighlightFixture::Create(*m_ActiveScene,"wood_sphere_0","wood_sphere_0");
     if (!createdSceneEntity8)
         return std::unexpected(createdSceneEntity8.error());
     _Entity woodSphereEntity = *createdSceneEntity8;

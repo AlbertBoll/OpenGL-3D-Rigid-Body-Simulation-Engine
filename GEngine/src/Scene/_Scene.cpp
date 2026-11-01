@@ -784,6 +784,142 @@ namespace GEngine
         return {};
     }
 
+#ifdef GENGINE_COLLIDER_ADMISSION_VALIDATION
+    std::vector<std::uint8_t> _Scene::InspectColliderAdmissionState() const
+    {
+        (void)m_RenderData.IsExtracting();
+        std::vector<std::uint8_t> bytes;
+        const auto append = [&](const auto& value) {
+            const auto* p = reinterpret_cast<const std::uint8_t*>(&value);
+            bytes.insert(bytes.end(), p, p + sizeof(value));
+        };
+        // Exact same-process bytes, including padding, handles and subscription
+        // ownership. This is a nonpersistent nonmutation comparison, not a replay.
+        append(*this);
+        for (auto entity : m_Registry.view<RuntimePhysicsPose>())
+        {
+            append(entity);
+            append(m_Registry.get<RuntimePhysicsPose>(entity));
+            if (const auto* transform = m_Registry.try_get<Transform3DComponent>(entity)) append(*transform);
+        }
+        return bytes;
+    }
+#endif
+
+    namespace
+    {
+        template<class T> bool HasAdmissionStorage(const entt::registry& registry)
+        {
+            // EnTT's missing-pool const assure() constructs a Debug STL-backed
+            // placeholder. Detect absence without asking EnTT to create it.
+            return registry.storage(entt::type_hash<T>::value()) != registry.storage().end();
+        }
+        bool HasAdmissionBindingStorage(const entt::registry& registry)
+        {
+            return HasAdmissionStorage<IDComponent>(registry) && HasAdmissionStorage<Transform3DComponent>(registry) &&
+                HasAdmissionStorage<RigidBody3DComponent>(registry) && HasAdmissionStorage<RuntimePhysicsPose>(registry);
+        }
+    }
+
+    ColliderAdmissionReport
+    _Scene::AssessBodyColliderReplacement(const _Entity& entity, const CollisionShapeDesc& desc,
+        std::unique_ptr<PhysicalShape>* preview) const
+    {
+        ColliderAdmissionReport rejected;
+        if (desc.valueless_by_exception() || std::holds_alternative<ConvexHullShapeDesc>(desc))
+        {
+            rejected.error = ColliderAdmissionError::UnsupportedShape;
+            rejected.reason = "Unsupported descriptor; original descriptor not retained";
+            return rejected;
+        }
+        (void)rejected.SetDescriptor(desc); // Supported alternatives contain values only.
+        if (m_RenderData.IsExtracting() || m_ApplyingTransform)
+        {
+            rejected.error = ColliderAdmissionError::Busy;
+            rejected.reason = "Scene is busy";
+            return rejected;
+        }
+        if (!m_PhysicsSystem || !HasAdmissionBindingStorage(m_Registry))
+        {
+            rejected.error = ColliderAdmissionError::InvalidIdentity;
+            rejected.reason = "Scene Physics binding is unavailable";
+            return rejected;
+        }
+        auto binding = GetBodyBinding(entity);
+        if (!binding)
+        {
+            rejected.error = ColliderAdmissionError::InvalidIdentity;
+            rejected.reason = "Scene entity or Physics binding is invalid, stale or foreign";
+            return rejected;
+        }
+        return m_PhysicsSystem->AssessBodyColliderReplacement(*binding, desc, preview);
+    }
+
+    ColliderAdmissionReport
+    _Scene::ReplaceBodyColliderIfNoAddedOverlap(const _Entity& entity, const CollisionShapeDesc& desc)
+    {
+        return ReplaceBodyColliderWithAdmission(entity, desc, nullptr);
+    }
+
+    ColliderAdmissionReport _Scene::ReplaceBodyColliderConfirmed(const _Entity& entity,
+        const CollisionShapeDesc& desc, const ColliderReplacementConfirmation& confirmation)
+    {
+        return ReplaceBodyColliderWithAdmission(entity, desc, &confirmation);
+    }
+
+    ColliderAdmissionReport _Scene::ReplaceBodyColliderWithAdmission(const _Entity& entity,
+        const CollisionShapeDesc& desc, const ColliderReplacementConfirmation* confirmation)
+    {
+        ColliderAdmissionReport rejected;
+        if (desc.valueless_by_exception() || std::holds_alternative<ConvexHullShapeDesc>(desc))
+        {
+            rejected.error = ColliderAdmissionError::UnsupportedShape;
+            rejected.reason = "Unsupported descriptor; original descriptor not retained";
+            return rejected;
+        }
+        (void)rejected.SetDescriptor(desc);
+        if (m_RenderData.IsExtracting() || m_ApplyingTransform)
+        {
+            rejected.error = ColliderAdmissionError::Busy;
+            rejected.reason = "Scene is busy";
+            return rejected;
+        }
+        if (!m_PhysicsSystem || !HasAdmissionBindingStorage(m_Registry))
+        {
+            rejected.error = ColliderAdmissionError::InvalidIdentity;
+            rejected.reason = "Scene Physics binding is unavailable";
+            return rejected;
+        }
+        auto binding = GetBodyBinding(entity);
+        if (!binding)
+        {
+            rejected.error = ColliderAdmissionError::InvalidIdentity;
+            rejected.reason = "Scene entity or Physics binding is invalid, stale or foreign";
+            return rejected;
+        }
+        // Resolve every interpolation input before the Physics commit. On success
+        // only the existing scalar history assignments remain; no missing EnTT
+        // storage placeholder, callback or allocation is entered after commit.
+        const auto handle = static_cast<entt::entity>(entity);
+        auto* pose = m_Registry.try_get<RuntimePhysicsPose>(handle);
+        const auto* transform = m_Registry.try_get<Transform3DComponent>(handle);
+        const auto body = m_PhysicsSystem->ReadBodyPose(*binding);
+        if (!pose || !transform || !body)
+        {
+            rejected.error = ColliderAdmissionError::InvalidIdentity;
+            rejected.reason = "Scene interpolation binding is unavailable";
+            return rejected;
+        }
+        UUID parent{0};
+        if (HasAdmissionStorage<RelationshipComponent>(m_Registry))
+            if (const auto* relationship = m_Registry.try_get<RelationshipComponent>(handle)) parent = relationship->ParentHandle;
+        auto result = confirmation
+            ? m_PhysicsSystem->ReplaceBodyColliderConfirmed(*binding, desc, *confirmation)
+            : m_PhysicsSystem->ReplaceBodyColliderIfNoAddedOverlap(*binding, desc);
+        if (result.committed) ResetPhysicsHistory(*pose, *transform, *body, parent);
+        return result;
+    }
+
     std::expected<AuthoritativeTransformMutation, TransformMutationError>
     _Scene::SetParent(const _Entity& entity, const _Entity& parent)
     {

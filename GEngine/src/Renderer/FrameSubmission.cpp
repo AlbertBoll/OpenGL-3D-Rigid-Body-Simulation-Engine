@@ -200,7 +200,7 @@ namespace GEngine
                 glBindVertexArray(vao);
             }
         };
-        std::expected<Shader, SubmissionError> CoverageProgram(RenderPass pass)
+        std::expected<Shader, SubmissionError> CoverageProgram(RenderPass pass, bool multiSelection = false)
         {
             const bool selection=pass==RenderPass::SelectionMask;
             const bool picking=pass==RenderPass::Picking || selection, point=pass==RenderPass::PointShadow;
@@ -267,7 +267,12 @@ void main() {
     if(alpha*frameOpacity*frameBaseAlpha < frameAlphaCutoff) discard;
   }
 )";
-            if(selection) fragment+="if(frameOpacity*frameBaseAlpha<=0.0) discard; selectedCoverage=vec2(1.0,gl_FragCoord.z);";
+            if(selection) {
+                if (multiSelection) {
+                    RenderBackend::ReplaceAll(fragment,"out vec2 selectedCoverage;","out vec4 selectedCoverage;\nuniform bool secondarySelection;");
+                    fragment+="if(frameOpacity*frameBaseAlpha<=0.0) discard; selectedCoverage=secondarySelection?vec4(0,0,1,gl_FragCoord.z):vec4(1,gl_FragCoord.z,0,0);";
+                } else fragment+="if(frameOpacity*frameBaseAlpha<=0.0) discard; selectedCoverage=vec2(1.0,gl_FragCoord.z);";
+            }
             else if(picking) fragment+="pixel=gePickingPixel;";
             if(point) fragment+="gl_FragDepth=length(FragPos.xyz-lightPos)/far_plane;";
             fragment+="}";
@@ -413,7 +418,8 @@ void main() {
         {
             GLuint mask{}, depth{}, stencil{}, resolved{}, maskFbo{}, resolvedFbo{}, vao{};
             unsigned width{},height{},samples{}; GLenum depthFormat{};
-            bool sharedVisibility=false;
+            bool sharedVisibility=false, multi=false;
+            std::size_t allocations{};
             SelectionScratch()=default;
             SelectionScratch(const SelectionScratch&)=delete;
             SelectionScratch& operator=(const SelectionScratch&)=delete;
@@ -422,12 +428,12 @@ void main() {
                 glDeleteTextures(4,textures); glDeleteFramebuffers(2,fbos);
                 if(vao) glDeleteVertexArrays(1,&vao);
             }
-            std::size_t Bytes() const noexcept { return std::size_t(width)*height*((sharedVisibility?4:12)*samples+8); }
-            std::expected<void,SubmissionError> Ensure(unsigned w,unsigned h,unsigned s,GLenum format,bool shared)
+            std::size_t Bytes() const noexcept { return std::size_t(width)*height*((sharedVisibility?4:(multi?20:12))*samples+(multi?16:8)); }
+            std::expected<void,SubmissionError> Ensure(unsigned w,unsigned h,unsigned s,GLenum format,bool shared,bool multiple)
             {
-                if(w<=width && h<=height && s==samples && format==depthFormat && shared==sharedVisibility) return {};
+                if(w<=width && h<=height && s==samples && format==depthFormat && shared==sharedVisibility && multiple==multi) return {};
                 SelectionScratch next;
-                next.width=w;next.height=h;next.samples=s;next.depthFormat=format;next.sharedVisibility=shared;
+                next.width=w;next.height=h;next.samples=s;next.depthFormat=format;next.sharedVisibility=shared;next.multi=multiple;
                 const GLenum target=s>1?GL_TEXTURE_2D_MULTISAMPLE:GL_TEXTURE_2D;
                 if(!shared) glCreateTextures(target,1,&next.mask);
                 glCreateTextures(target,1,&next.depth);
@@ -437,13 +443,13 @@ void main() {
                 if((!shared && !next.mask) || !next.depth || !next.resolved || !next.maskFbo || !next.resolvedFbo || !next.vao)
                     return Error("selection scratch names",Code::Allocation);
                 if(s>1) {
-                    if(!shared) glTextureStorage2DMultisample(next.mask,s,GL_RG32F,w,h,GL_TRUE);
+                    if(!shared) glTextureStorage2DMultisample(next.mask,s,multiple?GL_RGBA32F:GL_RG32F,w,h,GL_TRUE);
                     glTextureStorage2DMultisample(next.depth,s,format,w,h,GL_TRUE);
                 } else {
-                    if(!shared) glTextureStorage2D(next.mask,1,GL_RG32F,w,h);
+                    if(!shared) glTextureStorage2D(next.mask,1,multiple?GL_RGBA32F:GL_RG32F,w,h);
                     glTextureStorage2D(next.depth,1,format,w,h);
                 }
-                glTextureStorage2D(next.resolved,1,GL_RG32F,w,h);
+                glTextureStorage2D(next.resolved,1,multiple?GL_RGBA32F:GL_RG32F,w,h);
                 glTextureParameteri(next.resolved,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
                 glTextureParameteri(next.resolved,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
                 if(shared) {
@@ -470,13 +476,13 @@ void main() {
                 swap(mask,next.mask);swap(depth,next.depth);swap(stencil,next.stencil);swap(resolved,next.resolved);
                 swap(maskFbo,next.maskFbo);swap(resolvedFbo,next.resolvedFbo);swap(vao,next.vao);
                 swap(width,next.width);swap(height,next.height);swap(samples,next.samples);swap(depthFormat,next.depthFormat);
-                swap(sharedVisibility,next.sharedVisibility);
+                swap(sharedVisibility,next.sharedVisibility);swap(multi,next.multi);++allocations;
                 return {};
             }
         };
-        std::expected<Shader,SubmissionError> SelectionVisibilityProgram(bool multisample)
+        std::expected<Shader,SubmissionError> SelectionVisibilityProgram(bool multisample,bool multi=false)
         {
-            const std::string fragment=std::string(R"(#version 450 core
+            std::string fragment=std::string(R"(#version 450 core
 uniform )")+(multisample?"usampler2DMS":"usampler2D")+R"( selectedStencil;
 uniform )"+(multisample?"sampler2DMS":"sampler2D")+R"( selectedDepth;
 uniform int sampleCount;
@@ -492,6 +498,13 @@ void main() {
   }
   selectedCoverage=sum/float(sampleCount);
 })";
+            if(multi) {
+                RenderBackend::ReplaceAll(fragment,"out vec2 selectedCoverage;","out vec4 selectedCoverage;");
+                RenderBackend::ReplaceAll(fragment,"vec2 sum=vec2(0)","vec4 sum=vec4(0)");
+                RenderBackend::ReplaceAll(fragment,"bool selected=","uint selected=");
+                RenderBackend::ReplaceAll(fragment,"&1u)!=0u","&3u)");
+                RenderBackend::ReplaceAll(fragment,"if(selected) sum+=vec2(1,depth);","if(selected==1u) sum.xy+=vec2(1,depth); else if(selected==2u) sum.zw+=vec2(1,depth);");
+            }
             constexpr std::string_view vertex=R"(#version 450 core
 void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.0-1.0,0,1); })";
             const Asset::ShaderSource stages[]{
@@ -501,7 +514,7 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
             if(!result) return std::unexpected(SubmissionError{"selection visibility shader",result.error()});
             return std::move(*result);
         }
-        std::expected<Shader,SubmissionError> SelectionCompositeProgram(bool multisample,bool shared)
+        std::expected<Shader,SubmissionError> SelectionCompositeProgram(bool multisample,bool shared,bool multi=false)
         {
             std::string fragment=std::string(R"(#version 450 core
 uniform sampler2D selectedMask;
@@ -534,6 +547,13 @@ void main() {
   if(alpha<=0.0001) discard;
   color=vec4(1.0,0.72,0.08,alpha);
 })";
+            if(multi) {
+                // Active is an editing identity, not a selection style. Combine
+                // the disjoint visibility classes before the unchanged Phase24
+                // Gold coverage/depth, ring, glow and alpha calculation.
+                RenderBackend::ReplaceAll(fragment,"return texelFetch(selectedMask,p,0).rg;",
+                    "vec4 selected=texelFetch(selectedMask,p,0).rgba; return selected.rg+selected.ba;");
+            }
             if(multisample && !shared) {
                 fragment.insert(fragment.find('\n')+1,"uniform sampler2DMS selectedSamples;\nout int gl_SampleMask[(gl_MaxSamples+31)/32];\n");
                 const auto at=fragment.find("  float depth=1.0;");
@@ -544,6 +564,8 @@ void main() {
       gl_SampleMask[s/32]&=~(1<<(s%32));
 )");
             }
+            if(multi && multisample && !shared)
+                RenderBackend::ReplaceAll(fragment,"texelFetch(selectedSamples,p,s).r>0.0","(texelFetch(selectedSamples,p,s).r+texelFetch(selectedSamples,p,s).b)>0.0");
             constexpr std::string_view vertex=R"(#version 450 core
 void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.0-1.0,0,1); })";
             const Asset::ShaderSource stages[]{
@@ -560,7 +582,7 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
             glm::dvec2 lo(size.Width,size.Height),hi(0);bool found=false,conservative=false;
             for(auto i:visible) {
                 const auto& d=draws[i];
-                if(d.draw->entity!=desc.selectedEntity || d.role->kind==SceneMaterialKind::Sky) continue;
+                if(!desc.SelectionClass(d.draw->entity) || d.role->kind==SceneMaterialKind::Sky) continue;
                 found=true;const auto bounds=d.resources->Mesh()->Bounds();
                 if(bounds.empty) {conservative=true;break;}
                 const auto transform=glm::dmat4(camera.projection)*glm::dmat4(camera.view)*glm::dmat4(d.draw->worldTransform);
@@ -619,15 +641,15 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
                 return result;
             }
             std::span<const InstanceGroup> Append(std::span<const std::size_t> indices,const PreparedDraw* draws,
-                                                  EntityRenderId selected={})
+                                                  const FrameSubmissionDesc* selected=nullptr)
             {
                 const auto first=groupCount;
                 for(std::size_t i=0;i<indices.size();) {
                     std::size_t count=1;
                     const auto available=(std::min)(capacity-instanceCount,std::size_t(INT_MAX));
-                    if(available>=MinimumRenderInstances && (!selected || draws[indices[i]].draw->entity!=selected))
+                    if(available>=MinimumRenderInstances && (!selected || selected->SelectionClass(draws[indices[i]].draw->entity)!=1))
                         while(i+count<indices.size() && count<available
-                        && (!selected || draws[indices[i+count]].draw->entity!=selected)
+                        && (!selected || selected->SelectionClass(draws[indices[i+count]].draw->entity)==selected->SelectionClass(draws[indices[i]].draw->entity))
                         && Compatible(draws[indices[i]],draws[indices[i+count]])) ++count;
                     // Bound scanning by available storage; the serial tail remains linear.
                     // Unsupported/too-small groups and exhausted storage retain exact serial order.
@@ -794,9 +816,8 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
     struct FrameSubmission::Storage
     {
         Shader point, cascade, pick, debug;
-        Shader selectionMask, selectionComposite;
-        SelectionScratch selection;
-        bool selectionMultisample=false,selectionShared=false;
+        struct SelectionVariant { Shader mask, composite; SelectionScratch scratch; };
+        std::array<SelectionVariant,8> selectionVariants;
         RenderBackend::UploadBuffer frameUpload, materialUpload, instanceUpload;
         RenderBackend::UploadBuffer debugUpload;
         GLuint debugVao{};
@@ -938,12 +959,16 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
     {
         if (!m_Storage || !GLContextThread::IsCurrentOwner() || SDL_GL_GetCurrentContext()!=m_Storage->context)
             return Error("submit",Code::Context);
+        std::optional<PassTiming::Scope> submissionTiming;
+        if(desc.measureSubmission) submissionTiming.emplace(RenderPass::QualificationSubmission);
         struct FailedSubmission
         {
             Storage& storage; bool success=false;
             ~FailedSubmission() { if(!success) for(auto& inputs:storage.inputs)
                 inputs.pending=inputs.pending | PassDirtyReason::RetryAfterFailure; }
         } transaction{*m_Storage};
+        if(desc.selectedEntities.size()>FrameSubmissionDesc::SelectionCapacity)
+            return Error("selection identity capacity exceeded",Code::InvalidDraw);
         if (frame.Cameras().size()!=1) return Error("submission camera count",Code::InvalidCamera);
         if (frame.DebugLines().size()>std::size_t((std::numeric_limits<GLsizei>::max)())/2)
             return Error("debug vertex capacity",Code::InvalidDraw);
@@ -1137,8 +1162,8 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
         RenderDetail::SortTransparent(transparent,frame.Draws(),camera);
         auto instancePlan=InstancePlan::Create(count,m_Storage->materialLimit,desc.instancingEnabled);
         if(!instancePlan) return std::unexpected(instancePlan.error());
-        const auto stencilSelected=desc.color.Description().Storage.Depth==FramebufferFormat::Depth24Stencil8
-            ?desc.selectedEntity:EntityRenderId{};
+        const auto* stencilSelected=desc.color.Description().Storage.Depth==FramebufferFormat::Depth24Stencil8
+            && (desc.selectedEntity || !desc.selectedEntities.empty()) ? &desc : nullptr;
         const auto opaqueGroups=instancePlan->Append(opaque,draws.get(),stencilSelected);
         const auto maskedGroups=instancePlan->Append(masked,draws.get(),stencilSelected);
         std::array<std::span<const InstanceGroup>,2> shadowGroups;
@@ -1183,8 +1208,14 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
         TargetRestore restore;
         State state; // Ends before restore and every external scheduler boundary.
         auto& storage=*m_Storage;
-        bool sharedSelection=false;
-        if(desc.selectedEntity) {
+        bool sharedSelection=false, multiSelection=false;
+        Storage::SelectionVariant* selection=nullptr;
+        if(desc.selectedEntity || !desc.selectedEntities.empty()) {
+            for(auto i:visibility->Main()) {
+                const auto classification=desc.SelectionClass(draws[i].draw->entity);
+                if(classification==1) ++stats.selectionActiveDraws;
+                if(classification==2) {++stats.selectionSecondaryDraws;multiSelection=true;}
+            }
             if(!std::isfinite(desc.selectionPixelsPerDip.x) || !std::isfinite(desc.selectionPixelsPerDip.y)
                 || desc.selectionPixelsPerDip.x<=0 || desc.selectionPixelsPerDip.y<=0)
                 return Error("selection viewport ratio",Code::InvalidCamera);
@@ -1193,20 +1224,19 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
                 const auto& target=desc.color.Description().Storage;
                 const bool ms=target.Samples>1;
                 sharedSelection=target.Depth==FramebufferFormat::Depth24Stencil8;
-                for(auto i:visibility->Main()) if(draws[i].draw->entity==desc.selectedEntity) {
+                for(auto i:visibility->Main()) if(desc.SelectionClass(draws[i].draw->entity)) {
                     const auto& material=draws[i].resources->Material();
                     sharedSelection&=material.Pipeline().Depth().write
                         && material.Pipeline().Alpha()!=AlphaMode::Transparent
                         && (draws[i].role->kind==SceneMaterialKind::Lit || draws[i].role->kind==SceneMaterialKind::Unlit);
                 }
-                if(!storage.selectionMask.IsLinked() || !storage.selectionComposite.IsLinked()
-                    || storage.selectionMultisample!=ms || storage.selectionShared!=sharedSelection) {
-                    auto mask=sharedSelection?SelectionVisibilityProgram(ms):CoverageProgram(RenderPass::SelectionMask);
+                selection=&storage.selectionVariants[(multiSelection?4:0)+(sharedSelection?2:0)+(ms?1:0)];
+                if(!selection->mask.IsLinked() || !selection->composite.IsLinked()) {
+                    auto mask=sharedSelection?SelectionVisibilityProgram(ms,multiSelection):CoverageProgram(RenderPass::SelectionMask,multiSelection);
                     if(!mask) return std::unexpected(mask.error());
-                    auto composite=SelectionCompositeProgram(ms,sharedSelection);
+                    auto composite=SelectionCompositeProgram(ms,sharedSelection,multiSelection);
                     if(!composite) return std::unexpected(composite.error());
-                    storage.selectionMask=std::move(*mask);storage.selectionComposite=std::move(*composite);
-                    storage.selectionMultisample=ms;storage.selectionShared=sharedSelection;
+                    selection->mask=std::move(*mask);selection->composite=std::move(*composite);
                 }
                 const auto format=target.Depth==FramebufferFormat::Depth24Stencil8?GL_DEPTH24_STENCIL8:
                     target.Depth==FramebufferFormat::Depth24?GL_DEPTH_COMPONENT24:
@@ -1214,11 +1244,15 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
                 if(!format) return Error("selection requires scene depth",Code::InvalidTarget);
                 const auto w=(std::min)(target.Width,(stats.selectionRegion.width+63u)&~63u);
                 const auto h=(std::min)(target.Height,(stats.selectionRegion.height+63u)&~63u);
-                if(auto prepared=storage.selection.Ensure(w,h,target.Samples,format,sharedSelection);!prepared)
+                if(auto prepared=selection->scratch.Ensure(w,h,target.Samples,format,sharedSelection,multiSelection);!prepared)
                     return std::unexpected(prepared.error());
             }
         }
-        stats.selectionScratchBytes=storage.selection.Bytes();
+        if(selection) stats.selectionCurrentScratchBytes=selection->scratch.Bytes();
+        for(const auto& variant:storage.selectionVariants) {
+            stats.selectionScratchBytes+=variant.scratch.Bytes();
+            stats.selectionScratchAllocations+=variant.scratch.allocations;
+        }
         if (!frame.DebugLines().empty())
         {
             // Private backend resources belong to this existing submission owner.
@@ -1388,8 +1422,8 @@ void main(){ color=lineColor; }
                 // The material's own discard, depth test and MSAA rasterization
                 // decide visibility. Mixed color batches isolate the selected
                 // entity; picking and shadow batching are unchanged.
-                Toggle(GL_STENCIL_TEST,true);state.StencilMask(1u);
-                glStencilFunc(GL_ALWAYS,prepared.draw->entity==desc.selectedEntity?1:0,1u);
+                Toggle(GL_STENCIL_TEST,true);state.StencilMask(multiSelection?3u:1u);
+                glStencilFunc(GL_ALWAYS,desc.SelectionClass(prepared.draw->entity),multiSelection?3u:1u);
                 glStencilOp(GL_KEEP,GL_KEEP,GL_REPLACE);
             }
             if(auto result=Draw(prepared,shader,group,stats);!result) return result;
@@ -1409,7 +1443,7 @@ void main(){ color=lineColor; }
             contract.colorWrite=false;contract.stencilWrite=true;contract.scissor=true;
             contract.viewport=stats.selectionRegion;
             stats.trace.Pass(contract);++stats.selectionPasses;Apply(contract);
-            state.StencilMask(1u);constexpr GLint clear=0;
+            state.StencilMask(multiSelection?3u:1u);constexpr GLint clear=0;
             glClearBufferiv(GL_STENCIL,0,&clear);
             timing.Complete();
         }
@@ -1451,7 +1485,7 @@ void main(){ color=lineColor; }
         }
         if(stats.selectionRegion.width && stats.selectionRegion.height) {
             PassTiming::Scope total(RenderPass::SelectionTotal);
-            const auto& region=stats.selectionRegion;const auto& scratch=storage.selection;
+            const auto& region=stats.selectionRegion;const auto& scratch=selection->scratch;
             const auto& target=desc.color.Description().Storage;
             const auto selectionPass=[&](RenderPass pass) {
                 auto contract=DescribePass(pass,desc);contract.scissor=true;contract.viewport=region;
@@ -1475,13 +1509,14 @@ void main(){ color=lineColor; }
                 state.Viewport(-GLint(region.x),-GLint(region.y),target.Width,target.Height);
                 state.Scissor(0,0,region.width,region.height);
                 constexpr GLfloat clear[]{0,0,0,0};glClearNamedFramebufferfv(scratch.maskFbo,GL_COLOR,0,clear);
-                BindProgram(storage.selectionMask);
+                BindProgram(selection->mask);
                 for(auto i:visibility->Main()) {
                     const auto& draw=draws[i];
-                    if(draw.draw->entity!=desc.selectedEntity || draw.role->kind==SceneMaterialKind::Sky) continue;
-                    if(auto covered=coverage(draw,storage.selectionMask,true);!covered) return std::unexpected(covered.error());
+                    if(!desc.SelectionClass(draw.draw->entity) || draw.role->kind==SceneMaterialKind::Sky) continue;
+                    if(multiSelection) Uniform(selection->mask,"secondarySelection",desc.SelectionClass(draw.draw->entity)==2);
+                    if(auto covered=coverage(draw,selection->mask,true);!covered) return std::unexpected(covered.error());
                     Toggle(GL_CULL_FACE,draw.resources->Material().Pipeline().Description().cull!=CullMode::None);
-                    if(auto result=Draw(draw,storage.selectionMask,{i},stats);!result) return std::unexpected(result.error());
+                    if(auto result=Draw(draw,selection->mask,{i},stats);!result) return std::unexpected(result.error());
                     ++stats.selectionDrawCalls;
                 }
                 timing.Complete();
@@ -1492,7 +1527,7 @@ void main(){ color=lineColor; }
                 if(sharedSelection) {
                     state.Framebuffer(GL_FRAMEBUFFER,scratch.resolvedFbo);
                     state.Viewport(0,0,region.width,region.height);
-                    BindProgram(storage.selectionMask);const auto& shader=storage.selectionMask;
+                    BindProgram(selection->mask);const auto& shader=selection->mask;
                     const auto textureTarget=scratch.samples>1?GL_TEXTURE_2D_MULTISAMPLE:GL_TEXTURE_2D;
                     state.Texture(0,textureTarget,scratch.stencil);state.Sampler(0,0);
                     state.Texture(1,textureTarget,scratch.depth);state.Sampler(1,0);
@@ -1509,7 +1544,7 @@ void main(){ color=lineColor; }
                 state.Framebuffer(GL_FRAMEBUFFER,FramebufferDetail::Backend::Name(desc.color.Buffer()));
                 state.Viewport(region.x,region.y,region.width,region.height);
                 state.Scissor(region.x,region.y,region.width,region.height);
-                BindProgram(storage.selectionComposite);const auto& shader=storage.selectionComposite;
+                BindProgram(selection->composite);const auto& shader=selection->composite;
                 state.Texture(0,GL_TEXTURE_2D,scratch.resolved);state.Sampler(0,0);
                 state.Texture(1,scratch.samples>1?GL_TEXTURE_2D_MULTISAMPLE:GL_TEXTURE_2D,scratch.depth);state.Sampler(1,0);
                 Uniform(shader,"selectedMask",0);Uniform(shader,"sceneDepth",1);Uniform(shader,"sampleCount",int(scratch.samples));
@@ -1526,7 +1561,7 @@ void main(){ color=lineColor; }
                     // Reject each actually covered scene sample, including edge
                     // samples. The composite can never alter selected PBR color.
                     Toggle(GL_STENCIL_TEST,true);state.StencilMask(0u);
-                    glStencilFunc(GL_EQUAL,0,1u);glStencilOp(GL_KEEP,GL_KEEP,GL_KEEP);
+                    glStencilFunc(GL_EQUAL,0,multiSelection?3u:1u);glStencilOp(GL_KEEP,GL_KEEP,GL_KEEP);
                 }
                 glDrawArrays(GL_TRIANGLES,0,3);
                 ++stats.selectionDrawCalls;++stats.submittedDrawCalls;++stats.submittedInstances;
@@ -1549,6 +1584,7 @@ void main(){ color=lineColor; }
                 if(i<storage.shadowVisibility.size()) storage.shadowVisibility[i]=stats.shadowVisibility[i];
             }
         transaction.success=true;
+        if(submissionTiming) submissionTiming->Complete();
         return stats;
     }
 }

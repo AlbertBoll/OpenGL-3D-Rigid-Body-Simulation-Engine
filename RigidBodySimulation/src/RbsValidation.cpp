@@ -1,5 +1,8 @@
 #include "RbsDiagnosticBootstrap.h"
 #include "../tests/RestingContactDiagnosis.h"
+#ifdef GENGINE_COLLIDER_ADMISSION_VALIDATION
+#include "../tests/ColliderAdmissionChecks.h"
+#endif
 #ifdef GENGINE_RENDER_BASELINE
 #include "Core/RenderBaseline.h"
 #endif
@@ -11,6 +14,12 @@
 #include "Core/Log.h"
 #include "Core/Window.h"
 #include "Scene/_Scene.h"
+#ifdef GENGINE_COLLIDER_EDITOR_SMOKE
+namespace Rbs
+{
+    bool RunColliderEditorSmoke(GEngine::_Scene&, GEngine::SceneRenderResources&, const char*);
+}
+#endif
 #include <format>
 
 #include <chrono>
@@ -1420,6 +1429,33 @@ ApplicationInitializationResult RigidBodySimulationApp::ValidateShaderDescriptio
 
 bool RigidBodySimulationApp::ValidateUpdate()
 {
+#ifdef GENGINE_MESH_HIGHLIGHT_AUDIT
+    if (std::getenv("GENGINE_ORDINARY_HIGHLIGHT_OUTPUT")) return ValidateOrdinaryHighlightUpdate();
+#endif
+#ifdef GENGINE_COLLIDER_EDITOR_SMOKE
+    if (std::getenv("GENGINE_MESH_HIGHLIGHT_OUTPUT")) return ValidateMeshHighlightUpdate();
+    if (std::getenv("GENGINE_COLLIDER_SELECTION_SMOKE_OUTPUT")) return ValidateColliderSelectionUpdate();
+    if (const char* output = std::getenv("GENGINE_COLLIDER_EDITOR_SMOKE_OUTPUT"))
+    {
+        const bool passed = Rbs::RunColliderEditorSmoke(*m_ActiveScene, *m_SceneResources, output);
+        if (!passed)
+            FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Collider Editor", {}, "smoke", {},
+                "Candidate 04 nonvisual widget smoke failed"});
+        else ShutDown();
+        return false;
+    }
+#endif
+#ifdef GENGINE_COLLIDER_ADMISSION_VALIDATION
+    if (std::getenv("GENGINE_COLLIDER_ADMISSION_OUTPUT"))
+    {
+        const auto previousCap=GetManualFrameRateLimit();SetManualFrameRateLimit(0);
+        bool finished=false;
+        try { finished=Rbs::ColliderAdmissionChecks::RunOnce(*m_ActiveScene,*m_SceneResources); }
+        catch (...) { SetManualFrameRateLimit(previousCap); throw; }
+        SetManualFrameRateLimit(previousCap);
+        if(finished) { ShutDown(); return false; }
+    }
+#endif
 #ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
     auto& outline=Phase24Qualification::probe;
     if(outline.enabled && outline.failed) {
@@ -2820,3 +2856,11 @@ namespace Rbs
         return clean;
     }
 }
+
+#ifdef GENGINE_COLLIDER_EDITOR_SMOKE
+#include "../tests/ColliderSelectionChecks.h"
+#include "../tests/MeshHighlightChecks.h"
+#endif
+#ifdef GENGINE_MESH_HIGHLIGHT_AUDIT
+#include "../tests/OrdinaryMeshHighlightChecks.h"
+#endif

@@ -1,0 +1,31 @@
+{
+  "source_worktree": "C:/dev/GEngine-collider-replacement",
+  "source_git_head": "118e4e1e544ef2e26ec5930cd9c7f56a8cf6b0d3",
+  "source_state": "Detached dirty candidate; immutable accepted source manifest is its authoritative implementation identity.",
+  "accepted_revision": "Candidate04 Revision05",
+  "owner_human_acceptance": "PASS: explicit Owner ordinary Release|x64 inspection and controlled integration authorization.",
+  "accepted_manifest_sha256": "8ed02bbe6129073a883847d6655ced8fb2bc45146d99850105c5b4397281fd67",
+  "owner_acceptance_record_sha256": "5f1e340e796ad3aeb9b942bd266fac5f4d29681b909cd86efc924e811c4112b1",
+  "historical_qualified_exe_sha256": "4b825dc98ad04f611c19f8c4de594dd6e84ac9b6b7eba86e8637bfdde1d56898",
+  "live_source_exe_sha256": "f47993aa940b88d54e1a9a859a2804cf04cea0884683fbde5a90798a334eb60d",
+  "binary_disposition": "Distinct historical automated and pre-integration live rebuild identities preserved. Owner did not independently supply a rebuilt executable hash. Source899 matches; fresh integration products independently qualified.",
+  "integration_branch": "integration/collider-c04-r05",
+  "parent": "118e4e1e544ef2e26ec5930cd9c7f56a8cf6b0d3",
+  "target": "pre-editor/refactor",
+  "target_modified": false,
+  "approved_phase24": {
+    "commit": "118e4e1e544ef2e26ec5930cd9c7f56a8cf6b0d3",
+    "performance": "APPROVED with accepted technical INCONCLUSIVE performance exception; unchanged",
+    "tags_at_commit": [
+      "pre-editor-phase-24-approved"
+    ]
+  },
+  "scope": "Exact accepted production port. Three diagnostic headers explicitly bind isolated validation root; portable offline oracles/owned runner and immutable fixtures complete reproducibility. Future Object Groups document is planning only.",
+  "excluded": "All uncommitted Phase25 source and untracked Phase25 qualification paths. Unused historical ColliderSelectionMatrixChecks header and raw campaign trees are preserved outside the integrated source set.",
+  "phase25_reconciliation": "Three text conflicts in two overlapping files are resolved in review-only evidence: first-local Phase25 observer precedes C04 revision accounting; opt-in early-return fixture precedes diagnostic elapsed overrides; includes coexist. No reconciliation is applied or Phase25 run activated.",
+  "protected": "No Solver equations, iterations, sleep policy, collision geometry or GJK/EPA changes beyond exact previously Owner-accepted candidate source. 47 failed query records and Phase21 FROZEN_UNAPPROVED remain. OD07 Revision02 proposed/inactive.",
+  "focused_gate_sha256": "c710afb7961bae87b0b041cc4bb95d60d15114a149e2ff44bc6e906374507ed0",
+  "automated_scope": "Debug/Release build and Inspector, Renderer/GPU final-frame, Safe/Force allocation/atomicity and exact410400state regression gates pass; final ordinary Release and artifact identity are recorded separately in integration handoff.",
+  "acceptance": "INTEGRATED OWNER ACCEPTANCE AND PROMOTION NOT GRANTED. Stop before updating pre-editor/refactor.",
+  "cleanup": "No worktree may be removed until Owner-approved promotion, integrated human gates, verified durable external evidence archive and absence of dependent sessions/processes."
+}

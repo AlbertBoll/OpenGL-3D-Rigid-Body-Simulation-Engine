@@ -131,6 +131,8 @@ namespace GEngine
     namespace SceneDetail { struct BackendAccess; }
 	class PhysicsWorld;
 	class PhysicsSystem;
+    struct ColliderAdmissionReport;
+    class ColliderReplacementConfirmation;
 	//using namespace Camera;
 
 	class _Scene
@@ -183,6 +185,19 @@ namespace GEngine
         // Explicit runtime edit only; does not rewrite authored fixtures or visual meshes.
         [[nodiscard]] std::expected<void, TransformMutationError>
         ReplaceBodyCollider(const _Entity&, const CollisionShapeDesc&);
+        // Preview is informational; the admitted command assesses current inputs again.
+        [[nodiscard]] ColliderAdmissionReport
+        AssessBodyColliderReplacement(const _Entity&, const CollisionShapeDesc&,
+            std::unique_ptr<PhysicalShape>* preview = nullptr) const;
+        [[nodiscard]] ColliderAdmissionReport
+        ReplaceBodyColliderIfNoAddedOverlap(const _Entity&, const CollisionShapeDesc&);
+        [[nodiscard]] ColliderAdmissionReport
+        ReplaceBodyColliderConfirmed(const _Entity&, const CollisionShapeDesc&,
+            const ColliderReplacementConfirmation&);
+#ifdef GENGINE_COLLIDER_ADMISSION_VALIDATION
+        // Test-only raw value observation; never resolves lazy body/render getters.
+        [[nodiscard]] std::vector<std::uint8_t> InspectColliderAdmissionState() const;
+#endif
 
         // Scoped listeners borrow neither an entity nor this Scene through the payload.
         // Phase 13 owner-thread/lifetime/registration/nested-delivery rules apply.
@@ -371,6 +386,8 @@ namespace GEngine
 		}
 
 	private:
+        ColliderAdmissionReport ReplaceBodyColliderWithAdmission(const _Entity&,
+            const CollisionShapeDesc&, const ColliderReplacementConfirmation*);
         [[nodiscard]] std::expected<entt::entity, SceneCameraError>
         ResolveSceneCamera(EntityRenderId) const;
         std::optional<EntityRenderId> m_ActiveSceneCamera;

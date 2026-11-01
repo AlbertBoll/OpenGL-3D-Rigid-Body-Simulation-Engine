@@ -35,12 +35,18 @@ namespace GEngine
 	class PhysicalShape
 	{
 	public:
-		PhysicalShape() = default;
+		PhysicalShape() : m_MeshPoints(std::size_t(0)) {}
         // Concrete shape payloads retire through the existing polymorphic owner boundary.
         virtual ~PhysicalShape() = default;
         PhysicalShape(const PhysicalShape&) = default;
         PhysicalShape& operator=(const PhysicalShape&) = default;
-        PhysicalShape(PhysicalShape&&) noexcept = default;
+        // MSVC Debug vector move construction allocates its iterator proxy inside
+        // noexcept. Construct an empty vector through the fallible count overload,
+        // then transfer storage with swap; no geometry or revision change occurs.
+        PhysicalShape(PhysicalShape&& other)
+            : m_CenterOfMass(other.m_CenterOfMass), m_MeshPoints(std::size_t(0)),
+              m_ShapeType(other.m_ShapeType), m_Revision(other.m_Revision)
+        { m_MeshPoints.swap(other.m_MeshPoints); }
         PhysicalShape& operator=(PhysicalShape&&) noexcept = default;
 		PhysicalShape(const std::vector<Vec3f>& MeshPoints) : m_MeshPoints(MeshPoints) {};
 		virtual Mat3 InertiaTensor() const = 0;

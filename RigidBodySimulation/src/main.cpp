@@ -1,5 +1,8 @@
 #include "RigidBodySimulation.h"
 #include "Core/RuntimeAssets.h"
+#ifdef GENGINE_COLLIDER_PASSIVE_OBSERVATION
+#include "../tests/ColliderPassiveObservation.h"
+#endif
 #include <cstdio>
 #include <filesystem>
 
@@ -20,7 +23,16 @@ WindowProperties winProp{.m_Title = "RigidBodySimulation",
 int main(int argc, char* args[])
 {
     // Select exactly one scene for the normal application.
+#ifdef GENGINE_COLLIDER_PASSIVE_OBSERVATION
+    // Isolated diagnostic bootstrap only: freeze the explicitly admitted preset.
+    if(!Rbs::ColliderPassive::Configure()) {
+        std::fprintf(stderr,"Collider passive configuration: %s\n",Rbs::ColliderPassive::config.failure);
+        return 1;
+    }
+    const auto scenePreset=Rbs::ColliderPassive::config.preset;
+#else
     constexpr auto scenePreset = Rbs::RbsScenePreset::SphereBoxStack;
+#endif
     // All consumers borrow this immutable value; it outlives app/EngineContext.
     const Rbs::LaunchConfig launch{.scene = scenePreset};
     if (argc < 1 || !args || !args[0])

@@ -66,7 +66,7 @@ namespace GEngine
 			bounds.Expand(point);
 		}
 
-		std::vector<Vec3f> points;
+		std::vector<Vec3f> points(std::size_t(0));
 		points.reserve(8);
 		points.push_back(Vec3f(bounds.mins.x, bounds.mins.y, bounds.mins.z));
 		points.push_back(Vec3f(bounds.maxs.x, bounds.mins.y, bounds.mins.z));
@@ -84,7 +84,8 @@ namespace GEngine
 		m_MeshPoints.swap(sourcePoints);
 		m_CenterOfMass = (bounds.maxs + bounds.mins) * 0.5f;
 		MarkGeometryChanged();
-		GENGINE_INFO("Center of mass: x: {}, y: {}, z: {}", m_CenterOfMass.x, m_CenterOfMass.y, m_CenterOfMass.z);
+		// Staging must propagate allocation failure; Debug float-format logging
+		// can allocate inside a noexcept CRT string constructor. No logging here.
 
 	}
 

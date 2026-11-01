@@ -478,6 +478,8 @@ namespace GEngine
 
 	void PhysicsSystem::Update(Timestep ts)
 	{
+        // A confirmation is valid only between simulation updates.
+        ++m_ColliderContextRevision;
         const auto observe = [&](PhysicsDiagnostic::Stage stage) {
             auto* sink=PhysicsDiagnostic::observer;
             if (!sink || !m_PhysicsWorld) return;
@@ -1101,41 +1103,78 @@ namespace GEngine
         const Vec3f& position, const Quat& orientation, const glm::vec4& color)
     {
         DebugGeometryResult collider;
-                if (shape.GetShapeType()==ShapeType::Sphere)
-                    collider=out.Sphere(position,static_cast<const ShapeSphere&>(shape).GetRadius(),color);
-                else if (shape.GetShapeType()==ShapeType::Capsule) {
-                    const auto& capsule=static_cast<const ShapeCapsule&>(shape);
-                    const float radius=capsule.GetRadius(), half=capsule.GetHalfLength();
-                    // Two meridian outlines and both cap seams, using the same
-                    // dimensions as Support(). Append once: capacity is atomic.
-                    std::array<FrameDebugLine,100> lines; std::size_t count=0;
-                    const auto append=[&](Vec3f a,Vec3f b) {
-                        lines[count++]={position+orientation*a,
-                            position+orientation*b,color,{},DebugDepth::Tested};
-                    };
-                    for (int axis : {0,2}) {
-                        for (float sign : {-1.f,1.f}) {
-                            for (unsigned i=0;i<16;++i) {
-                                const auto point=[&](unsigned j) {
-                                    const float angle=float(j)*Math::Pi/16.f;
-                                    Vec3f p(0); p[axis]=radius*std::cos(angle);
-                                    p.y=sign*(half+radius*std::sin(angle)); return p;
-                                };
-                                append(point(i),point(i+1));
-                            }
-                            Vec3f a(0),b(0); a[axis]=b[axis]=sign*radius;
-                            a.y=-half; b.y=half; append(a,b);
+        if (shape.GetShapeType() == ShapeType::Sphere || shape.GetShapeType() == ShapeType::Capsule)
+        {
+            // Bounded display tessellation, shared by native and candidate outlines.
+            // Cache the unit circle once; no frame allocations or repeated trig.
+            constexpr unsigned segments = 64;
+            static const auto circle = []
+            {
+                std::array<Vec2f, segments + 1> points;
+                for (unsigned i = 0; i < segments; ++i)
+                {
+                    const float angle = float(i) * Math::TwoPi / float(segments);
+                    points[i] = {std::cos(angle), std::sin(angle)};
+                }
+                points[0] = {1, 0};
+                points[segments / 4] = {0, 1};
+                points[segments / 2] = {-1, 0};
+                points[segments * 3 / 4] = {0, -1};
+                points[segments] = points[0];
+                return points;
+            }();
+            std::array<FrameDebugLine, segments * 4 + 4> lines;
+            std::size_t count = 0;
+            const auto append = [&](const Vec3f& a, const Vec3f& b)
+            {
+                lines[count++] = {position + orientation * a, position + orientation * b,
+                    color, {}, DebugDepth::Tested};
+            };
+            if (shape.GetShapeType() == ShapeType::Sphere)
+            {
+                const float radius = static_cast<const ShapeSphere&>(shape).GetRadius();
+                for (unsigned axis = 0; axis < 3; ++axis)
+                    for (unsigned i = 0; i < segments; ++i)
+                    {
+                        Vec3f a(0), b(0);
+                        a[axis] = circle[i].x * radius;
+                        a[(axis + 1) % 3] = circle[i].y * radius;
+                        b[axis] = circle[i + 1].x * radius;
+                        b[(axis + 1) % 3] = circle[i + 1].y * radius;
+                        append(a, b);
+                    }
+            }
+            else
+            {
+                const auto& capsule = static_cast<const ShapeCapsule&>(shape);
+                const float radius = capsule.GetRadius(), half = capsule.GetHalfLength();
+                for (unsigned axis : {0u, 2u})
+                    for (float sign : {-1.f, 1.f})
+                    {
+                        const auto point = [&](unsigned i)
+                        {
+                            Vec3f p(0);
+                            p[axis] = radius * circle[i].x;
+                            p.y = sign * (half + radius * circle[i].y);
+                            return p;
+                        };
+                        for (unsigned i = 0; i < segments / 2; ++i) append(point(i), point(i + 1));
+                        if (half > 0)
+                        {
+                            Vec3f a(0), b(0);
+                            a[axis] = b[axis] = sign * radius;
+                            a.y = -half; b.y = half;
+                            append(a, b);
                         }
                     }
-                    for (float sign : {-1.f,1.f}) for (unsigned i=0;i<16;++i) {
-                        const auto point=[&](unsigned j) {
-                            const float angle=float(j%16)*Math::TwoPi/16.f;
-                            return Vec3f(radius*std::cos(angle),sign*half,radius*std::sin(angle));
-                        };
-                        append(point(i),point(i+1));
-                    }
-                    collider=out.Append(lines);
-                }
+                // A zero-segment Capsule needs only one equatorial circle.
+                for (unsigned cap = 0; cap < (half > 0 ? 2u : 1u); ++cap)
+                    for (unsigned i = 0; i < segments; ++i)
+                        append({radius * circle[i].x, cap ? half : -half, radius * circle[i].y},
+                               {radius * circle[i + 1].x, cap ? half : -half, radius * circle[i + 1].y});
+            }
+            collider = out.Append(std::span<const FrameDebugLine>(lines.data(), count));
+        }
                 else if (shape.GetShapeType()==ShapeType::Convex) {
                     const auto& convex=static_cast<const ShapeConvex&>(shape);
                     collider=out.IndexedLines(convex.GetPoints(),convex.GetBoundaryEdges(),
@@ -1196,6 +1235,7 @@ namespace GEngine
 
     void PhysicsSystem::InvalidateBodyContacts(RigidBody3D* body)
     {
+        ++m_ColliderContextRevision;
         WakeConnectedTo(body);
         m_ContactIslands.clear();
         RemoveManifoldsForBody(m_Manifolds, body);
@@ -1239,13 +1279,422 @@ namespace GEngine
                 PhysicsBodyErrorCode::Allocation : PhysicsBodyErrorCode::InvalidShape, handle, op);
         if (!AcceptBodyShape(**resolved, **staged))
             return TransformBodyFailure(PhysicsBodyErrorCode::NonFiniteResult, handle, op);
-        InvalidateBodyContacts(*resolved);
-        (*resolved)->m_Shape = staged->get();
-        owned.swap(*staged); // Old owner retires here; handle, body and binding are unchanged.
-        // A replacement may reuse an earlier shape address and local revision.
-        // Retire all derived data at commit, even if its lazy source keys match.
-        (*resolved)->m_DerivedData = {};
+        CommitStagedCollider(handle, *resolved, *staged);
         return {};
+    }
+
+    void PhysicsSystem::CommitStagedCollider(PhysicsBodyHandle handle, RigidBody3D* body,
+        std::unique_ptr<PhysicalShape>& staged, bool preparedWake)
+    {
+        if(!preparedWake) InvalidateBodyContacts(body);
+        else {
+            const auto identity=body->GetIdentity();
+            for(const auto& island:m_ActivationIslands){if(std::find(island.dynamicBodies.begin(),island.dynamicBodies.end(),identity)==island.dynamicBodies.end()&&std::find(island.boundaryBodies.begin(),island.boundaryBodies.end(),identity)==island.boundaryBodies.end())continue;for(auto member:island.dynamicBodies)if(auto* live=ResolveBody(member))live->WakeUp();}
+            body->WakeUp();m_ContactIslands.clear();RemoveManifoldsForBody(m_Manifolds,body);RemoveContactsForBody(m_Contacts,body);m_CollisionPairs.clear();m_Broadphase.Clear();
+        }
+        body->m_Shape = staged.get();
+        m_PhysicsWorld->m_OwnedResources[handle.index].shape.swap(staged);
+        body->m_DerivedData = {};
+        ++m_ColliderContextRevision;
+    }
+
+
+    namespace ColliderAdmissionDetail
+    {
+        // All certificates consume actual native Box::Support vertices. For Capsule,
+        // every finite support result is enclosed by Float32 rounded interval ops.
+        // No overlap allowance is used. Tiny/overflow/unsupported inputs fail closed.
+        struct I { double lo{},hi{};I()=default;I(double v):lo(v),hi(v){}I(double a,double b):lo(a),hi(b){} };
+        double Down(double x){return std::nextafter(x,-std::numeric_limits<double>::infinity());}
+        double Up(double x){return std::nextafter(x,std::numeric_limits<double>::infinity());}
+        I operator+(I a,I b){return {Down(a.lo+b.lo),Up(a.hi+b.hi)};}
+        I operator-(I a,I b){return {Down(a.lo-b.hi),Up(a.hi-b.lo)};}
+        I operator*(I a,I b){const double v[]={a.lo*b.lo,a.lo*b.hi,a.hi*b.lo,a.hi*b.hi};return {Down(*std::min_element(v,v+4)),Up(*std::max_element(v,v+4))};}
+        bool Finite(I x){return std::isfinite(x.lo)&&std::isfinite(x.hi)&&x.lo<=x.hi;}
+        I FR(I x){
+            // One full binary32 ulp bounds any IEEE rounding direction; min-normal
+            // additionally encloses every subnormal flush (FTZ/DAZ). Computation
+            // stays in normal double values, so the bound itself cannot be lost
+            // by a float-to-double conversion of a flushed subnormal endpoint.
+            // Every intermediate includes its exact value and its flushed value,
+            // hence contracted multiply/add paths are enclosed as well.
+            if(!Finite(x)||x.lo<-std::numeric_limits<float>::max()||x.hi>std::numeric_limits<float>::max())return {-std::numeric_limits<double>::infinity(),std::numeric_limits<double>::infinity()};
+            const double error=Up(std::ldexp(1.,-23)*std::max(std::abs(x.lo),std::abs(x.hi))+double(std::numeric_limits<float>::min()));
+            return {Down(x.lo-error),Up(x.hi+error)};
+        }
+        I FA(I a,I b){return FR(a+b);}I FM(I a,I b){return FR(a*b);}I FS(I a,I b){return FR(a-b);}
+        using V=std::array<I,3>;
+        V Exact(Vec3f a){return {I(a.x),I(a.y),I(a.z)};}
+        V Sub(V a,V b){for(int i=0;i<3;++i)a[i]=a[i]-b[i];return a;}
+        I Dot(V a,V b){I r;for(int i=0;i<3;++i)r=r+a[i]*b[i];return r;}
+        V Cross(V a,V b){return {a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]};}
+        V FCross(V a,V b){return {FS(FM(a[1],b[2]),FM(a[2],b[1])),FS(FM(a[2],b[0]),FM(a[0],b[2])),FS(FM(a[0],b[1]),FM(a[1],b[0]))};}
+        V FRotate(const Quat& q,V v){V u={I(q.x),I(q.y),I(q.z)};const V uv=FCross(u,v),uuv=FCross(u,uv);for(int i=0;i<3;++i)v[i]=FA(v[i],FM(FA(FM(uv[i],I(q.w)),uuv[i]),I(2)));return v;}
+        bool NormalOrZero(float x){return std::isfinite(x)&&(x==0||std::abs(x)>=std::numeric_limits<float>::min());}
+        bool PoseDomain(const RigidBody3D& b){if(!Math::IsFinite(b.m_Position)||!Math::IsFinite(b.m_Orientation))return false;for(float x:{b.m_Position.x,b.m_Position.y,b.m_Position.z,b.m_Orientation.w,b.m_Orientation.x,b.m_Orientation.y,b.m_Orientation.z})if(!NormalOrZero(x))return false;return std::abs(double(b.m_Orientation.w)*b.m_Orientation.w+double(b.m_Orientation.x)*b.m_Orientation.x+double(b.m_Orientation.y)*b.m_Orientation.y+double(b.m_Orientation.z)*b.m_Orientation.z-1.)<=1e-4;}
+        bool Supported(const PhysicalShape& s){return s.IsValid()&&((s.GetShapeType()==ShapeType::Box&&dynamic_cast<const ShapeBox*>(&s))||(s.GetShapeType()==ShapeType::Sphere&&dynamic_cast<const ShapeSphere*>(&s))||(s.GetShapeType()==ShapeType::Capsule&&dynamic_cast<const ShapeCapsule*>(&s)));}
+        using Vertices=std::array<Vec3f,8>;
+        bool BoxVertices(const RigidBody3D& b,Vertices& points)
+        {
+            if(!PoseDomain(b)||!b.m_Shape||b.m_Shape->GetShapeType()!=ShapeType::Box||!Supported(*b.m_Shape))return false;
+            // IsValid requires exactly8 private Box vertices. Eight distinct native
+            // returned vertices therefore enumerate its entire bias-zero support set.
+            for(unsigned k=0;k<8;++k){const Vec3f sign((k&1)?1.f:-1.f,(k&2)?1.f:-1.f,(k&4)?1.f:-1.f);points[k]=b.m_Shape->Support(glm::toMat3(b.m_Orientation)*sign,b.m_Position,b.m_Orientation,0);if(!Math::IsFinite(points[k]))return false;for(unsigned j=0;j<k;++j)if(points[k]==points[j])return false;}
+            return true;
+        }
+        struct Aabb{V axis;bool valid{};};
+        Aabb Enclosure(const RigidBody3D& b)
+        {
+            Aabb out;if(!PoseDomain(b)||!b.m_Shape||!Supported(*b.m_Shape))return out;
+#ifdef _M_FP_FAST
+            return out; // Unproved fast-math algebra/normalization is not admitted.
+#endif
+            if(b.m_Shape->GetShapeType()==ShapeType::Box){Vertices points;if(!BoxVertices(b,points))return out;for(int i=0;i<3;++i){out.axis[i]=I(points[0][i]);for(auto p:points){out.axis[i].lo=std::min(out.axis[i].lo,double(p[i]));out.axis[i].hi=std::max(out.axis[i].hi,double(p[i]));}}}
+            else if(b.m_Shape->GetShapeType()==ShapeType::Capsule){const auto& c=static_cast<const ShapeCapsule&>(*b.m_Shape);if(!NormalOrZero(c.GetRadius())||!NormalOrZero(c.GetHalfLength()))return out;
+                // UnitDirection scales by max absolute component. One scaled
+                // component is exactly +/-1, sum of squares>=1 and length>=1;
+                // each finite returned unit component lies in[-1,1], also with
+                // FTZ/DAZ. Zero direction returns(1,0,0). Nonfinite outputs cannot
+                // authorize a query. FR includes exact, rounded and flushed results.
+                const V segment=FRotate(b.m_Orientation,V{I(0),I(c.GetHalfLength()),I(0)});
+                for(int i=0;i<3;++i){const I signedSegment={std::min(segment[i].lo,-segment[i].hi),std::max(segment[i].hi,-segment[i].lo)};out.axis[i]=FA(FA(I(b.m_Position[i]),signedSegment),FM(I(-1,1),I(c.GetRadius())));}}
+            else {const auto& sphere=static_cast<const ShapeSphere&>(*b.m_Shape);if(!NormalOrZero(sphere.GetRadius()))return out;
+                // GJK's existing Math::NormalizeOr precedes Sphere::Support. For
+                // finite squared length>epsilon^2, positive squared sums and
+                // IEEE rounding bound every component strictly below2. Underflow
+                // terms are below that domain; overflow takes the unit fallback.
+                // [-2r,2r] deliberately enlarges the bound; it is not tolerance.
+                for(int i=0;i<3;++i)out.axis[i]=FA(I(b.m_Position[i]),FM(I(-2,2),I(sphere.GetRadius())));}
+            out.valid=std::all_of(out.axis.begin(),out.axis.end(),Finite);return out;
+        }
+        bool Separated(const Aabb& a,const Aabb& b){if(!a.valid||!b.valid)return false;for(int i=0;i<3;++i)if(a.axis[i].hi<b.axis[i].lo||b.axis[i].hi<a.axis[i].lo)return true;return false;}
+        bool Inside(V point,const Vertices& v,double& margin)
+        {
+            // Strict interval barycentric coordinates inside one native-vertex
+            // tetrahedron imply membership in the convex native Box support hull.
+            for(unsigned a=0;a<5;++a)for(unsigned b=a+1;b<6;++b)for(unsigned c=b+1;c<7;++c)for(unsigned d=c+1;d<8;++d){const V x=Exact(v[a]),u=Sub(Exact(v[b]),x),w=Sub(Exact(v[c]),x),z=Sub(Exact(v[d]),x),p=Sub(point,x);I den=Dot(u,Cross(w,z)),n1=Dot(p,Cross(w,z)),n2=Dot(u,Cross(p,z)),n3=Dot(u,Cross(w,p));if(den.hi<0){den=I(0)-den;n1=I(0)-n1;n2=I(0)-n2;n3=I(0)-n3;}const I n0=den-n1-n2-n3;if(Finite(den)&&den.lo>0&&n0.lo>0&&n1.lo>0&&n2.lo>0&&n3.lo>0){const double m=std::min({n0.lo,n1.lo,n2.lo,n3.lo})/den.hi;if(std::isfinite(m)&&m>0){margin=m;return true;}}}
+            return false;
+        }
+        bool Identical(const PhysicalShape& a,const PhysicalShape& b){if(a.GetShapeType()!=b.GetShapeType()||!Supported(a)||!Supported(b))return false;if(a.GetShapeType()==ShapeType::Box){const auto x=a.GetBounds(),y=b.GetBounds();return x.mins==y.mins&&x.maxs==y.maxs;}if(a.GetShapeType()==ShapeType::Sphere)return static_cast<const ShapeSphere&>(a).GetRadius()==static_cast<const ShapeSphere&>(b).GetRadius();const auto& x=static_cast<const ShapeCapsule&>(a);const auto& y=static_cast<const ShapeCapsule&>(b);return x.GetRadius()==y.GetRadius()&&x.GetHalfLength()==y.GetHalfLength();}
+        bool Contained(const RigidBody3D& old,const RigidBody3D& candidate,const Aabb& enclosure,double& margin)
+        {
+            if(Identical(*old.m_Shape,*candidate.m_Shape)){margin=0;return true;}
+            Vertices vertices;if(!enclosure.valid||!BoxVertices(old,vertices))return false;margin=std::numeric_limits<double>::infinity();
+            for(unsigned k=0;k<8;++k){V corner;for(int i=0;i<3;++i)corner[i]=I((k&(1u<<i))?enclosure.axis[i].hi:enclosure.axis[i].lo);double m{};if(!Inside(corner,vertices,m))return false;margin=std::min(margin,m);}
+            return margin>0&&std::isfinite(margin);
+        }
+    }
+
+    ColliderAdmissionReport PhysicsSystem::AssessStagedCollider(PhysicsBodyHandle handle,
+        const CollisionShapeDesc& desc,RigidBody3D* body,PhysicalShape& staged) const
+    {
+        using namespace ColliderAdmissionDetail;
+        const auto start=std::chrono::steady_clock::now();ColliderAdmissionReport report;report.body=handle;(void)report.SetDescriptor(desc);
+        const auto finish=[&](const char* reason,ColliderAdmissionError error=ColliderAdmissionError::Unproved){report.reason=reason;report.error=error;report.elapsedMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();if(report.elapsedMs>20){report.outcome=ColliderAdmissionOutcome::Indeterminate;report.complete=false;report.reason="assessment deadline exceeded";report.error=ColliderAdmissionError::Deadline;}return std::move(report);};
+        std::size_t bodyLimit=4096,queryLimit=8190,storageLimit=4194304;
+#ifdef GENGINE_COLLIDER_ADMISSION_VALIDATION
+        bodyLimit=std::min(bodyLimit,m_AdmissionTestBodyLimit);queryLimit=std::min(queryLimit,m_AdmissionTestQueryLimit);storageLimit=std::min(storageLimit,m_AdmissionTestStorageLimit);
+        if(m_AdmissionTestExpired)return finish("assessment deadline exhausted (injected)",ColliderAdmissionError::Deadline);
+#endif
+        try {
+            if(PhysicsDiagnostic::observer||PhysicsDiagnostic::queryObserver)return finish("Busy: active Physics observation",ColliderAdmissionError::Busy);
+#ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
+            if(PhysicsDiagnostic::Coupled::sink||PhysicsDiagnostic::Coupled::currentContext)return finish("Busy: active coupled observation",ColliderAdmissionError::Busy);
+#endif
+            const auto& bodies=m_PhysicsWorld->GetPhysicsBodies();if(bodies.size()>bodyLimit)return finish("body scan limit exceeded",ColliderAdmissionError::BodyLimit);
+            if(!body->m_Shape||!Supported(*body->m_Shape)||!Supported(staged))return finish("unsupported shape certificate",ColliderAdmissionError::UnsupportedShape);
+            RigidBody3D old=*body,candidate=*body;old.m_DerivedData={};candidate.m_DerivedData={};candidate.m_Shape=&staged;
+            const auto oldBounds=Enclosure(old),newBounds=Enclosure(candidate);if(!oldBounds.valid||!newBounds.valid)return finish("nonfinite or unsupported numerical enclosure domain");
+            const bool identical=Identical(*body->m_Shape,staged);double containmentMargin{};const bool contained=Contained(old,candidate,newBounds,containmentMargin);report.certificateMargin=contained?containmentMargin:0;
+            report.trackedPeakBytes=bodies.size()*sizeof(ColliderAdmissionPair)+3*sizeof(RigidBody3D)+sizeof(report)+4096;
+            if(report.trackedPeakBytes>storageLimit)return finish("report/probe storage limit exceeded",ColliderAdmissionError::StorageLimit);
+            if(auto storage=report.pairs.TryReserve(bodies.size());!storage)return finish("pair storage unavailable",storage.error());report.temporaryAllocations=1;
+            const auto append=[&](const ColliderAdmissionPair& row){return report.pairs.TryAppend(row);};
+            bool unknown=false,risk=false;
+            for(auto* neighbor:bodies){++report.assessedBodies;if(neighbor==body)continue;
+                if(std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count()>20)return finish("assessment deadline exceeded",ColliderAdmissionError::Deadline);
+                if(!neighbor||!m_PhysicsWorld->IsBodyIdentityValid(neighbor->GetIdentity()))return finish("invalid world membership",ColliderAdmissionError::InvalidIdentity);
+                if(!(body->m_CollisionMask&neighbor->m_CollisionLayer)||!(neighbor->m_CollisionMask&body->m_CollisionLayer)||(body->GetInverseMass()==0&&neighbor->GetInverseMass()==0))continue;
+                ColliderAdmissionPair row;row.other=m_PhysicsWorld->HandleOf(neighbor->GetIdentity());
+#ifdef GENGINE_COLLIDER_ADMISSION_VALIDATION
+                if(m_AdmissionTestQueryFailureReason){row.newOutcome=ColliderPairOutcome::Failed;row.newTermination=m_AdmissionTestQueryFailureReason;row.reason="required query failure injected; fail closed";row.method="native failure classification test";unknown=true;if(!append(row))return finish("pair storage limit exceeded",ColliderAdmissionError::StorageLimit);continue;}
+#endif
+                if(contained){row.reason=identical?"exact geometry unchanged; replacement still wakes/resets contacts":"NO_ADDED_GEOMETRIC_OVERLAP: native all-direction enclosure strictly inside old support hull";row.method=identical?"exact effective geometry":"directed Float32 envelope; positive tetrahedral barycentric margins";if(!append(row))return finish("pair storage limit exceeded",ColliderAdmissionError::StorageLimit);continue;}
+                RigidBody3D other=*neighbor;other.m_DerivedData={};const auto otherBounds=Enclosure(other);
+                if(!otherBounds.valid){row.oldOutcome=row.newOutcome=ColliderPairOutcome::Unsupported;row.reason="unsupported/nonfinite neighbor certificate";unknown=true;if(!append(row))return finish("pair storage limit exceeded",ColliderAdmissionError::StorageLimit);continue;}
+                if(Separated(newBounds,otherBounds)){row.newOutcome=ColliderPairOutcome::SeparatedByBounds;row.reason="SEPARATED_AFTER: strict native enclosing bounds";row.method="all-direction Float32 enclosure";if(!append(row))return finish("pair storage limit exceeded",ColliderAdmissionError::StorageLimit);continue;}
+                ++report.candidatePairs;const bool oldSeparated=Separated(oldBounds,otherBounds);
+                Vertices vertices;double witnessMargin{};bool nativeIntersection=false;
+                if(BoxVertices(other,vertices)){
+                    const Vec3f direction=Math::NormalizeOr(other.m_Position-candidate.m_Position);
+                    const Vec3f witness=staged.Support(direction,candidate.m_Position,candidate.m_Orientation,0);
+                    if(Math::IsFinite(witness))nativeIntersection=Inside(Exact(witness),vertices,witnessMargin);
+                    if(oldSeparated&&nativeIntersection){row.oldOutcome=ColliderPairOutcome::SeparatedByBounds;row.newOutcome=ColliderPairOutcome::Contact;row.reason="NEW: native candidate support point strictly inside neighbor hull; old enclosing bounds separate";row.method="native support witness / interval tetrahedral interior";risk=true;if(!append(row))return finish("pair storage limit exceeded",ColliderAdmissionError::StorageLimit);continue;}
+                    // Comparable ground top-plane protrusion, not generic contact depth.
+                    // Restrict to a world-axis-aligned static Box whose top and bottom
+                    // are exact native vertex levels. A known candidate point below
+                    // old minimum proves strictly increased protrusion even if its
+                    // true deepest rounded support point is still farther below.
+                    if(other.Type==Component::BodyType::Static){const double bottom=otherBounds.axis[1].lo,top=otherBounds.axis[1].hi;bool axisAligned=true;for(auto v:vertices)for(int axis=0;axis<3;++axis)axisAligned&=double(v[axis])==otherBounds.axis[axis].lo||double(v[axis])==otherBounds.axis[axis].hi;
+                        const Vec3f low=staged.Support({0,-1,0},candidate.m_Position,candidate.m_Orientation,0);double lowMargin{};
+                        if(axisAligned&&Math::IsFinite(low)&&Inside(Exact(low),vertices,lowMargin)&&oldBounds.axis[1].lo<top&&double(low.y)<oldBounds.axis[1].lo&&double(low.y)>bottom){row.oldOutcome=row.newOutcome=ColliderPairOutcome::Contact;row.comparableMeasure=true;row.oldMeasure=top-oldBounds.axis[1].lo;row.newMeasure=top-double(low.y);row.reason="WORSENED: strict increase of common ground top-plane protrusion (candidate lower bound)";row.method="native support witness and exact common plane";risk=true;if(!append(row))return finish("pair storage limit exceeded",ColliderAdmissionError::StorageLimit);continue;}}
+                }
+                if(report.queryCount+2>queryLimit)return finish("query limit exceeded",ColliderAdmissionError::QueryLimit);
+                // This branch has no independent numerical certificate. Calling
+                // the legacy query could not make it admissible and introduces
+                // fallible third-party query working storage. Do not run it or
+                // claim an observed query termination; fail closed explicitly.
+                row.oldOutcome=oldSeparated?ColliderPairOutcome::SeparatedByBounds:ColliderPairOutcome::NotRequired;
+                row.newOutcome=ColliderPairOutcome::Unsupported;
+                row.method="NotRun: independent numerical certificate unavailable";
+                row.reason="UNPROVED: legacy query not run; no added-overlap certificate";
+                unknown=true;
+                if(!append(row))return finish("pair storage limit exceeded",ColliderAdmissionError::StorageLimit);
+            }
+            report.complete=true;report.outcome=unknown?ColliderAdmissionOutcome::Indeterminate:risk?ColliderAdmissionOutcome::RejectedRisk:ColliderAdmissionOutcome::NoAddedOverlap;
+            return finish(unknown?"Indeterminate: one or more pairs unproved":risk?"RejectRisk: proven new or worsened overlap":"NoAddedOverlap; contact reset/wake and later motion remain possible",unknown?ColliderAdmissionError::Unproved:ColliderAdmissionError::None);
+        }catch(const std::bad_alloc&){report.outcome=ColliderAdmissionOutcome::Indeterminate;report.complete=false;return finish("allocation failure",ColliderAdmissionError::AllocationFailure);}
+    }
+
+    ColliderAdmissionReport PhysicsSystem::AssessBodyColliderReplacement(PhysicsBodyHandle handle,
+        const CollisionShapeDesc& desc, std::unique_ptr<PhysicalShape>* preview) const
+    {
+        const auto start=std::chrono::steady_clock::now();ColliderAdmissionReport report;report.body=handle;
+        try {
+            if(desc.valueless_by_exception()||std::holds_alternative<ConvexHullShapeDesc>(desc)){report.reason="invalid/unsupported candidate; descriptor not retained";report.error=ColliderAdmissionError::UnsupportedShape;return report;}
+            (void)report.SetDescriptor(desc);if(!m_PhysicsWorld){report.reason="closed world";report.error=ColliderAdmissionError::InvalidIdentity;return report;}
+            auto resolved=m_PhysicsWorld->Resolve(handle,"AssessBodyColliderReplacement",true);if(!resolved){report.reason="invalid/stale/world/thread/busy identity";report.error=ColliderAdmissionError::InvalidIdentity;return report;}
+            const auto& owned=m_PhysicsWorld->m_OwnedResources[handle.index].shape;if(!owned||owned.get()!=(*resolved)->m_Shape){report.reason="unowned shape";report.error=ColliderAdmissionError::InvalidIdentity;return report;}
+            if(PhysicsDiagnostic::observer||PhysicsDiagnostic::queryObserver){report.reason="Busy: active Physics observation";report.error=ColliderAdmissionError::Busy;return report;}
+            auto staged=CreateCollisionShape(desc);
+            if(!staged){report.reason="candidate shape staging failed";report.error=staged.error().code==PhysicsShapeErrorCode::Allocation?ColliderAdmissionError::AllocationFailure:ColliderAdmissionError::InvalidShape;return report;}
+            if(!AcceptBodyShape(**resolved,**staged)){report.reason="invalid derived shape values";report.error=ColliderAdmissionError::InvalidShape;return report;}
+            report=AssessStagedCollider(handle,desc,*resolved,**staged);report.elapsedMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();if(report.elapsedMs>20){report.outcome=ColliderAdmissionOutcome::Indeterminate;report.complete=false;report.reason="full assessment deadline exceeded";report.error=ColliderAdmissionError::Deadline;}
+            if (preview && (report.outcome == ColliderAdmissionOutcome::NoAddedOverlap || CanConfirmColliderRisk(report)))
+                *preview = std::move(*staged);
+            return report;
+        }catch(const std::bad_alloc&){report.reason="allocation failure";report.error=ColliderAdmissionError::AllocationFailure;return report;}
+    }
+
+    namespace
+    {
+        bool SameColliderDescriptor(const ColliderAdmissionDescriptor& a, const CollisionShapeDesc& b)
+        {
+            if (const auto* box = std::get_if<BoxShapeDesc>(&a))
+            {
+                const auto* other = std::get_if<BoxShapeDesc>(&b);
+                return other && box->halfExtents == other->halfExtents && box->center == other->center;
+            }
+            if (const auto* sphere = std::get_if<SphereShapeDesc>(&a))
+            {
+                const auto* other = std::get_if<SphereShapeDesc>(&b);
+                return other && sphere->radius == other->radius;
+            }
+            const auto& capsule = std::get<CapsuleShapeDesc>(a);
+            const auto* other = std::get_if<CapsuleShapeDesc>(&b);
+            return other && capsule.radius == other->radius && capsule.halfLength == other->halfLength;
+        }
+    }
+
+    PhysicsBodyResult<ColliderShapeState> PhysicsSystem::ReadBodyCollider(PhysicsBodyHandle handle) const
+    {
+        constexpr auto operation = "ReadBodyCollider";
+        if (!m_PhysicsWorld) return TransformBodyFailure(PhysicsBodyErrorCode::Closed, handle, operation);
+        auto resolved = m_PhysicsWorld->Resolve(handle, operation);
+        if (!resolved) return std::unexpected(resolved.error());
+        const auto* shape = (*resolved)->m_Shape;
+        if (!shape || m_PhysicsWorld->m_OwnedResources[handle.index].shape.get() != shape)
+            return TransformBodyFailure(PhysicsBodyErrorCode::InvalidShape, handle, operation);
+        ColliderShapeState state;
+        state.type = shape->GetShapeType();
+        state.identity = reinterpret_cast<std::uintptr_t>(shape);
+        state.revision = shape->GetRevision();
+        if (const auto* sphere = dynamic_cast<const ShapeSphere*>(shape))
+        {
+            state.dimensions = SphereShapeDesc{sphere->GetRadius()};
+            state.editable = true;
+        }
+        else if (const auto* capsule = dynamic_cast<const ShapeCapsule*>(shape))
+        {
+            state.dimensions = CapsuleShapeDesc{capsule->GetRadius(), capsule->GetHalfLength()};
+            state.editable = true;
+        }
+        else if (state.type == ShapeType::Box)
+        {
+            const auto bounds = shape->GetBounds();
+            state.dimensions = BoxShapeDesc{(bounds.maxs - bounds.mins) * .5f,
+                (bounds.maxs + bounds.mins) * .5f};
+            state.editable = true;
+        }
+        return state;
+    }
+
+    bool PhysicsSystem::CanConfirmColliderRisk(const ColliderAdmissionReport& report) noexcept
+    {
+        if (report.committed) return false;
+        if (report.error == ColliderAdmissionError::Unproved ||
+            report.error == ColliderAdmissionError::UnsupportedShape)
+            return true;
+        return report.complete && report.error == ColliderAdmissionError::None &&
+            report.outcome == ColliderAdmissionOutcome::RejectedRisk;
+    }
+
+    ColliderReplacementConfirmation::BodyContext PhysicsSystem::ColliderContext(const RigidBody3D& body) const
+    {
+        ColliderReplacementConfirmation::BodyContext context;
+        context.handle = m_PhysicsWorld->HandleOf(body.GetIdentity());
+        context.shape = reinterpret_cast<std::uintptr_t>(body.m_Shape);
+        context.revision = body.m_Shape->GetRevision();
+        context.shapeType = body.m_Shape->GetShapeType();
+        const auto bounds = body.m_Shape->GetBounds();
+        context.minimum = bounds.mins;
+        context.maximum = bounds.maxs;
+        context.position = body.m_Position;
+        context.orientation = body.m_Orientation;
+        context.linear = body.m_LinearVelocity;
+        context.angular = body.m_AngularVelocity;
+        context.inverseMass = body.m_InvMass;
+        context.type = body.Type;
+        context.layer = body.m_CollisionLayer;
+        context.mask = body.m_CollisionMask;
+        return context;
+    }
+
+    std::expected<ColliderReplacementConfirmation, ColliderAdmissionError>
+    PhysicsSystem::PrepareColliderConfirmation(const ColliderAdmissionReport& report) const
+    {
+        if (!CanConfirmColliderRisk(report)) return std::unexpected(report.error);
+        if (!m_PhysicsWorld || !m_PhysicsWorld->Resolve(report.body, "PrepareColliderConfirmation", true))
+            return std::unexpected(ColliderAdmissionError::InvalidIdentity);
+        const auto& bodies = m_PhysicsWorld->GetPhysicsBodies();
+        if (bodies.size() > 4096) return std::unexpected(ColliderAdmissionError::BodyLimit);
+        ColliderReplacementConfirmation confirmation;
+        confirmation.m_Bodies.reset(new (std::nothrow)
+            ColliderReplacementConfirmation::BodyContext[bodies.size()]);
+        if (!confirmation.m_Bodies) return std::unexpected(ColliderAdmissionError::AllocationFailure);
+        confirmation.m_Body = report.body;
+        confirmation.m_Descriptor = report.descriptor;
+        confirmation.m_Revision = m_ColliderContextRevision;
+        confirmation.m_Count = bodies.size();
+        for (std::size_t i = 0; i < bodies.size(); ++i)
+        {
+            if (!bodies[i] || !bodies[i]->m_Shape ||
+                !m_PhysicsWorld->IsBodyIdentityValid(bodies[i]->GetIdentity()))
+                return std::unexpected(ColliderAdmissionError::InvalidIdentity);
+            confirmation.m_Bodies[i] = ColliderContext(*bodies[i]);
+        }
+        return confirmation;
+    }
+
+    bool PhysicsSystem::IsColliderConfirmationCurrent(const ColliderReplacementConfirmation& confirmation,
+        PhysicsBodyHandle handle, const CollisionShapeDesc& desc) const
+    {
+        if (!confirmation.m_Bodies || handle != confirmation.m_Body ||
+            confirmation.m_Revision != m_ColliderContextRevision ||
+            !SameColliderDescriptor(confirmation.m_Descriptor, desc) || !m_PhysicsWorld ||
+            !m_PhysicsWorld->Resolve(handle, "IsColliderConfirmationCurrent", true)) return false;
+        const auto& bodies = m_PhysicsWorld->GetPhysicsBodies();
+        if (bodies.size() != confirmation.m_Count) return false;
+        for (std::size_t i = 0; i < bodies.size(); ++i)
+        {
+            if (!bodies[i] || !bodies[i]->m_Shape ||
+                !m_PhysicsWorld->IsBodyIdentityValid(bodies[i]->GetIdentity()) ||
+                !(confirmation.m_Bodies[i] == ColliderContext(*bodies[i]))) return false;
+        }
+        return true;
+    }
+
+    ColliderAdmissionReport PhysicsSystem::ReplaceBodyColliderIfNoAddedOverlap(PhysicsBodyHandle handle,const CollisionShapeDesc& desc)
+    {
+        return ReplaceBodyColliderWithAdmission(handle, desc, nullptr);
+    }
+
+    ColliderAdmissionReport PhysicsSystem::ReplaceBodyColliderConfirmed(PhysicsBodyHandle handle,
+        const CollisionShapeDesc& desc, const ColliderReplacementConfirmation& confirmation)
+    {
+        return ReplaceBodyColliderWithAdmission(handle, desc, &confirmation);
+    }
+
+    ColliderAdmissionReport PhysicsSystem::ReplaceBodyColliderWithAdmission(PhysicsBodyHandle handle,
+        const CollisionShapeDesc& desc, const ColliderReplacementConfirmation* confirmation)
+    {
+        const auto start=std::chrono::steady_clock::now();ColliderAdmissionReport report;report.body=handle;
+        try {
+            if(desc.valueless_by_exception()||std::holds_alternative<ConvexHullShapeDesc>(desc)){report.reason="invalid/unsupported candidate; descriptor not retained";report.error=ColliderAdmissionError::UnsupportedShape;return report;}
+            (void)report.SetDescriptor(desc);if(!m_PhysicsWorld){report.reason="closed world";report.error=ColliderAdmissionError::InvalidIdentity;return report;}
+            auto resolved=m_PhysicsWorld->Resolve(handle,"ReplaceBodyColliderIfNoAddedOverlap",true);if(!resolved){report.reason="invalid/stale/world/thread/busy identity";report.error=ColliderAdmissionError::InvalidIdentity;return report;}
+            const auto& owned=m_PhysicsWorld->m_OwnedResources[handle.index].shape;if(!owned||owned.get()!=(*resolved)->m_Shape){report.reason="unowned shape";report.error=ColliderAdmissionError::InvalidIdentity;return report;}
+            if(PhysicsDiagnostic::observer||PhysicsDiagnostic::queryObserver){report.reason="Busy: active Physics observation";report.error=ColliderAdmissionError::Busy;return report;}
+            auto staged=CreateCollisionShape(desc);
+            if(!staged){report.reason="candidate shape staging failed";report.error=staged.error().code==PhysicsShapeErrorCode::Allocation?ColliderAdmissionError::AllocationFailure:ColliderAdmissionError::InvalidShape;return report;}
+            if(!AcceptBodyShape(**resolved,**staged)){report.reason="invalid derived shape values";report.error=ColliderAdmissionError::InvalidShape;return report;}
+            if (confirmation && !IsColliderConfirmationCurrent(*confirmation, handle, desc))
+            {
+                report.error = ColliderAdmissionError::StaleConfirmation;
+                report.reason = "Confirmation expired; assess the current edit again";
+                return report;
+            }
+            if (confirmation)
+            {
+                // Unsupported certification is not permission to publish into
+                // a malformed world. These probes own their derived caches.
+                for (const auto* member : m_PhysicsWorld->GetPhysicsBodies())
+                {
+                    if (!member || !m_PhysicsWorld->IsBodyIdentityValid(member->GetIdentity()))
+                    {
+                        report.error = ColliderAdmissionError::InvalidIdentity;
+                        report.reason = "Invalid world membership; force replacement blocked";
+                        return report;
+                    }
+                    const auto memberHandle = m_PhysicsWorld->HandleOf(member->GetIdentity());
+                    if (!member->m_Shape ||
+                        m_PhysicsWorld->m_OwnedResources[memberHandle.index].shape.get() != member->m_Shape ||
+                        !member->HasFiniteState() || !Math::IsFinite(member->m_InvMass) || member->m_InvMass < 0 ||
+                        !AcceptBodyShape(*member, *member->m_Shape))
+                    {
+                        report.error = ColliderAdmissionError::InvalidShape;
+                        report.reason = "Invalid body, shape or inertia; force replacement blocked";
+                        return report;
+                    }
+                }
+            }
+            report=AssessStagedCollider(handle,desc,*resolved,**staged);
+            const bool certified = report.complete && report.outcome == ColliderAdmissionOutcome::NoAddedOverlap;
+            const bool confirmedRisk = confirmation && CanConfirmColliderRisk(report);
+            if(certified || confirmedRisk){
+                if (confirmation)
+                    report.trackedPeakBytes += confirmation->m_Count *
+                        sizeof(ColliderReplacementConfirmation::BodyContext);
+                // Stage the existing wake graph on disposable containers. Its build
+                // may allocate; allocation failure cannot mutate any live scratch,
+                // island, body, contacts or ownership. Only no-throw swaps/wakes and
+                // the retained staged commit remain after this preparation.
+                const auto& bodies=m_PhysicsWorld->GetPhysicsBodies();const std::size_t graphBound=bodies.size()*512+m_Manifolds.m_Manifolds.size()*256;
+                if(report.trackedPeakBytes > 4194304 || graphBound>4194304-report.trackedPeakBytes){report.outcome=ColliderAdmissionOutcome::Indeterminate;report.complete=false;report.reason="staged wake graph storage bound exceeded";report.error=ColliderAdmissionError::StorageLimit;return report;}
+                // The count overloads may throw and are caught before live mutation.
+                // Seed-copy every possible island: the unchanged builder can only
+                // shrink this array (at most one island per current body), so it
+                // never invokes nested vector default/move constructors.
+                std::vector<ContactIsland> wake(std::size_t(0));
+                wake.reserve(bodies.size());
+                const ContactIsland seed{std::vector<RigidBodyIdentity>(std::size_t(0)),
+                    std::vector<RigidBodyIdentity>(std::size_t(0)),std::vector<ContactIslandPair>(std::size_t(0))};
+                for(std::size_t i=0;i<bodies.size();++i)wake.push_back(seed);
+                ContactIslandScratch scratch{std::vector<ContactIslandScratch::Node>(std::size_t(0)),
+                    std::vector<std::array<std::size_t,2>>(std::size_t(0)),std::vector<ContactIslandScratch::Counts>(std::size_t(0))};
+                BuildContactIslands(bodies,m_Manifolds.m_Manifolds,wake,scratch);
+                report.elapsedMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();if(report.elapsedMs>20){report.outcome=ColliderAdmissionOutcome::Indeterminate;report.complete=false;report.reason="atomic assessment deadline exceeded before commit";report.error=ColliderAdmissionError::Deadline;return report;}
+                // std::swap of the aggregate would allocate Debug vector move proxies.
+                // Equal std::allocator member swaps transfer existing storage only.
+                m_ActivationIslands.swap(wake);
+                m_ContactIslandScratch.nodes.swap(scratch.nodes);
+                m_ContactIslandScratch.edges.swap(scratch.edges);
+                m_ContactIslandScratch.counts.swap(scratch.counts);
+                CommitStagedCollider(handle,*resolved,*staged,true);report.committed=true;
+                if (confirmedRisk) report.reason = "Confirmed replacement committed; geometric safety not certified";
+            }
+            return report;
+        }catch(const std::bad_alloc&){report.outcome=ColliderAdmissionOutcome::Indeterminate;report.complete=false;report.reason="allocation failure";report.error=ColliderAdmissionError::AllocationFailure;return report;}
     }
 
     void PhysicsSystem::ApplyLegacyBodyScale(PhysicsBodyHandle handle, const Vec3f& scale)
@@ -1299,6 +1748,7 @@ namespace GEngine
 
 	void PhysicsSystem::OnExit()
 	{
+        ++m_ColliderContextRevision;
 		m_ActivationIslands.clear();
 		m_HasSleepGravity = false;
 		m_ContactIslands.clear();

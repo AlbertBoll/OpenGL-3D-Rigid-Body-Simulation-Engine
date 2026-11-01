@@ -21,6 +21,60 @@
 #include "Assets/Textures/AsyncTexture.h"
 #include "Mesh/AsyncMesh.h"
 
+namespace Rbs
+{
+    void SetColliderUserPause(GEngine::_Scene&, bool);
+    bool CancelColliderConfirmation(GEngine::_Scene&, bool, bool clearPreview = true);
+    void ResetColliderEditor(GEngine::_Scene&, bool);
+    // Outline inspection only. Editing and GPU mesh selection remain singular.
+    struct ColliderOutlineSelection
+    {
+        std::array<GEngine::PhysicsBodyHandle, 64> bodies{};
+        std::array<GEngine::EntityRenderId, 64> entities{};
+        std::size_t count{};
+        std::uint64_t revision{};
+        bool capacityReached{};
+        void Clear() { capacityReached = false; if (count) { count = 0; ++revision; } }
+        bool Contains(GEngine::PhysicsBodyHandle body) const
+        {
+            for (std::size_t i = 0; i < count; ++i) if (bodies[i] == body) return true;
+            return false;
+        }
+        void Remove(std::size_t index)
+        {
+            capacityReached = false;
+            for (std::size_t i = index + 1; i < count; ++i)
+            {
+                bodies[i - 1] = bodies[i];
+                entities[i - 1] = entities[i];
+            }
+            --count;
+            ++revision;
+        }
+        void Select(GEngine::PhysicsBodyHandle body, bool toggle, GEngine::EntityRenderId entity = {})
+        {
+            if (!toggle) Clear();
+            if (!body) return;
+            for (std::size_t i = 0; i < count; ++i)
+                if (bodies[i] == body) { Remove(i); return; }
+            if (count < bodies.size())
+            {
+                bodies[count] = body;
+                entities[count++] = entity;
+                ++revision;
+            }
+            else capacityReached = true;
+        }
+        void Prune(const GEngine::PhysicsSystem& physics)
+        {
+            for (std::size_t i = 0; i < count;)
+                if (!physics.ReadBodyPose(bodies[i])) Remove(i);
+                else ++i;
+        }
+
+    };
+}
+
 class RigidBodySimulationApp : public GEngine::BaseApp
 {
 public:
@@ -38,6 +92,18 @@ private:
     void ImGuiRender() override;
     void UI_Toolbar();
     void OnMouseClicked();
+    void ClearColliderSelection();
+    void SelectColliderEntity(GEngine::_Entity, bool toggle);
+#ifdef GENGINE_MESH_HIGHLIGHT_AUDIT
+    bool ValidateOrdinaryHighlightUpdate();
+    void ObserveOrdinaryHighlightSubmission(const GEngine::ScheduledFrameStats&);
+#endif
+#ifdef GENGINE_COLLIDER_EDITOR_SMOKE
+    bool ValidateColliderSelectionUpdate();
+    void ObserveColliderSelectionFrame(const GEngine::RenderFrame&);
+    bool ValidateMeshHighlightUpdate();
+    void ObserveMeshHighlightSubmission(const GEngine::ScheduledFrameStats&);
+#endif
     void FilledKDTreePoints();
     [[nodiscard]] std::expected<void, GEngine::SceneError> UpdateImportedMesh();
     void OnViewportResize(int viewport_x, int viewport_y);
@@ -222,6 +288,13 @@ private:
     GEngine::Math::Vec3f m_LightPos;
     bool m_IsPause = false;
     bool m_IsShowDebugBoundingBox = false;
+    bool m_ShowSelectedColliderOutlines = true;
+    bool m_OutlineToggleRequested{}, m_FrameOutlineToggle{};
+    Rbs::ColliderOutlineSelection m_ColliderOutlines;
+    GEngine::PhysicsSystem::DebugLayers m_ColliderLayers;
+    bool m_ColliderEscapeRequested{};
+    std::unique_ptr<GEngine::FrameDebugLine[]> m_ColliderDebugStorage;
+    std::size_t m_ColliderDebugCapacity{};
     bool m_IsShowKDTree = false;
     std::vector<float> m_ShadowCascadeLevels;
     float m_NearPlane = 0.1f;

@@ -120,6 +120,18 @@ namespace GEngine
         // this immutable frame; no scene access, retained entity or picking request.
         EntityRenderId selectedEntity;
         glm::vec2 selectionPixelsPerDip{1.f};
+        // Full presentation selection; the legacy identity remains the active mesh.
+        // Caller storage is borrowed only for synchronous Submit. Oversize input fails.
+        static constexpr std::size_t SelectionCapacity = 64;
+        std::span<const EntityRenderId> selectedEntities;
+        bool measureSubmission = false; // Opt-in existing PassTiming owner; no query when false.
+        unsigned SelectionClass(EntityRenderId entity) const noexcept
+        {
+            if (!entity) return 0;
+            if (entity == selectedEntity) return 1;
+            for (const auto selected : selectedEntities) if (entity == selected) return 2;
+            return 0;
+        }
     };
     inline constexpr std::size_t MinimumRenderInstances = 4;
     struct ShadowCasterStats
@@ -147,6 +159,7 @@ namespace GEngine
         // Directional shadow, point shadow, picking; includes deferred/clean passes.
         std::array<PassDecision, 3> decisions{};
         std::size_t selectionDrawCalls{}, selectionPasses{}, selectionScratchBytes{};
+        std::size_t selectionActiveDraws{}, selectionSecondaryDraws{}, selectionCurrentScratchBytes{}, selectionScratchAllocations{};
         PassViewport selectionRegion;
     };
     // Serial owner-context submission only. All scene/resource reads are complete

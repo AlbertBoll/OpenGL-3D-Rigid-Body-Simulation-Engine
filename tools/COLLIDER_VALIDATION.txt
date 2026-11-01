@@ -1,0 +1,52 @@
+Collider Candidate04 opt-in validation
+
+This package does not activate a PRE_EDITOR phase, promote Git branches, or grant
+Owner visual acceptance. Batch Apply and Object Groups remain future work.
+
+Use an isolated worktree and a fresh output directory. Matching generated
+VS2022 v143 project files, MSVC14.44.35207, SDK10.0.26100.0 and the approved
+runtime assets/dependencies are required. The existing baseline renderer also
+requires runtime/tmp/gpu-capture-tools/RenderDoc_1.46_64/RenderDoc_1.46_64/renderdoc_app.h
+SHA256 b7005e7dc34c3635046868bbd76d81b9b055aede0f56daa0bd39fedee0639ffb.
+It is a development header already present in PRE_EDITOR, not a new runtime
+injection requirement. Generated project paths must refer to the local tree.
+
+From the repository root, initialize a unique run:
+  python tools/collider_validation.py init --output logs/collider-validation/NAME
+  python tools/collider_validation.py build --configuration Release --output logs/collider-validation/NAME
+
+Run each required action once, stopping to diagnose any failure:
+  audit       ordinary RBS FrameSubmission and actual presented-frame capture
+  mesh        isolated renderer and selection-layer/lifecycle checks
+  inspector   UI-to-Scene-to-Physics Safe/Force and preview checks
+  admission   canonical captured-world admission/allocation/atomicity checks
+  regression --preset SphereLattice  (also BoxStack and SphereBoxStack)
+Use: python tools/collider_validation.py ACTION --output logs/collider-validation/NAME
+Repeat the affected build and first four actions with --configuration Debug.
+The runner uses the latest successful build and checks its source/exe identity.
+
+For each mesh run, also require the unchanged 81-check independent GPU oracle:
+  python tools/collider_analyze_gpu_readback.py MESH_ATTEMPT
+
+The audit native PASS alone is insufficient. Analyze its attempt directory:
+  python tools/collider_analyze_uniform_gold_02.py ATTEMPT OUTPUT.json RUN/reference/phase24-single-gold.frag
+  python tools/collider_analyze_ordinary_performance.py ATTEMPT
+Compare a matched accepted control and candidate (both already analyzed):
+  python tools/collider_compare_performance.py CONTROL CANDIDATE OUTPUT.json
+The existing Phase24 performance INCONCLUSIVE disposition remains unchanged.
+
+For passive Physics captures, use an independently identified accepted control:
+  python tools/collider_compare_passive.py CONTROL_DATA CANDIDATE_DATA --preset SphereLattice --output OUTPUT.json
+Repeat for BoxStack and SphereBoxStack. This compares exact semantic state bits
+without padding; finite-state, default policy and complete 1800-step coverage
+remain required. It does not establish a new settling or contact robustness PASS.
+
+All fixture bytes have recorded provenance. Init relocates only two absolute
+cache paths into the confined run directory. Diagnostic builds explicitly define
+GENGINE_COLLIDER_VALIDATION_ROOT with a trailing slash. Ordinary builds omit all
+diagnostic macros. All native execution uses owned processes and bounded watchdogs.
+
+After all required gates pass, an ordinary Release build and clean startup/shutdown
+check are still required. The integration handoff records the exact MSBuild command
+and ordinary props. Final Owner Release rebuild and physical viewport inspection
+remain mandatory; automated selection and GPU readback do not replace them.

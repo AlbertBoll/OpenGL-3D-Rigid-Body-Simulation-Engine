@@ -13,6 +13,14 @@ namespace PreEditorValidation::ColliderReplacement { void ObserveColliderRuntime
 #include "Scene/_Scene.h"
 #include "Physics/PhysicsSystem.h"
 #include "../tests/RestingContactDiagnosis.h"
+#ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
+#include "../tests/ColliderReplacementObservation.h"
+#include "../tests/ColliderReplacementCapture.h"
+#include "../tests/ColliderReplacementReplay.h"
+#endif
+#ifdef GENGINE_COLLIDER_PASSIVE_OBSERVATION
+#include "../tests/ColliderPassiveObservation.h"
+#endif
 #include <new>
 #include <format>
 
@@ -21,6 +29,21 @@ namespace PreEditorValidation::ColliderReplacement { void ObserveColliderRuntime
 #include <imgui/imgui_internal.h>
 #include <cmath>
 #include <print>
+
+namespace Rbs
+{
+#ifdef GENGINE_MESH_HIGHLIGHT_AUDIT
+    void AuditHighlightDescriptor(::GEngine::FrameSubmissionDesc&);
+    void AuditHighlightFrame(const ::GEngine::RenderFrame&);
+#endif
+#ifdef GENGINE_COLLIDER_EDITOR_SMOKE
+    unsigned MeshHighlightStage(); void MeshHighlightDescriptor(::GEngine::FrameSubmission&, ::GEngine::FrameSubmissionDesc&);
+#endif
+    void ResetColliderEditor(::GEngine::_Scene&, bool);
+    bool ColliderEditorTemporarilyPaused(::GEngine::_Scene&, const ::GEngine::_Entity&, bool);
+    ::GEngine::DebugGeometryResult AppendColliderEditorPreviews(::GEngine::_Scene&,
+        const ColliderOutlineSelection&, ::GEngine::DebugGeometry&);
+}
 
 using namespace ::GEngine;
 using namespace ::GEngine::Asset;
@@ -52,6 +75,16 @@ void RigidBodySimulationApp::Update(Timestep ts)
     if (!ValidateUpdate())
         return;
 
+#ifdef GENGINE_MESH_HIGHLIGHT_AUDIT
+    // Opt-in pixel references need a stationary background across selection cases.
+    if (std::getenv("GENGINE_ORDINARY_HIGHLIGHT_OUTPUT")) ts=Timestep(0.0);
+#endif
+#ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
+    ts=Timestep(Rbs::ColliderReplay::FrameElapsed(ts.GetSecondsPrecise()));
+#endif
+#ifdef GENGINE_COLLIDER_PASSIVE_OBSERVATION
+    ts=Timestep(Rbs::ColliderPassive::FrameElapsed(ts.GetSecondsPrecise()));
+#endif
     if (m_Launch.AsyncPerformanceEnabled())
         return;
     if (!ReplayMaterialValidation())
@@ -116,8 +149,43 @@ void RigidBodySimulationApp::Update(Timestep ts)
         }
         m_IsPause=false;
     }
-    m_ActiveScene->SetPaused(m_IsPause);
+#ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
+    m_IsPause=Rbs::ColliderReplay::FramePaused(m_IsPause);
+#endif
+    if (std::exchange(m_ColliderEscapeRequested, false))
+        if (!Rbs::CancelColliderConfirmation(*m_ActiveScene, m_IsPause)) ClearColliderSelection();
+    const bool confirmationPause = Rbs::ColliderEditorTemporarilyPaused(*m_ActiveScene, m_HoveredEntity, m_IsPause);
+    m_ActiveScene->SetPaused(m_IsPause || confirmationPause);
+#ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
+#ifdef GENGINE_COLLIDER_PASSIVE_OBSERVATION
+    if(Rbs::ColliderPassive::UseDetailed())
+#endif
+    Rbs::ColliderReplacementObservation::BeforeFrame(*m_ActiveScene,ts.GetSecondsPrecise());
+    if(!Rbs::ColliderReplay::BeforeUpdate(*m_ActiveScene,*m_SceneResources)) {
+        if(Rbs::ColliderReplacementObservation::session) {
+            Rbs::ColliderReplacementObservation::session->Fail(Rbs::ColliderReplay::Failure());
+            Rbs::ColliderReplacementObservation::session->Finish();
+        }
+        ShutDown();return;
+    }
+    if(auto target=Rbs::ColliderCapture::TakePending(*m_ActiveScene);target) {
+        const auto changed=Rbs::ApplyCapturedMeshFit(*m_ActiveScene,*m_SceneResources,target,m_CameraSnapshot?&*m_CameraSnapshot:nullptr);
+        if(!changed) Log::GetCoreLogger()->error("Captured fitted Capsule replacement: {}",changed.error());
+    }
+#endif
+#ifdef GENGINE_COLLIDER_PASSIVE_OBSERVATION
+    if(!Rbs::ColliderPassive::BeforeStep(*m_ActiveScene,ts.GetSecondsPrecise())) { ShutDown(); return; }
+#endif
     m_ActiveScene->Update(ts);
+#ifdef GENGINE_COLLIDER_PASSIVE_OBSERVATION
+    if(Rbs::ColliderPassive::AfterStep(ts.GetSecondsPrecise())) { ShutDown(); return; }
+#endif
+#ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
+#ifdef GENGINE_COLLIDER_PASSIVE_OBSERVATION
+    if(Rbs::ColliderPassive::UseDetailed())
+#endif
+    if (Rbs::ColliderReplacementObservation::AfterFrame()) { ShutDown(); return; }
+#endif
     if (m_Launch.restingContactDiagnostic)
     {
         auto& diagnostic=*Rbs::RestDiagnosis::session;
@@ -381,6 +449,9 @@ bool RigidBodySimulationApp::BindCameraScene(RefPtr<_Scene> scene)
             m_CameraDiagnostic = "Previous Scene view retirement failed";
             return false;
         }
+    if (m_ActiveScene) Rbs::ResetColliderEditor(*m_ActiveScene, m_IsPause);
+    m_ColliderOutlines.Clear();
+    m_OutlineToggleRequested = m_FrameOutlineToggle = false;
     m_ActiveScene = std::move(scene);
     m_EditorViewIdentity = *view;
     m_SceneCameras = {};
@@ -395,6 +466,7 @@ ScheduleResult RigidBodySimulationApp::PrepareCameraFrame(RenderContext& context
                                                           FrameSceneInput& input, FrameCamera& camera)
 {
     const bool requestedPick = std::exchange(m_ViewPickRequested, false);
+    m_FrameOutlineToggle = requestedPick && std::exchange(m_OutlineToggleRequested, false);
     m_CameraSnapshot.reset();
     m_FramePickPixel.reset();
     m_CameraAvailable = false;
@@ -551,16 +623,34 @@ void RigidBodySimulationApp::Render()
 #ifdef GENGINE_PHASE24_COLLIDER_VALIDATION
         input.observeFrame=[](void*,const RenderFrame& frame) noexcept { PreEditorValidation::ColliderReplacement::ObserveColliderRuntime(frame); };
 #endif
+#ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
+        input.observeFrame=[](void*,const RenderFrame& frame) noexcept {
+#ifdef GENGINE_COLLIDER_PASSIVE_OBSERVATION
+            if(!Rbs::ColliderPassive::UseDetailed())return;
+#endif
+            Rbs::ColliderReplacementObservation::ObserveFrame(frame);
+        };
+#endif
         // Preserve Phase 45's input/viewport snapshot: read this frame's IDs
         // before BeginUI refreshes ImGui mouse state or authors new panel bounds.
+#ifdef GENGINE_COLLIDER_EDITOR_SMOKE
+        input.observationContext = this;
+        input.observeFrame = [](void* user, const RenderFrame& frame) noexcept
+        {
+            static_cast<RigidBodySimulationApp*>(user)->ObserveColliderSelectionFrame(frame);
+        };
+#endif
         input.pickingReadback = {this, [](void* user) -> ScheduleResult
                                  {
                                      static_cast<RigidBodySimulationApp*>(user)->OnMouseClicked();
                                      return {};
                                  }};
+#ifdef GENGINE_MESH_HIGHLIGHT_AUDIT
+        if (std::getenv("GENGINE_ORDINARY_HIGHLIGHT_OUTPUT"))
+            input.observeFrame = [](void*, const RenderFrame& frame) noexcept { Rbs::AuditHighlightFrame(frame); };
+#endif
         struct Preparation { RigidBodySimulationApp& app; RenderContext& context;
-                             FrameSceneInput& input; FrameCamera& camera;
-                             std::unique_ptr<FrameDebugLine[]> debug; } preparation{*this, context, input, camera};
+                             FrameSceneInput& input; FrameCamera& camera; } preparation{*this, context, input, camera};
         context.updateResources = {&preparation, [](void* user) -> ScheduleResult
         {
             auto& p = *static_cast<Preparation*>(user);
@@ -584,28 +674,64 @@ void RigidBodySimulationApp::Render()
 #ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
             if(Phase24Qualification::Functional()) p.input.targets.pickingEnabled=true;
 #endif
-            if (p.context.visible && p.app.m_IsShowDebugBoundingBox) {
-                const std::size_t capacity=p.app.m_Launch.restingContactDiagnostic && Rbs::RestDiagnosis::session
-                    ? Rbs::RestDiagnosis::session->debugLineCapacity : 32768;
-                p.debug.reset(new(std::nothrow) FrameDebugLine[capacity]);
-                if (!p.debug) return std::unexpected(ScheduleError{FrameStage::BuildRenderFrame,
-                    SubmissionError{"physics debug storage",SubmissionCode::Allocation}});
-                DebugGeometry geometry({p.debug.get(),capacity});
-                if (auto result=p.app.m_ActiveScene->GetPhysicsSystem()->AppendDebugGeometry(geometry);!result)
+            auto& app = p.app;
+            auto& physics = *app.m_ActiveScene->GetPhysicsSystem();
+            app.m_ColliderOutlines.Prune(physics);
+            static_assert(std::tuple_size_v<decltype(app.m_ColliderOutlines.entities)> == FrameSubmissionDesc::SelectionCapacity);
+            p.input.targets.selectedEntities = {app.m_ColliderOutlines.entities.data(), app.m_ColliderOutlines.count};
+#ifdef GENGINE_MESH_HIGHLIGHT_AUDIT
+            if (std::getenv("GENGINE_ORDINARY_HIGHLIGHT_OUTPUT")) Rbs::AuditHighlightDescriptor(p.input.targets);
+#endif
+#ifdef GENGINE_COLLIDER_EDITOR_SMOKE
+            if(std::getenv("GENGINE_MESH_HIGHLIGHT_OUTPUT")) {
+                p.input.targets.measureSubmission=true;
+                Rbs::MeshHighlightDescriptor(*app.m_FrameSubmission,p.input.targets);
+                if(Rbs::MeshHighlightStage()==9) p.input.targets.selectionPixelsPerDip=glm::vec2(2.f);
+            }
+#endif
+            const bool all = app.m_IsShowDebugBoundingBox;
+            const bool selected = app.m_ShowSelectedColliderOutlines && app.m_ColliderOutlines.count;
+            if (p.context.visible && (all || selected) && app.m_ColliderLayers.Any())
+            {
+                const std::size_t capacity = (std::max)(std::size_t(32768),
+                    physics.GetPhysicsWorld()->GetBodyCount() * 512 + app.m_ColliderOutlines.count * 260 + 4096);
+                if (app.m_ColliderDebugCapacity < capacity)
+                {
+                    std::unique_ptr<FrameDebugLine[]> storage(new(std::nothrow) FrameDebugLine[capacity]);
+                    if (!storage) return std::unexpected(ScheduleError{FrameStage::BuildRenderFrame,
+                        SubmissionError{"physics debug storage", SubmissionCode::Allocation}});
+                    app.m_ColliderDebugStorage = std::move(storage);
+                    app.m_ColliderDebugCapacity = capacity;
+                }
+                DebugGeometry geometry({app.m_ColliderDebugStorage.get(), app.m_ColliderDebugCapacity});
+                if (!physics.AppendDebugGeometry(geometry, app.m_ColliderLayers,
+                        {app.m_ColliderOutlines.bodies.data(), app.m_ColliderOutlines.count}, all))
                     return std::unexpected(ScheduleError{FrameStage::BuildRenderFrame,
-                        SubmissionError{std::format("physics debug geometry code={}",int(result.error())),SubmissionCode::InvalidDraw}});
-                // Same Scene presentation operands as the immediately following freeze.
-                // Authoritative cyan geometry stays at the actual simulation pose.
-                if (auto pose = p.app.m_ActiveScene->ReadBodyTransform(p.app.m_HoveredEntity); pose)
-                    if (auto result = p.app.m_ActiveScene->GetPhysicsSystem()->AppendPresentationGeometry(
-                            geometry, pose->body, pose->presentation.translation, pose->presentation.rotation); !result)
+                        SubmissionError{"scoped Physics layers", SubmissionCode::InvalidDraw}});
+                // Diagnostic layers stay visible over opaque render meshes.
+                for (std::size_t i = 0; i < geometry.Lines().size(); ++i)
+                    app.m_ColliderDebugStorage[i].depth = DebugDepth::Overlay;
+                if (app.m_ColliderLayers.colliders && app.m_ColliderOutlines.count)
+                    if (!Rbs::AppendColliderEditorPreviews(*app.m_ActiveScene, app.m_ColliderOutlines, geometry))
                         return std::unexpected(ScheduleError{FrameStage::BuildRenderFrame,
-                            SubmissionError{"presentation collider outline", SubmissionCode::InvalidDraw}});
-                p.input.debugLines=geometry.Lines();
+                            SubmissionError{"selected candidate previews", SubmissionCode::InvalidDraw}});
+                p.input.debugLines = geometry.Lines();
             }
             return {};
         }};
         auto submitted = FrameScheduler::Render(context, &input);
+#ifdef GENGINE_MESH_HIGHLIGHT_AUDIT
+        if (submitted && std::getenv("GENGINE_ORDINARY_HIGHLIGHT_OUTPUT")) ObserveOrdinaryHighlightSubmission(*submitted);
+#endif
+#ifdef GENGINE_COLLIDER_EDITOR_SMOKE
+        if (submitted) ObserveMeshHighlightSubmission(*submitted);
+#endif
+#ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
+#ifdef GENGINE_COLLIDER_PASSIVE_OBSERVATION
+        if(Rbs::ColliderPassive::UseDetailed())
+#endif
+        Rbs::ColliderReplacementObservation::FrameRecord(2,bool(submitted),context.visible);
+#endif
 #ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
         if(submitted) Phase24Qualification::CollectSubmission(*submitted);
 #endif
@@ -637,6 +763,44 @@ void RigidBodySimulationApp::Render()
     }
 }
 
+void RigidBodySimulationApp::ClearColliderSelection()
+{
+    m_ColliderOutlines.Clear();
+    m_HoveredEntity = {};
+    m_ViewPickRequested = m_OutlineToggleRequested = m_FrameOutlineToggle = false;
+    m_FramePickPixel.reset();
+    if (m_ActiveScene) Rbs::ResetColliderEditor(*m_ActiveScene, m_IsPause);
+}
+
+void RigidBodySimulationApp::SelectColliderEntity(_Entity entity, bool toggle)
+{
+    if (!toggle)
+    {
+        m_ColliderOutlines.Clear();
+        m_HoveredEntity = entity;
+    }
+    if (const auto body = m_ActiveScene->GetBodyBinding(entity))
+    {
+        const auto identity = m_ActiveScene->RenderData().Identify(entity);
+        if (identity)
+        {
+            m_ColliderOutlines.Select(*body, toggle, *identity);
+            if (m_ColliderOutlines.Contains(*body)) m_HoveredEntity = entity;
+        }
+    }
+    const auto active = m_ActiveScene->GetBodyBinding(m_HoveredEntity);
+    if ((active && !m_ColliderOutlines.Contains(*active)) || (!active && m_ColliderOutlines.count))
+    {
+        m_HoveredEntity = {};
+        if (m_ColliderOutlines.count)
+            if (const auto retained = m_ActiveScene->RenderData().Resolve(
+                    m_ColliderOutlines.entities[m_ColliderOutlines.count - 1]))
+                m_HoveredEntity = _Entity{*retained, m_ActiveScene.get()};
+    }
+    // Selection changes cancel consent, while per-body proposal drafts survive.
+    (void)Rbs::CancelColliderConfirmation(*m_ActiveScene, m_IsPause, false);
+}
+
 void RigidBodySimulationApp::OnMouseClicked()
 {
 #ifdef GENGINE_LIFECYCLE_PICK_TRACE
@@ -662,7 +826,7 @@ void RigidBodySimulationApp::OnMouseClicked()
             ReportFramebufferError("picking read", pixel.error());
             return;
         }
-        m_HoveredEntity = {};
+        _Entity picked{};
         if (*pixel != EntityPickTable::InvalidPixel)
         {
             auto id = m_ActiveScene->RenderData().ResolvePick(m_PickTable, *pixel);
@@ -686,11 +850,16 @@ void RigidBodySimulationApp::OnMouseClicked()
                 Log::GetCoreLogger()->warn("Picking entity: {}", int(entity.error()));
                 return;
             }
-            m_HoveredEntity = _Entity{*entity, m_ActiveScene.get()};
+            picked = _Entity{*entity, m_ActiveScene.get()};
         }
+        SelectColliderEntity(picked, m_FrameOutlineToggle);
 #ifdef GENGINE_LIFECYCLE_PICK_TRACE
         PreEditorLifecycle::PickTraceValues("pick_hovered", bool(m_HoveredEntity),
             {static_cast<std::uint32_t>(m_HoveredEntity)});
+#endif
+#ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
+        Rbs::ColliderCapture::RecordSelection(m_HoveredEntity, m_CameraSnapshot ? &*m_CameraSnapshot : nullptr, x, y,
+            Vec2f{GetInputManager()->GetViewState().m_Mouse.GetPosition().x, GetInputManager()->GetViewState().m_Mouse.GetPosition().y});
 #endif
         Log::GetCoreLogger()->info("Mouse Position: {}, {}; Entity {} has been clicked", x, y,
                                    m_HoveredEntity ? m_HoveredEntity.GetName() : "None");

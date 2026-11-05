@@ -1,0 +1,243 @@
+{
+  "schema": 1,
+  "status": "IMMUTABLE_RECOVERY_PACKAGE_NOT_PHASE_APPROVAL",
+  "created_utc": "2026-11-04T06:49:27.330983+00:00",
+  "archive": "docs/pre_editor/revisions/PHASE_25_PUBLICATION_GUARD_01/recovery.zip",
+  "archive_sha256": "39b58d3cdaaaab9b68d5b6e3a52cda2b0b8ce224e875cb04ef57e70098155754",
+  "archive_bytes": 3820918,
+  "members": {
+    ".codex/tools/rendering_checkpoint.py": {
+      "sha256": "31ee6f7babfd578eb160f4f75b2fce342fa77ea14307c555adb72b4237a6825b",
+      "bytes": 55724
+    },
+    "docs/pre_editor/active/PHASE_25_PUBLICATION_GUARD_AUTHORIZATION_01.json": {
+      "sha256": "86122ea13fa07ff07031d26c251a2df3475d79baeb2963ff957f9d1a90b13fd5",
+      "bytes": 4668
+    },
+    "docs/pre_editor/proposals/PHASE_25_FINAL_PUBLICATION_GUARD_RESOLUTION_01/audit-closure.json": {
+      "sha256": "c47bf18460d0531995d8615866b2cc6d45e02a0b8eaf21e747b511a9e0f0e6d9",
+      "bytes": 7361
+    },
+    "docs/pre_editor/proposals/PHASE_25_FINAL_PUBLICATION_GUARD_RESOLUTION_01/compatibility.json": {
+      "sha256": "41a07397b0648fc030f32d353abbf9a3579a1d5999a98ce91c38badde3ff7161",
+      "bytes": 7560
+    },
+    "docs/pre_editor/proposals/PHASE_25_FINAL_PUBLICATION_GUARD_RESOLUTION_01/entry.json": {
+      "sha256": "b212d9e6d95303c75b94c2f45fd462aef09f9f4c2c0a88bd3339664e76ffaf5a",
+      "bytes": 743
+    },
+    "docs/pre_editor/proposals/PHASE_25_FINAL_PUBLICATION_GUARD_RESOLUTION_01/path-classification.json": {
+      "sha256": "023ffd91e9d5215094651a19a706c2c7fe437ed7b6e0779665b4eb99b6ca7ca5",
+      "bytes": 8644695
+    },
+    "docs/pre_editor/proposals/PHASE_25_FINAL_PUBLICATION_GUARD_RESOLUTION_01/PROPOSAL.md": {
+      "sha256": "86be0875480671a82c530c7781a166876dd9cccd42e5671b31706c8e8ef9fc0e",
+      "bytes": 21936
+    },
+    "docs/pre_editor/proposals/PHASE_25_FINAL_PUBLICATION_GUARD_RESOLUTION_01/provenance.json": {
+      "sha256": "fe00001cdf347c272d34ac2743c0be5fa9cec593e0cb5e0327b0741fc9c9fc58",
+      "bytes": 11813221
+    },
+    "docs/pre_editor/revisions/PHASE_25_PUBLICATION_GUARD_01/authorization.json": {
+      "sha256": "86122ea13fa07ff07031d26c251a2df3475d79baeb2963ff957f9d1a90b13fd5",
+      "bytes": 4668
+    },
+    "logs/pre_editor/collider-c04-r05-closure-20261102-01/INTEGRATED_51_FILES.json": {
+      "sha256": "746689c156b73f62c228571ec5cf3f8340fe11f42e2a8eaaa677efbc7b337bd9",
+      "bytes": 40804
+    },
+    "logs/pre_editor/collider-c04-r05-closure-20261102-01/OWNER_FINAL_ACCEPTANCE.json": {
+      "sha256": "1e3990e53981b87224cdac90fe772961e893dcb517a6d14c6e5f45e042085653",
+      "bytes": 5452
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/before/helper.py": {
+      "sha256": "76957e3d6a9a4dfdbe284bd17cbf27cbd567ad4e2134ae06c5db4f5828e66d75",
+      "bytes": 48566
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/before/phase-24.receipt.json": {
+      "sha256": "c181d6970c35042768b91a4e8cecaf348be43d45b6dde1f9a8da99ee25d2721c",
+      "bytes": 2631333
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/before/PHASE_24.journal.json": {
+      "sha256": "2d22af2d19adcc3866fda785ec2f8822b75e899cfac62daec7f85d7c0149e517",
+      "bytes": 2668016
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/full-scale-summary.json": {
+      "sha256": "8c1f1af21770e5dfb95b9706ecb826b8b7d2500a21537318cbbcca7d80c60603",
+      "bytes": 1767
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/helper.patch": {
+      "sha256": "15c29c872ac8527d2db38515d7c9c24250f522600350f3e8301fc8671534e13c",
+      "bytes": 10113
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/implementation.json": {
+      "sha256": "70afe9dddbf5d8bdd8fe778762c492ad3407f8d8297cb3eacdcded25e46e0da8",
+      "bytes": 3689
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/run_test.py": {
+      "sha256": "e1009d45dcec468fd344ca205cf9528fe2e60cc80c3e79642ac91abc54c2a5d6",
+      "bytes": 3525
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/full-capture-01/invocation.json": {
+      "sha256": "397f7a70eae0eb158d9138ab6b0f405344558e104c9b28f98804776d5b9d65b7",
+      "bytes": 844
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/full-capture-01/ledger-after.json": {
+      "sha256": "391bf14461e8e54101b55967c96d5f80d3a6bcc559659713f78e316fb3720486",
+      "bytes": 1738
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/full-capture-01/ledger-before.json": {
+      "sha256": "84c29a5bb72077b5c7c2153366711622e16904f7a2ccd4a4453fe39e9dfac38d",
+      "bytes": 825
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/full-capture-01/result.json": {
+      "sha256": "ed87c334690285e05d7e0855ef1fdc9a5fd5045cadb8da291a497d7f9a4cd371",
+      "bytes": 828
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/full-capture-01/stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/full-capture-01/stdout.txt": {
+      "sha256": "7bfac38c27b9c9c59ca458c2b860611a91b226aedfe0b7c8505a8bba2a7aa64b",
+      "bytes": 961
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/full-check-01/invocation.json": {
+      "sha256": "483cdb919a2f498304bccdeaf142b5e1a2e2e1d7fd033ab90912f29a5f3dc26e",
+      "bytes": 840
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/full-check-01/ledger-after.json": {
+      "sha256": "38f7eea3c5fa8e5d4f85d2aec9d4b02b9ff060d4e682957da249eb2d33818a5c",
+      "bytes": 2646
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/full-check-01/ledger-before.json": {
+      "sha256": "391bf14461e8e54101b55967c96d5f80d3a6bcc559659713f78e316fb3720486",
+      "bytes": 1738
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/full-check-01/result.json": {
+      "sha256": "87d40440a44debfdf001e18b4d34aa1aad685aa13bdfab4ebb1bb06048c83828",
+      "bytes": 822
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/full-check-01/stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/full-check-01/stdout.txt": {
+      "sha256": "5f1af2713e4a15190ca99852fded9f552cf43c7b44cd07fa4d92bf0d9f206900",
+      "bytes": 958
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/full-recovery-01/invocation.json": {
+      "sha256": "a579702a4de5b05eadf7c381402a696dd2aa3647970b06deef9db14372eac22d",
+      "bytes": 846
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/full-recovery-01/ledger-after.json": {
+      "sha256": "1c633d0fcc23513e33830b933ef7525687be4cb70ce5e8fc3323724ac0977eee",
+      "bytes": 3563
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/full-recovery-01/ledger-before.json": {
+      "sha256": "38f7eea3c5fa8e5d4f85d2aec9d4b02b9ff060d4e682957da249eb2d33818a5c",
+      "bytes": 2646
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/full-recovery-01/result.json": {
+      "sha256": "1e0d18e2949d045e5fb4b42d6e087033fea7af13ad35291570de5b4aa7b61cb2",
+      "bytes": 831
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/full-recovery-01/stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/full-recovery-01/stdout.txt": {
+      "sha256": "2211babe6a0f4e51e2fc925d98bfdef637e5a79a74cc262d8ac12fe8933c7334",
+      "bytes": 963
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/unit-01/invocation.json": {
+      "sha256": "9dc69c3ac78abc51278c4303ce4dc4007c3dc5fa3fec253f2945f93730857176",
+      "bytes": 516
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/unit-01/ledger-after.json": {
+      "sha256": "84c29a5bb72077b5c7c2153366711622e16904f7a2ccd4a4453fe39e9dfac38d",
+      "bytes": 825
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/unit-01/ledger-before.json": {
+      "sha256": "4993a55531ec1ba1d1aab17f7a062118b6725fff74770ef93513501900c9e26e",
+      "bytes": 260
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/unit-01/result.json": {
+      "sha256": "342c9a821cda8d466877b8fd960dde7bf5fb5efb581b43e050497c0961d45647",
+      "bytes": 491
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/unit-01/stderr.txt": {
+      "sha256": "30cce385fee757e122c4935ca97757402e1ab2755f5c58c60e297a84705848f5",
+      "bytes": 6374
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/test-runs/unit-01/stdout.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/tests/full-scale-01/fixture-journal.json": {
+      "sha256": "73ca14dce1492a1beed1e91bec928c1aa5fe5872414f2c02cd0f625101d993dc",
+      "bytes": 2555570
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/tests/full-scale-01/fixture-receipt.json": {
+      "sha256": "6206a9e483c02cfa995d9c8501e4cb3872cdca6d5c9b6a956a50832f15e9b5c7",
+      "bytes": 780665
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/tests/full-scale-01/fixture-state-after.md": {
+      "sha256": "8ae99f09287d39a88dad8d81cc92df7d2ab26339a12aaff4c7aa52e1ccfc1592",
+      "bytes": 17524
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/tests/full-scale-01/protected-snapshot.json": {
+      "sha256": "09d507d964bea1d894653122fbf09f06344e9d25caaba16c832306a2fdc86a93",
+      "bytes": 3522184
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/tests/full-scale-capture-01.json": {
+      "sha256": "82ba15dd5a10a1dde6985d498ccb0448d32aced6c0f709f3b238312a45684d4d",
+      "bytes": 16386
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/tests/full-scale-check-01.json": {
+      "sha256": "93a530ee2f64165bc9815d433cebf207099e59dd1c2d824a9d8b5b9c7404bce8",
+      "bytes": 18293
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/tests/full-scale-recovery-01.json": {
+      "sha256": "833a06d9b6a82753e8d1365bc989bb5593335338d3a7c30c77eb9db85d69f7cf",
+      "bytes": 22988
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/tests/full_scale_offline.preflight-canonical-before.py": {
+      "sha256": "7028700f79a1ea55394da92e6dc0cc6d796ac32d6e81b858a2b6e244d50cd765",
+      "bytes": 32609
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/tests/full_scale_offline.py": {
+      "sha256": "2f8505664a01d432724f3e38155badf4d14b2ff9a1b6ff8f3a79d5557cf3352b",
+      "bytes": 36234
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/tests/FULL_SCALE_OFFLINE_README.txt": {
+      "sha256": "ff6d3db82ec921c0b3dc9aa1b85d448754bc6779023c7289fee08b6b04163f6d",
+      "bytes": 4385
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/tests/preflight-canonical-correction-01.json": {
+      "sha256": "8ba3f8e4bff13cc0ee20bb916e60cec38e4f761ab0cc6b0d29972a328537ea14",
+      "bytes": 1699
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/tests/test_publication_guard.py": {
+      "sha256": "165f28a161e136779463bc7d2e19f8a338470e0ad2d0c2399269edf2cfd05128",
+      "bytes": 67583
+    },
+    "logs/pre_editor/phase-25/publication-guard-implementation-01/tests/verify_recovery_package.py": {
+      "sha256": "4d1ef71679a82c3832d22f64e3b8480ef844308a595484156d1929557ba96728",
+      "bytes": 3399
+    },
+    "pre-editor-checkpoints/phase-24.json": {
+      "sha256": "c181d6970c35042768b91a4e8cecaf348be43d45b6dde1f9a8da99ee25d2721c",
+      "bytes": 2631333
+    }
+  },
+  "helper_before_sha256": "76957e3d6a9a4dfdbe284bd17cbf27cbd567ad4e2134ae06c5db4f5828e66d75",
+  "helper_after_sha256": "31ee6f7babfd578eb160f4f75b2fce342fa77ea14307c555adb72b4237a6825b",
+  "authorization_sha256": "86122ea13fa07ff07031d26c251a2df3475d79baeb2963ff957f9d1a90b13fd5",
+  "scope": "Exact guard authority/helper/lineage/catalog and offline proof records; no protected bin payload or original file replaced. New nonignored copy intended for future exact checkpoint, not staged now.",
+  "restoration_rule": "Verify RECOVERY.json against final spec/approved receipt then archive/member hashes. Restore missing ignored metadata only to its exact declared path under separate applicable recovery authority; preserve altered bytes first and stop on integrity ambiguity. Never automatic fallback, reseal, history rewrite or main.cpp restoration.",
+  "private_journal_backup": "logs/pre_editor/phase-25/publication-guard-implementation-01/before/PHASE_24.journal.json",
+  "not_a_git_history_backup": "Existing accepted commits/tags/retention refs and Collider archive remain authoritative and preserved.",
+  "human_acceptance": "PENDING",
+  "phase25_source_disposition": "UNDECIDED_MAIN_CPP"
+}

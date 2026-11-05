@@ -13,6 +13,9 @@ namespace PreEditorValidation::ColliderReplacement { void ObserveColliderRuntime
 #include "Scene/_Scene.h"
 #include "Physics/PhysicsSystem.h"
 #include "../tests/RestingContactDiagnosis.h"
+#ifdef GENGINE_PHASE25_QUALIFICATION
+#include "../tests/PhysicsCostChecks.h"
+#endif
 #ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
 #include "../tests/ColliderReplacementObservation.h"
 #include "../tests/ColliderReplacementCapture.h"
@@ -74,6 +77,65 @@ void RigidBodySimulationApp::Update(Timestep ts)
 {
     if (!ValidateUpdate())
         return;
+
+#ifdef GENGINE_PHASE25_QUALIFICATION
+    // The isolated request drives the ordinary Scene scheduler once per frame.
+    // Preserve the original Scene owner until the fixture and callbacks retire.
+    static std::unique_ptr<Rbs::PhysicsCost::Session> phase25;
+    if (!phase25)
+    {
+        phase25 = std::make_unique<Rbs::PhysicsCost::Session>();
+        phase25->original = m_ActiveScene;
+        phase25->originalPaused = m_IsPause;
+        phase25->originalFrameLimit = GetManualFrameRateLimit();
+        SetManualFrameRateLimit(0);
+        m_ActiveScene->SetPaused(true);
+        phase25->Initialize(*GetWindow(), *m_SceneResources);
+        m_EditorCamera_.m_FOV = glm::radians(60.f);
+        m_EditorCamera_.m_NearClip = .1f;
+        m_EditorCamera_.m_FarClip = 1000.f;
+        m_EditorCamera_.m_Position = {60,80,180};
+        m_EditorCamera_.m_FocalPoint = {60,0,60};
+        m_EditorCamera_.m_Distance = glm::length(Vec3f(0,80,120));
+        m_EditorCamera_.m_Pitch = std::atan2(80.f,120.f);
+        m_EditorCamera_.m_Yaw = 0;
+        m_EditorCamera_.m_PositionDelta = {};
+        m_EditorCamera_.m_PitchDelta = m_EditorCamera_.m_YawDelta = 0;
+        m_EditorCamera_.UpdateView();
+    }
+    auto& qualification = *phase25;
+    if (qualification.rowDone && !qualification.failed)
+    {
+        qualification.Check(BindCameraScene(qualification.original), "fixture view retirement");
+        qualification.RetireRow();
+    }
+    if (!qualification.scene && !qualification.complete && !qualification.failed)
+    {
+        if (qualification.Prepare())
+            qualification.Check(BindCameraScene(qualification.scene), "fixture view binding");
+    }
+    if (!qualification.failed && !qualification.complete)
+    {
+        qualification.actualFrameLimit = GetManualFrameRateLimit();
+        qualification.Check(qualification.actualFrameLimit == 0, "qualification manual frame cap");
+        m_IsPause = false;
+        m_HoveredEntity = {};
+        OnViewportResize(static_cast<int>(m_ViewportSize.x), static_cast<int>(m_ViewportSize.y));
+        qualification.Tick();
+    }
+    if (qualification.failed || qualification.complete)
+    {
+        qualification.Check(BindCameraScene(qualification.original), "original Scene restoration");
+        if (qualification.scene) qualification.RetireRow();
+        m_IsPause = qualification.originalPaused;
+        m_ActiveScene->SetPaused(m_IsPause);
+        SetManualFrameRateLimit(qualification.originalFrameLimit);
+        qualification.Export();
+        phase25.reset();
+        ShutDown();
+    }
+    return;
+#endif
 
 #ifdef GENGINE_MESH_HIGHLIGHT_AUDIT
     // Opt-in pixel references need a stationary background across selection cases.

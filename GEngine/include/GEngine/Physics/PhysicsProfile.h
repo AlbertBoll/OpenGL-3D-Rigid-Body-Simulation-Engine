@@ -8,6 +8,44 @@
 #include "GJK.h"
 #include "Contact.h"
 
+// Phase25 qualification-only complete Update boundary. Normal builds expose
+// neither this observer nor an extra clock/callback on the Physics path.
+#ifdef GENGINE_PHASE25_QUALIFICATION
+#ifndef GENGINE_PHASE25_ISOLATED_BUILD
+#error Phase25 observers require isolated products.
+#endif
+namespace GEngine::Phase25Observation
+{
+    struct Observer
+    {
+        void* context{};
+        void (*begin)(void*) noexcept{};
+        void (*end)(void*, std::uint64_t) noexcept{};
+    };
+    inline thread_local Observer* observer{};
+    inline std::uint64_t Nanoseconds() noexcept
+    {
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
+    class CompleteStep final
+    {
+        Observer* sink = observer;
+        std::uint64_t start{};
+    public:
+        CompleteStep() noexcept
+        {
+            if (sink) { sink->begin(sink->context); start = Nanoseconds(); }
+        }
+        ~CompleteStep()
+        {
+            const auto stop = sink ? Nanoseconds() : 0;
+            if (sink) sink->end(sink->context, stop - start);
+        }
+    };
+}
+#endif
+
 namespace GEngine { class PhysicsWorld; class ManifoldCollector; struct ContactIsland; }
 
 // Owner-thread, opt-in observation. No callback is installed by normal consumers.
@@ -315,6 +353,14 @@ namespace GEngine
 		std::uint64_t contactIslandCapacityGrowthCount{};
 		std::uint64_t contactIslandNodeSortCount{};
 		std::uint64_t contactIslandEdgeSortCount{};
+#ifdef GENGINE_PHASE25_QUALIFICATION
+        std::uint64_t phase25broadphaseInvocations{};
+        std::uint64_t phase25narrowphaseInvocations{};
+        std::uint64_t phase25manifoldInvocations{};
+        std::uint64_t phase25contactResolutionInvocations{};
+        std::uint64_t phase25contactIslandBuildInvocations{};
+        std::uint64_t phase25solverInvocations{};
+#endif
 	};
 
 	void ResetPhysicsProfile();

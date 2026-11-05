@@ -80,6 +80,9 @@ namespace GEngine
 		using namespace ContactIslandDetail;
 		using Node = ContactIslandScratch::Node;
 		GE_PHYSICS_PROFILE_SCOPE(contactIslandBuildTimeNs);
+#ifdef GENGINE_PHASE25_QUALIFICATION
+        GE_PHYSICS_PROFILE_ADD(phase25contactIslandBuildInvocations, 1);
+#endif
 		GE_PHYSICS_PROFILE_SCOPE_NAMED(nodeTimer, contactIslandNodesTimeNs);
 		const auto identityLess = [](RigidBodyIdentity a, RigidBodyIdentity b)
 		{
@@ -478,6 +481,10 @@ namespace GEngine
 
 	void PhysicsSystem::Update(Timestep ts)
 	{
+#ifdef GENGINE_PHASE25_QUALIFICATION
+        // First declared: includes the existing setup and every local destructor.
+        Phase25Observation::CompleteStep phase25CompleteStep;
+#endif
         // A confirmation is valid only between simulation updates.
         ++m_ColliderContextRevision;
         const auto observe = [&](PhysicsDiagnostic::Stage stage) {
@@ -570,6 +577,9 @@ namespace GEngine
 		bool refreshCandidates = false;
 		{
 			GE_PHYSICS_PROFILE_SCOPE(manifoldTimeNs);
+#ifdef GENGINE_PHASE25_QUALIFICATION
+        GE_PHYSICS_PROFILE_ADD(phase25manifoldInvocations, 1);
+#endif
 			//Timeit("	m_Manifolds-RemoveExpired")
 			if (m_PhysicsWorld && dtSeconds > 0.0f) refreshCandidates = m_Manifolds.PrepareContactRefresh();
 			else m_Manifolds.RemoveExpired();
@@ -585,6 +595,9 @@ namespace GEngine
 			{
 				if (refreshCandidates) {
 					GE_PHYSICS_PROFILE_SCOPE(manifoldTimeNs);
+#ifdef GENGINE_PHASE25_QUALIFICATION
+        GE_PHYSICS_PROFILE_ADD(phase25manifoldInvocations, 1);
+#endif
 					m_Manifolds.RemoveExpired();
 				}
 				return;
@@ -626,6 +639,9 @@ namespace GEngine
 			//
 			{
 				GE_PHYSICS_PROFILE_SCOPE(broadphaseTimeNs);
+#ifdef GENGINE_PHASE25_QUALIFICATION
+        GE_PHYSICS_PROFILE_ADD(phase25broadphaseInvocations, 1);
+#endif
 				//Timeit("	BroadPhase")
 				m_Broadphase.FindPairs(PhysicsBodies, m_CollisionPairs, dtSeconds);
 			}
@@ -640,11 +656,17 @@ namespace GEngine
 			GE_PHYSICS_PROFILE_ADD(broadphaseFullSortCount, broadphaseStats.fullSortCount);
 			if (refreshCandidates) {
 				GE_PHYSICS_PROFILE_SCOPE(manifoldTimeNs);
+#ifdef GENGINE_PHASE25_QUALIFICATION
+        GE_PHYSICS_PROFILE_ADD(phase25manifoldInvocations, 1);
+#endif
 				m_Manifolds.RemoveExpiredOutsidePairs(m_CollisionPairs, PhysicsBodies);
 			}
 			const auto expirePair = [&](const RigidBody3D* a, const RigidBody3D* b) {
 				if (refreshCandidates) {
 					GE_PHYSICS_PROFILE_SCOPE(manifoldTimeNs);
+#ifdef GENGINE_PHASE25_QUALIFICATION
+        GE_PHYSICS_PROFILE_ADD(phase25manifoldInvocations, 1);
+#endif
 					m_Manifolds.RemoveExpiredForPair(a, b);
 				}
 			};
@@ -724,6 +746,9 @@ namespace GEngine
 
 				GE_PHYSICS_PROFILE_ADD(narrowphaseCallCount, 1);
 				GE_PHYSICS_PROFILE_SCOPE_NAMED(narrowphaseTimer, narrowphaseTimeNs);
+#ifdef GENGINE_PHASE25_QUALIFICATION
+        GE_PHYSICS_PROFILE_ADD(phase25narrowphaseInvocations, 1);
+#endif
 #ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
                 PhysicsDiagnostic::Coupled::QueryScope coupledInitialQuery(
                     PhysicsDiagnostic::Coupled::Role::InitialPrediction,bodyA,bodyB,(float)ts,0.0f);
@@ -767,6 +792,9 @@ namespace GEngine
 						
 						{
 							GE_PHYSICS_PROFILE_SCOPE(manifoldTimeNs);
+#ifdef GENGINE_PHASE25_QUALIFICATION
+        GE_PHYSICS_PROFILE_ADD(phase25manifoldInvocations, 1);
+#endif
 							AdmitRestingContact(m_Manifolds, bodyA, bodyB, contact, refreshCandidates
 #ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
 								, coupledPairResult
@@ -806,6 +834,9 @@ namespace GEngine
 
 			{
 				GE_PHYSICS_PROFILE_SCOPE(solverTimeNs);
+#ifdef GENGINE_PHASE25_QUALIFICATION
+        GE_PHYSICS_PROFILE_ADD(phase25solverInvocations, 1);
+#endif
 				//Timeit("	m_Manifolds PreSolve")
 				////Solve the Constraints
 				m_Manifolds.PreSolve(ts);
@@ -820,6 +851,9 @@ namespace GEngine
 
 			{
 				GE_PHYSICS_PROFILE_SCOPE(solverTimeNs);
+#ifdef GENGINE_PHASE25_QUALIFICATION
+        GE_PHYSICS_PROFILE_ADD(phase25solverInvocations, 1);
+#endif
 				//Timeit("	m_Manifolds Solve")
 				// Warm start once above; repeat only the existing ordered constraint traversal.
 				const int maxIters = m_SolverIterations;
@@ -847,6 +881,9 @@ namespace GEngine
 				const float remaining = dtSeconds - accumulatedTime;
 				GE_PHYSICS_PROFILE_ADD(narrowphaseCallCount, 1);
 				GE_PHYSICS_PROFILE_SCOPE(narrowphaseTimeNs);
+#ifdef GENGINE_PHASE25_QUALIFICATION
+        GE_PHYSICS_PROFILE_ADD(phase25narrowphaseInvocations, 1);
+#endif
 #ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
                 PhysicsDiagnostic::Coupled::QueryScope coupledPendingQuery(
                     PhysicsDiagnostic::Coupled::Role::PendingRefresh,pending.m_BodyA,pending.m_BodyB,
@@ -910,6 +947,9 @@ namespace GEngine
 				{
 					GE_PHYSICS_PROFILE_ADD(narrowphaseCallCount, 1);
 					GE_PHYSICS_PROFILE_SCOPE(narrowphaseTimeNs);
+#ifdef GENGINE_PHASE25_QUALIFICATION
+        GE_PHYSICS_PROFILE_ADD(phase25narrowphaseInvocations, 1);
+#endif
 #ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
                     PhysicsDiagnostic::Coupled::QueryScope coupledCurrentQuery(
                         PhysicsDiagnostic::Coupled::Role::CurrentToi,event.m_BodyA,event.m_BodyB,
@@ -925,6 +965,9 @@ namespace GEngine
 				{
 					current.timeOfImpact = accumulatedTime;
 					GE_PHYSICS_PROFILE_SCOPE(contactResolutionTimeNs);
+#ifdef GENGINE_PHASE25_QUALIFICATION
+        GE_PHYSICS_PROFILE_ADD(phase25contactResolutionInvocations, 1);
+#endif
                     PhysicsDiagnostic::Observation toiDiagnostic(PhysicsDiagnostic::Operation::ToiQuery,current.m_BodyA,current.m_BodyB,true);
                     if (toiDiagnostic) {
                         toiDiagnostic.value.time=accumulatedTime; toiDiagnostic.value.normal=-current.normal;
@@ -973,6 +1016,9 @@ namespace GEngine
 			// Correct current resting penetration once, after all physical/TOI integration.
 			{
 				GE_PHYSICS_PROFILE_SCOPE(solverTimeNs);
+#ifdef GENGINE_PHASE25_QUALIFICATION
+        GE_PHYSICS_PROFILE_ADD(phase25solverInvocations, 1);
+#endif
 				m_Manifolds.PostSolve();
 			}
 

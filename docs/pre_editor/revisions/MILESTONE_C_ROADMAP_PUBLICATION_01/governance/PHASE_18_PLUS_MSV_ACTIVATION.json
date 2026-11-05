@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "status": "ACTIVE_PROSPECTIVE_FOR_PHASES_18_55",
+  "effective_phases": {
+    "first": "18",
+    "last": "55"
+  },
+  "review_package": "docs/pre_editor/proposals/PHASE_18_PLUS_MSV_REVIEW_01",
+  "application_guard": "Install this record and the reviewed deltas only after explicit owner acceptance of PHASE_18_PLUS_MSV_REVIEW_01. Draft copies and an unapplied patch have no force. Acceptance is a governance action, not phase approval/publication.",
+  "owner_acceptance_reference": "The explicit owner conversation instruction accepting application of this exact review package; required before installation.",
+  "controlling_directive": "PRE_EDITOR ACTIVATE PHASE 18+ MINIMUM SUFFICIENT VALIDATION GOVERNANCE, with explicit prepare-only/owner-review restriction before activation.",
+  "operational_files": {
+    "AGENTS.md": "051f8a182f77010ccf83fa560a5ae029e020b2533fb5acabf9a863a1b4884ccf",
+    ".agents/skills/pre-editor-phase-execution/SKILL.md": "96eacfc7a63a8d0ee3a38845458a406cde423bc34684d57a8fe9bd8b1042b512",
+    ".agents/skills/pre-editor-phase-approval/SKILL.md": "804ac8fac49f3833f92070b45095f344f4172fa81aedc85916981e61326d546f",
+    "docs/pre_editor/active/PHASE_18_PLUS_MINIMUM_SUFFICIENT_VALIDATION.md": "19744617ead7bb045fd4bcc925c379102d2052db84ca0b208115f09d87f99567",
+    "docs/pre_editor/active/PHASE_18_PLUS_ARTIFACT_RETENTION.json": "6aaed57e88f578cc76f642aaa9e822eb75e49625e886f698746c50189f778a44"
+  },
+  "validation_and_approval_contract": "docs/pre_editor/active/PHASE_18_PLUS_MINIMUM_SUFFICIENT_VALIDATION.md",
+  "risk_authority": "Evidence-based Codex classification; no P0 waiver; explicit specific owner P1 disposition; disclosed eligible P2 accepted by final owner APPROVE.",
+  "owner_review_required_every_phase": true,
+  "handoff": "READY FOR OWNER RBS ACCEPTANCE; APPROVE WHEN FINAL.",
+  "approval_command": "APPROVE PRE_EDITOR PHASE XX",
+  "phase17_commit": "3f1351bb7cb64d60c80955d43d522073819a8915",
+  "phase17_unchanged": true,
+  "helper_and_integrity_guards_unchanged": true,
+  "rejection_skill_unchanged": true,
+  "phase18_started": false,
+  "activation_builds_runs_cleanup": false,
+  "governance_commit_or_publication_authorized": false,
+  "separate_phase_start_required": true
+}

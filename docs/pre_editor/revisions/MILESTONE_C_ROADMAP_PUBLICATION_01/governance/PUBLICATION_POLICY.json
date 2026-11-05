@@ -1,0 +1,16 @@
+{
+  "approval_trigger": "Explicit APPROVE PRE_EDITOR PHASE XX instruction for the named eligible sealed candidate only",
+  "authorization": "Standing owner grant, conditional on explicit phase approval. No duplicate destination consent while applicable. Enabling this policy does not approve or publish Phase 00.",
+  "branch": "pre-editor/refactor",
+  "enabled": true,
+  "grant_record": "docs/pre_editor/active/PUBLICATION_GRANT_MILESTONE_C_01.json",
+  "phase_range": {
+    "first": "00",
+    "last": "58"
+  },
+  "remote": "origin",
+  "repository": "AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine",
+  "schema": 1,
+  "tag_template": "pre-editor-phase-{phase}-approved",
+  "tag_type": "annotated"
+}

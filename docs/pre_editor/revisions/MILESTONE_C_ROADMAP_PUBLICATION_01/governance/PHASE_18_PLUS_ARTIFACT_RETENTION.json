@@ -1,0 +1,88 @@
+{
+  "schema": 1,
+  "kind": "OWNER_ACCEPTED_PROSPECTIVE_ARTIFACT_RETENTION_C0_V0_SUPPLEMENT",
+  "recorded_date": "2026-10-16",
+  "status": "ACTIVE_PROSPECTIVE_FOR_PHASES_18_55",
+  "effective_phases": {
+    "first": "18",
+    "last": "55"
+  },
+  "authority": "Owner: FIX PRE_EDITOR RELEASE BUILD - RESTORE TRACKED RUNTIME DEPENDENCIES; correction to the consumed one-time full cleanup and prospective Phase18+ retention policy.",
+  "scope": "Artifact retention and matching build-product reuse only; no production work, phase execution or validation campaign.",
+  "minimum_sufficient_validation": {
+    "proposal": "docs/pre_editor/proposals/PHASE_18_PLUS_RISK_BASED_VALIDATION.md",
+    "broader_policy_status": "ACTIVE_FOR_PHASES_18_55_ONLY_AFTER_EXPLICIT_OWNER_ACCEPTANCE_AND_RECORDED_ACTIVATION",
+    "contract": "docs/pre_editor/active/PHASE_18_PLUS_MINIMUM_SUFFICIENT_VALIDATION.md",
+    "activation_record": "docs/pre_editor/active/PHASE_18_PLUS_MSV_ACTIVATION.json",
+    "integration": "The owner-accepted Minimum Sufficient Validation addendum incorporates these A/B/C roles, tracking/runtime-dependency preflight and selective cleanup after successful owner-approved publication. The original proposal, explicit technical gates, applicable thresholds and immutable history remain unchanged. An unapplied review patch has no activation effect."
+  },
+  "one_time_exception": {
+    "scope": [
+      "C:/dev/GEngine-pre-editor/bin/Debug/*",
+      "C:/dev/GEngine-pre-editor/bin/Release/*"
+    ],
+    "preserve_roots": true,
+    "reusable_authorization": false,
+    "historical_results": "Intentional removal of reproducible binaries does not invalidate historical PASS or relabel historical FAIL/incomplete results. Preserve all records and recorded original identities.",
+    "tracked_outputs": "Historical consumed exception: 86 tracked runtime DLL worktree copies were deleted, preserving their Git objects, index and history. This broke later Post-Build staging. Owner-authorized recovery restored all 86 exact approved HEAD copies; no repeat authorization or automatic deletion of tracked prerequisites follows.",
+    "audit_directory": "C:\\Users\\alber\\AppData\\Local\\Temp\\pre-editor-full-bin-cleanup-374e658c5c684cc2b68bc1b7c475095f",
+    "status": "CONSUMED; TRACKED_PREREQUISITES_RESTORED_BY_SEPARATE_OWNER_AUTHORIZED_REPAIR"
+  },
+  "trigger": "Only after explicit owner APPROVE PRE_EDITOR PHASE XX for 18-55 and successful guarded finish with verified branch/tag publication and COMPLETE. Nothing between seal and finish.",
+  "selective_cleanup": {
+    "roots": [
+      "C:/dev/GEngine-pre-editor/bin/Debug/",
+      "C:/dev/GEngine-pre-editor/bin/Release/"
+    ],
+    "remove": "Only untracked generated EXE/PDB, temporary binaries and Candidate/Diagnostic outputs in the completed phase declared scope that are obsolete, unreferenced, reproducible, unused and safe; never prerequisites, canonical/required products or evidence.",
+    "preserve": [
+      "Every Git-tracked path, especially runtime DLL prerequisites and staging sources under either bin root; Git recoverability does not authorize deletion",
+      "Current canonical Debug/Release application and engine outputs",
+      "Binaries and runtime/build dependencies needed by the next active phase",
+      "Necessary acceptance artifacts and dependencies still required by active or next-phase builds/runtime",
+      "Immutable checkpoint metadata, source/raw/index objects, validation records, hashes and failure evidence",
+      "Artifacts whose actual continued presence is required by active build/input/acceptance contracts or applicable retention records",
+      "Unrelated owner work and all uncertain items"
+    ],
+    "forbidden": [
+      "Automatic deletion of Git-tracked runtime prerequisites or other tracked paths, regardless of location or reproducibility",
+      "Automatic full-bin deletion or deletion of either root",
+      "Source, bin-int/, runtime/, logs/, docs/, external-dependency or Git/index/ref/tag mutation by cleanup",
+      "Changing integrity/publication guards, refreshing historical evidence, resealing, or standalone SEAL",
+      "Rebuild, application launch or historical requalification solely for cleanup"
+    ]
+  },
+  "lightweight_operation": [
+    "Use the current phase's declared artifact roles, dependency/reuse closure and output inventory; do not reconstruct historical campaigns.",
+    "Before deletion, dry-run exact Git tracking and active/next-phase runtime/build staging dependencies, including staging sources under bin; exclude every tracked or required path. Check ownership, containment, reparse points, hardlinks and current use. Never follow links outside authorized roots.",
+    "Preserve uncertain/in-use artifacts. Delete only untracked, verified obsolete generated outputs using literal contained paths; verify retained required identities. Missing prerequisites are a build-repair issue, not permission to delete more files.",
+    "Idempotent: absent obsolete outputs require no action. A cleanup failure or skip is reported as housekeeping and cannot reverse, block or rerun a successful publication.",
+    "Do not interpret nonblocking housekeeping as permission to weaken a technical gate or delete required/uncertain evidence."
+  ],
+  "reuse": [
+    "Prefer matching existing products when relevant sources, generated inputs, dependency/toolchain identities, build flags, configuration and assets/settings match.",
+    "Keep original tested-binary identities and old evidence immutable. A new/rebuilt product is not previously tested merely because its source matches.",
+    "Keep derived-output retention roles separate from immutable evidence and consumed inputs; never shrink or refresh an existing seal."
+  ],
+  "unchanged": [
+    "Sealed Phase17 governance, receipts, publication journal, approved commit/tag and original proposal",
+    "Existing checkpoint helper and every integrity/publication guard",
+    "All phase technical gates and owner-controlled broader governance activation"
+  ],
+  "phase18_started": false,
+  "artifact_classes": {
+    "A_tracked_runtime_prerequisites": "NEVER delete automatically. Tracked DLLs and staging sources under bin are repository-managed prerequisites, not disposable generated outputs. Git recoverability is not permission to delete them.",
+    "B_disposable_generated_outputs": "Untracked generated EXE/PDB, temporary binaries and obsolete Candidate/Diagnostic outputs MAY be deleted only when proven reproducible, obsolete, unreferenced, unused and safe.",
+    "C_required_products_and_evidence": "Preserve current canonical Debug/Release outputs, active/next-phase binaries and runtime/build dependencies, necessary acceptance artifacts and immutable checkpoint/validation evidence."
+  },
+  "authorized_runtime_dependency_recovery": {
+    "approved_head": "3f1351bb7cb64d60c80955d43d522073819a8915",
+    "restored_missing_tracked_dlls": {
+      "Debug": 40,
+      "Release": 46
+    },
+    "identity": "All 86 restored files verified against HEAD Git blob IDs and SHA-256; existing files and owner source work were not overwritten.",
+    "result": "Release|x64 incremental Build succeeded for RigidBodySimulation, GEngineEditor, RayTracing and Breakout, including Post-Build staging. No runtime launch or historical requalification.",
+    "audit_directory": "C:\\Users\\alber\\AppData\\Local\\Temp\\pre-editor-runtime-recovery-3fc10a69d3cf4b8faac41bdbe822891e"
+  }
+}

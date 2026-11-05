@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "identity": "milestone-c-roadmap-publication-bridge-remediation-01",
+  "status": "OWNER_AUTHORIZED_IMPLEMENTATION_AND_OFFLINE_VALIDATION_ONLY",
+  "owner_instruction": "AUTHORIZE PRE_EDITOR MILESTONE C GOVERNANCE PUBLICATION BRIDGE",
+  "scope": [
+    "Bounded governance helper integration",
+    "Exact Phase25-to-roadmap-to-Phase26 lineage guard",
+    "Explicit reproducible governance source snapshot",
+    "Focused offline governance validation"
+  ],
+  "prohibitions": [
+    "Actual governance commit, tag, push or publication transaction",
+    "Physics production changes, builds or simulations",
+    "Phase26 START or approval",
+    "Historical evidence mutation or weakened integrity guards"
+  ],
+  "parent": "1a2adf61c1571d9f4604f2ca185fea3f95682b4c",
+  "future_publication_requires": "Separate explicit Owner authorization of the final exact publication spec",
+  "publication_authorized": false,
+  "phase26_authorized": false
+}

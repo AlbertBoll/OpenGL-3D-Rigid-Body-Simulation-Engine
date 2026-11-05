@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "identity": "milestone-c-roadmap-publication-bridge-remediation-01",
+  "authority": "docs/pre_editor/active/MILESTONE_C_ROADMAP_BRIDGE_AUTHORIZATION_01.json",
+  "preserved_accepted_records": {
+    "docs/pre_editor/proposals/PHYSICS_MILESTONE_C_SEVEN_PHASE_REVIEW_01/PACKAGE_MANIFEST.json": "de153eeecf95450db4569467bf3de3b7c94b8c79ad5fd81d6a7de37864ad8ef9",
+    "docs/pre_editor/active/MILESTONE_C_ROADMAP_APPLICATION_01/applied-manifest.json": "701d2f90ab4f18a05d74f43dea8693193806724525ac1ed39e27e15d0b42b9df",
+    "docs/pre_editor/active/MILESTONE_C_ROADMAP_ACTIVATION_01.json": "4b04cefc2c00e55973db0785da16c95fe62162f81c61bc8e893d7ded9e8e9447"
+  },
+  "superseded_current_infrastructure_bindings_only": [
+    "AGENTS.md",
+    ".codex/tools/rendering_checkpoint.py",
+    ".agents/skills/pre-editor-phase-execution/SKILL.md",
+    ".agents/skills/pre-editor-phase-approval/SKILL.md",
+    ".agents/skills/pre-editor-phase-rejection/SKILL.md"
+  ],
+  "new_implementation": [
+    "tools/pre_editor_roadmap_bridge.py",
+    "tools/test_pre_editor_roadmap_bridge.py"
+  ],
+  "identity_binding": "The final publication-manifest.json binds current infrastructure and its exact local-source copies. Original activation/application hashes remain historical evidence; they are not refreshed.",
+  "publication_snapshot": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01",
+  "phase26_baseline": "Only the exact completed milestone-c-roadmap-01 bridge with sole approved Phase25 parent; never arbitrary ancestry",
+  "technical_entry_status": "UNRESOLVED_PHY_01_OD_06_OD_08",
+  "preserved_policy": "Phase21 FROZEN_UNAPPROVED; rejected Candidate11 is not admitted; all existing technical and human acceptance gates remain binding.",
+  "workflow_state_advanced": false,
+  "publication_authorized": false
+}

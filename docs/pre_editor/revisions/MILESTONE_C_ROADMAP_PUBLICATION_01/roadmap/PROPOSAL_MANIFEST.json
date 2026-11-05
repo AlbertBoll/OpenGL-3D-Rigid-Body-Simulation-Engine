@@ -1,0 +1,893 @@
+{
+  "schema": 1,
+  "status": "ACTIVE_CANONICAL_ROADMAP_PHASES_NOT_STARTED",
+  "workflow": "pre-editor",
+  "phase_count": 59,
+  "phase_range": [
+    "00",
+    "58"
+  ],
+  "historical_00_25_unchanged": true,
+  "milestones": {
+    "C": [
+      "18",
+      "32"
+    ],
+    "D": [
+      "33",
+      "43"
+    ],
+    "E": [
+      "44",
+      "54"
+    ],
+    "F": [
+      "55",
+      "58"
+    ]
+  },
+  "phases": [
+    {
+      "phase": "00",
+      "original_phase": "00",
+      "title": "Minimal isolated activation and workflow setup",
+      "lane": "Setup",
+      "predecessor": "Rendering68",
+      "providers": [],
+      "contract": "/docs/pre_editor/phases/PHASE_00.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "01",
+      "original_phase": "01",
+      "title": "Adopt scoped Code Quality policy",
+      "lane": "Code Quality",
+      "predecessor": "00",
+      "providers": [
+        "00"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_01.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "02",
+      "original_phase": "02",
+      "title": "Mechanical formatting of initial A touchpoints",
+      "lane": "Code Quality",
+      "predecessor": "01",
+      "providers": [
+        "01"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_02.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "03",
+      "original_phase": "03",
+      "title": "Bounded resource and RBS readability cleanup",
+      "lane": "Code Quality",
+      "predecessor": "02",
+      "providers": [
+        "02"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_03.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "04",
+      "original_phase": "04",
+      "title": "Minimum runtime Scene operations and shared assignment",
+      "lane": "A",
+      "predecessor": "03",
+      "providers": [
+        "03"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_04.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "05",
+      "original_phase": "05",
+      "title": "Resource ownership and renderer-private frame preparation",
+      "lane": "A",
+      "predecessor": "04",
+      "providers": [
+        "04"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_05.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "06",
+      "original_phase": "06",
+      "title": "CPU simple geometry templates and canonical sharing",
+      "lane": "A",
+      "predecessor": "05",
+      "providers": [
+        "04",
+        "05"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_06.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "07",
+      "original_phase": "07",
+      "title": "Parametric curved geometry templates",
+      "lane": "A",
+      "predecessor": "06",
+      "providers": [
+        "06"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_07.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "08",
+      "original_phase": "08",
+      "title": "Explicit geometry copy, MakeUnique and dimension/Bake semantics",
+      "lane": "A",
+      "predecessor": "07",
+      "providers": [
+        "04",
+        "06",
+        "07"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_08.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "09",
+      "original_phase": "09",
+      "title": "Typed standard material templates",
+      "lane": "A",
+      "predecessor": "08",
+      "providers": [
+        "04",
+        "05"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_09.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "10",
+      "original_phase": "10",
+      "title": "Shader descriptions, reflection and bounded variants",
+      "lane": "A",
+      "predecessor": "09",
+      "providers": [
+        "05",
+        "09"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_10.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "11",
+      "original_phase": "11",
+      "title": "Explicit shader/material reload and atomic replacement",
+      "lane": "A",
+      "predecessor": "10",
+      "providers": [
+        "05",
+        "09",
+        "10"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_11.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "12",
+      "original_phase": "12",
+      "title": "Async resource adoption and upload-stall evidence",
+      "lane": "A",
+      "predecessor": "11",
+      "providers": [
+        "04",
+        "05",
+        "06",
+        "07",
+        "08",
+        "09",
+        "10",
+        "11"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_12.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "13",
+      "original_phase": "13",
+      "title": "Typed subscriptions, lifetime and dispatch semantics",
+      "lane": "B",
+      "predecessor": "12",
+      "providers": [
+        "12"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_13.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "14",
+      "original_phase": "14",
+      "title": "Authoritative runtime Transform mutation and successful-change notifications",
+      "lane": "B",
+      "predecessor": "13",
+      "providers": [
+        "04",
+        "08",
+        "13"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_14.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "15",
+      "original_phase": "15",
+      "title": "Complete typed input state and routing",
+      "lane": "B",
+      "predecessor": "14",
+      "providers": [
+        "13",
+        "14"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_15.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "16",
+      "original_phase": "16",
+      "title": "Unified semantic camera snapshot and conversions",
+      "lane": "B",
+      "predecessor": "15",
+      "providers": [
+        "14",
+        "15"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_16.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "17",
+      "original_phase": "17",
+      "title": "Scene Camera and Editor view lifecycle adoption",
+      "lane": "B",
+      "predecessor": "16",
+      "providers": [
+        "15",
+        "16"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_17.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "18",
+      "original_phase": "18",
+      "title": "Shared semantic debug rendering foundation",
+      "lane": "C",
+      "predecessor": "17",
+      "providers": [
+        "12",
+        "17"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_18.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "19",
+      "original_phase": "19",
+      "title": "Resting-contact and impact diagnosis in RBS",
+      "lane": "C",
+      "predecessor": "18",
+      "providers": [
+        "18"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_19.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "20",
+      "original_phase": "20",
+      "title": "Bounded resting-contact and impact ownership correction",
+      "lane": "C",
+      "predecessor": "19",
+      "providers": [
+        "19"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_20.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "21",
+      "original_phase": "21",
+      "title": "Convergence, sleep and fixed-step qualification",
+      "lane": "C",
+      "predecessor": "20",
+      "providers": [
+        "20"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_21.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "22",
+      "original_phase": "22",
+      "title": "Typed Physics world and body API ownership",
+      "lane": "C",
+      "predecessor": "21",
+      "providers": [
+        "14",
+        "21"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_22.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "23",
+      "original_phase": "23",
+      "title": "Independent collision shapes including Capsule",
+      "lane": "C",
+      "predecessor": "22",
+      "providers": [
+        "22"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_23.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "24",
+      "original_phase": "24",
+      "title": "Physics, Scene and Rendering Transform contract",
+      "lane": "C",
+      "predecessor": "23",
+      "providers": [
+        "14",
+        "16",
+        "22",
+        "23"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_24.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "25",
+      "original_phase": "25",
+      "title": "Physics CPU and scaling acceptance",
+      "lane": "C",
+      "predecessor": "24",
+      "providers": [
+        "21",
+        "24"
+      ],
+      "contract": "/docs/pre_editor/phases/PHASE_25.md",
+      "status": "HISTORICAL_SEE_ORIGINAL"
+    },
+    {
+      "phase": "26",
+      "original_phase": "26",
+      "title": "Distance Constraints and Chains",
+      "lane": "C",
+      "predecessor": "25",
+      "providers": [
+        "18",
+        "21",
+        "22",
+        "23",
+        "24",
+        "25"
+      ],
+      "contract": "phases/PHASE_26.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "27",
+      "original_phase": "27",
+      "title": "Ball-and-Socket Joints",
+      "lane": "C",
+      "predecessor": "26",
+      "providers": [
+        "26"
+      ],
+      "contract": "phases/PHASE_27.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "28",
+      "original_phase": "28",
+      "title": "Hinge Joints and Angular Limits",
+      "lane": "C",
+      "predecessor": "27",
+      "providers": [
+        "26",
+        "27"
+      ],
+      "contract": "phases/PHASE_28.md",
+      "status": "NOT_STARTED",
+      "mandatory_reference_capabilities": [
+        "Chapter19 Constant Velocity Constraint",
+        "Chapter20 Limited Constant Velocity Constraint"
+      ]
+    },
+    {
+      "phase": "29",
+      "original_phase": "29",
+      "title": "Passive Ragdoll",
+      "lane": "C",
+      "predecessor": "28",
+      "providers": [
+        "18",
+        "21",
+        "23",
+        "24",
+        "25",
+        "26",
+        "27",
+        "28"
+      ],
+      "contract": "phases/PHASE_29.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "30",
+      "original_phase": null,
+      "title": "Motors",
+      "lane": "C",
+      "predecessor": "29",
+      "providers": [
+        "22",
+        "24",
+        "26",
+        "28",
+        "29"
+      ],
+      "contract": "phases/PHASE_30.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "31",
+      "original_phase": null,
+      "title": "Movers",
+      "lane": "C",
+      "predecessor": "30",
+      "providers": [
+        "22",
+        "23",
+        "24",
+        "25",
+        "26",
+        "30"
+      ],
+      "contract": "phases/PHASE_31.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "32",
+      "original_phase": null,
+      "title": "Book Conformance",
+      "lane": "C",
+      "predecessor": "31",
+      "providers": [
+        "18",
+        "21",
+        "22",
+        "23",
+        "24",
+        "25",
+        "26",
+        "27",
+        "28",
+        "29",
+        "30",
+        "31"
+      ],
+      "contract": "phases/PHASE_32.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "33",
+      "original_phase": "30",
+      "title": "Shared material/light semantics and GPU representation",
+      "lane": "D",
+      "predecessor": "32",
+      "providers": [
+        "09",
+        "16",
+        "32"
+      ],
+      "contract": "phases/PHASE_33.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "34",
+      "original_phase": "31",
+      "title": "Shared Direct PBR and light-specific evaluation",
+      "lane": "D",
+      "predecessor": "33",
+      "providers": [
+        "33"
+      ],
+      "contract": "phases/PHASE_34.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "35",
+      "original_phase": "32",
+      "title": "Directional and Point shadow quality and invalidation",
+      "lane": "D",
+      "predecessor": "34",
+      "providers": [
+        "16",
+        "34"
+      ],
+      "contract": "phases/PHASE_35.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "36",
+      "original_phase": "33",
+      "title": "Spot shadow projection and owned resources",
+      "lane": "D",
+      "predecessor": "35",
+      "providers": [
+        "33",
+        "35"
+      ],
+      "contract": "phases/PHASE_36.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "37",
+      "original_phase": "34",
+      "title": "Spot caster pass and per-light shadow visibility",
+      "lane": "D",
+      "predecessor": "36",
+      "providers": [
+        "34",
+        "36"
+      ],
+      "contract": "phases/PHASE_37.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "38",
+      "original_phase": "35",
+      "title": "IBL environment processing and resource publication",
+      "lane": "D",
+      "predecessor": "37",
+      "providers": [
+        "05",
+        "10",
+        "34",
+        "37"
+      ],
+      "contract": "phases/PHASE_38.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "39",
+      "original_phase": "36",
+      "title": "Indirect PBR integration",
+      "lane": "D",
+      "predecessor": "38",
+      "providers": [
+        "33",
+        "34",
+        "38"
+      ],
+      "contract": "phases/PHASE_39.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "40",
+      "original_phase": "37",
+      "title": "Linear HDR scene color and resolve",
+      "lane": "D",
+      "predecessor": "39",
+      "providers": [
+        "34",
+        "37",
+        "39"
+      ],
+      "contract": "phases/PHASE_40.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "41",
+      "original_phase": "38",
+      "title": "Energy-aware multiresolution Bloom",
+      "lane": "D",
+      "predecessor": "40",
+      "providers": [
+        "40"
+      ],
+      "contract": "phases/PHASE_41.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "42",
+      "original_phase": "39",
+      "title": "Manual exposure, tone mapping and final display",
+      "lane": "D",
+      "predecessor": "41",
+      "providers": [
+        "16",
+        "40",
+        "41"
+      ],
+      "contract": "phases/PHASE_42.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "43",
+      "original_phase": "40",
+      "title": "Lighting/shadow default profile and D acceptance",
+      "lane": "D",
+      "predecessor": "42",
+      "providers": [
+        "33",
+        "34",
+        "35",
+        "36",
+        "37",
+        "38",
+        "39",
+        "40",
+        "41",
+        "42"
+      ],
+      "contract": "phases/PHASE_43.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "44",
+      "original_phase": "41",
+      "title": "Complete Scene/ECS authoring and hierarchy lifecycle",
+      "lane": "E",
+      "predecessor": "43",
+      "providers": [
+        "04",
+        "14",
+        "24",
+        "43"
+      ],
+      "contract": "phases/PHASE_44.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "45",
+      "original_phase": "42",
+      "title": "Project roots and persistent identity",
+      "lane": "E",
+      "predecessor": "44",
+      "providers": [
+        "44"
+      ],
+      "contract": "phases/PHASE_45.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "46",
+      "original_phase": "43",
+      "title": "Shared property metadata and structured authoring diagnostics",
+      "lane": "E",
+      "predecessor": "45",
+      "providers": [
+        "09",
+        "13",
+        "29",
+        "30",
+        "31",
+        "32",
+        "43",
+        "44",
+        "45"
+      ],
+      "contract": "phases/PHASE_46.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "47",
+      "original_phase": "44",
+      "title": "Scene/component persistence and semantic round trip",
+      "lane": "E",
+      "predecessor": "46",
+      "providers": [
+        "44",
+        "45",
+        "46"
+      ],
+      "contract": "phases/PHASE_47.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "48",
+      "original_phase": "45",
+      "title": "Constraint and ragdoll persistence extensions",
+      "lane": "E",
+      "predecessor": "47",
+      "providers": [
+        "26",
+        "27",
+        "28",
+        "29",
+        "30",
+        "31",
+        "32",
+        "47"
+      ],
+      "contract": "phases/PHASE_48.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "49",
+      "original_phase": "46",
+      "title": "AssetDatabase, import settings and observable tasks",
+      "lane": "E",
+      "predecessor": "48",
+      "providers": [
+        "12",
+        "45",
+        "46",
+        "47"
+      ],
+      "contract": "phases/PHASE_49.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "50",
+      "original_phase": "47",
+      "title": "Reimport dependencies, rollback and last-valid notifications",
+      "lane": "E",
+      "predecessor": "49",
+      "providers": [
+        "11",
+        "13",
+        "49"
+      ],
+      "contract": "phases/PHASE_50.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "51",
+      "original_phase": "48",
+      "title": "Authoritative transactions and grouped mutations",
+      "lane": "E",
+      "predecessor": "50",
+      "providers": [
+        "13",
+        "14",
+        "30",
+        "31",
+        "32",
+        "44",
+        "46",
+        "47",
+        "48",
+        "50"
+      ],
+      "contract": "phases/PHASE_51.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "52",
+      "original_phase": "49",
+      "title": "Undo/Redo and dirty/saved revisions",
+      "lane": "E",
+      "predecessor": "51",
+      "providers": [
+        "30",
+        "31",
+        "32",
+        "47",
+        "48",
+        "51"
+      ],
+      "contract": "phases/PHASE_52.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "53",
+      "original_phase": "50",
+      "title": "Edit/Play state and resource isolation",
+      "lane": "E",
+      "predecessor": "52",
+      "providers": [
+        "13",
+        "24",
+        "30",
+        "31",
+        "32",
+        "44",
+        "50",
+        "51",
+        "52"
+      ],
+      "contract": "phases/PHASE_53.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "54",
+      "original_phase": "51",
+      "title": "Extend shared authoring/debug visualization and E exit",
+      "lane": "E",
+      "predecessor": "53",
+      "providers": [
+        "18",
+        "29",
+        "30",
+        "31",
+        "32",
+        "43",
+        "44",
+        "46",
+        "53"
+      ],
+      "contract": "phases/PHASE_54.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "55",
+      "original_phase": "52",
+      "title": "RBS admission and qualification of original C scaling residual",
+      "lane": "F",
+      "predecessor": "54",
+      "providers": [
+        "12",
+        "43",
+        "54"
+      ],
+      "contract": "phases/PHASE_55.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "56",
+      "original_phase": "53",
+      "title": "Historical CPU lineage and causal attribution",
+      "lane": "F",
+      "predecessor": "55",
+      "providers": [
+        "55"
+      ],
+      "contract": "phases/PHASE_56.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "57",
+      "original_phase": "54",
+      "title": "Full RBS authoring-to-runtime integration",
+      "lane": "F",
+      "predecessor": "56",
+      "providers": [
+        "12",
+        "17",
+        "29",
+        "30",
+        "31",
+        "32",
+        "43",
+        "54",
+        "55",
+        "56"
+      ],
+      "contract": "phases/PHASE_57.md",
+      "status": "NOT_STARTED"
+    },
+    {
+      "phase": "58",
+      "original_phase": "55",
+      "title": "Core Editor handoff contract and final acceptance",
+      "lane": "F",
+      "predecessor": "57",
+      "providers": [
+        "57"
+      ],
+      "contract": "phases/PHASE_58.md",
+      "status": "NOT_STARTED"
+    }
+  ],
+  "activation_record": "docs/pre_editor/active/MILESTONE_C_ROADMAP_ACTIVATION_01.json",
+  "owner_clarifications": "OWNER_CLARIFICATIONS.md",
+  "book_traceability": "BOOK_CONFORMANCE_TRACEABILITY.md",
+  "phase26_authorized": false,
+  "roadmap_publication_authorized": false
+}

@@ -1,0 +1,500 @@
+{
+  "files": [
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/.gitattributes",
+      "role": "snapshot",
+      "sha256": "705fd4d6451a31d36b3df7de96f83f30ac976c9b4a6d1e51671d8e2f33e2d0da"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/PUBLICATION_PROCEDURE.md",
+      "role": "snapshot",
+      "sha256": "1ce4db29102dcc4f23204dc35a635e3fd11171829380bcb9c4615cb63ebef58f"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/README.md",
+      "role": "snapshot",
+      "sha256": "075e6d0e1925d863daec50d50c7ada40cc1a0c49f43a2e23acf85b81728f15b5"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/REVIEW.md",
+      "role": "snapshot",
+      "sha256": "92d54812df53f9111809e4c2061c704733c19076e1988739a3900175364171ef"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/governance/MILESTONE_C_ROADMAP_ACTIVATION_01.json",
+      "role": "snapshot",
+      "sha256": "4b04cefc2c00e55973db0785da16c95fe62162f81c61bc8e893d7ded9e8e9447",
+      "source": "docs/pre_editor/active/MILESTONE_C_ROADMAP_ACTIVATION_01.json"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/governance/MILESTONE_C_ROADMAP_BRIDGE_AUTHORIZATION_01.json",
+      "role": "snapshot",
+      "sha256": "c06d0715fd8b869a861e0f127871315bfe78a0ec60127138e9f14631069d300c",
+      "source": "docs/pre_editor/active/MILESTONE_C_ROADMAP_BRIDGE_AUTHORIZATION_01.json"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/governance/MILESTONE_C_ROADMAP_BRIDGE_REMEDIATION_01.json",
+      "role": "snapshot",
+      "sha256": "a28274b10a6e724323bbfe72b1c8cd9dbcab5e7c9b5064145fed77e7946d9ccb",
+      "source": "docs/pre_editor/active/MILESTONE_C_ROADMAP_BRIDGE_REMEDIATION_01.json"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/governance/PHASE_18_PLUS_ARTIFACT_RETENTION.json",
+      "role": "snapshot",
+      "sha256": "6aaed57e88f578cc76f642aaa9e822eb75e49625e886f698746c50189f778a44",
+      "source": "docs/pre_editor/active/PHASE_18_PLUS_ARTIFACT_RETENTION.json"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/governance/PHASE_18_PLUS_MINIMUM_SUFFICIENT_VALIDATION.md",
+      "role": "snapshot",
+      "sha256": "19744617ead7bb045fd4bcc925c379102d2052db84ca0b208115f09d87f99567",
+      "source": "docs/pre_editor/active/PHASE_18_PLUS_MINIMUM_SUFFICIENT_VALIDATION.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/governance/PHASE_18_PLUS_MSV_ACTIVATION.json",
+      "role": "snapshot",
+      "sha256": "40dca2deb6ddf747cbc3c2c58a29724ec26261539d6fac7519143fc624086971",
+      "source": "docs/pre_editor/active/PHASE_18_PLUS_MSV_ACTIVATION.json"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/governance/PUBLICATION_GRANT_MILESTONE_C_01.json",
+      "role": "snapshot",
+      "sha256": "451ab6ee2bf34a694a73162979f9ec7845f1d597a0b5f5e2b1a20df5f9107b8b",
+      "source": "docs/pre_editor/active/PUBLICATION_GRANT_MILESTONE_C_01.json"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/governance/PUBLICATION_POLICY.json",
+      "role": "snapshot",
+      "sha256": "c3494cf814bdde4eef4891c73e344ca8cf89a2f71910668612f06231087b6ae1",
+      "source": "docs/pre_editor/active/PUBLICATION_POLICY.json"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/receipt.json",
+      "role": "snapshot",
+      "sha256": "fbea045a9c5debd8e16a58255c5a65631b133cb8c8659ed1ca8ff08062668002"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/BOOK_CONFORMANCE_TRACEABILITY.md",
+      "role": "snapshot",
+      "sha256": "6430705ebd7f3ea9616070959e5d46fd5eeeaea43b19993945d5f3af7560b01d",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/BOOK_CONFORMANCE_TRACEABILITY.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/BOOK_REFERENCE.md",
+      "role": "snapshot",
+      "sha256": "d8fc3863edc2e5e604701d688eac4f4d325460fa0e4caa6198f06b338dda283c",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/BOOK_REFERENCE.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/FINDINGS.md",
+      "role": "snapshot",
+      "sha256": "51665f4d42885ded000fae363c4cd270d25f5f532aec517957e34aedbf6439ab",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/FINDINGS.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/OWNER_CLARIFICATIONS.md",
+      "role": "snapshot",
+      "sha256": "ba511159b519ca6ee92ea6df28f743265b923e521d93daf39248a17cf16976ef",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/OWNER_CLARIFICATIONS.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/PERFORMANCE_RESIDUALS.md",
+      "role": "snapshot",
+      "sha256": "7ccebd074b0cc400bd99b045196f2a492675c71afc62306ca10cefcf46ccff7e",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/PERFORMANCE_RESIDUALS.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/PRE_EDITOR_PLAN.md",
+      "role": "snapshot",
+      "sha256": "19739914c520431f5e9cf78c8d89577307c894e8a99b0fc60f61967c115be907",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/PRE_EDITOR_PLAN.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/PROPOSAL_MANIFEST.json",
+      "role": "snapshot",
+      "sha256": "20c2e5a3abd37254c8f2a68d9d572fae56469b0a5ebf9f73dd84d1434554d3dc",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/PROPOSAL_MANIFEST.json"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/RBS_SCENE_PRESET_DESIGN.md",
+      "role": "snapshot",
+      "sha256": "412bc8a57b611f03b40c8b4bccc11aef84b4489507e5b705911235210026adaa",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/RBS_SCENE_PRESET_DESIGN.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/SEVEN_PHASE_TECHNICAL_PLAN.md",
+      "role": "snapshot",
+      "sha256": "c5aa941ea96301179e6d74fe309e1ba76e5c1595717f736a706fa84913cbf390",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/SEVEN_PHASE_TECHNICAL_PLAN.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/VALIDATION_CONTRACTS.md",
+      "role": "snapshot",
+      "sha256": "363e8a11a069ab3990acc293b5cf5680249e08a2fbfe92bc6426f04ea51cef30",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/VALIDATION_CONTRACTS.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_26.md",
+      "role": "snapshot",
+      "sha256": "aa6a7f4270c9f29da03ebda687f3f895c032a7b3806651a17dc19f77d15c817a",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_26.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_27.md",
+      "role": "snapshot",
+      "sha256": "f2803044711536f37182f056486e2de1fc8349f4de2228ea56eeba334446607f",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_27.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_28.md",
+      "role": "snapshot",
+      "sha256": "28de26e768125329859fc0b86d2d76430c96adf1dc9c14f611df96651f8a5fd8",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_28.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_29.md",
+      "role": "snapshot",
+      "sha256": "ca55a0bcf004975a98096156a63926faa1870495a3efc8c32c29b7c2d34ace32",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_29.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_30.md",
+      "role": "snapshot",
+      "sha256": "ed760f3ca391e6471368d6c2aed995bf8c2c637eed16f4b5cea4239a688b64f7",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_30.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_31.md",
+      "role": "snapshot",
+      "sha256": "5ed334eb342205432c358a5a0069c8f30b3896db7bf9f2f402c9c120e23de2e9",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_31.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_32.md",
+      "role": "snapshot",
+      "sha256": "4628cc00577ae20a83bbd716f43aab8929a5cd46a76f8618206f17a40124fa36",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_32.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_33.md",
+      "role": "snapshot",
+      "sha256": "7fd6e4f252266b82555a0a1f10dcd2166e375a39dfe5424264c1cf0efac9d51d",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_33.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_34.md",
+      "role": "snapshot",
+      "sha256": "908f1c88e828509d324f8c24f5c2982f1435b6ca88f425a73fa7bc27d8ec7e70",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_34.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_35.md",
+      "role": "snapshot",
+      "sha256": "65322cd64685e3cfe7dd1f9e9cc7875199ad4ee81c85c12b0dfed73fc6b46bec",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_35.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_36.md",
+      "role": "snapshot",
+      "sha256": "8bfd6578b3fe2a9024a7730aee4f846719f309c0eb30e5ce5da00d3c223f9b18",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_36.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_37.md",
+      "role": "snapshot",
+      "sha256": "86b1b757a306adbf971a9e183d866988624bf7c004977e1027e8ed942ab8108f",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_37.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_38.md",
+      "role": "snapshot",
+      "sha256": "f64ee18ec57ba222356695d8596cddc6d34f95250d8f4783f2d70c853919481a",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_38.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_39.md",
+      "role": "snapshot",
+      "sha256": "52256a79aee0bf3392c2fc1844cc230e05c16e85ecbddf12668c61a63128bff3",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_39.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_40.md",
+      "role": "snapshot",
+      "sha256": "09ea145824d0c6ad46a42606bf80557fd8287b92c098058f8d01458e306e3317",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_40.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_41.md",
+      "role": "snapshot",
+      "sha256": "a61fc3c1a06b45539dc120496a9c7bb21d88dbe584b9d20d4c4a99178875fe35",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_41.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_42.md",
+      "role": "snapshot",
+      "sha256": "8800c24e1a0980666ad82ce79c45dfbdeb87bb1aa43410fc5055339d518f068c",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_42.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_43.md",
+      "role": "snapshot",
+      "sha256": "d0c5fa0ffcfd15f87de06cbf3fa40add2bd8f46efd94a8018eb050c4cac6d6e2",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_43.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_44.md",
+      "role": "snapshot",
+      "sha256": "1e54cf7288cc78ee4ee017389205b46d367108912a60ac8e8c72f8b18f6bab85",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_44.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_45.md",
+      "role": "snapshot",
+      "sha256": "bcd524eabe950d45470a79a5c5e042d4bbd6c8ce06dc98b2183320e376a9034f",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_45.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_46.md",
+      "role": "snapshot",
+      "sha256": "5fe667d958db166cbc472496c5bb2798fd97e3bb127b0618e051824745877a0a",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_46.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_47.md",
+      "role": "snapshot",
+      "sha256": "fdcc48a6f5b1a286127978f9dac25dd46dde89d5a2acd6bb84fc488d6fe20832",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_47.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_48.md",
+      "role": "snapshot",
+      "sha256": "7249effee04eb1846157e5140e0d014efe95af641e7a06ed9dfd35e5113c922e",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_48.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_49.md",
+      "role": "snapshot",
+      "sha256": "039cd3129cba9ee6e7a96cd98782db7dfb988301f77209d71be9fd8ef627a5b0",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_49.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_50.md",
+      "role": "snapshot",
+      "sha256": "cc36523b077d21411bb9dddb7e1d24735dddc895dadb8fb85e4e15c81e909fd3",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_50.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_51.md",
+      "role": "snapshot",
+      "sha256": "503b05452757803488117dfecad69ccf4b9ac1ccdb8a8fc8deead0be074020e0",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_51.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_52.md",
+      "role": "snapshot",
+      "sha256": "753bdfa46a99f62376a281c1777dbdf7811e53c976aa618d71c93005e1cb7344",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_52.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_53.md",
+      "role": "snapshot",
+      "sha256": "25d87a0f8dabc913d74949f10d25ecb0323699e9d61f505846a917484c776047",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_53.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_54.md",
+      "role": "snapshot",
+      "sha256": "14ff3dd68bb89457b9728975eb2af7bd2f5ea50c18ecd1a024ad5fad0190d909",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_54.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_55.md",
+      "role": "snapshot",
+      "sha256": "cb31a0b64fd919b072274068056ba62856722bd9cf063e17a5a9602bc38561a2",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_55.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_56.md",
+      "role": "snapshot",
+      "sha256": "3e924c782d0e97477c907fae0fa39b7829456cc207ea830d083dda22164fa803",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_56.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_57.md",
+      "role": "snapshot",
+      "sha256": "db88f994a8be32fb71ce8b15148436c6eb8eee863e0de11000ec2c4c9742a9fc",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_57.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/roadmap/phases/PHASE_58.md",
+      "role": "snapshot",
+      "sha256": "4e65972ae5fabb73c16b61c5cd98b1fcd883294efdeee2e97ea9e1f48a56d0f8",
+      "source": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_58.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/tooling/AGENTS.md",
+      "role": "snapshot",
+      "sha256": "d701e6db99277b98b323fd2a8f435ee48028b8081e773f51f0f88affb6dedfe4",
+      "source": "AGENTS.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/tooling/rendering_checkpoint.py",
+      "role": "snapshot",
+      "sha256": "f01404daf131ea140f82f867863c8e0a8ce7d71fa7137a64b706917bf72add46",
+      "source": ".codex/tools/rendering_checkpoint.py"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/tooling/skills/pre-editor-phase-approval/SKILL.md",
+      "role": "snapshot",
+      "sha256": "c13ae9d64a3fbbff4321ea3324c526fe6324229cd53ad91c4e8e116158960af6",
+      "source": ".agents/skills/pre-editor-phase-approval/SKILL.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/tooling/skills/pre-editor-phase-execution/SKILL.md",
+      "role": "snapshot",
+      "sha256": "8bc8b88fa0b2b7d30bec69e131edf4abf564394a6531642f3dca6103b4605f8e",
+      "source": ".agents/skills/pre-editor-phase-execution/SKILL.md"
+    },
+    {
+      "mode": "100644",
+      "path": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/tooling/skills/pre-editor-phase-rejection/SKILL.md",
+      "role": "snapshot",
+      "sha256": "ac2fe0a53079be0ca670c361fbd692491f2983a8d3b0062b21fee53cf58bb9f7",
+      "source": ".agents/skills/pre-editor-phase-rejection/SKILL.md"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/pre_editor_roadmap_bridge.py",
+      "role": "helper",
+      "sha256": "139ecdf4eb1728c8a529028882c0093ea75b396ada1f6ff8a8d33e163572abdc"
+    },
+    {
+      "mode": "100644",
+      "path": "tools/test_pre_editor_roadmap_bridge.py",
+      "role": "helper",
+      "sha256": "693ee80c390d30fb6c12003af4d533d5948adee38062741dc6bd90fc9605300f"
+    }
+  ],
+  "identity": "milestone-c-roadmap-01",
+  "local_bindings": {
+    ".agents/skills/pre-editor-phase-approval/SKILL.md": "c13ae9d64a3fbbff4321ea3324c526fe6324229cd53ad91c4e8e116158960af6",
+    ".agents/skills/pre-editor-phase-execution/SKILL.md": "8bc8b88fa0b2b7d30bec69e131edf4abf564394a6531642f3dca6103b4605f8e",
+    ".agents/skills/pre-editor-phase-rejection/SKILL.md": "ac2fe0a53079be0ca670c361fbd692491f2983a8d3b0062b21fee53cf58bb9f7",
+    ".codex/tools/rendering_checkpoint.py": "f01404daf131ea140f82f867863c8e0a8ce7d71fa7137a64b706917bf72add46",
+    "AGENTS.md": "d701e6db99277b98b323fd2a8f435ee48028b8081e773f51f0f88affb6dedfe4",
+    "docs/pre_editor/active/MILESTONE_C_ROADMAP_ACTIVATION_01.json": "4b04cefc2c00e55973db0785da16c95fe62162f81c61bc8e893d7ded9e8e9447",
+    "docs/pre_editor/active/MILESTONE_C_ROADMAP_APPLICATION_01/applied-manifest.json": "701d2f90ab4f18a05d74f43dea8693193806724525ac1ed39e27e15d0b42b9df",
+    "docs/pre_editor/active/MILESTONE_C_ROADMAP_BRIDGE_AUTHORIZATION_01.json": "c06d0715fd8b869a861e0f127871315bfe78a0ec60127138e9f14631069d300c",
+    "docs/pre_editor/active/MILESTONE_C_ROADMAP_BRIDGE_REMEDIATION_01.json": "a28274b10a6e724323bbfe72b1c8cd9dbcab5e7c9b5064145fed77e7946d9ccb",
+    "docs/pre_editor/active/PHASE_18_PLUS_ARTIFACT_RETENTION.json": "6aaed57e88f578cc76f642aaa9e822eb75e49625e886f698746c50189f778a44",
+    "docs/pre_editor/active/PHASE_18_PLUS_MINIMUM_SUFFICIENT_VALIDATION.md": "19744617ead7bb045fd4bcc925c379102d2052db84ca0b208115f09d87f99567",
+    "docs/pre_editor/active/PHASE_18_PLUS_MSV_ACTIVATION.json": "40dca2deb6ddf747cbc3c2c58a29724ec26261539d6fac7519143fc624086971",
+    "docs/pre_editor/active/PUBLICATION_GRANT_MILESTONE_C_01.json": "451ab6ee2bf34a694a73162979f9ec7845f1d597a0b5f5e2b1a20df5f9107b8b",
+    "docs/pre_editor/active/PUBLICATION_POLICY.json": "c3494cf814bdde4eef4891c73e344ca8cf89a2f71910668612f06231087b6ae1",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/BOOK_CONFORMANCE_TRACEABILITY.md": "6430705ebd7f3ea9616070959e5d46fd5eeeaea43b19993945d5f3af7560b01d",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/BOOK_REFERENCE.md": "d8fc3863edc2e5e604701d688eac4f4d325460fa0e4caa6198f06b338dda283c",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/FINDINGS.md": "51665f4d42885ded000fae363c4cd270d25f5f532aec517957e34aedbf6439ab",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/OWNER_CLARIFICATIONS.md": "ba511159b519ca6ee92ea6df28f743265b923e521d93daf39248a17cf16976ef",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/PERFORMANCE_RESIDUALS.md": "7ccebd074b0cc400bd99b045196f2a492675c71afc62306ca10cefcf46ccff7e",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/PRE_EDITOR_PLAN.md": "19739914c520431f5e9cf78c8d89577307c894e8a99b0fc60f61967c115be907",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/PROPOSAL_MANIFEST.json": "20c2e5a3abd37254c8f2a68d9d572fae56469b0a5ebf9f73dd84d1434554d3dc",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/RBS_SCENE_PRESET_DESIGN.md": "412bc8a57b611f03b40c8b4bccc11aef84b4489507e5b705911235210026adaa",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/SEVEN_PHASE_TECHNICAL_PLAN.md": "c5aa941ea96301179e6d74fe309e1ba76e5c1595717f736a706fa84913cbf390",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/VALIDATION_CONTRACTS.md": "363e8a11a069ab3990acc293b5cf5680249e08a2fbfe92bc6426f04ea51cef30",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_26.md": "aa6a7f4270c9f29da03ebda687f3f895c032a7b3806651a17dc19f77d15c817a",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_27.md": "f2803044711536f37182f056486e2de1fc8349f4de2228ea56eeba334446607f",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_28.md": "28de26e768125329859fc0b86d2d76430c96adf1dc9c14f611df96651f8a5fd8",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_29.md": "ca55a0bcf004975a98096156a63926faa1870495a3efc8c32c29b7c2d34ace32",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_30.md": "ed760f3ca391e6471368d6c2aed995bf8c2c637eed16f4b5cea4239a688b64f7",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_31.md": "5ed334eb342205432c358a5a0069c8f30b3896db7bf9f2f402c9c120e23de2e9",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_32.md": "4628cc00577ae20a83bbd716f43aab8929a5cd46a76f8618206f17a40124fa36",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_33.md": "7fd6e4f252266b82555a0a1f10dcd2166e375a39dfe5424264c1cf0efac9d51d",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_34.md": "908f1c88e828509d324f8c24f5c2982f1435b6ca88f425a73fa7bc27d8ec7e70",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_35.md": "65322cd64685e3cfe7dd1f9e9cc7875199ad4ee81c85c12b0dfed73fc6b46bec",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_36.md": "8bfd6578b3fe2a9024a7730aee4f846719f309c0eb30e5ce5da00d3c223f9b18",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_37.md": "86b1b757a306adbf971a9e183d866988624bf7c004977e1027e8ed942ab8108f",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_38.md": "f64ee18ec57ba222356695d8596cddc6d34f95250d8f4783f2d70c853919481a",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_39.md": "52256a79aee0bf3392c2fc1844cc230e05c16e85ecbddf12668c61a63128bff3",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_40.md": "09ea145824d0c6ad46a42606bf80557fd8287b92c098058f8d01458e306e3317",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_41.md": "a61fc3c1a06b45539dc120496a9c7bb21d88dbe584b9d20d4c4a99178875fe35",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_42.md": "8800c24e1a0980666ad82ce79c45dfbdeb87bb1aa43410fc5055339d518f068c",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_43.md": "d0c5fa0ffcfd15f87de06cbf3fa40add2bd8f46efd94a8018eb050c4cac6d6e2",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_44.md": "1e54cf7288cc78ee4ee017389205b46d367108912a60ac8e8c72f8b18f6bab85",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_45.md": "bcd524eabe950d45470a79a5c5e042d4bbd6c8ce06dc98b2183320e376a9034f",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_46.md": "5fe667d958db166cbc472496c5bb2798fd97e3bb127b0618e051824745877a0a",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_47.md": "fdcc48a6f5b1a286127978f9dac25dd46dde89d5a2acd6bb84fc488d6fe20832",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_48.md": "7249effee04eb1846157e5140e0d014efe95af641e7a06ed9dfd35e5113c922e",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_49.md": "039cd3129cba9ee6e7a96cd98782db7dfb988301f77209d71be9fd8ef627a5b0",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_50.md": "cc36523b077d21411bb9dddb7e1d24735dddc895dadb8fb85e4e15c81e909fd3",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_51.md": "503b05452757803488117dfecad69ccf4b9ac1ccdb8a8fc8deead0be074020e0",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_52.md": "753bdfa46a99f62376a281c1777dbdf7811e53c976aa618d71c93005e1cb7344",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_53.md": "25d87a0f8dabc913d74949f10d25ecb0323699e9d61f505846a917484c776047",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_54.md": "14ff3dd68bb89457b9728975eb2af7bd2f5ea50c18ecd1a024ad5fad0190d909",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_55.md": "cb31a0b64fd919b072274068056ba62856722bd9cf063e17a5a9602bc38561a2",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_56.md": "3e924c782d0e97477c907fae0fa39b7829456cc207ea830d083dda22164fa803",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_57.md": "db88f994a8be32fb71ce8b15148436c6eb8eee863e0de11000ec2c4c9742a9fc",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_58.md": "4e65972ae5fabb73c16b61c5cd98b1fcd883294efdeee2e97ea9e1f48a56d0f8",
+    "docs/pre_editor/proposals/PHYSICS_MILESTONE_C_SEVEN_PHASE_REVIEW_01/PACKAGE_MANIFEST.json": "de153eeecf95450db4569467bf3de3b7c94b8c79ad5fd81d6a7de37864ad8ef9"
+  },
+  "schema": 1
+}

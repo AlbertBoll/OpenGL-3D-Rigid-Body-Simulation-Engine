@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "status": "OWNER_ACCEPTED_PROSPECTIVE_PHASE_APPROVAL_ELIGIBILITY",
+  "supersedes_prospectively": "docs/pre_editor/active/PUBLICATION_GRANT.json",
+  "repository": "AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine",
+  "remote": "origin",
+  "branch": "pre-editor/refactor",
+  "phase_range": {
+    "first": "00",
+    "last": "58"
+  },
+  "tag_template": "pre-editor-phase-{phase}-approved",
+  "tag_type": "annotated",
+  "trigger": "Explicit APPROVE PRE_EDITOR PHASE XX for the named eligible checkpoint only",
+  "owner_instruction": "ACCEPT PRE_EDITOR PHYSICS MILESTONE C ROADMAP AMENDMENT 01 WITH CLARIFICATIONS",
+  "owner_acceptance_utc": null,
+  "authorizes_roadmap_publication": false,
+  "authorizes_phase_start": false,
+  "preserve_original_grant": true,
+  "owner_acceptance_record": {
+    "path": "docs/pre_editor/active/MILESTONE_C_ROADMAP_APPLICATION_01/OWNER_ACCEPTANCE.md",
+    "sha256": "65f1e64780dfb25716e89715c1808a658f3becbcdba7b0fe97fe1fd1d2adef04"
+  },
+  "recorded_utc": "2026-11-05T05:47:13.652645+00:00",
+  "authorization": "Eligibility for later explicit named phase APPROVE only. No phase execution or roadmap commit/tag/push/publication is authorized."
+}

@@ -1,0 +1,12 @@
+{
+  "branch": "pre-editor/refactor",
+  "identity": "milestone-c-roadmap-01",
+  "manifest": "docs/pre_editor/revisions/MILESTONE_C_ROADMAP_PUBLICATION_01/publication-manifest.json",
+  "manifest_sha256": "c05a91b1c4d6da413c60363c3942b2b3f6e19fa59e40477c5874932c945760cf",
+  "parent": "1a2adf61c1571d9f4604f2ca185fea3f95682b4c",
+  "push_destination": "https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine.git",
+  "remote": "origin",
+  "repository": "AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine",
+  "schema": 1,
+  "tag": "pre-editor-milestone-c-roadmap-01-approved"
+}

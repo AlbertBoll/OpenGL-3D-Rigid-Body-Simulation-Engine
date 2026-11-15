@@ -28,6 +28,7 @@ namespace GEngine
 		Vec3f Support(const Vec3f& dir, const Vec3f& pos, const Quat& orient, const float bias) const override;
 
 	private:
+        friend struct EditorScaleAccess;
         struct ValidatedRadius {};
         ShapeSphere(float radius, ValidatedRadius) : m_Radius(radius), m_BaseRadius(radius)
         { m_ShapeType = ShapeType::Sphere; }

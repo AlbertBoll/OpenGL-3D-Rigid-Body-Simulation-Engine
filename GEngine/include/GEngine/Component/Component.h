@@ -247,6 +247,7 @@ namespace GEngine
 		struct TagComponent
 		{
 			std::string Name;
+            std::string NameBeforeEditorRename; // Empty until first validated editor rename.
 			TagComponent() = default;
 			TagComponent(const std::string& name) : Name(name) {}
 			operator std::string() { return Name; }

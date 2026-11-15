@@ -1,8 +1,12 @@
+#include "../tests/BackendSwitchChecks.h"
 
 #ifdef GENGINE_COLLIDER_EDITOR_SMOKE
 namespace Rbs { unsigned MeshHighlightStage(); }
 #endif
 #include "RigidBodySimulation.h"
+#include "../tests/OwnerReviewProbe.h"
+#include "RbsEditorWidgets.h"
+#include "RbsScenePresetPayload.h"
 #include "Core/Log.h"
 #include "Core/Window.h"
 #include "Scene/_Scene.h"
@@ -20,6 +24,12 @@ namespace Rbs { unsigned MeshHighlightStage(); }
 #include "UI/FramebufferImage.h"
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
+#ifdef GENGINE_PHASE26_IMPULSE_PRESENTATION_CHECKS
+#include "../tests/DistanceJointChecks.h"
+#endif
+#ifdef GENGINE_PHASE26_SANDBOX_CHECKS
+#include "../tests/SandboxChecks.h"
+#endif
 #ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
 #include "../tests/ColliderReplacementCapture.h"
 #include "../tests/ColliderReplacementObservation.h"
@@ -34,6 +44,53 @@ using namespace ::GEngine::Camera;
 
 namespace Rbs
 {
+    void DistanceChainImpulseControl::Bind(PhysicsBodyHandle target, bool enabled)
+    {
+        *this = {};
+        m_Target = target;
+        m_Enabled = enabled;
+        m_Status = enabled ? Status::Ready : Status::Disabled;
+    }
+
+    bool DistanceChainImpulseControl::Request(const PhysicsWorld& world, float magnitude, Direction direction)
+    {
+        if (!m_Enabled) { m_Status = Status::Disabled; return false; }
+        if (m_Pending) return false; // Never replace a command waiting for a step.
+        if (!std::isfinite(magnitude) || magnitude < MinMagnitude || magnitude > MaxMagnitude)
+        { m_Status = Status::InvalidMagnitude; return false; }
+        Vec3f impulse(0.f);
+        switch (direction)
+        {
+        case Direction::PositiveX: impulse.x = magnitude; break;
+        case Direction::NegativeX: impulse.x = -magnitude; break;
+        case Direction::PositiveZ: impulse.z = magnitude; break;
+        case Direction::NegativeZ: impulse.z = -magnitude; break;
+        default: m_Status = Status::InvalidDirection; return false;
+        }
+        const auto body = world.ReadBody(m_Target);
+        if (!body || body->type != BodyType::Dynamic || body->inverseMass <= 0.f)
+        { m_Status = Status::InvalidTarget; return false; }
+        if (magnitude == 0.f) { m_Status = Status::Zero; return true; }
+        m_QueuedImpulse = impulse;
+        m_Pending = true;
+        m_Status = Status::Queued;
+        return true;
+    }
+
+    void DistanceChainImpulseControl::Consume(PhysicsWorld& world, bool paused)
+    {
+        if (!m_Pending || paused) return;
+        m_Pending = false; // A rejected/stale command is also consumed exactly once.
+        const auto body = world.ReadBody(m_Target);
+        if (!body || body->type != BodyType::Dynamic || body->inverseMass <= 0.f)
+        { m_Status = Status::InvalidTarget; return; }
+        if (!world.ApplyLinearImpulse(m_Target, m_QueuedImpulse))
+        { m_Status = Status::Rejected; return; }
+        m_LastApplied = m_QueuedImpulse;
+        ++m_AppliedCount;
+        m_Status = Status::Applied;
+    }
+
 #ifdef GENGINE_MESH_HIGHLIGHT_AUDIT
     void AuditHighlightUiCallback();
 #endif
@@ -201,6 +258,8 @@ namespace Rbs
         PhysicsBodyHandle target{};
         _Entity entity;
         bool refreshRequested{};
+        std::optional<CollisionShapeDesc> queued;
+        bool queuedForce{};
         std::array<FrameDebugLine, 260> cachedPreview{};
         std::size_t cachedPreviewCount{};
         int replacement{};
@@ -224,6 +283,7 @@ namespace Rbs
 
         void Revert(const ColliderShapeState& current)
         {
+            queued.reset();
             replacement = current.type == ShapeType::Box ? 1 : current.type == ShapeType::Capsule ? 2 : 0;
             fitMesh = false;
             if (const auto* sphere = std::get_if<SphereShapeDesc>(&current.dimensions)) radius = sphere->radius;
@@ -333,11 +393,6 @@ namespace Rbs
 
     static glm::vec4 PreviewColor(const ColliderInspector& editor, const PhysicsSystem& physics)
     {
-        if (editor.result && editor.previewContext == physics.ColliderContextRevision())
-            for (const auto& pair : editor.result->pairs)
-                if (pair.newOutcome == ColliderPairOutcome::Contact &&
-                    (pair.oldOutcome == ColliderPairOutcome::SeparatedByBounds || pair.comparableMeasure))
-                    return {1, .18f, .15f, 1};
         return {1, .65f, .15f, 1};
     }
 
@@ -356,10 +411,12 @@ namespace Rbs
             for (std::size_t i = 0; i < draft.cachedPreviewCount; ++i)
             {
                 const auto& line = draft.cachedPreview[i];
-                // Alternate segments expose cyan even for coincident fitted shapes.
-                if (i % 2) continue;
-                if (auto r = out.Line(pose->position + pose->orientation * line.start,
-                        pose->position + pose->orientation * line.end, color, DebugDepth::Overlay); !r) return r;
+                // Dash each edge instead of dropping whole Box edges or Capsule arcs.
+                const int parts=draft.preview->GetShapeType()==ShapeType::Box?8:1;
+                for(int d=0;d<parts;++d)
+                    if (auto r = out.Line(pose->position + pose->orientation * glm::mix(line.start,line.end,float(d)/parts),
+                        pose->position + pose->orientation * glm::mix(line.start,line.end,(d+.6f)/parts),
+                        color, DebugDepth::Overlay); !r) return r;
             }
             return {};
         };
@@ -408,8 +465,13 @@ namespace Rbs
             const auto& line = geometry.Lines()[i];
             const auto color = i < currentCount ? IM_COL32(0, 220, 230, 180)
                 : ImGui::ColorConvertFloat4ToU32({proposedColor.r, proposedColor.g, proposedColor.b, 1});
-            draw->AddLine(project(line.start), project(line.end), color,
-                ImGui::GetFontSize() * (i < currentCount ? .08f : .15f));
+            if(i<currentCount)draw->AddLine(project(line.start),project(line.end),color,ImGui::GetFontSize()*.08f);
+            else
+            {
+                const int parts=editor.preview && editor.preview->GetShapeType()==ShapeType::Box?8:1;
+                for(int d=0;d<parts;++d)draw->AddLine(project(glm::mix(line.start,line.end,float(d)/parts)),
+                    project(glm::mix(line.start,line.end,(d+.6f)/parts)),color,ImGui::GetFontSize()*.15f);
+            }
         }
         ImGui::TextWrapped("%s", editor.preview ? (proposedColor.g < .3f ? "Cyan: current / Red: overlap risk" :
             "Cyan: current / Orange: proposed") : "Cyan: current collider");
@@ -432,6 +494,7 @@ namespace Rbs
     static void RefreshColliderDraft(ColliderInspector& editor, _Scene& scene,
         SceneRenderResources& resources, const _Entity& entity)
     {
+        RBS_REVIEW_SCOPE(2);
         editor.refreshRequested = false;
         editor.before.reset();
         editor.after.reset();
@@ -483,40 +546,19 @@ namespace Rbs
         ImGui::SetNextItemWidth(-1);
     }
 
-    static bool ColliderNumber(const char* label, float& value)
+    template<class Validator>
+    static bool ColliderNumber(const char* label,float& value,Editor::Numeric::Bounds<float> bounds,Validator validate)
     {
-        ImGui::PushID(label);
-        ColliderField(label);
-        const bool changed = ImGui::InputFloat("##value", &value);
-        NoteColliderControl(label);
-        ImGui::PopID();
-        return changed;
+        const char* units=std::string_view(label)=="Radius"?"Radius (m)":"Half length (m)";
+        const bool changed=Editor::Number(units,value,.01f,"Metres. Ctrl+click to type; invalid dimensions leave the proposal unchanged.",bounds,validate);
+        NoteColliderControl(label);return changed;
     }
-
-    static bool ColliderVector(const char* label, Vec3f& value)
+    template<class Validator>
+    static bool ColliderVector(const char* label,Vec3f& value,Validator validate)
     {
-        ImGui::PushID(label);
-        bool changed = false;
-        if (ImGui::GetContentRegionAvail().x >= ImGui::GetFontSize() * 30)
-        {
-            ColliderField(label);
-            changed = ImGui::InputFloat3("##value", &value.x);
-        }
-        else
-        {
-            ImGui::TextWrapped("%s", label);
-            for (unsigned axis = 0; axis < 3; ++axis)
-            {
-                ImGui::PushID(int(axis));
-                ImGui::TextUnformatted(axis == 0 ? "X" : axis == 1 ? "Y" : "Z");
-                ImGui::SameLine();
-                ImGui::SetNextItemWidth(-1);
-                changed |= ImGui::InputFloat("##axis", &value[axis]);
-                ImGui::PopID();
-            }
-        }
-        ImGui::PopID();
-        return changed;
+        const bool extents=std::string_view(label)=="Half extents";
+        return Editor::XYZ(extents?"Half extents (m)":"Center (m)",&value.x,extents?.5f:0.f,.01f,"Metres. Invalid geometry leaves the proposal unchanged.",
+            extents?Editor::Numeric::Positive<float>():Editor::Numeric::Bounds<float>{},validate);
     }
 
     static void ColliderDimensions(const ColliderShapeState& shape)
@@ -531,115 +573,11 @@ namespace Rbs
                 double(box->halfExtents.y), double(box->halfExtents.z));
     }
 
-    static void DrawColliderInspector(ColliderInspector& editor, _Scene& scene,
-        SceneRenderResources& resources, const _Entity& entity, PhysicsBodyHandle handle,
-        bool& userPaused)
+    static void FinishColliderCommand(ColliderInspector& editor, _Scene& scene, bool& userPaused,
+        ColliderAdmissionReport result, bool force)
     {
-        auto& physics = *scene.GetPhysicsSystem();
-        const auto current = physics.ReadBodyCollider(handle);
-        if (!current)
-        {
-            EndColliderConfirmation(editor, scene, userPaused);
-            editor.preview.reset();
-            ImGui::TextWrapped("Current Collider: unavailable");
-            return;
-        }
-        bool edited = editor.refreshRequested;
-        if (editor.target != handle || editor.sceneIdentity != &scene)
-        {
-            EndColliderConfirmation(editor, scene, userPaused);
-            editor = ColliderInspector{};
-            editor.target = handle;
-            editor.sceneIdentity = &scene;
-            editor.entity = entity;
-            editor.Revert(*current);
-            editor.fitMesh = bool(PrepareMeshColliderAdmission(scene, resources, entity, editor.PendingType()));
-            edited = editor.fitMesh;
-            if (!editor.fitMesh) editor.status = "No valid mesh fit; use manual dimensions.";
-        }
-        else if (editor.activeIdentity != current->identity)
-        {
-            EndColliderConfirmation(editor, scene, userPaused);
-            editor.Revert(*current);
-            editor.fitMesh = bool(PrepareMeshColliderAdmission(scene, resources, entity, editor.PendingType()));
-            edited = editor.fitMesh;
-            editor.status = "Collider changed; edits refreshed.";
-        }
+        auto& physics=*scene.GetPhysicsSystem();const auto handle=editor.target;
 
-        ImGui::Separator();
-        ImGui::TextWrapped("Current Collider: %s", ColliderTypeName(current->type));
-        NoteColliderControl("Current Collider");
-        constexpr const char* types[]{"Sphere", "Box", "Capsule"};
-        edited |= editor.preview && editor.activeRevision != current->revision;
-        editor.activeRevision = current->revision;
-        if (editor.preview && editor.fitMesh && entity.HasAllComponents<MeshRendererComponent>())
-            edited |= editor.previewScale != entity.GetComponent<Transform3DComponent>().Scale ||
-                editor.previewMesh != entity.GetComponent<MeshRendererComponent>().mesh;
-        ColliderField("Proposed Collider Type");
-        const bool typeOpen = ImGui::BeginCombo("##ProposedCollider", types[editor.replacement]);
-        NoteColliderControl("New Collider Type");
-        if (typeOpen)
-        {
-            for (int index = 0; index < 3; ++index)
-            {
-                if (ImGui::Selectable(types[index], index == editor.replacement))
-                {
-                    editor.replacement = index;
-                    BroadcastColliderType(editor, index);
-                    edited = true;
-                }
-                NoteColliderControl(types[index]);
-            }
-            ImGui::EndCombo();
-        }
-        edited |= ImGui::Checkbox("Fit to Mesh", &editor.fitMesh);
-        NoteColliderControl("Fit to Mesh");
-        if (!editor.fitMesh)
-        {
-            if (editor.replacement == 1)
-            {
-                edited |= ColliderVector("Half extents", editor.halfExtents);
-                edited |= ColliderVector("Center", editor.center);
-            }
-            else
-            {
-                edited |= ColliderNumber("Radius", editor.radius);
-                if (editor.replacement == 2) edited |= ColliderNumber("Half Length", editor.halfLength);
-            }
-        }
-        if (edited)
-        {
-            EndColliderConfirmation(editor, scene, userPaused);
-            editor.status = "Pending edit";
-        }
-        const auto prepare = [&]() -> std::expected<CollisionShapeDesc, ColliderPreparationFailure>
-        {
-            if (editor.fitMesh) return PrepareMeshColliderAdmission(scene, resources, entity, editor.PendingType());
-            return editor.Manual();
-        };
-
-        if (edited) RefreshColliderDraft(editor, scene, resources, entity);
-        if (editor.fitMesh && editor.result)
-        {
-            ColliderShapeState fitted;
-            fitted.editable = true;
-            fitted.dimensions = editor.result->descriptor;
-            ColliderDimensions(fitted);
-        }
-        DrawColliderVisual(editor, physics, handle);
-
-        if (editor.confirmation)
-        {
-            const auto description = prepare();
-            if (!description || !physics.IsColliderConfirmationCurrent(*editor.confirmation, handle, *description))
-            {
-                EndColliderConfirmation(editor, scene, userPaused);
-                editor.status = "Context changed; apply again.";
-            }
-        }
-
-        const auto finish = [&](ColliderAdmissionReport result, bool force)
-        {
             editor.confirmation.reset();
             editor.after.reset();
             editor.result = std::move(result);
@@ -681,18 +619,162 @@ namespace Rbs
                 }
                 else editor.status = ColliderFailureStatus(editor.result->error);
             }
+    }
+
+    void ProcessColliderEditorCommands(_Scene& scene, const _Entity& selected, bool& userPaused)
+    {
+        auto& editor=colliderEditor;
+        if(!editor.queued)return;
+        auto desc=std::move(*editor.queued);editor.queued.reset();
+        const auto binding=scene.GetBodyBinding(editor.entity);
+        if(editor.sceneIdentity!=&scene || editor.entity!=selected || !binding || *binding!=editor.target)
+        {EndColliderConfirmation(editor,scene,userPaused);editor.status="Selection changed; queued edit cancelled.";return;}
+        auto result=editor.queuedForce && editor.confirmation?
+            scene.ReplaceBodyColliderConfirmed(editor.entity,desc,*editor.confirmation):
+            scene.ReplaceBodyColliderIfNoAddedOverlap(editor.entity,desc);
+        FinishColliderCommand(editor,scene,userPaused,std::move(result),editor.queuedForce);
+    }
+
+    static void DrawColliderInspector(ColliderInspector& editor, _Scene& scene,
+        SceneRenderResources& resources, const _Entity& entity, PhysicsBodyHandle handle,
+        bool& userPaused)
+    {
+        auto& physics = *scene.GetPhysicsSystem();
+        const auto current = physics.ReadBodyCollider(handle);
+        if (!current)
+        {
+            EndColliderConfirmation(editor, scene, userPaused);
+            editor.preview.reset();
+            ImGui::TextWrapped("Current Collider: unavailable");
+            return;
+        }
+        bool edited = editor.refreshRequested;
+        if (editor.target != handle || editor.sceneIdentity != &scene)
+        {
+            EndColliderConfirmation(editor, scene, userPaused);
+            editor = ColliderInspector{};
+            editor.target = handle;
+            editor.sceneIdentity = &scene;
+            editor.entity = entity;
+            editor.Revert(*current);
+            Editor::Numeric::Reset();
+            editor.fitMesh = bool(PrepareMeshColliderAdmission(scene, resources, entity, editor.PendingType()));
+            edited = editor.fitMesh;
+            if (!editor.fitMesh) editor.status = "No valid mesh fit; use manual dimensions.";
+        }
+        else if (editor.activeIdentity != current->identity)
+        {
+            EndColliderConfirmation(editor, scene, userPaused);
+            editor.Revert(*current);
+            Editor::Numeric::Reset();
+            editor.fitMesh = bool(PrepareMeshColliderAdmission(scene, resources, entity, editor.PendingType()));
+            edited = editor.fitMesh;
+            editor.status = "Collider changed; edits refreshed.";
+        }
+
+        ImGui::Separator();
+        ImGui::TextWrapped("Current Collider: %s", ColliderTypeName(current->type));
+        NoteColliderControl("Current Collider");
+        constexpr const char* types[]{"Sphere", "Box", "Capsule"};
+        edited |= editor.preview && editor.activeRevision != current->revision;
+        editor.activeRevision = current->revision;
+        if (editor.preview && editor.fitMesh && entity.HasAllComponents<MeshRendererComponent>())
+            edited |= editor.previewScale != entity.GetComponent<Transform3DComponent>().Scale ||
+                editor.previewMesh != entity.GetComponent<MeshRendererComponent>().mesh;
+        {
+        std::optional<Editor::PropertyRow> row;
+        if (Editor::Active) row.emplace("Shape", "Proposed collider type; Apply uses the existing overlap admission checks.");
+        else ColliderField("Proposed Collider Type");
+        const bool typeOpen = ImGui::BeginCombo("##ProposedCollider", types[editor.replacement]);
+        NoteColliderControl("New Collider Type");
+        if (typeOpen)
+        {
+            for (int index = 0; index < 3; ++index)
+            {
+                if (ImGui::Selectable(types[index], index == editor.replacement))
+                {
+                    editor.replacement = index;
+                    BroadcastColliderType(editor, index);
+                    edited = true;
+                }
+                NoteColliderControl(types[index]);
+            }
+            ImGui::EndCombo();
+        }
+        }
+        if (Editor::Active)
+        {
+            Editor::PropertyRow row("Fit to mesh", "Fit the collider to the current render mesh. Disable for manual dimensions.");
+            edited |= ImGui::Checkbox("##FitMesh", &editor.fitMesh);
+        }
+        else edited |= ImGui::Checkbox("Fit to Mesh", &editor.fitMesh);
+        NoteColliderControl("Fit to Mesh");
+        if (!editor.fitMesh)
+        {
+            const auto validShape=[](const CollisionShapeDesc& desc)->const char*
+            {return CreateCollisionShape(desc)?nullptr:"Invalid shape: dimensions, bounds or inertia are not representable. Proposal unchanged.";};
+            if (editor.replacement == 1)
+            {
+                edited |= ColliderVector("Half extents",editor.halfExtents,[&](const float* v){return validShape(BoxShapeDesc{{v[0],v[1],v[2]},editor.center});});
+                edited |= ColliderVector("Center",editor.center,[&](const float* v){return validShape(BoxShapeDesc{editor.halfExtents,{v[0],v[1],v[2]}});});
+            }
+            else
+            {
+                edited |= ColliderNumber("Radius",editor.radius,Editor::Numeric::Positive<float>(),[&](float v){return validShape(editor.replacement==2?CollisionShapeDesc{CapsuleShapeDesc{v,editor.halfLength}}:CollisionShapeDesc{SphereShapeDesc{v}});});
+                if (editor.replacement == 2)
+                    edited |= ColliderNumber("Half Length",editor.halfLength,Editor::Numeric::Nonnegative<float>(),[&](float v){return validShape(CapsuleShapeDesc{editor.radius,v});});
+            }
+        }
+        if (edited)
+        {
+            EndColliderConfirmation(editor, scene, userPaused);
+            editor.status = "Pending edit";
+        }
+        const auto prepare = [&]() -> std::expected<CollisionShapeDesc, ColliderPreparationFailure>
+        {
+            if (editor.fitMesh) return PrepareMeshColliderAdmission(scene, resources, entity, editor.PendingType());
+            return editor.Manual();
         };
+
+        if (edited) RefreshColliderDraft(editor, scene, resources, entity);
+        if (editor.fitMesh && editor.result)
+        {
+            ColliderShapeState fitted;
+            fitted.editable = true;
+            fitted.dimensions = editor.result->descriptor;
+            ColliderDimensions(fitted);
+        }
+        DrawColliderVisual(editor, physics, handle);
+
+        if (editor.confirmation)
+        {
+            const auto description = prepare();
+            if (!description || !physics.IsColliderConfirmationCurrent(*editor.confirmation, handle, *description))
+            {
+                EndColliderConfirmation(editor, scene, userPaused);
+                editor.status = "Context changed; apply again.";
+            }
+        }
+
+        const auto finish = [&](ColliderAdmissionReport result,bool force)
+        { FinishColliderCommand(editor,scene,userPaused,std::move(result),force); };
 
         const bool buttonsTogether = ImGui::GetContentRegionAvail().x >=
             ImGui::CalcTextSize("Apply to Active Object").x + ImGui::CalcTextSize("Revert").x +
             ImGui::GetStyle().FramePadding.x * 4 + ImGui::GetStyle().ItemSpacing.x;
+        ImGui::BeginDisabled(Editor::Numeric::HasError());
         const bool apply = ImGui::Button("Apply to Active Object");
         NoteColliderControl("Apply");
+        ImGui::EndDisabled();
         if (apply)
         {
             editor.before = *current;
             const auto description = prepare();
-            if (description) finish(scene.ReplaceBodyColliderIfNoAddedOverlap(entity, *description), false);
+            if (description)
+            {
+                if(Editor::Active){editor.queued=*description;editor.queuedForce=false;editor.status="Apply queued for simulation boundary.";}
+                else finish(scene.ReplaceBodyColliderIfNoAddedOverlap(entity,*description),false);
+            }
             else
             {
                 ColliderAdmissionReport failure;
@@ -708,6 +790,7 @@ namespace Rbs
         {
             EndColliderConfirmation(editor, scene, userPaused);
             editor.Revert(*current);
+            Editor::Numeric::Reset();
             const auto fitted = PrepareMeshColliderAdmission(scene, resources, entity, editor.PendingType());
             editor.fitMesh = bool(fitted);
             editor.result.reset();
@@ -747,7 +830,10 @@ namespace Rbs
                 {
                     const auto description = prepare();
                     if (description && editor.confirmation)
-                        finish(scene.ReplaceBodyColliderConfirmed(entity, *description, *editor.confirmation), true);
+                    {
+                        if(Editor::Active){editor.queued=*description;editor.queuedForce=true;editor.status="Confirmed Apply queued.";}
+                        else finish(scene.ReplaceBodyColliderConfirmed(entity,*description,*editor.confirmation),true);
+                    }
                 }
                 if (!known) ImGui::TreePop();
             }
@@ -784,6 +870,7 @@ namespace Rbs
     static void SyncColliderEditors(_Scene& scene, SceneRenderResources& resources,
         const ColliderOutlineSelection& selection, const _Entity& active, bool userPaused)
     {
+        RBS_REVIEW_SCOPE(1);
         if (!selection.count)
         {
             if (hasColliderDrafts) ResetColliderEditor(scene, userPaused);
@@ -931,62 +1018,150 @@ namespace PreEditorInput
 }
 #endif
 
-namespace
+void RigidBodySimulationApp::PublishPanelInputRegion()
 {
-    void PublishPanelInputRegion()
-    {
-        const auto position = ImGui::GetWindowPos();
-        const auto size = ImGui::GetWindowSize();
-        const auto origin = ImGui::GetMainViewport()->Pos;
+    const auto position = ImGui::GetWindowPos();
+    const auto size = ImGui::GetWindowSize();
+    const auto origin = ImGui::GetMainViewport()->Pos;
 #ifdef GENGINE_LIFECYCLE_PICK_TRACE
-        const InputRect region{position.x - origin.x, position.y - origin.y,
-                               position.x + size.x - origin.x, position.y + size.y - origin.y};
-        auto result = BaseApp::GetInputManager()->AddUIRegion(region);
-        PreEditorLifecycle::PickTraceValues("ui_region", bool(result), {},
-                                            {region.left, region.top, region.right, region.bottom});
-        if (!result)
+    const InputRect region{position.x - origin.x, position.y - origin.y,
+                           position.x + size.x - origin.x, position.y + size.y - origin.y};
+    auto result = BaseApp::GetInputManager()->AddUIRegion(region);
+    PreEditorLifecycle::PickTraceValues("ui_region", bool(result), {},
+                                        {region.left, region.top, region.right, region.bottom});
+    if (!result)
 #else
-        if (auto result = BaseApp::GetInputManager()->AddUIRegion(
-                {position.x - origin.x, position.y - origin.y, position.x + size.x - origin.x,
-                 position.y + size.y - origin.y});
-            !result)
+    if (auto result = BaseApp::GetInputManager()->AddUIRegion(
+            {position.x - origin.x, position.y - origin.y, position.x + size.x - origin.x,
+             position.y + size.y - origin.y});
+        !result)
 #endif
-            Log::GetCoreLogger()->error("UI input region rejected: {}", int(result.error()));
-    }
+        Log::GetCoreLogger()->error("UI input region rejected: {}", int(result.error()));
 }
 
-void RigidBodySimulationApp::ImGuiRender()
+bool RigidBodySimulationApp::RequestDistanceChainImpulse()
 {
-    GetInputManager()->BeginUIRouting();
-#ifdef GENGINE_LIFECYCLE_PICK_TRACE
-    PreEditorLifecycle::PickTraceUIBegin();
-#endif
-    if (auto host = UI::BeginDockspaceHost({"DockSpace Demo", "MyDockSpace"}); !host)
+    if (!m_ActiveScene || !m_ActiveScene->GetPhysicsSystem() ||
+        (SandboxEnabled() && (m_SceneRequest || m_SimulationState == Rbs::SimulationState::Switching ||
+                             m_SimulationState == Rbs::SimulationState::Failed))) return false;
+    auto* world = m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
+    if (!world) return false;
+    return m_ChainImpulse.Request(*world, m_ChainImpulseMagnitude,
+        static_cast<Rbs::DistanceChainImpulseControl::Direction>(m_ChainImpulseDirection));
+}
+
+void RigidBodySimulationApp::DrawDistanceChainImpulseControls()
+{
+    if (!m_ActiveSelection.IsDistanceScene()) return;
+    using Control = Rbs::DistanceChainImpulseControl;
+    ImGui::Separator();
+    ImGui::TextWrapped("Distance chain impulse - terminal link %u", m_ActiveSelection.scene==Rbs::RbsScenePreset::DistancePendulum?1:m_ActiveSelection.chainLinks);
+    if (SandboxEnabled()) ImGui::TextWrapped("Automatic 0.5 Ns impulse after tick 300; manual controls below.");
+    if (SandboxEnabled())
     {
-        ReportPlatformError(host.error());
-        m_Running = false;
-        return;
+        {
+            Rbs::Editor::PropertyRow row("Impulse (Ns)", "Finite magnitude from 0 to 5 Ns. Applied once at the next Physics step.");
+            Rbs::Editor::Numeric::Scalar("##Impulse",m_ChainImpulseMagnitude,.01f,Rbs::Editor::Numeric::Closed(Control::MinMagnitude,Control::MaxMagnitude),Rbs::Editor::Numeric::Accept{},true);
+        }
+        {
+            Rbs::Editor::PropertyRow row("Direction");
+            ImGui::Combo("##Direction", &m_ChainImpulseDirection, "+X\0-X\0+Z\0-Z\0");
+        }
     }
+    else
+    {
+        Rbs::Editor::Numeric::Scalar("Impulse (Ns)",m_ChainImpulseMagnitude,.01f,Rbs::Editor::Numeric::Closed(Control::MinMagnitude,Control::MaxMagnitude),Rbs::Editor::Numeric::Accept{},true);
+        ImGui::Combo("Horizontal direction", &m_ChainImpulseDirection, "+X\0-X\0+Z\0-Z\0");
+    }
+    ImGui::BeginDisabled(Rbs::Editor::Numeric::HasError() || !m_ChainImpulse.Enabled() || m_ChainImpulse.Pending() || m_SceneRequest.has_value());
+    if (ImGui::Button("Apply Impulse")) RequestDistanceChainImpulse();
+    ImGui::EndDisabled();
+    const char* status = "Ready";
+    switch (m_ChainImpulse.GetStatus())
+    {
+    case Control::Status::Ready: break;
+    case Control::Status::Disabled: status = "Manual impulses disabled during qualification"; break;
+    case Control::Status::Queued: status = m_ActiveScene->IsPaused()
+        ? "Queued; resume simulation to apply" : "Queued for next Physics step"; break;
+    case Control::Status::Applied: status = "Impulse applied"; break;
+    case Control::Status::Zero: status = "Zero impulse; no motion requested"; break;
+    case Control::Status::InvalidMagnitude: status = "Impulse must be finite and between 0 and 5 Ns"; break;
+    case Control::Status::InvalidDirection: status = "Invalid horizontal direction"; break;
+    case Control::Status::InvalidTarget: status = "Terminal body is no longer a live dynamic body"; break;
+    case Control::Status::Rejected: status = "Physics rejected impulse; request cleared"; break;
+    }
+    ImGui::TextWrapped("%s", status);
+    if (m_ChainImpulse.AppliedCount())
+    {
+        const auto last = m_ChainImpulse.LastApplied();
+        ImGui::Text("Last applied: (%.2f, %.2f, %.2f) Ns", last.x, last.y, last.z);
+    }
+    else ImGui::TextUnformatted("Last applied: none");
+    ImGui::Separator();
+#ifdef GENGINE_PHASE26_IMPULSE_PRESENTATION_CHECKS
+    Rbs::DistanceChainImpulseChecks::PanelDrawn();
+#endif
+}
+
+void RigidBodySimulationApp::DrawPhysicsSettings()
+{
+    using State=Rbs::SimulationState;
+        const auto backendLabel=[](PhysicsBackend backend){return backend==PhysicsBackend::Jolt?"Jolt 5.6.0":"Native";};
+        ImGui::TextWrapped("Active backend: %s",backendLabel(m_Backend));
+        if(auto* world=m_ActiveScene?m_ActiveScene->GetPhysicsSystem():nullptr)
+            ImGui::Text("Tick: %llu",static_cast<unsigned long long>(world->GetCompletedSteps()));
+        if(m_Backend==PhysicsBackend::Jolt)
+            ImGui::TextWrapped("Jolt native friction; authored spin/rolling resistance lengths are unsupported.");
+        ImGui::BeginDisabled(m_SceneRequest.has_value() || m_SimulationState==State::Switching || !m_ActiveScene);
+        {
+        Rbs::Editor::PropertyRow row("Backend", "Apply rebuilds this authored scene at Tick 0; failure retains the previous world.");
+        const float backendWidth=ImGui::GetContentRegionAvail().x;
+        const bool inlineApply=backendWidth>=Rbs::Editor::Px(240);
+        ImGui::SetNextItemWidth(inlineApply?backendWidth-Rbs::Editor::Px(64):backendWidth);
+        if(ImGui::BeginCombo("##PhysicsBackend",backendLabel(m_PendingBackend)))
+        {
+            for(auto backend:{PhysicsBackend::Native,PhysicsBackend::Jolt})
+            {
+                ImGui::BeginDisabled(!PhysicsBackendAvailable(backend));
+                if(ImGui::Selectable(backendLabel(backend),backend==m_PendingBackend))m_PendingBackend=backend;
+                ImGui::EndDisabled();
+            }
+            ImGui::EndCombo();
+        }
+        if(inlineApply)ImGui::SameLine();
+        ImGui::BeginDisabled(m_PendingBackend==m_Backend || !PhysicsBackendAvailable(m_PendingBackend));
+        if(ImGui::Button("Apply##PhysicsBackend"))RequestBackend(m_PendingBackend);
+        ImGui::EndDisabled();
+        }
+        ImGui::EndDisabled();
+        if(!PhysicsBackendAvailable(PhysicsBackend::Jolt))ImGui::TextWrapped("Jolt 5.6.0 is not enabled in this build.");
+        ImGui::TextWrapped("Apply stops and rebuilds this authored scene at Tick 0. Failure retains the previous world.");
+    DrawJoltSettings();
+    DrawDistanceChainImpulseControls();
+    ImGui::TextWrapped("%s",m_SceneDiagnostic.c_str());
+}
+
+
+void RigidBodySimulationApp::PrepareColliderUi()
+{
+    m_ColliderOutlines.Prune(*m_ActiveScene->GetPhysicsSystem());
+    m_EditorSelection.Prune(m_ActiveScene->RenderData());
+    if(m_HoveredEntity.GetSceneContext() &&
+       (m_HoveredEntity.GetSceneContext()!=m_ActiveScene.get() || !m_HoveredEntity))
+        SelectColliderEntity({},true);
+    Rbs::SyncColliderEditors(*m_ActiveScene, *m_SceneResources, m_ColliderOutlines, m_HoveredEntity, m_IsPause);
+    Rbs::HandleColliderUiEscape(*m_ActiveScene, m_IsPause);
+}
+void RigidBodySimulationApp::DrawLegacyDiagnosticPanels()
+{
 #ifdef GENGINE_RBS_SCENE_VALIDATION
-    if (ImGui::GetFrameCount() == 4)
-        ImGui::LogToFile(-1, "scene-ui-text.log");
+    if(ImGui::GetFrameCount()==4)ImGui::LogToFile(-1,"scene-ui-text.log");
 #endif
     DrawShaderPanel();
 #ifdef GENGINE_RBS_SCENE_VALIDATION
-    // ImGui::End stops logging for each non-child window; resume the same capture.
-    if (ImGui::GetFrameCount() == 4)
-        ImGui::LogToFile(-1, "scene-ui-text.log");
+    if(ImGui::GetFrameCount()==4)ImGui::LogToFile(-1,"scene-ui-text.log");
 #endif
     DrawMaterialPanel();
-    auto& collider = Rbs::colliderEditor;
-    m_ColliderOutlines.Prune(*m_ActiveScene->GetPhysicsSystem());
-    if (m_ColliderOutlines.count)
-    {
-        const auto activeBody = m_ActiveScene->GetBodyBinding(m_HoveredEntity);
-        if (!activeBody || !m_ColliderOutlines.Contains(*activeBody)) SelectColliderEntity({}, true);
-    }
-    Rbs::SyncColliderEditors(*m_ActiveScene, *m_SceneResources, m_ColliderOutlines, m_HoveredEntity, m_IsPause);
-    Rbs::HandleColliderUiEscape(*m_ActiveScene, m_IsPause);
 #ifdef GENGINE_COLLIDER_EDITOR_SMOKE
     if (std::getenv("GENGINE_COLLIDER_SELECTION_SMOKE_OUTPUT"))
     {
@@ -997,11 +1172,34 @@ void RigidBodySimulationApp::ImGuiRender()
         ImGui::SetNextWindowSize({390, 650}, ImGuiCond_Always);
     }
 #endif
-    if (ImGui::Begin("Body Transform"))
+#ifdef GENGINE_PHASE26_IMPULSE_PRESENTATION_CHECKS
+    ImGui::SetNextWindowCollapsed(false, ImGuiCond_Always);
+#endif
+    if(ImGui::Begin("Body Transform"))
     {
         PublishPanelInputRegion();
-        if (ImGui::Checkbox("Pause simulation", &m_IsPause))
-            Rbs::SetColliderUserPause(*m_ActiveScene, m_IsPause);
+        if (!SandboxEnabled())
+        {
+            bool paused = m_IsPause;
+            ImGui::BeginDisabled(m_SceneRequest.has_value() ||
+                (SandboxEnabled() && (m_SimulationState == Rbs::SimulationState::Switching ||
+                                      m_SimulationState == Rbs::SimulationState::Failed)));
+            if (ImGui::Checkbox("Pause simulation", &paused))
+            {
+                if (SandboxEnabled()) SetSimulationState(paused ? Rbs::SimulationState::Paused : Rbs::SimulationState::Running);
+                else { m_IsPause = paused; Rbs::SetColliderUserPause(*m_ActiveScene, paused); }
+            }
+            ImGui::EndDisabled();
+        }
+        DrawDistanceChainImpulseControls();
+        DrawPhysicsDebugSection();
+        DrawObjectProperties();
+        DrawPresentationSettings();
+    }
+    ImGui::End();
+}
+void RigidBodySimulationApp::DrawPhysicsDebugSection()
+{
         int outlines = m_IsShowDebugBoundingBox ? 2 : m_ShowSelectedColliderOutlines ? 1 : 0;
         Rbs::ColliderField("Physics visualization scope");
         if (ImGui::Combo("##ColliderOutlines", &outlines, "Off\0Selected\0All\0"))
@@ -1009,18 +1207,25 @@ void RigidBodySimulationApp::ImGuiRender()
             m_IsShowDebugBoundingBox = outlines == 2;
             m_ShowSelectedColliderOutlines = outlines == 1;
         }
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Ctrl+Click toggles selected objects (up to 64). Esc clears selection.");
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Ctrl+Click toggles selected objects (up to 4096). Esc clears selection.");
         if (ImGui::TreeNode("Layers"))
         {
             ImGui::Checkbox("Collider Outlines", &m_ColliderLayers.colliders);
             ImGui::Checkbox("World AABBs", &m_ColliderLayers.worldAabbs);
+            ImGui::BeginDisabled(m_Backend==PhysicsBackend::Jolt);
             ImGui::Checkbox("Contact Points", &m_ColliderLayers.contactPoints);
             ImGui::Checkbox("Contact Normals", &m_ColliderLayers.contactNormals);
+            ImGui::EndDisabled();
+            if(m_Backend==PhysicsBackend::Jolt)ImGui::TextWrapped("Native contact diagnostic overlays are unavailable for Jolt.");
             ImGui::TreePop();
         }
+}
+void RigidBodySimulationApp::DrawObjectProperties()
+{
+    auto& collider=Rbs::colliderEditor;
         ImGui::TextWrapped("Selected: %zu / Apply edits the active object only", m_ColliderOutlines.count);
         if (m_ColliderOutlines.capacityReached)
-            ImGui::TextWrapped("Selection limit reached (64); selection unchanged.");
+            ImGui::TextWrapped("Selection limit reached (4096); selection unchanged.");
         if (auto pose = m_ActiveScene->ReadBodyTransform(m_HoveredEntity); pose)
         {
             ImGui::TextWrapped("Active: %s", m_HoveredEntity.GetName().c_str());
@@ -1035,19 +1240,20 @@ void RigidBodySimulationApp::ImGuiRender()
             auto position = m_HoveredEntity.Transform().Translation;
             auto rotation = m_HoveredEntity.Transform().EulerRotation;
             auto scale = m_HoveredEntity.Transform().Scale;
-            if (ImGui::DragFloat3("Teleport position", &position.x, .05f))
-                report(m_ActiveScene->SetLocalTranslation(m_HoveredEntity, position));
-            if (ImGui::DragFloat3("Teleport rotation (radians)", &rotation.x, .01f))
+            if (Rbs::Editor::XYZ("Teleport position", &position.x, 0.f, .05f))
+                QueueTransformEdit(TransformTool::Translate, position);
+            if (Rbs::Editor::XYZ("Teleport rotation (radians)", &rotation.x, 0.f, .01f))
                 report(m_ActiveScene->SetLocalRotation(m_HoveredEntity, rotation));
-            if (ImGui::DragFloat3("Transform scale", &scale.x, .02f))
-                report(m_ActiveScene->SetLocalScale(m_HoveredEntity, scale));
+            if (Rbs::Editor::XYZ("Transform scale", &scale.x, 1.f, .02f))
+                QueueTransformEdit(TransformTool::Scale, scale);
             auto* world = m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
             if (auto body = world->ReadBody(pose->body); body && pose->type != BodyType::Static)
             {
                 auto linear = body->linearVelocity, angular = body->angularVelocity;
-                bool changed = ImGui::DragFloat3("Linear velocity", &linear.x, .05f);
-                changed |= ImGui::DragFloat3("Angular velocity", &angular.x, .02f);
-                if (changed) report(world->SetBodyVelocity(pose->body, linear, angular));
+                bool changed = Rbs::Editor::XYZ("Linear velocity", &linear.x, 0.f, .05f);
+                changed |= Rbs::Editor::XYZ("Angular velocity", &angular.x, 0.f, .02f);
+                if (changed)
+        {m_VelocityEdit=VelocityEdit{m_HoveredEntity,pose->body,linear,angular,m_SceneGeneration};m_PropertyDiagnostic="Velocity edit queued for Update.";}
             }
             if (!diagnostic.empty()) ImGui::TextWrapped("%s", diagnostic.c_str());
             ImGui::TreePop();
@@ -1058,6 +1264,212 @@ void RigidBodySimulationApp::ImGuiRender()
             Rbs::ResetColliderEditor(*m_ActiveScene, m_IsPause);
             ImGui::TextWrapped("Select a body to edit its collider.");
         }
+}
+void RigidBodySimulationApp::DrawEditorProperties()
+{
+    namespace E = Rbs::Editor;
+    if (!m_HoveredEntity || !m_HoveredEntity.HasAllComponents<Transform3DComponent>())
+    {
+        ImGui::TextUnformatted("No entity selected");
+        ImGui::TextWrapped("Select an entity in Hierarchy or click an object in the Viewport.");
+        ImGui::PushStyleColor(ImGuiCol_Text,ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        ImGui::TextWrapped("Ctrl+click adds to selection. Esc clears.");
+        ImGui::PopStyleColor();
+        return;
+    }
+    ImGui::TextWrapped("%s", m_HoveredEntity.GetName().c_str());
+    DrawEntityPresentationProperties();
+    const bool multiple=m_EditorSelection.count>1;
+    const bool hasMesh=m_HoveredEntity.HasAllComponents<MeshRendererComponent>();
+    const char* type=m_HoveredEntity.HasAllComponents<RenderCameraComponent>()?"Camera":
+        m_HoveredEntity.HasAllComponents<RenderLightComponent>()?"Light":hasMesh?"Mesh":"Entity";
+    ImGui::TextDisabled("%s | %zu selected",type,m_EditorSelection.count);
+    if (m_ColliderOutlines.capacityReached) ImGui::TextWrapped("Selection limit reached (4096).");
+    if(!m_PropertyDiagnostic.empty())ImGui::TextWrapped("%s",m_PropertyDiagnostic.c_str());
+    if(m_EditorSelection.count>1)ImGui::TextWrapped("Group Transform: one atomic gesture. History: up to 32 commands / 8 MiB. Unsupported batches retain the full selection.");
+    ImGui::Separator();
+    ImGui::BeginDisabled(m_SceneRequest.has_value() || m_SimulationState == Rbs::SimulationState::Switching);
+    if (E::Component("Transform"))
+    {
+        ImGui::BeginDisabled(m_EditorSelection.count>1);
+        auto position = m_HoveredEntity.Transform().Translation;
+        const bool componentPose=m_HoveredEntity.HasAnyComponents<RenderCameraComponent,RenderLightComponent>();
+        // Authored lights may set the quaternion directly. Display the actual
+        // local orientation used by RenderState, not a stale Euler convenience field.
+        auto rotation = glm::degrees(componentPose?glm::eulerAngles(m_HoveredEntity.Transform().QuatRotation):m_HoveredEntity.Transform().EulerRotation);
+        auto scale = m_HoveredEntity.Transform().Scale;
+        if (E::XYZ("Translation (m)", &position.x, 0.f))
+            QueueTransformEdit(TransformTool::Translate, position);
+        if (E::XYZ("Rotation (deg)", &rotation.x, 0.f, .25f))
+            QueueTransformEdit(TransformTool::Rotate, glm::radians(rotation));
+        const bool componentScale=m_HoveredEntity.HasAnyComponents<RenderCameraComponent,RenderLightComponent>();
+        const bool unsupportedScale=componentScale;
+        ImGui::BeginDisabled(unsupportedScale);
+        if (E::XYZ("Scale", &scale.x, 1.f, .02f, unsupportedScale ?
+            (componentScale?"Camera/Light scale is not supported; edit projection size or light range/cones.":"Sphere/Capsule require uniform scale.") :
+            "Reset an axis to 1. Scale edits use Scene validation; collider fitting remains explicit."))
+            QueueTransformEdit(TransformTool::Scale, scale);
+        ImGui::EndDisabled();
+        ImGui::EndDisabled();
+        if(m_EditorSelection.count>1)ImGui::TextWrapped("Numeric Transform fields describe the active object. Use the toolbar gizmo for an atomic group gesture (up to 4096 roots; collider/query budgets apply).");
+    }
+    // Context editing remains single-object; no fabricated common material values.
+    if(!multiple)DrawContextProperties();
+    if(!multiple && hasMesh && E::Component("Geometry / Mesh",false))
+    {
+        const auto& mesh=m_HoveredEntity.GetComponent<MeshRendererComponent>();
+        E::ReadOnly("Mesh / submesh",std::format("{} / {}",mesh.mesh.index,mesh.submesh).c_str());
+        E::ReadOnly("Cast shadows",mesh.castShadows?"Enabled":"Disabled");
+        E::ReadOnly("Receive shadows",mesh.receiveShadows?"Enabled":"Disabled");
+        E::ReadOnly("Pickable",mesh.pickable?"Enabled":"Disabled");
+        ImGui::TextWrapped("Scene Visible in the entity header affects editor visibility only. Mesh assignment is read-only here.");
+    }
+    const auto pose = m_ActiveScene->ReadBodyTransform(m_HoveredEntity);
+    auto* world = m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
+    const auto body = pose ? world->ReadBody(pose->body) : PhysicsBodyResult<PhysicsBodyState>{
+        std::unexpected(PhysicsBodyError{PhysicsBodyErrorCode::InvalidHandle})};
+    if(multiple)DrawBulkBodyProperties();
+    if (body && !multiple && E::Component("Rigidbody",false))
+    {
+        auto& edit=m_BodyPropertyEditor;
+        const auto actual=world->ReadBodyProperties(pose->body);
+        if(edit.target!=pose->body || edit.generation!=m_SceneGeneration)
+        {
+            edit={};edit.target=pose->body;edit.entity=m_HoveredEntity;edit.generation=m_SceneGeneration;
+            if(actual)edit.draft=*actual;
+        }
+        else if(!edit.dirty && !edit.queued && actual)edit.draft=*actual;
+        auto& p=edit.draft;
+        ImGui::BeginDisabled(edit.queued);
+        {E::PropertyRow row("Motion type","Changes preserve body identity; a joint must retain a Dynamic endpoint.");
+            int type=int(p.type);if(ImGui::Combo("##Motion",&type,"Static\0Dynamic\0Kinematic\0")){p.type=BodyType(type);edit.dirty=true;}}
+        edit.dirty |= E::Number("Mass (kg)",p.mass,.05f,"Positive authored mass. Recomputes inertia; retained while fixed.",E::Numeric::Positive<float>(),[](float v)->const char*{return std::isfinite(1.f/v)&&1.f/v>0?nullptr:"Mass must have a finite, positive inverse.";});
+        ImGui::EndDisabled();
+        auto linear = body->linearVelocity, angular = body->angularVelocity;
+        ImGui::BeginDisabled(body->type == BodyType::Static);
+        bool changed = E::XYZ("Velocity (m/s)", &linear.x, 0.f);
+        changed |= E::XYZ("Angular (rad/s)", &angular.x, 0.f, .02f);
+        if (changed)
+        {m_VelocityEdit=VelocityEdit{m_HoveredEntity,pose->body,linear,angular,m_SceneGeneration};m_PropertyDiagnostic="Velocity edit queued for Update.";}
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(edit.queued);
+        edit.dirty |= E::Number("Friction",p.material.friction,.01f,"Finite and nonnegative.",E::Numeric::Nonnegative<float>());
+        edit.dirty |= E::Number("Restitution",p.material.restitution,.01f,"Range 0 to 1.",E::Numeric::Closed(0.f,1.f));
+        const bool jolt=m_Backend==PhysicsBackend::Jolt;
+        ImGui::BeginDisabled(!jolt);
+        edit.dirty |= E::Number("Linear damping",p.linearDamping,.01f,"Jolt only; range 0 to 1.",E::Numeric::Closed(0.f,1.f));
+        edit.dirty |= E::Number("Angular damping",p.angularDamping,.01f,"Jolt only; range 0 to 1.",E::Numeric::Closed(0.f,1.f));
+        edit.dirty |= E::Number("Gravity factor",p.gravityFactor,.05f,"Jolt only; range 0 to 10.",E::Numeric::Closed(0.f,10.f));
+        {E::PropertyRow row("CCD");edit.dirty |= ImGui::Checkbox("##CCD",&p.continuousCollision);}
+        {E::PropertyRow row("Allow sleeping");edit.dirty |= ImGui::Checkbox("##Sleep",&p.allowSleeping);}
+        if(ImGui::TreeNode("Solver overrides")) {
+            ImGui::BeginDisabled(p.type!=BodyType::Dynamic);
+            edit.dirty|=E::Number("Velocity override",p.velocityStepsOverride,1.f,"0 inherits world; 2..255. Maximum override can affect the entire contact/constraint island.",E::Numeric::Closed(0,255),[](int v)->const char*{return v==1?"Use 0 (world) or at least 2 so friction can operate.":nullptr;});
+            edit.dirty|=E::Number("Position override",p.positionStepsOverride,1.f,"0 inherits world. Jolt uses the maximum across the island, not an isolated per-body solver.",E::Numeric::Closed(0,255));
+            ImGui::EndDisabled();
+            ImGui::TextWrapped("Experimental. Public Jolt MotionProperties setters; safe boundary, no body rebuild. Dynamic colliding bodies only. May change the whole island.");
+            if(actual)ImGui::TextWrapped("Effective overrides: %d / %d. Jolt native: 0 / 0 (inherit).",actual->velocityStepsOverride,actual->positionStepsOverride);
+            ImGui::TreePop();
+        }
+        ImGui::EndDisabled();
+        if(!jolt)ImGui::TextWrapped("Native: damping 0, gravity factor 1, CCD and sleep policy are fixed. Sleep thresholds are editable below.");
+        if(ImGui::TreeNode("Sleep thresholds"))
+        {
+            ImGui::BeginDisabled(jolt);
+            edit.dirty |= E::Number("Linear (m/s)",p.sleep.linearSpeedThreshold,.01f,"Finite, nonnegative Native threshold.",E::Numeric::Nonnegative<float>());
+            edit.dirty |= E::Number("Angular (rad/s)",p.sleep.angularSpeedThreshold,.01f,"Finite, nonnegative Native threshold.",E::Numeric::Nonnegative<float>());
+            edit.dirty |= E::Number("Dwell (s)",p.sleep.inactivitySeconds,.01f,"Finite, positive Native dwell time.",E::Numeric::Positive<double>());
+            ImGui::EndDisabled();
+            if(jolt)ImGui::TextWrapped("Jolt world thresholds are under World Settings > Physics > Sleeping. These Native per-body thresholds cannot be mapped.");
+            ImGui::TreePop();
+        }
+        ImGui::BeginDisabled(!edit.dirty || E::Numeric::HasError());
+        if(ImGui::Button("Apply Rigidbody"))edit.queued=true;
+        ImGui::EndDisabled();
+        if(ImGui::GetContentRegionAvail().x>E::Px(280))ImGui::SameLine();
+        if(ImGui::Button("Revert Rigidbody") && actual){p=*actual;edit.dirty=false;E::Numeric::Reset();}
+        E::Tooltip("Discard this draft and read the active body. Reset restores preset defaults. Backend Apply preserves supported applied edits.");
+        const auto baseline=std::find_if(m_JoltSettingsEditor.bodyBaseline.begin(),m_JoltSettingsEditor.bodyBaseline.end(),[&](const auto& b){return b.first==pose->body;});
+        ImGui::BeginDisabled(baseline==m_JoltSettingsEditor.bodyBaseline.end());
+        if(ImGui::Button("Reset to Baseline##Body")){p=baseline->second;edit.dirty=true;E::Numeric::Reset();}
+        ImGui::EndDisabled();
+        ImGui::EndDisabled();
+        E::Tooltip("Stage the preserved world-entry body settings; Apply is still required. Main Reset restores authored preset defaults.");
+        ImGui::TextWrapped("%s",edit.queued?"Apply queued for simulation boundary.":edit.dirty?"Unapplied draft":"Active body settings");
+        if (ImGui::TreeNodeEx("Material details",0,"Contact resistance"))
+        {
+            E::ReadOnly("Spin length (m)", std::format("{:.3f}", body->material.spinResistanceLength).c_str());
+            E::ReadOnly("Rolling length (m)", std::format("{:.3f}", body->material.rollingResistanceLength).c_str());
+            if (m_Backend == PhysicsBackend::Jolt)
+                ImGui::TextWrapped("Spin and rolling resistance lengths are unsupported by Jolt. Authored values are retained.");
+            ImGui::TreePop();
+        }
+    }
+    if (pose && !multiple && E::Component("Collider", false))
+        Rbs::DrawColliderInspector(Rbs::colliderEditor, *m_ActiveScene, *m_SceneResources,
+            m_HoveredEntity, pose->body, m_IsPause);
+    if (pose && !multiple)
+    {
+        bool foundJoint=false,showJoints=false;
+        for (std::size_t i = 0; i < world->GetJointCount(); ++i)
+        {
+            const auto handle = world->JointAt(i);
+            if (!handle) continue;
+            const auto joint = world->ReadDistanceJoint(*handle);
+            if (!joint || (joint->descriptor.bodyA != pose->body && joint->descriptor.bodyB != pose->body)) continue;
+            if(!foundJoint){showJoints=E::Component("Constraints / Joints",false);foundJoint=true;}
+            if(!showJoints)break;
+            ImGui::PushID(static_cast<int>(i));
+            ImGui::Text("Distance Joint %zu",i+1);
+            {
+                const auto& desc = joint->descriptor;
+                E::ReadOnly("Endpoints", std::format("Body {} / Body {}", desc.bodyA.index, desc.bodyB.index).c_str());
+                E::ReadOnly("Length (m)", std::format("{:.3f}", desc.length).c_str());
+                auto a = desc.localAnchorA, b = desc.localAnchorB;
+                ImGui::BeginDisabled();
+                E::XYZ("Anchor A (m)", &a.x, 0.f, .01f, "Read-only: the current joint API has no live descriptor update operation.");
+                E::XYZ("Anchor B (m)", &b.x, 0.f, .01f, "Read-only: the current joint API has no live descriptor update operation.");
+                ImGui::EndDisabled();
+                E::ReadOnly("Connected collision", desc.collideConnected ? "Enabled" : "Disabled");
+                E::ReadOnly("Length error (m)", std::format("{:.5f}", joint->error).c_str());
+                ImGui::TextWrapped("Read-only joint descriptor. Change the scene preset to load another configuration.");
+            }
+            ImGui::PopID();
+        }
+    }
+    if(body || multiple)DrawImpulseProperties();
+    if(E::Component("Advanced / Diagnostics",false))
+    {
+        if(multiple)ImGui::TextWrapped("Identifiers below describe the active object, not a common value.");
+        if(const auto id=m_ActiveScene->RenderData().Identify(m_HoveredEntity))
+            E::ReadOnly("Entity identity",std::format("{} / {} / {}",id->registry,id->index,id->generation).c_str());
+        E::ReadOnly("Scene generation",std::format("{}",m_SceneGeneration).c_str());
+        if(pose)E::ReadOnly("Body identity",std::format("{} / {}",pose->body.index,pose->body.generation).c_str());
+        if(body && !multiple)
+        {
+            const bool jolt=m_Backend==PhysicsBackend::Jolt;
+            const auto actual=world->ReadBodyProperties(pose->body);
+            if(jolt && ImGui::TreeNode("Effective / SDK body defaults")) {
+                if(actual)ImGui::TextWrapped("Friction %.6g / .2 | Restitution %.6g / 0 | Damping %.6g, %.6g / .05, .05 | Gravity %.6g / 1 | CCD %s / Discrete | Sleep %s / ON",actual->material.friction,actual->material.restitution,actual->linearDamping,actual->angularDamping,actual->gravityFactor,actual->continuousCollision?"LinearCast":"Discrete",actual->allowSleeping?"ON":"OFF");
+                ImGui::TextWrapped("SDK defaults are reference values, not GEngine's preserved authored baseline. GEngine uses product material combination.");ImGui::TreePop();
+            }
+            if(jolt && ImGui::TreeNode("Contact coefficients")) {
+                ImGui::TextWrapped("GEngine product rule: friction A*B, restitution A*B. Minimum restitution velocity is a World setting; it can suppress restitution.");
+                const auto diagnostics=world->ReadJoltDiagnostics();bool found=false;
+                if(diagnostics && diagnostics->enabled)for(const auto& contact:diagnostics->contacts)
+                    if(contact.bodyA==pose->body || contact.bodyB==pose->body){
+                        ImGui::TextWrapped("Last step pair: friction %.6g, restitution %.6g. Normal velocity %.4g -> %.4g m/s (callback -> end of full update).",contact.friction,contact.restitution,contact.normalVelocityBefore,contact.normalVelocityAfter);found=true;break;}
+                if(!found)ImGui::TextWrapped("No current observed contact. Enable read-only contact sampling in World Settings > Jolt Physics > Advanced Diagnostics.");
+                ImGui::TreePop();
+            }
+        }
+    }
+    ImGui::EndDisabled();
+    if (!m_PropertyDiagnostic.empty()) ImGui::TextWrapped("%s", m_PropertyDiagnostic.c_str());
+}
+
+void RigidBodySimulationApp::DrawPresentationSettings()
+{
         if (ImGui::TreeNode("Presentation (Developer)"))
         {
             bool interpolate = m_ActiveScene->IsRenderInterpolationEnabled();
@@ -1066,26 +1478,63 @@ void RigidBodySimulationApp::ImGuiRender()
             ImGui::TextUnformatted("Gold: mesh / Cyan: Physics / Magenta: presentation");
             ImGui::TreePop();
         }
+
+}
+
+void RigidBodySimulationApp::ImGuiRender()
+{
+    RBS_REVIEW_SCOPE(0);
+    GetInputManager()->BeginUIRouting();
+#ifdef GENGINE_PHASE26_IMPULSE_PRESENTATION_CHECKS
+    Rbs::DistanceChainImpulseChecks::OnUI(*this);
+#endif
+#ifdef GENGINE_LIFECYCLE_PICK_TRACE
+    PreEditorLifecycle::PickTraceUIBegin();
+#endif
+    if (SandboxEnabled())
+    {
+        Rbs::Editor::BeginFrame();
+        PrepareEditorLayout();
     }
-    ImGui::End();
-    Rbs::SyncColliderEditors(*m_ActiveScene, *m_SceneResources, m_ColliderOutlines, m_HoveredEntity, m_IsPause);
+    if (auto host = UI::BeginDockspaceHost({"DockSpace Demo", "MyDockSpace"}); !host)
+    {
+        if (SandboxEnabled()) Rbs::Editor::EndFrame();
+        ReportPlatformError(host.error());
+        m_Running = false;
+        return;
+    }
+    PrepareColliderUi();
+    if(SandboxEnabled())
+    {
+        DrawHierarchyRegion();
+        DrawInspectorRegion();
+        DrawDiagnosticsRegion();
+    }
+    else DrawLegacyDiagnosticPanels();
+    Rbs::SyncColliderEditors(*m_ActiveScene,*m_SceneResources,m_ColliderOutlines,m_HoveredEntity,m_IsPause);
 #ifdef GENGINE_RBS_SCENE_VALIDATION
-    if (ImGui::GetFrameCount() == 4)
-        ImGui::LogToFile(-1, "scene-ui-text.log");
+    if(ImGui::GetFrameCount()==4)ImGui::LogToFile(-1,"scene-ui-text.log");
 #endif
     DrawMenus();
 #if defined(GENGINE_INPUT_VALIDATION) && !defined(GENGINE_INPUT_CONTROL)
     PreEditorInput::DrawInputFixture();
 #endif
 #if defined(GENGINE_LIFECYCLE_VALIDATION) && !defined(GENGINE_INPUT_VALIDATION)
-    if (PreEditorLifecycle::UIActive()) PreEditorInput::DrawInputFixture();
+    if(PreEditorLifecycle::UIActive())PreEditorInput::DrawInputFixture();
 #endif
     DrawViewport();
+    if(SandboxEnabled())DrawCameraPanels();
 #ifdef GENGINE_RBS_SCENE_VALIDATION
-    if (ImGui::GetFrameCount() == 4)
-        ImGui::LogFinish();
+    if(ImGui::GetFrameCount()==4)ImGui::LogFinish();
 #endif
+    if(m_Launch.m_BackendSwitchChecks)Rbs::BackendSwitchChecks::InspectLayout(*this);
     UI::EndDockspaceHost();
+    PublishEditorInputRouting();
+    if (SandboxEnabled()) Rbs::Editor::EndFrame();
+}
+
+void RigidBodySimulationApp::PublishEditorInputRouting()
+{
     // Publish one completed UI descriptor for the next input poll. The viewport
     // background is a View surface; every active widget/menu/popup has UI priority.
     const auto& io = ImGui::GetIO();
@@ -1120,9 +1569,21 @@ void RigidBodySimulationApp::ImGuiRender()
     const unsigned navWindow = uiContext.NavWindow ? uiContext.NavWindow->ID : 0;
     const bool navTransferred = navWindow != m_ViewportNavWindow && navWindow &&
         viewportWindow && uiContext.NavWindow != viewportWindow;
-    if (!visible || active || popup || text || navTransferred)
+    // Viewport-owned controls temporarily consume pointer/keyboard input without
+    // retiring activation. Closing their popup must not cost the next scene click.
+    const bool navInViewport=viewportWindow && uiContext.NavWindow &&
+        ImGui::IsWindowChildOf(uiContext.NavWindow,const_cast<ImGuiWindow*>(viewportWindow),true,false);
+    const bool overlay = navInViewport && (m_ViewportOverlayInteracting || m_ViewportPopupOpen || m_GizmoUsing);
+    if(visible && overlay && (m_ViewportOverlayInteracting || m_GizmoUsing))
+    {SetViewportActive(true,false);m_ViewportRequestFocus=false;}
+    if (!visible || (!overlay && (active || popup || text || navTransferred)))
         SetViewportActive(false);
     m_ViewportNavWindow = navWindow;
+    // Reuse Hierarchy's one-shot activation+selection handoff after finishing a
+    // numeric edit. Active text, popup, drag/drop and Alt/camera routing still gate
+    // delivery; this does not forward the originating UI gesture into the View.
+    if(SandboxEnabled() && Rbs::Editor::Numeric::TakeSelectionHandoff())
+        m_HierarchySelectionHandoff=true;
     const InputRouting routing{
         GetWindow()->GetWindowID(),
         m_ViewportBounds[0].x - origin.x,
@@ -1231,48 +1692,57 @@ void RigidBodySimulationApp::ImGuiRender()
 #endif
 }
 
+
 void RigidBodySimulationApp::DrawShaderPanel()
 {
     ImGui::Begin("Custom shader reload");
     PublishPanelInputRegion();
+    DrawShaderSection();
+    ImGui::End();
+}
+
+void RigidBodySimulationApp::DrawShaderSection()
+{
     if (m_ShaderReloadGallery.material)
     {
-        ImGui::TextUnformatted("Both cubes share a shader; the clone keeps its lower brightness.");
+        ImGui::TextWrapped("Both cubes share a shader; the clone keeps its lower brightness.");
         if (ImGui::Button("Focus custom cubes") && m_CameraView == CameraView::Editor)
             FocusMaterialCamera(m_EditorCamera_, {1.5f, 5, -22}, .2f, 0, 12.f);
         if (ImGui::Button("Reload color edit"))
             m_ShaderReloadGallery.request = 1;
-        ImGui::SameLine();
         if (ImGui::Button("Restore original"))
             m_ShaderReloadGallery.request = 2;
         if (ImGui::Button("Try invalid shader"))
             m_ShaderReloadGallery.request = 3;
-        ImGui::SameLine();
         if (ImGui::Button("Try incompatible schema"))
             m_ShaderReloadGallery.request = 4;
         if (ImGui::Button("Prepare edit"))
             m_ShaderReloadGallery.request = 5;
-        ImGui::SameLine();
         if (ImGui::Button("Commit prepared"))
             m_ShaderReloadGallery.request = 6;
-        ImGui::SameLine();
         if (ImGui::Button("Cancel prepared"))
             m_ShaderReloadGallery.request = 7;
         ImGui::TextWrapped("%s", m_ShaderReloadGallery.message.c_str());
     }
     else
-        ImGui::TextDisabled("No shader target in this scene. Select GeometryGallery at launch.");
-    ImGui::End();
+        ImGui::TextWrapped("No shader target. Load GeometryGallery from the toolbar.");
 }
+
 
 void RigidBodySimulationApp::DrawMaterialPanel()
 {
     ImGui::Begin("Material authoring");
     PublishPanelInputRegion();
+    DrawMaterialSection();
+    ImGui::End();
+}
+
+void RigidBodySimulationApp::DrawMaterialSection()
+{
     if (m_MaterialGallery.uvMaterial)
     {
-        ImGui::TextUnformatted("Plane / Cube / Sphere / Capsule / Torus / Diamond");
-        ImGui::TextUnformatted("Same floor: UV front row, Triplanar second row");
+        ImGui::TextWrapped("Plane / Cube / Sphere / Capsule / Torus / Diamond");
+        ImGui::TextWrapped("Same floor: UV front row, Triplanar second row");
         if (ImGui::Button("Focus material comparison") && m_CameraView == CameraView::Editor)
         {
             FocusMaterialCamera(m_EditorCamera_, {0, 2, -22}, .35f, 0, 38.f);
@@ -1294,10 +1764,9 @@ void RigidBodySimulationApp::DrawMaterialPanel()
         if (auto desc = m_SceneResources->DescribeMaterial(m_MaterialGallery.triplanarMaterial);
             desc)
         {
-            bool changed = ImGui::SliderFloat("Projection repeats / local unit",
-                                              &desc->projectionScale.value, .001f, 8.f);
-            changed |= ImGui::SliderFloat("Blend sharpness", &desc->blendSharpness.value, 1, 8);
-            changed |= ImGui::SliderFloat("Normal strength", &desc->normalStrength, 0, 2);
+            bool changed = Rbs::Editor::Numeric::Scalar("Projection repeats / local unit",desc->projectionScale.value,.01f,Rbs::Editor::Numeric::Closed(.001f,1024.f));
+            changed |= Rbs::Editor::Numeric::Scalar("Blend sharpness",desc->blendSharpness.value,.01f,Rbs::Editor::Numeric::Closed(1.f,8.f),Rbs::Editor::Numeric::Accept{},true);
+            changed |= Rbs::Editor::Numeric::Scalar("Normal strength",desc->normalStrength,.01f,Rbs::Editor::Numeric::Closed(0.f,2.f),Rbs::Editor::Numeric::Accept{},true);
             if (changed)
                 if (auto edited =
                         m_SceneResources->EditMaterial(m_MaterialGallery.triplanarMaterial, *desc);
@@ -1306,9 +1775,9 @@ void RigidBodySimulationApp::DrawMaterialPanel()
         }
     }
     else
-        ImGui::TextDisabled("No material target in this scene. Select GeometryGallery at launch.");
-    ImGui::End();
+        ImGui::TextWrapped("No material target. Load GeometryGallery from the toolbar.");
 }
+
 
 void RigidBodySimulationApp::DrawAsyncMenu()
 {
@@ -1338,7 +1807,7 @@ void RigidBodySimulationApp::DrawAsyncMenu()
         ImGui::EndMenu();
     }
     if (ImGui::MenuItem("Load barrel mesh", nullptr, false,
-                        m_Launch.scene == Rbs::RbsScenePreset::GeometryGallery && m_WoodSettled &&
+                        m_ActiveSelection.scene == Rbs::RbsScenePreset::GeometryGallery && m_WoodSettled &&
                             !m_LoadBarrel))
         m_LoadBarrel = true;
 }
@@ -1394,19 +1863,17 @@ void RigidBodySimulationApp::DrawMenus()
             if (request.quality == ShadowQuality::Custom)
             {
                 int resolution = static_cast<int>(request.customResolution);
-                if (ImGui::InputInt("Resolution", &resolution, 64, 256,
-                                    ImGuiInputTextFlags_EnterReturnsTrue))
+                if (Rbs::Editor::Numeric::Scalar("Resolution",resolution,64.f,Rbs::Editor::Numeric::Closed(1,8192)))
                 {
                     request.customResolution =
-                        resolution > 0 ? static_cast<unsigned>(resolution) : 0;
+                        static_cast<unsigned>(resolution);
                     changed = true;
                 }
             }
-            int budget = static_cast<int>(request.byteBudget / (1024 * 1024));
-            if (ImGui::InputInt("Depth budget (MiB)", &budget, 48, 192,
-                                ImGuiInputTextFlags_EnterReturnsTrue))
+            std::uint64_t budget = request.byteBudget / (1024 * 1024);
+            if (Rbs::Editor::Numeric::Scalar("Depth budget (MiB)",budget,48.f,Rbs::Editor::Numeric::Closed(std::uint64_t{1},std::numeric_limits<std::uint64_t>::max()/(1024*1024))))
             {
-                request.byteBudget = budget > 0 ? std::uint64_t(budget) * 1024 * 1024 : 0;
+                request.byteBudget = budget * 1024 * 1024;
                 changed = true;
             }
             bool fallback = request.fallback == ShadowFallback::LowerTiers;
@@ -1438,6 +1905,7 @@ void RigidBodySimulationApp::DrawMenus()
             ImGui::EndMenu();
         }
         DrawCameraMenu();
+        if(SandboxEnabled())DrawEditorToolbar();
         ImGui::EndMenuBar();
     }
 }
@@ -1455,9 +1923,11 @@ void RigidBodySimulationApp::DrawCameraMenu()
     auto active = m_ActiveScene->ActiveSceneCamera();
     for (std::size_t slot = 0; slot != m_SceneCameras.size(); ++slot)
     {
-        if (!ImGui::BeginMenu(slot == 0 ? "Scene Camera A" : "Scene Camera B")) continue;
         const auto id = m_SceneCameras[slot];
-        const bool live = bool(m_ActiveScene->RenderData().Resolve(id));
+        const auto entity = m_ActiveScene->RenderData().Resolve(id);
+        const bool live = bool(entity);
+        const auto label = std::format("{}###SceneCamera{}",live ? _Entity{*entity,m_ActiveScene.get()}.Name() : "Missing Scene Camera",slot);
+        if (!ImGui::BeginMenu(label.c_str())) continue;
         if (ImGui::MenuItem("Select active", nullptr, active && *active && **active == id, live))
             (void)SelectSceneCamera(id);
         if (ImGui::MenuItem("Preview", nullptr,
@@ -1497,7 +1967,7 @@ void RigidBodySimulationApp::DrawViewport()
         ImGui::SetNextWindowSize(meshResize?ImVec2{720,504}:ImVec2{840,650}, ImGuiCond_Always);
     }
 #endif
-    const bool viewportVisible = ImGui::Begin("Viewport");
+    const bool viewportVisible = ImGui::Begin("Viewport",nullptr,SandboxEnabled() ? ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse : 0);
     auto viewportMinRegion = ImGui::GetWindowContentRegionMin();
     auto viewportMaxRegion = ImGui::GetWindowContentRegionMax();
     auto viewportOffset = ImGui::GetWindowPos();
@@ -1509,6 +1979,8 @@ void RigidBodySimulationApp::DrawViewport()
 
     m_ViewportForcused = ImGui::IsWindowFocused();
     m_ViewportHovered = ImGui::IsWindowHovered();
+    if(SandboxEnabled() && ImGui::IsWindowFocused() && !ImGui::IsAnyItemActive() && ImGui::IsKeyPressed(ImGuiKey_F2,false))
+        if(auto id=m_ActiveScene->RenderData().Identify(m_HoveredEntity))BeginEntityRename(*id);
 
     //GENGINE_INFO("Focused: {}", ImGui::IsWindowFocused());
     //GENGINE_INFO("Hovered: {}", ImGui::IsWindowHovered());
@@ -1545,10 +2017,29 @@ void RigidBodySimulationApp::DrawViewport()
             ReportFramebufferError("viewport image", image.error());
         else
         {
+            if(SandboxEnabled() && ImGui::BeginDragDropTarget())
+            {
+                if(const auto* payload=ImGui::AcceptDragDropPayload(Rbs::ScenePresetPayloadType))
+                {
+                    if(const auto selection=Rbs::DecodeScenePreset(payload->Data,std::size_t(payload->DataSize)))
+                        (void)RequestScene(*selection); // Only queues; Update owns transactional rebuild.
+                    else m_SceneDiagnostic="Invalid preset drop rejected; scene retained.";
+                }
+                ImGui::EndDragDropTarget();
+            }
             const auto minimum = ImGui::GetItemRectMin(), maximum = ImGui::GetItemRectMax();
             m_ViewportBounds[0] = {minimum.x, minimum.y};
             m_ViewportBounds[1] = {maximum.x, maximum.y};
         }
+    }
+    if(SandboxEnabled() && HasVisibleViewport()) {
+        // Reserve toolbar input first, then composite its existing draw commands
+        // above world gizmos even when responsive layout stacks the groups.
+        auto* draw=ImGui::GetWindowDrawList();draw->ChannelsSplit(2);
+        draw->ChannelsSetCurrent(1);DrawViewportOverlay();
+        draw->ChannelsSetCurrent(0);DrawViewportGizmo();
+        DrawImpulseOverlay();DrawComponentOverlays();DrawViewportMarquee();
+        draw->ChannelsSetCurrent(1);DrawGroupTransformActions();draw->ChannelsMerge();
     }
     if (!m_CameraAvailable && !m_CameraUnavailableDiagnostic.empty())
         ImGui::TextWrapped("%s", m_CameraUnavailableDiagnostic.c_str());
@@ -1561,7 +2052,7 @@ void RigidBodySimulationApp::DrawViewport()
     {
         // Keep fallback/command feedback visible over the image without changing
         // the viewport extent or introducing an input-consuming widget.
-        const ImVec2 position{m_ViewportBounds[0].x + 8.f, m_ViewportBounds[0].y + 8.f};
+        const ImVec2 position{m_ViewportBounds[0].x + 8.f, m_ViewportBounds[0].y + Rbs::Editor::Px(56)};
         const float wrap = (std::max)(1.f, m_ViewportBounds[1].x - position.x - 8.f);
         const auto size = ImGui::CalcTextSize(m_CameraDiagnostic.c_str(), nullptr, false, wrap);
         auto* draw = ImGui::GetWindowDrawList();

@@ -1,15 +1,28 @@
+#include "RbsEditorState.h"
 #include "RigidBodySimulation.h"
+#include "RbsEditorState.h"
+#include "Core/InitializationProgress.h"
 #include "Core/Log.h"
 #include "Core/Window.h"
+#include "Geometry/Geometry.h"
 #include "Scene/_Scene.h"
+#include <algorithm>
+#include <cstring>
 #include <format>
 
 #include "Managers/AssetsManager.h"
+#include "Managers/ShapeManager.h"
 #include "Physics/PhysicsWorld.h"
 #include <glm/gtx/quaternion.hpp>
 #include "../tests/RestingContactDiagnosis.h"
 #include "../tests/ColliderReplacementReplay.h"
 #include "../tests/OrdinaryMeshHighlightFixture.h"
+#if defined(GENGINE_PHASE26_QUALIFICATION) || defined(GENGINE_PHASE26_IMPULSE_PRESENTATION_CHECKS)
+#include "../tests/DistanceJointChecks.h"
+#endif
+#ifdef GENGINE_PHASE26_SANDBOX_CHECKS
+#include "../tests/SandboxChecks.h"
+#endif
 
 using namespace ::GEngine;
 using namespace ::GEngine::Asset;
@@ -20,6 +33,61 @@ using namespace ::GEngine::Camera;
 
 namespace
 {
+    // Five immutable prototypes use the existing retained-source shape adapter.
+    // Only UVs differ from the unit cube; entity scale still owns every dimension.
+    class SandboxRoomGeometry final : public Geometry
+    {
+    public:
+        SandboxRoomGeometry(const MeshAsset& cube, const Rbs::SandboxEnvironment::Box& box,
+                            std::size_t positionOffset, std::size_t normalOffset)
+        {
+            const auto count = cube.VertexCount();
+            std::vector<Vec3f> positions(count), normals(count), colors(count, Vec3f{1.f});
+            std::vector<Vec2f> uv(count);
+            std::vector<unsigned int> indices(cube.IndexCount());
+            static_assert(sizeof(unsigned int) == sizeof(std::uint32_t));
+            std::memcpy(indices.data(), cube.Indices().data(), cube.Indices().size());
+            constexpr float floorRepeats = 16.f;
+            constexpr float repeat = Rbs::SandboxEnvironment::Width / floorRepeats;
+            constexpr float innerWidth = Rbs::SandboxEnvironment::Width -
+                                         2.f * Rbs::SandboxEnvironment::WallThickness;
+            constexpr float half = innerWidth * .5f;
+            const auto phase = [repeat](float distance)
+                { return distance - repeat * static_cast<int>(distance / repeat); };
+            // Whole-repeat offsets are immaterial to Repeat sampling. Reduce
+            // them before division so thin faces retain Float32 UV precision.
+            const float westPhase = phase(3.f * innerWidth + half);
+            const float eastPhase = phase(innerWidth + half);
+            const float northPhase = phase(2.f * innerWidth + half);
+            const float originPhase = phase(half);
+            const Vec3f center{box.center[0], box.center[1], box.center[2]};
+            const Vec3f size{box.size[0], box.size[1], box.size[2]};
+            for (std::size_t i = 0; i < count; ++i)
+            {
+                const auto* vertex = cube.Vertices().data() + i * cube.Layout().strideBytes;
+                std::memcpy(&positions[i].x, vertex + positionOffset, 3 * sizeof(float));
+                std::memcpy(&normals[i].x, vertex + normalOffset, 3 * sizeof(float));
+                const auto p = center + positions[i] * size;
+                const auto n = normals[i];
+                // Keep each generated face's tangent/bitangent handedness. All
+                // vertical faces share world-up V and a common perimeter U phase.
+                // The closing corner preserves the native grout grid; its source
+                // mottling has a wrap seam because 632 / 10 is not an integer.
+                const float v = p.y - Rbs::SandboxEnvironment::FloorTop;
+                if (n.x > .5f) uv[i] = {westPhase - p.z, v};
+                else if (n.x < -.5f) uv[i] = {eastPhase + p.z, v};
+                else if (n.y > .5f) uv[i] = {p.x + originPhase, originPhase - p.z};
+                else if (n.y < -.5f) uv[i] = {p.x + originPhase, p.z + originPhase};
+                else if (n.z > .5f) uv[i] = {p.x + originPhase, v};
+                else uv[i] = {northPhase - p.x, v};
+                uv[i] /= repeat;
+            }
+            AddAttributes(positions, colors, uv, normals);
+            AddIndices(indices);
+            UnBindVAO();
+        }
+    };
+
     Rbs::RbsScenePreset DebugValidationScene(Rbs::RbsScenePreset selected)
     {
 #ifdef GENGINE_PHASE23_DEBUG_GALLERY
@@ -155,12 +223,12 @@ std::expected<Asset::Texture*, Asset::TextureError>
 RigidBodySimulationApp::LoadSceneTexture(const std::string& path, const std::string& uniform,
                                          const std::string& extension, const TextureDesc& desc)
 {
+    InitializationProgress::Pulse();
     auto texture = AssetsManager::GetTextureOrFallback(path, uniform, extension, desc);
     if (!texture)
     {
         Log::GetCoreLogger()->error("Texture {}: {}", texture.error().source,
                                     texture.error().message);
-        m_Running = false;
     }
     return texture;
 }
@@ -170,10 +238,15 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeSceneRoot()
     m_FarPlane = 100;
     m_EditorScene = CreateRefPtr<_Scene>();
     m_ActiveScene = m_EditorScene;
+    if(auto configured=m_ActiveScene->ConfigurePhysicsBackend(m_Backend);!configured)
+        return std::unexpected(PlatformError{PlatformErrorCode::Initialization,"Physics backend","Requested backend unavailable"});
+    Log::GetCoreLogger()->info("Physics backend: {}. {}",PhysicsBackendName(m_Backend),PhysicsBackendModelNote(m_Backend));
     m_EditorCamera_ = _EditorCamera(45.0f, 1280.f, 720.f, 0.1f, 1000.f);
     float cameraFarClip = m_EditorCamera_.GetFarClip();
     m_ShadowCascadeLevels = {cameraFarClip / 50.f, cameraFarClip / 25.f, cameraFarClip / 10.f,
                              cameraFarClip / 2.f, cameraFarClip};
+    if (SandboxEnabled())
+        m_ShadowCascadeLevels[3] = 320.f;
     auto view = m_ActiveScene->CreateEditorViewIdentity();
     if (!view)
         return std::unexpected(PlatformError{PlatformErrorCode::Initialization, "Editor view",
@@ -191,7 +264,7 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeSceneRoot()
 
 ApplicationInitializationResult RigidBodySimulationApp::CreateSceneCamera(std::size_t slot)
 {
-    auto created = m_ActiveScene->CreateEntity(slot == 0 ? "Scene Camera A" : "Scene Camera B");
+    auto created = CreatePresetEntity(1,slot == 0 ? "Scene Camera A" : "Scene Camera B");
     if (!created) return std::unexpected(created.error());
     auto entity = *created;
     auto& camera = entity.AddComponent<RenderCameraComponent>();
@@ -233,6 +306,29 @@ ApplicationInitializationResult RigidBodySimulationApp::PublishSceneMeshes(Rbs::
 
 ApplicationInitializationResult RigidBodySimulationApp::LoadSceneIcons()
 {
+    if(SandboxEnabled())
+    {
+        constexpr int sizes[]{20,25,30,40};
+        for(std::size_t i=0;i<m_ViewportIconAtlases.size();++i)
+        {
+            const auto name="Editor/Icons/viewport-"+std::to_string(sizes[i]);
+            if(!RuntimeAssets::TryFile("Images/"+name+".png"))
+                return std::unexpected(Asset::TextureError{Asset::TextureErrorCode::InvalidDescription, name, "Missing Viewport icon atlas"});
+            auto icon=LoadSceneTexture(name);
+            if(!icon)return std::unexpected(icon.error());
+            m_ViewportIconAtlases[i]=*icon;
+
+        }
+        for(int i=0;i<7;++i) {
+            constexpr int billboardSizes[]{44,55,66,88,110,132,176};
+            const auto billboardName="Editor/Icons/viewport-"+std::to_string(billboardSizes[i]);
+            if(!RuntimeAssets::TryFile("Images/"+billboardName+".png"))
+                return std::unexpected(Asset::TextureError{Asset::TextureErrorCode::InvalidDescription,billboardName,"Missing Camera/Light billboard atlas"});
+            auto billboard=LoadSceneTexture(billboardName);
+            if(!billboard)return std::unexpected(billboard.error());
+            m_ComponentIconAtlases[i]=*billboard;
+        }
+    }
     auto m_IconPlayResult = LoadSceneTexture("Icons/PlayButton");
     if (!m_IconPlayResult)
         return std::unexpected(m_IconPlayResult.error());
@@ -375,16 +471,39 @@ RigidBodySimulationApp::CreateSceneMaterials(Rbs::SceneAssets& assets)
         return SceneFailure(boxMaterialResult.error());
     assets.boxMaterial = *boxMaterialResult;
     m_AsyncBoxMaterial = assets.boxMaterial;
+    if (SandboxEnabled())
+    {
+        // The room owns its surface appearance. Keep the fixture materials above
+        // independent, including the box's historical floor-channel combination.
+        for (const auto material : {assets.floorMaterial, assets.wallMaterial})
+        {
+            auto surface = m_SceneResources->DescribeMaterial(material);
+            if (!surface)
+                return SceneFailure(surface.error());
+            surface->baseColor = {1.f, 1.f, 1.f, 1.f};
+            surface->metallic = 1.f;
+            surface->roughness = 1.f;
+            surface->normalStrength = 1.f;
+            surface->aoStrength = 1.f;
+            surface->normalConvention = NormalMapConvention::NegativeY;
+            surface->dielectricReflectance = {.04f, .04f, .04f};
+            // Preserve all five original tile maps. Factors of one retain their
+            // authored variation; per-face mesh UVs provide ten world units per repeat.
+            surface->uvTiling = {1.f, 1.f};
+            if (auto edited = m_SceneResources->EditMaterial(material, *surface); !edited)
+                return SceneFailure(edited.error());
+        }
+    }
     return {};
 }
 
 ApplicationInitializationResult RigidBodySimulationApp::CreateSceneLights(Rbs::SceneAssets& assets)
 {
-    auto createdSceneEntity1 = m_ActiveScene->CreateEntity("ambient_light");
+    auto createdSceneEntity1 = CreatePresetEntity(2,"ambient_light");
     if (!createdSceneEntity1)
         return std::unexpected(createdSceneEntity1.error());
     auto ambientLightEntity = *createdSceneEntity1;
-    auto createdSceneEntity2 = m_ActiveScene->CreateEntity("point_light");
+    auto createdSceneEntity2 = CreatePresetEntity(3,"point_light");
     if (!createdSceneEntity2)
         return std::unexpected(createdSceneEntity2.error());
     m_PointLightEntity = *createdSceneEntity2;
@@ -392,6 +511,12 @@ ApplicationInitializationResult RigidBodySimulationApp::CreateSceneLights(Rbs::S
     m_LightPos = {0, 15, -10};
     RenderLightComponent direction;
     direction.color = {.7f, .7f, .7f};
+    if (SandboxEnabled())
+    {
+        // D65 daylight white in the renderer's linear RGB working space.
+        direction.color = {1.f, 1.f, 1.f};
+        direction.intensity = 3.0f;
+    }
     direction.castShadows = true;
     ambientLightEntity.AddOrReplaceComponent<RenderLightComponent>(direction);
     auto& lightTransform = ambientLightEntity.GetComponent<Transform3DComponent>();
@@ -401,6 +526,14 @@ ApplicationInitializationResult RigidBodySimulationApp::CreateSceneLights(Rbs::S
     point.color = {.8f, .2f, .1f};
     point.range = m_FarPlane;
     point.castShadows = true;
+    if (SandboxEnabled())
+    {
+        point.color = {1.f, 1.f, 1.f};
+        point.intensity = 1.f;
+        point.range = 200.f;
+        point.castShadows = false;
+        m_LightPos = {0, 45, 0};
+    }
     m_PointLightEntity.AddOrReplaceComponent<RenderLightComponent>(point);
     m_PointLightEntity.AddOrReplaceComponent<Transform3DComponent>(m_LightPos);
     auto pointMesh = m_SceneResources->PublishShape("PointLightHelper");
@@ -421,7 +554,7 @@ ApplicationInitializationResult RigidBodySimulationApp::CreateSceneLights(Rbs::S
 ApplicationInitializationResult RigidBodySimulationApp::CreatePhysicsScene(Rbs::SceneAssets& assets)
 {
 #ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
-    if (Rbs::ColliderReplay::Enabled() && DebugValidationScene(m_Launch.scene) != Rbs::RbsScenePreset::SphereBoxStack)
+    if (Rbs::ColliderReplay::Enabled() && DebugValidationScene(m_ActiveSelection.scene) != Rbs::RbsScenePreset::SphereBoxStack)
         return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"Collider replay","Replay manifest requires SphereBoxStack"});
 #endif
     RigidBody3DComponent rigidBodyComp;
@@ -440,7 +573,7 @@ ApplicationInitializationResult RigidBodySimulationApp::CreatePhysicsScene(Rbs::
     boxFixtureComp.Property.m_Friction = 0.5f;
     boxFixtureComp.Property.m_Elasticity = 0.5f;
 
-    switch (DebugValidationScene(m_Launch.scene))
+    switch (DebugValidationScene(m_ActiveSelection.scene))
     {
     case Rbs::RbsScenePreset::GeometryGallery:
         return {};
@@ -469,7 +602,7 @@ ApplicationInitializationResult RigidBodySimulationApp::CreateEnvironmentHelpers
                                                 helperParameters, true);
     if (!gridMaterial)
         return SceneFailure(gridMaterial.error());
-    auto createdSceneEntity9 = m_ActiveScene->CreateEntity("grid");
+    auto createdSceneEntity9 = CreatePresetEntity(4,"grid");
     if (!createdSceneEntity9)
         return std::unexpected(createdSceneEntity9.error());
     m_GridEntity = *createdSceneEntity9;
@@ -486,7 +619,7 @@ ApplicationInitializationResult RigidBodySimulationApp::CreateEnvironmentHelpers
                                                 helperParameters, true, 3.f);
     if (!axisMaterial)
         return SceneFailure(axisMaterial.error());
-    auto createdSceneEntity10 = m_ActiveScene->CreateEntity("axis");
+    auto createdSceneEntity10 = CreatePresetEntity(5,"axis");
     if (!createdSceneEntity10)
         return std::unexpected(createdSceneEntity10.error());
     m_AxisEntity = *createdSceneEntity10;
@@ -511,7 +644,7 @@ ApplicationInitializationResult RigidBodySimulationApp::CreateEnvironmentHelpers
         PublishTexturedMaterial(*m_SceneResources, SceneMaterialKind::Sky, {*skyTexture}, {}, true);
     if (!skyMaterial)
         return SceneFailure(skyMaterial.error());
-    auto createdSceneEntity11 = m_ActiveScene->CreateEntity("Environment_SkyBox");
+    auto createdSceneEntity11 = CreatePresetEntity(6,"Environment_SkyBox");
     if (!createdSceneEntity11)
         return std::unexpected(createdSceneEntity11.error());
     m_SkyBoxEntity = *createdSceneEntity11;
@@ -525,6 +658,58 @@ ApplicationInitializationResult RigidBodySimulationApp::CreateEnvironmentHelpers
 ApplicationInitializationResult
 RigidBodySimulationApp::CreateGroundAndWalls(const Rbs::SceneAssets& assets)
 {
+    if (SandboxEnabled())
+    {
+        // Both mesh and collider consume the same unit-box transform. End walls
+        // stop at the side-wall inside faces, making solid, nonoverlapping corners.
+        const auto room = Rbs::SandboxEnvironment::Boxes();
+        auto cube = m_SceneResources->GeometrySource(assets.boxMesh);
+        if (!cube) return SceneFailure(cube.error());
+        const VertexAttribute* position = nullptr;
+        const VertexAttribute* normal = nullptr;
+        for (const auto& attribute : cube->source->Layout().attributes)
+        {
+            if (attribute.semantic == VertexSemantic::Position) position = &attribute;
+            if (attribute.semantic == VertexSemantic::Normal) normal = &attribute;
+        }
+        if (cube->source->VertexCount() != 24 || cube->source->IndexCount() != 36 ||
+            cube->source->IndexFormat() != MeshIndexFormat::UInt32 || !position || !normal ||
+            position->scalar != VertexScalarFormat::Float32 || position->components != 3 ||
+            normal->scalar != VertexScalarFormat::Float32 || normal->components != 3)
+            return SceneFailure({"sandbox tile cube source", GeometryAuthoringCode::UnsupportedLayout});
+        for (const auto& box : room)
+        {
+            const auto material = box.floor ? assets.floorMaterial : assets.wallMaterial;
+            const std::string shapeName = std::string("RbsSandboxTile-v2/") + box.name;
+            auto shape = ShapeManager::_GetShape<SandboxRoomGeometry>(shapeName, *cube->source,
+                box, position->offsetBytes, normal->offsetBytes);
+            if (!shape)
+                return std::visit([](const auto& error) -> ApplicationInitializationResult
+                    { return std::unexpected(error); }, shape.error());
+            auto mesh = m_SceneResources->PublishShape(shapeName);
+            if (!mesh) return SceneFailure(mesh.error());
+            auto created = CreatePresetEntity(7,box.name);
+            if (!created) return std::unexpected(created.error());
+            auto entity = *created;
+            const Vec3f center{box.center[0], box.center[1], box.center[2]};
+            const Vec3f size{box.size[0], box.size[1], box.size[2]};
+            entity.AddOrReplaceComponent<Transform3DComponent>(center, Vec3f{}, size);
+            RigidBody3DComponent body;
+            body.Type = BodyType::Static;
+            entity.AddOrReplaceComponent<RigidBody3DComponent>(body);
+            BoxFixture3DComponent fixture;
+            fixture.Shape.halfExtents = Vec3f{.5f};
+            fixture.Property.m_Position = center;
+            fixture.Property.m_InvMass = 0.f;
+            fixture.Property.m_Friction = .5f;
+            fixture.Property.m_Elasticity = .5f;
+            entity.AddOrReplaceComponent<BoxFixture3DComponent>(fixture);
+            if (auto authored = CreateRenderable(entity, *mesh, material, "Box"); !authored)
+                return authored;
+        }
+        return {};
+    }
+
     RigidBody3DComponent rigidBodyComp;
     rigidBodyComp.Type = BodyType::Static;
 
@@ -532,6 +717,7 @@ RigidBodySimulationApp::CreateGroundAndWalls(const Rbs::SceneAssets& assets)
     if (!createdSceneEntity12)
         return std::unexpected(createdSceneEntity12.error());
     _Entity planeEntity = *createdSceneEntity12;
+    RegisterPresetEntity(planeEntity,25);
     const auto planeGeo = assets.boxMesh;
     BoxFixture3DComponent planeFixtureComp;
     planeFixtureComp.Shape.halfExtents = Vec3f{.5f};
@@ -553,6 +739,7 @@ RigidBodySimulationApp::CreateGroundAndWalls(const Rbs::SceneAssets& assets)
     if (!createdSceneEntity13)
         return std::unexpected(createdSceneEntity13.error());
     _Entity wallEntity_1 = *createdSceneEntity13;
+    RegisterPresetEntity(wallEntity_1,26);
     if (auto authored = CreateRenderable(wallEntity_1, planeGeo, assets.wallMaterial, "Box");
         !authored)
         return authored;
@@ -569,6 +756,7 @@ RigidBodySimulationApp::CreateGroundAndWalls(const Rbs::SceneAssets& assets)
     if (!createdSceneEntity14)
         return std::unexpected(createdSceneEntity14.error());
     _Entity wallEntity_2 = *createdSceneEntity14;
+    RegisterPresetEntity(wallEntity_2,27);
     if (auto authored = CreateRenderable(wallEntity_2, planeGeo, assets.wallMaterial, "Box");
         !authored)
         return authored;
@@ -585,6 +773,7 @@ RigidBodySimulationApp::CreateGroundAndWalls(const Rbs::SceneAssets& assets)
     if (!createdSceneEntity15)
         return std::unexpected(createdSceneEntity15.error());
     _Entity wallEntity_3 = *createdSceneEntity15;
+    RegisterPresetEntity(wallEntity_3,28);
     if (auto authored = CreateRenderable(wallEntity_3, planeGeo, assets.wallMaterial, "Box");
         !authored)
         return authored;
@@ -601,6 +790,7 @@ RigidBodySimulationApp::CreateGroundAndWalls(const Rbs::SceneAssets& assets)
     if (!createdSceneEntity16)
         return std::unexpected(createdSceneEntity16.error());
     _Entity wallEntity_4 = *createdSceneEntity16;
+    RegisterPresetEntity(wallEntity_4,29);
     if (auto authored = CreateRenderable(wallEntity_4, planeGeo, assets.wallMaterial, "Box");
         !authored)
         return authored;
@@ -621,7 +811,7 @@ RigidBodySimulationApp::CreateTemplateGallery(Rbs::SceneAssets& assets)
 {
     assets.normalPhysicsBodies = m_ActiveScene->GetAllEntitiesWith<RigidBody3DComponent>().size();
     assets.galleryFixtures = 0;
-    if (DebugValidationScene(m_Launch.scene) == Rbs::RbsScenePreset::GeometryGallery)
+    if (DebugValidationScene(m_ActiveSelection.scene) == Rbs::RbsScenePreset::GeometryGallery)
     {
         // Template dimensions remain independent of Transform scale. The two
         // Capsule examples also carry explicit static colliders for inspection.
@@ -640,7 +830,7 @@ RigidBodySimulationApp::CreateTemplateGallery(Rbs::SceneAssets& assets)
             auto mesh = m_SceneResources->PublishGeometry(fixture.request);
             if (!mesh)
                 return SceneFailure(mesh.error());
-            auto created = m_ActiveScene->CreateEntity(fixture.name);
+            auto created = CreatePresetEntity(8,fixture.name);
             if (!created)
                 return std::unexpected(created.error());
             created->AddOrReplaceComponent<Transform3DComponent>(fixture.position, Vec3f{},
@@ -676,7 +866,7 @@ RigidBodySimulationApp::CreateTemplateGallery(Rbs::SceneAssets& assets)
                 auto mesh = m_SceneResources->PublishGeometry(request);
                 if (!mesh)
                     return SceneFailure(mesh.error());
-                auto created = m_ActiveScene->CreateEntity(
+                auto created = CreatePresetEntity(9,
                     std::format("{} {}", curved[family].name, row == 0 ? "Smooth" : "Flat"));
                 if (!created)
                     return std::unexpected(created.error());
@@ -706,17 +896,17 @@ RigidBodySimulationApp::CreateTemplateGallery(Rbs::SceneAssets& assets)
     }
     if (m_Launch.validation.Includes(Rbs::ValidationCheck::ParametricGeometry))
     {
-        const std::size_t capsuleBodies = DebugValidationScene(m_Launch.scene) == Rbs::RbsScenePreset::GeometryGallery ? 2 : 0;
+        const std::size_t capsuleBodies = DebugValidationScene(m_ActiveSelection.scene) == Rbs::RbsScenePreset::GeometryGallery ? 2 : 0;
         if (assets.normalPhysicsBodies + capsuleBodies !=
                 m_ActiveScene->GetAllEntitiesWith<RigidBody3DComponent>().size() ||
             assets.galleryFixtures !=
-                ((DebugValidationScene(m_Launch.scene) == Rbs::RbsScenePreset::GeometryGallery) ? 15u : 0u))
+                ((DebugValidationScene(m_ActiveSelection.scene) == Rbs::RbsScenePreset::GeometryGallery) ? 15u : 0u))
             return std::unexpected(
                 PlatformError{PlatformErrorCode::Initialization, "Phase 07 gallery",
                               "Gallery altered expected Physics membership or fixture count"});
         Log::GetCoreLogger()->info(
             "PRE_EDITOR_PHASE_07_GALLERY_PASS enabled={} fixtures={} physics_bodies={}",
-            (DebugValidationScene(m_Launch.scene) == Rbs::RbsScenePreset::GeometryGallery), assets.galleryFixtures,
+            (DebugValidationScene(m_ActiveSelection.scene) == Rbs::RbsScenePreset::GeometryGallery), assets.galleryFixtures,
             assets.normalPhysicsBodies);
     }
 
@@ -733,7 +923,7 @@ RigidBodySimulationApp::CreateGeometryExamples(Rbs::SceneAssets& assets)
     auto authoringMesh = m_SceneResources->PublishGeometry(authoringCube);
     if (!authoringMesh)
         return SceneFailure(authoringMesh.error());
-    auto authoringSource = m_ActiveScene->CreateEntity("Phase08 Source");
+    auto authoringSource = CreatePresetEntity(10,"Phase08 Source");
     if (!authoringSource)
         return std::unexpected(authoringSource.error());
     authoringSource->Transform().SetTranslation({-6, 2, 6});
@@ -744,6 +934,7 @@ RigidBodySimulationApp::CreateGeometryExamples(Rbs::SceneAssets& assets)
     auto authoringDuplicate = authoringSource->Duplicate();
     if (!authoringDuplicate)
         return std::unexpected(authoringDuplicate.error());
+    RegisterPresetEntity(*authoringDuplicate,30);
     authoringDuplicate->Name() = "Phase08 Unique Bake";
     authoringDuplicate->Transform().SetTranslation({0, 2, 6});
     if (auto dimensions = m_SceneResources->SetDimensions(*authoringSource, {4, 6, 8}); !dimensions)
@@ -753,7 +944,7 @@ RigidBodySimulationApp::CreateGeometryExamples(Rbs::SceneAssets& assets)
     authoringDuplicate->Transform().SetScale({2, 1, .5f});
     if (auto baked = m_SceneResources->BakeGeometry(*authoringDuplicate); !baked)
         return SceneFailure(baked.error());
-    auto regenerated = m_ActiveScene->CreateEntity("Phase08 Regenerated");
+    auto regenerated = CreatePresetEntity(11,"Phase08 Regenerated");
     if (!regenerated)
         return std::unexpected(regenerated.error());
     regenerated->Transform().SetTranslation({6, 2, 6});
@@ -769,7 +960,7 @@ RigidBodySimulationApp::CreateGeometryExamples(Rbs::SceneAssets& assets)
 
     if (m_Launch.validation.Includes(Rbs::ValidationCheck::GeometryAuthoring))
     {
-        if (!(DebugValidationScene(m_Launch.scene) == Rbs::RbsScenePreset::GeometryGallery) ||
+        if (!(DebugValidationScene(m_ActiveSelection.scene) == Rbs::RbsScenePreset::GeometryGallery) ||
             assets.galleryFixtures != 15u ||
             assets.normalPhysicsBodies !=
                 m_ActiveScene->GetAllEntitiesWith<RigidBody3DComponent>().size())
@@ -778,7 +969,7 @@ RigidBodySimulationApp::CreateGeometryExamples(Rbs::SceneAssets& assets)
                 "Authoring preset requires the existing gallery and Physics membership"});
         Log::GetCoreLogger()->info(
             "PRE_EDITOR_PHASE_08_GALLERY_PASS enabled={} fixtures={} physics_bodies={}",
-            (DebugValidationScene(m_Launch.scene) == Rbs::RbsScenePreset::GeometryGallery), assets.galleryFixtures,
+            (DebugValidationScene(m_ActiveSelection.scene) == Rbs::RbsScenePreset::GeometryGallery), assets.galleryFixtures,
             assets.normalPhysicsBodies);
     }
 
@@ -806,7 +997,7 @@ RigidBodySimulationApp::CreateMaterialGallery(const Rbs::SceneAssets& assets)
     projection->mapping = TextureMappingMode::Triplanar;
     if (auto edited = m_SceneResources->EditMaterial(*triplanarGallery, *projection); !edited)
         return SceneFailure(edited.error());
-    auto galleryParent = m_ActiveScene->CreateEntity("Material mapping transform");
+    auto galleryParent = CreatePresetEntity(12,"Material mapping transform");
     if (!galleryParent)
         return std::unexpected(galleryParent.error());
     m_MaterialGallery.parent = *galleryParent;
@@ -822,7 +1013,7 @@ RigidBodySimulationApp::CreateMaterialGallery(const Rbs::SceneAssets& assets)
             return SceneFailure(mesh.error());
         for (unsigned mode = 0; mode < 2; ++mode)
         {
-            auto entity = m_ActiveScene->CreateEntity(
+            auto entity = CreatePresetEntity(13,
                 std::format("{} {}", mappingNames[i], mode ? "Triplanar" : "UV"));
             if (!entity)
                 return std::unexpected(entity.error());
@@ -872,7 +1063,7 @@ RigidBodySimulationApp::CreateMaterialGallery(const Rbs::SceneAssets& assets)
         auto material = m_SceneResources->CreateMaterial(desc);
         if (!material)
             return SceneFailure(material.error());
-        auto entity = m_ActiveScene->CreateEntity(std::format("Typed material kind {}", i));
+        auto entity = CreatePresetEntity(14,std::format("Typed material kind {}", i));
         if (!entity)
             return std::unexpected(entity.error());
         entity->Transform().SetTranslation({-8.f + 4.f * i, 2.f, -28.f});
@@ -926,7 +1117,7 @@ void main() {
     auto customMaterial = m_SceneResources->CreateMaterial(*customDescription);
     if (!customMaterial)
         return SceneFailure(customMaterial.error());
-    auto customObject = m_ActiveScene->CreateEntity("Phase10 Custom Shader");
+    auto customObject = CreatePresetEntity(15,"Phase10 Custom Shader");
     if (!customObject)
         return std::unexpected(customObject.error());
     customObject->Transform().SetTranslation({0.f, 5.f, -22.f});
@@ -972,7 +1163,7 @@ void main() {
     m_ShaderReloadGallery.clone = *customClone;
     if (auto changed = m_SceneResources->SetMaterialParameter(*customClone, "gain", .35f); !changed)
         return SceneFailure(changed.error());
-    auto cloneObject = m_ActiveScene->CreateEntity("Phase11 Custom Shader Clone");
+    auto cloneObject = CreatePresetEntity(16,"Phase11 Custom Shader Clone");
     if (!cloneObject)
         return std::unexpected(cloneObject.error());
     cloneObject->Transform().SetTranslation({3.f, 5.f, -22.f});
@@ -986,8 +1177,11 @@ void main() {
     return {};
 }
 
-ApplicationInitializationResult RigidBodySimulationApp::StartSceneRuntime()
+ApplicationInitializationResult RigidBodySimulationApp::StartSceneRuntime(const BackendAuthoring* authoring)
 {
+    FreezePresetSignatures();
+    if(authoring)
+        if(auto restored=authoring->ApplyBeforeStart(*m_ActiveScene);!restored)return restored;
     // Scene's PhysicsWorld owns its runtime bodies and shapes through teardown.
     if (auto started = m_ActiveScene->OnRuntimeStart(); !started)
         return std::unexpected(started.error());
@@ -1012,7 +1206,7 @@ RigidBodySimulationApp::CreateAsyncExamples(const Rbs::SceneAssets& assets)
         return SceneFailure(edited.error());
     for (int i = 0; i < 3; ++i)
     {
-        auto entity = m_ActiveScene->CreateEntity(std::format("Async texture {}", i));
+        auto entity = CreatePresetEntity(17,std::format("Async texture {}", i));
         if (!entity)
             return std::unexpected(entity.error());
         entity->Transform().SetTranslation({-3.f + 3.f * i, 8.f, -22.f});
@@ -1026,8 +1220,11 @@ RigidBodySimulationApp::CreateAsyncExamples(const Rbs::SceneAssets& assets)
     return {};
 }
 
-ApplicationInitializationResult RigidBodySimulationApp::InitializeScene()
+ApplicationInitializationResult RigidBodySimulationApp::InitializeScene(const BackendAuthoring* authoring)
 {
+    m_BuildingPreset=SandboxEnabled();m_PresetOrdinals={};
+    struct EndPreset {bool& flag;~EndPreset(){flag=false;}} endPreset{m_BuildingPreset};
+    InitializationProgress::Report(InitializationProgress::Stage::Scene,"Loading scene resources");
     Rbs::SceneAssets assets;
     if (auto result = InitializeSceneRoot(); !result)
         return result;
@@ -1035,6 +1232,7 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeScene()
         return result;
     if (auto result = LoadSceneIcons(); !result)
         return result;
+    InitializationProgress::Report(InitializationProgress::Stage::Scene,"Loading textures and materials");
     if (auto result = LoadSurfaceTextures(assets); !result)
         return result;
     if (auto result = CreateSceneMaterials(assets); !result)
@@ -1069,6 +1267,100 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeScene()
             m_EditorCamera_.GetPosition().y,m_EditorCamera_.GetPosition().z,m_ActiveScene->GetPhysicsStep().count());
         return ConnectApplicationEventHandlers();
     }
+
+    if (m_ActiveSelection.IsDistanceScene())
+    {
+        if(!m_ActiveSelection.IsValid())
+            return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"DistanceChain","Invalid startup configuration"});
+        const unsigned n=m_ActiveSelection.scene==Rbs::RbsScenePreset::DistancePendulum?1:m_ActiveSelection.chainLinks;
+        const bool contact=m_ActiveSelection.scene==Rbs::RbsScenePreset::DistanceChainContact;
+        const bool sandbox=SandboxEnabled();
+        // Author the room first so the established reverse body insertion still
+        // publishes root/links first. G8's sole interactive ground is this floor.
+        if (sandbox)
+            if (auto result=CreateGroundAndWalls(assets);!result) return result;
+        std::array<_Entity,18> entities;
+        const unsigned count=n+1+(contact && !sandbox?1:0);
+        // EnTT's RigidBody component view traverses reverse insertion order.
+        // Insert bodies backwards so the world publishes root,links,ground.
+        for(unsigned reverse=count;reverse>0;--reverse) {
+            const unsigned i=reverse-1;
+            const bool ground=i==n+1;
+            auto created=CreatePresetEntity(18,ground?"G8 ground":i==0?"Chain root":"Chain link "+std::to_string(i));
+            if(!created)return std::unexpected(created.error());
+            auto e=*created; entities[i]=e;
+            const Vec3f position=ground?Vec3f(0):contact?Vec3f(2.25f*i,1.5f,0):Vec3f(0,1.5f+2.25f*(n-i),0);
+            e.AddOrReplaceComponent<Transform3DComponent>(position,Vec3f(0),ground?Vec3f(100,1,100):Vec3f(1));
+            RigidBody3DComponent body; body.Type=(i==0||ground)?BodyType::Static:BodyType::Dynamic;
+            e.AddOrReplaceComponent<RigidBody3DComponent>(body);
+            if(ground) {
+                BoxFixture3DComponent f; f.Shape.halfExtents=Vec3f(.5f);
+                f.Property.m_InvMass=0; f.Property.m_Friction=.5f; f.Property.m_Elasticity=.5f;
+                e.AddOrReplaceComponent<BoxFixture3DComponent>(f);
+            } else {
+                SphereFixture3DComponent f; f.Radius=1;
+                f.Property.m_InvMass=i==0?0.f:1.f; f.Property.m_Friction=.5f; f.Property.m_Elasticity=.5f;
+                f.Property.m_LinearVelocity=Vec3f(0); f.Property.m_AngularVelocity=Vec3f(0);
+                e.AddOrReplaceComponent<SphereFixture3DComponent>(f);
+            }
+            if(auto authored=CreateRenderable(e,ground?assets.boxMesh:assets.smoothSphereGeo,
+                    ground?assets.floorMaterial:assets.sphereMaterial,ground?"Box":"");!authored)return authored;
+        }
+        if(auto result=CreateEnvironmentHelpers();!result)return result;
+        if(auto result=StartSceneRuntime(authoring);!result)return result;
+        auto* physics=m_ActiveScene->GetPhysicsSystem(); auto* world=physics->GetPhysicsWorld();
+        std::array<PhysicsBodyHandle,18> handles;
+        for(unsigned i=0;i<count;++i) {
+            auto binding=m_ActiveScene->GetBodyBinding(entities[i]);
+            auto ordinal=world->BodyAt(i);
+            if(!binding || (!sandbox && (!ordinal || *binding!=*ordinal)))
+                return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"DistanceChain","Deterministic world membership mismatch"});
+            handles[i]=*binding;
+            if(!world->SetBodyMaterial(handles[i],{.5f,.5f,.05f,.05f}) ||
+                !world->SetBodySleepSettings(handles[i],{.05f,.02f,.5}))
+                return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"DistanceChain","Material/sleep settings rejected"});
+        }
+        if (sandbox)
+        {
+            // Preserve G8's admitted contact material on its one authoritative
+            // floor. Resolve room bodies by entity identity, never body ordinals.
+            const auto room = Rbs::SandboxEnvironment::Boxes();
+            unsigned configured = 0;
+            for (auto id : m_ActiveScene->GetAllEntitiesWith<RigidBody3DComponent>())
+            {
+                _Entity entity{id, m_ActiveScene.get()};
+                if (std::none_of(room.begin(), room.end(), [&](const auto& box) {
+                        return entity.Name() == box.name;
+                    })) continue;
+                auto binding = m_ActiveScene->GetBodyBinding(entity);
+                if (!binding || !world->SetBodyMaterial(*binding,{.5f,.5f,.05f,.05f}) ||
+                    !world->SetBodySleepSettings(*binding,{.05f,.02f,.5}))
+                    return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"DistanceChain",
+                        "Shared room material/sleep settings rejected"});
+                ++configured;
+            }
+            if (configured != room.size())
+                return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"DistanceChain",
+                    "Shared room body membership mismatch"});
+        }
+        for(unsigned i=1;i<=n;++i) {
+            if(!world->CreateDistanceJoint({handles[i-1],handles[i],{},{},2.25f,false}))
+                return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"DistanceChain","Joint creation rejected"});
+        }
+        if(auto bound=BindDistanceCommands(handles[n],contact);!bound)return bound;
+        const Vec3f focal=contact?Vec3f(9,1.5f,0):Vec3f(0,1.5f+1.125f*n,0);
+        FocusMaterialCamera(m_EditorCamera_,focal,sandbox?.28f:.12f,contact?-.25f:0.f,
+                            contact?30.f:12.f+3.f*n);
+        m_IsShowDebugBoundingBox=true;
+        Log::GetCoreLogger()->info("RBS scene={} links={} bodies={} joints={} fixedHz=60 passes=1 kickAfterTick=300",
+            Rbs::SceneName(m_ActiveSelection.scene),n,world->GetBodyCount(),world->GetJointCount());
+        if(auto result=ConnectApplicationEventHandlers();!result)return result;
+#ifdef GENGINE_PHASE26_QUALIFICATION
+        Rbs::Phase26::Attach(*m_ActiveScene,*physics,*this,m_Launch);
+#endif
+        return {};
+    }
+
     if (auto result = CreatePhysicsScene(assets); !result)
         return result;
     if (auto result = CreateEnvironmentHelpers(); !result)
@@ -1079,7 +1371,7 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeScene()
         return result;
     // The preset owns the complete scene. Authoring demos are never shared
     // infrastructure for the Physics fixtures, and UI cannot create them later.
-    if (DebugValidationScene(m_Launch.scene) == Rbs::RbsScenePreset::GeometryGallery)
+    if (DebugValidationScene(m_ActiveSelection.scene) == Rbs::RbsScenePreset::GeometryGallery)
     {
         if (auto result = CreateGeometryExamples(assets); !result)
             return result;
@@ -1088,15 +1380,18 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeScene()
         if (auto result = CreateShaderGallery(assets); !result)
             return result;
     }
-    if (auto result = StartSceneRuntime(); !result)
+    if (auto result = StartSceneRuntime(authoring); !result)
         return result;
+#ifdef GENGINE_PHASE26_QUALIFICATION
+    Rbs::Phase26::Attach(*m_ActiveScene,*m_ActiveScene->GetPhysicsSystem(),*this,m_Launch);
+#endif
     if (auto result = ValidateRuntimeScene(assets); !result)
         return result;
     if (auto result = ConnectApplicationEventHandlers(); !result)
         return result;
     if (auto result = ValidateScaleBridge(assets); !result)
         return result;
-    if (DebugValidationScene(m_Launch.scene) == Rbs::RbsScenePreset::GeometryGallery)
+    if (DebugValidationScene(m_ActiveSelection.scene) == Rbs::RbsScenePreset::GeometryGallery)
         if (auto result = CreateAsyncExamples(assets); !result)
             return result;
 #ifdef GENGINE_RBS_SCENE_VALIDATION
@@ -1107,6 +1402,19 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeScene()
     // Exercise real UI/resource frames without stepping the fixture oracle.
     m_IsPause = true;
 #endif
+    if (SandboxEnabled())
+    {
+        Vec3f focal{3.f, 6.f, 0.f};
+        float distance = 42.f;
+        switch (m_ActiveSelection.scene)
+        {
+        case Rbs::RbsScenePreset::GeometryGallery: focal = {0, 4, -14}; distance = 55.f; break;
+        case Rbs::RbsScenePreset::SphereDiamond: focal = {0, 5, 0}; distance = 70.f; break;
+        case Rbs::RbsScenePreset::SphereLattice: focal = {3, 14, 3}; distance = 55.f; break;
+        default: break;
+        }
+        FocusMaterialCamera(m_EditorCamera_, focal, .28f, -.2f, distance);
+    }
     return {};
 }
 
@@ -1116,7 +1424,7 @@ RigidBodySimulationApp::CreateSphereDiamond(const Rbs::SceneAssets& assets,
                                             SphereFixture3DComponent& sphereFixtureComp)
 {
     sphereFixtureComp.Property.m_LinearVelocity = {-80.f, 0.f, 0.f};
-    auto createdSceneEntity3 = m_ActiveScene->CreateEntity("wood_sphere_0");
+    auto createdSceneEntity3 = CreatePresetEntity(19,"wood_sphere_0");
     if (!createdSceneEntity3)
         return std::unexpected(createdSceneEntity3.error());
     _Entity woodSphereEntity = *createdSceneEntity3;
@@ -1144,7 +1452,7 @@ RigidBodySimulationApp::CreateSphereDiamond(const Rbs::SceneAssets& assets,
     convexFixtureComp.Property.m_InvMass = 1.f;
     convexFixtureComp.Property.m_AngularVelocity = {5.f, 0.f, 5.f};
     convexFixtureComp.Property.m_LinearVelocity = {100.f, 0.f, 0.f};
-    auto createdSceneEntity4 = m_ActiveScene->CreateEntity("Diamond");
+    auto createdSceneEntity4 = CreatePresetEntity(20,"Diamond");
     if (!createdSceneEntity4)
         return std::unexpected(createdSceneEntity4.error());
     _Entity DiamondEntity = *createdSceneEntity4;
@@ -1170,7 +1478,7 @@ RigidBodySimulationApp::CreateSphereLattice(const Rbs::SceneAssets& assets,
                                             SphereFixture3DComponent& sphereFixtureComp)
 {
     sphereFixtureComp.Property.m_LinearVelocity = {0.f, 0.f, 0.f};
-    static int i = 0;
+    int i = 0;
     _Entity spherePrototype;
 
     for (int z = 1; z < 6; z++)
@@ -1184,10 +1492,11 @@ RigidBodySimulationApp::CreateSphereLattice(const Rbs::SceneAssets& assets,
                 float zz = float(y - 1) * sphereFixtureComp.Radius * 2.f;
                 auto createdSceneEntity5 = spherePrototype
                                                ? spherePrototype.Duplicate()
-                                               : m_ActiveScene->CreateEntity("wood_sphere");
+                                               : CreatePresetEntity(21,"wood_sphere");
                 if (!createdSceneEntity5)
                     return std::unexpected(createdSceneEntity5.error());
                 _Entity woodSphereEntity = *createdSceneEntity5;
+                RegisterPresetEntity(woodSphereEntity,Rbs::Editor::SphereLatticeSphereRole);
                 woodSphereEntity.Name() = "wood_sphere" + std::to_string(i++);
                 if (!spherePrototype)
                     spherePrototype = woodSphereEntity;
@@ -1221,7 +1530,7 @@ ApplicationInitializationResult RigidBodySimulationApp::CreateBoxStack(
         for (int x = 0; x < 4; x++)
         {
 
-            auto createdSceneEntity6 = m_ActiveScene->CreateEntity("wood_box");
+            auto createdSceneEntity6 = CreatePresetEntity(22,"wood_box");
             if (!createdSceneEntity6)
                 return std::unexpected(createdSceneEntity6.error());
             _Entity woodBoxEntity = *createdSceneEntity6;
@@ -1259,6 +1568,7 @@ ApplicationInitializationResult RigidBodySimulationApp::CreateSphereBoxStack(
             if (!createdSceneEntity7)
                 return std::unexpected(createdSceneEntity7.error());
             _Entity woodBoxEntity = *createdSceneEntity7;
+    RegisterPresetEntity(woodBoxEntity,23);
 
             woodBoxEntity.AddOrReplaceComponent<Transform3DComponent>(
                 Vec3f{x * (offset + 0.01f), 1.5f + y * offset, 0.f}, Vec3f{0.f}, Vec3f{2.f});
@@ -1281,6 +1591,7 @@ ApplicationInitializationResult RigidBodySimulationApp::CreateSphereBoxStack(
     if (!createdSceneEntity8)
         return std::unexpected(createdSceneEntity8.error());
     _Entity woodSphereEntity = *createdSceneEntity8;
+    RegisterPresetEntity(woodSphereEntity,24);
 
     woodSphereEntity.AddOrReplaceComponent<Transform3DComponent>(Vec3f{3.5f, 5.0f, -20.f});
 
@@ -1295,5 +1606,47 @@ ApplicationInitializationResult RigidBodySimulationApp::CreateSphereBoxStack(
         !authored)
         return authored;
 
+    return {};
+}
+
+ApplicationInitializationResult RigidBodySimulationApp::BindDistanceCommands(PhysicsBodyHandle tip, bool contact)
+{
+    auto* physics=m_ActiveScene->GetPhysicsSystem();
+        m_ChainImpulse.Bind(tip,
+#ifdef GENGINE_PHASE26_QUALIFICATION
+            false
+#else
+            true
+#endif
+        );
+#ifdef GENGINE_PHASE26_QUALIFICATION
+        if (!Rbs::DistanceChainImpulseChecks::QualificationIsolation(*this))
+            return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"DistanceChain","Manual impulse isolation failed"});
+#endif
+        physics->SetBeforeStep([this,physics,tip,contact](PhysicsWorld& w,std::uint64_t tick) {
+            if(physics->HasJointFailure()) {
+                FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Physics","DistanceJoint","Update","Phase26","Joint numerical failure"}); return;
+            }
+#ifdef GENGINE_PHASE26_QUALIFICATION
+            if(tick==300)Rbs::Phase26::CaptureWork(w,tip,contact?Vec3f(0,0,.5f):Vec3f(.5f,0,0));
+#endif
+            if(tick==300 && !w.ApplyLinearImpulse(tip,contact?Vec3f(0,0,.5f):Vec3f(.5f,0,0)))
+                FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Physics","DistanceJoint","ApplyImpulse","Phase26","Commanded impulse rejected"});
+#ifndef GENGINE_PHASE26_QUALIFICATION
+#ifdef GENGINE_PHASE26_IMPULSE_PRESENTATION_CHECKS
+            Rbs::DistanceChainImpulseChecks::BeforeBoundary(*this);
+#endif
+#ifdef GENGINE_PHASE26_SANDBOX_CHECKS
+            Rbs::SandboxChecks::BeforeBoundary(*this);
+#endif
+            m_ChainImpulse.Consume(w, m_ActiveScene->IsPaused());
+#ifdef GENGINE_PHASE26_SANDBOX_CHECKS
+            Rbs::SandboxChecks::AfterBoundary(*this);
+#endif
+#ifdef GENGINE_PHASE26_IMPULSE_PRESENTATION_CHECKS
+            Rbs::DistanceChainImpulseChecks::AfterBoundary(*this);
+#endif
+#endif
+        });
     return {};
 }

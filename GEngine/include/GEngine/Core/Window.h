@@ -47,6 +47,8 @@ namespace GEngine
 		uint32_t m_Height = 600;
 		uint32_t m_MinWidth = 480;
 		uint32_t m_MinHeight = 320;
+        bool m_DpiAwareMinimum = false; // Opt-in editor logical minimum, bounded by usable display.
+        bool m_PaintBeforeShow = false; // Interactive editor: first visible client surface is fully painted.
 
 		float m_AspectRatio = 16.f / 9.f;
 		float m_Red = 0.f;

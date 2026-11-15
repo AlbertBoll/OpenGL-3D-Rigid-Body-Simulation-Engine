@@ -1,4 +1,7 @@
 #include "gepch.h"
+#include "Physics/JoltAuditObservation.h"
+#include "Scene/EditorTransformBudget.h"
+#include "Core/InitializationProgress.h"
 #include "../Assets/ShaderBackend.h"
 #include <Scene/_Scene.h>
 #include "Physics/PhysicsWorld.h"
@@ -302,6 +305,7 @@ namespace GEngine
 
 		newScene->m_ViewportWidth = other->m_ViewportWidth;
 		newScene->m_ViewportHeight = other->m_ViewportHeight;
+        newScene->m_PhysicsBackend = other->m_PhysicsBackend;
 
 		auto& srcSceneRegistry = other->m_Registry;
 		auto& dstSceneRegistry = newScene->m_Registry;
@@ -388,6 +392,9 @@ namespace GEngine
 
 	void _Scene::Update(Timestep ts)
 	{
+#ifdef GENGINE_JOLT_FINAL_AUDIT
+        JoltAudit::Scope auditScene(0);
+#endif
 		m_RenderData.RequireMutable();
 		auto* timingWorld = m_PhysicsSystem->GetPhysicsWorld();
 		if (!timingWorld || timingWorld != m_TimingWorld)
@@ -512,6 +519,19 @@ namespace GEngine
         input.translation = transform.Translation;
         input.rotation = transform.QuatRotation;
         input.scale = transform.Scale;
+        if(m_EditorTransformPreviewCount)
+        {
+            const auto end=m_EditorTransformPreview.begin()+m_EditorTransformPreviewCount;
+            const auto preview=std::lower_bound(m_EditorTransformPreview.begin(),end,entt::to_entity(handle),
+                [](const auto& edit,auto index){return edit.entity.index<index;});
+            if(preview!=end)
+            if(auto e=m_RenderData.Resolve(preview->entity);e && *e==handle)
+            {
+                const auto& value=preview->after;
+                input.translation=value.translation;input.rotation=value.rotation;input.scale=value.scale;
+                return input;
+            }
+        }
         const auto* pose = m_Registry.try_get<RuntimePhysicsPose>(handle);
         const auto* rigidBody = m_Registry.try_get<RigidBody3DComponent>(handle);
         // Lifetime/readiness is tested freshly, before any body dereference.
@@ -655,6 +675,123 @@ namespace GEngine
                                                    AuthoritativeTransformChangeKind::Pose);
     }
 
+    std::expected<EditorTransformValue,TransformMutationError> _Scene::ReadEditorTransform(EntityRenderId id) const
+    {
+        auto e=m_RenderData.Resolve(id);
+        if(!e || !m_Registry.all_of<Transform3DComponent>(*e))
+            return std::unexpected(TransformMutationError{TransformMutationErrorCode::InvalidEntity});
+        const auto& t=m_Registry.get<Transform3DComponent>(*e);
+        EditorTransformValue value{t.Translation,t.QuatRotation,t.Scale};
+        const _Entity entity{*e,const_cast<_Scene*>(this)};
+        if(entity.HasAllComponents<RigidBody3DComponent>())
+        {
+            auto body=ReadBodyTransform(entity);if(!body)return std::unexpected(body.error());
+            value.translation=body->current.translation;value.rotation=body->current.rotation;
+        }
+        return value;
+    }
+
+    std::expected<void,TransformMutationError> _Scene::PreviewEditorTransforms(std::span<const EditorTransformEdit> edits)
+    {
+        using Error=TransformMutationErrorCode;
+        if(m_RenderData.IsExtracting() || m_ApplyingTransform || edits.size()>EditorTransformBudget::Roots)
+            return std::unexpected(TransformMutationError{Error::MutationActive});
+        for(const auto& edit:edits)
+        {
+            auto before=ReadEditorTransform(edit.entity);
+            if(!before || *before!=edit.before)return std::unexpected(TransformMutationError{Error::InvalidEntity});
+            const auto& v=edit.after;
+            if(!Math::IsFinite(v.translation)||!Math::IsFinite(v.rotation)||!Math::IsFinite(v.scale)||
+                std::abs(glm::dot(v.rotation,v.rotation)-1.f)>1e-4f || v.scale.x<=0 || v.scale.y<=0 || v.scale.z<=0)
+                return std::unexpected(TransformMutationError{Error::NonFiniteTransform});
+        }
+        try {m_EditorTransformPreview.assign(edits.begin(),edits.end());}
+        catch(const std::bad_alloc&) {return std::unexpected(TransformMutationError{Error::AllocationFailed});}
+        m_EditorTransformPreviewCount=edits.size();
+        std::sort(m_EditorTransformPreview.begin(),m_EditorTransformPreview.begin()+m_EditorTransformPreviewCount,
+            [](const auto& a,const auto& b){return a.entity.index<b.entity.index;});
+        return {};
+    }
+
+    std::expected<void,TransformMutationError> _Scene::ApplyEditorTransforms(std::span<const EditorTransformEdit> edits)
+    {
+        using Error=TransformMutationErrorCode;
+        if(m_RenderData.IsExtracting() || m_ApplyingTransform || edits.empty() || edits.size()>EditorTransformBudget::Roots)
+            return std::unexpected(TransformMutationError{Error::MutationActive});
+        // Construct even MSVC Debug iterator proxies inside the fallible preparation.
+        struct Staging {
+            std::vector<PhysicsSystem::BodyTransformEdit> bodies=std::vector<PhysicsSystem::BodyTransformEdit>(std::size_t(0));
+            std::vector<entt::entity> entities=std::vector<entt::entity>(std::size_t(0)),sorted=std::vector<entt::entity>(std::size_t(0));
+            std::vector<AuthoritativeTransformChange> notifications=std::vector<AuthoritativeTransformChange>(std::size_t(0));
+        };
+        std::unique_ptr<Staging> storage;std::size_t bodyCount=0;
+        try {storage=std::make_unique<Staging>();storage->bodies.resize(edits.size());storage->entities.resize(edits.size());storage->notifications.resize(edits.size());storage->sorted.reserve(edits.size());}
+        catch(const std::bad_alloc&) {return std::unexpected(TransformMutationError{Error::AllocationFailed});}
+        auto& bodies=storage->bodies;auto& entities=storage->entities;auto& sorted=storage->sorted;auto& notifications=storage->notifications;
+        for(std::size_t i=0;i<edits.size();++i)
+        {
+            const auto& edit=edits[i];auto e=m_RenderData.Resolve(edit.entity);
+            if(!e)return std::unexpected(TransformMutationError{Error::InvalidEntity});
+            entities[i]=*e;const _Entity entity{*e,this};
+            if(auto valid=ValidateTransformMutation(entity);!valid)return std::unexpected(valid.error());
+            const auto parent=entity.GetParent();
+            if((parent?m_RenderData.Identify(parent).value_or(EntityRenderId{}):EntityRenderId{})!=edit.parent)
+                return std::unexpected(TransformMutationError{Error::InvalidParent,entity.GetUUID()});
+            sorted.push_back(*e);
+            auto before=ReadEditorTransform(edit.entity);
+            if(!before || *before!=edit.before)return std::unexpected(TransformMutationError{Error::InvalidEntity,entity.GetUUID()});
+            const auto& v=edit.after;const float length=glm::dot(v.rotation,v.rotation);
+            if(!Math::IsFinite(v.translation)||!Math::IsFinite(v.rotation)||!Math::IsFinite(v.scale)||
+                !std::isfinite(length)||length<=0 || v.scale.x<=0 || v.scale.y<=0 || v.scale.z<=0)
+                return std::unexpected(TransformMutationError{Error::NonFiniteTransform,entity.GetUUID()});
+            const auto body=GetBodyBinding(entity);
+            if(edit.body || entity.HasAllComponents<RigidBody3DComponent>())
+            {
+                if(!body || *body!=edit.body)return std::unexpected(TransformMutationError{Error::MissingPhysicsBody,entity.GetUUID()});
+                if(parent)return std::unexpected(TransformMutationError{Error::InvalidParent,entity.GetUUID()});
+                auto& b=bodies[bodyCount++];b.body=*body;b.position=v.translation;b.rotation=v.rotation;
+                if(v.scale!=edit.before.scale){b.scale=v.scale;b.referenceScale=edit.before.scale;}
+            }
+        }
+        std::sort(sorted.begin(),sorted.end());
+        if(std::adjacent_find(sorted.begin(),sorted.end())!=sorted.end())return std::unexpected(TransformMutationError{Error::InvalidEntity});
+        // A caller must provide transform roots, never a parent and descendant.
+        for(auto e:entities)for(auto parent=_Entity{e,this}.GetParent();parent;parent=parent.GetParent())
+            if(std::binary_search(sorted.begin(),sorted.end(),static_cast<entt::entity>(parent)))
+                return std::unexpected(TransformMutationError{Error::InvalidParent});
+        if(bodyCount)
+            if(auto changed=m_PhysicsSystem->SetBodyTransforms({bodies.data(),bodyCount});!changed)
+                return std::unexpected(TransformMutationError{Error::PhysicsPoseRejected,UUID{0},UUID{0},changed.error()});
+        // Geometry and body updates have committed. Store all authoring values before
+        // publishing notifications; legacy pre-store scale hooks are not batch APIs.
+        m_ApplyingTransform=true;
+        for(std::size_t i=0;i<edits.size();++i)
+        {
+            const auto& edit=edits[i];auto& t=m_Registry.get<Transform3DComponent>(entities[i]);
+            const auto length=glm::dot(edit.after.rotation,edit.after.rotation);
+            t.Translation=edit.after.translation;t.SetRotation(std::abs(length-1.f)<=4*std::numeric_limits<float>::epsilon()?edit.after.rotation:glm::normalize(edit.after.rotation));t.Scale=edit.after.scale;
+            if(edit.body)
+            {
+                auto& pose=m_Registry.get<RuntimePhysicsPose>(entities[i]);
+                const auto body=*m_PhysicsSystem->ReadBodyPose(edit.body);
+                PublishPhysicsPose(t,pose,body);pose.authored={t.Translation,t.QuatRotation};
+                ResetPhysicsHistory(pose,t,body,_Entity{entities[i],this}.GetParentUUID());
+            }
+            notifications[i]={edit.entity,_Entity{entities[i],this}.GetParentUUID(),
+                edit.before.scale!=edit.after.scale?AuthoritativeTransformChangeKind::Scale:AuthoritativeTransformChangeKind::Pose,
+                t.Translation,t.EulerRotation,t.Scale,t.QuatRotation};
+        }
+        m_EditorTransformPreviewCount=0;
+        for(std::size_t i=0;i<edits.size();++i)
+        {
+            // Dispatch already-owned values: an earlier subscriber may destroy a
+            // later entity after the complete atomic commit, without dangling borrows.
+            if(!m_AuthoritativeTransformChanges.Dispatch(notifications[i]))
+                GENGINE_CORE_ERROR("Editor transform batch committed; notification delivery failed");
+        }
+        m_ApplyingTransform=false;return {};
+    }
+
     std::expected<AuthoritativeTransformMutation, TransformMutationError>
     _Scene::SetLocalPose(const _Entity& entity, const Vec3f& translation, const Quat& rotation)
     {
@@ -707,7 +844,7 @@ namespace GEngine
             liveHandle = *body;
             // Shape allocation, validation and body-space representability checks
             // complete before either live shape or authoritative Transform commits.
-            auto scaled = m_PhysicsSystem->SetBodyScale(liveHandle, scale);
+            auto scaled = m_PhysicsSystem->SetBodyScale(liveHandle, scale, transform.Scale);
             if (!scaled)
                 return std::unexpected(TransformMutationError{Error::PhysicsScaleRejected,
                     entity.GetUUID(), UUID{0}, scaled.error()});
@@ -1178,6 +1315,81 @@ namespace GEngine
 			(void)ResetRenderInterpolation(_Entity(e, this)); // Live member of this scene.
 	}
 
+    PhysicsBodyResult<> _Scene::ConfigurePhysicsBackend(PhysicsBackend backend)
+    {
+        m_RenderData.RequireMutable();
+        if(m_IsRunning || m_PhysicsSystem->GetPhysicsWorld())
+            return std::unexpected(PhysicsBodyError{PhysicsBodyErrorCode::Busy,{},"ConfigurePhysicsBackend requires a stopped Scene"});
+        if(!PhysicsBackendAvailable(backend))
+            return std::unexpected(PhysicsBodyError{PhysicsBodyErrorCode::BackendUnavailable,{},"ConfigurePhysicsBackend"});
+        m_PhysicsBackend=backend;return {};
+    }
+
+    std::expected<void, PhysicsShapeError> _Scene::RebuildPhysicsBackend(PhysicsBackend backend)
+    {
+        m_RenderData.RequireMutable();
+        const auto fail=[](PhysicsShapeErrorCode code,std::string_view message) {
+            return std::unexpected(PhysicsShapeError{code,"RebuildPhysicsBackend",message});
+        };
+        if(!PhysicsBackendAvailable(backend))return fail(PhysicsShapeErrorCode::BackendUnavailable,"Backend not compiled in");
+        auto* world=m_PhysicsSystem->GetPhysicsWorld();
+        if(!world){m_PhysicsBackend=backend;return {};}
+        if(!world->CheckAccess("RebuildPhysicsBackend",true))
+            return fail(PhysicsShapeErrorCode::BackendFailure,"World is busy or owned by another thread");
+        struct AuthoredBody {
+            entt::entity m_Entity;PhysicsBodyHandle m_Old;SceneBodyPose m_Pose;
+            PhysicsMaterial m_Material;RigidBody3D::SleepSettings m_Sleep;
+        };
+        struct AuthoredJoint { DistanceJointDesc m_Desc;std::size_t m_A,m_B; };
+        std::vector<AuthoredBody> bodies;bodies.reserve(world->GetBodyCount());
+        std::vector<AuthoredJoint> joints;joints.reserve(world->GetJointCount());
+        for(auto e:m_Registry.view<RigidBody3DComponent,Transform3DComponent,RuntimePhysicsPose>())
+        {
+            const auto& pose=m_Registry.get<RuntimePhysicsPose>(e);
+            auto body=world->ReadBody(pose.handle);
+            if(!body)return fail(PhysicsShapeErrorCode::BackendFailure,"Invalid Scene body binding");
+            if(backend==PhysicsBackend::Jolt &&
+                (body->shapeType!=ShapeType::Sphere && body->shapeType!=ShapeType::Box))
+                return fail(PhysicsShapeErrorCode::UnsupportedFeature,"Jolt supports sphere/box; current world retained");
+            if(backend==PhysicsBackend::Jolt && body->sleep!=RigidBody3D::SleepSettings{})
+                return fail(PhysicsShapeErrorCode::UnsupportedFeature,"Jolt custom Native sleep thresholds unsupported; current world retained");
+            bodies.push_back({e,pose.handle,pose.authored,body->material,body->sleep});
+        }
+        if(bodies.size()!=world->GetBodyCount())
+            return fail(PhysicsShapeErrorCode::UnsupportedFeature,"Every rebuilt body needs authored Scene state");
+        for(std::size_t i=0;i<world->GetJointCount();++i)
+        {
+            auto handle=world->JointAt(i);if(!handle)return fail(PhysicsShapeErrorCode::BackendFailure,"Invalid joint identity");
+            auto joint=world->ReadDistanceJoint(*handle);if(!joint)return fail(PhysicsShapeErrorCode::BackendFailure,"Invalid joint endpoints");
+            auto a=std::find_if(bodies.begin(),bodies.end(),[&](const auto& b){return b.m_Old==joint->descriptor.bodyA;});
+            auto b=std::find_if(bodies.begin(),bodies.end(),[&](const auto& b){return b.m_Old==joint->descriptor.bodyB;});
+            if(a==bodies.end() || b==bodies.end())return fail(PhysicsShapeErrorCode::UnsupportedFeature,"Joint endpoint has no authored Scene entity");
+            joints.push_back({joint->descriptor,std::size_t(a-bodies.begin()),std::size_t(b-bodies.begin())});
+        }
+        // From this point a failure leaves a stopped Scene with its authoring
+        // state intact. No old simulation handle or callback survives teardown.
+        OnRuntimeStop();
+        for(const auto& body:bodies){auto& transform=m_Registry.get<Transform3DComponent>(body.m_Entity);
+            transform.SetTranslation(body.m_Pose.translation);transform.SetRotation(body.m_Pose.rotation);}
+        m_PhysicsBackend=backend;
+        auto started=OnRuntimeStart();if(!started)return started;
+        auto* replacement=m_PhysicsSystem->GetPhysicsWorld();
+        for(const auto& body:bodies)
+        {
+            const auto handle=m_Registry.get<RigidBody3DComponent>(body.m_Entity).RuntimeBody;
+            if(!replacement->SetBodyMaterial(handle,body.m_Material) || !replacement->SetBodySleepSettings(handle,body.m_Sleep))
+            {OnRuntimeStop();return fail(PhysicsShapeErrorCode::BackendFailure,"Rebuilt body material/sleep rejected");}
+        }
+        for(auto& joint:joints)
+        {
+            joint.m_Desc.bodyA=m_Registry.get<RigidBody3DComponent>(bodies[joint.m_A].m_Entity).RuntimeBody;
+            joint.m_Desc.bodyB=m_Registry.get<RigidBody3DComponent>(bodies[joint.m_B].m_Entity).RuntimeBody;
+            if(!replacement->CreateDistanceJoint(joint.m_Desc))
+            {OnRuntimeStop();return fail(PhysicsShapeErrorCode::BackendFailure,"Rebuilt distance joint rejected");}
+        }
+        SetPaused(true);return {};
+    }
+
     std::expected<void, PhysicsShapeError> _Scene::OnRuntimeStart()
     {
         m_RenderData.RequireMutable();
@@ -1276,6 +1488,26 @@ namespace GEngine
 
         m_Registry.emplace_or_replace<Component::MeshRendererComponent>(entity, value);
         return SceneAssignmentChange{true, ++m_RenderAssignmentRevision};
+    }
+
+    std::expected<void, SceneError> _Scene::RenameEntity(_Entity entity, std::string_view name)
+    {
+        m_RenderData.RequireMutable();
+        if(entity.GetSceneContext()!=this || !m_Registry.valid(entity) || !entity.HasAllComponents<TagComponent>())
+            return std::unexpected(SceneError{SceneErrorCode::InvalidIdentity,"RenameEntity","Stale or foreign entity"});
+        bool content=false;
+        for(unsigned char c:name) {
+            if(c<32 || c==127)return std::unexpected(SceneError{SceneErrorCode::InvalidIdentity,"RenameEntity","Names cannot contain control characters"});
+            content|=c!=' ';
+        }
+        if(!content)return std::unexpected(SceneError{SceneErrorCode::InvalidIdentity,"RenameEntity","Name cannot be empty or whitespace"});
+        auto& tag=entity.GetComponent<TagComponent>();
+        if(tag.Name==name)return {};
+        try {
+            std::string proposed(name),origin=tag.NameBeforeEditorRename.empty()?tag.Name:tag.NameBeforeEditorRename;
+            tag.Name.swap(proposed);tag.NameBeforeEditorRename.swap(origin);
+        } catch(const std::bad_alloc&) {return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"RenameEntity","Name allocation failed"});}
+        return {};
     }
 
     std::expected<_Entity, SceneError> _Scene::DuplicateEntity(_Entity entity)
@@ -1735,9 +1967,18 @@ namespace GEngine
         if (!world)
             return std::unexpected(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
                 "_Scene::OnPhysics3DStart", "Physics world allocation failed"});
+        if(auto configured=world->ConfigureBackend(m_PhysicsBackend);!configured)
+        {
+            delete world;
+            return std::unexpected(PhysicsShapeError{PhysicsShapeErrorCode::BackendUnavailable,
+                "_Scene::OnPhysics3DStart","Requested Physics backend could not initialize"});
+        }
         m_PhysicsSystem->SetPhysicsWorld(world);
+        std::uint64_t initializedBodies=0;
+        const auto totalBodies=m_Registry.view<RigidBody3DComponent>().size();
         for (auto e : m_Registry.view<RigidBody3DComponent>())
         {
+            InitializationProgress::Report(InitializationProgress::Stage::Physics,"Constructing scene bodies",initializedBodies++,totalBodies);
             _Entity entity{e, this};
             auto& transform = entity.GetComponent<Transform3DComponent>();
             auto& rigid = entity.GetComponent<RigidBody3DComponent>();
@@ -1801,6 +2042,17 @@ namespace GEngine
                     created.error().code == PhysicsBodyErrorCode::IdentityExhausted)
                     return failure(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
                         "_Scene::OnPhysics3DStart", "Physics body allocation or identity capacity exhausted"});
+                if(m_PhysicsBackend==PhysicsBackend::Jolt)
+                {
+                    const auto* hull = dynamic_cast<const ShapeConvex*>(shape.get());
+                    const auto count = hull ? hull->GetPoints().size() : 0;
+                    GENGINE_CORE_ERROR("Scene body rejected: entity={} name={} shape={} local_points={} scale=({},{},{}) mass={} operation={} code={}",
+                        std::uint64_t(entity.GetUUID()), entity.GetName(), shape ? int(shape->GetShapeType()) : -1,
+                        count, transform.Scale.x, transform.Scale.y, transform.Scale.z, desc.mass,
+                        created.error().operation, unsigned(created.error().code));
+                    return failure(PhysicsShapeError{PhysicsShapeErrorCode::BackendFailure,
+                        "_Scene::OnPhysics3DStart", "Jolt body rejected; see entity/shape diagnostics; candidate world stopped", 0.f, count});
+                }
                 // Retain the existing authored-input rejection policy: no invalid body is published.
                 GENGINE_CORE_ERROR("Physics body input rejected: operation={} code={} entity={}",
                     created.error().operation, unsigned(created.error().code), std::uint64_t(entity.GetUUID()));

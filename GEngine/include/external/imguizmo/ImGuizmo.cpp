@@ -1629,9 +1629,12 @@ namespace ImGuizmo
          const ImVec2 axisStartOnScreen = worldToPos(gContext.mModel.v.position + dirAxis * gContext.mScreenFactor * 0.1f, gContext.mViewProjection);
          const ImVec2 axisEndOnScreen = worldToPos(gContext.mModel.v.position + dirAxis * gContext.mScreenFactor, gContext.mViewProjection);
 
-         vec_t closestPointOnAxis = PointOnSegment(makeVect(posOnPlanScreen), makeVect(axisStartOnScreen), makeVect(axisEndOnScreen));
+         // GEngine editor correction: hit-test the visible screen segment directly.
+         // Intersecting the axis-normal plane can land at the eye (w=0) when
+         // viewing perpendicular to that axis, producing NaNs and missed clicks.
+         vec_t closestPointOnAxis = PointOnSegment(makeVect(io.MousePos), makeVect(axisStartOnScreen), makeVect(axisEndOnScreen));
 
-         if ((closestPointOnAxis - makeVect(posOnPlanScreen)).Length() < 12.f) // pixel size
+         if (belowAxisLimit && IsInContextRect(io.MousePos) && (closestPointOnAxis - makeVect(io.MousePos)).Length() < 12.f) // pixel size
          {
             type = SCALE_X + i;
          }
@@ -1711,9 +1714,12 @@ namespace ImGuizmo
          const ImVec2 axisStartOnScreen = worldToPos(gContext.mModel.v.position + dirAxis * gContext.mScreenFactor * 0.1f, gContext.mViewProjection);
          const ImVec2 axisEndOnScreen = worldToPos(gContext.mModel.v.position + dirAxis * gContext.mScreenFactor, gContext.mViewProjection);
 
-         vec_t closestPointOnAxis = PointOnSegment(makeVect(posOnPlanScreen), makeVect(axisStartOnScreen), makeVect(axisEndOnScreen));
+         // GEngine editor correction: hit-test the visible screen segment directly.
+         // Intersecting the axis-normal plane can land at the eye (w=0) when
+         // viewing perpendicular to that axis, producing NaNs and missed clicks.
+         vec_t closestPointOnAxis = PointOnSegment(makeVect(io.MousePos), makeVect(axisStartOnScreen), makeVect(axisEndOnScreen));
 
-         if ((closestPointOnAxis - makeVect(posOnPlanScreen)).Length() < 12.f) // pixel size
+         if (belowAxisLimit && IsInContextRect(io.MousePos) && (closestPointOnAxis - makeVect(io.MousePos)).Length() < 12.f) // pixel size
          {
             type = MOVE_X + i;
          }

@@ -203,7 +203,9 @@ namespace GEngine
             if(bool(a)!=bool(b))return false;if(!a)return true;
             return a->kind==b->kind&&SameScalars(a->color,b->color,3)&&SameFloat(a->intensity,b->intensity)
                 &&SameFloat(a->range,b->range)&&SameFloat(a->innerConeRadians,b->innerConeRadians)
-                &&SameFloat(a->outerConeRadians,b->outerConeRadians)&&a->castShadows==b->castShadows;
+                &&SameFloat(a->outerConeRadians,b->outerConeRadians)&&a->castShadows==b->castShadows
+                &&a->spotShadow.resolution==b->spotShadow.resolution&&SameFloat(a->spotShadow.bias,b->spotShadow.bias)
+                &&a->spotShadow.pcfRadius==b->spotShadow.pcfRadius;
         }
         void Advance(std::uint64_t& revision) {
             Asset::AssetDetail::RequireInvariant(revision!=UINT64_MAX);++revision;

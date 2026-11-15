@@ -13,7 +13,9 @@ namespace GEngine
         switch(pass) {
         case RenderPass::DirectionalShadow:return "directional-shadow";
         case RenderPass::PointShadow:return "point-shadow";
+        case RenderPass::SpotShadow:return "spot-shadow";
         case RenderPass::Picking:return "picking";
+        case RenderPass::RectangleSelection:return "rectangle-selection";
         case RenderPass::PickingReadback:return "picking-readback";
         case RenderPass::Opaque:return "opaque";
         case RenderPass::Masked:return "masked";

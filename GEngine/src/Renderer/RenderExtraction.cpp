@@ -40,7 +40,7 @@ namespace GEngine
             const auto& light = *entry.light;
             const glm::vec3 color{light.color[0], light.color[1], light.color[2]};
             const glm::vec3 position{entry.world[3]};
-            const LightShadowSettings shadows{light.castShadows};
+            const LightShadowSettings shadows{light.castShadows,light.spotShadow};
             if (light.kind == Component::RenderLightKind::Point)
                 return PointLightData{entry.entity, entry.revisions.light, position,
                     color, light.intensity, light.range, shadows};

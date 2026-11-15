@@ -139,7 +139,7 @@ void RigidBodySimulationApp::ApplyShaderReloadRequest(SceneRenderResources& reso
 
 std::expected<void, SceneError> RigidBodySimulationApp::UpdateImportedMesh()
 {
-    if (m_Launch.scene != Rbs::RbsScenePreset::GeometryGallery || m_BarrelSettled)
+    if (m_ActiveSelection.scene != Rbs::RbsScenePreset::GeometryGallery || m_BarrelSettled)
         return {};
     auto failed = [&](const AsyncMeshError& error)
     {
@@ -220,7 +220,7 @@ ScheduleResult RigidBodySimulationApp::PrepareFrameResources(RenderContext& cont
             loads.error());
     m_TextureLoads = *loads;
     // The optional mesh import starts after the texture bootstrap.
-    if (m_Launch.scene == Rbs::RbsScenePreset::GeometryGallery && m_LoadBarrel && m_WoodSettled &&
+    if (m_ActiveSelection.scene == Rbs::RbsScenePreset::GeometryGallery && m_LoadBarrel && m_WoodSettled &&
         !m_MeshLoads && !m_BarrelSettled)
     {
         auto meshLoads = m_SceneResources->CreateMeshLoader(m_MeshRoot);

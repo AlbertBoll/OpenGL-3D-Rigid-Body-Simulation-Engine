@@ -1,0 +1,15 @@
+# Phase 26 exact-byte artifact preservation; no general source exemption.
+# Authority: docs/pre_editor/active/PHASE_26_JOLT_INTEGRATION_01/PHASE_26_WHITESPACE_PRESERVATION_AMENDMENT_02.json
+# Applies only to the pinned bytes below. Phase26 READY/seal input hashes enforce them.
+# Changed hashes or use as a new future-phase waiver require separate authority.
+# SHA-256 ba5b153f18cbe3d590c6063838f25376793974795628abdc1e02bba97d380ec3
+/external/jolt-patches/gengine-contact-resistance-01.patch -whitespace
+# SHA-256 73639c9d3282e4644266f3fbc2197561d5b9af7f489fd2af067e808376d6c937
+/external/jolt-patches/phase26-qualification-observation-01.patch -whitespace
+# SHA-256 79a9c5f4db19debf9f3a648a1589e96d92854f245a5cb4f3d823f263785234d8
+/tools/vendor/nanosvg/nanosvgrast.h -whitespace
+
+# Exact literal Windows filespec aliases for the unchanged no-index guard.
+C:\\dev\\GEngine-pre-editor\\external\\jolt-patches\\gengine-contact-resistance-01.patch -whitespace
+C:\\dev\\GEngine-pre-editor\\external\\jolt-patches\\phase26-qualification-observation-01.patch -whitespace
+C:\\dev\\GEngine-pre-editor\\tools\\vendor\\nanosvg\\nanosvgrast.h -whitespace

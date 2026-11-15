@@ -1,0 +1,2531 @@
+diff --git a/Jolt/Physics/QualificationObservation.h b/Jolt/Physics/QualificationObservation.h
+new file mode 100644
+--- /dev/null
++++ b/Jolt/Physics/QualificationObservation.h
+@@ -0,0 +1,415 @@
++// Diagnostic-only Phase 26 observation. This header is deliberately absent from
++// the ordinary Jolt source tree and has no declarations when the profile is off.
++#pragma once
++
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++
++#include <Jolt/Jolt.h>
++
++#include <cstdint>
++#include <type_traits>
++
++JPH_NAMESPACE_BEGIN
++
++class PhysicsSystem;
++
++namespace QualificationObservation
++{
++
++enum class EventKind : uint32
++{
++	Point,
++	CCDCandidate,
++	CCDManifoldPoint,
++	CCDAccepted,
++	RetiredUnpersisted,
++	CacheLifecycle,
++	Work,
++	Phase,
++	Storage,
++	Heap,
++	Identity,
++	Failure
++};
++
++enum class Phase : uint16
++{
++	None,
++	Lifetime,
++	Update,
++	SharedBroadPhase,
++	SharedNarrowPhase,
++	ContactCachedPreparation,
++	ContactNewPreparation,
++	ContactWarmStart,
++	ContactVelocitySolve,
++	ContactPositionSolve,
++	ContactPublication,
++	ContactRetirement,
++	JointFilter,
++	JointGraph,
++	JointSort,
++	JointPreparation,
++	JointWarmStart,
++	JointVelocitySolve,
++	JointPositionSolve,
++	CCDPreparation,
++	CCDRejection,
++	CCDAcceptance,
++	SharedIslandBuild,
++	SharedStepWork
++};
++
++enum class ArenaSite : uint16
++{
++	Unknown,
++	Shared,
++	UpdateSteps,
++	BodyPairs,
++	ActiveConstraints,
++	ContactConstraints,
++	ContactIndexMap,
++	IslandContactLinks,
++	IslandJointLinks,
++	IslandLinkValidation,
++	IslandBodyIslands,
++	IslandBodyIslandEnds,
++	IslandContactIslands,
++	IslandContactIslandEnds,
++	IslandJointIslands,
++	IslandJointIslandEnds,
++	IslandSort,
++	IslandPositionSteps,
++	IslandStats,
++	CCD,
++	JointContainer,
++	AdapterJointStorage,
++	AdapterFilterStorage,
++	BaseJobPool,
++	BroadPhaseBodyStorage
++};
++
++enum class WorkKind : uint32
++{
++	JointFilterDispatch,
++	JointActive,
++	JointGraphDispatch,
++	JointSortItem,
++	JointSetupDispatch,
++	JointWarmDispatch,
++	JointVelocityDispatch,
++	JointVelocityChanged,
++	JointPositionDispatch,
++	JointPositionChanged,
++	IslandBodyLink,
++	IslandJointLink,
++	IslandContactLink,
++	ContactCachedDispatch,
++	ContactNewDispatch,
++	ContactManifoldDispatch,
++	ContactWarmDispatch,
++	ContactVelocityDispatch,
++	ContactNormalPointAttempt,
++	ContactNormalPointChanged,
++	ContactFrictionAttempt,
++	ContactFrictionChanged,
++	ContactSpinAttempt,
++	ContactSpinChanged,
++	ContactResistanceInvocation,
++	ContactResistanceApplied,
++	ContactResistanceRootIteration,
++	ContactPositionDispatch,
++	ContactPositionChanged,
++	ContactPositionPointAttempt,
++	ContactPublication,
++	ContactRetirement,
++	CCDPreparedCandidate,
++	CCDRejectedCandidate,
++	CCDAcceptedSolve,
++	CCDFailedSolve,
++	SolverBatch
++};
++
++enum class StorageAction : uint32
++{
++	Reserve,
++	Release,
++	Capacity
++};
++
++enum class LifeKind : uint32
++{
++	PairAdded,
++	PairReused,
++	ManifoldAdded,
++	ManifoldPersisted,
++	RetiredUnpersisted,
++	CCDCallbackOnly
++};
++
++enum class IdentityAction : uint32
++{
++	Create,
++	Destroy,
++	Validate,
++	Snapshot
++};
++
++enum class HeapAction : uint32
++{
++	Allocation,
++	Reallocation,
++	AlignedAllocation,
++	Free,
++	AlignedFree
++};
++
++enum class FailureCode : uint32
++{
++	WrongOwner,
++	WrongEpoch,
++	LateUpdate,
++	OutOfRangeSubstep,
++	Contextless,
++	NestedUpdate,
++	ConcurrentUpdate,
++	InvalidRecordSize,
++	SinkMismatch,
++	UnbalancedScope,
++	ObservationCapacity,
++	MissingCCDCandidate
++};
++
++enum class AnchorSpace : uint32
++{
++	COMLocal,
++	WorldAtImpact
++};
++
++struct Context
++{
++	const void *world;
++	uint64 epoch;
++	uint64 update;
++	uint32 substep;
++	Phase phase;
++	ArenaSite site;
++};
++
++// Point identity uses the complete BodyID value, including its sequence number.
++// Discrete Point uses COMLocal. CCDManifoldPoint uses WorldAtImpact for candidate
++// manifold ordinals and COMLocal with ordinal UINT32_MAX for the accepted response.
++struct PointRecord
++{
++	Context context;
++	uint32 body1;
++	uint32 subshape1;
++	uint32 body2;
++	uint32 subshape2;
++	uint32 ordinal;
++	AnchorSpace space;
++	float anchor1[3];
++	float anchor2[3];
++	float cached_local_normal[3];
++	float solver_world_normal[3];
++	float normal_lambda;
++};
++
++struct CCDRecord
++{
++	Context context;
++	uint32 body1;
++	uint32 subshape1;
++	uint32 body2;
++	uint32 subshape2;
++	float fraction;
++	float fraction_plus_slop;
++	float response_point[3];
++	float solver_world_normal[3];
++	float normal_lambda;
++	uint32 manifold_points;
++};
++
++struct LifetimeRecord
++{
++	Context context;
++	uint32 body1;
++	uint32 subshape1;
++	uint32 body2;
++	uint32 subshape2;
++	uint32 cached_points;
++	uint32 flags;
++	LifeKind life_kind;
++};
++
++struct WorkRecord
++{
++	Context context;
++	WorkKind kind;
++	uint32 count;
++	uint32 changed;
++	uint32 root_iterations;
++};
++
++struct PhaseRecord
++{
++	Context context;
++	Phase phase;
++	uint32 calls;
++	uint64 elapsed_ns;
++};
++
++struct StorageRecord
++{
++	Context context;
++	uint64 pointer;
++	uint64 requested_bytes;
++	uint64 aligned_bytes;
++	uint64 arena_usage_after;
++	uint32 count;
++	StorageAction action;
++};
++
++struct HeapRecord
++{
++	Context context;
++	uint64 pointer;
++	uint64 old_pointer;
++	uint64 requested_bytes;
++	uint64 old_bytes;
++	HeapAction action;
++};
++
++struct IdentityRecord
++{
++	Context context;
++	uint32 sdk_body_id;
++	uint32 managed_index;
++	uint64 managed_generation;
++	uint64 managed_registry;
++	IdentityAction action;
++};
++
++struct FailureRecord
++{
++	Context context;
++	FailureCode code;
++	uint32 expected_substeps;
++	uint64 detail;
++};
++
++// The callback must copy the record before returning. It must not allocate, lock,
++// throw, or retain SDK pointers. SDK workers never own recorder memory.
++struct Sink
++{
++	void *user;
++	const PhysicsSystem *world;
++	uint64 epoch;
++	uint64 update;
++	uint32 substeps;
++	void (*publish)(void *, EventKind, const void *, uint32) noexcept;
++};
++
++struct TypeSizes
++{
++	uint32 update_step;
++	uint32 ccd_body;
++	uint32 max_contact_constraint;
++	uint32 arena_alignment;
++	uint32 body_id;
++	uint32 body_pair;
++	uint32 constraint_pointer;
++	uint32 island_index;
++	uint32 ccd_candidate_slot;
++	uint32 ccd_candidate_slots;
++};
++
++inline constexpr uint64 kExpectedObservationAbiSentinel = 0x5032364f42533101ULL;
++extern const uint64 kObservationAbiSentinel;
++extern const TypeSizes kObservationTypeSizes;
++extern const uint64 kBaseJobPoolBytes;
++extern const uint64 kBaseJobSlotBytes;
++extern const uint64 kBroadPhaseNodeBytes;
++extern const uint64 kBroadPhaseCenterBytes;
++
++bool InstallSink(Sink *inSink) noexcept;
++bool RemoveSink(Sink *inSink) noexcept;
++Sink *GetSink() noexcept;
++Context CurrentContext() noexcept;
++uint64 ClockNowNs() noexcept;
++void PublishRecord(EventKind inKind, const void *inRecord, uint32 inBytes) noexcept;
++void PublishSynthetic(const Context &inContext, EventKind inKind, const void *inRecord, uint32 inBytes) noexcept;
++void ReportFailure(FailureCode inCode, uint64 inDetail = 0) noexcept;
++void ReportWork(WorkKind inKind, uint32 inCount = 1, uint32 inChanged = 0, uint32 inRootIterations = 0) noexcept;
++void ReportStorage(ArenaSite inSite, StorageAction inAction, const void *inPointer, uint64 inRequestedBytes, uint64 inAlignedBytes, uint32 inCount = 1) noexcept;
++
++class UpdateScope
++{
++public:
++	explicit UpdateScope(const PhysicsSystem *inWorld, uint32 inSubsteps) noexcept;
++	~UpdateScope() noexcept;
++	UpdateScope(const UpdateScope &) = delete;
++	UpdateScope &operator=(const UpdateScope &) = delete;
++
++private:
++	Context mPrevious;
++	bool mEntered;
++};
++
++class StepScope
++{
++public:
++	StepScope(const PhysicsSystem *inWorld, uint32 inSubstep) noexcept;
++	~StepScope() noexcept;
++	StepScope(const StepScope &) = delete;
++	StepScope &operator=(const StepScope &) = delete;
++
++private:
++	Context mPrevious;
++	bool mEntered;
++};
++
++class PhaseScope
++{
++public:
++	explicit PhaseScope(Phase inPhase) noexcept;
++	~PhaseScope() noexcept;
++	PhaseScope(const PhaseScope &) = delete;
++	PhaseScope &operator=(const PhaseScope &) = delete;
++
++private:
++	Context mPrevious;
++	uint64 mStart;
++	bool mEntered;
++};
++
++class SiteScope
++{
++public:
++	explicit SiteScope(ArenaSite inSite) noexcept;
++	~SiteScope() noexcept;
++	SiteScope(const SiteScope &) = delete;
++	SiteScope &operator=(const SiteScope &) = delete;
++
++private:
++	Context mPrevious;
++	bool mEntered;
++};
++
++static_assert(std::is_trivially_copyable_v<Context>);
++static_assert(std::is_trivially_copyable_v<PointRecord> && sizeof(PointRecord) <= 128);
++static_assert(std::is_trivially_copyable_v<CCDRecord> && sizeof(CCDRecord) <= 96);
++static_assert(std::is_trivially_copyable_v<LifetimeRecord>);
++static_assert(std::is_trivially_copyable_v<WorkRecord>);
++static_assert(std::is_trivially_copyable_v<PhaseRecord>);
++static_assert(std::is_trivially_copyable_v<StorageRecord>);
++static_assert(std::is_trivially_copyable_v<HeapRecord>);
++static_assert(std::is_trivially_copyable_v<IdentityRecord>);
++static_assert(std::is_trivially_copyable_v<FailureRecord>);
++static_assert(std::is_trivially_copyable_v<TypeSizes>);
++
++} // namespace QualificationObservation
++
++JPH_NAMESPACE_END
++
++#endif // JPH_GENGINE_PHASE26_OBSERVATION
+diff --git a/Jolt/Physics/PhysicsSystem.cpp b/Jolt/Physics/PhysicsSystem.cpp
+--- a/Jolt/Physics/PhysicsSystem.cpp
++++ b/Jolt/Physics/PhysicsSystem.cpp
+@@ -33,11 +33,352 @@
+ #include <Jolt/Core/TempAllocator.h>
+ #include <Jolt/Core/QuickSort.h>
+ #include <Jolt/Core/ScopeExit.h>
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	#include <Jolt/Physics/QualificationObservation.h>
++	#include <Jolt/Core/FixedSizeFreeList.h>
++	#include <atomic>
++	#include <chrono>
++#endif
+ #ifdef JPH_DEBUG_RENDERER
+ 	#include <Jolt/Renderer/DebugRenderer.h>
+ #endif // JPH_DEBUG_RENDERER
+ 
+ JPH_NAMESPACE_BEGIN
++
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++namespace QualificationObservation
++{
++
++// These definitions live in the SDK object, rather than inline in the header,
++// so the adapter and direct fixture use the same sink and TLS in the final EXE.
++const uint64 kObservationAbiSentinel = kExpectedObservationAbiSentinel;
++struct BaseJobPoolLayout : JobSystem
++{
++	static constexpr uint64 SlotBytes = FixedSizeFreeList<Job>::ObjectStorageSize;
++};
++const uint64 kBaseJobSlotBytes = BaseJobPoolLayout::SlotBytes;
++const uint64 kBaseJobPoolBytes = uint64(cMaxPhysicsJobs) * kBaseJobSlotBytes;
++const uint64 kBroadPhaseNodeBytes = sizeof(BodyID);
++const uint64 kBroadPhaseCenterBytes = sizeof(Vec3);
++static std::atomic<Sink *> sSink { nullptr };
++static std::atomic<uint32> sUpdateActive { 0 };
++static thread_local Context sContext { nullptr, 0, 0, ~uint32(0), Phase::None, ArenaSite::Unknown };
++static thread_local float sAcceptedCCDNormalLambda = 0.0f;
++static constexpr uint32 cCCDCandidateSlots = 4096;
++struct CandidateSlot
++{
++	CCDRecord record;
++	std::atomic<uint32> valid { 0 };
++};
++static_assert(sizeof(CandidateSlot) <= 96);
++const TypeSizes kObservationTypeSizes {
++	sizeof(PhysicsUpdateContext::Step),
++	sizeof(PhysicsUpdateContext::Step::CCDBody),
++	ContactConstraintManager::cMaxConstraintSize,
++	JPH_RVECTOR_ALIGNMENT,
++	sizeof(BodyID),
++	sizeof(BodyPair),
++	sizeof(Constraint *),
++	sizeof(uint32),
++	sizeof(CandidateSlot),
++	cCCDCandidateSlots
++};
++static CandidateSlot sCCDCandidates[cCCDCandidateSlots];
++
++static uint32 sExpectedSize(EventKind inKind) noexcept
++{
++	switch (inKind)
++	{
++	case EventKind::Point:
++	case EventKind::CCDManifoldPoint:
++		return sizeof(PointRecord);
++	case EventKind::CCDCandidate:
++	case EventKind::CCDAccepted:
++		return sizeof(CCDRecord);
++	case EventKind::RetiredUnpersisted:
++	case EventKind::CacheLifecycle:
++		return sizeof(LifetimeRecord);
++	case EventKind::Work:
++		return sizeof(WorkRecord);
++	case EventKind::Phase:
++		return sizeof(PhaseRecord);
++	case EventKind::Storage:
++		return sizeof(StorageRecord);
++	case EventKind::Heap:
++		return sizeof(HeapRecord);
++	case EventKind::Identity:
++		return sizeof(IdentityRecord);
++	case EventKind::Failure:
++		return sizeof(FailureRecord);
++	}
++	return 0;
++}
++
++static void sFail(Sink *inSink, const Context &inContext, FailureCode inCode, uint64 inDetail) noexcept
++{
++	if (inSink != nullptr && inSink->publish != nullptr)
++	{
++		FailureRecord record { inContext, inCode, inSink->substeps, inDetail };
++		inSink->publish(inSink->user, EventKind::Failure, &record, sizeof(record));
++	}
++}
++
++bool InstallSink(Sink *inSink) noexcept
++{
++	if (inSink == nullptr || inSink->publish == nullptr || inSink->epoch == 0 || sUpdateActive.load(std::memory_order_acquire) != 0)
++		return false;
++	Sink *expected = nullptr;
++	return sSink.compare_exchange_strong(expected, inSink, std::memory_order_acq_rel);
++}
++
++bool RemoveSink(Sink *inSink) noexcept
++{
++	if (sUpdateActive.load(std::memory_order_acquire) != 0)
++		return false;
++	return sSink.compare_exchange_strong(inSink, nullptr, std::memory_order_acq_rel);
++}
++
++Sink *GetSink() noexcept
++{
++	return sSink.load(std::memory_order_acquire);
++}
++
++Context CurrentContext() noexcept
++{
++	if (sContext.world != nullptr || sContext.phase != Phase::None || sContext.site != ArenaSite::Unknown)
++		return sContext;
++	Sink *sink = GetSink();
++	if (sink == nullptr)
++		return sContext;
++	if (sUpdateActive.load(std::memory_order_acquire) != 0)
++		return { nullptr, sink->epoch, sink->update, ~uint32(0), Phase::None, ArenaSite::Unknown };
++	return { sink->world, sink->epoch, 0, ~uint32(0), Phase::Lifetime, ArenaSite::Unknown };
++}
++
++uint64 ClockNowNs() noexcept
++{
++	return uint64(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
++}
++
++void PublishSynthetic(const Context &inContext, EventKind inKind, const void *inRecord, uint32 inBytes) noexcept
++{
++	Sink *sink = GetSink();
++	if (sink == nullptr)
++		return;
++	if (inContext.world != sink->world)
++	{
++		sFail(sink, inContext, inContext.world == nullptr? FailureCode::Contextless : FailureCode::WrongOwner, uint64(reinterpret_cast<uintptr_t>(inContext.world)));
++		return;
++	}
++	if (inContext.epoch != sink->epoch)
++	{
++		sFail(sink, inContext, FailureCode::WrongEpoch, inContext.epoch);
++		return;
++	}
++	if (inContext.update == 0 && (inContext.phase != Phase::Lifetime
++		|| (inKind != EventKind::Heap && inKind != EventKind::Storage && inKind != EventKind::Identity && inKind != EventKind::Failure)))
++	{
++		sFail(sink, inContext, FailureCode::LateUpdate, 0);
++		return;
++	}
++	if (inContext.update != 0 && inContext.update != sink->update)
++	{
++		sFail(sink, inContext, FailureCode::LateUpdate, inContext.update);
++		return;
++	}
++	const bool boundary_allocation = inContext.update != 0 && inContext.substep == ~uint32(0)
++		&& inContext.phase == Phase::SharedStepWork
++		&& (inKind == EventKind::Heap || inKind == EventKind::Storage || inKind == EventKind::Identity);
++	if (inContext.update != 0 && inContext.substep >= sink->substeps && !boundary_allocation)
++	{
++		sFail(sink, inContext, FailureCode::OutOfRangeSubstep, inContext.substep);
++		return;
++	}
++	if (inRecord == nullptr || sExpectedSize(inKind) != inBytes)
++	{
++		sFail(sink, inContext, FailureCode::InvalidRecordSize, inBytes);
++		return;
++	}
++	const Context &record_context = *static_cast<const Context *>(inRecord);
++	if (record_context.world != inContext.world || record_context.epoch != inContext.epoch || record_context.update != inContext.update || record_context.substep != inContext.substep)
++	{
++		sFail(sink, inContext, FailureCode::SinkMismatch, 0);
++		return;
++	}
++	sink->publish(sink->user, inKind, inRecord, inBytes);
++}
++
++void PublishRecord(EventKind inKind, const void *inRecord, uint32 inBytes) noexcept
++{
++	Context context = CurrentContext();
++	Sink *sink = GetSink();
++	if (sink != nullptr && sUpdateActive.load(std::memory_order_acquire) == 0 && context.update != 0)
++	{
++		sFail(sink, context, FailureCode::LateUpdate, context.update);
++		return;
++	}
++	PublishSynthetic(context, inKind, inRecord, inBytes);
++}
++
++void ReportFailure(FailureCode inCode, uint64 inDetail) noexcept
++{
++	sFail(GetSink(), CurrentContext(), inCode, inDetail);
++}
++
++void ReportWork(WorkKind inKind, uint32 inCount, uint32 inChanged, uint32 inRootIterations) noexcept
++{
++	WorkRecord record { CurrentContext(), inKind, inCount, inChanged, inRootIterations };
++	PublishRecord(EventKind::Work, &record, sizeof(record));
++}
++
++void ReportStorage(ArenaSite inSite, StorageAction inAction, const void *inPointer, uint64 inRequestedBytes, uint64 inAlignedBytes, uint32 inCount) noexcept
++{
++	StorageRecord record { CurrentContext(), uint64(reinterpret_cast<uintptr_t>(inPointer)), inRequestedBytes, inAlignedBytes, 0, inCount, inAction };
++	record.context.site = inSite;
++	PublishRecord(EventKind::Storage, &record, sizeof(record));
++}
++
++UpdateScope::UpdateScope(const PhysicsSystem *inWorld, uint32 inSubsteps) noexcept : mPrevious(sContext), mEntered(false)
++{
++	Sink *sink = GetSink();
++	if (sink == nullptr)
++		return;
++	if (sink->world != inWorld)
++	{
++		sFail(sink, CurrentContext(), FailureCode::WrongOwner, uint64(reinterpret_cast<uintptr_t>(inWorld)));
++		return;
++	}
++	if (sink->update == 0)
++	{
++		sFail(sink, CurrentContext(), FailureCode::LateUpdate, 0);
++		return;
++	}
++	if (sink->substeps != inSubsteps || inSubsteps == 0)
++	{
++		sFail(sink, CurrentContext(), FailureCode::OutOfRangeSubstep, inSubsteps);
++		return;
++	}
++	if (sContext.world != nullptr)
++	{
++		sFail(sink, sContext, FailureCode::NestedUpdate, 0);
++		return;
++	}
++	uint32 expected = 0;
++	if (!sUpdateActive.compare_exchange_strong(expected, 1, std::memory_order_acq_rel))
++	{
++		sFail(sink, CurrentContext(), FailureCode::ConcurrentUpdate, 0);
++		return;
++	}
++	sContext = { inWorld, sink->epoch, sink->update, 0, Phase::Update, ArenaSite::Unknown };
++	mEntered = true;
++}
++
++UpdateScope::~UpdateScope() noexcept
++{
++	if (mEntered)
++	{
++		sContext = mPrevious;
++		sUpdateActive.store(0, std::memory_order_release);
++	}
++}
++
++StepScope::StepScope(const PhysicsSystem *inWorld, uint32 inSubstep) noexcept : mPrevious(sContext), mEntered(false)
++{
++	Sink *sink = GetSink();
++	if (sink == nullptr)
++		return;
++	if (sUpdateActive.load(std::memory_order_acquire) == 0)
++	{
++		sFail(sink, CurrentContext(), FailureCode::LateUpdate, sink->update);
++		return;
++	}
++	if (sink->world != inWorld || (sContext.world != nullptr && sContext.world != inWorld))
++	{
++		sFail(sink, CurrentContext(), FailureCode::WrongOwner, uint64(reinterpret_cast<uintptr_t>(inWorld)));
++		return;
++	}
++	if (sContext.world != nullptr && (sContext.epoch != sink->epoch || sContext.update != sink->update))
++	{
++		sFail(sink, sContext, sContext.epoch != sink->epoch? FailureCode::WrongEpoch : FailureCode::LateUpdate, sContext.update);
++		return;
++	}
++	if (inSubstep >= sink->substeps)
++	{
++		sFail(sink, CurrentContext(), FailureCode::OutOfRangeSubstep, inSubstep);
++		return;
++	}
++	sContext = { inWorld, sink->epoch, sink->update, inSubstep, Phase::SharedStepWork, ArenaSite::Unknown };
++	mEntered = true;
++}
++
++StepScope::~StepScope() noexcept
++{
++	if (mEntered)
++		sContext = mPrevious;
++}
++
++PhaseScope::PhaseScope(Phase inPhase) noexcept : mPrevious(sContext), mStart(0), mEntered(GetSink() != nullptr)
++{
++	if (mEntered)
++	{
++		if (sContext.world == nullptr)
++			sContext = CurrentContext();
++		sContext.phase = inPhase;
++		mStart = ClockNowNs();
++	}
++}
++
++PhaseScope::~PhaseScope() noexcept
++{
++	if (mEntered)
++	{
++		PhaseRecord record { sContext, sContext.phase, 1, ClockNowNs() - mStart };
++		PublishRecord(EventKind::Phase, &record, sizeof(record));
++		sContext = mPrevious;
++	}
++}
++
++SiteScope::SiteScope(ArenaSite inSite) noexcept : mPrevious(sContext), mEntered(GetSink() != nullptr)
++{
++	if (mEntered)
++	{
++		if (sContext.world == nullptr)
++			sContext = CurrentContext();
++		sContext.site = inSite;
++	}
++}
++
++SiteScope::~SiteScope() noexcept
++{
++	if (mEntered)
++		sContext = mPrevious;
++}
++
++} // namespace QualificationObservation
++
++static uint32 sObservationStepIndex(const PhysicsUpdateContext::Step *inStep) noexcept
++{
++	if (inStep == nullptr || inStep->mContext == nullptr)
++	{
++		QualificationObservation::ReportFailure(QualificationObservation::FailureCode::Contextless);
++		return ~uint32(0);
++	}
++	const PhysicsUpdateContext *context = inStep->mContext;
++	const uintptr_t begin = reinterpret_cast<uintptr_t>(context->mSteps.data());
++	const uintptr_t address = reinterpret_cast<uintptr_t>(inStep);
++	const uintptr_t bytes = context->mSteps.size() * sizeof(PhysicsUpdateContext::Step);
++	if (address < begin || address >= begin + bytes || (address - begin) % sizeof(PhysicsUpdateContext::Step) != 0)
++	{
++		QualificationObservation::ReportFailure(QualificationObservation::FailureCode::OutOfRangeSubstep, address);
++		return ~uint32(0);
++	}
++	return uint32((address - begin) / sizeof(PhysicsUpdateContext::Step));
++}
++
++#define JPH_GENGINE_OBSERVE_STEP(inStep) QualificationObservation::StepScope phase26_observation_step((inStep)->mContext->mPhysicsSystem, sObservationStepIndex(inStep));
++#else
++#define JPH_GENGINE_OBSERVE_STEP(inStep)
++#endif // JPH_GENGINE_PHASE26_OBSERVATION
+ 
+ #ifdef JPH_DEBUG_RENDERER
+ bool PhysicsSystem::sDrawMotionQualityLinearCast = false;
+@@ -176,6 +517,9 @@
+ EPhysicsUpdateError PhysicsSystem::Update(float inDeltaTime, int inCollisionSteps, TempAllocator *inTempAllocator, JobSystem *inJobSystem)
+ {
+ 	JPH_PROFILE_FUNCTION();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::UpdateScope phase26_observation_update(this, uint32(inCollisionSteps));
++#endif
+ 
+ 	JPH_DET_LOG("PhysicsSystem::Update: dt: " << inDeltaTime << " steps: " << inCollisionSteps);
+ 
+@@ -194,7 +538,21 @@
+ 
+ 		// Update broadphase
+ 		mBroadPhase->LockModifications();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		BroadPhase::UpdateState update_state;
++		{
++			QualificationObservation::PhaseScope phase26_broadphase_phase(QualificationObservation::Phase::SharedBroadPhase);
++			QualificationObservation::SiteScope phase26_broadphase_site(QualificationObservation::ArenaSite::BroadPhaseBodyStorage);
++			const uint32 phase26_body_slots = uint32(mBodyManager.GetBodies().size());
++			const uint64 phase26_bytes = uint64(phase26_body_slots) *
++				(QualificationObservation::kBroadPhaseNodeBytes + QualificationObservation::kBroadPhaseCenterBytes);
++			QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::BroadPhaseBodyStorage,
++				QualificationObservation::StorageAction::Capacity, nullptr, phase26_bytes, phase26_bytes, phase26_body_slots);
++			update_state = mBroadPhase->UpdatePrepare();
++		}
++#else
+ 		BroadPhase::UpdateState update_state = mBroadPhase->UpdatePrepare();
++#endif
+ 		mBroadPhase->UpdateFinalize(update_state);
+ 		mBroadPhase->UnlockModifications();
+ 
+@@ -220,16 +578,46 @@
+ 	PhysicsUpdateContext context(*inTempAllocator);
+ 	context.mPhysicsSystem = this;
+ 	context.mJobSystem = inJobSystem;
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	{
++		QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::Shared);
++#endif
+ 	context.mBarrier = inJobSystem->CreateBarrier();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	}
++#endif
+ 	context.mBodyManager = &mBodyManager;
+ 	context.mIslandBuilder = &mIslandBuilder;
+ 	context.mStepDeltaTime = step_delta_time;
+ 	context.mWarmStartImpulseRatio = warm_start_impulse_ratio;
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	{
++		QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::UpdateSteps);
++#endif
+ 	context.mSteps.resize(inCollisionSteps);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::UpdateSteps, QualificationObservation::StorageAction::Capacity,
++			context.mSteps.data(), uint64(context.mSteps.capacity()) * sizeof(PhysicsUpdateContext::Step),
++			AlignUp(size_t(context.mSteps.capacity()) * sizeof(PhysicsUpdateContext::Step), size_t(JPH_RVECTOR_ALIGNMENT)), uint32(context.mSteps.capacity()));
++		QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::UpdateSteps, QualificationObservation::StorageAction::Reserve,
++			context.mSteps.data(), uint64(context.mSteps.capacity()) * sizeof(PhysicsUpdateContext::Step),
++			AlignUp(size_t(context.mSteps.capacity()) * sizeof(PhysicsUpdateContext::Step), size_t(JPH_RVECTOR_ALIGNMENT)), uint32(context.mSteps.capacity()));
++	}
++#endif
+ 
+ 	// Allocate space for body pairs
+ 	JPH_ASSERT(context.mBodyPairs == nullptr);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	{
++		QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::BodyPairs);
++#endif
+ 	context.mBodyPairs = static_cast<BodyPair *>(inTempAllocator->Allocate(sizeof(BodyPair) * mPhysicsSettings.mMaxInFlightBodyPairs));
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		const uint64 bytes = uint64(sizeof(BodyPair)) * mPhysicsSettings.mMaxInFlightBodyPairs;
++		QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::BodyPairs, QualificationObservation::StorageAction::Reserve,
++			context.mBodyPairs, bytes, AlignUp(size_t(bytes), size_t(JPH_RVECTOR_ALIGNMENT)), mPhysicsSettings.mMaxInFlightBodyPairs);
++	}
++#endif
+ 
+ 	// Lock all bodies for write so that we can freely touch them
+ 	mStepListenersMutex.lock();
+@@ -264,6 +652,9 @@
+ 
+ 	{
+ 		JPH_PROFILE("Build Jobs");
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		QualificationObservation::SiteScope phase26_job_site(QualificationObservation::ArenaSite::Shared);
++#endif
+ 
+ 		// Iterate over collision steps
+ 		for (int step_idx = 0; step_idx < inCollisionSteps; ++step_idx)
+@@ -278,8 +669,17 @@
+ 
+ 			// Create job to do broadphase finalization
+ 			// This job must finish before integrating velocities. Until then the positions will not be updated neither will bodies be added / removed.
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++			{
++				QualificationObservation::SiteScope phase26_job_pool_site(QualificationObservation::ArenaSite::BaseJobPool);
++				QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::BaseJobPool,
++					QualificationObservation::StorageAction::Capacity, nullptr,
++					QualificationObservation::kBaseJobPoolBytes, QualificationObservation::kBaseJobPoolBytes,
++					uint32(cMaxPhysicsJobs));
++#endif
+ 			step.mUpdateBroadphaseFinalize = inJobSystem->CreateJob("UpdateBroadPhaseFinalize", cColorUpdateBroadPhaseFinalize, [&context, &step]()
+ 				{
++					JPH_GENGINE_OBSERVE_STEP(&step)
+ 					// Validate that all find collision jobs have stopped
+ 					JPH_ASSERT(step.mActiveFindCollisionJobs.load(memory_order_relaxed) == 0);
+ 
+@@ -289,6 +689,9 @@
+ 					// Signal that it is done
+ 					step.mPreIntegrateVelocity.RemoveDependency();
+ 				}, num_find_collisions_jobs + 2); // depends on: find collisions, broadphase prepare update, finish building jobs
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++			}
++#endif
+ 
+ 			// The immediate jobs below are only immediate for the first step, the all finished job will kick them for the next step
+ 			int previous_step_dependency_count = is_first_step? 0 : 1;
+@@ -298,8 +701,22 @@
+ 			// If this is turned around the RemoveBody call will hang since it locks in that order
+ 			step.mBroadPhasePrepare = inJobSystem->CreateJob("UpdateBroadPhasePrepare", cColorUpdateBroadPhasePrepare, [&context, &step]()
+ 				{
++					JPH_GENGINE_OBSERVE_STEP(&step)
+ 					// Prepare the broadphase update
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++					{
++						QualificationObservation::PhaseScope phase26_broadphase_phase(QualificationObservation::Phase::SharedBroadPhase);
++						QualificationObservation::SiteScope phase26_broadphase_site(QualificationObservation::ArenaSite::BroadPhaseBodyStorage);
++						const uint32 phase26_body_slots = uint32(context.mBodyManager->GetBodies().size());
++						const uint64 phase26_bytes = uint64(phase26_body_slots) *
++							(QualificationObservation::kBroadPhaseNodeBytes + QualificationObservation::kBroadPhaseCenterBytes);
++						QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::BroadPhaseBodyStorage,
++							QualificationObservation::StorageAction::Capacity, nullptr, phase26_bytes, phase26_bytes, phase26_body_slots);
++#endif
+ 					step.mBroadPhaseUpdateState = context.mPhysicsSystem->mBroadPhase->UpdatePrepare();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++					}
++#endif
+ 
+ 					// Now the finalize can run (if other dependencies are met too)
+ 					step.mUpdateBroadphaseFinalize.RemoveDependency();
+@@ -316,6 +733,7 @@
+ 				int num_dep_build_islands_from_constraints = i == 0? 1 : 0;
+ 				step.mFindCollisions[i] = inJobSystem->CreateJob("FindCollisions", cColorFindCollisions, [&step, i]()
+ 					{
++						JPH_GENGINE_OBSERVE_STEP(&step)
+ 						step.mContext->mPhysicsSystem->JobFindCollisions(&step, i);
+ 					}, num_apply_gravity_jobs + num_determine_active_constraints_jobs + 1 + num_dep_build_islands_from_constraints); // depends on: apply gravity, determine active constraints, finish building jobs, build islands from constraints
+ 			}
+@@ -335,7 +753,17 @@
+ 
+ 				// Allocate memory for storing the active constraints
+ 				JPH_ASSERT(context.mActiveConstraints == nullptr);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++				{
++					QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::ActiveConstraints);
++#endif
+ 				context.mActiveConstraints = static_cast<Constraint **>(inTempAllocator->Allocate(mConstraintManager.GetNumConstraints() * sizeof(Constraint *)));
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++					const uint64 bytes = uint64(mConstraintManager.GetNumConstraints()) * sizeof(Constraint *);
++					QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::ActiveConstraints, QualificationObservation::StorageAction::Reserve,
++						context.mActiveConstraints, bytes, AlignUp(size_t(bytes), size_t(JPH_RVECTOR_ALIGNMENT)), mConstraintManager.GetNumConstraints());
++				}
++#endif
+ 
+ 				// Prepare contact buffer
+ 				mContactManager.PrepareConstraintBuffer(&context);
+@@ -349,6 +777,7 @@
+ 			for (int i = 0; i < num_apply_gravity_jobs; ++i)
+ 				step.mApplyGravity[i] = inJobSystem->CreateJob("ApplyGravity", cColorApplyGravity, [&context, &step]()
+ 					{
++						JPH_GENGINE_OBSERVE_STEP(&step)
+ 						context.mPhysicsSystem->JobApplyGravity(&context, &step);
+ 
+ 						JobHandle::sRemoveDependencies(step.mFindCollisions);
+@@ -359,6 +788,7 @@
+ 			for (int i = 0; i < num_setup_velocity_constraints_jobs; ++i)
+ 				step.mSetupVelocityConstraints[i] = inJobSystem->CreateJob("SetupVelocityConstraints", cColorSetupVelocityConstraints, [&context, &step]()
+ 					{
++						JPH_GENGINE_OBSERVE_STEP(&step)
+ 						context.mPhysicsSystem->JobSetupVelocityConstraints(context.mStepDeltaTime, &step);
+ 
+ 						JobHandle::sRemoveDependencies(step.mSolveVelocityConstraints);
+@@ -367,6 +797,7 @@
+ 			// This job will build islands from constraints
+ 			step.mBuildIslandsFromConstraints = inJobSystem->CreateJob("BuildIslandsFromConstraints", cColorBuildIslandsFromConstraints, [&context, &step]()
+ 				{
++					JPH_GENGINE_OBSERVE_STEP(&step)
+ 					context.mPhysicsSystem->JobBuildIslandsFromConstraints(&context, &step);
+ 
+ 					step.mFindCollisions[0].RemoveDependency(); // The first collisions job cannot start running until we've finished building islands and activated all bodies
+@@ -378,6 +809,7 @@
+ 			for (int i = 0; i < num_determine_active_constraints_jobs; ++i)
+ 				step.mDetermineActiveConstraints[i] = inJobSystem->CreateJob("DetermineActiveConstraints", cColorDetermineActiveConstraints, [&context, &step]()
+ 					{
++						JPH_GENGINE_OBSERVE_STEP(&step)
+ 						context.mPhysicsSystem->JobDetermineActiveConstraints(&step);
+ 
+ 						step.mBuildIslandsFromConstraints.RemoveDependency();
+@@ -392,6 +824,7 @@
+ 			for (int i = 0; i < num_step_listener_jobs; ++i)
+ 				step.mStepListeners[i] = inJobSystem->CreateJob("StepListeners", cColorStepListeners, [&context, &step]()
+ 					{
++						JPH_GENGINE_OBSERVE_STEP(&step)
+ 						// Call the step listeners
+ 						context.mPhysicsSystem->JobStepListeners(&step);
+ 
+@@ -407,6 +840,7 @@
+ 			// This job will finalize the simulation islands
+ 			step.mFinalizeIslands = inJobSystem->CreateJob("FinalizeIslands", cColorFinalizeIslands, [&context, &step]()
+ 				{
++					JPH_GENGINE_OBSERVE_STEP(&step)
+ 					// Validate that all find collision jobs have stopped
+ 					JPH_ASSERT(step.mActiveFindCollisionJobs.load(memory_order_relaxed) == 0);
+ 
+@@ -423,6 +857,7 @@
+ 			// This job will call the contact removed callbacks
+ 			step.mContactRemovedCallbacks = inJobSystem->CreateJob("ContactRemovedCallbacks", cColorContactRemovedCallbacks, [&context, &step]()
+ 				{
++					JPH_GENGINE_OBSERVE_STEP(&step)
+ 					context.mPhysicsSystem->JobContactRemovedCallbacks(&step);
+ 
+ 					if (step.mStartNextStep.IsValid())
+@@ -433,6 +868,7 @@
+ 			// It will also delete any bodies that have been destroyed in the last frame
+ 			step.mBodySetIslandIndex = inJobSystem->CreateJob("BodySetIslandIndex", cColorBodySetIslandIndex, [&context, &step]()
+ 				{
++					JPH_GENGINE_OBSERVE_STEP(&step)
+ 					context.mPhysicsSystem->JobBodySetIslandIndex();
+ 
+ 					JobHandle::sRemoveDependencies(step.mSolvePositionConstraints);
+@@ -444,6 +880,7 @@
+ 				PhysicsUpdateContext::Step *next_step = &context.mSteps[step_idx + 1];
+ 				step.mStartNextStep = inJobSystem->CreateJob("StartNextStep", cColorStartNextStep, [this, next_step]()
+ 					{
++						JPH_GENGINE_OBSERVE_STEP(next_step)
+ 					#ifdef JPH_DEBUG
+ 						// Validate that the cached bounds are correct
+ 						mBodyManager.ValidateActiveBodyBounds();
+@@ -491,6 +928,7 @@
+ 			for (int i = 0; i < max_concurrency; ++i)
+ 				step.mSolveVelocityConstraints[i] = inJobSystem->CreateJob("SolveVelocityConstraints", cColorSolveVelocityConstraints, [&context, &step]()
+ 					{
++						JPH_GENGINE_OBSERVE_STEP(&step)
+ 						context.mPhysicsSystem->JobSolveVelocityConstraints(&context, &step);
+ 
+ 						step.mPreIntegrateVelocity.RemoveDependency();
+@@ -506,6 +944,7 @@
+ 			// This job will prepare the position update of all active bodies
+ 			step.mPreIntegrateVelocity = inJobSystem->CreateJob("PreIntegrateVelocity", cColorPreIntegrateVelocity, [&context, &step]()
+ 				{
++					JPH_GENGINE_OBSERVE_STEP(&step)
+ 					context.mPhysicsSystem->JobPreIntegrateVelocity(&context, &step);
+ 
+ 					JobHandle::sRemoveDependencies(step.mIntegrateVelocity);
+@@ -520,6 +959,7 @@
+ 			for (int i = 0; i < num_integrate_velocity_jobs; ++i)
+ 				step.mIntegrateVelocity[i] = inJobSystem->CreateJob("IntegrateVelocity", cColorIntegrateVelocity, [&context, &step]()
+ 					{
++						JPH_GENGINE_OBSERVE_STEP(&step)
+ 						context.mPhysicsSystem->JobIntegrateVelocity(&context, &step);
+ 
+ 						step.mPostIntegrateVelocity.RemoveDependency();
+@@ -531,6 +971,7 @@
+ 			// This job will finish the position update of all active bodies
+ 			step.mPostIntegrateVelocity = inJobSystem->CreateJob("PostIntegrateVelocity", cColorPostIntegrateVelocity, [&context, &step]()
+ 				{
++					JPH_GENGINE_OBSERVE_STEP(&step)
+ 					context.mPhysicsSystem->JobPostIntegrateVelocity(&context, &step);
+ 
+ 					step.mResolveCCDContacts.RemoveDependency();
+@@ -542,6 +983,7 @@
+ 			// This job will update the positions and velocities for all bodies that need continuous collision detection
+ 			step.mResolveCCDContacts = inJobSystem->CreateJob("ResolveCCDContacts", cColorResolveCCDContacts, [&context, &step]()
+ 				{
++					JPH_GENGINE_OBSERVE_STEP(&step)
+ 					context.mPhysicsSystem->JobResolveCCDContacts(&context, &step);
+ 
+ 					JobHandle::sRemoveDependencies(step.mSolvePositionConstraints);
+@@ -555,6 +997,7 @@
+ 			for (int i = 0; i < max_concurrency; ++i)
+ 				step.mSolvePositionConstraints[i] = inJobSystem->CreateJob("SolvePositionConstraints", cColorSolvePositionConstraints, [&context, &step]()
+ 					{
++						JPH_GENGINE_OBSERVE_STEP(&step)
+ 						context.mPhysicsSystem->JobSolvePositionConstraints(&context, &step);
+ 
+ 						// Kick the next step
+@@ -569,6 +1012,7 @@
+ 			// The soft body prepare job will create other jobs if needed
+ 			step.mSoftBodyPrepare = inJobSystem->CreateJob("SoftBodyPrepare", cColorSoftBodyPrepare, [&context, &step]()
+ 				{
++					JPH_GENGINE_OBSERVE_STEP(&step)
+ 					context.mPhysicsSystem->JobSoftBodyPrepare(&context, &step);
+ 				}, max_concurrency); // depends on: solve position constraints.
+ 
+@@ -650,10 +1094,20 @@
+ 	mContactManager.FinishConstraintBuffer();
+ 
+ 	// Free active constraints
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::ActiveConstraints, QualificationObservation::StorageAction::Release,
++		context.mActiveConstraints, uint64(mConstraintManager.GetNumConstraints()) * sizeof(Constraint *),
++		AlignUp(size_t(mConstraintManager.GetNumConstraints()) * sizeof(Constraint *), size_t(JPH_RVECTOR_ALIGNMENT)), mConstraintManager.GetNumConstraints());
++#endif
+ 	inTempAllocator->Free(context.mActiveConstraints, mConstraintManager.GetNumConstraints() * sizeof(Constraint *));
+ 	context.mActiveConstraints = nullptr;
+ 
+ 	// Free body pairs
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::BodyPairs, QualificationObservation::StorageAction::Release,
++		context.mBodyPairs, uint64(sizeof(BodyPair)) * mPhysicsSettings.mMaxInFlightBodyPairs,
++		AlignUp(size_t(sizeof(BodyPair)) * mPhysicsSettings.mMaxInFlightBodyPairs, size_t(JPH_RVECTOR_ALIGNMENT)), mPhysicsSettings.mMaxInFlightBodyPairs);
++#endif
+ 	inTempAllocator->Free(context.mBodyPairs, sizeof(BodyPair) * mPhysicsSettings.mMaxInFlightBodyPairs);
+ 	context.mBodyPairs = nullptr;
+ 
+@@ -677,6 +1131,11 @@
+ 	// Return any errors
+ 	EPhysicsUpdateError errors = static_cast<EPhysicsUpdateError>(context.mErrors.load(memory_order_acquire));
+ 	JPH_ASSERT(errors == EPhysicsUpdateError::None, "An error occurred during the physics update, see EPhysicsUpdateError for more information");
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::UpdateSteps, QualificationObservation::StorageAction::Release,
++		context.mSteps.data(), uint64(context.mSteps.capacity()) * sizeof(PhysicsUpdateContext::Step),
++		AlignUp(size_t(context.mSteps.capacity()) * sizeof(PhysicsUpdateContext::Step), size_t(JPH_RVECTOR_ALIGNMENT)), uint32(context.mSteps.capacity()));
++#endif
+ 	return errors;
+ }
+ 
+@@ -812,6 +1271,9 @@
+ 
+ void PhysicsSystem::JobBuildIslandsFromConstraints(PhysicsUpdateContext *ioContext, PhysicsUpdateContext::Step *ioStep)
+ {
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_joint_graph(QualificationObservation::Phase::JointGraph);
++#endif
+ #ifdef JPH_ENABLE_ASSERTS
+ 	// We read constraints and positions
+ 	BodyAccess::Grant grant(BodyAccess::EAccess::Read, BodyAccess::EAccess::Read);
+@@ -865,6 +1327,7 @@
+ 			// Start the job
+ 			JobHandle job = ioStep->mContext->mJobSystem->CreateJob("FindCollisions", cColorFindCollisions, [step = ioStep, job_index]()
+ 				{
++					JPH_GENGINE_OBSERVE_STEP(step)
+ 					step->mContext->mPhysicsSystem->JobFindCollisions(step, job_index);
+ 				});
+ 
+@@ -892,6 +1355,9 @@
+ JPH_TSAN_NO_SANITIZE
+ void PhysicsSystem::JobFindCollisions(PhysicsUpdateContext::Step *ioStep, int inJobIndex)
+ {
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_shared_broadphase(QualificationObservation::Phase::SharedBroadPhase);
++#endif
+ #ifdef JPH_ENABLE_ASSERTS
+ 	// We read positions and read velocities (for elastic collisions)
+ 	BodyAccess::Grant grant(BodyAccess::EAccess::Read, BodyAccess::EAccess::Read);
+@@ -1048,6 +1514,9 @@
+ 
+ void PhysicsSystem::ProcessBodyPair(ContactAllocator &ioContactAllocator, const BodyPair &inBodyPair)
+ {
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_shared_narrowphase(QualificationObservation::Phase::SharedNarrowPhase);
++#endif
+ 	// Fetch body pair
+ 	Body *body1 = &mBodyManager.GetBody(inBodyPair.mBodyA);
+ 	Body *body2 = &mBodyManager.GetBody(inBodyPair.mBodyB);
+@@ -1409,6 +1878,9 @@
+ 			{
+ 			case LargeIslandSplitter::EStatus::BatchRetrieved:
+ 				{
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++					QualificationObservation::ReportWork(QualificationObservation::WorkKind::SolverBatch);
++#endif
+ 				#ifdef JPH_TRACK_SIMULATION_STATS
+ 					uint64 start_tick = GetProcessorTickCount();
+ 				#endif
+@@ -1488,6 +1960,9 @@
+ 				check_islands = false;
+ 				continue;
+ 			}
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++			QualificationObservation::ReportWork(QualificationObservation::WorkKind::SolverBatch);
++#endif
+ 
+ 		#ifdef JPH_TRACK_SIMULATION_STATS
+ 			uint64 start_tick = GetProcessorTickCount();
+@@ -1569,12 +2044,32 @@
+ 	TempAllocator *temp_allocator = ioContext->mTempAllocator;
+ 	JPH_ASSERT(ioStep->mCCDBodies == nullptr);
+ 	ioStep->mCCDBodiesCapacity = mBodyManager.GetNumActiveCCDBodies();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	{
++		QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::CCD);
++#endif
+ 	ioStep->mCCDBodies = (CCDBody *)temp_allocator->Allocate(ioStep->mCCDBodiesCapacity * sizeof(CCDBody));
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		const uint64 bytes = uint64(ioStep->mCCDBodiesCapacity) * sizeof(CCDBody);
++		QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::CCD, QualificationObservation::StorageAction::Reserve,
++			ioStep->mCCDBodies, bytes, AlignUp(size_t(bytes), size_t(JPH_RVECTOR_ALIGNMENT)), ioStep->mCCDBodiesCapacity);
++	}
++#endif
+ 
+ 	// Initialize the mapping table between active body and CCD body
+ 	JPH_ASSERT(ioStep->mActiveBodyToCCDBody == nullptr);
+ 	ioStep->mNumActiveBodyToCCDBody = mBodyManager.GetNumActiveBodies(EBodyType::RigidBody);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	{
++		QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::CCD);
++#endif
+ 	ioStep->mActiveBodyToCCDBody = (int *)temp_allocator->Allocate(ioStep->mNumActiveBodyToCCDBody * sizeof(int));
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		const uint64 bytes = uint64(ioStep->mNumActiveBodyToCCDBody) * sizeof(int);
++		QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::CCD, QualificationObservation::StorageAction::Reserve,
++			ioStep->mActiveBodyToCCDBody, bytes, AlignUp(size_t(bytes), size_t(JPH_RVECTOR_ALIGNMENT)), ioStep->mNumActiveBodyToCCDBody);
++	}
++#endif
+ 
+ 	// Prepare the split island builder for solving the position constraints
+ 	mLargeIslandSplitter.PrepareForSolvePositions();
+@@ -1730,6 +2225,7 @@
+ 		{
+ 			JobHandle job = ioContext->mJobSystem->CreateJob("FindCCDContacts", cColorFindCCDContacts, [ioContext, ioStep]()
+ 			{
++				JPH_GENGINE_OBSERVE_STEP(ioStep)
+ 				ioContext->mPhysicsSystem->JobFindCCDContacts(ioContext, ioStep);
+ 
+ 				ioStep->mResolveCCDContacts.RemoveDependency();
+@@ -1781,6 +2277,9 @@
+ 
+ void PhysicsSystem::JobFindCCDContacts(const PhysicsUpdateContext *ioContext, PhysicsUpdateContext::Step *ioStep)
+ {
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_ccd_preparation(QualificationObservation::Phase::CCDPreparation);
++#endif
+ #ifdef JPH_ENABLE_ASSERTS
+ 	// We only read positions, but the validate callback may read body positions and velocities
+ 	BodyAccess::Grant grant(BodyAccess::EAccess::Read, BodyAccess::EAccess::Read);
+@@ -1805,6 +2304,12 @@
+ 		if (idx >= ioStep->mNumCCDBodies)
+ 			break;
+ 		CCDBody &ccd_body = ioStep->mCCDBodies[idx];
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		if (idx < QualificationObservation::cCCDCandidateSlots)
++			QualificationObservation::sCCDCandidates[idx].valid.store(0, std::memory_order_release);
++		else
++			QualificationObservation::ReportFailure(QualificationObservation::FailureCode::ObservationCapacity, idx);
++#endif
+ 		const Body &body = mBodyManager.GetBody(ccd_body.mBodyID1);
+ 
+ 		// Filter out layers
+@@ -2073,6 +2578,9 @@
+ 			manifold.mSubShapeID2 = cast_shape_result.mSubShapeID2;
+ 			manifold.mPenetrationDepth = cast_shape_result.mPenetrationDepth;
+ 			manifold.mWorldSpaceNormal = ccd_body.mContactNormal;
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++			const float phase26_candidate_fraction_plus_slop = ccd_body.mFractionPlusSlop;
++#endif
+ 
+ 			// Call contact point callbacks
+ 			if (body2.IsRigidBody())
+@@ -2105,6 +2613,60 @@
+ 				else
+ 					ccd_body.mContactPointOn2 = manifold.mBaseOffset + cast_shape_result.mContactPointOn2;
+ 			}
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++			// The candidate is recorded after the final manifold and response point
++			// have been prepared. It may still be discarded by CCD arbitration.
++			const RVec3 phase26_response = ccd_body.mBodyID2.IsInvalid()
++				? manifold.mBaseOffset + cast_shape_result.mContactPointOn2
++				: ccd_body.mContactPointOn2;
++			QualificationObservation::CCDRecord candidate {};
++			candidate.context = QualificationObservation::CurrentContext();
++			candidate.body1 = body.GetID().GetIndexAndSequenceNumber();
++			candidate.subshape1 = manifold.mSubShapeID1.GetValue();
++			candidate.body2 = body2.GetID().GetIndexAndSequenceNumber();
++			candidate.subshape2 = manifold.mSubShapeID2.GetValue();
++			candidate.fraction = ccd_body.mFraction;
++			candidate.fraction_plus_slop = phase26_candidate_fraction_plus_slop;
++			candidate.response_point[0] = float(phase26_response.GetX());
++			candidate.response_point[1] = float(phase26_response.GetY());
++			candidate.response_point[2] = float(phase26_response.GetZ());
++			candidate.solver_world_normal[0] = ccd_body.mContactNormal.GetX();
++			candidate.solver_world_normal[1] = ccd_body.mContactNormal.GetY();
++			candidate.solver_world_normal[2] = ccd_body.mContactNormal.GetZ();
++			candidate.manifold_points = uint32(manifold.mRelativeContactPointsOn1.size());
++			if (idx < QualificationObservation::cCCDCandidateSlots)
++			{
++				QualificationObservation::sCCDCandidates[idx].record = candidate;
++				QualificationObservation::sCCDCandidates[idx].valid.store(1, std::memory_order_release);
++			}
++			QualificationObservation::PublishRecord(QualificationObservation::EventKind::CCDCandidate, &candidate, sizeof(candidate));
++			QualificationObservation::ReportWork(QualificationObservation::WorkKind::CCDPreparedCandidate);
++			for (uint32 point = 0; point < candidate.manifold_points; ++point)
++			{
++				const RVec3 p1 = manifold.mBaseOffset + manifold.mRelativeContactPointsOn1[point];
++				const RVec3 p2 = manifold.mBaseOffset + manifold.mRelativeContactPointsOn2[point];
++				QualificationObservation::PointRecord record {};
++				record.context = candidate.context;
++				record.body1 = candidate.body1;
++				record.subshape1 = candidate.subshape1;
++				record.body2 = candidate.body2;
++				record.subshape2 = candidate.subshape2;
++				record.ordinal = point;
++				record.space = QualificationObservation::AnchorSpace::WorldAtImpact;
++				record.anchor1[0] = float(p1.GetX());
++				record.anchor1[1] = float(p1.GetY());
++				record.anchor1[2] = float(p1.GetZ());
++				record.anchor2[0] = float(p2.GetX());
++				record.anchor2[1] = float(p2.GetY());
++				record.anchor2[2] = float(p2.GetZ());
++				record.solver_world_normal[0] = candidate.solver_world_normal[0];
++				record.solver_world_normal[1] = candidate.solver_world_normal[1];
++				record.solver_world_normal[2] = candidate.solver_world_normal[2];
++				QualificationObservation::PublishRecord(QualificationObservation::EventKind::CCDManifoldPoint, &record, sizeof(record));
++			}
++			if (ccd_body.mBodyID2.IsInvalid())
++				QualificationObservation::ReportWork(QualificationObservation::WorkKind::CCDRejectedCandidate);
++#endif
+ 		}
+ 	}
+ 
+@@ -2151,7 +2713,12 @@
+ 	ContactConstraintPart<EMotionType::Dynamic, EMotionType::Dynamic> contact_constraint;
+ 	contact_constraint.SetTotalLambda(0.0f);
+ 	contact_constraint.CalculateConstraintProperties(inInvM1, inInvI1, inR1PlusU, inv_m2, inv_i2, inR2, inContactNormal, inNormalVelocityBias);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	const bool phase26_normal_changed = contact_constraint.SolveVelocityConstraint(linear_velocity1, angular_velocity1, linear_velocity2, angular_velocity2, inInvM1, inv_m2, inContactNormal, -FLT_MAX, FLT_MAX);
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::ContactNormalPointAttempt, 1, phase26_normal_changed? 1 : 0);
++#else
+ 	contact_constraint.SolveVelocityConstraint(linear_velocity1, angular_velocity1, linear_velocity2, angular_velocity2, inInvM1, inv_m2, inContactNormal, -FLT_MAX, FLT_MAX);
++#endif
+ 
+ 	// Apply friction
+ 	if (inContactSettings.mCombinedFriction > 0.0f)
+@@ -2160,6 +2727,9 @@
+ 		float friction_direction_len_sq = inFrictionDirection.LengthSq();
+ 		if (friction_direction_len_sq > 1.0e-12f)
+ 		{
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++			QualificationObservation::ReportWork(QualificationObservation::WorkKind::ContactFrictionAttempt);
++#endif
+ 			// Normalize friction direction
+ 			Vec3 friction_direction = inFrictionDirection / Sqrt(friction_direction_len_sq);
+ 
+@@ -2200,6 +2770,10 @@
+ 		const auto response = ContactResistanceConstraintPart::Solve(resistance_properties, inContactNormal,
+ 			contact_constraint.GetTotalLambda(), inContactSettings.mCombinedSpinResistanceLength,
+ 			inContactSettings.mCombinedRollingResistanceLength, resistance, angular_velocity1, resistance_angular2);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		QualificationObservation::ReportWork(QualificationObservation::WorkKind::ContactResistanceInvocation, 1,
++			response.mApplied? 1 : 0, response.mRootIterations);
++#endif
+ 		if (!response.mValid)
+ 			return false;
+ 		if constexpr (Type2 == EMotionType::Dynamic)
+@@ -2227,6 +2801,9 @@
+ 		body2_mp->SetLinearVelocityClamped(linear_velocity2);
+ 		body2_mp->SetAngularVelocityClamped(angular_velocity2);
+ 	}
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::sAcceptedCCDNormalLambda = contact_constraint.GetTotalLambda();
++#endif
+ 	return true;
+ }
+ 
+@@ -2252,7 +2829,19 @@
+ 		// between body pairs if an earlier hit was found involving the body by another CCD body
+ 		// (if it's body ID < this CCD body's body ID - see filtering logic in CCDBroadPhaseCollector)
+ 		CCDBody **sorted_ccd_bodies = (CCDBody **)temp_allocator->Allocate(num_ccd_bodies * sizeof(CCDBody *));
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::CCD, QualificationObservation::StorageAction::Reserve,
++			sorted_ccd_bodies, uint64(num_ccd_bodies) * sizeof(CCDBody *),
++			AlignUp(size_t(num_ccd_bodies) * sizeof(CCDBody *), size_t(JPH_RVECTOR_ALIGNMENT)), num_ccd_bodies);
++		JPH_SCOPE_EXIT([temp_allocator, sorted_ccd_bodies, num_ccd_bodies]{
++			QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::CCD, QualificationObservation::StorageAction::Release,
++				sorted_ccd_bodies, uint64(num_ccd_bodies) * sizeof(CCDBody *),
++				AlignUp(size_t(num_ccd_bodies) * sizeof(CCDBody *), size_t(JPH_RVECTOR_ALIGNMENT)), num_ccd_bodies);
++			temp_allocator->Free(sorted_ccd_bodies, num_ccd_bodies * sizeof(CCDBody *));
++		});
++#else
+ 		JPH_SCOPE_EXIT([temp_allocator, sorted_ccd_bodies, num_ccd_bodies]{ temp_allocator->Free(sorted_ccd_bodies, num_ccd_bodies * sizeof(CCDBody *)); });
++#endif
+ 		{
+ 			JPH_PROFILE("Sort");
+ 
+@@ -2306,8 +2895,14 @@
+ 						// Reset the colliding body of the other CCD body. The other body will shorten its distance traveled and will not do any collision response (we'll do that).
+ 						// This means that at this point we have triggered a contact point add/persist for our further hit by accident for the other body.
+ 						// We accept this as calling the contact point callbacks here would require persisting the manifolds up to this point and doing the callbacks single threaded.
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++						QualificationObservation::PhaseScope phase26_ccd_rejection(QualificationObservation::Phase::CCDRejection);
++#endif
+ 						ccd_body2->mBodyID2 = BodyID();
+ 						ccd_body2->mFractionPlusSlop = ccd_body->mFraction;
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++						QualificationObservation::ReportWork(QualificationObservation::WorkKind::CCDRejectedCandidate);
++#endif
+ 					}
+ 				}
+ 
+@@ -2352,8 +2947,76 @@
+ 							sSolveCCDContact<EMotionType::Kinematic>,
+ 							sSolveCCDContact<EMotionType::Dynamic>
+ 						};
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++						const RMat44 phase26_impact2 = body2.GetCenterOfMassTransform().PostTranslated(ccd_body->mFraction * sCalculateBodyMotion(body2, ioContext->mStepDeltaTime));
++						QualificationObservation::sAcceptedCCDNormalLambda = -FLT_MAX;
++						bool phase26_solved;
++						{
++							QualificationObservation::PhaseScope phase26_ccd_solve(QualificationObservation::Phase::CCDAcceptance);
++							phase26_solved = table[(int)body2.GetMotionType()](body1, inv_m1, inv_i1, r1_plus_u, body2, r2, ccd_body->mContactNormal, normal_velocity_bias, friction_direction, contact_settings);
++						}
++						if (!phase26_solved)
++						{
++							QualificationObservation::ReportWork(QualificationObservation::WorkKind::CCDFailedSolve);
++							ioContext->mErrors.fetch_or(uint32(EPhysicsUpdateError::ContactResistanceInvalid), memory_order_relaxed);
++						}
++						else
++						{
++							const uint32 phase26_idx = uint32(ccd_body - ioStep->mCCDBodies);
++							if (phase26_idx >= QualificationObservation::cCCDCandidateSlots
++								|| QualificationObservation::sCCDCandidates[phase26_idx].valid.load(std::memory_order_acquire) == 0)
++								QualificationObservation::ReportFailure(QualificationObservation::FailureCode::MissingCCDCandidate, phase26_idx);
++							else
++							{
++								QualificationObservation::CCDRecord accepted = QualificationObservation::sCCDCandidates[phase26_idx].record;
++								if (accepted.context.world != this || accepted.context.epoch != QualificationObservation::CurrentContext().epoch
++									|| accepted.context.update != QualificationObservation::CurrentContext().update
++									|| accepted.context.substep != QualificationObservation::CurrentContext().substep
++									|| accepted.body1 != body1.GetID().GetIndexAndSequenceNumber()
++									|| accepted.body2 != body2.GetID().GetIndexAndSequenceNumber()
++									|| accepted.subshape2 != ccd_body->mSubShapeID2.GetValue()
++									|| accepted.fraction != ccd_body->mFraction
++									|| accepted.fraction_plus_slop != ccd_body->mFractionPlusSlop
++									|| accepted.response_point[0] != float(ccd_body->mContactPointOn2.GetX())
++									|| accepted.response_point[1] != float(ccd_body->mContactPointOn2.GetY())
++									|| accepted.response_point[2] != float(ccd_body->mContactPointOn2.GetZ()))
++									QualificationObservation::ReportFailure(QualificationObservation::FailureCode::SinkMismatch, phase26_idx);
++								else
++								{
++									accepted.context = QualificationObservation::CurrentContext();
++									accepted.normal_lambda = QualificationObservation::sAcceptedCCDNormalLambda;
++									QualificationObservation::PublishRecord(QualificationObservation::EventKind::CCDAccepted, &accepted, sizeof(accepted));
++									const RMat44 impact1 = body1.GetCenterOfMassTransform().PostTranslated(ccd_body->mFraction * ccd_body->mDeltaPosition);
++									const RVec3 response_point = ccd_body->mContactPointOn2;
++									const Vec3 local1 = Vec3(impact1.InversedRotationTranslation() * response_point);
++									const Vec3 local2 = Vec3(phase26_impact2.InversedRotationTranslation() * response_point);
++									QualificationObservation::PointRecord point {};
++									point.context = accepted.context;
++									point.body1 = accepted.body1;
++									point.subshape1 = accepted.subshape1;
++									point.body2 = accepted.body2;
++									point.subshape2 = accepted.subshape2;
++									point.ordinal = ~uint32(0); // Transient accepted response point, not a manifold ordinal.
++									point.space = QualificationObservation::AnchorSpace::COMLocal;
++									point.anchor1[0] = local1.GetX();
++									point.anchor1[1] = local1.GetY();
++									point.anchor1[2] = local1.GetZ();
++									point.anchor2[0] = local2.GetX();
++									point.anchor2[1] = local2.GetY();
++									point.anchor2[2] = local2.GetZ();
++									point.solver_world_normal[0] = accepted.solver_world_normal[0];
++									point.solver_world_normal[1] = accepted.solver_world_normal[1];
++									point.solver_world_normal[2] = accepted.solver_world_normal[2];
++									point.normal_lambda = accepted.normal_lambda;
++									QualificationObservation::PublishRecord(QualificationObservation::EventKind::CCDManifoldPoint, &point, sizeof(point));
++									QualificationObservation::ReportWork(QualificationObservation::WorkKind::CCDAcceptedSolve);
++								}
++							}
++						}
++#else
+ 						if (!table[(int)body2.GetMotionType()](body1, inv_m1, inv_i1, r1_plus_u, body2, r2, ccd_body->mContactNormal, normal_velocity_bias, friction_direction, contact_settings))
+ 							ioContext->mErrors.fetch_or(uint32(EPhysicsUpdateError::ContactResistanceInvalid), memory_order_relaxed);
++#endif
+ 					}
+ 					else
+ 					{
+@@ -2453,6 +3116,13 @@
+ 					}
+ 				#endif // JPH_DEBUG_RENDERER
+ 				}
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++				else
++				{
++					QualificationObservation::PhaseScope phase26_ccd_rejection(QualificationObservation::Phase::CCDRejection);
++					QualificationObservation::ReportWork(QualificationObservation::WorkKind::CCDRejectedCandidate);
++				}
++#endif
+ 			}
+ 
+ 			// Update body position
+@@ -2485,9 +3155,19 @@
+ 	}
+ 
+ 	// Ensure we free the CCD bodies array now, will not call the destructor!
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::CCD, QualificationObservation::StorageAction::Release,
++		ioStep->mActiveBodyToCCDBody, uint64(ioStep->mNumActiveBodyToCCDBody) * sizeof(int),
++		AlignUp(size_t(ioStep->mNumActiveBodyToCCDBody) * sizeof(int), size_t(JPH_RVECTOR_ALIGNMENT)), ioStep->mNumActiveBodyToCCDBody);
++#endif
+ 	temp_allocator->Free(ioStep->mActiveBodyToCCDBody, ioStep->mNumActiveBodyToCCDBody * sizeof(int));
+ 	ioStep->mActiveBodyToCCDBody = nullptr;
+ 	ioStep->mNumActiveBodyToCCDBody = 0;
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::CCD, QualificationObservation::StorageAction::Release,
++		ioStep->mCCDBodies, uint64(ioStep->mCCDBodiesCapacity) * sizeof(CCDBody),
++		AlignUp(size_t(ioStep->mCCDBodiesCapacity) * sizeof(CCDBody), size_t(JPH_RVECTOR_ALIGNMENT)), ioStep->mCCDBodiesCapacity);
++#endif
+ 	temp_allocator->Free(ioStep->mCCDBodies, ioStep->mCCDBodiesCapacity * sizeof(CCDBody));
+ 	ioStep->mCCDBodies = nullptr;
+ 	ioStep->mCCDBodiesCapacity = 0;
+@@ -2794,6 +3474,7 @@
+ 	// Create finalize job
+ 	ioStep->mSoftBodyFinalize = ioContext->mJobSystem->CreateJob("SoftBodyFinalize", cColorSoftBodyFinalize, [ioContext, ioStep]()
+ 	{
++		JPH_GENGINE_OBSERVE_STEP(ioStep)
+ 		ioContext->mPhysicsSystem->JobSoftBodyFinalize(ioContext);
+ 
+ 		// Kick the next step
+@@ -2807,6 +3488,7 @@
+ 	for (int i = 0; i < num_soft_body_jobs; ++i)
+ 		ioStep->mSoftBodySimulate[i] = ioContext->mJobSystem->CreateJob("SoftBodySimulate", cColorSoftBodySimulate, [ioStep, i]()
+ 			{
++				JPH_GENGINE_OBSERVE_STEP(ioStep)
+ 				ioStep->mContext->mPhysicsSystem->JobSoftBodySimulate(ioStep->mContext, i);
+ 
+ 				ioStep->mSoftBodyFinalize.RemoveDependency();
+@@ -2818,6 +3500,7 @@
+ 	for (int i = 0; i < num_soft_body_jobs; ++i)
+ 		ioStep->mSoftBodyCollide[i] = ioContext->mJobSystem->CreateJob("SoftBodyCollide", cColorSoftBodyCollide, [ioContext, ioStep]()
+ 			{
++				JPH_GENGINE_OBSERVE_STEP(ioStep)
+ 				ioContext->mPhysicsSystem->JobSoftBodyCollide(ioContext);
+ 
+ 				for (const JobHandle &h : ioStep->mSoftBodySimulate)
+diff --git a/Jolt/Physics/Constraints/ContactConstraintManager.cpp b/Jolt/Physics/Constraints/ContactConstraintManager.cpp
+--- a/Jolt/Physics/Constraints/ContactConstraintManager.cpp
++++ b/Jolt/Physics/Constraints/ContactConstraintManager.cpp
+@@ -15,11 +15,53 @@
+ #include <Jolt/Core/TempAllocator.h>
+ #include <Jolt/Core/QuickSort.h>
+ #include <Jolt/Core/Prefetch.h>
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	#include <Jolt/Physics/QualificationObservation.h>
++#endif
+ #ifdef JPH_DEBUG_RENDERER
+ 	#include <Jolt/Renderer/DebugRenderer.h>
+ #endif // JPH_DEBUG_RENDERER
+ 
+ JPH_NAMESPACE_BEGIN
++
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++struct Phase26ContactWork
++{
++	uint32 normal_attempts = 0;
++	uint32 normal_changed = 0;
++	uint32 friction_attempts = 0;
++	uint32 friction_changed = 0;
++	uint32 spin_attempts = 0;
++	uint32 spin_changed = 0;
++	uint32 resistance_invocations = 0;
++	uint32 resistance_applied = 0;
++	uint32 resistance_roots = 0;
++
++	~Phase26ContactWork()
++	{
++		QualificationObservation::ReportWork(QualificationObservation::WorkKind::ContactNormalPointAttempt, normal_attempts, normal_changed);
++		QualificationObservation::ReportWork(QualificationObservation::WorkKind::ContactFrictionAttempt, friction_attempts, friction_changed);
++		QualificationObservation::ReportWork(QualificationObservation::WorkKind::ContactSpinAttempt, spin_attempts, spin_changed);
++		QualificationObservation::ReportWork(QualificationObservation::WorkKind::ContactResistanceInvocation, resistance_invocations, resistance_applied, resistance_roots);
++	}
++};
++
++static void sPhase26CacheLife(QualificationObservation::LifeKind inKind, const BodyID &inBody1, const SubShapeID &inSubShape1,
++	const BodyID &inBody2, const SubShapeID &inSubShape2, uint32 inPoints, uint32 inFlags) noexcept
++{
++	QualificationObservation::LifetimeRecord record {};
++	record.context = QualificationObservation::CurrentContext();
++	record.body1 = inBody1.GetIndexAndSequenceNumber();
++	record.subshape1 = inSubShape1.GetValue();
++	record.body2 = inBody2.GetIndexAndSequenceNumber();
++	record.subshape2 = inSubShape2.GetValue();
++	record.cached_points = inPoints;
++	record.flags = inFlags;
++	record.life_kind = inKind;
++	QualificationObservation::PublishRecord(inKind == QualificationObservation::LifeKind::RetiredUnpersisted
++		? QualificationObservation::EventKind::RetiredUnpersisted : QualificationObservation::EventKind::CacheLifecycle, &record, sizeof(record));
++}
++#endif
+ 
+ using namespace literals;
+ 
+@@ -442,10 +484,27 @@
+ void ContactConstraintManager::ManifoldCache::ContactPointRemovedCallbacks(ContactListener *inListener)
+ {
+ 	JPH_PROFILE_FUNCTION();
+-
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_retirement(QualificationObservation::Phase::ContactRetirement);
++#endif
++
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	for (MKeyValue &kv : mCachedManifolds)
++		if ((kv.GetValue().mFlags & uint16(CachedManifold::EFlags::ContactPersisted)) == 0)
++		{
++			const SubShapeIDPair &key = kv.GetKey();
++			sPhase26CacheLife(QualificationObservation::LifeKind::RetiredUnpersisted,
++				key.GetBody1ID(), key.GetSubShapeID1(), key.GetBody2ID(), key.GetSubShapeID2(),
++				kv.GetValue().mNumContactPoints, kv.GetValue().mFlags.load(memory_order_relaxed));
++			QualificationObservation::ReportWork(QualificationObservation::WorkKind::ContactRetirement);
++			if (inListener != nullptr)
++			inListener->OnContactRemoved(kv.GetKey());
++		}
++#else
+ 	for (MKeyValue &kv : mCachedManifolds)
+ 		if ((kv.GetValue().mFlags & uint16(CachedManifold::EFlags::ContactPersisted)) == 0)
+ 			inListener->OnContactRemoved(kv.GetKey());
++#endif
+ }
+ 
+ #ifdef JPH_ENABLE_ASSERTS
+@@ -733,6 +792,9 @@
+ 
+ void ContactConstraintManager::Init(uint inMaxBodyPairs, uint inMaxContactConstraints)
+ {
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::ContactConstraints);
++#endif
+ 	// Limit the number of constraints so that the allocation size fits in an unsigned integer
+ 	mMaxConstraints = min(inMaxContactConstraints, cMaxContactConstraintsLimit);
+ 	JPH_ASSERT(mMaxConstraints == inMaxContactConstraints, "Cannot support this many contact constraints!");
+@@ -759,9 +821,29 @@
+ 
+ 	// Allocate temporary constraint buffer
+ 	JPH_ASSERT(mConstraints == nullptr);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	{
++		QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::ContactConstraints);
++#endif
+ 	mConstraints = (uint8 *)inContext->mTempAllocator->Allocate(mMaxConstraints * cMaxConstraintSize);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		const uint64 bytes = uint64(mMaxConstraints) * cMaxConstraintSize;
++		QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::ContactConstraints, QualificationObservation::StorageAction::Reserve,
++			mConstraints, bytes, AlignUp(size_t(bytes), size_t(JPH_RVECTOR_ALIGNMENT)), mMaxConstraints);
++	}
++#endif
+ 	JPH_ASSERT(mConstraintIdxToOffset == nullptr);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	{
++		QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::ContactIndexMap);
++#endif
+ 	mConstraintIdxToOffset = (uint32 *)inContext->mTempAllocator->Allocate(mMaxConstraints * sizeof(uint32));
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		const uint64 bytes = uint64(mMaxConstraints) * sizeof(uint32);
++		QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::ContactIndexMap, QualificationObservation::StorageAction::Reserve,
++			mConstraintIdxToOffset, bytes, AlignUp(size_t(bytes), size_t(JPH_RVECTOR_ALIGNMENT)), mMaxConstraints);
++	}
++#endif
+ }
+ 
+ template <EMotionType Type1, EMotionType Type2>
+@@ -834,6 +916,9 @@
+ 	// Additional variable-length points do not run a constructor. Cold state is explicit for every point.
+ 	for (uint32 i = 0; i < inNumContactPoints; ++i)
+ 		new (&constraint->mContactPoints[i].mResistance) ContactResistanceConstraintPart::Accumulator();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::ContactManifoldDispatch, 1);
++#endif
+ 
+ #ifdef JPH_TRACK_SIMULATION_STATS
+ 	// Track new contact constraints
+@@ -878,6 +963,11 @@
+ 			break; // Out of cache space
+ 		CachedManifold *output_cm = &output_kv->GetValue();
+ 		memcpy(output_cm, &input_cm, CachedManifold::sGetRequiredTotalSize(input_cm.mNumContactPoints));
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		sPhase26CacheLife(QualificationObservation::LifeKind::ManifoldPersisted,
++			input_key.GetBody1ID(), input_key.GetSubShapeID1(), input_key.GetBody2ID(), input_key.GetSubShapeID2(),
++			input_cm.mNumContactPoints, input_cm.mFlags.load(memory_order_relaxed));
++#endif
+ 
+ 		// Link the object under the body pairs
+ 		output_cm->mNextWithSameBodyPair = output_handle;
+@@ -1009,6 +1099,10 @@
+ 
+ void ContactConstraintManager::GetContactsFromCache(ContactAllocator &ioContactAllocator, Body &inBody1, Body &inBody2, bool &outPairHandled)
+ {
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_cached_preparation(QualificationObservation::Phase::ContactCachedPreparation);
++	QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::ContactConstraints);
++#endif
+ 	// Start with not handled
+ 	outPairHandled = false;
+ 
+@@ -1059,6 +1153,11 @@
+ 
+ 	// The cache is valid, return that we've handled this body pair
+ 	outPairHandled = true;
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::ContactCachedDispatch);
++	sPhase26CacheLife(QualificationObservation::LifeKind::PairReused,
++		body1->GetID(), SubShapeID(), body2->GetID(), SubShapeID(), 0, 0);
++#endif
+ 
+ 	// Copy the cached body pair to this frame
+ 	BPKeyValue *output_bp_kv = mWriteCache->Create(ioContactAllocator, body_pair_key, body_pair_hash);
+@@ -1098,6 +1197,9 @@
+ 
+ ContactConstraintManager::BodyPairHandle ContactConstraintManager::AddBodyPair(ContactAllocator &ioContactAllocator, const Body &inBody1, const Body &inBody2)
+ {
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::ContactConstraints);
++#endif
+ 	// Swap bodies so that body 1 id < body 2 id
+ 	const Body *body1, *body2;
+ 	if (inBody1.GetID() < inBody2.GetID())
+@@ -1119,6 +1221,10 @@
+ 		return nullptr; // Out of cache space
+ 	CachedBodyPair *cbp = &body_pair_kv->GetValue();
+ 	cbp->mFirstCachedManifold = ManifoldMap::cInvalidHandle;
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	sPhase26CacheLife(QualificationObservation::LifeKind::PairAdded,
++		body1->GetID(), SubShapeID(), body2->GetID(), SubShapeID(), 0, 0);
++#endif
+ 
+ 	// Get relative translation
+ 	Quat inv_r1 = body1->GetRotation().Conjugated();
+@@ -1195,6 +1301,10 @@
+ 		ccp_start = nullptr;
+ 		ccp_end = nullptr;
+ 	}
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	sPhase26CacheLife(old_manifold_kv != nullptr? QualificationObservation::LifeKind::ManifoldPersisted : QualificationObservation::LifeKind::ManifoldAdded,
++		key.GetBody1ID(), key.GetSubShapeID1(), key.GetBody2ID(), key.GetSubShapeID2(), uint32(num_contact_points), 0);
++#endif
+ 
+ 	// Get inverse transform for body 1
+ 	RMat44 inverse_transform_body1 = inBody1.GetInverseCenterOfMassTransform();
+@@ -1346,6 +1456,11 @@
+ void ContactConstraintManager::AddContactConstraint(ContactAllocator &ioContactAllocator, bool &ioActivateAndLinkBodies, BodyPairHandle inBodyPairHandle, Body &inBody1, Body &inBody2, const ContactManifold &inManifold)
+ {
+ 	JPH_PROFILE_FUNCTION();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_new_preparation(QualificationObservation::Phase::ContactNewPreparation);
++	QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::ContactConstraints);
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::ContactNewDispatch);
++#endif
+ 
+ 	JPH_DET_LOG("AddContactConstraint: id1: " << inBody1.GetID() << " id2: " << inBody2.GetID()
+ 		<< " subshape1: " << inManifold.mSubShapeID1 << " subshape2: " << inManifold.mSubShapeID2
+@@ -1398,6 +1513,9 @@
+ 
+ void ContactConstraintManager::OnCCDContactAdded(ContactAllocator &ioContactAllocator, const Body &inBody1, const Body &inBody2, const ContactManifold &inManifold, ContactSettings &outSettings)
+ {
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::ContactConstraints);
++#endif
+ 	JPH_ASSERT(inManifold.mWorldSpaceNormal.IsNormalized());
+ 
+ 	// Calculate contact settings
+@@ -1457,6 +1575,11 @@
+ 				CachedManifold &new_manifold = new_manifold_kv.first->GetValue();
+ 				new_manifold.mContactNormal = { 0, 0, 0 };
+ 				new_manifold.mFlags |= (uint16)CachedManifold::EFlags::CCDContact;
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++				sPhase26CacheLife(QualificationObservation::LifeKind::CCDCallbackOnly,
++					key.GetBody1ID(), key.GetSubShapeID1(), key.GetBody2ID(), key.GetSubShapeID2(),
++					0, new_manifold.mFlags.load(memory_order_relaxed));
++#endif
+ 			}
+ 		}
+ 		else
+@@ -1512,6 +1635,10 @@
+ void ContactConstraintManager::FinalizeContactCacheAndCallContactPointRemovedCallbacks(uint inExpectedNumBodyPairs, uint inExpectedNumManifolds)
+ {
+ 	JPH_PROFILE_FUNCTION();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_publication(QualificationObservation::Phase::ContactPublication);
++	QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::ContactConstraints);
++#endif
+ 
+ #ifdef JPH_ENABLE_ASSERTS
+ 	// Mark cache as finalized
+@@ -1530,7 +1657,11 @@
+ 	ManifoldCache &old_read_cache = mCache[mCacheWriteIdx];
+ 
+ 	// Call the contact point removal callbacks
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	if (mContactListener != nullptr || QualificationObservation::GetSink() != nullptr)
++#else
+ 	if (mContactListener != nullptr)
++#endif
+ 		old_read_cache.ContactPointRemovedCallbacks(mContactListener);
+ 
+ 	// We're done with the old read cache now
+@@ -1637,6 +1768,11 @@
+ void ContactConstraintManager::WarmStartVelocityConstraints(const uint32 *inConstraintOffsetBegin, const uint32 *inConstraintOffsetEnd, float inWarmStartImpulseRatio, MotionPropertiesCallback &ioCallback)
+ {
+ 	JPH_PROFILE_FUNCTION();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_warm(QualificationObservation::Phase::ContactWarmStart);
++	uint32 phase26_dispatches = 0;
++	uint32 phase26_points = 0;
++#endif
+ 
+ 	// Build dispatch table
+ 	using DispatchFunc = void (*)(ContactConstraintBase &, MotionProperties *, MotionProperties *, float);
+@@ -1679,6 +1815,10 @@
+ 		MotionProperties *motion_properties1 = body1.GetMotionPropertiesUnchecked();
+ 		MotionProperties *motion_properties2 = body2.GetMotionPropertiesUnchecked();
+ 		table[(int)body1.GetMotionType()][(int)body2.GetMotionType()](constraint, motion_properties1, motion_properties2, inWarmStartImpulseRatio);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		++phase26_dispatches;
++		phase26_points += constraint.mNumContactPoints;
++#endif
+ 
+ 		// Call callbacks
+ 		if (body1.IsDynamic())
+@@ -1686,6 +1826,9 @@
+ 		if (body2.IsDynamic())
+ 			ioCallback(motion_properties2);
+ 	}
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::ContactWarmDispatch, phase26_dispatches, phase26_points);
++#endif
+ }
+ 
+ // Specialize for the two body callback types
+@@ -1696,6 +1839,9 @@
+ bool ContactConstraintManager::sSolveVelocityConstraint(ContactConstraintBase &ioConstraint, MotionProperties *ioMotionProperties1, MotionProperties *ioMotionProperties2, bool &outResistanceValid)
+ {
+ 	ContactConstraint<Type1, Type2> &constraint = static_cast<ContactConstraint<Type1, Type2> &>(ioConstraint);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	Phase26ContactWork phase26_work;
++#endif
+ 
+ 	bool any_impulse_applied = false;
+ 
+@@ -1730,6 +1876,9 @@
+ 	// First apply friction constraint (non-penetration is more important than friction)
+ 	if (linear_friction_active)
+ 	{
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		phase26_work.friction_attempts += 2;
++#endif
+ 		// Calculate impulse to stop motion in tangential direction
+ 		float lambda1 = constraint.mFrictionConstraint1.SolveVelocityConstraintGetTotalLambda(linear_velocity1, angular_velocity1, linear_velocity2, angular_velocity2, t1);
+ 		float lambda2 = constraint.mFrictionConstraint2.SolveVelocityConstraintGetTotalLambda(linear_velocity1, angular_velocity1, linear_velocity2, angular_velocity2, t2);
+@@ -1744,21 +1893,47 @@
+ 		}
+ 
+ 		// Apply the friction impulse
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		if (constraint.mFrictionConstraint1.SolveVelocityConstraintApplyLambda(linear_velocity1, angular_velocity1, linear_velocity2, angular_velocity2, constraint.mInvMass1, constraint.mInvMass2, t1, lambda1))
++		{
++			++phase26_work.friction_changed;
++			any_impulse_applied = true;
++		}
++		if (constraint.mFrictionConstraint2.SolveVelocityConstraintApplyLambda(linear_velocity1, angular_velocity1, linear_velocity2, angular_velocity2, constraint.mInvMass1, constraint.mInvMass2, t2, lambda2))
++		{
++			++phase26_work.friction_changed;
++			any_impulse_applied = true;
++		}
++#else
+ 		if (constraint.mFrictionConstraint1.SolveVelocityConstraintApplyLambda(linear_velocity1, angular_velocity1, linear_velocity2, angular_velocity2, constraint.mInvMass1, constraint.mInvMass2, t1, lambda1))
+ 			any_impulse_applied = true;
+ 		if (constraint.mFrictionConstraint2.SolveVelocityConstraintApplyLambda(linear_velocity1, angular_velocity1, linear_velocity2, angular_velocity2, constraint.mInvMass1, constraint.mInvMass2, t2, lambda2))
+ 			any_impulse_applied = true;
++#endif
+ 	}
+ 
+ 	// Apply angular friction
+ 	Vec3 ws_normal = constraint.GetWorldSpaceNormal();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	if (angular_friction_active)
++		++phase26_work.spin_attempts;
++	if (angular_friction_active && constraint.mAngularFrictionConstraint.SolveVelocityConstraint(angular_velocity1, angular_velocity2, ws_normal, -max_angular_lambda, max_angular_lambda))
++	{
++		++phase26_work.spin_changed;
++		any_impulse_applied = true;
++	}
++#else
+ 	if (angular_friction_active && constraint.mAngularFrictionConstraint.SolveVelocityConstraint(angular_velocity1, angular_velocity2, ws_normal, -max_angular_lambda, max_angular_lambda))
+ 		any_impulse_applied = true;
++#endif
+ 
+ 	// Then apply all non-penetration constraints
+ 	for (uint32 i = 0; i < constraint.mNumContactPoints; ++i)
+ 	{
+ 		WorldContactPoint<Type1, Type2> &wcp = constraint.mContactPoints[i];
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		++phase26_work.normal_attempts;
++#endif
+ 
+ 		// Calculate impulse
+ 		float total_lambda = wcp.mNonPenetrationConstraint.SolveVelocityConstraintGetTotalLambda(linear_velocity1, angular_velocity1, linear_velocity2, angular_velocity2, ws_normal);
+@@ -1767,12 +1942,23 @@
+ 		total_lambda = max(total_lambda, 0.0f);
+ 
+ 		// Apply impulse
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		if (wcp.mNonPenetrationConstraint.SolveVelocityConstraintApplyLambda(linear_velocity1, angular_velocity1, linear_velocity2, angular_velocity2, constraint.mInvMass1, constraint.mInvMass2, ws_normal, total_lambda))
++		{
++			++phase26_work.normal_changed;
++			any_impulse_applied = true;
++		}
++#else
+ 		if (wcp.mNonPenetrationConstraint.SolveVelocityConstraintApplyLambda(linear_velocity1, angular_velocity1, linear_velocity2, angular_velocity2, constraint.mInvMass1, constraint.mInvMass2, ws_normal, total_lambda))
+ 			any_impulse_applied = true;
++#endif
+ 
+ 		// GEngine authored angular rows consume this point's CURRENT solved normal lambda.
+ 		if (constraint.mCombinedSpinResistanceLength != 0.0f || constraint.mCombinedRollingResistanceLength != 0.0f)
+ 		{
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++			++phase26_work.resistance_invocations;
++#endif
+ 			Vec3 resistance_angular1 = Vec3::sZero(), resistance_angular2 = Vec3::sZero();
+ 			if constexpr (Type1 != EMotionType::Static)
+ 				resistance_angular1 = angular_velocity1;
+@@ -1798,6 +1984,10 @@
+ 			const auto response = ContactResistanceConstraintPart::Solve(constraint.mResistanceProperties, ws_normal,
+ 				wcp.mNonPenetrationConstraint.GetTotalLambda(), constraint.mCombinedSpinResistanceLength,
+ 				constraint.mCombinedRollingResistanceLength, wcp.mResistance, resistance_angular1, resistance_angular2);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++			phase26_work.resistance_roots += response.mRootIterations;
++			phase26_work.resistance_applied += response.mApplied? 1 : 0;
++#endif
+ 			if (!response.mValid)
+ 			{
+ 				outResistanceValid = false;
+@@ -1833,6 +2023,11 @@
+ bool ContactConstraintManager::SolveVelocityConstraints(const uint32 *inConstraintOffsetBegin, const uint32 *inConstraintOffsetEnd)
+ {
+ 	JPH_PROFILE_FUNCTION();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_velocity(QualificationObservation::Phase::ContactVelocitySolve);
++	uint32 phase26_dispatches = 0;
++	uint32 phase26_changed = 0;
++#endif
+ 
+ 	// Build dispatch table
+ 	using DispatchFunc = bool (*)(ContactConstraintBase &, MotionProperties *, MotionProperties *, bool &);
+@@ -1875,10 +2070,21 @@
+ 		Body &body1 = *constraint.mBody1;
+ 		Body &body2 = *constraint.mBody2;
+ 		bool resistance_valid = true;
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		const bool applied = table[(int)body1.GetMotionType()][(int)body2.GetMotionType()](constraint, body1.GetMotionPropertiesUnchecked(), body2.GetMotionPropertiesUnchecked(), resistance_valid);
++		++phase26_dispatches;
++		phase26_changed += applied? 1 : 0;
++		any_impulse_applied |= applied;
++#else
+ 		any_impulse_applied |= table[(int)body1.GetMotionType()][(int)body2.GetMotionType()](constraint, body1.GetMotionPropertiesUnchecked(), body2.GetMotionPropertiesUnchecked(), resistance_valid);
++#endif
+ 		if (!resistance_valid)
+ 			mUpdateContext->mErrors.fetch_or(uint32(EPhysicsUpdateError::ContactResistanceInvalid), memory_order_relaxed);
+ 	}
++
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::ContactVelocityDispatch, phase26_dispatches, phase26_changed);
++#endif
+ 
+ 	return any_impulse_applied;
+ }
+@@ -1903,6 +2109,9 @@
+ 
+ void ContactConstraintManager::StoreAppliedImpulses(const uint32 *inConstraintOffsetBegin, const uint32 *inConstraintOffsetEnd) const
+ {
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_store(QualificationObservation::Phase::ContactPublication);
++#endif
+ 	// Build dispatch table
+ 	using DispatchFunc = void (*)(ContactConstraintBase &, ManifoldCache &);
+ 	static const DispatchFunc table[3][3] = {
+@@ -1941,6 +2150,39 @@
+ 
+ 		// Dispatch to the correct templated form
+ 		table[(int)constraint.mBody1->GetMotionType()][(int)constraint.mBody2->GetMotionType()](constraint, *mWriteCache);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		const MKeyValue *kv = mWriteCache->FromHandle(constraint.mCachedManifoldHandle);
++		const SubShapeIDPair &key = kv->GetKey();
++		const CachedManifold &cached = kv->GetValue();
++		const Vec3 solver_normal = constraint.GetWorldSpaceNormal();
++		for (uint32 point = 0; point < constraint.mNumContactPoints; ++point)
++		{
++			const CachedContactPoint &cp = cached.mContactPoints[point];
++			QualificationObservation::PointRecord record {};
++			record.context = QualificationObservation::CurrentContext();
++			record.body1 = key.GetBody1ID().GetIndexAndSequenceNumber();
++			record.subshape1 = key.GetSubShapeID1().GetValue();
++			record.body2 = key.GetBody2ID().GetIndexAndSequenceNumber();
++			record.subshape2 = key.GetSubShapeID2().GetValue();
++			record.ordinal = point;
++			record.space = QualificationObservation::AnchorSpace::COMLocal;
++			record.anchor1[0] = cp.mPosition1.x;
++			record.anchor1[1] = cp.mPosition1.y;
++			record.anchor1[2] = cp.mPosition1.z;
++			record.anchor2[0] = cp.mPosition2.x;
++			record.anchor2[1] = cp.mPosition2.y;
++			record.anchor2[2] = cp.mPosition2.z;
++			record.cached_local_normal[0] = cached.mContactNormal.x;
++			record.cached_local_normal[1] = cached.mContactNormal.y;
++			record.cached_local_normal[2] = cached.mContactNormal.z;
++			record.solver_world_normal[0] = solver_normal.GetX();
++			record.solver_world_normal[1] = solver_normal.GetY();
++			record.solver_world_normal[2] = solver_normal.GetZ();
++			record.normal_lambda = cp.mNonPenetrationLambda;
++			QualificationObservation::PublishRecord(QualificationObservation::EventKind::Point, &record, sizeof(record));
++		}
++		QualificationObservation::ReportWork(QualificationObservation::WorkKind::ContactPublication, constraint.mNumContactPoints);
++#endif
+ 	}
+ }
+ 
+@@ -1948,6 +2190,10 @@
+ bool ContactConstraintManager::sSolvePositionConstraint(ContactConstraintBase &ioConstraint, Body &ioBody1, Body &ioBody2, const PhysicsSettings &inSettings, const ManifoldCache &inManifoldCache)
+ {
+ 	ContactConstraint<Type1, Type2> &constraint = static_cast<ContactConstraint<Type1, Type2> &>(ioConstraint);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	uint32 phase26_attempts = 0;
++	uint32 phase26_changed = 0;
++#endif
+ 	const CachedManifold &cached_manifold = inManifoldCache.FromHandle(constraint.mCachedManifoldHandle)->GetValue();
+ 
+ 	// Get transforms
+@@ -1975,6 +2221,9 @@
+ 		// Only enforce constraint when separation < 0 (otherwise we're apart)
+ 		if (separation < 0.0f)
+ 		{
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++			++phase26_attempts;
++#endif
+ 			// Calculate scaled inertia
+ 			Mat44 inv_i1;
+ 			if constexpr (Type1 == EMotionType::Dynamic)
+@@ -1997,10 +2246,22 @@
+ 			wcp.mNonPenetrationConstraint.CalculateConstraintProperties(constraint.mInvMass1, inv_i1, r1, constraint.mInvMass2, inv_i2, r2, ws_normal);
+ 
+ 			// Solve position errors
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++			if (wcp.mNonPenetrationConstraint.SolvePositionConstraint(ioBody1, constraint.mInvMass1, ioBody2, constraint.mInvMass2, ws_normal, separation, inSettings.mBaumgarte))
++			{
++				++phase26_changed;
++				any_impulse_applied = true;
++			}
++#else
+ 			if (wcp.mNonPenetrationConstraint.SolvePositionConstraint(ioBody1, constraint.mInvMass1, ioBody2, constraint.mInvMass2, ws_normal, separation, inSettings.mBaumgarte))
+ 				any_impulse_applied = true;
+-		}
+-	}
++#endif
++		}
++	}
++
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::ContactPositionPointAttempt, phase26_attempts, phase26_changed);
++#endif
+ 
+ 	return any_impulse_applied;
+ }
+@@ -2008,6 +2269,11 @@
+ bool ContactConstraintManager::SolvePositionConstraints(const uint32 *inConstraintOffsetBegin, const uint32 *inConstraintOffsetEnd)
+ {
+ 	JPH_PROFILE_FUNCTION();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_position(QualificationObservation::Phase::ContactPositionSolve);
++	uint32 phase26_dispatches = 0;
++	uint32 phase26_changed = 0;
++#endif
+ 
+ 	// Build dispatch table
+ 	using DispatchFunc = bool (*)(ContactConstraintBase &, Body &, Body &, const PhysicsSettings &, const ManifoldCache &);
+@@ -2051,8 +2317,19 @@
+ 		Body &body2 = *constraint.mBody2;
+ 
+ 		// Dispatch to the correct templated form
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		const bool applied = table[(int)body1.GetMotionType()][(int)body2.GetMotionType()](constraint, body1, body2, mPhysicsSettings, *mWriteCache);
++		++phase26_dispatches;
++		phase26_changed += applied? 1 : 0;
++		any_impulse_applied |= applied;
++#else
+ 		any_impulse_applied |= table[(int)body1.GetMotionType()][(int)body2.GetMotionType()](constraint, body1, body2, mPhysicsSettings, *mWriteCache);
+-	}
++#endif
++	}
++
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::ContactPositionDispatch, phase26_dispatches, phase26_changed);
++#endif
+ 
+ 	return any_impulse_applied;
+ }
+@@ -2070,8 +2347,18 @@
+ void ContactConstraintManager::FinishConstraintBuffer()
+ {
+ 	// Free constraints buffer
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::ContactIndexMap, QualificationObservation::StorageAction::Release,
++		mConstraintIdxToOffset, uint64(mMaxConstraints) * sizeof(uint32),
++		AlignUp(size_t(mMaxConstraints) * sizeof(uint32), size_t(JPH_RVECTOR_ALIGNMENT)), mMaxConstraints);
++#endif
+ 	mUpdateContext->mTempAllocator->Free(mConstraintIdxToOffset, mMaxConstraints * sizeof(uint32));
+ 	mConstraintIdxToOffset = nullptr;
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::ContactConstraints, QualificationObservation::StorageAction::Release,
++		mConstraints, uint64(mMaxConstraints) * cMaxConstraintSize,
++		AlignUp(size_t(mMaxConstraints) * cMaxConstraintSize, size_t(JPH_RVECTOR_ALIGNMENT)), mMaxConstraints);
++#endif
+ 	mUpdateContext->mTempAllocator->Free(mConstraints, mMaxConstraints * cMaxConstraintSize);
+ 	mConstraints = nullptr;
+ 	mNumConstraintsAndNextConstraintOffset = 0;
+diff --git a/Jolt/Physics/Constraints/ConstraintManager.cpp b/Jolt/Physics/Constraints/ConstraintManager.cpp
+--- a/Jolt/Physics/Constraints/ConstraintManager.cpp
++++ b/Jolt/Physics/Constraints/ConstraintManager.cpp
+@@ -11,14 +11,25 @@
+ #include <Jolt/Physics/PhysicsLock.h>
+ #include <Jolt/Core/Profiler.h>
+ #include <Jolt/Core/QuickSort.h>
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	#include <Jolt/Physics/QualificationObservation.h>
++#endif
+ 
+ JPH_NAMESPACE_BEGIN
+ 
+ void ConstraintManager::Add(Constraint **inConstraints, int inNumber)
+ {
+ 	UniqueLock lock(mConstraintsMutex JPH_IF_ENABLE_ASSERTS(, mLockContext, EPhysicsLockTypes::ConstraintsList));
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::JointContainer);
++#endif
+ 
+ 	mConstraints.reserve(mConstraints.size() + inNumber);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::JointContainer, QualificationObservation::StorageAction::Capacity,
++		mConstraints.data(), uint64(mConstraints.size()) * sizeof(Constraint *),
++		uint64(mConstraints.capacity()) * sizeof(Constraint *), uint32(mConstraints.capacity()));
++#endif
+ 
+ 	for (Constraint **c = inConstraints, **c_end = inConstraints + inNumber; c < c_end; ++c)
+ 	{
+@@ -36,6 +47,9 @@
+ void ConstraintManager::Remove(Constraint **inConstraints, int inNumber)
+ {
+ 	UniqueLock lock(mConstraintsMutex JPH_IF_ENABLE_ASSERTS(, mLockContext, EPhysicsLockTypes::ConstraintsList));
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::JointContainer);
++#endif
+ 
+ 	for (Constraint **c = inConstraints, **c_end = inConstraints + inNumber; c < c_end; ++c)
+ 	{
+@@ -63,6 +77,9 @@
+ Constraints ConstraintManager::GetConstraints() const
+ {
+ 	UniqueLock lock(mConstraintsMutex JPH_IF_ENABLE_ASSERTS(, mLockContext, EPhysicsLockTypes::ConstraintsList));
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::JointContainer);
++#endif
+ 
+ 	Constraints copy = mConstraints;
+ 	return copy;
+@@ -71,6 +88,9 @@
+ void ConstraintManager::GetActiveConstraints(uint32 inStartConstraintIdx, uint32 inEndConstraintIdx, Constraint **outActiveConstraints, uint32 &outNumActiveConstraints) const
+ {
+ 	JPH_PROFILE_FUNCTION();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_filter(QualificationObservation::Phase::JointFilter);
++#endif
+ 
+ 	JPH_ASSERT(inEndConstraintIdx <= mConstraints.size());
+ 
+@@ -87,22 +107,36 @@
+ 	}
+ 
+ 	outNumActiveConstraints = num_active_constraints;
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::JointFilterDispatch, inEndConstraintIdx - inStartConstraintIdx);
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::JointActive, num_active_constraints);
++#endif
+ }
+ 
+ void ConstraintManager::sBuildIslands(Constraint **inActiveConstraints, uint32 inNumActiveConstraints, IslandBuilder &ioBuilder, BodyManager &inBodyManager)
+ {
+ 	JPH_PROFILE_FUNCTION();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_graph(QualificationObservation::Phase::JointGraph);
++#endif
+ 
+ 	for (uint32 constraint_idx = 0; constraint_idx < inNumActiveConstraints; ++constraint_idx)
+ 	{
+ 		Constraint *c = inActiveConstraints[constraint_idx];
+ 		c->BuildIslands(constraint_idx, ioBuilder, inBodyManager);
+ 	}
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::JointGraphDispatch, inNumActiveConstraints);
++#endif
+ }
+ 
+ void ConstraintManager::sSortConstraints(Constraint **inActiveConstraints, uint32 *inConstraintIdxBegin, uint32 *inConstraintIdxEnd)
+ {
+ 	JPH_PROFILE_FUNCTION();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_sort(QualificationObservation::Phase::JointSort);
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::JointSortItem, uint32(inConstraintIdxEnd - inConstraintIdxBegin));
++#endif
+ 
+ 	QuickSort(inConstraintIdxBegin, inConstraintIdxEnd, [inActiveConstraints](uint32 inLHS, uint32 inRHS) {
+ 		const Constraint *lhs = inActiveConstraints[inLHS];
+@@ -118,15 +152,24 @@
+ void ConstraintManager::sSetupVelocityConstraints(Constraint **inActiveConstraints, uint32 inNumActiveConstraints, float inDeltaTime)
+ {
+ 	JPH_PROFILE_FUNCTION();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_setup(QualificationObservation::Phase::JointPreparation);
++#endif
+ 
+ 	for (Constraint **c = inActiveConstraints, **c_end = inActiveConstraints + inNumActiveConstraints; c < c_end; ++c)
+ 		(*c)->SetupVelocityConstraint(inDeltaTime);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::JointSetupDispatch, inNumActiveConstraints);
++#endif
+ }
+ 
+ template <class ConstraintCallback>
+ void ConstraintManager::sWarmStartVelocityConstraints(Constraint **inActiveConstraints, const uint32 *inConstraintIdxBegin, const uint32 *inConstraintIdxEnd, float inWarmStartImpulseRatio, ConstraintCallback &ioCallback)
+ {
+ 	JPH_PROFILE_FUNCTION();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_warm(QualificationObservation::Phase::JointWarmStart);
++#endif
+ 
+ 	for (const uint32 *constraint_idx = inConstraintIdxBegin; constraint_idx < inConstraintIdxEnd; ++constraint_idx)
+ 	{
+@@ -134,6 +177,9 @@
+ 		ioCallback(c);
+ 		c->WarmStartVelocityConstraint(inWarmStartImpulseRatio);
+ 	}
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::JointWarmDispatch, uint32(inConstraintIdxEnd - inConstraintIdxBegin));
++#endif
+ }
+ 
+ // Specialize for the two constraint callback types
+@@ -143,14 +189,29 @@
+ bool ConstraintManager::sSolveVelocityConstraints(Constraint **inActiveConstraints, const uint32 *inConstraintIdxBegin, const uint32 *inConstraintIdxEnd, float inDeltaTime)
+ {
+ 	JPH_PROFILE_FUNCTION();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_velocity(QualificationObservation::Phase::JointVelocitySolve);
++	uint32 phase26_changed = 0;
++#endif
+ 
+ 	bool any_impulse_applied = false;
+ 
+ 	for (const uint32 *constraint_idx = inConstraintIdxBegin; constraint_idx < inConstraintIdxEnd; ++constraint_idx)
+ 	{
+ 		Constraint *c = inActiveConstraints[*constraint_idx];
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		const bool applied = c->SolveVelocityConstraint(inDeltaTime);
++		phase26_changed += applied? 1 : 0;
++		any_impulse_applied |= applied;
++#else
+ 		any_impulse_applied |= c->SolveVelocityConstraint(inDeltaTime);
+-	}
++#endif
++	}
++
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::JointVelocityDispatch,
++		uint32(inConstraintIdxEnd - inConstraintIdxBegin), phase26_changed);
++#endif
+ 
+ 	return any_impulse_applied;
+ }
+@@ -158,14 +219,29 @@
+ bool ConstraintManager::sSolvePositionConstraints(Constraint **inActiveConstraints, const uint32 *inConstraintIdxBegin, const uint32 *inConstraintIdxEnd, float inDeltaTime, float inBaumgarte)
+ {
+ 	JPH_PROFILE_FUNCTION();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_position(QualificationObservation::Phase::JointPositionSolve);
++	uint32 phase26_changed = 0;
++#endif
+ 
+ 	bool any_impulse_applied = false;
+ 
+ 	for (const uint32 *constraint_idx = inConstraintIdxBegin; constraint_idx < inConstraintIdxEnd; ++constraint_idx)
+ 	{
+ 		Constraint *c = inActiveConstraints[*constraint_idx];
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++		const bool applied = c->SolvePositionConstraint(inDeltaTime, inBaumgarte);
++		phase26_changed += applied? 1 : 0;
++		any_impulse_applied |= applied;
++#else
+ 		any_impulse_applied |= c->SolvePositionConstraint(inDeltaTime, inBaumgarte);
+-	}
++#endif
++	}
++
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::JointPositionDispatch,
++		uint32(inConstraintIdxEnd - inConstraintIdxBegin), phase26_changed);
++#endif
+ 
+ 	return any_impulse_applied;
+ }
+diff --git a/Jolt/Physics/IslandBuilder.cpp b/Jolt/Physics/IslandBuilder.cpp
+--- a/Jolt/Physics/IslandBuilder.cpp
++++ b/Jolt/Physics/IslandBuilder.cpp
+@@ -11,11 +11,22 @@
+ #include <Jolt/Core/Atomics.h>
+ #include <Jolt/Core/TempAllocator.h>
+ #include <Jolt/Core/QuickSort.h>
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	#include <Jolt/Physics/QualificationObservation.h>
++	#define JPH_GENGINE_OBSERVE_ISLAND_STORAGE(site, action, pointer, bytes, count) \
++		QualificationObservation::ReportStorage(QualificationObservation::ArenaSite::site, QualificationObservation::StorageAction::action, \
++			pointer, uint64(bytes), AlignUp(size_t(bytes), size_t(JPH_RVECTOR_ALIGNMENT)), uint32(count));
++#else
++	#define JPH_GENGINE_OBSERVE_ISLAND_STORAGE(site, action, pointer, bytes, count)
++#endif
+ 
+ JPH_NAMESPACE_BEGIN
+ 
+ IslandBuilder::~IslandBuilder()
+ {
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::IslandBodyIslands);
++#endif
+ 	JPH_ASSERT(mConstraintLinks == nullptr);
+ 	JPH_ASSERT(mContactLinks == nullptr);
+ 	JPH_ASSERT(mBodyIslands == nullptr);
+@@ -26,16 +37,21 @@
+ 	JPH_ASSERT(mContactIslandEnds == nullptr);
+ 	JPH_ASSERT(mIslandsSorted == nullptr);
+ 
++	JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandBodyIslands, Release, mBodyLinks, uint64(mMaxActiveBodies) * sizeof(BodyLink), mMaxActiveBodies)
+ 	delete [] mBodyLinks;
+ }
+ 
+ void IslandBuilder::Init(uint32 inMaxActiveBodies)
+ {
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::IslandBodyIslands);
++#endif
+ 	mMaxActiveBodies = inMaxActiveBodies;
+ 
+ 	// Link each body to itself, BuildBodyIslands() will restore this so that we don't need to do this each step
+ 	JPH_ASSERT(mBodyLinks == nullptr);
+ 	mBodyLinks = new BodyLink [mMaxActiveBodies];
++	JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandBodyIslands, Capacity, mBodyLinks, uint64(mMaxActiveBodies) * sizeof(BodyLink), mMaxActiveBodies)
+ 	for (uint32 i = 0; i < mMaxActiveBodies; ++i)
+ 		mBodyLinks[i].mLinkedTo.store(i, memory_order_relaxed);
+ }
+@@ -54,12 +70,14 @@
+ 	// Create contact link buffer, not initialized so each contact needs to be explicitly set
+ 	JPH_ASSERT(mContactLinks == nullptr);
+ 	mContactLinks = (uint32 *)inTempAllocator->Allocate(inMaxContacts * sizeof(uint32));
++	JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandContactLinks, Reserve, mContactLinks, uint64(inMaxContacts) * sizeof(uint32), inMaxContacts)
+ 	mMaxContacts = inMaxContacts;
+ 
+ #ifdef JPH_VALIDATE_ISLAND_BUILDER
+ 	// Create validation structures
+ 	JPH_ASSERT(mLinkValidation == nullptr);
+ 	mLinkValidation = (LinkValidation *)inTempAllocator->Allocate(inMaxContacts * sizeof(LinkValidation));
++	JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandLinkValidation, Reserve, mLinkValidation, uint64(inMaxContacts) * sizeof(LinkValidation), inMaxContacts)
+ 	mNumLinkValidation = 0;
+ #endif
+ }
+@@ -81,6 +99,7 @@
+ 	// Create constraint link buffer, not initialized so each constraint needs to be explicitly set
+ 	JPH_ASSERT(mConstraintLinks == nullptr);
+ 	mConstraintLinks = (uint32 *)inTempAllocator->Allocate(inNumConstraints * sizeof(uint32));
++	JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandJointLinks, Reserve, mConstraintLinks, uint64(inNumConstraints) * sizeof(uint32), inNumConstraints)
+ }
+ 
+ uint32 IslandBuilder::GetLowestBodyIndex(uint32 inActiveBodyIndex) const
+@@ -101,6 +120,9 @@
+ 	// Both need to be active, we don't want to create an island with static objects
+ 	if (inFirst >= mMaxActiveBodies || inSecond >= mMaxActiveBodies)
+ 		return;
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::IslandBodyLink);
++#endif
+ 
+ #ifdef JPH_VALIDATE_ISLAND_BUILDER
+ 	// Add link to the validation list
+@@ -161,6 +183,9 @@
+ 	JPH_ASSERT(inIndexInActiveBodyList != MotionProperties::cInactiveIndex); // Body should be active
+ 
+ 	mConstraintLinks[inConstraintIndex] = inIndexInActiveBodyList;
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::IslandJointLink);
++#endif
+ }
+ 
+ void IslandBuilder::LinkContact(uint32 inContactIndex, uint32 inIndexInActiveBodyList)
+@@ -169,6 +194,9 @@
+ 	JPH_ASSERT(inIndexInActiveBodyList != MotionProperties::cInactiveIndex); // Body should be active
+ 
+ 	mContactLinks[inContactIndex] = inIndexInActiveBodyList;
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportWork(QualificationObservation::WorkKind::IslandContactLink);
++#endif
+ }
+ 
+ #ifdef JPH_VALIDATE_ISLAND_BUILDER
+@@ -216,10 +244,12 @@
+ 	// Create output arrays for body ID's, don't call constructors
+ 	JPH_ASSERT(mBodyIslands == nullptr);
+ 	mBodyIslands = (BodyID *)inTempAllocator->Allocate(inNumActiveBodies * sizeof(BodyID));
++	JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandBodyIslands, Reserve, mBodyIslands, uint64(inNumActiveBodies) * sizeof(BodyID), inNumActiveBodies)
+ 
+ 	// Create output array for start index of each island. At this point we don't know how many islands there will be, but we know it cannot be more than inNumActiveBodies.
+ 	// Note: We allocate 1 extra entry because we always increment the count of the next island.
+ 	uint32 *body_island_starts = (uint32 *)inTempAllocator->Allocate((inNumActiveBodies + 1) * sizeof(uint32));
++	JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandBodyIslandEnds, Reserve, body_island_starts, uint64(inNumActiveBodies + 1) * sizeof(uint32), inNumActiveBodies + 1)
+ 
+ 	// First island always starts at 0
+ 	body_island_starts[0] = 0;
+@@ -293,6 +323,14 @@
+ 	// Note: For the end indices we allocate 1 extra entry so we don't have to do an if in the inner loop
+ 	uint32 *constraints = (uint32 *)inTempAllocator->Allocate(inNumConstraints * sizeof(uint32));
+ 	uint32 *constraint_ends = (uint32 *)inTempAllocator->Allocate((mNumIslands + 1) * sizeof(uint32));
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::ReportStorage(QualificationObservation::CurrentContext().site, QualificationObservation::StorageAction::Reserve,
++		constraints, uint64(inNumConstraints) * sizeof(uint32), AlignUp(size_t(inNumConstraints) * sizeof(uint32), size_t(JPH_RVECTOR_ALIGNMENT)), inNumConstraints);
++	QualificationObservation::ReportStorage(QualificationObservation::CurrentContext().site == QualificationObservation::ArenaSite::IslandJointIslands
++		? QualificationObservation::ArenaSite::IslandJointIslandEnds : QualificationObservation::ArenaSite::IslandContactIslandEnds,
++		QualificationObservation::StorageAction::Reserve, constraint_ends, uint64(mNumIslands + 1) * sizeof(uint32),
++		AlignUp(size_t(mNumIslands + 1) * sizeof(uint32), size_t(JPH_RVECTOR_ALIGNMENT)), mNumIslands + 1);
++#endif
+ 
+ 	// Reset sizes
+ 	for (uint32 island = 0; island <= mNumIslands; ++island)
+@@ -334,6 +372,7 @@
+ 		// Allocate mapping table
+ 		JPH_ASSERT(mIslandsSorted == nullptr);
+ 		mIslandsSorted = (uint32 *)inTempAllocator->Allocate(mNumIslands * sizeof(uint32));
++		JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandSort, Reserve, mIslandsSorted, uint64(mNumIslands) * sizeof(uint32), mNumIslands)
+ 
+ 		// Initialize index
+ 		for (uint32 island = 0; island < mNumIslands; ++island)
+@@ -341,6 +380,7 @@
+ 
+ 		// Determine the sum of contact constraints / constraints per island
+ 		uint32 *num_constraints = (uint32 *)inTempAllocator->Allocate(mNumIslands * sizeof(uint32));
++		JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandSort, Reserve, num_constraints, uint64(mNumIslands) * sizeof(uint32), mNumIslands)
+ 		if (mNumContacts > 0 && mNumConstraints > 0)
+ 		{
+ 			num_constraints[0] = mConstraintIslandEnds[0] + mContactIslandEnds[0];
+@@ -367,6 +407,7 @@
+ 			return num_constraints[inLHS] > num_constraints[inRHS];
+ 		});
+ 
++		JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandSort, Release, num_constraints, uint64(mNumIslands) * sizeof(uint32), mNumIslands)
+ 		inTempAllocator->Free(num_constraints, mNumIslands * sizeof(uint32));
+ 	}
+ }
+@@ -374,18 +415,35 @@
+ void IslandBuilder::Finalize(const BodyID *inActiveBodies, uint32 inNumActiveBodies, uint32 inNumContacts, TempAllocator *inTempAllocator)
+ {
+ 	JPH_PROFILE_FUNCTION();
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	QualificationObservation::PhaseScope phase26_islands(QualificationObservation::Phase::SharedIslandBuild);
++#endif
+ 
+ 	mNumContacts = inNumContacts;
+ 
+ 	BuildBodyIslands(inActiveBodies, inNumActiveBodies, inTempAllocator);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	{
++		QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::IslandJointIslands);
++#endif
+ 	BuildConstraintIslands(mConstraintLinks, mNumConstraints, mConstraintIslands, mConstraintIslandEnds, inTempAllocator);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	}
++	{
++		QualificationObservation::SiteScope phase26_site(QualificationObservation::ArenaSite::IslandContactIslands);
++#endif
+ 	BuildConstraintIslands(mContactLinks, mNumContacts, mContactIslands, mContactIslandEnds, inTempAllocator);
++#ifdef JPH_GENGINE_PHASE26_OBSERVATION
++	}
++#endif
+ 	SortIslands(inTempAllocator);
+ 
+ 	mNumPositionSteps = (uint8 *)inTempAllocator->Allocate(mNumIslands * sizeof(uint8));
++	JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandPositionSteps, Reserve, mNumPositionSteps, uint64(mNumIslands) * sizeof(uint8), mNumIslands)
+ 
+ #ifdef JPH_TRACK_SIMULATION_STATS
+ 	mIslandStats = (IslandStats *)inTempAllocator->Allocate(mNumIslands * sizeof(IslandStats));
++	JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandStats, Reserve, mIslandStats, uint64(mNumIslands) * sizeof(IslandStats), mNumIslands)
+ 	for (uint32 i = 0; i < mNumIslands; ++i)
+ 		new (&mIslandStats[i]) IslandStats();
+ #endif
+@@ -440,48 +498,60 @@
+ 	JPH_PROFILE_FUNCTION();
+ 
+ #ifdef JPH_TRACK_SIMULATION_STATS
++	JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandStats, Release, mIslandStats, uint64(mNumIslands) * sizeof(IslandStats), mNumIslands)
+ 	inTempAllocator->Free(mIslandStats, mNumIslands * sizeof(IslandStats));
+ 	mIslandStats = nullptr;
+ #endif
+ 
++	JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandPositionSteps, Release, mNumPositionSteps, uint64(mNumIslands) * sizeof(uint8), mNumIslands)
+ 	inTempAllocator->Free(mNumPositionSteps, mNumIslands * sizeof(uint8));
+ 	mNumPositionSteps = nullptr;
+ 
+ 	if (mIslandsSorted != nullptr)
+ 	{
++		JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandSort, Release, mIslandsSorted, uint64(mNumIslands) * sizeof(uint32), mNumIslands)
+ 		inTempAllocator->Free(mIslandsSorted, mNumIslands * sizeof(uint32));
+ 		mIslandsSorted = nullptr;
+ 	}
+ 
+ 	if (mContactIslands != nullptr)
+ 	{
++		JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandContactIslandEnds, Release, mContactIslandEnds, uint64(mNumIslands + 1) * sizeof(uint32), mNumIslands + 1)
+ 		inTempAllocator->Free(mContactIslandEnds, (mNumIslands + 1) * sizeof(uint32));
+ 		mContactIslandEnds = nullptr;
++		JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandContactIslands, Release, mContactIslands, uint64(mNumContacts) * sizeof(uint32), mNumContacts)
+ 		inTempAllocator->Free(mContactIslands, mNumContacts * sizeof(uint32));
+ 		mContactIslands = nullptr;
+ 	}
+ 
+ 	if (mConstraintIslands != nullptr)
+ 	{
++		JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandJointIslandEnds, Release, mConstraintIslandEnds, uint64(mNumIslands + 1) * sizeof(uint32), mNumIslands + 1)
+ 		inTempAllocator->Free(mConstraintIslandEnds, (mNumIslands + 1) * sizeof(uint32));
+ 		mConstraintIslandEnds = nullptr;
++		JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandJointIslands, Release, mConstraintIslands, uint64(mNumConstraints) * sizeof(uint32), mNumConstraints)
+ 		inTempAllocator->Free(mConstraintIslands, mNumConstraints * sizeof(uint32));
+ 		mConstraintIslands = nullptr;
+ 	}
+ 
++	JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandBodyIslandEnds, Release, mBodyIslandEnds, uint64(mNumActiveBodies + 1) * sizeof(uint32), mNumActiveBodies + 1)
+ 	inTempAllocator->Free(mBodyIslandEnds, (mNumActiveBodies + 1) * sizeof(uint32));
+ 	mBodyIslandEnds = nullptr;
++	JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandBodyIslands, Release, mBodyIslands, uint64(mNumActiveBodies) * sizeof(BodyID), mNumActiveBodies)
+ 	inTempAllocator->Free(mBodyIslands, mNumActiveBodies * sizeof(BodyID));
+ 	mBodyIslands = nullptr;
+ 
++	JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandJointLinks, Release, mConstraintLinks, uint64(mNumConstraints) * sizeof(uint32), mNumConstraints)
+ 	inTempAllocator->Free(mConstraintLinks, mNumConstraints * sizeof(uint32));
+ 	mConstraintLinks = nullptr;
+ 
+ #ifdef JPH_VALIDATE_ISLAND_BUILDER
++	JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandLinkValidation, Release, mLinkValidation, uint64(mMaxContacts) * sizeof(LinkValidation), mMaxContacts)
+ 	inTempAllocator->Free(mLinkValidation, mMaxContacts * sizeof(LinkValidation));
+ 	mLinkValidation = nullptr;
+ #endif
+ 
++	JPH_GENGINE_OBSERVE_ISLAND_STORAGE(IslandContactLinks, Release, mContactLinks, uint64(mMaxContacts) * sizeof(uint32), mMaxContacts)
+ 	inTempAllocator->Free(mContactLinks, mMaxContacts * sizeof(uint32));
+ 	mContactLinks = nullptr;
+ 

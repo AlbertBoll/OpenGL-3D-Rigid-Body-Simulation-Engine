@@ -13,6 +13,8 @@
 
 namespace GEngine
 {
+    struct EditorScaleGeometry;
+    struct EditorScaleAccess;
 	//using namespace Component;
 	enum class ShapeType
 	{
@@ -45,7 +47,8 @@ namespace GEngine
         // then transfer storage with swap; no geometry or revision change occurs.
         PhysicalShape(PhysicalShape&& other)
             : m_CenterOfMass(other.m_CenterOfMass), m_MeshPoints(std::size_t(0)),
-              m_ShapeType(other.m_ShapeType), m_Revision(other.m_Revision)
+              m_ShapeType(other.m_ShapeType), m_Revision(other.m_Revision),
+              m_EditorScaleSource(std::move(other.m_EditorScaleSource)), m_EditorCurrentScale(other.m_EditorCurrentScale)
         { m_MeshPoints.swap(other.m_MeshPoints); }
         PhysicalShape& operator=(PhysicalShape&&) noexcept = default;
 		PhysicalShape(const std::vector<Vec3f>& MeshPoints) : m_MeshPoints(MeshPoints) {};
@@ -75,7 +78,7 @@ namespace GEngine
 
 
 	protected:
-		void MarkGeometryChanged() { ++m_Revision; }
+		void MarkGeometryChanged() { ++m_Revision; m_EditorScaleSource.reset(); }
 
 		Vec3f m_CenterOfMass{ 0.0f };
 		std::vector<Vec3f> m_MeshPoints; // Owned base points, preserved across scale callbacks.
@@ -84,6 +87,9 @@ namespace GEngine
 
     private:
         friend class PhysicsSystem;
+        friend struct EditorScaleAccess;
+        std::shared_ptr<const EditorScaleGeometry> m_EditorScaleSource;
+        Vec3f m_EditorCurrentScale{1};
         void CommitScale(PhysicalShape& prepared) noexcept;
 
 	};

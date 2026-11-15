@@ -34,6 +34,7 @@ namespace GEngine
                       const Quat& orientation, float bias) const override;
         float FastestLinearSpeed(const Vec3f& angularVelocity, const Vec3f& direction) const override;
     private:
+        friend struct EditorScaleAccess;
         ShapeCapsule(float radius, float halfLength, const Mat3& inertia)
             : m_Radius(radius), m_HalfLength(halfLength), m_BaseRadius(radius),
               m_BaseHalfLength(halfLength), m_Inertia(inertia)

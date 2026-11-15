@@ -8,7 +8,8 @@ namespace GEngine
     enum class PhysicsShapeErrorCode
     {
         InvalidRadius, InvalidPointSet, Allocation,
-        InvalidDimensions, InvalidScale, InvalidInertia
+        InvalidDimensions, InvalidScale, InvalidInertia,
+        BackendUnavailable, UnsupportedFeature, BackendFailure
     };
     struct PhysicsShapeError
     {

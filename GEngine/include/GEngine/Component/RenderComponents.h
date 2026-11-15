@@ -1,4 +1,5 @@
 #pragma once
+#include "Renderer/SpotShadowSettings.h"
 
 #include "Assets/AssetHandle.h"
 #include <array>
@@ -61,6 +62,7 @@ namespace GEngine
             float innerConeRadians = 0.4f;
             float outerConeRadians = 0.6f;
             bool castShadows = false;
+            SpotShadowSettings spotShadow;
             bool operator==(const RenderLightComponent&) const = default;
         };
 

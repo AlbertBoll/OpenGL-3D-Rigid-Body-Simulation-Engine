@@ -2,6 +2,7 @@
 
 #include "PhysicsBody.h"
 #include "Shape.h"
+#include "../../../src/Physics/InertiaValidation.h"
 #include <glm/gtx/quaternion.hpp>
 #include <iostream>
 
@@ -12,30 +13,6 @@ namespace GEngine
 		Mat3 ZeroMat3()
 		{
 			return Mat3(0.0f);
-		}
-
-		bool IsFinite(const Mat3& matrix)
-		{
-			for (int column = 0; column < 3; ++column)
-			{
-				if (!Math::IsFinite(matrix[column]))
-				{
-					return false;
-				}
-			}
-			return true;
-		}
-
-		Mat3 InverseOrZero(const Mat3& matrix)
-		{
-			const float determinant = glm::determinant(matrix);
-			if (!Math::IsFinite(determinant) || std::fabs(determinant) <= Math::NumericalEpsilon)
-			{
-				return ZeroMat3();
-			}
-
-			const Mat3 inverse = glm::inverse(matrix);
-			return IsFinite(inverse) ? inverse : ZeroMat3();
 		}
 
 		Quat SafeOrientation(const Quat& orientation)
@@ -197,14 +174,14 @@ namespace GEngine
 
 		m_DerivedData.inertiaBody = ZeroMat3();
 		m_DerivedData.inverseInertiaBody = ZeroMat3();
+		m_DerivedData.massPropertiesValid = false;
 
 		if (m_Shape)
 		{
 			m_DerivedData.inertiaBody = m_Shape->InertiaTensor();
-			if (inverseMass > 0.0f)
-			{
-				m_DerivedData.inverseInertiaBody =
-					InverseOrZero(m_DerivedData.inertiaBody) * inverseMass;
+			if (const auto prepared = PhysicsInertia::Prepare(m_DerivedData.inertiaBody, inverseMass)) {
+				m_DerivedData.inverseInertiaBody = prepared->inverse;
+				m_DerivedData.massPropertiesValid = true;
 			}
 		}
 		m_DerivedData.inertiaSourceInverseMass = inverseMass;
@@ -285,6 +262,16 @@ namespace GEngine
 	{
 		UpdateBodyInertiaData();
 		return m_DerivedData.inverseInertiaBody;
+	}
+
+	bool RigidBody3D::HasValidMassProperties() const
+	{
+		// GetInverseMass masks malformed Dynamic raw values to zero for existing
+		// fixed-response consumers. They cannot thereby acquire valid admission.
+		if ((Type != BodyType::Static && Type != BodyType::Kinematic && Type != BodyType::Dynamic) ||
+			(Type == BodyType::Dynamic && (!Math::IsFinite(m_InvMass) || m_InvMass <= 0))) return false;
+		UpdateBodyInertiaData();
+		return m_DerivedData.massPropertiesValid;
 	}
 
 	Mat3 RigidBody3D::GetInverseInertiaTensorWorldSpace() const

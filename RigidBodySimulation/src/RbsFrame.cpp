@@ -1,4 +1,11 @@
 #include "RigidBodySimulation.h"
+#include "RbsComponentEditing.h"
+#include "RbsNumericInput.h"
+#include "../tests/OwnerReviewDriver.h"
+#include "../tests/BackendSwitchChecks.h"
+#include "../tests/JoltParameterExperiment.h"
+#include "../tests/JoltFinalAudit.h"
+#include "../tests/ImpulseEditorChecks.h"
 #ifdef GENGINE_PHASE24_VALIDATION
 namespace PreEditorValidation { void ObservePhase24Frame(const ::GEngine::RenderFrame&); }
 #endif
@@ -32,6 +39,9 @@ namespace PreEditorValidation::ColliderReplacement { void ObserveColliderRuntime
 #include <imgui/imgui_internal.h>
 #include <cmath>
 #include <print>
+#ifdef GENGINE_PHASE26_SANDBOX_CHECKS
+#include "../tests/SandboxChecks.h"
+#endif
 
 namespace Rbs
 {
@@ -43,6 +53,7 @@ namespace Rbs
     unsigned MeshHighlightStage(); void MeshHighlightDescriptor(::GEngine::FrameSubmission&, ::GEngine::FrameSubmissionDesc&);
 #endif
     void ResetColliderEditor(::GEngine::_Scene&, bool);
+    void ProcessColliderEditorCommands(::GEngine::_Scene&, const ::GEngine::_Entity&, bool&);
     bool ColliderEditorTemporarilyPaused(::GEngine::_Scene&, const ::GEngine::_Entity&, bool);
     ::GEngine::DebugGeometryResult AppendColliderEditorPreviews(::GEngine::_Scene&,
         const ColliderOutlineSelection&, ::GEngine::DebugGeometry&);
@@ -75,6 +86,23 @@ namespace PreEditorInput
 
 void RigidBodySimulationApp::Update(Timestep ts)
 {
+#ifdef GENGINE_PHASE26_SANDBOX_CHECKS
+    Rbs::SandboxChecks::BeforeUpdate(*this, ts);
+#endif
+    ProcessSceneRequest();
+    SynchronizeEntityPresentation();
+#ifdef GENGINE_OWNER_REVIEW_PROBE
+    if(!Rbs::OwnerReviewDriver::Begin(*this))return;
+#endif
+    if(SandboxEnabled()) { Rbs::ProcessColliderEditorCommands(*m_ActiveScene,m_HoveredEntity,m_IsPause); ProcessBodyPropertyCommand(); ProcessBulkBodyProperties(); ProcessWorldSleepCommand(); ProcessJoltSettingsCommand(); ProcessTransformEdit(); ProcessContextProperties(); ProcessImpulseCommand(); }
+    if(!m_Launch.joltParameterProfile.empty() && !Rbs::JoltParameterExperiment::Boundary(*this))return;
+    if(m_Launch.m_BackendSwitchChecks && !Rbs::BackendSwitchChecks::Boundary(*this))return;
+    Rbs::ImpulseEditorChecks::PresetBoundary(*this);
+    if(m_Launch.m_BackendSmokeTicks && m_SimulationState==Rbs::SimulationState::Ready)
+        SetSimulationState(Rbs::SimulationState::Running);
+    if (!m_Running) return;
+    if (SandboxEnabled())
+        m_IsPause = m_SimulationState != Rbs::SimulationState::Running;
     if (!ValidateUpdate())
         return;
 
@@ -238,7 +266,74 @@ void RigidBodySimulationApp::Update(Timestep ts)
 #ifdef GENGINE_COLLIDER_PASSIVE_OBSERVATION
     if(!Rbs::ColliderPassive::BeforeStep(*m_ActiveScene,ts.GetSecondsPrecise())) { ShutDown(); return; }
 #endif
-    m_ActiveScene->Update(ts);
+    auto simulationTime = ts;
+#ifdef GENGINE_JOLT_FINAL_AUDIT
+    const bool finalAudit=Rbs::FinalAudit::Begin(*m_ActiveScene);
+    if(finalAudit && !Rbs::FinalAudit::ticks){m_EditorMode=EditorMode::Simulation;SetSimulationState(Rbs::SimulationState::Running);}
+#endif
+    if (SandboxEnabled())
+    {
+        // Paused host time is never admitted to the existing Scene scheduler.
+        // The first resumed frame excludes time preceding the Play command;
+        // its already accepted fractional backlog remains owned by Scene.
+        if (m_IsPause || std::exchange(m_SkipSimulationElapsed, false))
+            simulationTime = Timestep(0.0);
+    }
+    // Explicit smoke mode admits exactly one ordinary fixed tick per frame.
+    // Host frame latency cannot exceed the frozen 120-tick safety bound.
+    if(m_Launch.m_BackendSmokeTicks && !m_IsPause)
+        simulationTime=Timestep(m_ActiveScene->GetPhysicsStep().count());
+#ifdef GENGINE_OWNER_REVIEW_PROBE
+    if(Rbs::OwnerReviewDriver::ready && Rbs::OwnerReviewDriver::RunningMode())
+        simulationTime=Timestep(m_ActiveScene->GetPhysicsStep().count());
+#endif
+    if(!m_Launch.joltParameterProfile.empty() && !m_IsPause)simulationTime=Timestep(m_ActiveScene->GetPhysicsStep().count());
+    const auto experimentStart=m_Launch.joltParameterProfile.empty()?std::chrono::steady_clock::time_point{}:std::chrono::steady_clock::now();
+#ifdef GENGINE_JOLT_FINAL_AUDIT
+    if(finalAudit){simulationTime=Timestep(m_ActiveScene->GetPhysicsStep().count());JoltAudit::countAllocations=Rbs::FinalAudit::observed;}
+#endif
+    { RBS_REVIEW_SCOPE(4); m_ActiveScene->Update(simulationTime); }
+#ifdef GENGINE_JOLT_FINAL_AUDIT
+    if(finalAudit && Rbs::FinalAudit::After(*m_ActiveScene)){ShutDown();return;}
+#endif
+    if(!m_Launch.joltParameterProfile.empty() && !m_IsPause)Rbs::JoltParameterExperiment::AfterTick(*this,std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-experimentStart).count());
+    if(const auto& failure=m_ActiveScene->GetPhysicsSystem()->GetBackendFailure();failure)
+    {
+        FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Physics","BackendStep",
+            std::string(failure->operation),"Jolt",std::to_string(unsigned(failure->code))});return;
+    }
+    if(m_Launch.m_BackendSmokeTicks)
+    {
+#ifdef GENGINE_OWNER_REVIEW_PROBE
+        Rbs::OwnerReviewDriver::PhysicsSnapshot(*this);
+#endif
+        auto* system=m_ActiveScene->GetPhysicsSystem();auto* world=system->GetPhysicsWorld();
+        if(system->HasJointFailure())
+        {FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Physics","Joint","Backend smoke","","Native joint numerical failure"});return;}
+        for(std::size_t i=0;i<world->GetBodyCount();++i)
+        {
+            auto handle=world->BodyAt(i);
+            if(!handle || !world->ReadBody(*handle))
+            {FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Physics","NonFinite","Backend smoke","","Invalid body state"});return;}
+        }
+        for(std::size_t i=0;i<world->GetJointCount();++i)
+        {
+            auto handle=world->JointAt(i);auto joint=handle?world->ReadDistanceJoint(*handle):JointResult<DistanceJointState>(std::unexpected(handle.error()));
+            if(!joint){FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Physics","Joint","Backend smoke","","Invalid joint state"});return;}
+            m_BackendSmokeMaxJointError=(std::max)(m_BackendSmokeMaxJointError,std::abs(joint->error));
+        }
+        if(m_Launch.m_BackendSwitchChecks && !Rbs::BackendSwitchChecks::AfterTick(*this))return;
+        if(system->GetCompletedSteps()>=m_Launch.m_BackendSmokeTicks)
+        {
+            Log::GetCoreLogger()->info("BACKEND_SMOKE_PASS backend={} scene={} ticks={} bodies={} joints={} max_joint_error={}",
+                PhysicsBackendName(m_Backend),Rbs::SceneName(m_ActiveSelection.scene),system->GetCompletedSteps(),
+                world->GetBodyCount(),world->GetJointCount(),m_BackendSmokeMaxJointError);
+            ShutDown();return;
+        }
+    }
+#ifdef GENGINE_PHASE26_SANDBOX_CHECKS
+    Rbs::SandboxChecks::AfterUpdate(*this);
+#endif
 #ifdef GENGINE_COLLIDER_PASSIVE_OBSERVATION
     if(Rbs::ColliderPassive::AfterStep(ts.GetSecondsPrecise())) { ShutDown(); return; }
 #endif
@@ -513,6 +608,10 @@ bool RigidBodySimulationApp::BindCameraScene(RefPtr<_Scene> scene)
         }
     if (m_ActiveScene) Rbs::ResetColliderEditor(*m_ActiveScene, m_IsPause);
     m_ColliderOutlines.Clear();
+    m_EditorSelection.Clear();
+    CancelViewportMarquee();
+    m_HierarchyRevealed={};
+    m_HierarchySelectionHandoff=false;
     m_OutlineToggleRequested = m_FrameOutlineToggle = false;
     m_ActiveScene = std::move(scene);
     m_EditorViewIdentity = *view;
@@ -606,6 +705,14 @@ ScheduleResult RigidBodySimulationApp::PrepareCameraFrame(RenderContext& context
     input.targets.cameraAspect = float(camera.viewportWidth) / camera.viewportHeight;
     input.targets.cameraNear = static_cast<float>(desc.nearPlane);
     input.targets.cameraFar = static_cast<float>(desc.farPlane);
+    const auto cascades=Rbs::Editor::CameraCascadeSplits(m_ShadowCascadeLevels,
+        m_EditorCamera_.GetNearClip(),m_EditorCamera_.GetFarClip(),desc.nearPlane,desc.farPlane);
+    if(!cascades) {
+        context.visible=false;m_CameraAvailable=false;
+        m_CameraUnavailableDiagnostic="Camera view unavailable: clip interval cannot represent five shadow slices";
+        return {};
+    }
+    m_ViewCascadeLevels=*cascades;input.targets.cascadeSplits=m_ViewCascadeLevels;
     const auto& mouse = GetInputManager()->GetViewState().m_Mouse;
 #ifdef GENGINE_LIFECYCLE_PICK_TRACE
     PreEditorLifecycle::PickTraceValues("pick_prepare", -1,
@@ -634,6 +741,9 @@ ScheduleResult RigidBodySimulationApp::PrepareCameraFrame(RenderContext& context
         {m_FramePickPixel ? m_FramePickPixel->x : 0, m_FramePickPixel ? m_FramePickPixel->y : 0});
 #endif
     input.targets.pickingEnabled = m_FramePickPixel.has_value();
+    if(m_Marquee.queued && m_Marquee.generation==m_SceneGeneration) {
+        input.targets.rectangleSelection=m_Marquee.request;input.targets.pickingEnabled=true;m_Marquee.queued=false;
+    }
 #ifdef GENGINE_CAMERA_VALIDATION
     input.targets.pickingEnabled = true;
 #endif
@@ -652,6 +762,12 @@ void RigidBodySimulationApp::Render()
         ImGui::GetCurrentContext()->NavWindowingToggleLayer = false;
     if (m_Launch.AsyncPerformanceEnabled())
         return;
+    if (!m_ActiveScene || !m_SceneResources || !m_FrameSubmission)
+    {
+        FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Scene", "",
+            "render scene", "", "No complete scene is available for submission"});
+        return;
+    }
     RenderContext context{*GetWindow(), *GetWindowManager(), m_RenderTarget.get(),
                           HasVisibleViewport()};
     context.editorUI = {this, [](void* user) -> ScheduleResult
@@ -711,12 +827,26 @@ void RigidBodySimulationApp::Render()
         if (std::getenv("GENGINE_ORDINARY_HIGHLIGHT_OUTPUT"))
             input.observeFrame = [](void*, const RenderFrame& frame) noexcept { Rbs::AuditHighlightFrame(frame); };
 #endif
+#ifdef GENGINE_PHASE26_SANDBOX_CHECKS
+        input.observationContext = this;
+        input.observeFrame = [](void* user, const RenderFrame& frame) noexcept
+        {
+            Rbs::SandboxChecks::ObserveFrame(*static_cast<RigidBodySimulationApp*>(user), frame);
+        };
+#endif
         struct Preparation { RigidBodySimulationApp& app; RenderContext& context;
                              FrameSceneInput& input; FrameCamera& camera; } preparation{*this, context, input, camera};
         context.updateResources = {&preparation, [](void* user) -> ScheduleResult
         {
             auto& p = *static_cast<Preparation*>(user);
             if (auto updated = p.app.UpdateFrameResources(); !updated) return updated;
+            if(p.app.SandboxEnabled()) {
+                p.app.RenderCameraPanels();
+                p.input.targets.editorHiddenEntities=p.app.m_EditorHidden;
+            }
+#ifdef GENGINE_OWNER_REVIEW_PROBE
+            Rbs::OwnerReviewDriver::Camera(p.app);
+#endif
             if (auto camera=p.app.PrepareCameraFrame(p.context,p.input,p.camera);!camera) return camera;
             if(p.app.m_HoveredEntity) {
                 const auto selected=p.app.m_ActiveScene->RenderData().Identify(p.app.m_HoveredEntity);
@@ -739,8 +869,14 @@ void RigidBodySimulationApp::Render()
             auto& app = p.app;
             auto& physics = *app.m_ActiveScene->GetPhysicsSystem();
             app.m_ColliderOutlines.Prune(physics);
+            app.m_EditorSelection.Prune(app.m_ActiveScene->RenderData());
             static_assert(std::tuple_size_v<decltype(app.m_ColliderOutlines.entities)> == FrameSubmissionDesc::SelectionCapacity);
             p.input.targets.selectedEntities = {app.m_ColliderOutlines.entities.data(), app.m_ColliderOutlines.count};
+            if(app.m_EditorSelection.count)
+                p.input.targets.selectedEntities = {app.m_EditorSelection.ids.data(),app.m_EditorSelection.count};
+#ifdef GENGINE_OWNER_REVIEW_PROBE
+            Rbs::OwnerReviewDriver::Targets(app,p.input.targets);
+#endif
 #ifdef GENGINE_MESH_HIGHLIGHT_AUDIT
             if (std::getenv("GENGINE_ORDINARY_HIGHLIGHT_OUTPUT")) Rbs::AuditHighlightDescriptor(p.input.targets);
 #endif
@@ -782,6 +918,12 @@ void RigidBodySimulationApp::Render()
             return {};
         }};
         auto submitted = FrameScheduler::Render(context, &input);
+#ifdef GENGINE_OWNER_REVIEW_PROBE
+        if(submitted)Rbs::OwnerReviewDriver::End(*this,*submitted);
+#endif
+#ifdef GENGINE_PHASE26_SANDBOX_CHECKS
+        if (submitted) Rbs::SandboxChecks::OnFrame(*this, *submitted);
+#endif
 #ifdef GENGINE_MESH_HIGHLIGHT_AUDIT
         if (submitted && std::getenv("GENGINE_ORDINARY_HIGHLIGHT_OUTPUT")) ObserveOrdinaryHighlightSubmission(*submitted);
 #endif
@@ -797,6 +939,9 @@ void RigidBodySimulationApp::Render()
 #ifdef GENGINE_PHASE24_OUTLINE_QUALIFICATION
         if(submitted) Phase24Qualification::CollectSubmission(*submitted);
 #endif
+        if(submitted && submitted->submission.rectangleSelectionDraws)
+            Log::GetCoreLogger()->info("MARQUEE_SUBMIT draws={} query_objects_created={} physics_tick={}",submitted->submission.rectangleSelectionDraws,
+                submitted->submission.rectangleQueryAllocations,m_ActiveScene->GetPhysicsSystem()->GetCompletedSteps());
         if (context.visible && m_CameraSnapshot)
             if (auto checked = ValidateSubmittedFrame(bool(submitted), input.targets, camera); !checked)
                 return std::unexpected(checked.error());
@@ -828,6 +973,8 @@ void RigidBodySimulationApp::Render()
 void RigidBodySimulationApp::ClearColliderSelection()
 {
     m_ColliderOutlines.Clear();
+    m_EditorSelection.Clear();
+    CancelViewportMarquee();
     m_HoveredEntity = {};
     m_ViewPickRequested = m_OutlineToggleRequested = m_FrameOutlineToggle = false;
     m_FramePickPixel.reset();
@@ -836,35 +983,54 @@ void RigidBodySimulationApp::ClearColliderSelection()
 
 void RigidBodySimulationApp::SelectColliderEntity(_Entity entity, bool toggle)
 {
-    if (!toggle)
+    // Never dereference an entity borrowed from a previous/different scene.
+    if(entity.GetSceneContext() && entity.GetSceneContext()!=m_ActiveScene.get())return;
+    if(entity.GetSceneContext() && !entity)return;
+    auto& render=m_ActiveScene->RenderData();
+    if(entity)
     {
-        m_ColliderOutlines.Clear();
-        m_HoveredEntity = entity;
-    }
-    if (const auto body = m_ActiveScene->GetBodyBinding(entity))
-    {
-        const auto identity = m_ActiveScene->RenderData().Identify(entity);
-        if (identity)
+        const auto id=render.Identify(entity);
+        if(!id || !m_EditorSelection.Select(render,*id,toggle))
         {
-            m_ColliderOutlines.Select(*body, toggle, *identity);
-            if (m_ColliderOutlines.Contains(*body)) m_HoveredEntity = entity;
+            m_ColliderOutlines.capacityReached=m_EditorSelection.capacityReached;
+            return;
         }
     }
-    const auto active = m_ActiveScene->GetBodyBinding(m_HoveredEntity);
-    if ((active && !m_ColliderOutlines.Contains(*active)) || (!active && m_ColliderOutlines.count))
-    {
-        m_HoveredEntity = {};
-        if (m_ColliderOutlines.count)
-            if (const auto retained = m_ActiveScene->RenderData().Resolve(
-                    m_ColliderOutlines.entities[m_ColliderOutlines.count - 1]))
-                m_HoveredEntity = _Entity{*retained, m_ActiveScene.get()};
-    }
+    else if(!toggle)m_EditorSelection.Clear();
+    else m_EditorSelection.Prune(render);
+    SynchronizeEditorSelection();
+}
+
+void RigidBodySimulationApp::SynchronizeEditorSelection()
+{
+    Rbs::Editor::Numeric::Reset();
+    CancelViewportMarquee();
+    ++m_SelectionRevision;
+    CancelGroupTransform();
+    auto& render=m_ActiveScene->RenderData();
+    m_ColliderOutlines.Clear();
+    m_HoveredEntity={};
+    for(std::size_t i=0;i<m_EditorSelection.count;++i)
+        if(const auto resolved=render.Resolve(m_EditorSelection.ids[i]))
+        {
+            const _Entity selected{*resolved,m_ActiveScene.get()};
+            if(const auto body=m_ActiveScene->GetBodyBinding(selected))
+            {   // EntitySelection already guarantees unique stable IDs; no quadratic toggle scan.
+                const auto index=m_ColliderOutlines.count++;
+                m_ColliderOutlines.bodies[index]=*body;m_ColliderOutlines.entities[index]=m_EditorSelection.ids[i];++m_ColliderOutlines.revision;
+            }
+            m_HoveredEntity=selected;
+        }
+    // Updating the selected-object data must not transfer keyboard/navigation focus.
+    // Explicit panel menu commands may still request Properties focus.
+    m_PropertyDiagnostic.clear();
     // Selection changes cancel consent, while per-body proposal drafts survive.
     (void)Rbs::CancelColliderConfirmation(*m_ActiveScene, m_IsPause, false);
 }
 
 void RigidBodySimulationApp::OnMouseClicked()
 {
+    RBS_REVIEW_SCOPE(3);
 #ifdef GENGINE_LIFECYCLE_PICK_TRACE
     PreEditorLifecycle::PickTraceValues("pick_readback_enter", -1,
         {m_FramePickPixel.has_value(), m_CameraSnapshot.has_value(),
@@ -914,7 +1080,9 @@ void RigidBodySimulationApp::OnMouseClicked()
             }
             picked = _Entity{*entity, m_ActiveScene.get()};
         }
-        SelectColliderEntity(picked, m_FrameOutlineToggle);
+        if(SandboxEnabled())ArmViewportMarquee(unsigned(x),unsigned(y),
+            picked ? m_ActiveScene->RenderData().Identify(picked).value_or(EntityRenderId{}) : EntityRenderId{});
+        else SelectColliderEntity(picked, m_FrameOutlineToggle);
 #ifdef GENGINE_LIFECYCLE_PICK_TRACE
         PreEditorLifecycle::PickTraceValues("pick_hovered", bool(m_HoveredEntity),
             {static_cast<std::uint32_t>(m_HoveredEntity)});
@@ -923,8 +1091,11 @@ void RigidBodySimulationApp::OnMouseClicked()
         Rbs::ColliderCapture::RecordSelection(m_HoveredEntity, m_CameraSnapshot ? &*m_CameraSnapshot : nullptr, x, y,
             Vec2f{GetInputManager()->GetViewState().m_Mouse.GetPosition().x, GetInputManager()->GetViewState().m_Mouse.GetPosition().y});
 #endif
-        Log::GetCoreLogger()->info("Mouse Position: {}, {}; Entity {} has been clicked", x, y,
-                                   m_HoveredEntity ? m_HoveredEntity.GetName() : "None");
+        if(SandboxEnabled())
+            Log::GetCoreLogger()->info("Viewport pick: {}, {}; candidate {} (selection pending click/drag release)",
+                x,y,picked ? picked.GetName() : "None");
+        else Log::GetCoreLogger()->info("Mouse Position: {}, {}; Entity {} has been clicked", x, y,
+                                       m_HoveredEntity ? m_HoveredEntity.GetName() : "None");
     }
 }
 

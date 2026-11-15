@@ -49,6 +49,10 @@ namespace GEngine
 		void Image(const Asset::Texture* image, const ImVec2& size, const ImVec2& uv0 = ImVec2(0, 0), const ImVec2& uv1 = ImVec2(1, 1), const ImVec4& tint_col = ImVec4(1, 1, 1, 1), const ImVec4& border_col = ImVec4(0, 0, 0, 0));
 		void Image(const Asset::Texture* image, uint32_t layer, const ImVec2& size, const ImVec2& uv0 = ImVec2(0, 0), const ImVec2& uv1 = ImVec2(1, 1), const ImVec4& tint_col = ImVec4(1, 1, 1, 1), const ImVec4& border_col = ImVec4(0, 0, 0, 0));
 		bool ImageButton(const Asset::Texture* image, const ImVec2& size, const ImVec4& tint);
+        // Draw a retained texture inside an existing widget without changing layout,
+        // item identity or hit testing. Uses the same asset backend as Image().
+        void DrawImage(const Asset::Texture*, const ImVec2& minimum, const ImVec2& maximum,
+                       const ImVec2& uv0, const ImVec2& uv1, const ImVec4& tint);
 		/*
 
 		void _Image(const Asset::Texture* image, const ImVec2& size, const ImVec2& uv0 = ImVec2(0, 0), const ImVec2& uv1 = ImVec2(1, 1), const ImVec4& tint_col = ImVec4(1, 1, 1, 1), const ImVec4& border_col = ImVec4(0, 0, 0, 0));

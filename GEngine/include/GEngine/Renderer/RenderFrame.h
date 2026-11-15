@@ -19,7 +19,8 @@ namespace GEngine
     namespace RenderCpu { struct DrawStorage; struct FrameAccess; }
     // CPU frame limit across all three types, independent of any shader layout.
     inline constexpr std::size_t MaxFrameLights = 256;
-    struct LightShadowSettings { bool castShadows = false; };
+    struct LightShadowSettings { bool castShadows = false;
+        SpotShadowSettings spot; };
     // Linear nonnegative color; intensity is a positive, unitless authored multiplier
     // (no new photometric model). Positions/ranges are world-space distances. Directions
     // are normalized world-space ray directions. Revision is the scene light counter

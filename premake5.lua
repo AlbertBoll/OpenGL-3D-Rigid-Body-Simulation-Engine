@@ -25,6 +25,8 @@ if _ACTION == "vs2022" then
 	end)
 end
 
+newoption { trigger = "with-jolt", description = "Build the pinned optional Jolt Physics backend" }
+
 workspace "GEngine"
 	startproject "Breakout"
 	architecture "x64"
@@ -689,6 +691,7 @@ project "Breakout"
 		
 	project "RigidBodySimulation"
 	location "RigidBodySimulation"
+    includedirs { "external/sdl2/include", "external/glad/include" }
 	kind "ConsoleApp"
 	language "C++"
 	cppdialect "C++23"
@@ -998,3 +1001,54 @@ project "RenderingValidation"
 		optimize "on"
 		defines { "GENGINE_CONFIG_RELEASE" }
 filter {}
+
+
+-- The optional backend is a static dependency in the existing Premake solution.
+-- Public GEngine headers contain no Jolt types or conditional class layouts.
+if _OPTIONS["with-jolt"] then
+    local manifest = io.open("external/jolt/Jolt/Jolt.cmake", "r")
+    if not manifest then error("Run python tools/setup_jolt.py before --with-jolt") end
+    local content = manifest:read("*a"); manifest:close()
+    local core = content:match("set%(JOLT_PHYSICS_SRC_FILES%s*(.-)\n%)")
+    if not core then error("Pinned Jolt source manifest is unavailable") end
+    local sources = {}
+    for relative in core:gmatch("%${JOLT_PHYSICS_ROOT}/([%w_./]+)") do
+        table.insert(sources, "external/jolt/Jolt/" .. relative)
+    end
+    project "Jolt"
+        location "external/jolt-build"
+        kind "StaticLib"
+        language "C++"
+        cppdialect "C++23"
+        staticruntime "on"
+        targetdir "bin/%{cfg.buildcfg}/Jolt"
+        objdir "bin-int/%{cfg.buildcfg}/Jolt"
+        files(sources)
+        prebuildcommands { 'python "' .. path.getabsolute("tools/setup_jolt.py") .. '" --verify-only' }
+        includedirs { "external/jolt" }
+        defines { "JPH_CROSS_PLATFORM_DETERMINISTIC", "JPH_OBJECT_LAYER_BITS=16" }
+        floatingpoint "Strict"
+        filter "system:windows"
+            systemversion "10.0.26100.0"
+            buildoptions { "/bigobj" }
+        filter "configurations:Debug"
+            runtime "Debug"
+            symbols "on"
+        filter "configurations:Release"
+            runtime "Release"
+            optimize "on"
+            defines { "JPH_NO_DEBUG" }
+        filter {}
+    project "GEngine"
+        links { "Jolt" }
+        includedirs { "external/jolt" }
+        defines { "GENGINE_WITH_JOLT", "JPH_CROSS_PLATFORM_DETERMINISTIC", "JPH_OBJECT_LAYER_BITS=16" }
+        filter "configurations:Release"
+            defines { "JPH_NO_DEBUG" }
+        filter {}
+    for _, consumer in ipairs({"RigidBodySimulation", "GEngineEditor", "Breakout", "RayTracing", "PhysicsTests", "PhysicsBenchmark"}) do
+        project(consumer)
+            links { "Jolt" }
+    end
+    filter {}
+end

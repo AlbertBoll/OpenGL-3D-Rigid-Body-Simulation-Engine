@@ -17,6 +17,7 @@
 #include <format>
 #include <new>
 #include <bit>
+#include <map>
 #include <cstdlib>
 #include "../../../runtime/tmp/gpu-capture-tools/RenderDoc_1.46_64/RenderDoc_1.46_64/renderdoc_app.h"
 
@@ -202,7 +203,7 @@ namespace GEngine
         };
         std::expected<Shader, SubmissionError> CoverageProgram(RenderPass pass, bool multiSelection = false)
         {
-            const bool selection=pass==RenderPass::SelectionMask;
+            const bool selection=pass==RenderPass::SelectionMask, spot=pass==RenderPass::SpotShadow;
             const bool picking=pass==RenderPass::Picking || selection, point=pass==RenderPass::PointShadow;
             const std::string vertex=std::string(R"(#version 450 core
 layout(location=0) in vec3 position;
@@ -217,7 +218,7 @@ uniform uint geShadowLayers, geShadowKind;
 uniform int u_EntityID;
 void main() { geShadowMask=geInstanced ? geInstances[geInstanceBase+uint(gl_InstanceID)].identity1[geShadowKind] : geShadowLayers;
 gePickingPixel=geInstanced ? int(geInstances[geInstanceBase+uint(gl_InstanceID)].identity1.y) : u_EntityID;
-vertexUV=uv; vertexLocalPosition=position; vertexLocalNormal=normal; gl_Position=)") + (picking?"u_projection*u_view*":"") + "u_model*vec4(position,1.0); }";
+vertexUV=uv; vertexLocalPosition=position; vertexLocalNormal=normal; gl_Position=)") + (picking?"u_projection*u_view*":spot?"geSpotMatrix*":"") + "u_model*vec4(position,1.0); }";
             const std::string geometry=point?R"(#version 450 core
 layout(triangles) in;
 layout(triangle_strip,max_vertices=18) out;
@@ -250,9 +251,9 @@ for(int i=0;i<3;++i) { gl_Layer=gl_InvocationID;
   EmitVertex(); } EndPrimitive(); }
 )";
             std::string fragment="#version 450 core\n";
-            fragment+=picking?"in vec2 vertexUV;\n#define fragmentUV vertexUV\nflat in int gePickingPixel;\n":"in vec2 fragmentUV;\n";
+            fragment+=(picking || spot)?"in vec2 vertexUV;\n#define fragmentUV vertexUV\nflat in int gePickingPixel;\n":"in vec2 fragmentUV;\n";
             if(picking) fragment+=selection?"layout(location=0) out vec2 selectedCoverage;\n":"layout(location=0) out int pixel;\n";
-            fragment+=picking?"in vec3 vertexLocalPosition, vertexLocalNormal;\n#define fragmentLocalPosition vertexLocalPosition\n#define fragmentLocalNormal vertexLocalNormal\n":
+            fragment+=(picking || spot)?"in vec3 vertexLocalPosition, vertexLocalNormal;\n#define fragmentLocalPosition vertexLocalPosition\n#define fragmentLocalNormal vertexLocalNormal\n":
                 "in vec3 fragmentLocalPosition, fragmentLocalNormal;\n";
             if(point) fragment+="in vec4 FragPos; uniform vec3 lightPos; uniform float far_plane;\n";
             fragment+=R"(
@@ -287,12 +288,12 @@ void main() {
                 {Asset::ShaderStage::Fragment,fragment,"frame coverage fragment"},
                 {Asset::ShaderStage::Geometry,geometry,"frame coverage geometry"}}};
             std::array<std::string,3> packed;
-            for(std::size_t i=0;i<(picking?2u:3u);++i) {
+            for(std::size_t i=0;i<((picking || spot)?2u:3u);++i) {
                 auto adapted=RenderBackend::PackedStage(std::string(stages[i].source),false,{},stages[i].type);
                 if(!adapted) return Error("coverage packed shader",Code::UnsupportedPipeline);
                 packed[i]=std::move(*adapted);stages[i].source=packed[i];
             }
-            auto result=Shader::Create({std::span(stages).first(picking?2:3)});
+            auto result=Shader::Create({std::span(stages).first((picking || spot)?2:3)});
             if(!result) return std::unexpected(SubmissionError{"coverage shader",result.error()});
             if(point && PointDiagnosticEnabled()) Log::GetCoreLogger()->info("PH09_POINT_DIAG_GEOMETRY program={} source_begin\n{}\nPH09_POINT_DIAG_GEOMETRY source_end",Asset::ShaderBackendAccess::Program(*result),packed[2]);
             return std::move(*result);
@@ -410,13 +411,14 @@ void main() {
             std::size_t submesh{};
             int pixel = -1;
             std::array<unsigned,2> shadowMasks{};
+            unsigned selectionClass{};
         };
         struct InstanceGroup { std::size_t index{}, count=1; unsigned base{}; };
         // Private context-owned scratch. No borrowed depth ownership and no
         // allocation on the empty-selection path. Capacity survives deselection.
         struct SelectionScratch
         {
-            GLuint mask{}, depth{}, stencil{}, resolved{}, maskFbo{}, resolvedFbo{}, vao{};
+            GLuint mask{}, depth{}, stencil{}, resolved{}, occupiedTiles{}, maskFbo{}, resolvedFbo{}, vao{};
             unsigned width{},height{},samples{}; GLenum depthFormat{};
             bool sharedVisibility=false, multi=false;
             std::size_t allocations{};
@@ -424,11 +426,11 @@ void main() {
             SelectionScratch(const SelectionScratch&)=delete;
             SelectionScratch& operator=(const SelectionScratch&)=delete;
             ~SelectionScratch() {
-                const GLuint textures[]{mask,depth,stencil,resolved}, fbos[]{maskFbo,resolvedFbo};
-                glDeleteTextures(4,textures); glDeleteFramebuffers(2,fbos);
+                const GLuint textures[]{mask,depth,stencil,resolved,occupiedTiles}, fbos[]{maskFbo,resolvedFbo};
+                glDeleteTextures(5,textures); glDeleteFramebuffers(2,fbos);
                 if(vao) glDeleteVertexArrays(1,&vao);
             }
-            std::size_t Bytes() const noexcept { return std::size_t(width)*height*((sharedVisibility?4:(multi?20:12))*samples+(multi?16:8)); }
+            std::size_t Bytes() const noexcept { return std::size_t(width)*height*((sharedVisibility?4:(multi?20:12))*samples+(multi?16:8)) + std::size_t((width+7)/8)*((height+7)/8); }
             std::expected<void,SubmissionError> Ensure(unsigned w,unsigned h,unsigned s,GLenum format,bool shared,bool multiple)
             {
                 if(w<=width && h<=height && s==samples && format==depthFormat && shared==sharedVisibility && multiple==multi) return {};
@@ -438,9 +440,10 @@ void main() {
                 if(!shared) glCreateTextures(target,1,&next.mask);
                 glCreateTextures(target,1,&next.depth);
                 glCreateTextures(GL_TEXTURE_2D,1,&next.resolved);
+                glCreateTextures(GL_TEXTURE_2D,1,&next.occupiedTiles);
                 glCreateFramebuffers(1,&next.maskFbo);glCreateFramebuffers(1,&next.resolvedFbo);
                 glCreateVertexArrays(1,&next.vao);
-                if((!shared && !next.mask) || !next.depth || !next.resolved || !next.maskFbo || !next.resolvedFbo || !next.vao)
+                if((!shared && !next.mask) || !next.depth || !next.resolved || !next.occupiedTiles || !next.maskFbo || !next.resolvedFbo || !next.vao)
                     return Error("selection scratch names",Code::Allocation);
                 if(s>1) {
                     if(!shared) glTextureStorage2DMultisample(next.mask,s,multiple?GL_RGBA32F:GL_RG32F,w,h,GL_TRUE);
@@ -452,6 +455,9 @@ void main() {
                 glTextureStorage2D(next.resolved,1,multiple?GL_RGBA32F:GL_RG32F,w,h);
                 glTextureParameteri(next.resolved,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
                 glTextureParameteri(next.resolved,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+                glTextureStorage2D(next.occupiedTiles,1,GL_R8UI,(w+7)/8,(h+7)/8);
+                glTextureParameteri(next.occupiedTiles,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
+                glTextureParameteri(next.occupiedTiles,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
                 if(shared) {
                     // Separate interpretation of the same immutable depth/stencil
                     // store; the view adds no attachment storage or ownership loan.
@@ -474,6 +480,7 @@ void main() {
                     return Error("selection scratch storage",Code::Driver);
                 using std::swap;
                 swap(mask,next.mask);swap(depth,next.depth);swap(stencil,next.stencil);swap(resolved,next.resolved);
+                swap(occupiedTiles,next.occupiedTiles);
                 swap(maskFbo,next.maskFbo);swap(resolvedFbo,next.resolvedFbo);swap(vao,next.vao);
                 swap(width,next.width);swap(height,next.height);swap(samples,next.samples);swap(depthFormat,next.depthFormat);
                 swap(sharedVisibility,next.sharedVisibility);swap(multi,next.multi);++allocations;
@@ -514,10 +521,38 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
             if(!result) return std::unexpected(SubmissionError{"selection visibility shader",result.error()});
             return std::move(*result);
         }
+        std::expected<Shader,SubmissionError> SelectionTileProgram()
+        {
+            // Exact occupancy of 8x8 resolved-mask texels, including partial MSAA
+            // coverage and both selection classes. No filtered/thresholded mask.
+            constexpr std::string_view compute=R"(#version 450 core
+layout(local_size_x=8,local_size_y=8) in;
+uniform sampler2D selectedMask;
+uniform ivec2 regionSize;
+layout(r8ui,binding=0) writeonly uniform uimage2D occupiedTiles;
+shared uint occupied;
+void main() {
+  if(gl_LocalInvocationIndex==0u) occupied=0u;
+  barrier();
+  ivec2 p=ivec2(gl_GlobalInvocationID.xy);
+  if(all(lessThan(p,regionSize))) {
+    vec4 c=texelFetch(selectedMask,p,0);
+    if(c.r>0.0 || c.b>0.0) atomicOr(occupied,1u);
+  }
+  barrier();
+  if(gl_LocalInvocationIndex==0u) imageStore(occupiedTiles,ivec2(gl_WorkGroupID.xy),uvec4(occupied));
+})";
+            const Asset::ShaderSource stages[]{{Asset::ShaderStage::Compute,compute,"selection exact tile occupancy"}};
+            auto result=Asset::CreateShaderProgram(stages);
+            if(!result)return std::unexpected(SubmissionError{"selection tile shader",result.error()});
+            return std::move(*result);
+        }
         std::expected<Shader,SubmissionError> SelectionCompositeProgram(bool multisample,bool shared,bool multi=false)
         {
             std::string fragment=std::string(R"(#version 450 core
 uniform sampler2D selectedMask;
+uniform usampler2D occupiedTiles;
+uniform bool useOccupiedTiles;
 uniform )")+(multisample?"sampler2DMS":"sampler2D")+R"( sceneDepth;
 uniform ivec2 regionOrigin,regionSize;
 uniform vec2 pixelsPerDip;
@@ -531,10 +566,20 @@ void main() {
   ivec2 p=ivec2(gl_FragCoord.xy)-regionOrigin;
   float center=coverage(p).r;
   if(center>=0.9999) discard;
+  // A conservative superset of the unchanged circular kernel. Reject only if
+  // every intersected tile has exactly zero selected coverage.
+  ivec2 radius=ivec2(ceil(6.0*pixelsPerDip));
+  if(useOccupiedTiles) {
+    ivec2 first=max(p-radius,ivec2(0))/8;
+    ivec2 last=min(p+radius,regionSize-1)/8;
+    uint occupied=0u;
+    for(int y=first.y;y<=last.y;++y) for(int x=first.x;x<=last.x;++x)
+      occupied|=texelFetch(occupiedTiles,ivec2(x,y),0).r;
+    if(occupied==0u) discard;
+  }
   float depth=1.0;
 )"+(multisample?"for(int s=0;s<sampleCount;++s) depth=min(depth,texelFetch(sceneDepth,p,s).r);":"depth=texelFetch(sceneDepth,p,0).r;")+R"(
   float ring=0.0,glow=0.0;
-  ivec2 radius=ivec2(ceil(6.0*pixelsPerDip));
   for(int y=-radius.y;y<=radius.y;++y) for(int x=-radius.x;x<=radius.x;++x) {
     float distance=length(vec2(x,y)/pixelsPerDip);
     if(distance>6.0) continue;
@@ -628,13 +673,14 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
             std::unique_ptr<InstanceGroup[]> groups;
             std::unique_ptr<RenderBackend::PackedInstance[]> instances;
             std::size_t groupCount{}, instanceCount{}, capacity{};
-            static std::expected<InstancePlan,SubmissionError> Create(std::size_t draws,std::size_t byteLimit,bool enabled)
+            static std::expected<InstancePlan,SubmissionError> Create(std::size_t draws,std::size_t byteLimit,bool enabled,bool spot=false)
             {
                 constexpr auto maximum=(std::numeric_limits<std::size_t>::max)();
-                if(draws>maximum/4/sizeof(InstanceGroup)) return Error("instance group capacity",Code::InvalidDraw);
+                const std::size_t partitions=spot?5:4;
+                if(draws>maximum/partitions/sizeof(InstanceGroup)) return Error("instance group capacity",Code::InvalidDraw);
                 InstancePlan result;
-                result.groups.reset(new(std::nothrow) InstanceGroup[draws*4]);
-                result.capacity=enabled?(std::min)({draws*4,byteLimit/sizeof(RenderBackend::PackedInstance),
+                result.groups.reset(new(std::nothrow) InstanceGroup[draws*partitions]);
+                result.capacity=enabled?(std::min)({draws*partitions,byteLimit/sizeof(RenderBackend::PackedInstance),
                     std::size_t((std::numeric_limits<unsigned>::max)())}):0;
                 result.instances.reset(new(std::nothrow) RenderBackend::PackedInstance[(std::max)(result.capacity,std::size_t{1})]);
                 if((draws && !result.groups) || !result.instances) return Error("instance plan allocation",Code::Allocation);
@@ -647,9 +693,9 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
                 for(std::size_t i=0;i<indices.size();) {
                     std::size_t count=1;
                     const auto available=(std::min)(capacity-instanceCount,std::size_t(INT_MAX));
-                    if(available>=MinimumRenderInstances && (!selected || selected->SelectionClass(draws[indices[i]].draw->entity)!=1))
+                    if(available>=MinimumRenderInstances && (!selected || draws[indices[i]].selectionClass!=1))
                         while(i+count<indices.size() && count<available
-                        && (!selected || selected->SelectionClass(draws[indices[i+count]].draw->entity)==selected->SelectionClass(draws[indices[i]].draw->entity))
+                        && (!selected || draws[indices[i+count]].selectionClass==draws[indices[i]].selectionClass)
                         && Compatible(draws[indices[i]],draws[indices[i+count]])) ++count;
                     // Bound scanning by available storage; the serial tail remains linear.
                     // Unsupported/too-small groups and exhausted storage retain exact serial order.
@@ -675,6 +721,7 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
         struct PassInputs
         {
             std::unique_ptr<std::uint64_t[]> words;
+            std::size_t capacity{};
             std::array<std::size_t,8> ends{};
             bool valid = false;
             PassDirtyReason pending = PassDirtyReason::None;
@@ -709,14 +756,14 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
             { U(value.index); U(value.generation); U(value.registry); }
         };
         std::expected<PassInputs,SubmissionError> CaptureInputs(RenderPass pass,const RenderFrame& frame,
-            const FrameSubmissionDesc& desc,const PreparedDraw* draws,const RenderVisibility& visibility)
+            const FrameSubmissionDesc& desc,const PreparedDraw* draws,const RenderVisibility& visibility,
+            const FrameBuffer& spotTarget,PassInputs result={})
         {
-            PassInputs result;
-            const bool picking=pass==RenderPass::Picking, directional=pass==RenderPass::DirectionalShadow;
+            const bool picking=pass==RenderPass::Picking, directional=pass==RenderPass::DirectionalShadow, spot=pass==RenderPass::SpotShadow;
             const auto indices=picking?visibility.Picking():visibility.Shadows();
-            const auto include=[&](std::size_t i) {return picking || draws[i].role->kind==SceneMaterialKind::Lit;};
+            const auto include=[&](std::size_t i) {return picking ? desc.SceneVisible(draws[i].draw->entity) : draws[i].role->kind==SceneMaterialKind::Lit;};
             const auto emit=[&](InputWriter& out) {
-                const auto& target=picking?desc.picking.Buffer():directional?desc.cascadeShadow.Buffer():desc.pointShadow.Buffer();
+                const auto& target=picking?desc.picking.Buffer():directional?desc.cascadeShadow.Buffer():spot?spotTarget:desc.pointShadow.Buffer();
                 out.Id(target.StorageIdentity());
                 result.ends[0]=out.size;
                 for(auto i:indices) if(include(i)) {
@@ -774,23 +821,27 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
                 if(directional) for(const auto& light:frame.DirectionalLights()) {
                     out.Id(light.entity); out.U(light.revision); out.V(light.direction); out.U(light.shadows.castShadows);
                 }
-                if(!picking && !directional) for(const auto& light:frame.PointLights()) {
+                if(!picking && !directional && !spot) for(const auto& light:frame.PointLights()) {
                     out.Id(light.entity); out.U(light.revision); out.V(light.position); out.F(light.range); out.U(light.shadows.castShadows);
+                }
+                if(spot) for(const auto& light:frame.SpotLights()) {
+                    out.Id(light.entity);out.V(light.position);out.V(light.direction);out.F(light.range);
+                    out.F(light.outerConeRadians);out.U(light.shadows.castShadows);
                 }
                 result.ends[6]=out.size;
                 if(directional) {
                     out.F(desc.cameraFov); out.F(desc.cameraAspect); out.F(desc.cameraNear); out.F(desc.cameraFar);
                     for(float split:desc.cascadeSplits) out.F(split);
                 }
-                if(!picking && !directional) out.F(desc.pointNear);
+                if(!picking && !directional && !spot) out.F(desc.pointNear);
                 if(!picking) out.U(desc.shadowCullingEnabled);
                 result.ends[7]=out.size;
             };
             InputWriter measure; emit(measure);
             if(measure.overflow) return Error("pass input size",Code::Allocation);
-            result.words.reset(new (std::nothrow) std::uint64_t[measure.size]);
+            if(result.capacity<measure.size) { result.words.reset(new (std::nothrow) std::uint64_t[measure.size]);result.capacity=measure.size; }
             if(!result.words) return Error("pass input allocation",Code::Allocation);
-            InputWriter writer{result.words.get()}; emit(writer); result.valid=true;
+            InputWriter writer{result.words.get()}; emit(writer); result.valid=true; result.pending=PassDirtyReason::None;
             return result;
         }
         std::expected<void, SubmissionError> Draw(const PreparedDraw& draw, const Shader& shader,
@@ -815,16 +866,26 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
     }
     struct FrameSubmission::Storage
     {
-        Shader point, cascade, pick, debug;
+        Shader point, cascade, pick, debug, spot;
+        FrameBuffer spotTarget;
+        PassInputs spotScratch;
         struct SelectionVariant { Shader mask, composite; SelectionScratch scratch; };
+        Shader selectionTiles;
         std::array<SelectionVariant,8> selectionVariants;
         RenderBackend::UploadBuffer frameUpload, materialUpload, instanceUpload;
         RenderBackend::UploadBuffer debugUpload;
         GLuint debugVao{};
         std::size_t materialLimit{};
         RenderBackend::PackedFrame lastFrame;
-        std::array<PassInputs,3> inputs;
-        std::array<ShadowVisibilityStats,2> shadowVisibility;
+        std::array<PassInputs,4> inputs;
+        std::array<ShadowVisibilityStats,3> shadowVisibility;
+        struct CameraDepthCache { PassInputs inputs; decltype(RenderBackend::PackedFrame::cascades) matrices{}; ShadowVisibilityStats stats; };
+        std::map<FramebufferStorageHandle,CameraDepthCache> cameraDepths;
+        FramebufferStorageHandle activeCameraDepth;
+        std::vector<std::size_t> visibleMain,visiblePicking;
+        std::vector<GLuint> rectangleQueries;
+        std::vector<EntityRenderId> rectangleEntities;
+        std::uint64_t rectangleSerial{};
         SDL_GLContext context = SDL_GL_GetCurrentContext();
         std::thread::id owner = std::this_thread::get_id();
         ~Storage()
@@ -832,17 +893,62 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
             GLContextThread::RequireOwner(owner,"frame submission destruction");
             Asset::AssetDetail::RequireInvariant(SDL_GL_GetCurrentContext() == context);
             if (debugVao) glDeleteVertexArrays(1,&debugVao);
+            if(!rectangleQueries.empty())glDeleteQueries(GLsizei(rectangleQueries.size()),rectangleQueries.data());
         }
     };
     FrameSubmission::FrameSubmission(FrameSubmission&&) noexcept = default;
     FrameSubmission& FrameSubmission::operator=(FrameSubmission&&) noexcept = default;
     FrameSubmission::~FrameSubmission() = default;
+    void FrameSubmission::CancelRectangleSelection() noexcept
+    {
+        if(m_Storage){GLContextThread::RequireOwner(m_Storage->owner,"cancel rectangle selection");m_Storage->rectangleSerial=0;}
+    }
+    std::expected<std::optional<RectangleSelectionResult>,SubmissionError> FrameSubmission::PollRectangleSelection()
+    {
+        if(!m_Storage || !GLContextThread::IsCurrentOwner())return Error("rectangle selection owner context",Code::Context);
+        auto& s=*m_Storage;if(!s.rectangleSerial)return std::optional<RectangleSelectionResult>{};
+        for(std::size_t i=0;i<s.rectangleEntities.size();++i) {
+            GLuint available{};glGetQueryObjectuiv(s.rectangleQueries[i],GL_QUERY_RESULT_AVAILABLE,&available);
+            if(!available)return std::optional<RectangleSelectionResult>{};
+        }
+        RectangleSelectionResult result;result.serial=s.rectangleSerial;result.draws=s.rectangleEntities.size();
+        try {result.entities.reserve(s.rectangleEntities.size());}catch(const std::bad_alloc&){return Error("rectangle results allocation",Code::Allocation);}
+        for(std::size_t i=0;i<s.rectangleEntities.size();++i) {
+            GLuint covered{};glGetQueryObjectuiv(s.rectangleQueries[i],GL_QUERY_RESULT,&covered);
+            if(covered && std::find(result.entities.begin(),result.entities.end(),s.rectangleEntities[i])==result.entities.end())result.entities.push_back(s.rectangleEntities[i]);
+        }
+        s.rectangleSerial=0;return std::optional<RectangleSelectionResult>{std::move(result)};
+    }
+    void FrameSubmission::RetireCameraCaches() noexcept
+    {
+        if(!m_Storage)return;
+        GLContextThread::RequireOwner(m_Storage->owner,"retire camera caches");
+        m_Storage->cameraDepths.clear();m_Storage->activeCameraDepth={};m_Storage->inputs[0]={};
+    }
     void FrameSubmission::InvalidatePassContents() noexcept
     {
         if(m_Storage) {
             GLContextThread::RequireOwner(m_Storage->owner,"invalidate pass contents");
             for(auto& inputs:m_Storage->inputs) inputs.pending=inputs.pending | PassDirtyReason::ExternalWrite;
+            for(auto& [key,value]:m_Storage->cameraDepths)value.inputs.pending=value.inputs.pending|PassDirtyReason::ExternalWrite;
         }
+    }
+
+    std::expected<void, SubmissionError> FrameSubmission::PrepareSpotShadowTarget(const SpotShadowSettings& settings)
+    {
+        if(!m_Storage || !GLContextThread::IsCurrentOwner())return Error("spot shadow owner context",Code::Context);
+        if(ValidateSpotShadow(settings))return Error("spot shadow settings",Code::InvalidShadowSettings);
+        FrameBufferSpecification spec;
+        spec.Width=spec.Height=static_cast<unsigned>(settings.resolution);spec.Depth=FramebufferFormat::Depth32Float;
+        auto& target=m_Storage->spotTarget;
+        if(target) {
+            if(auto result=target.Reconfigure(spec);!result)return std::unexpected(SubmissionError{"spot target resize",result.error()});
+        } else {
+            auto result=FrameBuffer::Create(spec);
+            if(!result)return std::unexpected(SubmissionError{"spot target allocation",result.error()});
+            target=std::move(*result);
+        }
+        return {};
     }
 
     std::string DescribeSubmissionError(const SubmissionError& error)
@@ -874,10 +980,16 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
         if (!point) return std::unexpected(point.error());
         auto cascade = CoverageProgram(RenderPass::DirectionalShadow);
         if (!cascade) return std::unexpected(cascade.error());
+        auto spot = CoverageProgram(RenderPass::SpotShadow);
+        if (!spot) return std::unexpected(spot.error());
         auto pick = CoverageProgram(RenderPass::Picking);
         if (!pick) return std::unexpected(pick.error());
         auto& storage=*result.m_Storage;
-        storage.point=std::move(*point); storage.cascade=std::move(*cascade); storage.pick=std::move(*pick);
+        storage.spot=std::move(*spot); storage.point=std::move(*point); storage.cascade=std::move(*cascade); storage.pick=std::move(*pick);
+        // A complete retained binding avoids driver validation warnings when the
+        // Spot contribution is disabled. No shadow pass or depth sample occurs.
+        SpotShadowSettings placeholder;placeholder.resolution=1;
+        if(auto ready=result.PrepareSpotShadowTarget(placeholder);!ready)return std::unexpected(ready.error());
         GLint frameLimit{};GLint64 materialLimit{};
         glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE,&frameLimit);
         glGetInteger64v(GL_MAX_SHADER_STORAGE_BLOCK_SIZE,&materialLimit);
@@ -911,6 +1023,10 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
             result.viewport={0,0,size.Width,size.Height}; result.output=PassTarget::PointDepth;
             result.colorWrite=false; result.depthLoad=PassLoad::Clear; break;
         }
+        case RenderPass::SpotShadow:
+            result.output=PassTarget::SpotDepth;result.colorWrite=false;result.depthLoad=PassLoad::Clear;
+            result.viewport={}; // Resolved from the submitter-owned target before Apply.
+            result.materialOverrides=true;break;
         case RenderPass::Picking:
             result.output=PassTarget::Picking; result.colorLoad=PassLoad::Clear; result.depthLoad=PassLoad::Clear; break;
         case RenderPass::Opaque:
@@ -959,6 +1075,19 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
     {
         if (!m_Storage || !GLContextThread::IsCurrentOwner() || SDL_GL_GetCurrentContext()!=m_Storage->context)
             return Error("submit",Code::Context);
+        const auto depthKey=desc.cascadeShadow.Buffer().StorageIdentity();
+        if(depthKey!=m_Storage->activeCameraDepth) {
+            try {
+                auto& next=m_Storage->cameraDepths[depthKey];
+                if(m_Storage->activeCameraDepth) {
+                    auto& previous=m_Storage->cameraDepths[m_Storage->activeCameraDepth];
+                    previous.inputs=std::move(m_Storage->inputs[0]);previous.matrices=m_Storage->lastFrame.cascades;
+                    previous.stats=m_Storage->shadowVisibility[0];
+                }
+                m_Storage->inputs[0]=std::move(next.inputs);m_Storage->lastFrame.cascades=next.matrices;
+                m_Storage->shadowVisibility[0]=next.stats;m_Storage->activeCameraDepth=depthKey;
+            } catch(const std::bad_alloc&) {return Error("camera depth cache",Code::Allocation);}
+        }
         std::optional<PassTiming::Scope> submissionTiming;
         if(desc.measureSubmission) submissionTiming.emplace(RenderPass::QualificationSubmission);
         struct FailedSubmission
@@ -973,10 +1102,16 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
         if (frame.DebugLines().size()>std::size_t((std::numeric_limits<GLsizei>::max)())/2)
             return Error("debug vertex capacity",Code::InvalidDraw);
         if (frame.DirectionalLights().size()>1 || frame.PointLights().size()>1 || frame.SpotLights().size()>1)
-            return Error("lighting capacity (one directional, one point, one unshadowed spot)",Code::UnsupportedLights);
+            return Error("lighting capacity (one directional, one point, one spot)",Code::UnsupportedLights);
         const auto* spot=frame.SpotLights().empty()?nullptr:&frame.SpotLights()[0];
-        if (spot && spot->shadows.castShadows)
-            return Error("spot shadows are unsupported",Code::UnsupportedLights);
+        const bool spotShadow=spot && spot->shadows.castShadows;
+        glm::mat4 spotMatrix(1);
+        if(spotShadow) {
+            auto matrix=SpotShadowMatrix(spot->position,spot->direction,spot->range,spot->outerConeRadians);
+            if(!matrix)return Error("spot projection",Code::InvalidShadowSettings);
+            spotMatrix=*matrix;
+            if(auto prepared=PrepareSpotShadowTarget(spot->shadows.spot);!prepared)return std::unexpected(prepared.error());
+        }
         const auto& camera=frame.Cameras()[0];
         // RenderFrameBuilder validated snapshot/representation agreement before
         // publishing this immutable frame. Submission consumes that validated state.
@@ -1072,6 +1207,7 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
                 if(!coverage) return Error("alpha material needs albedoMap coverage",Code::UnsupportedPipeline);
             }
             auto& prepared=draws[index]; prepared={&draw,&resources,role};
+            prepared.selectionClass=desc.SelectionClass(draw.entity);
             bool found=false;
             const auto ranges=resources.Mesh()->Submeshes();
             for(std::size_t i=0;i<ranges.size();++i)
@@ -1083,17 +1219,27 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
         auto visibility=RenderVisibility::Build(frame,0,{conservative.get(),conservativeCount});
         if(!visibility) return std::unexpected(SubmissionError{"frame visibility",visibility.error()});
         FrameSubmissionStats stats; stats.visibility=visibility->Stats();
+        auto mainVisible=visibility->Main(),pickVisible=visibility->Picking();
+        if(!desc.editorHiddenEntities.empty()) {
+            try {
+                auto filter=[&](auto input,auto& output){output.clear();output.reserve(input.size());
+                    for(auto i:input)if(desc.SceneVisible(draws[i].draw->entity))output.push_back(i);return std::span<const std::size_t>(output);};
+                mainVisible=filter(mainVisible,m_Storage->visibleMain);pickVisible=filter(pickVisible,m_Storage->visiblePicking);
+            } catch(const std::bad_alloc&) {return Error("editor visibility",Code::Allocation);}
+        }
         // Reuse the temporary ordinal buffer after general visibility owns its lists.
         std::size_t casterCount{};
         for(const auto index:visibility->Shadows())
             if(draws[index].role->kind==SceneMaterialKind::Lit) conservative[casterCount++]=index;
         const std::span<const std::size_t> casters(conservative.get(),casterCount);
         // Exact keys are independent of derived matrices, lists and layer masks.
-        std::array<PassInputs,3> candidateInputs;
-        constexpr RenderPass cachedPasses[]{RenderPass::DirectionalShadow,RenderPass::PointShadow,RenderPass::Picking};
-        const bool requested[]{directionalShadow,pointShadow,desc.pickingEnabled};
+        std::array<PassInputs,4> candidateInputs;
+        constexpr RenderPass cachedPasses[]{RenderPass::DirectionalShadow,RenderPass::PointShadow,RenderPass::Picking,RenderPass::SpotShadow};
+        const bool requested[]{directionalShadow,pointShadow,desc.pickingEnabled,spotShadow};
         for(std::size_t i=0;i<candidateInputs.size();++i) {
-            auto captured=CaptureInputs(cachedPasses[i],frame,desc,draws.get(),*visibility);
+            if(i==3 && !spotShadow){stats.decisions[i].pass=RenderPass::SpotShadow;continue;}
+            auto captured=CaptureInputs(cachedPasses[i],frame,desc,draws.get(),*visibility,m_Storage->spotTarget,
+                i==3?std::move(m_Storage->spotScratch):PassInputs{});
             if(!captured) return std::unexpected(captured.error());
             candidateInputs[i]=std::move(*captured);
             const auto reasons=m_Storage->inputs[i].Changes(candidateInputs[i]);
@@ -1115,10 +1261,11 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
             const auto& size=desc.pointShadow.Buffer().Description();
             pointMatrices=PointMatrices(position,desc.pointNear,pointFar,float(size.Width)/size.Height);
         }
-        std::array<std::optional<RenderDetail::ShadowCasterLists>,2> shadowLists;
+        std::array<std::optional<RenderDetail::ShadowCasterLists>,3> shadowLists;
         for(std::size_t light=0;light<shadowLists.size();++light) {
-            if(!stats.decisions[light].requested) continue;
-            if(!stats.decisions[light].executed) {
+            const auto decision=light==2?3:light;
+            if(!stats.decisions[decision].requested) continue;
+            if(!stats.decisions[decision].executed) {
                 // Reuse value-only visibility metadata, never frame-local ordinals.
                 // Submitted counts describe this frame, even on an exact cache hit.
                 auto& counts=stats.shadowVisibility[light];
@@ -1127,18 +1274,18 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
                 for(auto& layer:counts.layers) layer.submittedCasters=0;
                 continue;
             }
-            const auto matrices=light==0 ? std::span<const glm::mat4>(cascadeMatrices) : std::span<const glm::mat4>(pointMatrices);
+            const auto matrices=light==0 ? std::span<const glm::mat4>(cascadeMatrices) : light==1?std::span<const glm::mat4>(pointMatrices):std::span<const glm::mat4>(&spotMatrix,1);
             auto lists=RenderDetail::ShadowCasterLists::Build(frame,casters,matrices,
-                light==0 ? std::nullopt : std::optional(RenderDetail::ShadowPointRange{position,pointFar}),desc.shadowCullingEnabled);
+                light==0 ? std::nullopt : std::optional(RenderDetail::ShadowPointRange{light==1?position:spot->position,light==1?pointFar:spot->range}),desc.shadowCullingEnabled);
             if(!lists) return std::unexpected(SubmissionError{"shadow caster lists",lists.error()});
-            lists->stats.light=light==0 ? directional->entity : point->entity;
+            lists->stats.light=light==0 ? directional->entity : light==1?point->entity:spot->entity;
             stats.shadowVisibility[light]=lists->stats;
-            for(std::size_t layer=0;layer<matrices.size();++layer)
+            if(light<2) for(std::size_t layer=0;layer<matrices.size();++layer)
                 for(const auto index:lists->Layer(layer)) draws[index].shadowMasks[light]|=1u<<layer;
             shadowLists[light]=std::move(*lists);
         }
         EntityPickTable candidatePicks;
-        if(desc.pickingEnabled) for(auto index:visibility->Picking()) {
+        if(desc.pickingEnabled) for(auto index:pickVisible) {
             auto pixel=candidatePicks.Encode(draws[index].draw->entity);
             if(!pixel) return std::unexpected(SubmissionError{"pick encoding",pixel.error()});
             draws[index].pixel=*pixel;
@@ -1150,9 +1297,9 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
         std::span<std::size_t> remaining(ordering.get(),count);
         auto copyIndices=[&](std::span<const std::size_t> source) {
             auto result=remaining.first(source.size());
-            std::copy(source.begin(),source.end(),result.begin());
-            remaining=remaining.subspan(source.size());
-            return result;
+            std::size_t used{};for(auto i:source)if(desc.SceneVisible(draws[i].draw->entity))result[used++]=i;
+            remaining=remaining.subspan(used);
+            return result.first(used);
         };
         auto opaque=copyIndices(visibility->Opaque());
         auto masked=copyIndices(visibility->Masked());
@@ -1160,18 +1307,35 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
         RenderDetail::SortLocality(opaque,frame.Draws());
         RenderDetail::SortLocality(masked,frame.Draws());
         RenderDetail::SortTransparent(transparent,frame.Draws(),camera);
-        auto instancePlan=InstancePlan::Create(count,m_Storage->materialLimit,desc.instancingEnabled);
+        auto instancePlan=InstancePlan::Create(count,m_Storage->materialLimit,desc.instancingEnabled,spotShadow);
         if(!instancePlan) return std::unexpected(instancePlan.error());
         const auto* stencilSelected=desc.color.Description().Storage.Depth==FramebufferFormat::Depth24Stencil8
             && (desc.selectedEntity || !desc.selectedEntities.empty()) ? &desc : nullptr;
+        if(stencilSelected) {
+            // Selection must not fragment otherwise compatible opaque instances
+            // into alternating serial draws. Reorder only within a compatible
+            // opaque/masked run; transparent, picking and shadow order is unchanged.
+            const auto groupSelection=[&](std::span<std::size_t> indices) {
+                for(std::size_t first=0;first<indices.size();) {
+                    auto end=first+1;
+                    while(end<indices.size() && Compatible(draws[indices[first]],draws[indices[end]]))++end;
+                    std::sort(indices.begin()+first,indices.begin()+end,[&](auto a,auto b) {
+                        return draws[a].selectionClass!=draws[b].selectionClass
+                            ? draws[a].selectionClass<draws[b].selectionClass : a<b;
+                    });
+                    first=end;
+                }
+            };
+            groupSelection(opaque);groupSelection(masked);
+        }
         const auto opaqueGroups=instancePlan->Append(opaque,draws.get(),stencilSelected);
         const auto maskedGroups=instancePlan->Append(masked,draws.get(),stencilSelected);
-        std::array<std::span<const InstanceGroup>,2> shadowGroups;
+        std::array<std::span<const InstanceGroup>,3> shadowGroups;
         for(std::size_t light=0;light<shadowGroups.size();++light)
-            shadowGroups[light]=instancePlan->Append(stats.decisions[light].executed
+            shadowGroups[light]=instancePlan->Append(stats.decisions[light==2?3:light].executed
                 ?shadowLists[light]->Union():std::span<const std::size_t>{},draws.get());
         const auto pickingGroups=instancePlan->Append(stats.decisions[2].executed
-            ?visibility->Picking():std::span<const std::size_t>{},draws.get());
+            ?pickVisible:std::span<const std::size_t>{},draws.get());
         auto materialBatch=RenderBackend::MaterialBatch::Pack(frame,desc.pipelines,m_Storage->materialLimit);
         if(!materialBatch) return std::unexpected(materialBatch.error());
         RenderBackend::PackedFrame packedFrame;
@@ -1187,6 +1351,8 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
         packedFrame.planes = {static_cast<float>(cameraFar), pointFar, 0, 0};
         packedFrame.lights={bool(directional),bool(point),directionalShadow,pointShadow};
         if(spot) {
+            packedFrame.spotMatrix=matrixWords(spotMatrix);
+            packedFrame.spotShadow={float(spotShadow),spot->shadows.spot.bias,float(spot->shadows.spot.pcfRadius),0};
             packedFrame.spotPosition=lane(spot->position);packedFrame.spotPosition[3]=spot->range;
             packedFrame.spotDirection=lane(spot->direction);packedFrame.spotDirection[3]=std::cos(spot->innerConeRadians);
             packedFrame.spotColor=lane(spot->color*spot->intensity);packedFrame.spotColor[3]=std::cos(spot->outerConeRadians);
@@ -1211,26 +1377,30 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
         bool sharedSelection=false, multiSelection=false;
         Storage::SelectionVariant* selection=nullptr;
         if(desc.selectedEntity || !desc.selectedEntities.empty()) {
-            for(auto i:visibility->Main()) {
-                const auto classification=desc.SelectionClass(draws[i].draw->entity);
+            for(auto i:mainVisible) {
+                const auto classification=draws[i].selectionClass;
                 if(classification==1) ++stats.selectionActiveDraws;
                 if(classification==2) {++stats.selectionSecondaryDraws;multiSelection=true;}
             }
             if(!std::isfinite(desc.selectionPixelsPerDip.x) || !std::isfinite(desc.selectionPixelsPerDip.y)
                 || desc.selectionPixelsPerDip.x<=0 || desc.selectionPixelsPerDip.y<=0)
                 return Error("selection viewport ratio",Code::InvalidCamera);
-            stats.selectionRegion=SelectionRegion(camera,desc,draws.get(),visibility->Main());
+            stats.selectionRegion=SelectionRegion(camera,desc,draws.get(),mainVisible);
             if(stats.selectionRegion.width && stats.selectionRegion.height) {
                 const auto& target=desc.color.Description().Storage;
                 const bool ms=target.Samples>1;
                 sharedSelection=target.Depth==FramebufferFormat::Depth24Stencil8;
-                for(auto i:visibility->Main()) if(desc.SelectionClass(draws[i].draw->entity)) {
+                for(auto i:mainVisible) if(draws[i].selectionClass) {
                     const auto& material=draws[i].resources->Material();
                     sharedSelection&=material.Pipeline().Depth().write
                         && material.Pipeline().Alpha()!=AlphaMode::Transparent
-                        && (draws[i].role->kind==SceneMaterialKind::Lit || draws[i].role->kind==SceneMaterialKind::Unlit);
+                        && draws[i].role->kind!=SceneMaterialKind::Sky;
                 }
                 selection=&storage.selectionVariants[(multiSelection?4:0)+(sharedSelection?2:0)+(ms?1:0)];
+                if(!storage.selectionTiles.IsLinked()) {
+                    auto tiles=SelectionTileProgram();if(!tiles)return std::unexpected(tiles.error());
+                    storage.selectionTiles=std::move(*tiles);
+                }
                 if(!selection->mask.IsLinked() || !selection->composite.IsLinked()) {
                     auto mask=sharedSelection?SelectionVisibilityProgram(ms,multiSelection):CoverageProgram(RenderPass::SelectionMask,multiSelection);
                     if(!mask) return std::unexpected(mask.error());
@@ -1307,6 +1477,11 @@ void main(){ color=lineColor; }
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER,1,storage.instanceUpload.Name());
         auto begin=[&](RenderPass pass) {
             auto contract=DescribePass(pass,desc);
+            if(pass==RenderPass::SpotShadow) {
+                const auto& size=storage.spotTarget.Description();
+                contract.viewport={0,0,size.Width,size.Height};contract.output=PassTarget::SpotDepth;
+                contract.colorWrite=false;contract.depthLoad=PassLoad::Clear;
+            }
             if(contract.input==PassTarget::DirectionalDepth && !directionalShadow) contract.input=PassTarget::None;
             if(contract.secondaryInput==PassTarget::PointDepth && !pointShadow) contract.secondaryInput=PassTarget::None;
             stats.trace.Pass(contract);
@@ -1331,9 +1506,10 @@ void main(){ color=lineColor; }
         };
         auto shadowDraws=[&](const Shader& shader,std::size_t light)->std::expected<void,SubmissionError> {
             RenderCounters::RecordPass(RenderCounters::Pass::Shadow);
-            Uniform(shader,"geShadowKind",static_cast<unsigned>(light+2));
+            if(light<2)Uniform(shader,"geShadowKind",static_cast<unsigned>(light+2));
             for(const auto group:shadowGroups[light]) {
-                Uniform(shader,"geShadowLayers",draws[group.index].shadowMasks[light]);
+                if(light<2)Uniform(shader,"geShadowLayers",draws[group.index].shadowMasks[light]);
+                if(light==2)Toggle(GL_CULL_FACE,draws[group.index].resources->Material().Pipeline().Description().cull!=CullMode::None);
                 if(auto result=coverage(draws[group.index],shader);!result) return result;
                 if(auto result=Draw(draws[group.index],shader,group,stats);!result) return result;
                 stats.shadowDraws+=group.count;
@@ -1371,6 +1547,13 @@ void main(){ color=lineColor; }
             }
             timing.Complete();
         }
+        if(stats.decisions[3].executed)
+        {
+            PassTiming::Scope timing(RenderPass::SpotShadow);
+            BindProgram(storage.spot);storage.spotTarget.Bind();begin(RenderPass::SpotShadow);
+            if(auto result=shadowDraws(storage.spot,2);!result)return std::unexpected(result.error());
+            timing.Complete();
+        }
         if(stats.decisions[2].executed)
         {
             PassTiming::Scope timing(RenderPass::Picking);
@@ -1386,6 +1569,42 @@ void main(){ color=lineColor; }
                 stats.pickDraws+=group.count;
             }
             timing.Complete();
+        }
+        if(desc.rectangleSelection && desc.rectangleSelection->serial && desc.rectangleSelection->serial!=storage.rectangleSerial) {
+            PassTiming::Scope rectangleTiming(RenderPass::RectangleSelection);
+            const auto& request=*desc.rectangleSelection;const auto r=request.pixels;
+            if(!desc.pickingEnabled || !r.width || !r.height ||
+               std::uint64_t(r.x)+r.width>target.Width || std::uint64_t(r.y)+r.height>target.Height)
+                return Error("invalid rectangle selection bounds",Code::InvalidTarget);
+            // Rasterize the SAME immutable geometry/alpha coverage as picking. With
+            // depth enabled only visible fragments pass; through mode disables only
+            // depth testing. Queries are consumed after availability on later frames.
+            const auto needed=pickVisible.size();
+            try {
+                storage.rectangleEntities.resize(needed);
+                if(storage.rectangleQueries.size()<needed) {
+                    const auto old=storage.rectangleQueries.size();storage.rectangleQueries.resize(needed);
+                    glGenQueries(GLsizei(needed-old),storage.rectangleQueries.data()+old);stats.rectangleQueryAllocations=needed-old;
+                }
+            } catch(const std::bad_alloc&){return Error("rectangle query allocation",Code::Allocation);}
+            BindProgram(storage.pick);desc.picking.Bind();
+            auto contract=DescribePass(RenderPass::Picking,desc);contract.colorLoad=PassLoad::Load;contract.depthLoad=PassLoad::Load;
+            contract.colorWrite=false;contract.depthWrite=false;contract.depthTest=!request.through;Apply(contract);
+            auto& state=State::Get();state.DepthFunc(GL_LEQUAL);Toggle(GL_SCISSOR_TEST,true);state.Scissor(r.x,r.y,r.width,r.height);
+            std::size_t q{};
+            for(auto index:pickVisible) {
+                const auto& d=draws[index];storage.rectangleEntities[q]=d.draw->entity;
+                if(auto result=coverage(d,storage.pick);!result)return std::unexpected(result.error());
+                Toggle(GL_CULL_FACE,d.resources->Material().Pipeline().Description().cull!=CullMode::None);
+                glBeginQuery(GL_ANY_SAMPLES_PASSED,storage.rectangleQueries[q++]);
+                auto result=Draw(d,storage.pick,InstanceGroup{index,1,0},stats);
+                glEndQuery(GL_ANY_SAMPLES_PASSED);
+                if(!result)return std::unexpected(result.error());
+                ++stats.rectangleSelectionDraws;
+            }
+            storage.rectangleSerial=request.serial;rectangleTiming.Complete();
+            Toggle(GL_SCISSOR_TEST,false);state.DepthFunc(GL_LESS);
+            state.DepthMask(GL_TRUE);state.ColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);
         }
         const auto colorDraw=[&](InstanceGroup group,RenderPass pass)->std::expected<void,SubmissionError> {
             const auto& prepared=draws[group.index]; const auto kind=prepared.role->kind;
@@ -1404,26 +1623,31 @@ void main(){ color=lineColor; }
             if(kind==SceneMaterialKind::Lit)
             {
                 const auto unit=static_cast<unsigned>(material.Textures().size());
-                if(directionalShadow) {
+                if(desc.cascadeShadow) {
                     auto view=desc.cascadeShadow.DepthView(); if(!view) return std::unexpected(SubmissionError{"cascade view",view.error()});
                     if(auto result=BindTexture(Asset::TextureView(*view),unit);!result) return std::unexpected(SubmissionError{"cascade binding",result.error()});
                 } else { state.Texture(unit,GL_TEXTURE_2D_ARRAY,0); }
-                if(pointShadow) {
+                if(desc.pointShadow) {
                     auto view=desc.pointShadow.DepthView(); if(!view) return std::unexpected(SubmissionError{"point view",view.error()});
                     if(auto result=BindTexture(Asset::TextureView(*view),unit+1);!result) return std::unexpected(SubmissionError{"point binding",result.error()});
                 } else { state.Texture(unit+1,GL_TEXTURE_CUBE_MAP,0); }
-                State::Get().Sampler(unit,0); State::Get().Sampler(unit+1,0);
+                {
+                    auto view=storage.spotTarget.DepthView();if(!view)return std::unexpected(SubmissionError{"spot view",view.error()});
+                    if(auto result=BindTexture(Asset::TextureView(*view),unit+2);!result)return std::unexpected(SubmissionError{"spot binding",result.error()});
+                }
+                State::Get().Sampler(unit,0); State::Get().Sampler(unit+1,0); State::Get().Sampler(unit+2,0);
+                Uniform(shader,"spotShadowMap",int(unit+2));
                 Uniform(shader,"shadowMap",int(unit)); Uniform(shader,"pointShadowDepthMap",int(unit+1));
                 Uniform(shader,"geReceiveShadows",prepared.draw->receiveShadows);
             }
             Toggle(GL_LINE_SMOOTH,kind==SceneMaterialKind::Helper);
             if(kind==SceneMaterialKind::Helper) State::Get().LineWidth(prepared.role->lineWidth);
-            if(sharedSelection && (pass==RenderPass::Opaque || pass==RenderPass::Masked)) {
+            if(sharedSelection && !sky && pipeline.Depth().write && pipeline.Alpha()!=AlphaMode::Transparent) {
                 // The material's own discard, depth test and MSAA rasterization
                 // decide visibility. Mixed color batches isolate the selected
                 // entity; picking and shadow batching are unchanged.
                 Toggle(GL_STENCIL_TEST,true);state.StencilMask(multiSelection?3u:1u);
-                glStencilFunc(GL_ALWAYS,desc.SelectionClass(prepared.draw->entity),multiSelection?3u:1u);
+                glStencilFunc(GL_ALWAYS,prepared.selectionClass,multiSelection?3u:1u);
                 glStencilOp(GL_KEEP,GL_KEEP,GL_REPLACE);
             }
             if(auto result=Draw(prepared,shader,group,stats);!result) return result;
@@ -1453,7 +1677,7 @@ void main(){ color=lineColor; }
             begin(pass);
             // Sky/Debug retain source order; UI stays in the later scheduler stage.
             std::span<const std::size_t> indices=pass==RenderPass::Opaque?opaque:pass==RenderPass::Masked?masked:
-                pass==RenderPass::Transparent?std::span<const std::size_t>(transparent):visibility->Main();
+                pass==RenderPass::Transparent?std::span<const std::size_t>(transparent):mainVisible;
             if(pass==RenderPass::Opaque || pass==RenderPass::Masked) {
                 for(const auto group:pass==RenderPass::Opaque?opaqueGroups:maskedGroups)
                     if(auto result=colorDraw(group,pass);!result) return std::unexpected(result.error());
@@ -1461,6 +1685,9 @@ void main(){ color=lineColor; }
                 if(auto result=colorDraw({index},pass);!result) return std::unexpected(result.error());
             if (pass==RenderPass::Debug && !frame.DebugLines().empty())
             {
+                // Diagnostic lines have no entity selection class. Do not inherit
+                // the final helper's stencil reference when drawing these overlays.
+                Toggle(GL_STENCIL_TEST,false);
                 BindProgram(storage.debug);
                 Uniform(storage.debug,"u_viewProjection",camera.projection*camera.view);
                 State::Get().VertexArray(storage.debugVao);
@@ -1486,9 +1713,13 @@ void main(){ color=lineColor; }
         if(stats.selectionRegion.width && stats.selectionRegion.height) {
             PassTiming::Scope total(RenderPass::SelectionTotal);
             const auto& region=stats.selectionRegion;const auto& scratch=selection->scratch;
+            // Measured small selections cost less than dispatching the occupancy
+            // reduction. This threshold changes work only, never coverage.
+            const bool useOccupiedTiles=std::uint64_t(region.width)*region.height>=128*128;
             const auto& target=desc.color.Description().Storage;
             const auto selectionPass=[&](RenderPass pass) {
-                auto contract=DescribePass(pass,desc);contract.scissor=true;contract.viewport=region;
+                auto contract=DescribePass(pass,desc);
+                contract.scissor=true;contract.viewport=region;
                 stats.trace.Pass(contract);++stats.selectionPasses;Apply(contract);
             };
             {
@@ -1510,7 +1741,7 @@ void main(){ color=lineColor; }
                 state.Scissor(0,0,region.width,region.height);
                 constexpr GLfloat clear[]{0,0,0,0};glClearNamedFramebufferfv(scratch.maskFbo,GL_COLOR,0,clear);
                 BindProgram(selection->mask);
-                for(auto i:visibility->Main()) {
+                for(auto i:mainVisible) {
                     const auto& draw=draws[i];
                     if(!desc.SelectionClass(draw.draw->entity) || draw.role->kind==SceneMaterialKind::Sky) continue;
                     if(multiSelection) Uniform(selection->mask,"secondarySelection",desc.SelectionClass(draw.draw->entity)==2);
@@ -1536,6 +1767,17 @@ void main(){ color=lineColor; }
                     ++stats.selectionDrawCalls;++stats.submittedDrawCalls;++stats.submittedInstances;PassTiming::Submitted(1,1);
                 } else glBlitNamedFramebuffer(scratch.maskFbo,scratch.resolvedFbo,0,0,region.width,region.height,
                     0,0,region.width,region.height,GL_COLOR_BUFFER_BIT,GL_NEAREST);
+                if(useOccupiedTiles) {
+                BindProgram(storage.selectionTiles);
+                state.Texture(0,GL_TEXTURE_2D,scratch.resolved);state.Sampler(0,0);
+                Uniform(storage.selectionTiles,"selectedMask",0);
+                glUniform2i(Location(storage.selectionTiles,"regionSize"),region.width,region.height);
+                glBindImageTexture(0,scratch.occupiedTiles,0,GL_FALSE,0,GL_WRITE_ONLY,GL_R8UI);
+                glDispatchCompute((region.width+7)/8,(region.height+7)/8,1);
+                // GPU ordering only; no CPU readback, fence wait or glFinish.
+                glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT|GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+                glBindImageTexture(0,0,0,GL_FALSE,0,GL_WRITE_ONLY,GL_R8UI);
+                }
                 timing.Complete();
             }
             {
@@ -1547,6 +1789,9 @@ void main(){ color=lineColor; }
                 BindProgram(selection->composite);const auto& shader=selection->composite;
                 state.Texture(0,GL_TEXTURE_2D,scratch.resolved);state.Sampler(0,0);
                 state.Texture(1,scratch.samples>1?GL_TEXTURE_2D_MULTISAMPLE:GL_TEXTURE_2D,scratch.depth);state.Sampler(1,0);
+                state.Texture(3,GL_TEXTURE_2D,scratch.occupiedTiles);state.Sampler(3,0);
+                Uniform(shader,"occupiedTiles",3);
+                Uniform(shader,"useOccupiedTiles",int(useOccupiedTiles));
                 Uniform(shader,"selectedMask",0);Uniform(shader,"sceneDepth",1);Uniform(shader,"sampleCount",int(scratch.samples));
                 if(!sharedSelection && scratch.samples>1) {
                     state.Texture(2,GL_TEXTURE_2D_MULTISAMPLE,scratch.mask);state.Sampler(2,0);
@@ -1580,9 +1825,12 @@ void main(){ color=lineColor; }
         picks=std::move(candidatePicks);
         for(std::size_t i=0;i<candidateInputs.size();++i)
             if(stats.decisions[i].executed) {
+                if(i==3)m_Storage->spotScratch=std::move(storage.inputs[i]);
                 storage.inputs[i]=std::move(candidateInputs[i]);
-                if(i<storage.shadowVisibility.size()) storage.shadowVisibility[i]=stats.shadowVisibility[i];
+                if(i!=2) storage.shadowVisibility[i==3?2:i]=stats.shadowVisibility[i==3?2:i];
             }
+        // Keep the double-buffered Spot signature even on exact cache hits.
+        if(spotShadow && !stats.decisions[3].executed)storage.spotScratch=std::move(candidateInputs[3]);
         transaction.success=true;
         if(submissionTiming) submissionTiming->Complete();
         return stats;

@@ -41,3 +41,9 @@ logs/
 /.agents/skills/pre-editor-phase-rejection/
 /docs/pre_editor/active/
 /runtime/
+
+# Optional pinned Physics dependency and its derived build products
+/external/jolt/
+/external/jolt-build/
+/bin/Debug/Jolt/
+/bin/Release/Jolt/

@@ -1,0 +1,113 @@
+{
+  "schema": 1,
+  "id": "gengine-contact-resistance-01",
+  "upstream_version": "5.6.0",
+  "upstream_commit": "e77f175595e64cb44218cc9d9d56fc365ad0e36a",
+  "patch": "external/jolt-patches/gengine-contact-resistance-01.patch",
+  "patch_sha256": "ba5b153f18cbe3d590c6063838f25376793974795628abdc1e02bba97d380ec3",
+  "files": [
+    {
+      "path": "Jolt/Physics/Collision/ContactListener.h",
+      "base": {
+        "sha256": "91576313877228a607921de60ecdf4584937c81a2586c5a76faef6295e2d4abf",
+        "canonical_sha256": "5685ce89ef5608682ff9d4bdf5a45b014ca6e328665a328d1a8c6fa55d60553b",
+        "mode": "100644",
+        "line_endings": "CRLF"
+      },
+      "result": {
+        "sha256": "3af840c942e0e815862356505f702ad3129f397bff29a0302be5266274903ec0",
+        "canonical_sha256": "f5dcb89fd900891aaa7e8c66f94e76e0449adcfa2fce156b035a59a0ce76e78d",
+        "mode": "100644",
+        "line_endings": "CRLF"
+      }
+    },
+    {
+      "path": "Jolt/Physics/Constraints/ConstraintPart/ContactResistanceConstraintPart.h",
+      "base": null,
+      "result": {
+        "sha256": "cfcc8e0d19cbefc26ac253cc4c5ed40f3abfeb435abdc6c9c3d287dbf75236d3",
+        "canonical_sha256": "d3ba2cfb6ba1e7b68f1b4924792d2a2738ee7bdcf42fc30256ab90566f5aea3b",
+        "mode": "100644",
+        "line_endings": "CRLF"
+      }
+    },
+    {
+      "path": "Jolt/Physics/Constraints/ContactConstraintManager.cpp",
+      "base": {
+        "sha256": "a7f0139d25e6397b0899d1d342bb1f83a222029199352f133c8874045113e981",
+        "canonical_sha256": "cdf571bd257769c5e765c837ce6440eb0fbfd7a445edb9b74cc580b9b1864386",
+        "mode": "100644",
+        "line_endings": "CRLF"
+      },
+      "result": {
+        "sha256": "3b75a4131f4ae02ead5e2b7b60856a04f5a19120ccafd9fbdcf5f14c02e9498b",
+        "canonical_sha256": "8578512faf91adf7edb4cf8ed67f86dceb600d71386dd6afd43546c40c49ab34",
+        "mode": "100644",
+        "line_endings": "CRLF"
+      }
+    },
+    {
+      "path": "Jolt/Physics/Constraints/ContactConstraintManager.h",
+      "base": {
+        "sha256": "5d360851860ff7c931e7df9a1a4d24ca203ea3d2b68d8b94247ed8d189f3523e",
+        "canonical_sha256": "e8443da6375bb453e7057269bf5c44bee934c820436a2b89ff85254f5d3fcb5b",
+        "mode": "100644",
+        "line_endings": "CRLF"
+      },
+      "result": {
+        "sha256": "5fa40b5e738acd344b3c9cefc3e9b9c372ae0833091eb737f141090f96020263",
+        "canonical_sha256": "72e624ed529582307629b45f7ec0cd749be50e942ae09828a2a03bdf82c3620a",
+        "mode": "100644",
+        "line_endings": "CRLF"
+      }
+    },
+    {
+      "path": "Jolt/Physics/EPhysicsUpdateError.h",
+      "base": {
+        "sha256": "740c0b1616ae1b6b7a52ef6cd709c78d648a6bcc5e7ba408e14994ffbf1e35df",
+        "canonical_sha256": "d18eb5b2e3b931418347437192447e5c892b529dab12e9342462cb7c9b9094d8",
+        "mode": "100644",
+        "line_endings": "CRLF"
+      },
+      "result": {
+        "sha256": "843bebae929f5fd7b42ab9f5ff06c19495d50b57dc3ca21ffff7c9f80e3f7de9",
+        "canonical_sha256": "48309d3861d4d63fb03dc6d934e84673f5bcf79c6bb4ad521eb681fe8501f11e",
+        "mode": "100644",
+        "line_endings": "CRLF"
+      }
+    },
+    {
+      "path": "Jolt/Physics/PhysicsSystem.cpp",
+      "base": {
+        "sha256": "049f01727c7ea6e20318a32b79b5bf9e2053648b338e0bb1be6b4c45cf4d0889",
+        "canonical_sha256": "e089e82903456527c28f1550744e851dd44039e60246bb76b802813e5d67b53e",
+        "mode": "100644",
+        "line_endings": "CRLF"
+      },
+      "result": {
+        "sha256": "32084e2907d00ae0c8c9938e573da9733ac7044c8f0a0ea8b1a687771d8d2709",
+        "canonical_sha256": "a5c59eda8eafb61510f92cf9970d30c716112784e2f328116f9d60a130dd8cb6",
+        "mode": "100644",
+        "line_endings": "CRLF"
+      }
+    },
+    {
+      "path": "Jolt/Physics/PhysicsSystem.h",
+      "base": {
+        "sha256": "2a26ae1b3b8259e94dcc1e40bd36d6bedf86dde96fe4360f59dc6bdf62f4a042",
+        "canonical_sha256": "fcb6f9500c59535c86d8823c4b9f31863e272df5d4646e33e4d745d171986bd4",
+        "mode": "100644",
+        "line_endings": "CRLF"
+      },
+      "result": {
+        "sha256": "a3a06cde10e607e380def6ee13109f1637178c5b7118601277efa06c568917ff",
+        "canonical_sha256": "6a4a759f9ae2af29e6052b0911211f189c987a3f2f09209abb450e970c8d8169",
+        "mode": "100644",
+        "line_endings": "CRLF"
+      }
+    }
+  ],
+  "checkout_policy": "Unified patch is canonical LF; materialize each result using its declared line_endings. Exact raw SHA256 is required.",
+  "abi_policy": "GEngine SDK contact-law extension; rebuild matching SDK/GEngine/RBS closure, never mix pristine headers or libraries.",
+  "authority_review_sha256": "48d3552dd7ebad3f9ee58b5f81d802bb766864eebb2209b1f1e76705869d74d7"
+}

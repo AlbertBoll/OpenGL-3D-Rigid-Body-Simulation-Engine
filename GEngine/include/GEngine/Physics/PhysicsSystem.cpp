@@ -1,12 +1,17 @@
 #include"gepch.h"
+#include "Physics/JoltAuditObservation.h"
+#include "Scene/EditorTransformBudget.h"
 
 #include "PhysicsSystem.h"
+#include "../../../src/Physics/WorldBackend.h"
 //#include"PhysicsBody.h"
 #include "ShapeSphere.h"
+#include "ShapeConvex.h"
 #include "BoxContact.h"
 #include "PhysicsWorld.h"
 #include "Broadphase.h"
 #include "GJK.h"
+#include "../../../src/Physics/EditorScale.h"
 #include "PhysicsProfile.h"
 #ifdef GE_ENABLE_COUPLED_COLLISION_OBSERVATION
 #include "../../../../RigidBodySimulation/tests/CoupledCollisionObservation.h"
@@ -23,7 +28,7 @@ namespace GEngine
 	class SleepPathTimer
 	{
 	public:
-#ifdef GE_ENABLE_PHYSICS_PROFILING
+#if defined(GE_ENABLE_PHYSICS_PROFILING) || defined(GENGINE_OWNER_RENDER_TIMING)
 		explicit SleepPathTimer(std::uint64_t& output)
 			: m_Output(output), m_Start(std::chrono::steady_clock::now()) {}
 		~SleepPathTimer() { Stop(); }
@@ -73,9 +78,9 @@ namespace GEngine
 		}
 	}
 
-	void BuildContactIslands(const std::vector<RigidBody3D*>& bodies,
+	static void BuildConstraintIslands(const std::vector<RigidBody3D*>& bodies,
 		const std::vector<Manifold>& manifolds, std::vector<ContactIsland>& islands,
-		ContactIslandScratch& scratch)
+		ContactIslandScratch& scratch, std::span<const std::array<RigidBodyIdentity,2>> joints)
 	{
 		using namespace ContactIslandDetail;
 		using Node = ContactIslandScratch::Node;
@@ -142,7 +147,7 @@ namespace GEngine
 		{
 			return a[0] == b[0] && a[1] == b[1];
 		};
-		Reserve(edges, manifolds.size());
+		Reserve(edges, manifolds.size() + joints.size());
 		ordered = true;
 		for (const Manifold& manifold : manifolds)
 		{
@@ -156,6 +161,13 @@ namespace GEngine
 			if (!edges.empty() && edgeLess(edge, edges.back())) ordered = false;
 			edges.push_back(edge);
 		}
+        for (const auto& joint : joints) {
+            const auto a=findNode(joint[0]), b=findNode(joint[1]);
+            if(a==nodes.size() || b==nodes.size() || a==b || (!nodes[a].dynamic && !nodes[b].dynamic)) continue;
+            const std::array<std::size_t,2> edge{std::min(a,b),std::max(a,b)};
+            if(!edges.empty() && edgeLess(edge,edges.back())) ordered=false;
+            edges.push_back(edge);
+        }
 		if (edges.size() > 1)
 		{
 			if (!ordered)
@@ -224,7 +236,11 @@ namespace GEngine
 			const auto index = a.dynamic ? a.island : b.island;
 			auto& island = islands[index];
 			auto& count = counts[index];
-			Write(island.contactPairs, count.pairs++, ContactIslandPair{a.identity, b.identity});
+			// Joint edges join connectivity but are not reported as contact pairs.
+            if (joints.empty() || std::any_of(manifolds.begin(),manifolds.end(),[&](const auto& m) {
+                return m.GetNumContacts()>0 && ((m.GetBodyAIdentity()==a.identity && m.GetBodyBIdentity()==b.identity) ||
+                    (m.GetBodyAIdentity()==b.identity && m.GetBodyBIdentity()==a.identity)); }))
+                Write(island.contactPairs, count.pairs++, ContactIslandPair{a.identity, b.identity});
 			if (!a.dynamic) Write(island.boundaryBodies, count.boundaries++, a.identity);
 			if (!b.dynamic) Write(island.boundaryBodies, count.boundaries++, b.identity);
 		}
@@ -242,6 +258,10 @@ namespace GEngine
 			}
 		}
 	}
+
+    void BuildContactIslands(const std::vector<RigidBody3D*>& bodies,
+        const std::vector<Manifold>& manifolds, std::vector<ContactIsland>& islands, ContactIslandScratch& scratch)
+    { BuildConstraintIslands(bodies,manifolds,islands,scratch,{}); }
 
 	std::vector<ContactIsland> BuildContactIslands(
 		const std::vector<RigidBody3D*>& bodies, const std::vector<Manifold>& manifolds,
@@ -462,6 +482,18 @@ namespace GEngine
 		return body->GetIdentity() == identity ? body : nullptr;
 	}
 
+    std::span<const std::array<RigidBodyIdentity,2>> PhysicsSystem::JointEdges()
+    {
+        m_JointEdgeCount=0;
+        if(m_PhysicsWorld && m_PhysicsWorld->m_JointCount)
+            for(std::size_t i=0;i<PhysicsWorld::MaxDistanceJoints;++i) if(m_PhysicsWorld->m_Joints[i].live) {
+                const auto& d=m_PhysicsWorld->m_Joints[i].row.desc;
+                auto* a=m_PhysicsWorld->ResolveJointBody(d.bodyA); auto* b=m_PhysicsWorld->ResolveJointBody(d.bodyB);
+                if(a && b) m_JointEdges[m_JointEdgeCount++]={a->GetIdentity(),b->GetIdentity()};
+            }
+        return {m_JointEdges.data(),m_JointEdgeCount};
+    }
+
 	void PhysicsSystem::WakeConnectedTo(RigidBody3D* body)
 	{
 		if (!m_PhysicsWorld || !body) return;
@@ -469,7 +501,7 @@ namespace GEngine
 		if (std::find(bodies.begin(), bodies.end(), body) == bodies.end()) return;
 		// Rebuild from still-live retained contacts before a mutation/removal retires
 		// support edges. This conservative wake graph is never the public solve graph.
-		BuildContactIslands(bodies, m_Manifolds.m_Manifolds, m_ActivationIslands, m_ContactIslandScratch);
+		BuildConstraintIslands(bodies, m_Manifolds.m_Manifolds, m_ActivationIslands, m_ContactIslandScratch, JointEdges());
 		const auto identity = body->GetIdentity();
 		for (const auto& island : m_ActivationIslands) {
 			if (std::find(island.dynamicBodies.begin(), island.dynamicBodies.end(), identity) == island.dynamicBodies.end() &&
@@ -479,12 +511,101 @@ namespace GEngine
 		body->WakeUp();
 	}
 
+    bool PhysicsSystem::SolveDistanceJoints()
+    {
+        std::size_t count=0;
+        for(std::size_t i=0;i<PhysicsWorld::MaxDistanceJoints;++i)
+            if(m_PhysicsWorld->m_Joints[i].live && m_PhysicsWorld->m_Joints[i].row.active)
+                m_JointBlock[count++].row=&m_PhysicsWorld->m_Joints[i].row;
+        if(!count) return true;
+
+        // K = J M^-1 J^T. In an ordered chain only adjacent rows share a dynamic
+        // body. Prove this from actual endpoints; never assume a scene/count.
+        const auto sharesDynamic=[](const DistanceJointRow& x,const DistanceJointRow& y) {
+            return (x.a->GetInverseMass()>0 && (x.a==y.a || x.a==y.b)) ||
+                   (x.b->GetInverseMass()>0 && (x.b==y.a || x.b==y.b));
+        };
+        for(std::size_t i=0;i<count;++i) for(std::size_t j=i+2;j<count;++j)
+            if(sharesDynamic(*m_JointBlock[i].row,*m_JointBlock[j].row)) {
+                // Non-banded networks keep the general scalar SI traversal.
+                for(std::size_t k=0;k<count;++k) if(!m_JointBlock[k].row->Solve()) return false;
+                return true;
+            }
+        const auto dot=[](const Vec3f& a,const Vec3f& b) {return glm::dot(glm::dvec3(a),glm::dvec3(b));};
+        const auto coupling=[&](const DistanceJointRow& x,const DistanceJointRow& y) {
+            double value=0;
+            if(x.a==y.a && x.a->GetInverseMass()>0)
+                value+=x.a->GetInverseMass()*dot(x.axis,y.axis)+dot(x.angularA,y.invAngularA);
+            if(x.a==y.b && x.a->GetInverseMass()>0)
+                value-=x.a->GetInverseMass()*dot(x.axis,y.axis)+dot(x.angularA,y.invAngularB);
+            if(x.b==y.a && x.b->GetInverseMass()>0)
+                value-=x.b->GetInverseMass()*dot(x.axis,y.axis)+dot(x.angularB,y.invAngularA);
+            if(x.b==y.b && x.b->GetInverseMass()>0)
+                value+=x.b->GetInverseMass()*dot(x.axis,y.axis)+dot(x.angularB,y.invAngularB);
+            return value;
+        };
+        for(std::size_t i=0;i<count;++i) {
+            auto& e=m_JointBlock[i]; const auto& r=*e.row;
+            e.diagonal=r.a->GetInverseMass()+r.b->GetInverseMass()+
+                dot(r.angularA,r.invAngularA)+dot(r.angularB,r.invAngularB);
+            e.offDiagonal=i?coupling(*m_JointBlock[i-1].row,r):0;
+            e.rhs=-(dot(r.axis,r.b->GetLinearVelocity()-r.a->GetLinearVelocity())+
+                dot(r.angularB,r.b->GetAngularVelocity())-dot(r.angularA,r.a->GetAngularVelocity())+r.bias);
+            if(i) {
+                const auto& previous=m_JointBlock[i-1];
+                const double lower=e.offDiagonal/previous.diagonal;
+                e.diagonal-=lower*e.offDiagonal;
+                e.rhs-=lower*previous.rhs;
+            }
+            if(!std::isfinite(e.diagonal) || e.diagonal<=0 || !std::isfinite(e.rhs)) return false;
+        }
+        // Direct tridiagonal elimination/back substitution, not another SI pass.
+        // Solve increments from the already warm-started velocities, then apply
+        // one incremental physical impulse per row. No bias-only velocity or
+        // unmeasured position correction is carried into integration.
+        for(std::size_t i=count;i-->0;) {
+            auto& e=m_JointBlock[i];
+            e.delta=(e.rhs-(i+1<count?m_JointBlock[i+1].offDiagonal*m_JointBlock[i+1].delta:0))/e.diagonal;
+            if(!Math::IsFinite(float(e.delta)) || !Math::IsFinite(e.row->impulse+float(e.delta))) return false;
+        }
+        for(std::size_t i=0;i<count;++i) {
+            auto& e=m_JointBlock[i]; const float delta=float(e.delta);
+            e.row->impulse+=delta; e.row->Apply(delta);
+        }
+        for(std::size_t i=0;i<count;++i)
+            if(!m_JointBlock[i].row->a->HasFiniteState() || !m_JointBlock[i].row->b->HasFiniteState()) return false;
+        return true;
+    }
+
 	void PhysicsSystem::Update(Timestep ts)
 	{
+#ifdef GENGINE_JOLT_FINAL_AUDIT
+        JoltAudit::Scope auditPhysics(1);
+#endif
+#ifdef GENGINE_PHASE26_QUALIFICATION
+        Phase26Observation::CompleteStep phase26CompleteStep;
+#endif
+        SleepPathTimer inclusiveTimer(m_InclusiveNs);
 #ifdef GENGINE_PHASE25_QUALIFICATION
         // First declared: includes the existing setup and every local destructor.
         Phase25Observation::CompleteStep phase25CompleteStep;
 #endif
+        if(m_BackendFailure)return;
+        if (m_BeforeStep && m_PhysicsWorld && float(ts)>0) m_BeforeStep(*m_PhysicsWorld,m_CompletedSteps);
+        if (m_JointFailure) return;
+        if(m_PhysicsWorld && m_PhysicsWorld->m_Backend)
+        {
+            ++m_ColliderContextRevision;
+            m_InclusiveNs=m_ContactSolveNs=m_JointSolveNs=0;
+            m_SleepTimings={};
+            for(auto* body:m_PhysicsWorld->m_RigidBodies)body->m_InPhysicsStep=true;
+            auto result=m_PhysicsWorld->m_Backend->Step(float(ts),m_PhysicsWorld->GetGravity(),m_SleepingEnabled);
+            for(auto* body:m_PhysicsWorld->m_RigidBodies)body->m_InPhysicsStep=false;
+            if(!result)m_BackendFailure=result.error();
+            else if(float(ts)>0)++m_CompletedSteps;
+            return;
+        }
+        m_JointSolveNs=0;
         // A confirmation is valid only between simulation updates.
         ++m_ColliderContextRevision;
         const auto observe = [&](PhysicsDiagnostic::Stage stage) {
@@ -501,6 +622,7 @@ namespace GEngine
                            m_ContactIslands,bytes,m_SolverIterations);
         };
         observe(PhysicsDiagnostic::Stage::Begin);
+        m_InclusiveNs=0; m_ContactSolveNs=0;
 		m_SleepTimings = {};
 		// Invalidate the public snapshot while retaining its allocation capacity locally.
 		std::vector<ContactIsland> previousIslands;
@@ -548,11 +670,12 @@ namespace GEngine
 					body->m_Friction, body->m_CollisionLayer, body->m_CollisionMask, body->m_Shape, revision, body->Type };
 			}
 			sourceCheckTimer.Stop();
+            for(auto* body:bodies) if(body->m_ExternalMutation) m_PhysicsWorld->InvalidateJoints(body);
 			SleepPathTimer wakeTimer(m_SleepTimings.wakeNs);
 			if (hasSleeping && m_SleepingEnabled) {
 				// Wake conservatively using retained live contact identities before expiry can
 				// erase a changed/removed support. No connectivity decision is cached across ticks.
-				BuildContactIslands(bodies, m_Manifolds.m_Manifolds, m_ActivationIslands, m_ContactIslandScratch);
+				BuildConstraintIslands(bodies, m_Manifolds.m_Manifolds, m_ActivationIslands, m_ContactIslandScratch, JointEdges());
 				for (std::size_t i = 0; i < m_ActivationIslands.size(); ++i) {
 					const auto& island = m_ActivationIslands[i];
 					bool sleeping = false, awake = false, changed = false;
@@ -729,7 +852,7 @@ namespace GEngine
 				GE_PHYSICS_PROFILE_STOP(pairFilterTimer);
 
 				// Retain a defensive filter at the narrowphase boundary.
-				if (skipStaticPair || skipMaskedPair)
+				if (skipStaticPair || skipMaskedPair || m_PhysicsWorld->JointSuppressesPair(bodyA->GetIdentity(),bodyB->GetIdentity()))
 				{
 					GE_PHYSICS_PROFILE_ADD(pairFilterRejectedCount, 1);
 					expirePair(bodyA, bodyB);
@@ -839,13 +962,30 @@ namespace GEngine
 #endif
 				//Timeit("	m_Manifolds PreSolve")
 				////Solve the Constraints
-				m_Manifolds.PreSolve(ts);
+				{ SleepPathTimer contactTimer(m_ContactSolveNs); m_Manifolds.PreSolve(ts); }
 			}
 
+            if (m_PhysicsWorld->m_JointCount) {
+                SleepPathTimer jointTimer(m_JointSolveNs);
+#ifdef GENGINE_PHASE26_QUALIFICATION
+                Phase26Observation::JointScope jointAllocationScope;
+#endif
+                for(std::size_t i=0;i<PhysicsWorld::MaxDistanceJoints;++i) if(m_PhysicsWorld->m_Joints[i].live) {
+                    auto& row=m_PhysicsWorld->m_Joints[i].row;
+                    auto* a=m_PhysicsWorld->ResolveJointBody(row.desc.bodyA);
+                    auto* b=m_PhysicsWorld->ResolveJointBody(row.desc.bodyB);
+                    if(!a || !b || !row.Prepare(*a,*b,dtSeconds)) {
+                        m_JointFailure=true;
+                        GENGINE_CORE_ERROR("Distance joint preparation failed slot={}",i);
+                        for(auto* body:PhysicsBodies) body->m_InPhysicsStep=false;
+                        return;
+                    }
+                }
+            }
             observe(PhysicsDiagnostic::Stage::WarmStart);
 			// PreSolve may retire invalid manifolds. Describe exactly the retained graph
 			// without changing contact order or CCD. Sleep decisions use this graph below.
-			BuildContactIslands(PhysicsBodies, m_Manifolds.m_Manifolds, previousIslands, m_ContactIslandScratch);
+			BuildConstraintIslands(PhysicsBodies, m_Manifolds.m_Manifolds, previousIslands, m_ContactIslandScratch, JointEdges());
 			m_ContactIslands.swap(previousIslands);
             observe(PhysicsDiagnostic::Stage::Islands);
 
@@ -865,7 +1005,19 @@ namespace GEngine
 #endif
 				for (int iters = 0; iters < maxIters; iters++)
 				{
-					m_Manifolds.Solve();
+                    { SleepPathTimer contactTimer(m_ContactSolveNs); m_Manifolds.Solve(); }
+                    if(m_PhysicsWorld->m_JointCount) {
+                        SleepPathTimer jointTimer(m_JointSolveNs);
+#ifdef GENGINE_PHASE26_QUALIFICATION
+                        Phase26Observation::JointScope jointAllocationScope;
+#endif
+                            if(!SolveDistanceJoints()) {
+                                m_JointFailure=true;
+                                GENGINE_CORE_ERROR("Distance joint solve failed");
+                                for(auto* body:PhysicsBodies) body->m_InPhysicsStep=false;
+                                return;
+                            }
+                    }
 				}
 			}
 
@@ -1019,7 +1171,7 @@ namespace GEngine
 #ifdef GENGINE_PHASE25_QUALIFICATION
         GE_PHYSICS_PROFILE_ADD(phase25solverInvocations, 1);
 #endif
-				m_Manifolds.PostSolve();
+				{ SleepPathTimer contactTimer(m_ContactSolveNs); m_Manifolds.PostSolve(); }
 			}
 
             observe(PhysicsDiagnostic::Stage::Correction);
@@ -1078,7 +1230,17 @@ namespace GEngine
 				if (hasSleepCandidate || !m_Manifolds.m_Manifolds.empty())
 				for (const auto& island : std::span(m_ContactIslands.data(), m_ContactIslands.size())) {
 					bool ready = true;
-					for (auto identity : std::span(island.dynamicBodies.data(), island.dynamicBodies.size())) {
+                    if(m_PhysicsWorld->m_JointCount) for(std::size_t j=0;j<PhysicsWorld::MaxDistanceJoints;++j)
+                        if(m_PhysicsWorld->m_Joints[j].live) {
+                            const auto& d=m_PhysicsWorld->m_Joints[j].row.desc;
+                            auto* a=m_PhysicsWorld->ResolveJointBody(d.bodyA); auto* b=m_PhysicsWorld->ResolveJointBody(d.bodyB);
+                            if(!a || !b) { ready=false; continue; }
+                            if(std::find(island.dynamicBodies.begin(),island.dynamicBodies.end(),a->GetIdentity())==island.dynamicBodies.end() &&
+                               std::find(island.dynamicBodies.begin(),island.dynamicBodies.end(),b->GetIdentity())==island.dynamicBodies.end()) continue;
+                            const float error=glm::length(b->BodySpaceToWorldSpace(d.localAnchorB)-a->BodySpaceToWorldSpace(d.localAnchorA))-d.length;
+                            ready &= Math::IsFinite(error) && std::abs(error)<=.005f*d.length;
+                        }
+                    for (auto identity : std::span(island.dynamicBodies.data(), island.dynamicBodies.size())) {
 						auto* body = ResolveBody(identity);
 						ready &= body && body->CanSleep();
 					}
@@ -1142,6 +1304,7 @@ namespace GEngine
 			}
 
 		}
+        if(m_PhysicsWorld && dtSeconds>0) ++m_CompletedSteps;
         observe(PhysicsDiagnostic::Stage::End);
 	}
 
@@ -1251,7 +1414,7 @@ namespace GEngine
                 return Math::IsFinite(m[0]) && Math::IsFinite(m[1]) && Math::IsFinite(m[2]);
             };
             const auto bounds = probe.GetWorldBounds();
-            return shape.IsValid() && Math::IsFinite(bounds.mins) && Math::IsFinite(bounds.maxs) &&
+            return shape.IsValid() && probe.HasValidMassProperties() && Math::IsFinite(bounds.mins) && Math::IsFinite(bounds.maxs) &&
                 Math::IsFinite(probe.GetCenterOfMassWorldSpace()) && matrixFinite(shape.InertiaTensor()) &&
                 matrixFinite(probe.GetInverseInertiaTensorBodySpace()) &&
                 matrixFinite(probe.GetInverseInertiaTensorWorldSpace());
@@ -1282,6 +1445,7 @@ namespace GEngine
     void PhysicsSystem::InvalidateBodyContacts(RigidBody3D* body)
     {
         ++m_ColliderContextRevision;
+        m_PhysicsWorld->InvalidateJoints(body);
         WakeConnectedTo(body);
         m_ContactIslands.clear();
         RemoveManifoldsForBody(m_Manifolds, body);
@@ -1290,7 +1454,7 @@ namespace GEngine
         m_Broadphase.Clear();
     }
 
-    PhysicsBodyResult<bool> PhysicsSystem::SetBodyScale(PhysicsBodyHandle handle, const Vec3f& scale)
+    PhysicsBodyResult<bool> PhysicsSystem::SetBodyScale(PhysicsBodyHandle handle, const Vec3f& scale, const Vec3f& referenceScale)
     {
         constexpr auto op = "SetBodyScale";
         if (!m_PhysicsWorld) return TransformBodyFailure(PhysicsBodyErrorCode::Closed, handle, op);
@@ -1298,16 +1462,107 @@ namespace GEngine
         if (!resolved) return std::unexpected(resolved.error());
         auto* body = *resolved;
         if (!body->m_Shape) return TransformBodyFailure(PhysicsBodyErrorCode::InvalidShape, handle, op);
-        auto staged = body->m_Shape->PrepareScale(scale);
-        if (!staged)
-            return TransformBodyFailure(staged.error().code == PhysicsShapeErrorCode::Allocation ?
-                PhysicsBodyErrorCode::Allocation : PhysicsBodyErrorCode::InvalidShape, handle, op);
-        if ((*staged)->GetRevision() < body->m_Shape->GetRevision() || !AcceptBodyShape(*body, **staged))
-            return TransformBodyFailure(PhysicsBodyErrorCode::NonFiniteResult, handle, op);
-        if ((*staged)->GetRevision() == body->m_Shape->GetRevision()) return false;
-        InvalidateBodyContacts(body);
-        body->m_Shape->CommitScale(**staged);
-        return true;
+        const auto revision=body->m_Shape->GetRevision();
+        const BodyTransformEdit edit{handle,body->m_Position,body->m_Orientation,scale,referenceScale};
+        if(auto result=SetBodyTransforms({&edit,1});!result)return std::unexpected(result.error());
+        return body->m_Shape->GetRevision()!=revision;
+    }
+
+    PhysicsBodyResult<> PhysicsSystem::SetBodyTransforms(std::span<const BodyTransformEdit> edits)
+    {
+        constexpr auto op="SetBodyTransforms";
+        if(!m_PhysicsWorld)return TransformBodyFailure(PhysicsBodyErrorCode::Closed,{},op);
+        if(auto access=m_PhysicsWorld->CheckAccess(op,true);!access)return std::unexpected(access.error());
+        if(edits.size()>EditorTransformBudget::Roots)return TransformBodyFailure(PhysicsBodyErrorCode::Capacity,{},"Transform exceeds 4096-root staging budget");
+        struct Prepared {RigidBody3D* body{};Quat rotation{1,0,0,0};std::unique_ptr<PhysicalShape> shape;std::unique_ptr<WorldBackend::ColliderChange> backend;};
+        try
+        {
+            std::vector<Prepared> staged(edits.size());
+            std::vector<std::uint32_t> identities(std::size_t(0));identities.reserve(edits.size());
+            for(const auto& edit:edits)identities.push_back(edit.body.index);
+            std::sort(identities.begin(),identities.end());
+            if(std::adjacent_find(identities.begin(),identities.end())!=identities.end())return TransformBodyFailure(PhysicsBodyErrorCode::InvalidHandle,{},op);
+            std::size_t points{};
+            for(std::size_t i=0;i<edits.size();++i)
+            {
+                // Batch boundary checked once; staging is owner-thread and invokes no observers.
+                const auto& edit=edits[i];auto body=m_PhysicsWorld->Resolve(edit.body,op,false);
+                if(!body)return std::unexpected(body.error());
+
+                const auto length=glm::dot(edit.rotation,edit.rotation);
+                if(!Math::IsFinite(edit.position)||!Math::IsFinite(edit.rotation)||!std::isfinite(length)||length<=Math::NumericalEpsilonSquared)
+                    return TransformBodyFailure(PhysicsBodyErrorCode::InvalidPose,edit.body,op);
+                staged[i].body=*body;staged[i].rotation=std::abs(length-1.f)<=4*std::numeric_limits<float>::epsilon()?edit.rotation:edit.rotation/std::sqrt(length);
+                if(edit.scale)
+                {
+                    if(!(*body)->m_Shape)return TransformBodyFailure(PhysicsBodyErrorCode::InvalidShape,edit.body,op);
+                    points+=EditorScaleAccess::PointCount(*(*body)->m_Shape);
+                    if(points>EditorTransformBudget::ColliderPoints)return TransformBodyFailure(PhysicsBodyErrorCode::Capacity,{},"Collider staging exceeds 262144-point geometry budget");
+                    auto shape=PrepareEditorScale(*(*body)->m_Shape,*edit.scale,m_PhysicsWorld->GetBackend(),edit.referenceScale);
+                    if(!shape || !AcceptBodyShape(**body,**shape))return TransformBodyFailure(PhysicsBodyErrorCode::InvalidShape,edit.body,op);
+                    staged[i].shape=std::move(*shape);
+                    if(m_PhysicsWorld->m_Backend) {
+                        auto prepared=m_PhysicsWorld->m_Backend->PrepareCollider(edit.body,*staged[i].shape);
+                        if(!prepared)return std::unexpected(prepared.error());
+                        staged[i].backend=std::move(*prepared);
+                    }
+                }
+            }
+            // Scale admission includes the whole candidate group and joint constraints.
+            if(std::any_of(edits.begin(),edits.end(),[](const auto& e){return e.scale.has_value();})) {
+                std::vector<PhysicsPlacementPose> poses(edits.size());
+                for(std::size_t i=0;i<edits.size();++i)poses[i]={edits[i].body,edits[i].position,staged[i].rotation,edits[i].scale,edits[i].referenceScale};
+                if(auto check=m_PhysicsWorld->QueryEditorPlacement({poses.data(),edits.size()},{});!check)return std::unexpected(check.error());
+            }
+            // Disposable graph preparation is the final allocating operation.
+            std::vector<ContactIsland> wake(std::size_t(0));
+            // MSVC Debug vector move constructors allocate iterator proxies inside
+            // noexcept. Seed-copy the maximum island count before graph preparation.
+            const auto& liveBodies=m_PhysicsWorld->GetPhysicsBodies();wake.reserve(liveBodies.size());
+            const ContactIsland seed{std::vector<RigidBodyIdentity>(std::size_t(0)),
+                std::vector<RigidBodyIdentity>(std::size_t(0)),std::vector<ContactIslandPair>(std::size_t(0))};
+            for(std::size_t i=0;i<liveBodies.size();++i)wake.push_back(seed);
+            ContactIslandScratch scratch{std::vector<ContactIslandScratch::Node>(std::size_t(0)),
+                std::vector<std::array<std::size_t,2>>(std::size_t(0)),std::vector<ContactIslandScratch::Counts>(std::size_t(0))};
+            BuildConstraintIslands(m_PhysicsWorld->GetPhysicsBodies(),m_Manifolds.m_Manifolds,wake,scratch,JointEdges());
+            // Build membership once; do not rescan every island for every edit.
+            std::vector<std::uint64_t> selectedSlots(std::size_t(0));selectedSlots.reserve(staged.size());
+            std::vector<std::pair<std::uint64_t,RigidBody3D*>> liveBySlot(std::size_t(0));liveBySlot.reserve(liveBodies.size());
+            std::vector<RigidBody3D*> wakeBodies(std::size_t(0));wakeBodies.reserve(liveBodies.size());
+            for(const auto& p:staged)selectedSlots.push_back(p.body->GetIdentity().GetSlot());
+            for(auto* body:liveBodies)liveBySlot.emplace_back(body->GetIdentity().GetSlot(),body);
+            std::sort(selectedSlots.begin(),selectedSlots.end());std::sort(liveBySlot.begin(),liveBySlot.end());
+            const auto selected=[&](RigidBodyIdentity id){return std::binary_search(selectedSlots.begin(),selectedSlots.end(),id.GetSlot());};
+            for(const auto& island:wake)if(std::any_of(island.dynamicBodies.begin(),island.dynamicBodies.end(),selected) ||
+                std::any_of(island.boundaryBodies.begin(),island.boundaryBodies.end(),selected))
+                for(auto id:island.dynamicBodies) {
+                    auto found=std::lower_bound(liveBySlot.begin(),liveBySlot.end(),id.GetSlot(),[](auto a,auto slot){return a.first<slot;});
+                    if(found!=liveBySlot.end() && found->first==id.GetSlot() && found->second->GetIdentity()==id)wakeBodies.push_back(found->second);
+                }
+            // No fallible operations from here through publication of the whole batch.
+            for(auto* body:wakeBodies)body->WakeUp();
+            std::erase_if(m_Manifolds.m_Manifolds,[&](auto& manifold){return manifold.GetNumContacts() &&
+                (selected(manifold.GetBodyAIdentity()) || selected(manifold.GetBodyBIdentity()));});
+            std::erase_if(m_Contacts,[&](const auto& contact){return (contact.m_BodyA && selected(contact.m_BodyA->GetIdentity())) ||
+                (contact.m_BodyB && selected(contact.m_BodyB->GetIdentity()));});
+            for(std::size_t i=0;i<edits.size();++i)
+            {
+                auto* body=staged[i].body;
+                body->WakeUp();m_PhysicsWorld->InvalidateJoints(body);
+
+                if(staged[i].shape)body->m_Shape->CommitScale(*staged[i].shape);
+                body->m_DerivedData={};
+                body->m_Position=edits[i].position;body->m_Orientation=staged[i].rotation;
+                if(staged[i].backend)staged[i].backend->Commit();
+                if(m_PhysicsWorld->m_Backend)m_PhysicsWorld->m_Backend->CommitPose(edits[i].body,*body);
+            }
+            if(!edits.empty())
+            {
+                m_ContactIslands.clear();m_ActivationIslands.clear();m_CollisionPairs.clear();m_Broadphase.Clear();++m_ColliderContextRevision;
+            }
+            return {};
+        }
+        catch(const std::bad_alloc&){return TransformBodyFailure(PhysicsBodyErrorCode::Allocation,{},op);}
     }
 
     PhysicsBodyResult<> PhysicsSystem::ReplaceBodyCollider(PhysicsBodyHandle handle, const CollisionShapeDesc& desc)
@@ -1325,7 +1580,15 @@ namespace GEngine
                 PhysicsBodyErrorCode::Allocation : PhysicsBodyErrorCode::InvalidShape, handle, op);
         if (!AcceptBodyShape(**resolved, **staged))
             return TransformBodyFailure(PhysicsBodyErrorCode::NonFiniteResult, handle, op);
+        std::unique_ptr<WorldBackend::ColliderChange> backendChange;
+        if (m_PhysicsWorld->m_Backend)
+        {
+            auto prepared=m_PhysicsWorld->m_Backend->PrepareCollider(handle,**staged);
+            if(!prepared)return std::unexpected(prepared.error());
+            backendChange=std::move(*prepared);
+        }
         CommitStagedCollider(handle, *resolved, *staged);
+        if(backendChange)backendChange->Commit();
         return {};
     }
 
@@ -1338,6 +1601,7 @@ namespace GEngine
             for(const auto& island:m_ActivationIslands){if(std::find(island.dynamicBodies.begin(),island.dynamicBodies.end(),identity)==island.dynamicBodies.end()&&std::find(island.boundaryBodies.begin(),island.boundaryBodies.end(),identity)==island.boundaryBodies.end())continue;for(auto member:island.dynamicBodies)if(auto* live=ResolveBody(member))live->WakeUp();}
             body->WakeUp();m_ContactIslands.clear();RemoveManifoldsForBody(m_Manifolds,body);RemoveContactsForBody(m_Contacts,body);m_CollisionPairs.clear();m_Broadphase.Clear();
         }
+        m_PhysicsWorld->InvalidateJoints(body);
         body->m_Shape = staged.get();
         m_PhysicsWorld->m_OwnedResources[handle.index].shape.swap(staged);
         body->m_DerivedData = {};
@@ -1516,8 +1780,9 @@ namespace GEngine
             if(!staged){report.reason="candidate shape staging failed";report.error=staged.error().code==PhysicsShapeErrorCode::Allocation?ColliderAdmissionError::AllocationFailure:ColliderAdmissionError::InvalidShape;return report;}
             if(!AcceptBodyShape(**resolved,**staged)){report.reason="invalid derived shape values";report.error=ColliderAdmissionError::InvalidShape;return report;}
             report=AssessStagedCollider(handle,desc,*resolved,**staged);report.elapsedMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();if(report.elapsedMs>20){report.outcome=ColliderAdmissionOutcome::Indeterminate;report.complete=false;report.reason="full assessment deadline exceeded";report.error=ColliderAdmissionError::Deadline;}
-            if (preview && (report.outcome == ColliderAdmissionOutcome::NoAddedOverlap || CanConfirmColliderRisk(report)))
-                *preview = std::move(*staged);
+            // A valid proposed shape remains visible even when assessment cannot certify it.
+            // Preview availability never grants commit permission.
+            if (preview) *preview = std::move(*staged);
             return report;
         }catch(const std::bad_alloc&){report.reason="allocation failure";report.error=ColliderAdmissionError::AllocationFailure;return report;}
     }
@@ -1540,6 +1805,23 @@ namespace GEngine
             const auto* other = std::get_if<CapsuleShapeDesc>(&b);
             return other && capsule.radius == other->radius && capsule.halfLength == other->halfLength;
         }
+    }
+
+    PhysicsBodyResult<CollisionShapeDesc> PhysicsSystem::CopyBodyShapeDescriptor(PhysicsBodyHandle handle) const
+    {
+        constexpr auto op="CopyBodyShapeDescriptor";
+        if(!m_PhysicsWorld)return TransformBodyFailure(PhysicsBodyErrorCode::Closed,handle,op);
+        auto body=m_PhysicsWorld->Resolve(handle,op);
+        if(!body)return std::unexpected(body.error());
+        if(const auto* hull=dynamic_cast<const ShapeConvex*>((*body)->m_Shape))
+        {
+            try { return CollisionShapeDesc{ConvexHullShapeDesc{hull->GetPoints()}}; }
+            catch(const std::bad_alloc&) { return TransformBodyFailure(PhysicsBodyErrorCode::Allocation,handle,op); }
+        }
+        const auto state=ReadBodyCollider(handle);
+        if(!state)return std::unexpected(state.error());
+        if(!state->editable)return TransformBodyFailure(PhysicsBodyErrorCode::UnsupportedFeature,handle,op);
+        return std::visit([](const auto& descriptor)->CollisionShapeDesc{return descriptor;},state->dimensions);
     }
 
     PhysicsBodyResult<ColliderShapeState> PhysicsSystem::ReadBodyCollider(PhysicsBodyHandle handle) const
@@ -1577,7 +1859,7 @@ namespace GEngine
 
     bool PhysicsSystem::CanConfirmColliderRisk(const ColliderAdmissionReport& report) noexcept
     {
-        if (report.committed) return false;
+        if (report.committed || !report.body) return false;
         if (report.error == ColliderAdmissionError::Unproved ||
             report.error == ColliderAdmissionError::UnsupportedShape)
             return true;
@@ -1708,6 +1990,15 @@ namespace GEngine
             const bool certified = report.complete && report.outcome == ColliderAdmissionOutcome::NoAddedOverlap;
             const bool confirmedRisk = confirmation && CanConfirmColliderRisk(report);
             if(certified || confirmedRisk){
+                std::unique_ptr<WorldBackend::ColliderChange> backendChange;
+                if(m_PhysicsWorld->m_Backend)
+                {
+                    auto prepared=m_PhysicsWorld->m_Backend->PrepareCollider(handle,**staged);
+                    if(!prepared){report.error=prepared.error().code==PhysicsBodyErrorCode::Allocation?
+                        ColliderAdmissionError::AllocationFailure:ColliderAdmissionError::InvalidShape;
+                        report.reason="Backend collider staging failed; unchanged";return report;}
+                    backendChange=std::move(*prepared);
+                }
                 if (confirmation)
                     report.trackedPeakBytes += confirmation->m_Count *
                         sizeof(ColliderReplacementConfirmation::BodyContext);
@@ -1728,7 +2019,7 @@ namespace GEngine
                 for(std::size_t i=0;i<bodies.size();++i)wake.push_back(seed);
                 ContactIslandScratch scratch{std::vector<ContactIslandScratch::Node>(std::size_t(0)),
                     std::vector<std::array<std::size_t,2>>(std::size_t(0)),std::vector<ContactIslandScratch::Counts>(std::size_t(0))};
-                BuildContactIslands(bodies,m_Manifolds.m_Manifolds,wake,scratch);
+                BuildConstraintIslands(bodies,m_Manifolds.m_Manifolds,wake,scratch, JointEdges());
                 report.elapsedMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();if(report.elapsedMs>20){report.outcome=ColliderAdmissionOutcome::Indeterminate;report.complete=false;report.reason="atomic assessment deadline exceeded before commit";report.error=ColliderAdmissionError::Deadline;return report;}
                 // std::swap of the aggregate would allocate Debug vector move proxies.
                 // Equal std::allocator member swaps transfer existing storage only.
@@ -1736,7 +2027,9 @@ namespace GEngine
                 m_ContactIslandScratch.nodes.swap(scratch.nodes);
                 m_ContactIslandScratch.edges.swap(scratch.edges);
                 m_ContactIslandScratch.counts.swap(scratch.counts);
-                CommitStagedCollider(handle,*resolved,*staged,true);report.committed=true;
+                CommitStagedCollider(handle,*resolved,*staged,true);
+                if(backendChange)backendChange->Commit();
+                report.committed=true;
                 if (confirmedRisk) report.reason = "Confirmed replacement committed; geometric safety not certified";
             }
             return report;
@@ -1745,6 +2038,10 @@ namespace GEngine
 
     void PhysicsSystem::ApplyLegacyBodyScale(PhysicsBodyHandle handle, const Vec3f& scale)
     {
+        if(m_PhysicsWorld && m_PhysicsWorld->GetBackend()==PhysicsBackend::Jolt) {
+            GENGINE_CORE_ERROR("Jolt live collider scaling unsupported; stop and rebuild from authored Scene state");return;
+        }
+
         if (!m_PhysicsWorld) return;
         auto resolved = m_PhysicsWorld->Resolve(handle, "Component scale", true);
         if (!resolved || !(*resolved)->m_Shape) return;
@@ -1803,6 +2100,8 @@ namespace GEngine
 		m_CollisionPairs.clear();
 		m_Contacts.clear();
 
+		m_BackendFailure.reset();
+		m_BeforeStep={}; m_CompletedSteps=0; m_JointFailure=false; m_JointEdgeCount=0;
 		PhysicsWorld* physicsWorld = m_PhysicsWorld;
 		m_PhysicsWorld = nullptr;
 		delete physicsWorld;
@@ -1819,6 +2118,35 @@ namespace GEngine
 		m_PhysicsWorld = physics_world;
 		if (m_PhysicsWorld)
 		{
+            m_PhysicsWorld->m_BodyPropertyMutationCallback=[this](std::span<RigidBody3D* const> changed) {
+                // Prepare all allocating graph work before changing wake/contact state.
+                const auto& bodies=m_PhysicsWorld->GetPhysicsBodies();
+                std::vector<ContactIsland> islands;
+                ContactIslandScratch scratch;
+                BuildConstraintIslands(bodies,m_Manifolds.m_Manifolds,islands,scratch,JointEdges());
+                for(auto* body:changed) {
+                const auto identity=body->GetIdentity();
+                for(const auto& island:islands)
+                    if(std::find(island.dynamicBodies.begin(),island.dynamicBodies.end(),identity)!=island.dynamicBodies.end() ||
+                        std::find(island.boundaryBodies.begin(),island.boundaryBodies.end(),identity)!=island.boundaryBodies.end())
+                        for(auto member:island.dynamicBodies)if(auto* live=ResolveBody(member))live->WakeUp();
+                body->WakeUp();
+                RemoveManifoldsForBody(m_Manifolds,body);RemoveContactsForBody(m_Contacts,body);
+                }
+                m_ContactIslands.clear();m_ActivationIslands.clear();
+                m_CollisionPairs.clear();m_Broadphase.Clear();++m_ColliderContextRevision;
+            };
+            m_PhysicsWorld->m_JointMutationCallback=[this](RigidBody3D* body) {
+                WakeConnectedTo(body);
+                BuildConstraintIslands(m_PhysicsWorld->GetPhysicsBodies(),m_Manifolds.m_Manifolds,m_ContactIslands,m_ContactIslandScratch,JointEdges());
+                for(auto& island:m_ContactIslands) {
+                    island.dynamicBodies.reserve(m_PhysicsWorld->GetBodyCount());
+                    island.boundaryBodies.reserve(m_PhysicsWorld->GetBodyCount());
+                    island.contactPairs.reserve(m_PhysicsWorld->GetBodyCount()*2);
+                }
+                RemoveManifoldsForBody(m_Manifolds,body);
+                RemoveContactsForBody(m_Contacts,body);
+            };
 			m_PhysicsWorld->SetBodyRemovalCallback([this](RigidBody3D* body)
 			{
 				WakeConnectedTo(body);

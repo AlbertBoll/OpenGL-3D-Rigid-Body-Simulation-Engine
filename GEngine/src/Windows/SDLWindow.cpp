@@ -1,4 +1,5 @@
 
+#include "Core/InitializationProgress.h"
 #include "gepch.h"
 #include "Core/RenderBaseline.h"
 #include "Windows/SDLWindow.h"
@@ -11,6 +12,7 @@
 #include <new>
 #include <limits>
 #include <format>
+#include <sdl2/SDL_syswm.h>
 
 namespace GEngine
 {
@@ -33,6 +35,8 @@ namespace GEngine
             return std::unexpected(PlatformError{PlatformErrorCode::InvalidSize, "window initialization", "Invalid native logical extent"});
         struct Rollback { SDLWindow* owner; bool committed = false; ~Rollback() { if (!committed) owner->ShutDown(); } } rollback{this};
 		uint32_t flag = GetWindowFlag(winProp);
+		const bool revealAfterPaint=winProp.m_PaintBeforeShow && !(flag&SDL_WINDOW_HIDDEN);
+		if(revealAfterPaint)flag|=SDL_WINDOW_HIDDEN;
 	
 
 		// Set OpenGL attributes
@@ -87,7 +91,9 @@ namespace GEngine
 		m_AspectRatio = winProp.m_AspectRatio;
 
 		//Set Window Minimum Size
-		SDL_SetWindowMinimumSize(m_Window, winProp.m_MinWidth, winProp.m_MinHeight);
+        m_DpiAwareMinimum=winProp.m_DpiAwareMinimum;
+        m_MinimumWidth=winProp.m_MinWidth; m_MinimumHeight=winProp.m_MinHeight;
+        RefreshMinimumSize();
 
         auto context = GLDebug::TryCreateContext(m_Window);
         if (!context) return std::unexpected(context.error());
@@ -116,6 +122,15 @@ namespace GEngine
 
 		//winProp::SetCornFlowerBlue();
 		glClearColor(winProp.m_Red, winProp.m_Green, winProp.m_Blue, 1.0f);
+		if(revealAfterPaint)
+		{
+			int width{},height{};SDL_GL_GetDrawableSize(m_Window,&width,&height);
+			glBindFramebuffer(GL_FRAMEBUFFER,0);glViewport(0,0,width,height);
+			glDisable(GL_SCISSOR_TEST);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);glDepthMask(GL_TRUE);glStencilMask(0xFF);
+			glClearColor(20.f/255.f,26.f/255.f,32.f/255.f,1.f);
+			glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT|GL_STENCIL_BUFFER_BIT);
+			SDL_GL_SwapWindow(m_Window);SDL_ShowWindow(m_Window);
+		}
 		
 		////Enable depth test
 		//glEnable(GL_DEPTH);
@@ -137,6 +152,7 @@ namespace GEngine
         if (!m_ImGuiWindow) return std::unexpected(PlatformError{PlatformErrorCode::Allocation, "UI allocation", "UI owner allocation failed"});
         if (auto initialized = m_ImGuiWindow->Initialize(this, winProp.ImGuiWindowProperties); !initialized) return initialized;
         RefreshDimensions();
+        InitializationProgress::Attach(this);
         rollback.committed = true;
         return {};
 		
@@ -302,8 +318,35 @@ namespace GEngine
 	}
 
 
+    void SDLWindow::RefreshMinimumSize()
+    {
+        if(!m_Window)return;
+        int width=m_MinimumWidth,height=m_MinimumHeight;
+        if(m_DpiAwareMinimum)
+        {
+            float scale=1;
+#ifdef GENGINE_PLATFORM_WINDOWS
+            SDL_SysWMinfo info{};SDL_VERSION(&info.version);
+            if(SDL_GetWindowWMInfo(m_Window,&info))scale=float(GetDpiForWindow(info.info.win.window))/96.f;
+#endif
+            width=int(std::ceil(width*scale));height=int(std::ceil(height*scale));
+            SDL_Rect usable{};const int display=SDL_GetWindowDisplayIndex(m_Window);
+            if(display>=0 && SDL_GetDisplayUsableBounds(display,&usable)==0)
+            {
+                int top=0,left=0,bottom=0,right=0;
+                SDL_GetWindowBordersSize(m_Window,&top,&left,&bottom,&right);
+                width=std::min(width,std::max(1,usable.w-left-right));
+                height=std::min(height,std::max(1,usable.h-top-bottom));
+            }
+        }
+        // SDL enforces native resize limits. Only update when DPI/display limits change.
+        if(width!=m_AppliedMinimumWidth || height!=m_AppliedMinimumHeight)
+        {SDL_SetWindowMinimumSize(m_Window,width,height);m_AppliedMinimumWidth=width;m_AppliedMinimumHeight=height;}
+    }
+
     void SDLWindow::RefreshDimensions()
     {
+        RefreshMinimumSize();
         GLContextThread::RequireOwner(m_OwnerThread, "window dimensions");
         int w = 0, h = 0, pw = 0, ph = 0;
         if (m_Window) { SDL_GetWindowSize(m_Window, &w, &h); SDL_GL_GetDrawableSize(m_Window, &pw, &ph); }

@@ -1,0 +1,13 @@
+{
+  "version": "5.6.0",
+  "commit": "e77f175595e64cb44218cc9d9d56fc365ad0e36a",
+  "repository": "https://github.com/jrouwe/JoltPhysics.git",
+  "source": "external/jolt",
+  "license": "MIT",
+  "selection": "Initial JOLT_PHYSICS_SRC_FILES list in pinned Jolt/Jolt.cmake; no GPU compute, object-stream option, debug renderer, hair tools or sample applications.",
+  "gengine_extension": {
+    "id": "gengine-contact-resistance-01",
+    "manifest": "external/jolt-patches/gengine-contact-resistance-01.json",
+    "manifest_sha256": "f69fbc2dfcf705748892d769ae176cf9ed0f3d0a4d309ba0af1e925aae7851cd"
+  }
+}

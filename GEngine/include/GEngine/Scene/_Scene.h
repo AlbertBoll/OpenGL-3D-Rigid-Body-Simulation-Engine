@@ -71,7 +71,7 @@ namespace GEngine
         IdentityExhausted,
         PhysicsPoseRejected,
         PhysicsScaleRejected,
-        MissingPhysicsBody
+        MissingPhysicsBody, AllocationFailed, CapacityExceeded
     };
     struct TransformMutationError
     {
@@ -105,6 +105,17 @@ namespace GEngine
     };
 
     struct SceneBodyPose { Vec3f translation{}; Quat rotation{1, 0, 0, 0}; };
+    struct EditorTransformValue
+    {
+        Vec3f translation{}; Quat rotation{1,0,0,0}; Vec3f scale{1};
+        bool operator==(const EditorTransformValue&) const = default;
+    };
+    struct EditorTransformEdit
+    {
+        EntityRenderId entity, parent;
+        PhysicsBodyHandle body;
+        EditorTransformValue before, after;
+    };
     struct SceneBodyTransform
     {
         PhysicsBodyHandle body;
@@ -163,6 +174,10 @@ namespace GEngine
         // ordinary Physics publication never passes through this API.
         [[nodiscard]] std::expected<AuthoritativeTransformMutation, TransformMutationError>
         SetLocalPose(const _Entity&, const Vec3f& translation, const Quat& rotation);
+        [[nodiscard]] std::expected<EditorTransformValue,TransformMutationError> ReadEditorTransform(EntityRenderId) const;
+        [[nodiscard]] std::expected<void,TransformMutationError> ApplyEditorTransforms(std::span<const EditorTransformEdit>);
+        // Presentation only, never an authoring/physics write. Empty span cancels.
+        [[nodiscard]] std::expected<void,TransformMutationError> PreviewEditorTransforms(std::span<const EditorTransformEdit>);
         [[nodiscard]] std::expected<AuthoritativeTransformMutation, TransformMutationError>
         SetLocalTranslation(const _Entity&, const Vec3f& translation);
         [[nodiscard]] std::expected<AuthoritativeTransformMutation, TransformMutationError>
@@ -275,6 +290,11 @@ namespace GEngine
         // Successful startup retains the existing caller-owned shape handoff.
         // Failure retires pending bodies/shapes and disconnects their scale callbacks.
         [[nodiscard]] std::expected<void, PhysicsShapeError> OnRuntimeStart();
+        // Configuration is cold; switching stops the world, restores authored
+        // poses and rebuilds bodies/joints. Old domain/generation handles expire.
+        [[nodiscard]] PhysicsBodyResult<> ConfigurePhysicsBackend(PhysicsBackend);
+        [[nodiscard]] std::expected<void, PhysicsShapeError> RebuildPhysicsBackend(PhysicsBackend);
+        PhysicsBackend GetPhysicsBackend() const noexcept { return m_PhysicsBackend; }
 		void OnRuntimeStop();
 
 		void OnSimulationStart();
@@ -287,6 +307,7 @@ namespace GEngine
         // Single-entity sibling copy: fresh UUID/render identity, shared resources,
         // no children or live Physics bindings. The source remains unchanged.
         [[nodiscard]] std::expected<_Entity, SceneError> DuplicateEntity(_Entity entity);
+        [[nodiscard]] std::expected<void, SceneError> RenameEntity(_Entity entity, std::string_view name);
 
         // Owner-thread authoring before extraction. Validates entity, registry
         // domains/liveness and submesh before changing intent. Leases are temporary;
@@ -401,6 +422,8 @@ namespace GEngine
                                             AuthoritativeTransformChangeKind);
         // Guards the pre-store compatibility callback, not post-commit notification dispatch.
         bool m_ApplyingTransform = false;
+        std::vector<EditorTransformEdit> m_EditorTransformPreview;
+        std::size_t m_EditorTransformPreviewCount{};
         PhysicsBodyHandle m_CommittingScaleBody{};
         TypedSubscriptions<void(const AuthoritativeTransformChange&)>
             m_AuthoritativeTransformChanges;
@@ -418,6 +441,7 @@ namespace GEngine
 		template<typename T>
 		void OnComponentAdded(_Entity entity, T& component);
 
+        PhysicsBackend m_PhysicsBackend{PhysicsBackend::Native};
         [[nodiscard]] std::expected<void, PhysicsShapeError> OnPhysics3DStart();
 		void OnPhysics3DStop();
 

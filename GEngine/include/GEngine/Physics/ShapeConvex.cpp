@@ -1,4 +1,5 @@
 #include "gepch.h"
+#include "Core/InitializationProgress.h"
 #include "ShapeConvex.h"
 #include "detail/ConvexHull.h"
 
@@ -481,6 +482,7 @@ namespace GEngine
 		for (int xIndex = 0; xIndex < numSamples; ++xIndex) {
 			const float x = bounds.mins.x + dx * static_cast<float>(xIndex);
 			for (int yIndex = 0; yIndex < numSamples; ++yIndex) {
+                InitializationProgress::Pulse();
 				const float y = bounds.mins.y + dy * static_cast<float>(yIndex);
 				for (int zIndex = 0; zIndex < numSamples; ++zIndex) {
 					const float z = bounds.mins.z + dz * static_cast<float>(zIndex);
@@ -537,6 +539,7 @@ namespace GEngine
 		for (int xIndex = 0; xIndex < numSamples; ++xIndex) {
 			const float x = bounds.mins.x + dx * static_cast<float>(xIndex);
 			for (int yIndex = 0; yIndex < numSamples; ++yIndex) {
+                InitializationProgress::Pulse();
 				const float y = bounds.mins.y + dy * static_cast<float>(yIndex);
 				for (int zIndex = 0; zIndex < numSamples; ++zIndex) {
 					const float z = bounds.mins.z + dz * static_cast<float>(zIndex);

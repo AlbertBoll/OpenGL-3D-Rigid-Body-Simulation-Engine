@@ -25,6 +25,7 @@
 #include "Renderer/SceneRenderResources.h"
 #include "Scene/RenderEcs.h"
 #include "Renderer/RenderVisibility.h"
+#include <algorithm>
 
 namespace GEngine
 {
@@ -33,9 +34,9 @@ namespace GEngine
         Transparent, Debug, Resolve, EditorUI, Present, LegacyScene,
         PickingReadback, // CPU wait/transfer timing, not a scheduled draw pass.
         SelectionDepth, SelectionMask, SelectionResolve, SelectionComposite, SelectionTotal,
-        QualificationFrame, QualificationSubmission };
+        QualificationFrame, QualificationSubmission, SpotShadow, RectangleSelection };
     enum class PassTarget { None, DirectionalDepth, PointDepth, Picking, SceneColor, ResolvedColor, Window,
-        SelectionMask, SelectionResolved };
+        SelectionMask, SelectionResolved, SpotDepth };
     enum class PassLoad { Load, Clear, Discard };
     enum class PassBoundary { Internal, RestoreAfterLegacy, EstablishBeforeUI, Presentation };
     enum class PassDirtyReason : std::uint32_t
@@ -98,6 +99,13 @@ namespace GEngine
         FramebufferError, Asset::TextureError, Asset::SamplerError, RenderEcsError, VisibilityError>;
     struct SubmissionError { std::string operation; SubmissionCause cause; };
     std::string DescribeSubmissionError(const SubmissionError&);
+    struct RectangleSelectionRequest
+    {
+        std::uint64_t serial{};
+        PassViewport pixels; // Framebuffer bottom-left, clipped half-open rectangle.
+        bool through{};
+    };
+    struct RectangleSelectionResult {std::uint64_t serial{};std::vector<EntityRenderId> entities;std::size_t draws{};};
     struct FrameSubmissionDesc
     {
         RenderTarget& color;
@@ -122,8 +130,12 @@ namespace GEngine
         glm::vec2 selectionPixelsPerDip{1.f};
         // Full presentation selection; the legacy identity remains the active mesh.
         // Caller storage is borrowed only for synchronous Submit. Oversize input fails.
-        static constexpr std::size_t SelectionCapacity = 64;
+        static constexpr std::size_t SelectionCapacity = 4096;
         std::span<const EntityRenderId> selectedEntities;
+        std::span<const EntityRenderId> editorHiddenEntities; // Sorted; Scene View only, never shadow membership.
+        bool SceneVisible(EntityRenderId id) const noexcept
+        { return !std::binary_search(editorHiddenEntities.begin(),editorHiddenEntities.end(),id); }
+        std::optional<RectangleSelectionRequest> rectangleSelection; // One gesture, never a steady-state pass.
         bool measureSubmission = false; // Opt-in existing PassTiming owner; no query when false.
         unsigned SelectionClass(EntityRenderId entity) const noexcept
         {
@@ -154,18 +166,19 @@ namespace GEngine
         // Existing draw fields count logical items; these count actual API draws.
         std::size_t submittedDrawCalls{}, instancedDrawCalls{}, submittedInstances{};
         VisibilityStats visibility;
-        std::array<ShadowVisibilityStats,2> shadowVisibility; // Directional, point.
+        std::array<ShadowVisibilityStats,3> shadowVisibility; // Directional, point, spot.
         FrameTrace trace;
         // Directional shadow, point shadow, picking; includes deferred/clean passes.
-        std::array<PassDecision, 3> decisions{};
+        std::array<PassDecision, 4> decisions{}; // Spot appended; historical indices retained.
         std::size_t selectionDrawCalls{}, selectionPasses{}, selectionScratchBytes{};
         std::size_t selectionActiveDraws{}, selectionSecondaryDraws{}, selectionCurrentScratchBytes{}, selectionScratchAllocations{};
+        std::size_t rectangleSelectionDraws{},rectangleQueryAllocations{};
         PassViewport selectionRegion;
     };
     // Serial owner-context submission only. All scene/resource reads are complete
     // before entry; only immutable frame leases and retained targets are consumed.
-    // Supports one directional, one point and one unshadowed spot light.
-    // Additional lights or spot shadows return a typed capability error before drawing.
+    // Supports one directional, one point and one spot light.
+    // Additional lights return a typed capability error before drawing.
     // No ECS/manager access or publication occurs. Visibility and explicit pass
     // contracts consume the same immutable frame, with sky before transparency.
     class FrameSubmission final
@@ -180,9 +193,15 @@ namespace GEngine
         std::expected<FrameSubmissionStats, SubmissionError> Submit(
             const RenderFrame&, const FrameSubmissionDesc&, EntityPickTable&);
         static RenderPassDesc DescribePass(RenderPass, const FrameSubmissionDesc&);
+        // Poll only returns completed queries; never waits for GPU work or reads pixels.
+        std::expected<std::optional<RectangleSelectionResult>,SubmissionError> PollRectangleSelection();
+        void CancelRectangleSelection() noexcept;
         // This submitter owns cached target contents. External writes (including
         // another submitter) must notify it before reuse. Resizes detect themselves.
         void InvalidatePassContents() noexcept;
+        // Release only value caches for retired secondary directional targets.
+        void RetireCameraCaches() noexcept;
+        std::expected<void, SubmissionError> PrepareSpotShadowTarget(const SpotShadowSettings&);
     private:
         FrameSubmission() = default;
         struct Storage;

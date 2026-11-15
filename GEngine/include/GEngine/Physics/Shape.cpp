@@ -5,6 +5,7 @@
 #include "ShapeBox.h"
 #include "ShapeConvex.h"
 #include "ShapeCapsule.h"
+#include "../../../src/Physics/InertiaValidation.h"
 #include <new>
 #include <type_traits>
 
@@ -27,20 +28,7 @@ namespace GEngine
 
         bool UsableInertia(const PhysicalShape& shape)
         {
-            const auto tensor = shape.InertiaTensor();
-            for (int column = 0; column < 3; ++column)
-                if (!Math::IsFinite(tensor[column])) return false;
-            // Positive definite, finite normalized-mass tensor; do not alter the
-            // solver's existing float determinant/cache policy or mass scaling.
-            const glm::dmat3 wide(tensor);
-            const double minor = wide[0][0]*wide[1][1] - wide[0][1]*wide[1][0];
-            const double determinant = glm::determinant(wide);
-            if (wide[0][0] <= 0 || minor <= 0 || !std::isfinite(determinant) || determinant <= 0)
-                return false;
-            const auto inverse = glm::inverse(wide);
-            for (int column = 0; column < 3; ++column)
-                if (!Math::IsFinite(Vec3f(inverse[column]))) return false;
-            return true;
+            return bool(PhysicsInertia::Prepare(shape.InertiaTensor(),1.f));
         }
     }
 

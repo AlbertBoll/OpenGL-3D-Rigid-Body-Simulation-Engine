@@ -199,6 +199,13 @@ namespace GEngine
 			if (const auto id = GetTextureID(image)) ImGui::Image(id, size, uv0, uv1, tint_col, border_col);
 		}
 
+        void DrawImage(const Asset::Texture* image, const ImVec2& minimum, const ImVec2& maximum,
+                       const ImVec2& uv0, const ImVec2& uv1, const ImVec4& tint)
+        {
+            if(image) if(const auto id=GetTextureID(image))
+                ImGui::GetWindowDrawList()->AddImage(id,minimum,maximum,uv0,uv1,ImGui::GetColorU32(tint));
+        }
+
 		bool ImageButton(const Asset::Texture* image, const ImVec2& size, const ImVec4& tint)
 		{
 			const auto id = GetTextureID(image);

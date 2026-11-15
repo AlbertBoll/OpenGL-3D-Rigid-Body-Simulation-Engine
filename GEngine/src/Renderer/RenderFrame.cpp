@@ -221,6 +221,9 @@ namespace GEngine
             || light.innerConeRadians < 0 || light.innerConeRadians > light.outerConeRadians
             || light.outerConeRadians >= std::numbers::pi_v<float>)
             return Error(Code::InvalidLightCone, Section::SpotLights, index);
+        if (ValidateSpotShadow(light.shadows.spot) || (light.shadows.castShadows &&
+            !SpotShadowMatrix(light.position,light.direction,light.range,light.outerConeRadians)))
+            return Error(Code::InvalidLight, Section::SpotLights, index);
         m_Frame.m_Spot[index] = light;
         ++m_Frame.m_Size.spotLights;
         return {};

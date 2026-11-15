@@ -42,6 +42,9 @@ namespace GEngine
         SDL_Window* m_Window{};
         ImGuiWindow_* m_ImGuiWindow{};
         void* m_Context{};
+        bool m_DpiAwareMinimum{};
+        int m_MinimumWidth{}, m_MinimumHeight{}, m_AppliedMinimumWidth{}, m_AppliedMinimumHeight{};
+        void RefreshMinimumSize();
 
 
     public:

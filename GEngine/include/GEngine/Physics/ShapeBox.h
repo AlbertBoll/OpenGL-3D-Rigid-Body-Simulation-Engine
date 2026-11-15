@@ -57,6 +57,7 @@ namespace GEngine
 		float FastestLinearSpeed(const Vec3f& angularVelocity, const Vec3f& dir) const override;
 
 	private:
+        friend struct EditorScaleAccess;
         ShapeBox() : m_points(std::size_t(0)) {}
 		std::vector<Vec3f> m_points;
 		Bounds m_bounds;

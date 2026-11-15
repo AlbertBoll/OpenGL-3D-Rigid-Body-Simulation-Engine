@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "id": "phase26-qualification-observation-01",
+  "profile_macro": "JPH_GENGINE_PHASE26_OBSERVATION",
+  "diagnostic_only": true,
+  "upstream_commit": "e77f175595e64cb44218cc9d9d56fc365ad0e36a",
+  "layer_after": "gengine-contact-resistance-01",
+  "ordinary_setup_or_pin_changed": false,
+  "patch": "external/jolt-patches/phase26-qualification-observation-01.patch",
+  "patch_sha256": "73639c9d3282e4644266f3fbc2197561d5b9af7f489fd2af067e808376d6c937",
+  "members": [
+    {
+      "path": "Jolt/Physics/QualificationObservation.h",
+      "base_raw_sha256": null,
+      "result_raw_sha256": "f93ed897839b8aaf1b0eadef6c5c3741d85dbebd85bdb2eef13db96629a30c64",
+      "result_LF_sha256": "f93ed897839b8aaf1b0eadef6c5c3741d85dbebd85bdb2eef13db96629a30c64",
+      "mode": "100644"
+    },
+    {
+      "path": "Jolt/Physics/PhysicsSystem.cpp",
+      "base_raw_sha256": "32084e2907d00ae0c8c9938e573da9733ac7044c8f0a0ea8b1a687771d8d2709",
+      "result_raw_sha256": "8e12db1aad035a6e6d3ea57854736df6684c4204a7160a546d9f93b6562dca88",
+      "result_LF_sha256": "b68b8a1837fda52b6ea64acf1441fbf2a6b32f22520f5ff41eb6a0852e5b6dab",
+      "mode": "100644"
+    },
+    {
+      "path": "Jolt/Physics/Constraints/ContactConstraintManager.cpp",
+      "base_raw_sha256": "3b75a4131f4ae02ead5e2b7b60856a04f5a19120ccafd9fbdcf5f14c02e9498b",
+      "result_raw_sha256": "3e071724f8e69dcbd685ab0f9c407948f976fa2998f2a9a74d4268a6fc2b8539",
+      "result_LF_sha256": "2a4a1cba5b0d5b94c9919a2dd4f29bef03cc339217f472c5f46810d3a9f9e990",
+      "mode": "100644"
+    },
+    {
+      "path": "Jolt/Physics/Constraints/ConstraintManager.cpp",
+      "base_raw_sha256": "a8be70b3490fb1f1c6200ad40a8b644d75502031a289612352ed76d6dc519185",
+      "result_raw_sha256": "d4fa2eb8bbe9bcd48143533c58a9f702722405cf176eb3018f4807f94604fa74",
+      "result_LF_sha256": "e42f7dcab5dbfd54bbb566a8a90c1ffc6824834c2208afa58513b601105eaafd",
+      "mode": "100644"
+    },
+    {
+      "path": "Jolt/Physics/IslandBuilder.cpp",
+      "base_raw_sha256": "9a944d1788f0e14470ec962574b7ad80566799c5046d0d7eb28f2e2ae02449a8",
+      "result_raw_sha256": "9cadbbd437a316c02c484d91b7eb5ccc8eebf3140477ed09588246814e50ac40",
+      "result_LF_sha256": "c9a0167c8d42e5bc890d97ebed099096f1baa84ebb198fc210045a07bc18ee3d",
+      "mode": "100644"
+    }
+  ],
+  "scope_acceptance": {
+    "path": "docs/pre_editor/active/PHASE_26_JOLT_INTEGRATION_01/PHASE_26_JOLT_OBSERVABILITY_SCOPE_PROPOSAL_01.md",
+    "sha256": "64dd186a7f25b20d153a6eb46c42bfbb5d2ef87c1b69c53fbc653f44602355b1"
+  },
+  "arena_policy_sha256": "596233cfe0caa4cabd38d74d9aa4558e304700734e0d69513b8b8b7f342ed035",
+  "tested_correction_provenance": {
+    "candidate": "candidate-05",
+    "frozen_inputs_sha256": "80530066debd2b39bca9a351c8663cc2dcd2507358e67296a532a4cc97765f06",
+    "release_identity_sha256": "2898637c14bf2f23fedd6b6ee91491c9345e5087c35a8cd9fab4884445e77b80",
+    "six_case_summary": {
+      "path": "logs/pre_editor/phase-26/qualification-observation-01/autonomous-recovery-01/candidate-05/qualification-summary-04.json",
+      "sha256": "aca51eeb743bae7909aad798d4c0b49f403ebb2434eaea523ffdbe28a77a70cf"
+    },
+    "ordinary_SDK_and_Extension01_changed": false,
+    "historical_artifacts_preserved_at": "logs/pre_editor/phase-26/qualification-observation-01/autonomous-recovery-01/closure-04/publication-preparation/overlay-promotion-01/before"
+  }
+}

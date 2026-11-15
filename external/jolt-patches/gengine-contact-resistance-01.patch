@@ -1,0 +1,655 @@
+diff --git a/Jolt/Physics/Collision/ContactListener.h b/Jolt/Physics/Collision/ContactListener.h
+index 07dacf3a5f7c69fa33aec48b5cd07a255c5c3fa1..01f5f03e0a4df5a6f49d1506b68fda5b5144e47f 100644
+--- a/Jolt/Physics/Collision/ContactListener.h
++++ b/Jolt/Physics/Collision/ContactListener.h
+@@ -35,6 +35,39 @@
+ 	ContactPoints			mRelativeContactPointsOn2;			///< Contact points on the surface of shape 2 relative to mBaseOffset. If there's no penetration, this will be the same as mRelativeContactPointsOn1. If there is penetration they will be different.
+ };
+ 
++/// Optional GEngine extension observation. Values describe one solver increment, not a new load budget.
++/// Contact-local identity is valid only for this callback; no Body or contact pointer may be retained.
++struct ContactResistanceObservation
++{
++	bool mIsCCD;
++	uint32 mPointIndex;
++	uint64 mManifoldKey;
++	float mNormalLambda;
++	float mSpinLength;
++	float mRollingLength;
++	Vec3 mNormal;
++	double mBefore[3];
++	double mAfter[3];
++	Vec3 mSpinImpulse;
++	Vec3 mRollingImpulse;
++	Vec3 mAngularBefore1;
++	Vec3 mAngularBefore2;
++	Vec3 mAngularAfter1;
++	Vec3 mAngularAfter2;
++	uint32 mRootIterations;
++};
++
++/// Validation-only opt-in callback; ordinary GEngine contact settings leave this pointer null.
++/// May run concurrently on solver workers. No physics mutation, body locks, retained pointers or allocation.
++/// Body velocities have not yet been published; the observation contains the actual local impulse.
++class ContactResistanceObserver
++{
++public:
++	virtual ~ContactResistanceObserver() = default;
++	virtual void OnContactResistanceSolved(const Body &inBody1, const Body &inBody2,
++		const ContactResistanceObservation &inObservation) = 0;
++};
++
+ /// When a contact point is added or persisted, the callback gets a chance to override certain properties of the contact constraint.
+ /// The values are filled in with their defaults by the system so the callback doesn't need to modify anything, but it can if it wants to.
+ class ContactSettings
+@@ -49,6 +82,9 @@
+ 	bool					mIsSensor;							///< If the contact should be treated as a sensor vs body contact (no collision response)
+ 	Vec3					mRelativeLinearSurfaceVelocity = Vec3::sZero(); ///< Relative linear surface velocity between the bodies (world space surface velocity of body 2 - world space surface velocity of body 1), can be used to create a conveyor belt effect
+ 	Vec3					mRelativeAngularSurfaceVelocity = Vec3::sZero(); ///< Relative angular surface velocity between the bodies (world space angular surface velocity of body 2 - world space angular surface velocity of body 1). Note that this angular velocity is relative to the center of mass of body 1, so if you want it relative to body 2's center of mass you need to add body 2 angular velocity x (body 1 world space center of mass - body 2 world space center of mass) to mRelativeLinearSurfaceVelocity.
++	float					mCombinedSpinResistanceLength = 0.0f; ///< GEngine authored spin length (m), already combined with min(A, B).
++	float					mCombinedRollingResistanceLength = 0.0f; ///< GEngine authored rolling length (m), already combined with min(A, B).
++	ContactResistanceObserver *mContactResistanceObserver = nullptr; ///< Optional read-only validation observer, never an impulse provider.
+ };
+ 
+ /// Return value for the OnContactValidate callback. Determines if the contact is being processed or not.
+diff --git a/Jolt/Physics/Constraints/ConstraintPart/ContactResistanceConstraintPart.h b/Jolt/Physics/Constraints/ConstraintPart/ContactResistanceConstraintPart.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..069a0a2b7abf4e2390e43c696ff18d3bb8e0a526
+--- /dev/null
++++ b/Jolt/Physics/Constraints/ConstraintPart/ContactResistanceConstraintPart.h
+@@ -0,0 +1,301 @@
++// GEngine authored contact resistance extension of Jolt 5.6.0.
++// SPDX-License-Identifier: MIT
++#pragma once
++
++#include <Jolt/Math/Mat44.h>
++#include <algorithm>
++#include <cmath>
++#include <limits>
++
++JPH_NAMESPACE_BEGIN
++
++/// Contact-local angular resistance. No body access, allocation or persistent load cache.
++class ContactResistanceConstraintPart
++{
++public:
++	struct Accumulator
++	{
++		double mSpin = 0.0;
++		double mRollingU = 0.0;
++		double mRollingV = 0.0;
++	};
++
++	struct Properties
++	{
++		Float3 mInverse1[3];
++		Float3 mInverse2[3];
++		double mU[3];
++		double mV[3];
++		double mSpinK;
++		double mA;
++		double mB;
++		double mC;
++	};
++
++	struct Result
++	{
++		bool mValid = true;
++		bool mApplied = false;
++		uint32 mRootIterations = 0;
++		Vec3 mSpinImpulse = Vec3::sZero();
++		Vec3 mRollingImpulse = Vec3::sZero();
++	};
++
++	static constexpr uint32 cMaxRootIterations = 48;
++
++	/// Prepare once per contact/collision substep from authoritative responsive inverse inertias.
++	static bool Prepare(Mat44Arg inInverse1, Mat44Arg inInverse2, Vec3Arg inNormal, Properties &out)
++	{
++		// The invalid marker also makes a failed preparation fail closed during solving.
++		out.mSpinK = std::numeric_limits<double>::quiet_NaN();
++		for (uint i = 0; i < 3; ++i)
++		{
++			const Vec3 column1 = inInverse1.GetColumn3(i), column2 = inInverse2.GetColumn3(i);
++			if (!Finite(column1) || !Finite(column2))
++				return false;
++			column1.StoreFloat3(&out.mInverse1[i]);
++			column2.StoreFloat3(&out.mInverse2[i]);
++		}
++
++		double n[3];
++		if (!Normal(inNormal, n))
++			return false;
++		const double ax = std::abs(n[0]), ay = std::abs(n[1]), az = std::abs(n[2]);
++		const uint seed = ax <= ay && ax <= az? 0 : (ay <= az? 1 : 2);
++		double axis[3] = { 0.0, 0.0, 0.0 };
++		axis[seed] = 1.0;
++		Cross(n, axis, out.mU);
++		const double u_length = std::sqrt(Dot(out.mU, out.mU));
++		if (!(u_length > 0.0) || !std::isfinite(u_length))
++			return false;
++		for (uint i = 0; i < 3; ++i)
++			out.mU[i] /= u_length;
++		Cross(n, out.mU, out.mV);
++
++		const Vec3 normal{ float(n[0]), float(n[1]), float(n[2]) };
++		const Vec3 response1 = Multiply(out.mInverse1, normal);
++		const Vec3 response2 = Multiply(out.mInverse2, normal);
++		if (!Finite(response1) || !Finite(response2))
++			return false;
++		const double nf[3] = { normal.GetX(), normal.GetY(), normal.GetZ() };
++		const double response[3] = {
++			double(response1.GetX()) + response2.GetX(),
++			double(response1.GetY()) + response2.GetY(),
++			double(response1.GetZ()) + response2.GetZ()
++		};
++		const double spin_k = Dot(nf, response);
++		double ku[3], kv[3];
++		MultiplySum(out, out.mU, ku);
++		MultiplySum(out, out.mV, kv);
++		out.mA = Dot(out.mU, ku);
++		out.mB = Dot(out.mU, kv);
++		out.mC = Dot(out.mV, kv);
++		if (!(spin_k >= 0.0 && out.mA >= 0.0 && out.mC >= 0.0)
++			|| !std::isfinite(spin_k) || !std::isfinite(out.mA)
++			|| !std::isfinite(out.mB) || !std::isfinite(out.mC))
++			return false;
++		out.mSpinK = spin_k;
++		return true;
++	}
++
++	/// Apply only the delta of the accumulated constraint, never a fresh budget per iteration.
++	/// Both endpoint Float32 results are validated before either reference is published.
++	static Result Solve(const Properties &inProperties, Vec3Arg inNormal, float inNormalLambda,
++		float inSpinLength, float inRollingLength, Accumulator &ioAccumulator,
++		Vec3 &ioAngular1, Vec3 &ioAngular2)
++	{
++		Result result;
++		if (!std::isfinite(inSpinLength) || !std::isfinite(inRollingLength)
++			|| !(inSpinLength >= 0.0f && inRollingLength >= 0.0f))
++			return Invalid(result);
++		if (inSpinLength == 0.0f && inRollingLength == 0.0f)
++			return result;
++		if (!std::isfinite(inNormalLambda)
++			|| !std::isfinite(inProperties.mSpinK) || !std::isfinite(inProperties.mA)
++			|| !std::isfinite(inProperties.mB) || !std::isfinite(inProperties.mC)
++			|| !(inProperties.mSpinK >= 0.0 && inProperties.mA >= 0.0 && inProperties.mC >= 0.0)
++			|| !std::isfinite(ioAccumulator.mSpin) || !std::isfinite(ioAccumulator.mRollingU)
++			|| !std::isfinite(ioAccumulator.mRollingV) || !Finite(ioAngular1) || !Finite(ioAngular2))
++			return Invalid(result);
++
++		double n[3];
++		if (!Normal(inNormal, n))
++			return Invalid(result);
++		const Vec3 normal{ float(n[0]), float(n[1]), float(n[2]) };
++		Vec3 angular1 = ioAngular1, angular2 = ioAngular2;
++		Accumulator next_accumulator = ioAccumulator;
++		const double normal_lambda = std::max(0.0, double(inNormalLambda));
++
++		if (inSpinLength > 0.0f && inProperties.mSpinK > 0.0)
++		{
++			const double relative[3] = {
++				double(angular2.GetX()) - angular1.GetX(),
++				double(angular2.GetY()) - angular1.GetY(),
++				double(angular2.GetZ()) - angular1.GetZ()
++			};
++			const double nf[3] = { normal.GetX(), normal.GetY(), normal.GetZ() };
++			const double spin = Dot(relative, nf);
++			const double limit = double(inSpinLength) * normal_lambda;
++			const double next = std::clamp(ioAccumulator.mSpin - spin / inProperties.mSpinK, -limit, limit);
++			const double delta = next - ioAccumulator.mSpin;
++			if (!std::isfinite(delta) || std::abs(delta) > std::numeric_limits<float>::max())
++				return Invalid(result);
++			const float applied = float(delta);
++			if (applied != 0.0f)
++			{
++				result.mSpinImpulse = normal * applied;
++				if (!Apply(inProperties, result.mSpinImpulse, angular1, angular2))
++					return Invalid(result);
++				next_accumulator.mSpin += applied;
++				result.mApplied = true;
++			}
++		}
++
++		if (inRollingLength > 0.0f && inProperties.mA > 0.0 && inProperties.mC > 0.0)
++		{
++			const double a = inProperties.mA, b = inProperties.mB, c = inProperties.mC;
++			const double relative[3] = {
++				double(angular2.GetX()) - angular1.GetX(),
++				double(angular2.GetY()) - angular1.GetY(),
++				double(angular2.GetZ()) - angular1.GetZ()
++			};
++			const double velocity_u = Dot(relative, inProperties.mU);
++			const double velocity_v = Dot(relative, inProperties.mV);
++			const double rhs_u = a * ioAccumulator.mRollingU + b * ioAccumulator.mRollingV - velocity_u;
++			const double rhs_v = b * ioAccumulator.mRollingU + c * ioAccumulator.mRollingV - velocity_v;
++			const double limit = double(inRollingLength) * normal_lambda;
++			double next_u = 0.0, next_v = 0.0;
++			const auto solve = [&](double alpha)
++			{
++				const double scale = std::max({ a, c, alpha });
++				const double aa = a / scale + alpha / scale, bb = b / scale, cc = c / scale + alpha / scale;
++				const double determinant = aa * cc - bb * bb;
++				if (!(determinant > 0.0) || !std::isfinite(determinant))
++					return false;
++				const double scaled_u = rhs_u / scale, scaled_v = rhs_v / scale;
++				next_u = (cc * scaled_u - bb * scaled_v) / determinant;
++				next_v = (aa * scaled_v - bb * scaled_u) / determinant;
++				return std::isfinite(next_u) && std::isfinite(next_v);
++			};
++			if (limit > 0.0)
++			{
++				if (!solve(0.0))
++					return Invalid(result);
++				if (std::hypot(next_u, next_v) > limit)
++				{
++					double low = 0.0, high = std::hypot(rhs_u, rhs_v) / limit;
++					if (!std::isfinite(high))
++						return Invalid(result);
++					for (uint32 i = 0; i < cMaxRootIterations; ++i)
++					{
++						const double mid = (low + high) * 0.5;
++						if (!solve(mid))
++							return Invalid(result);
++						++result.mRootIterations;
++						if (std::hypot(next_u, next_v) > limit)
++							low = mid;
++						else
++							high = mid;
++					}
++					if (!solve(high))
++						return Invalid(result);
++				}
++			}
++			const double delta_u = next_u - ioAccumulator.mRollingU;
++			const double delta_v = next_v - ioAccumulator.mRollingV;
++			double candidate[3];
++			for (uint i = 0; i < 3; ++i)
++			{
++				candidate[i] = inProperties.mU[i] * delta_u + inProperties.mV[i] * delta_v;
++				if (!(std::abs(candidate[i]) <= std::numeric_limits<float>::max()))
++					return Invalid(result);
++			}
++			result.mRollingImpulse = Vec3(float(candidate[0]), float(candidate[1]), float(candidate[2]));
++			if (result.mRollingImpulse != Vec3::sZero())
++			{
++				if (!Apply(inProperties, result.mRollingImpulse, angular1, angular2))
++					return Invalid(result);
++				const double applied[3] = {
++					result.mRollingImpulse.GetX(), result.mRollingImpulse.GetY(), result.mRollingImpulse.GetZ()
++				};
++				next_accumulator.mRollingU += Dot(inProperties.mU, applied);
++				next_accumulator.mRollingV += Dot(inProperties.mV, applied);
++				result.mApplied = true;
++			}
++		}
++
++		if (!std::isfinite(next_accumulator.mSpin) || !std::isfinite(next_accumulator.mRollingU)
++			|| !std::isfinite(next_accumulator.mRollingV))
++			return Invalid(result);
++		ioAccumulator = next_accumulator;
++		ioAngular1 = angular1;
++		ioAngular2 = angular2;
++		return result;
++	}
++
++private:
++	static bool Finite(Vec3Arg inValue)
++	{
++		return std::isfinite(inValue.GetX()) && std::isfinite(inValue.GetY()) && std::isfinite(inValue.GetZ());
++	}
++
++	static Result Invalid(Result inResult)
++	{
++		inResult.mValid = false;
++		inResult.mApplied = false;
++		return inResult;
++	}
++
++	static double Dot(const double *inA, const double *inB)
++	{
++		return inA[0] * inB[0] + inA[1] * inB[1] + inA[2] * inB[2];
++	}
++
++	static void Cross(const double *inA, const double *inB, double *out)
++	{
++		out[0] = inA[1] * inB[2] - inA[2] * inB[1];
++		out[1] = inA[2] * inB[0] - inA[0] * inB[2];
++		out[2] = inA[0] * inB[1] - inA[1] * inB[0];
++	}
++
++	static bool Normal(Vec3Arg inNormal, double *out)
++	{
++		out[0] = inNormal.GetX(); out[1] = inNormal.GetY(); out[2] = inNormal.GetZ();
++		const double length = std::sqrt(Dot(out, out));
++		if (!(length > 0.0) || !std::isfinite(length))
++			return false;
++		for (uint i = 0; i < 3; ++i)
++			out[i] /= length;
++		return true;
++	}
++
++	static Vec3 Multiply(const Float3 *inColumns, Vec3Arg inVector)
++	{
++		// Same Float32 operation order as Mat44::Multiply3x3 on the pinned x64 build.
++		return (Vec3(inColumns[0]) * inVector.GetX() + Vec3(inColumns[1]) * inVector.GetY()) + Vec3(inColumns[2]) * inVector.GetZ();
++	}
++
++	static void MultiplySum(const Properties &inProperties, const double *inVector, double *out)
++	{
++		for (int row = 0; row < 3; ++row)
++			out[row] = (double(inProperties.mInverse1[0][row]) + inProperties.mInverse2[0][row]) * inVector[0]
++				+ (double(inProperties.mInverse1[1][row]) + inProperties.mInverse2[1][row]) * inVector[1]
++				+ (double(inProperties.mInverse1[2][row]) + inProperties.mInverse2[2][row]) * inVector[2];
++	}
++
++	static bool Apply(const Properties &inProperties, Vec3Arg inImpulse, Vec3 &ioAngular1, Vec3 &ioAngular2)
++	{
++		const Vec3 next1 = ioAngular1 - Multiply(inProperties.mInverse1, inImpulse);
++		const Vec3 next2 = ioAngular2 + Multiply(inProperties.mInverse2, inImpulse);
++		if (!Finite(inImpulse) || !Finite(next1) || !Finite(next2))
++			return false;
++		ioAngular1 = next1;
++		ioAngular2 = next2;
++		return true;
++	}
++};
++
++static_assert(sizeof(ContactResistanceConstraintPart::Properties) == 152);
++static_assert(sizeof(ContactResistanceConstraintPart::Accumulator) == 24);
++
++JPH_NAMESPACE_END
+diff --git a/Jolt/Physics/Constraints/ContactConstraintManager.cpp b/Jolt/Physics/Constraints/ContactConstraintManager.cpp
+index efb7aee2e390381320a9a10ac61a93e38cd27007..094fca4bf481b627f740f3da3de861b0378ad46a 100644
+--- a/Jolt/Physics/Constraints/ContactConstraintManager.cpp
++++ b/Jolt/Physics/Constraints/ContactConstraintManager.cpp
+@@ -828,6 +828,12 @@
+ 	constraint->mInvInertiaScale2 = inSettings.mInvInertiaScale2;
+ 	constraint->mCachedManifoldHandle = inCachedManifoldHandle;
+ 	constraint->mNumContactPoints = inNumContactPoints;
++	constraint->mCombinedSpinResistanceLength = inSettings.mCombinedSpinResistanceLength;
++	constraint->mCombinedRollingResistanceLength = inSettings.mCombinedRollingResistanceLength;
++	constraint->mContactResistanceObserver = inSettings.mContactResistanceObserver;
++	// Additional variable-length points do not run a constructor. Cold state is explicit for every point.
++	for (uint32 i = 0; i < inNumContactPoints; ++i)
++		new (&constraint->mContactPoints[i].mResistance) ContactResistanceConstraintPart::Accumulator();
+ 
+ #ifdef JPH_TRACK_SIMULATION_STATS
+ 	// Track new contact constraints
+@@ -980,6 +986,9 @@
+ 			constraint->mFrictionConstraint2.SetTotalLambda(output_cm->mFrictionLambda[1]);
+ 			constraint->mAngularFrictionConstraint.SetTotalLambda(output_cm->mAngularFrictionLambda);
+ 			constraint->CalculateFrictionConstraintProperties(inBody1, inBody2, constraint->mInvMass1, constraint->mInvMass2, inv_i1, inv_i2, ws_contacts, world_space_normal, t1, t2, settings);
++			if ((settings.mCombinedSpinResistanceLength != 0.0f || settings.mCombinedRollingResistanceLength != 0.0f)
++				&& !ContactResistanceConstraintPart::Prepare(inv_i1, inv_i2, world_space_normal, constraint->mResistanceProperties))
++				ioContactAllocator.mErrors |= EPhysicsUpdateError::ContactResistanceInvalid;
+ 
+ 		#ifdef JPH_DEBUG_RENDERER
+ 			// Draw the manifold
+@@ -1295,6 +1304,9 @@
+ 			constraint->mAngularFrictionConstraint.SetTotalLambda(0.0f);
+ 		}
+ 		constraint->CalculateFrictionConstraintProperties(inBody1, inBody2, constraint->mInvMass1, constraint->mInvMass2, inv_i1, inv_i2, ws_contacts, inManifold.mWorldSpaceNormal, t1, t2, settings);
++		if ((settings.mCombinedSpinResistanceLength != 0.0f || settings.mCombinedRollingResistanceLength != 0.0f)
++			&& !ContactResistanceConstraintPart::Prepare(inv_i1, inv_i2, inManifold.mWorldSpaceNormal, constraint->mResistanceProperties))
++			ioContactAllocator.mErrors |= EPhysicsUpdateError::ContactResistanceInvalid;
+ 
+ #ifdef JPH_DEBUG_RENDERER
+ 		// Draw the manifold
+@@ -1681,7 +1693,7 @@
+ template void ContactConstraintManager::WarmStartVelocityConstraints<DummyCalculateSolverSteps>(const uint32 *inConstraintOffsetBegin, const uint32 *inConstraintOffsetEnd, float inWarmStartImpulseRatio, DummyCalculateSolverSteps &ioCallback);
+ 
+ template <EMotionType Type1, EMotionType Type2>
+-bool ContactConstraintManager::sSolveVelocityConstraint(ContactConstraintBase &ioConstraint, MotionProperties *ioMotionProperties1, MotionProperties *ioMotionProperties2)
++bool ContactConstraintManager::sSolveVelocityConstraint(ContactConstraintBase &ioConstraint, MotionProperties *ioMotionProperties1, MotionProperties *ioMotionProperties2, bool &outResistanceValid)
+ {
+ 	ContactConstraint<Type1, Type2> &constraint = static_cast<ContactConstraint<Type1, Type2> &>(ioConstraint);
+ 
+@@ -1757,6 +1769,58 @@
+ 		// Apply impulse
+ 		if (wcp.mNonPenetrationConstraint.SolveVelocityConstraintApplyLambda(linear_velocity1, angular_velocity1, linear_velocity2, angular_velocity2, constraint.mInvMass1, constraint.mInvMass2, ws_normal, total_lambda))
+ 			any_impulse_applied = true;
++
++		// GEngine authored angular rows consume this point's CURRENT solved normal lambda.
++		if (constraint.mCombinedSpinResistanceLength != 0.0f || constraint.mCombinedRollingResistanceLength != 0.0f)
++		{
++			Vec3 resistance_angular1 = Vec3::sZero(), resistance_angular2 = Vec3::sZero();
++			if constexpr (Type1 != EMotionType::Static)
++				resistance_angular1 = angular_velocity1;
++			if constexpr (Type2 != EMotionType::Static)
++				resistance_angular2 = angular_velocity2;
++			ContactResistanceObservation observation;
++			ContactResistanceObserver *observer = constraint.mContactResistanceObserver;
++			if (observer != nullptr)
++			{
++				observation.mIsCCD = false;
++				observation.mPointIndex = i;
++				observation.mManifoldKey = constraint.mSortKey;
++				observation.mNormalLambda = wcp.mNonPenetrationConstraint.GetTotalLambda();
++				observation.mSpinLength = constraint.mCombinedSpinResistanceLength;
++				observation.mRollingLength = constraint.mCombinedRollingResistanceLength;
++				observation.mNormal = ws_normal;
++				observation.mBefore[0] = wcp.mResistance.mSpin;
++				observation.mBefore[1] = wcp.mResistance.mRollingU;
++				observation.mBefore[2] = wcp.mResistance.mRollingV;
++				observation.mAngularBefore1 = resistance_angular1;
++				observation.mAngularBefore2 = resistance_angular2;
++			}
++			const auto response = ContactResistanceConstraintPart::Solve(constraint.mResistanceProperties, ws_normal,
++				wcp.mNonPenetrationConstraint.GetTotalLambda(), constraint.mCombinedSpinResistanceLength,
++				constraint.mCombinedRollingResistanceLength, wcp.mResistance, resistance_angular1, resistance_angular2);
++			if (!response.mValid)
++			{
++				outResistanceValid = false;
++				return false;
++			}
++			if constexpr (Type1 == EMotionType::Dynamic)
++				angular_velocity1 = resistance_angular1;
++			if constexpr (Type2 == EMotionType::Dynamic)
++				angular_velocity2 = resistance_angular2;
++			any_impulse_applied |= response.mApplied;
++			if (observer != nullptr)
++			{
++				observation.mAfter[0] = wcp.mResistance.mSpin;
++				observation.mAfter[1] = wcp.mResistance.mRollingU;
++				observation.mAfter[2] = wcp.mResistance.mRollingV;
++				observation.mSpinImpulse = response.mSpinImpulse;
++				observation.mRollingImpulse = response.mRollingImpulse;
++				observation.mAngularAfter1 = resistance_angular1;
++				observation.mAngularAfter2 = resistance_angular2;
++				observation.mRootIterations = response.mRootIterations;
++				observer->OnContactResistanceSolved(*constraint.mBody1, *constraint.mBody2, observation);
++			}
++		}
+ 	}
+ 
+ 	if (!any_impulse_applied)
+@@ -1771,7 +1835,7 @@
+ 	JPH_PROFILE_FUNCTION();
+ 
+ 	// Build dispatch table
+-	using DispatchFunc = bool (*)(ContactConstraintBase &, MotionProperties *, MotionProperties *);
++	using DispatchFunc = bool (*)(ContactConstraintBase &, MotionProperties *, MotionProperties *, bool &);
+ 	static const DispatchFunc table[3][3] = {
+ 		{
+ 			nullptr, // Static vs static doesn't exist
+@@ -1810,7 +1874,10 @@
+ 		// Dispatch to the correct templated form
+ 		Body &body1 = *constraint.mBody1;
+ 		Body &body2 = *constraint.mBody2;
+-		any_impulse_applied |= table[(int)body1.GetMotionType()][(int)body2.GetMotionType()](constraint, body1.GetMotionPropertiesUnchecked(), body2.GetMotionPropertiesUnchecked());
++		bool resistance_valid = true;
++		any_impulse_applied |= table[(int)body1.GetMotionType()][(int)body2.GetMotionType()](constraint, body1.GetMotionPropertiesUnchecked(), body2.GetMotionPropertiesUnchecked(), resistance_valid);
++		if (!resistance_valid)
++			mUpdateContext->mErrors.fetch_or(uint32(EPhysicsUpdateError::ContactResistanceInvalid), memory_order_relaxed);
+ 	}
+ 
+ 	return any_impulse_applied;
+diff --git a/Jolt/Physics/Constraints/ContactConstraintManager.h b/Jolt/Physics/Constraints/ContactConstraintManager.h
+index d76f3fc38a60d82d1851394d56cba810f0805c2f..c07bd6cb95dad571f4f62e794ca12935f888d038 100644
+--- a/Jolt/Physics/Constraints/ContactConstraintManager.h
++++ b/Jolt/Physics/Constraints/ContactConstraintManager.h
+@@ -11,6 +11,8 @@
+ #include <Jolt/Physics/Collision/Shape/SubShapeIDPair.h>
+ #include <Jolt/Physics/Collision/ManifoldBetweenTwoFaces.h>
+ #include <Jolt/Physics/Constraints/ConstraintPart/ContactConstraintPart.h>
++#include <Jolt/Physics/Constraints/ConstraintPart/ContactResistanceConstraintPart.h>
++#include <Jolt/Physics/Collision/ContactListener.h>
+ #include <Jolt/Physics/Constraints/ConstraintPart/AngularFrictionConstraintPart.h>
+ #include <Jolt/Physics/StateRecorder.h>
+ #include <Jolt/Core/HashCombine.h>
+@@ -445,6 +447,7 @@
+ 
+ 		/// Distance between the friction center and this contact point
+ 		float					mDistanceToFrictionCenter;
++		ContactResistanceConstraintPart::Accumulator mResistance;
+ 	};
+ 
+ 	class ContactConstraintBase
+@@ -475,6 +478,10 @@
+ 		float					mInvInertiaScale2;
+ 		uint32					mCachedManifoldHandle;
+ 		uint32					mNumContactPoints;
++		float mCombinedSpinResistanceLength;
++		float mCombinedRollingResistanceLength;
++		ContactResistanceObserver *mContactResistanceObserver;
++		ContactResistanceConstraintPart::Properties mResistanceProperties;
+ 	};
+ 
+ 	/// Contact constraint class, used for solving penetrations
+@@ -501,6 +508,11 @@
+ 	/// Maximum size a single constraint can take
+ 	static constexpr uint32		cMaxConstraintSize = sizeof(ContactConstraint<EMotionType::Dynamic, EMotionType::Dynamic>) + (MaxContactPoints - 1) * sizeof(WorldContactPoint<EMotionType::Dynamic, EMotionType::Dynamic>);
+ 
++	// Pinned pristine x64 sizes: constraint480, settings64. Include all 4,096 CCD settings too.
++	static_assert(sizeof(ContactSettings) == 80);
++	static_assert((cMaxConstraintSize - 480) * 16384 + (sizeof(ContactSettings) - 64) * 4096 <= 5 * 1024 * 1024,
++		"GEngine contact resistance exceeds its admitted arena budget");
++
+ 	/// The maximum value that can be passed to Init for inMaxContactConstraints. Note you should really use a lower value, using this value will cost a lot of memory!
+ 	static constexpr uint		cMaxContactConstraintsLimit = ~uint(0) / cMaxConstraintSize;
+ 
+@@ -534,7 +546,7 @@
+ 
+ 	/// Internal helper function to solve a single velocity constraint. Templated to the motion type to reduce the amount of branches and calculations.
+ 	template <EMotionType Type1, EMotionType Type2>
+-	static bool					sSolveVelocityConstraint(ContactConstraintBase &ioConstraint, MotionProperties *ioMotionProperties1, MotionProperties *ioMotionProperties2);
++	static bool					sSolveVelocityConstraint(ContactConstraintBase &ioConstraint, MotionProperties *ioMotionProperties1, MotionProperties *ioMotionProperties2, bool &outResistanceValid);
+ 
+ 	/// Internal helper function to store lambdas applied during sSolveVelocityConstraint.
+ 	template <EMotionType Type1, EMotionType Type2>
+diff --git a/Jolt/Physics/EPhysicsUpdateError.h b/Jolt/Physics/EPhysicsUpdateError.h
+index c9edd6deda08d7c52ca4ba69418aa64cc4711fd4..f0aceda26db83e67137584bc5c1dedc8516f379d 100644
+--- a/Jolt/Physics/EPhysicsUpdateError.h
++++ b/Jolt/Physics/EPhysicsUpdateError.h
+@@ -9,6 +9,7 @@
+ /// Enum used by PhysicsSystem to report error conditions during the PhysicsSystem::Update call. This is a bit field, multiple errors can trigger in the same update.
+ enum class EPhysicsUpdateError : uint32
+ {
++	ContactResistanceInvalid = 1 << 3,	///< GEngine authored angular contact response failed numerical validation. The update is invalid; do not resume it.
+ 	None					= 0,			///< No errors
+ 	ManifoldCacheFull		= 1 << 0,		///< The manifold cache is full, this means that the total number of contacts between bodies is too high. Some contacts were ignored. Increase inMaxContactConstraints in PhysicsSystem::Init.
+ 	BodyPairCacheFull		= 1 << 1,		///< The body pair cache is full, this means that too many bodies contacted. Some contacts were ignored. Increase inMaxBodyPairs in PhysicsSystem::Init.
+diff --git a/Jolt/Physics/PhysicsSystem.cpp b/Jolt/Physics/PhysicsSystem.cpp
+index de4d0eed85ba70177a35482f42d98e443df7f7bd..eac4882b64d25115fd1831e723343e581e8c63f0 100644
+--- a/Jolt/Physics/PhysicsSystem.cpp
++++ b/Jolt/Physics/PhysicsSystem.cpp
+@@ -2113,7 +2113,7 @@
+ }
+ 
+ template <EMotionType Type2>
+-void PhysicsSystem::sSolveCCDContact(Body &ioBody1, float inInvM1, Mat44Arg inInvI1, Vec3Arg inR1PlusU, Body &ioBody2, Vec3Arg inR2, Vec3Arg inContactNormal, float inNormalVelocityBias, Vec3Arg inFrictionDirection, const ContactSettings &inContactSettings)
++bool PhysicsSystem::sSolveCCDContact(Body &ioBody1, float inInvM1, Mat44Arg inInvI1, Vec3Arg inR1PlusU, Body &ioBody2, Vec3Arg inR2, Vec3Arg inContactNormal, float inNormalVelocityBias, Vec3Arg inFrictionDirection, const ContactSettings &inContactSettings)
+ {
+ 	MotionProperties *body_mp = ioBody1.GetMotionProperties();
+ 
+@@ -2173,6 +2173,51 @@
+ 		}
+ 	}
+ 
++	// Same authored angular law for the single accepted CCD response, before existing writeback.
++	// CCD's cache contains no solved point impulses; this local constraint is the authority.
++	if (inContactSettings.mCombinedSpinResistanceLength != 0.0f || inContactSettings.mCombinedRollingResistanceLength != 0.0f)
++	{
++		ContactResistanceConstraintPart::Properties resistance_properties;
++		if (!ContactResistanceConstraintPart::Prepare(inInvI1, inv_i2, inContactNormal, resistance_properties))
++			return false;
++		ContactResistanceConstraintPart::Accumulator resistance;
++		ContactResistanceObservation observation;
++		ContactResistanceObserver *observer = inContactSettings.mContactResistanceObserver;
++		if (observer != nullptr)
++		{
++			observation.mIsCCD = true;
++			observation.mPointIndex = 0;
++			observation.mManifoldKey = 0; // CCD has one transient accepted response, no persistent point identity.
++			observation.mNormalLambda = contact_constraint.GetTotalLambda();
++			observation.mSpinLength = inContactSettings.mCombinedSpinResistanceLength;
++			observation.mRollingLength = inContactSettings.mCombinedRollingResistanceLength;
++			observation.mNormal = inContactNormal;
++			observation.mBefore[0] = observation.mBefore[1] = observation.mBefore[2] = 0.0;
++			observation.mAngularBefore1 = angular_velocity1;
++			observation.mAngularBefore2 = angular_velocity2;
++		}
++		Vec3 resistance_angular2 = angular_velocity2;
++		const auto response = ContactResistanceConstraintPart::Solve(resistance_properties, inContactNormal,
++			contact_constraint.GetTotalLambda(), inContactSettings.mCombinedSpinResistanceLength,
++			inContactSettings.mCombinedRollingResistanceLength, resistance, angular_velocity1, resistance_angular2);
++		if (!response.mValid)
++			return false;
++		if constexpr (Type2 == EMotionType::Dynamic)
++			angular_velocity2 = resistance_angular2;
++		if (observer != nullptr)
++		{
++			observation.mAfter[0] = resistance.mSpin;
++			observation.mAfter[1] = resistance.mRollingU;
++			observation.mAfter[2] = resistance.mRollingV;
++			observation.mSpinImpulse = response.mSpinImpulse;
++			observation.mRollingImpulse = response.mRollingImpulse;
++			observation.mAngularAfter1 = angular_velocity1;
++			observation.mAngularAfter2 = resistance_angular2;
++			observation.mRootIterations = response.mRootIterations;
++			observer->OnContactResistanceSolved(ioBody1, ioBody2, observation);
++		}
++	}
++
+ 	// Write back velocities
+ 	body_mp->SetLinearVelocityClamped(linear_velocity1);
+ 	body_mp->SetAngularVelocityClamped(angular_velocity1);
+@@ -2182,6 +2227,7 @@
+ 		body2_mp->SetLinearVelocityClamped(linear_velocity2);
+ 		body2_mp->SetAngularVelocityClamped(angular_velocity2);
+ 	}
++	return true;
+ }
+ 
+ void PhysicsSystem::JobResolveCCDContacts(PhysicsUpdateContext *ioContext, PhysicsUpdateContext::Step *ioStep)
+@@ -2300,13 +2346,14 @@
+ 						Vec3 friction_direction = relative_velocity - normal_velocity * ccd_body->mContactNormal;
+ 
+ 						// Dispatch to the correct form
+-						using DispatchFunc = void (*)(Body &, float, Mat44Arg, Vec3Arg, Body &, Vec3Arg, Vec3Arg, float, Vec3Arg, const ContactSettings &);
++						using DispatchFunc = bool (*)(Body &, float, Mat44Arg, Vec3Arg, Body &, Vec3Arg, Vec3Arg, float, Vec3Arg, const ContactSettings &);
+ 						static const DispatchFunc table[3] = {
+ 							sSolveCCDContact<EMotionType::Static>,
+ 							sSolveCCDContact<EMotionType::Kinematic>,
+ 							sSolveCCDContact<EMotionType::Dynamic>
+ 						};
+-						table[(int)body2.GetMotionType()](body1, inv_m1, inv_i1, r1_plus_u, body2, r2, ccd_body->mContactNormal, normal_velocity_bias, friction_direction, contact_settings);
++						if (!table[(int)body2.GetMotionType()](body1, inv_m1, inv_i1, r1_plus_u, body2, r2, ccd_body->mContactNormal, normal_velocity_bias, friction_direction, contact_settings))
++							ioContext->mErrors.fetch_or(uint32(EPhysicsUpdateError::ContactResistanceInvalid), memory_order_relaxed);
+ 					}
+ 					else
+ 					{
+diff --git a/Jolt/Physics/PhysicsSystem.h b/Jolt/Physics/PhysicsSystem.h
+index b244a516079a2a8674e3bbe05fa273ad115e6cdb..d8e92dbab170723bd76c381f36a4968f2370766d 100644
+--- a/Jolt/Physics/PhysicsSystem.h
++++ b/Jolt/Physics/PhysicsSystem.h
+@@ -310,7 +310,7 @@
+ 
+ 	/// Helper function that solves the velocity of a CCD contact
+ 	template <EMotionType Type2>
+-	static void					sSolveCCDContact(Body &ioBody1, float inInvM1, Mat44Arg inInvI1, Vec3Arg inR1PlusU, Body &ioBody2, Vec3Arg inR2, Vec3Arg inContactNormal, float inNormalVelocityBias, Vec3Arg inFrictionDirection, const ContactSettings &inContactSettings);
++	static bool					sSolveCCDContact(Body &ioBody1, float inInvM1, Mat44Arg inInvI1, Vec3Arg inR1PlusU, Body &ioBody2, Vec3Arg inR2, Vec3Arg inContactNormal, float inNormalVelocityBias, Vec3Arg inFrictionDirection, const ContactSettings &inContactSettings);
+ 
+ 	/// Number of constraints to process at once in JobDetermineActiveConstraints
+ 	static constexpr int		cDetermineActiveConstraintsBatchSize = 64;

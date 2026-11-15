@@ -7,6 +7,7 @@
 #include"Component/Component.h"
 #include "Bounds.h"
 #include <cstdint>
+#include <cstddef>
 
 namespace GEngine
 {
@@ -57,6 +58,8 @@ namespace GEngine
 		Vec3f BodySpaceToWorldSpace(const Vec3f& pt) const;
 		Mat3 GetInverseInertiaTensorBodySpace() const;
 		Mat3 GetInverseInertiaTensorWorldSpace() const;
+		// Cached numerical admission, separate from intentional fixed-body zero response.
+		bool HasValidMassProperties() const;
 		const Mat3& GetBodyToWorldRotation() const;
 		const Mat3& GetWorldToBodyRotation() const;
 		const Bounds& GetWorldBounds() const;
@@ -183,6 +186,7 @@ namespace GEngine
 			Mat3 inverseInertiaBody{ 0.0f };
 			std::uint64_t bodyInertiaRevision{};
 			bool bodyInertiaValid{};
+			bool massPropertiesValid{};
 
 			std::uint64_t worldInertiaSourceBodyRevision{};
 			std::uint64_t worldInertiaSourceRotationRevision{};
@@ -197,6 +201,9 @@ namespace GEngine
 			Bounds worldBounds{};
 			bool boundsValid{};
 		};
+		// The new validity bit occupies the pre-existing padding before the
+		// next uint64 cache key; it adds no per-body synchronization storage.
+		static_assert(offsetof(DerivedData,worldInertiaSourceBodyRevision)-offsetof(DerivedData,bodyInertiaValid)==8);
 
 		mutable DerivedData m_DerivedData;
 
@@ -230,6 +237,7 @@ namespace GEngine
 
 		friend class PhysicsWorld;
 		friend class PhysicsSystem;
+        friend class WorldBackend;
 
 	};
 }

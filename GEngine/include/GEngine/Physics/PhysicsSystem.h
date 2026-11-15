@@ -12,15 +12,40 @@
 #include "ShapeCapsule.h"
 #include "Renderer/DebugGeometry.h"
 #include <expected>
+#include <optional>
 #include <memory>
 #include <new>
 #include <type_traits>
 #include <utility>
+#include <chrono>
 
 
 
 namespace GEngine
 {
+#ifdef GENGINE_PHASE26_QUALIFICATION
+    // Isolated observer only: complete Update lifetime, with common parity capture
+    // outside the timing boundary. No ordinary build API/callback is added.
+    namespace Phase26Observation {
+        struct Observer { void* context{}; void (*begin)(void*) noexcept{};
+            void (*end)(void*,std::uint64_t) noexcept{}; };
+        inline thread_local Observer* observer{};
+        inline thread_local bool jointHot{};
+        struct JointScope {
+            bool previous=jointHot;
+            JointScope(){jointHot=true;}
+            ~JointScope(){jointHot=previous;}
+        };
+        class CompleteStep {
+            Observer* sink=observer;
+            std::chrono::steady_clock::time_point start;
+        public:
+            CompleteStep(){if(sink)sink->begin(sink->context);start=std::chrono::steady_clock::now();}
+            ~CompleteStep(){const auto end=std::chrono::steady_clock::now();
+                if(sink)sink->end(sink->context,std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count());}
+        };
+    }
+#endif
 	class RigidBody3D;
 
 	//using namespace Math;
@@ -189,7 +214,17 @@ namespace GEngine
         // Normal Scene callers retain handles and values, never solver pointers.
         [[nodiscard]] PhysicsBodyResult<PhysicsBodyPose> ReadBodyPose(PhysicsBodyHandle) const;
         [[nodiscard]] PhysicsBodyResult<bool> SetBodyPose(PhysicsBodyHandle, const Vec3f&, const Quat&);
-        [[nodiscard]] PhysicsBodyResult<bool> SetBodyScale(PhysicsBodyHandle, const Vec3f&);
+        [[nodiscard]] PhysicsBodyResult<bool> SetBodyScale(PhysicsBodyHandle, const Vec3f&, const Vec3f& referenceScale=Vec3f(1));
+        struct BodyTransformEdit
+        {
+            PhysicsBodyHandle body;
+            Vec3f position{}; Quat rotation{1,0,0,0};
+            std::optional<Vec3f> scale;
+            Vec3f referenceScale{1};
+        };
+        // Bounded owner-thread transaction: prepare every geometry/wake allocation
+        // before touching any body. Commit preserves handles, velocities and joints.
+        [[nodiscard]] PhysicsBodyResult<> SetBodyTransforms(std::span<const BodyTransformEdit>);
         // Explicit runtime collider replacement; unit-scale description becomes the new base.
         [[nodiscard]] PhysicsBodyResult<> ReplaceBodyCollider(PhysicsBodyHandle, const CollisionShapeDesc&);
 #ifdef GENGINE_PHASE24_COLLIDER_VALIDATION
@@ -223,6 +258,8 @@ namespace GEngine
             const CollisionShapeDesc&, std::unique_ptr<PhysicalShape>* preview = nullptr) const;
         [[nodiscard]] ColliderAdmissionReport ReplaceBodyColliderIfNoAddedOverlap(PhysicsBodyHandle, const CollisionShapeDesc&);
         [[nodiscard]] PhysicsBodyResult<ColliderShapeState> ReadBodyCollider(PhysicsBodyHandle) const;
+        // Cold authoring snapshot: owns convex vertices; no borrowed runtime shape escapes.
+        [[nodiscard]] PhysicsBodyResult<CollisionShapeDesc> CopyBodyShapeDescriptor(PhysicsBodyHandle) const;
         static bool CanConfirmColliderRisk(const ColliderAdmissionReport&) noexcept;
         [[nodiscard]] std::expected<ColliderReplacementConfirmation, ColliderAdmissionError>
         PrepareColliderConfirmation(const ColliderAdmissionReport&) const;
@@ -240,6 +277,22 @@ namespace GEngine
         { return AppendColliderGeometry(out, shape, position, orientation, color); }
         std::uint64_t ColliderContextRevision() const { return m_ColliderContextRevision; }
 
+        // Application commands at the existing fixed-tick boundary; never advances a clock.
+        // Installed between updates, cleared before world teardown.
+        void SetBeforeStep(std::function<void(PhysicsWorld&,std::uint64_t)> callback) { m_BeforeStep=std::move(callback); }
+        std::uint64_t GetCompletedSteps() const { return m_CompletedSteps; }
+        std::uint64_t GetJointSolveNanoseconds() const { return m_JointSolveNs; }
+        std::uint64_t GetLastUpdateNanoseconds() const { return m_InclusiveNs; }
+        std::uint64_t GetContactSolveNanoseconds() const { return m_ContactSolveNs; }
+        bool HasJointFailure() const { return m_JointFailure; }
+        const std::optional<PhysicsBodyError>& GetBackendFailure() const noexcept { return m_BackendFailure; }
+#ifdef GENGINE_PHASE26_QUALIFICATION
+        std::size_t QualificationJointStorageBytes() const {
+            return sizeof(m_JointBlock)+sizeof(m_JointEdges)+
+                (m_PhysicsWorld && m_PhysicsWorld->m_Joints?PhysicsWorld::MaxDistanceJoints*sizeof(PhysicsWorld::JointSlot):0);
+        }
+#endif
+
 		static constexpr int MinSolverIterations = 1;
 		static constexpr int MaxSolverIterations = 32;
 		static constexpr int DefaultSolverIterations = 1;
@@ -248,6 +301,7 @@ namespace GEngine
 		// Changes take effect on the next Update; configuration and stepping are single-threaded.
 		bool SetSolverIterations(int iterations) noexcept
 		{
+			if (m_PhysicsWorld && m_PhysicsWorld->GetBackend()==PhysicsBackend::Jolt) return false;
 			if (iterations < MinSolverIterations || iterations > MaxSolverIterations) return false;
 			m_SolverIterations = iterations;
 			return true;
@@ -264,6 +318,8 @@ namespace GEngine
 		// Creation/direct body mutation is reflected at the next Update. This is not a
 		// final-pose/CCD graph. Sleep decisions use its dynamic groups after integration.
 		const std::vector<ContactIsland>& GetContactIslands() const { return m_ContactIslands; }
+
+        bool SupportsContactDiagnostics() const noexcept { return !m_PhysicsWorld || m_PhysicsWorld->GetBackend()==PhysicsBackend::Native; }
 
         struct DebugLayers
         {
@@ -326,6 +382,28 @@ namespace GEngine
                         if (auto r = out.Append({lines.data(), count}); !r) return r;
                     }
                 }
+            if(layers.colliders || layers.bodyAxes) return AppendJointGeometry(out,selected,all);
+            return {};
+        }
+
+        [[nodiscard]] DebugGeometryResult AppendJointGeometry(DebugGeometry& out,
+            std::span<const PhysicsBodyHandle> selected={},bool all=true) const
+        {
+            if(!m_PhysicsWorld) return {};
+            for(std::size_t i=0;i<m_PhysicsWorld->GetJointCount();++i) {
+                auto h=m_PhysicsWorld->JointAt(i); if(!h) return std::unexpected(DebugGeometryCode::InvalidInput);
+                auto j=m_PhysicsWorld->ReadDistanceJoint(*h); if(!j) return std::unexpected(DebugGeometryCode::InvalidInput);
+                if(!all && std::find(selected.begin(),selected.end(),j->descriptor.bodyA)==selected.end() &&
+                    std::find(selected.begin(),selected.end(),j->descriptor.bodyB)==selected.end()) continue;
+                auto a=m_PhysicsWorld->ReadBody(j->descriptor.bodyA),b=m_PhysicsWorld->ReadBody(j->descriptor.bodyB);
+                if(!a || !b)return std::unexpected(DebugGeometryCode::InvalidInput);
+                const bool asleep=(a->inverseMass==0 || a->sleeping) && (b->inverseMass==0 || b->sleeping);
+                const glm::vec4 color=std::abs(j->error)>.005f*j->descriptor.length ? glm::vec4(1,.2f,0,1) :
+                    asleep?glm::vec4(.25f,.5f,1,1):glm::vec4(.2f,1,.2f,1);
+                if(auto r=out.Line(j->worldAnchorA,j->worldAnchorB,color,DebugDepth::Overlay);!r)return r;
+                if(auto r=out.Axes(j->worldAnchorA,a->orientation,.15f);!r)return r;
+                if(auto r=out.Axes(j->worldAnchorB,b->orientation,.15f);!r)return r;
+            }
             return {};
         }
 
@@ -355,6 +433,21 @@ namespace GEngine
 #endif
 
 
+        std::optional<PhysicsBodyError> m_BackendFailure;
+        std::function<void(PhysicsWorld&,std::uint64_t)> m_BeforeStep;
+        std::uint64_t m_CompletedSteps{}, m_JointSolveNs{}, m_InclusiveNs{}, m_ContactSolveNs{};
+        bool m_JointFailure{};
+        std::array<std::array<RigidBodyIdentity,2>,PhysicsWorld::MaxDistanceJoints> m_JointEdges{};
+        std::size_t m_JointEdgeCount{};
+        std::span<const std::array<RigidBodyIdentity,2>> JointEdges();
+        // Reused scalar storage for a banded chain block in the existing solve pass.
+        // No second solver, extra iterations, pose projection or hot allocation.
+        struct JointBlockEntry {
+            DistanceJointRow* row{};
+            double diagonal{}, offDiagonal{}, rhs{}, delta{};
+        };
+        std::array<JointBlockEntry,PhysicsWorld::MaxDistanceJoints> m_JointBlock{};
+        bool SolveDistanceJoints();
 		RigidBody3D* ResolveBody(RigidBodyIdentity identity) const;
 		void WakeConnectedTo(RigidBody3D* body);
 		SleepTimings m_SleepTimings;

@@ -38,13 +38,15 @@ uniform uint geInstanceBase;
         // Appended lanes preserve directional/point offsets. Position.w is range
         // (zero disables); direction.w/color.w are inner/outer cone cosines.
         FloatLane spotPosition{}, spotDirection{}, spotColor{};
+        MatrixWords spotMatrix{};
+        FloatLane spotShadow{};
     };
     static_assert(std::is_standard_layout_v<PackedFrame> && alignof(PackedFrame)==16);
     static_assert(sizeof(MatrixWords)==64 && sizeof(FloatLane)==16);
     static_assert(offsetof(PackedFrame,cascades)==192 && offsetof(PackedFrame,pointMatrices)==1216);
     static_assert(offsetof(PackedFrame,viewPosition)==1600 && offsetof(PackedFrame,lights)==1696);
     static_assert(offsetof(PackedFrame,splits)==1712 && offsetof(PackedFrame,spotPosition)==1968
-        && offsetof(PackedFrame,spotDirection)==1984 && offsetof(PackedFrame,spotColor)==2000 && sizeof(PackedFrame)==2016);
+        && offsetof(PackedFrame,spotDirection)==1984 && offsetof(PackedFrame,spotColor)==2000 && offsetof(PackedFrame,spotMatrix)==2016 && offsetof(PackedFrame,spotShadow)==2080 && sizeof(PackedFrame)==2096);
 
     inline constexpr const char* FrameBlock=R"(
 layout(std140,binding=1) uniform GEngineFrame {
@@ -54,6 +56,8 @@ layout(std140,binding=1) uniform GEngineFrame {
     uvec4 geLights;
     vec4 geSplits[16];
     vec4 geSpotPosition, geSpotDirection, geSpotColor;
+    mat4 geSpotMatrix;
+    vec4 geSpotShadow;
 };
 uniform bool geReceiveShadows;
 )";
@@ -137,6 +141,8 @@ vec3 geTriplanarNormal(sampler2D image, vec3 localPosition, vec3 localNormal,
             {"frameLights","true"},{"frameDirectional","(geLights.x != 0u)"},{"framePoint","(geLights.y != 0u)"},
             {"frameDirectionalShadows","(geLights.z != 0u && geReceiveShadows)"},
             {"framePointShadows","(geLights.w != 0u && geReceiveShadows)"},
+            {"frameSpotShadows","(geSpotShadow.x != 0.0 && geReceiveShadows)"},
+            {"spotLightSpaceMatrix","geSpotMatrix"},{"spotShadowBias","geSpotShadow.y"},{"spotPcfRadius","int(geSpotShadow.z)"},
             {"frameSpot","(geSpotPosition.w > 0.0)"},{"spotPosition","geSpotPosition.xyz"},
             {"spotRange","geSpotPosition.w"},{"spotDirection","geSpotDirection.xyz"},
             {"spotInnerCos","geSpotDirection.w"},{"spotColor","geSpotColor.xyz"},{"spotOuterCos","geSpotColor.w"},

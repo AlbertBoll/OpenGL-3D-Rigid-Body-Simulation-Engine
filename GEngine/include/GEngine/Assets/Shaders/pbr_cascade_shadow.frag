@@ -43,6 +43,29 @@ uniform bool frameDirectionalShadows;
 uniform bool framePointShadows;
 // Default-off for legacy callers; the frame adapter supplies validated typed data.
 uniform bool frameSpot;
+uniform bool frameSpotShadows;
+uniform sampler2D spotShadowMap;
+uniform mat4 spotLightSpaceMatrix;
+uniform float spotShadowBias;
+uniform int spotPcfRadius;
+float SpotVisibility(vec3 world)
+{
+    if(!frameSpotShadows)return 1.0;
+    vec4 clip=spotLightSpaceMatrix*vec4(world,1.0);
+    if(clip.w<=0.0)return 1.0;
+    vec3 p=clip.xyz/clip.w*.5+.5;
+    if(any(lessThan(p,vec3(0))) || any(greaterThan(p,vec3(1))))return 1.0;
+    vec2 texel=1.0/vec2(textureSize(spotShadowMap,0));
+    float visible=0.0;
+    int radius=clamp(spotPcfRadius,0,2);
+    for(int y=-radius;y<=radius;++y)for(int x=-radius;x<=radius;++x) {
+        vec2 uv=p.xy+vec2(x,y)*texel;
+        // Samples outside the cone are unoccluded; never repeat a depth edge.
+        visible+=(any(lessThan(uv,vec2(0))) || any(greaterThan(uv,vec2(1))) ||
+                  p.z-spotShadowBias<=texture(spotShadowMap,uv).r)?1.0:0.0;
+    }
+    return visible/float((radius*2+1)*(radius*2+1));
+}
 uniform vec3 spotPosition;
 uniform vec3 spotDirection;
 uniform vec3 spotColor;
@@ -367,7 +390,7 @@ void main()
     vec3 color = ambient;
     if (!frameLights || framePoint) color += (1 - point_light_shadow) * point_light_Lo;
     if (!frameLights || frameDirectional) color += (1 - cascade_shadow) * directional_light_Lo;
-    if (frameLights && frameSpot) color += SpotContribution(N, V, albedo, metallic, roughness, F0);
+    if (frameLights && frameSpot) color += SpotVisibility(fs_in.FragPos) * SpotContribution(N, V, albedo, metallic, roughness, F0);
     //vec3 color = ambient + point_light_Lo ;//+ directional_light_Lo;
     // HDR tonemapping
     //color = color / (color + vec3(1.0));

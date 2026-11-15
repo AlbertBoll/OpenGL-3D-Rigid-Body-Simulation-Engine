@@ -1,4 +1,5 @@
 #pragma once
+#include "Core/InitializationProgress.h"
 #include <string>
 #include <unordered_map>
 #include <memory>
@@ -80,6 +81,7 @@ namespace GEngine
                 requires std::derived_from<T, Geometry> && std::constructible_from<T, Args...>
             [[nodiscard]] static RegistrationResult __Register(const std::string& shape_name, Args&&... args)
             {
+                if(InitializationProgress::observer)InitializationProgress::Report(InitializationProgress::Stage::Renderer,"Preparing "+shape_name+" geometry");
                 auto shape = _GetShape<T>(shape_name, std::forward<Args>(args)...);
                 if (!shape) return std::unexpected(shape.error());
                 return {};

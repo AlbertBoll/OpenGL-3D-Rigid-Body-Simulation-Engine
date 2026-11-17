@@ -1268,6 +1268,61 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeScene(const Ba
         return ConnectApplicationEventHandlers();
     }
 
+    if (m_ActiveSelection.IsBallSocketScene())
+    {
+        const bool swing=m_ActiveSelection.scene==Rbs::RbsScenePreset::BallSocketSwing;
+        const bool pair=m_ActiveSelection.scene==Rbs::RbsScenePreset::BallSocketPair;
+        if (auto result=CreateGroundAndWalls(assets);!result)return result;
+        std::array<_Entity,2> entities;
+        for(unsigned i=0;i<2;++i) {
+            const char* name=swing?(i==0?"Ball Socket Anchor":"Ball Socket Swing Body"):
+                (i==0?"Ball Socket Body A (1 kg)":"Ball Socket Body B (2 kg)");
+            auto created=CreatePresetEntity(19,name); if(!created)return std::unexpected(created.error());
+            auto entity=*created; entities[i]=entity;
+            const Vec3f position=swing?Vec3f(0,i==0?7.25f:5.f,0):Vec3f(i==0?-1.125f:1.125f,pair?6.f:1.5f,0);
+            entity.AddOrReplaceComponent<Transform3DComponent>(position,Vec3f(0),Vec3f(1));
+            RigidBody3DComponent body; body.Type=swing && i==0?BodyType::Static:BodyType::Dynamic;
+            entity.AddOrReplaceComponent<RigidBody3DComponent>(body);
+            SphereFixture3DComponent fixture; fixture.Radius=1;
+            fixture.Property.m_InvMass=swing?(i==0?0.f:1.f):(i==0?1.f:.5f);
+            fixture.Property.m_Friction=.5f; fixture.Property.m_Elasticity=.5f;
+            fixture.Property.m_LinearVelocity=Vec3f(0); fixture.Property.m_AngularVelocity=Vec3f(0);
+            entity.AddOrReplaceComponent<SphereFixture3DComponent>(fixture);
+            if(auto result=CreateRenderable(entity,assets.smoothSphereGeo,assets.sphereMaterial,"");!result)return result;
+        }
+        if(auto result=CreateEnvironmentHelpers();!result)return result;
+        if(auto result=StartSceneRuntime(authoring);!result)return result;
+        auto* physics=m_ActiveScene->GetPhysicsSystem(); auto* world=physics->GetPhysicsWorld();
+        world->SetGravity(pair?Vec3f(0):Vec3f(0,-12,0));
+        const auto a=m_ActiveScene->GetBodyBinding(entities[0]),b=m_ActiveScene->GetBodyBinding(entities[1]);
+        if(!a || !b)return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"BallSocket","Missing body binding"});
+        for(std::size_t i=0;i<world->GetBodyCount();++i) {
+            auto h=world->BodyAt(i);
+            if(!h || !world->SetBodyMaterial(*h,{.5f,.5f,.05f,.05f}) || !world->SetBodySleepSettings(*h,{.05f,.02f,.5}))
+                return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"BallSocket","Material/sleep settings rejected"});
+        }
+        const Vec3f anchorA=swing?Vec3f(0):Vec3f(1.125f,0,0);
+        const Vec3f anchorB=swing?Vec3f(0,2.25f,0):Vec3f(-1.125f,0,0);
+        const bool connectedContact=m_ActiveSelection.scene==Rbs::RbsScenePreset::BallSocketContactEnabled;
+        if(!world->CreateBallSocketJoint({*a,*b,anchorA,anchorB,connectedContact}))
+            return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"BallSocket","Point joint rejected"});
+        const auto target=swing?*b:*a;
+        m_ChainImpulse.Bind(target,true);
+        physics->SetBeforeStep([this,physics,target,swing](PhysicsWorld& w,std::uint64_t tick) {
+            if(physics->HasJointFailure()) {
+                FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Physics","BallSocket","Update","Phase27","Joint numerical failure"});return;
+            }
+            if(tick==300 && !w.ApplyLinearImpulse(target,swing?Vec3f(.3f,0,.4f):Vec3f(0,0,.5f)))
+                FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Physics","BallSocket","Impulse","Phase27","Impulse rejected"});
+            m_ChainImpulse.Consume(w,m_ActiveScene->IsPaused());
+        });
+        FocusMaterialCamera(m_EditorCamera_,swing?Vec3f(0,5.5f,0):Vec3f(0,pair?6.f:1.5f,0),.25f,-.3f,14.f);
+        m_IsShowDebugBoundingBox=true;
+        Log::GetCoreLogger()->info("RBS point scene={} backend={} bodies={} joints=1 fixedHz=60 kickAfterTick=300",
+            Rbs::SceneName(m_ActiveSelection.scene),PhysicsBackendName(m_Backend),world->GetBodyCount());
+        return ConnectApplicationEventHandlers();
+    }
+
     if (m_ActiveSelection.IsDistanceScene())
     {
         if(!m_ActiveSelection.IsValid())

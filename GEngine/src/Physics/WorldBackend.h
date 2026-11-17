@@ -36,6 +36,8 @@ namespace GEngine
         virtual void DestroyBody(PhysicsBodyHandle) noexcept = 0;
         virtual PhysicsBodyResult<> Step(float, const Vec3f&, bool sleeping) = 0;
         virtual JointResult<> CreateJoint(PhysicsJointHandle, const DistanceJointDesc&) = 0;
+        virtual JointResult<> CreateJoint(PhysicsJointHandle, const BallSocketJointDesc&) = 0;
+        virtual Vec3f JointVectorImpulse(PhysicsJointHandle) const noexcept = 0;
         virtual void DestroyJoint(PhysicsJointHandle) noexcept = 0;
         virtual void ResetJoint(PhysicsJointHandle) noexcept = 0;
         virtual float JointImpulse(PhysicsJointHandle) const noexcept = 0;

@@ -267,7 +267,7 @@ RigidBodySimulationApp::BackendAuthoring::Capture(_Scene& source)
     for(std::size_t i=0;i<world->GetJointCount();++i)
     {
         auto handle=world->JointAt(i);if(!handle)return BackendAuthoringFailure("Invalid joint identity");
-        auto state=world->ReadDistanceJoint(*handle);if(!state)return BackendAuthoringFailure("Invalid joint state");
+        auto state=world->ReadJoint(*handle);if(!state)return BackendAuthoringFailure("Invalid joint state");
         const auto find=[&](PhysicsBodyHandle h){return std::find_if(result.m_Bodies.begin(),result.m_Bodies.end(),[&](const auto& b){return b.m_Old==h;});};
         auto a=find(state->descriptor.bodyA),b=find(state->descriptor.bodyB);
         if(a==result.m_Bodies.end() || b==result.m_Bodies.end())return BackendAuthoringFailure("Joint endpoint has no authored body");
@@ -333,7 +333,7 @@ ApplicationInitializationResult RigidBodySimulationApp::BackendAuthoring::ApplyA
         auto b=target.GetBodyBinding(_Entity{joint.m_B,&target});
         if(!a || !b)return BackendAuthoringFailure("Replacement joint endpoint is unavailable");
         auto desc=joint.m_Desc;desc.bodyA=*a;desc.bodyB=*b;
-        if(!world->CreateDistanceJoint(desc))return BackendAuthoringFailure("Replacement distance joint was rejected");
+        if(!world->CreateJoint(desc))return BackendAuthoringFailure("Replacement distance joint was rejected");
     }
     return {};
 }

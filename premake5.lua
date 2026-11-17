@@ -702,6 +702,22 @@ project "Breakout"
 		buildoptions { "/bigobj" }
 	filter {}
 
+	-- Only these measured consumers use the stable-library PCH. New C++ files
+	-- remain opted out until their build and qualification coverage is established.
+	filter { "action:vs2022", "system:windows" }
+		pchheader "RbsPch.h"
+		pchsource "RigidBodySimulation/src/RbsPch.cpp"
+	filter { "action:vs2022", "system:windows", "files:**.cpp" }
+		flags { "NoPCH" }
+	for _, name in ipairs({ "RbsEditorViews", "RbsResources", "RbsStartup", "RigidBodySimulation" }) do
+		filter { "action:vs2022", "system:windows", "files:**/" .. name .. ".cpp" }
+			removeflags { "NoPCH" }
+			forceincludes { "RbsPch.h" }
+	end
+	filter { "action:vs2022", "system:windows", "files:**/RbsPch.cpp" }
+		removeflags { "NoPCH" }
+	filter {}
+
 	targetdir(tdir)
 	objdir(odir)
 

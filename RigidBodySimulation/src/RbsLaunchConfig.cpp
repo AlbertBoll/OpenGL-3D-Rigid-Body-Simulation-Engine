@@ -80,6 +80,10 @@ namespace Rbs
         case RbsScenePreset::DistancePendulum:return "distance-pendulum";
         case RbsScenePreset::DistanceChain:return "distance-chain";
         case RbsScenePreset::DistanceChainContact:return "distance-chain-contact";
+        case RbsScenePreset::BallSocketSwing:return "ball-socket-s";
+        case RbsScenePreset::BallSocketPair:return "ball-socket-p";
+        case RbsScenePreset::BallSocketContact:return "ball-socket-g";
+        case RbsScenePreset::BallSocketContactEnabled:return "ball-socket-g-contact";
         }
         return "invalid";
     }
@@ -104,7 +108,8 @@ namespace Rbs
                 sceneSeen=true; bool found=false;
                 for(auto scene:{RbsScenePreset::GeometryGallery,RbsScenePreset::SphereDiamond,
                     RbsScenePreset::SphereLattice,RbsScenePreset::BoxStack,RbsScenePreset::SphereBoxStack,
-                    RbsScenePreset::DistancePendulum,RbsScenePreset::DistanceChain,RbsScenePreset::DistanceChainContact})
+                    RbsScenePreset::DistancePendulum,RbsScenePreset::DistanceChain,RbsScenePreset::DistanceChainContact,
+                    RbsScenePreset::BallSocketSwing,RbsScenePreset::BallSocketPair,RbsScenePreset::BallSocketContact,RbsScenePreset::BallSocketContactEnabled})
                     if(value==SceneName(scene)) { launch.scene=scene; found=true; break; }
                 if(!found)return std::unexpected("Unknown or unimplemented scene preset");
             } else if(option=="--links" && !linksSeen) {

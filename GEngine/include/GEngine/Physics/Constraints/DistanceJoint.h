@@ -5,6 +5,7 @@
 
 namespace GEngine
 {
+    enum class JointKind { Distance, BallSocket };
     struct PhysicsJointTag;
     using PhysicsJointHandle = Asset::AssetHandle<PhysicsJointTag>;
     struct DistanceJointDesc
@@ -17,7 +18,7 @@ namespace GEngine
     enum class JointErrorCode
     {
         InvalidHandle, WrongWorld, StaleHandle, Access, InvalidEndpoint,
-        InvalidGeometry, NoResponse, Capacity, Allocation, NonFinite
+        InvalidGeometry, NoResponse, Capacity, Allocation, NonFinite, WrongKind
     };
     struct JointError { JointErrorCode code; PhysicsJointHandle joint{}; std::string_view operation; };
     template<class T = void> using JointResult = std::expected<T, JointError>;

@@ -1,0 +1,959 @@
+{
+  "baseline": "f0d6b2557995d5476c676260f7626429f587075a",
+  "branch": "pre-editor/refactor",
+  "checkpoint_files": [
+    "GEngine/include/GEngine/Assets/Images/Editor/Scenes/ball-socket-g-contact.png",
+    "GEngine/include/GEngine/Assets/Images/Editor/Scenes/ball-socket-g.png",
+    "GEngine/include/GEngine/Assets/Images/Editor/Scenes/ball-socket-p.png",
+    "GEngine/include/GEngine/Assets/Images/Editor/Scenes/ball-socket-s.png",
+    "GEngine/include/GEngine/Physics/Constraints/BallSocketJoint.cpp",
+    "GEngine/include/GEngine/Physics/Constraints/BallSocketJoint.h",
+    "GEngine/include/GEngine/Physics/Constraints/DistanceJoint.h",
+    "GEngine/include/GEngine/Physics/PhysicsSystem.cpp",
+    "GEngine/include/GEngine/Physics/PhysicsSystem.h",
+    "GEngine/include/GEngine/Physics/PhysicsWorld.cpp",
+    "GEngine/include/GEngine/Physics/PhysicsWorld.h",
+    "GEngine/src/Physics/JoltBackend.cpp",
+    "GEngine/src/Physics/WorldBackend.h",
+    "RigidBodySimulation/include/RbsLaunchConfig.h",
+    "RigidBodySimulation/include/RbsPch.h",
+    "RigidBodySimulation/include/RigidBodySimulation.h",
+    "RigidBodySimulation/src/RbsEditorUi.cpp",
+    "RigidBodySimulation/src/RbsFrame.cpp",
+    "RigidBodySimulation/src/RbsLaunchConfig.cpp",
+    "RigidBodySimulation/src/RbsPch.cpp",
+    "RigidBodySimulation/src/RbsScene.cpp",
+    "RigidBodySimulation/src/RbsUi.cpp",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "RigidBodySimulation/tests/BallSocketJointChecks.h",
+    "pre-editor-checkpoints/phase-27.json",
+    "premake5.lua",
+    "tools/postbuild.py",
+    "tools/pre_editor_phase27_qualification.py",
+    "tools/runtime_assets.json"
+  ],
+  "eligible": true,
+  "findings": [],
+  "local_governance": [
+    "docs/pre_editor/active/BUILD_PERFORMANCE_REMEDIATION_ACCEPTANCE_01.json",
+    "docs/pre_editor/active/BUILD_PERFORMANCE_SELECTIVE_PCH_ADMISSION_01.json",
+    "docs/pre_editor/active/MILESTONE_C_ROADMAP_ACTIVATION_01.json",
+    "docs/pre_editor/active/OUTPUT_PATHS.json",
+    "docs/pre_editor/active/PHASE_18_PLUS_ARTIFACT_RETENTION.json",
+    "docs/pre_editor/active/PHASE_18_PLUS_MINIMUM_SUFFICIENT_VALIDATION.md",
+    "docs/pre_editor/active/PHASE_18_PLUS_MSV_ACTIVATION.json",
+    "docs/pre_editor/active/PHASE_26_ENTRY_ACCEPTANCE_01.json",
+    "docs/pre_editor/active/PHASE_26_GAME_QUALITY_ENTRY_REVIEW_01.md",
+    "docs/pre_editor/active/PHASE_26_OD08_GAME_QUALITY_AMENDMENT_01.json",
+    "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/ACCEPTANCE_GATES.json",
+    "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/ACTIVATION.json",
+    "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/AMENDMENT.md",
+    "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/MANIFEST.json",
+    "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/OWNER_ACCEPTANCE.md",
+    "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/VALIDATION_CONTRACTS.md",
+    "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/phases/PHASE_27.md",
+    "docs/pre_editor/active/PHASE_27_APPROVAL_BLOCKER_CLOSURE_01.md",
+    "docs/pre_editor/active/PHASE_27_BUILD_PROFILE_OUTPUT_PATHS_01.json",
+    "docs/pre_editor/active/PHASE_27_ENTRY_ACCEPTANCE_01.json",
+    "docs/pre_editor/active/PHASE_27_FINAL_APPROVAL_REVIEW_01.md",
+    "docs/pre_editor/active/PHASE_27_G_CONTACT_VISUAL_ACCEPTANCE_01.json",
+    "docs/pre_editor/active/PHASE_27_G_CONTACT_VISUAL_AMENDMENT_REVIEW_01.md",
+    "docs/pre_editor/active/PHASE_27_JOLT_ARENA_ACCEPTANCE_01.json",
+    "docs/pre_editor/active/PHASE_27_NATIVE_GC_REMEDIATION_AUTHORIZATION_01.json",
+    "docs/pre_editor/active/PHASE_27_PRESENTATION_CLEANUP_AUTHORIZATION_01.json",
+    "docs/pre_editor/active/PHASE_27_SEAL_CLASSIFICATION_CORRECTION_01.md",
+    "docs/pre_editor/active/PHASE_27_THUMBNAILS_ACCEPTANCE_01.json",
+    "docs/pre_editor/active/PHASE_27_THUMBNAIL_TEXT_CLEANUP_REVIEW_01.md",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/OWNER_CLARIFICATIONS.md",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/RBS_SCENE_PRESET_DESIGN.md",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/SEVEN_PHASE_TECHNICAL_PLAN.md",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/VALIDATION_CONTRACTS.md",
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_27.md",
+    "logs/pre_editor/phase-27/approval-blocker-closure-01/INCOMPLETE.json",
+    "logs/pre_editor/phase-27/approval-blocker-closure-01/contract-pins.json",
+    "logs/pre_editor/phase-27/approval-blocker-closure-01/debug-build-admission.json",
+    "logs/pre_editor/phase-27/approval-blocker-closure-01/debug-build-result.json",
+    "logs/pre_editor/phase-27/approval-blocker-closure-01/editor-coverage.json",
+    "logs/pre_editor/phase-27/approval-blocker-closure-01/final-candidate-identities.json",
+    "logs/pre_editor/phase-27/approval-blocker-closure-01/input-reuse.json",
+    "logs/pre_editor/phase-27/approval-blocker-closure-01/owner-acceptance.json",
+    "logs/pre_editor/phase-27/approval-blocker-closure-01/ui-access-preflight.json",
+    "logs/pre_editor/phase-27/build-performance-optimization-phase2/selective-pch-01/generated-selective-proof.json",
+    "logs/pre_editor/phase-27/build-performance-optimization-phase2/selective-pch-01/input-closure-proof.json",
+    "logs/pre_editor/phase-27/build-performance-optimization-phase2/selective-pch-01/preservation-and-output-proof.json",
+    "logs/pre_editor/phase-27/build-performance-optimization-phase2/selective-pch-01/startup-results-corrected.json",
+    "logs/pre_editor/phase-27/build-performance-remediation-01/final-input-and-preservation-verification.json",
+    "logs/pre_editor/phase-27/candidate-15/INCOMPLETE.json",
+    "logs/pre_editor/phase-27/final-approval-01/READY.json",
+    "logs/pre_editor/phase-27/final-approval-01/checkpoint-spec.json",
+    "logs/pre_editor/phase-27/final-approval-01/contract-comparison.json",
+    "logs/pre_editor/phase-27/final-approval-01/gate-coverage.json",
+    "logs/pre_editor/phase-27/final-approval-01/input-comparison.json",
+    "logs/pre_editor/phase-27/final-approval-01/manifest.json",
+    "logs/pre_editor/phase-27/final-approval-01/owner-final-acceptance.json",
+    "logs/pre_editor/phase-27/final-approval-01/source-membership-and-scope.json",
+    "logs/pre_editor/phase-27/gc-contact-01/debug-lifecycle-result.json",
+    "logs/pre_editor/phase-27/runtime-frame-spike-followup-01/build-02/build-proof.json",
+    "logs/pre_editor/phase-27/runtime-frame-spike-followup-01/preservation-and-validation.json",
+    "logs/pre_editor/phase-27/sdl-swap-interval-cpu-ab-01/preservation-and-validation.json",
+    "logs/pre_editor/phase-27/seal-classification-correction-01/checkpoint-spec.corrected.json",
+    "logs/pre_editor/phase-27/seal-classification-correction-01/classification-correction.json",
+    "logs/pre_editor/phase-27/seal-classification-correction-01/failed-checkpoint-spec.original.json",
+    "logs/pre_editor/phase-27/seal-classification-correction-01/identity-and-gate-verification.json",
+    "logs/pre_editor/phase-27/seal-classification-correction-01/owner-authorization.json",
+    "logs/pre_editor/phase-27/seal-classification-correction-01/post-attempt-unclassified-paths.json",
+    "logs/pre_editor/phase-27/seal-classification-correction-01/prior-failure.json",
+    "logs/pre_editor/phase-27/seal-classification-correction-01/seal-attempt.json",
+    "logs/pre_editor/phase-27/seal-classification-correction-01/seal-result.json",
+    "logs/pre_editor/phase-27/thumbnail-text-cleanup-01/capture-01/inputs.json",
+    "logs/pre_editor/phase-27/thumbnail-text-cleanup-01/capture-01/result.json",
+    "logs/pre_editor/phase-27/thumbnail-text-cleanup-01/image-comparison.json",
+    "logs/pre_editor/phase-27/thumbnail-text-cleanup-01/verification.json",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/REFACTOR_STATE.before.md",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/acceptance-reuse.json",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/checkpoint-spec.corrected.json",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/conditional-configuration-preview.json",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/configuration-change.json",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/exact-paths.exclude",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/git-config.before",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/git-index-membership.before.raw",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/git-status.after.raw",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/git-status.before.raw",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/git-visibility.config",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/gitignore.before",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/info-exclude.before",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/input-and-gate-verification.json",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/owner-authorization.json",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/ownership-decisions.json",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/preservation-before.json",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/remediation-verification.json",
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/run-once.py"
+  ],
+  "next_phase": "28",
+  "owner_mutable_after_seal": {
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "blob": "5b9c40d34c5b4303d0a89e89071fbbb07b0bab68",
+      "blob_ref": "refs/pre-editor-seals/132ea79b7cc6541e/phase-27/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/5b9c40d34c5b4303d0a89e89071fbbb07b0bab68",
+      "fingerprint": {
+        "executable": null,
+        "sha256": "25ba3d417dd945d6fe1e9afde0796599b14f2fbfe9c806281a0a4a18f70fd876"
+      },
+      "mode": "100644",
+      "validated_blob": "5b9c40d34c5b4303d0a89e89071fbbb07b0bab68",
+      "validated_blob_ref": "refs/pre-editor-seals/132ea79b7cc6541e/phase-27/5b23dad24600999935e476c2785e1f68b0932e7580eb2bc87481dc196a1655c1/5b9c40d34c5b4303d0a89e89071fbbb07b0bab68"
+    }
+  },
+  "phase": "27",
+  "previous_approved_tag": "pre-editor-phase-26-approved",
+  "protected_files": [
+    ".agents/skills/pre-editor-phase-approval/SKILL.md",
+    ".agents/skills/pre-editor-phase-execution/SKILL.md",
+    ".agents/skills/pre-editor-phase-rejection/SKILL.md",
+    ".codex/tools/rendering_checkpoint.py",
+    "AGENTS.md",
+    "GEngine/include/GEngine/Core/FrameSpikeCapture.h",
+    "GEngine/src/Core/BaseApp.cpp",
+    "GEngine/src/Renderer/FrameScheduler.cpp",
+    "GEngine/src/Scene/_Scene.cpp",
+    "GEngine/src/Windows/SDLWindow.cpp",
+    "RigidBodySimulation/src/RbsEditorViews.cpp",
+    "RigidBodySimulation/tests/Phase26EntryBootstrap.cpp",
+    "RigidBodySimulation/tests/Phase26EntryFrame.cpp",
+    "RigidBodySimulation/tests/RestingContactDiagnosis.h",
+    "docs/pre_editor/active/PUBLICATION_GRANT_MILESTONE_C_01.json",
+    "docs/pre_editor/active/PUBLICATION_POLICY.json",
+    "tools/pre_editor_phase26_entry_diagnostic.py"
+  ],
+  "remote": "origin",
+  "review": "docs/pre_editor/active/PHASE_27_FINAL_APPROVAL_REVIEW_01.md",
+  "schema": 2,
+  "summary": "Ball-and-socket joints with Native/Jolt support and ordinary RBS S/P/G/G_C Editor integration; final thumbnails and selective PCH; all mandatory gates and actual final Owner acceptance complete.",
+  "validation": [
+    {
+      "check": "A_PHYSICS",
+      "command": "Reuse matching scoped evidence and actual Owner ordinary runtime observations as individually recorded; no new campaign",
+      "evidence": "logs/pre_editor/phase-27/final-approval-01/gate-coverage.json",
+      "evidence_kind": "REUSED_AUTOMATIC",
+      "result": "PASS",
+      "reuse": true
+    },
+    {
+      "check": "B_SAFETY",
+      "command": "Reuse matching scoped evidence and actual Owner ordinary runtime observations as individually recorded; no new campaign",
+      "evidence": "logs/pre_editor/phase-27/final-approval-01/gate-coverage.json",
+      "evidence_kind": "REUSED_AUTOMATIC_AND_AFFECTED_BUILD",
+      "result": "PASS",
+      "reuse": true
+    },
+    {
+      "check": "C_COST",
+      "command": "Reuse matching scoped evidence and actual Owner ordinary runtime observations as individually recorded; no new campaign",
+      "evidence": "logs/pre_editor/phase-27/final-approval-01/gate-coverage.json",
+      "evidence_kind": "REUSED_AUTOMATIC",
+      "result": "PASS",
+      "reuse": true
+    },
+    {
+      "check": "D_EDITOR",
+      "command": "Reuse matching scoped evidence and actual Owner ordinary runtime observations as individually recorded; no new campaign",
+      "evidence": "logs/pre_editor/phase-27/final-approval-01/gate-coverage.json",
+      "evidence_kind": "REUSED_AUTOMATIC_AND_ACTUAL_OWNER_RUNTIME",
+      "result": "PASS",
+      "reuse": true
+    },
+    {
+      "check": "E_INTERACTION",
+      "command": "Reuse matching scoped evidence and actual Owner ordinary runtime observations as individually recorded; no new campaign",
+      "evidence": "logs/pre_editor/phase-27/final-approval-01/gate-coverage.json",
+      "evidence_kind": "REUSED_AUTOMATIC_AND_ACTUAL_OWNER_RUNTIME",
+      "result": "PASS",
+      "reuse": true
+    },
+    {
+      "check": "F_OWNER",
+      "command": "Record actual Owner final manual observations and retained APPROVE; no automated GUI run",
+      "evidence": "logs/pre_editor/phase-27/final-approval-01/gate-coverage.json",
+      "evidence_kind": "ACTUAL_OWNER_MANUAL",
+      "result": "PASS",
+      "reuse": false
+    }
+  ],
+  "validation_input_hashes": {
+    ".agents/skills/pre-editor-phase-approval/SKILL.md": {
+      "executable": null,
+      "sha256": "c13ae9d64a3fbbff4321ea3324c526fe6324229cd53ad91c4e8e116158960af6"
+    },
+    ".agents/skills/pre-editor-phase-execution/SKILL.md": {
+      "executable": null,
+      "sha256": "8bc8b88fa0b2b7d30bec69e131edf4abf564394a6531642f3dca6103b4605f8e"
+    },
+    "AGENTS.md": {
+      "executable": null,
+      "sha256": "c139c494aee231ec2011c26ca622f81840202a589c8a1a1e74c90ebe98d3c669"
+    },
+    "GEngine/GEngine.vcxproj": {
+      "executable": null,
+      "sha256": "745ad87a373a4bcc1c7e8eff6440614121c6054d5df672f80e31b6546e0377a1"
+    },
+    "GEngine/include/GEngine/Assets/Images/Editor/Scenes/ball-socket-g-contact.png": {
+      "executable": null,
+      "sha256": "5c2e5070bea91f905363338d0f67850ba3aad5c529dc55c691cd49d488c1f8f8"
+    },
+    "GEngine/include/GEngine/Assets/Images/Editor/Scenes/ball-socket-g.png": {
+      "executable": null,
+      "sha256": "5c2e5070bea91f905363338d0f67850ba3aad5c529dc55c691cd49d488c1f8f8"
+    },
+    "GEngine/include/GEngine/Assets/Images/Editor/Scenes/ball-socket-p.png": {
+      "executable": null,
+      "sha256": "e0954821b6d5d8fa529b981c40037bcc121b68df067ca15d9797a999794c8d27"
+    },
+    "GEngine/include/GEngine/Assets/Images/Editor/Scenes/ball-socket-s.png": {
+      "executable": null,
+      "sha256": "df62820b4ade57f31409143bf0b28e02848d29b1c4ce99dbb8fe950ae8196e61"
+    },
+    "GEngine/include/GEngine/Core/FrameSpikeCapture.h": {
+      "executable": null,
+      "sha256": "0092c71b6f62b221f2b21deb45c5e07953ae78f5950d3f14d368a164886c3968"
+    },
+    "GEngine/include/GEngine/Physics/Constraints/BallSocketJoint.cpp": {
+      "executable": null,
+      "sha256": "ec71b1da9c4f12405c0fbebd5fd50ef5bc13fa9c2cd0cd7c85571ab96936cac0"
+    },
+    "GEngine/include/GEngine/Physics/Constraints/BallSocketJoint.h": {
+      "executable": null,
+      "sha256": "ba05fe6cd6993357fca887b0819a0a5852420bd45d13fdf8b84cdadaca7caaad"
+    },
+    "GEngine/include/GEngine/Physics/Constraints/DistanceJoint.h": {
+      "executable": null,
+      "sha256": "c9a983307eaac81f2c36a4c5ad42b2bc01ffb8aba9aba832180139cf2678203a"
+    },
+    "GEngine/include/GEngine/Physics/PhysicsSystem.cpp": {
+      "executable": null,
+      "sha256": "ba20fcb9cd53538d9cb22e394b88f2fd5233b5255a41ea6339f46721c97d32b8"
+    },
+    "GEngine/include/GEngine/Physics/PhysicsSystem.h": {
+      "executable": null,
+      "sha256": "33153278d9b241dbd8463cd844359aefadba8461a62a59faed037f5f7b89f0d3"
+    },
+    "GEngine/include/GEngine/Physics/PhysicsWorld.cpp": {
+      "executable": null,
+      "sha256": "ebb49c58c61c242fed936301d8de4d8a58cdda5e8ab7e60258dbba044d45017d"
+    },
+    "GEngine/include/GEngine/Physics/PhysicsWorld.h": {
+      "executable": null,
+      "sha256": "199f1590a92d94ce3c5beeb7a0dd33580022de23ec57f79c6546dc6b37bc13b1"
+    },
+    "GEngine/src/Core/BaseApp.cpp": {
+      "executable": null,
+      "sha256": "480d0dbbdf3cd6c75c525bc3515f2a16a5b7dfb3ed05eaaaabdfada27de89c2a"
+    },
+    "GEngine/src/Physics/EditorPlacement.inl": {
+      "executable": null,
+      "sha256": "118170aa9f3a5645cd45b9fb9d18757ae0317cc081e188ca09544812c7208240"
+    },
+    "GEngine/src/Physics/JoltBackend.cpp": {
+      "executable": null,
+      "sha256": "b48739820dc1ea7664cc2fc7e0a0c60b8b60b5d3daf6b35658a6fab79cf61e2e"
+    },
+    "GEngine/src/Physics/WorldBackend.h": {
+      "executable": null,
+      "sha256": "550a24ca87accb5b4a23f90be4077114a5e0707f790023d0210e0bf98c6f099c"
+    },
+    "GEngine/src/Renderer/FrameScheduler.cpp": {
+      "executable": null,
+      "sha256": "8f5d5c976b2242082691458c416d4f786d5451415fb9a15909225901372d0d32"
+    },
+    "GEngine/src/Scene/_Scene.cpp": {
+      "executable": null,
+      "sha256": "8ffd091c8308b3c1463ec799d98cf493689a043935b4f500e4fe16cae32fd8d3"
+    },
+    "GEngine/src/Windows/SDLWindow.cpp": {
+      "executable": null,
+      "sha256": "bfdbc2cc54e0175302a5366c8c285d1e29c37c16af11be2fa8cedd556905f449"
+    },
+    "RigidBodySimulation/RigidBodySimulation.vcxproj": {
+      "executable": null,
+      "sha256": "c3ac6dcda21bc2fb8824d4a4fe71e62e08ed95af7715c79d4976a07148e11fe5"
+    },
+    "RigidBodySimulation/RigidBodySimulation.vcxproj.filters": {
+      "executable": null,
+      "sha256": "53feae9eb01b6042ce251156d1047efc8539ef88a57b5628927cf21cb40982c3"
+    },
+    "RigidBodySimulation/include/RbsLaunchConfig.h": {
+      "executable": null,
+      "sha256": "1f56f62632874c1e1e4459d2ff598c004ffe426e8b18fb0ced53b94aac66e310"
+    },
+    "RigidBodySimulation/include/RbsPch.h": {
+      "executable": null,
+      "sha256": "560e7fa8708634bcd2e3169d3fa841a1187f4d30e608ea3a6cc04458b0a0331b"
+    },
+    "RigidBodySimulation/include/RigidBodySimulation.h": {
+      "executable": null,
+      "sha256": "705923ab6a9b3b60252da71690aaaedf8fe4bbd5f0901c3bcc393a940982fe76"
+    },
+    "RigidBodySimulation/postbuild.py": {
+      "executable": null,
+      "sha256": "d0d0fd0382fd599f06d0a2751187d6d744493ab50dde121a6240790b30fd17a4"
+    },
+    "RigidBodySimulation/src/RbsEditorUi.cpp": {
+      "executable": null,
+      "sha256": "fbb3dd8ed1c5999ec802cf871aff9298d4e29e7d12ddfe1b81d7ae3d2023ab71"
+    },
+    "RigidBodySimulation/src/RbsEditorViews.cpp": {
+      "executable": null,
+      "sha256": "be1a1c43ab40ff9f4e880a1b2b75fdaaad3394dd5a8304e67be4968e69f4f3c6"
+    },
+    "RigidBodySimulation/src/RbsFrame.cpp": {
+      "executable": null,
+      "sha256": "e5af5550b97d70536039283c47283e72367fbfe1b1945eaf4a873e79edfe230f"
+    },
+    "RigidBodySimulation/src/RbsLaunchConfig.cpp": {
+      "executable": null,
+      "sha256": "c78d672f8fe8f518aa4102f7eccb22e4a6436c33f19097ab17542462f3cc4218"
+    },
+    "RigidBodySimulation/src/RbsPch.cpp": {
+      "executable": null,
+      "sha256": "a3747bb12cc6e019ef5bf66d9eee080dc92304faac541b01c379ca42a0474da8"
+    },
+    "RigidBodySimulation/src/RbsResources.cpp": {
+      "executable": null,
+      "sha256": "ce99413bfc6e87c8fa3b610691f87dabd3d36732b810090b127ea8f0f28e858e"
+    },
+    "RigidBodySimulation/src/RbsScene.cpp": {
+      "executable": null,
+      "sha256": "ac5214a905c652ad7c1fbe04251472bcfe8bcc9deed2f3928287df1cf352aaf9"
+    },
+    "RigidBodySimulation/src/RbsStartup.cpp": {
+      "executable": null,
+      "sha256": "e6e575ba3d0189a360e2bc33928332f44be67c973a70254fa59a062b65124437"
+    },
+    "RigidBodySimulation/src/RbsUi.cpp": {
+      "executable": null,
+      "sha256": "8a8e26524e27c1264d28ff66f3f45fc62f15a37351dfe3ebf37c847555354a3a"
+    },
+    "RigidBodySimulation/src/RbsValidation.cpp": {
+      "executable": null,
+      "sha256": "78cd8c8df5c2a067b65736f54d602f0bd85e0fbaf7e2ab03bdb52ad27d2e9c52"
+    },
+    "RigidBodySimulation/src/RbsViewportToolbar.cpp": {
+      "executable": null,
+      "sha256": "5b1812135a90d60e73ab6ecb23b11ac936de37b8d701c48a3c2d1e08e65504e8"
+    },
+    "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+      "executable": null,
+      "sha256": "25ba3d417dd945d6fe1e9afde0796599b14f2fbfe9c806281a0a4a18f70fd876"
+    },
+    "RigidBodySimulation/src/main.cpp": {
+      "executable": null,
+      "sha256": "b7c7659aaf64116d82420992b418e8615e9d73d8afcd228f948756a9f97830b5"
+    },
+    "RigidBodySimulation/tests/BallSocketJointChecks.h": {
+      "executable": null,
+      "sha256": "007ca396091944f2d968ed113ec88695d759dfac1e36062d578c19f0668453c2"
+    },
+    "RigidBodySimulation/tests/LaunchConfigChecks.h": {
+      "executable": null,
+      "sha256": "eee78486616a432e56d78a3470d1a68eafdae8aeef8133fc137c788e7e161390"
+    },
+    "RigidBodySimulation/tests/RestingContactDiagnosis.h": {
+      "executable": null,
+      "sha256": "16f290e9461f7c4f521d9b1db20863dfaebf5f5ac2c9ccb11e0e4c426b01c386"
+    },
+    "bin/Debug/RigidBodySimulation/SDL2.dll": {
+      "executable": null,
+      "sha256": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9"
+    },
+    "bin/Debug/RigidBodySimulation/SDL2_ttf.dll": {
+      "executable": null,
+      "sha256": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c"
+    },
+    "bin/Debug/RigidBodySimulation/assimp-vc140-mt.dll": {
+      "executable": null,
+      "sha256": "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b"
+    },
+    "bin/Debug/RigidBodySimulation/assimp.dll": {
+      "executable": null,
+      "sha256": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4"
+    },
+    "bin/Debug/RigidBodySimulation/fmod64.dll": {
+      "executable": null,
+      "sha256": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1"
+    },
+    "bin/Debug/RigidBodySimulation/fmodL64.dll": {
+      "executable": null,
+      "sha256": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94"
+    },
+    "bin/Debug/RigidBodySimulation/fmodstudio64.dll": {
+      "executable": null,
+      "sha256": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5"
+    },
+    "bin/Debug/RigidBodySimulation/fmodstudioL64.dll": {
+      "executable": null,
+      "sha256": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737"
+    },
+    "bin/Debug/RigidBodySimulation/libfreetype-6.dll": {
+      "executable": null,
+      "sha256": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80"
+    },
+    "bin/Debug/RigidBodySimulation/zlib1.dll": {
+      "executable": null,
+      "sha256": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b"
+    },
+    "bin/Release/RigidBodySimulation/SDL2.dll": {
+      "executable": null,
+      "sha256": "74889602f25135db1489529dc0a5170f65fc756886b744aa6a414529b8abd3d9"
+    },
+    "bin/Release/RigidBodySimulation/SDL2_ttf.dll": {
+      "executable": null,
+      "sha256": "16a65ee938e56f1a0e80898d97e94403c221e81e3108918ada47273bf3bf820c"
+    },
+    "bin/Release/RigidBodySimulation/assimp-vc140-mt.dll": {
+      "executable": null,
+      "sha256": "eb1afc667fc94b961be3a3c058960cbbedbcdf6d850fbb9395b22771e3f7411b"
+    },
+    "bin/Release/RigidBodySimulation/assimp-vc143-mt.dll": {
+      "executable": null,
+      "sha256": "dbf51a23c4968c208eccb207930b5433b74b45a7d1d6facf18a389980263ed8b"
+    },
+    "bin/Release/RigidBodySimulation/assimp-vc143-mtd.dll": {
+      "executable": null,
+      "sha256": "b02604b9a215039beffea61d2b9d5012c7cc435cd97464e3fa548feb3ab12ea1"
+    },
+    "bin/Release/RigidBodySimulation/assimp.dll": {
+      "executable": null,
+      "sha256": "09176054e9469c1fc2dd51cb0b7d18f4e2cfe6bebd30834f0c5dce819f6e23d4"
+    },
+    "bin/Release/RigidBodySimulation/fmod64.dll": {
+      "executable": null,
+      "sha256": "96c7d7dc05eb3324083271f3cfb3b93c76ff92ecf6961d58ba216614e74b53a1"
+    },
+    "bin/Release/RigidBodySimulation/fmodL64.dll": {
+      "executable": null,
+      "sha256": "9511197fcbc2f199dea44eb9cda228d8cad6b4e7e9ab4031ea3696ee01cd5d94"
+    },
+    "bin/Release/RigidBodySimulation/fmodstudio64.dll": {
+      "executable": null,
+      "sha256": "accd24cbd51312d4c9fd1ebe62a7a97781e58a179f67aa3feee8445d379270b5"
+    },
+    "bin/Release/RigidBodySimulation/fmodstudioL64.dll": {
+      "executable": null,
+      "sha256": "ab0f1e23d28a9fd6a9850d587b0ffcbd4087c0ac06c5d4c733699fe4d594e737"
+    },
+    "bin/Release/RigidBodySimulation/libfreetype-6.dll": {
+      "executable": null,
+      "sha256": "9eb70b7221893f4c7c3c8ff2a077a2929bcc524317d10042fd408bc71bc33f80"
+    },
+    "bin/Release/RigidBodySimulation/zlib1.dll": {
+      "executable": null,
+      "sha256": "4c121adc6b449c21c375880ee41a60c334ae11b1037c36425d6fac2d35a1315b"
+    },
+    "docs/pre_editor/VALIDATION_CONTRACTS.md": {
+      "executable": null,
+      "sha256": "c1e1fef342daa960bd802c992426aab9434c7135089651be035bf8048ccd61cc"
+    },
+    "docs/pre_editor/active/BUILD_PERFORMANCE_REMEDIATION_ACCEPTANCE_01.json": {
+      "executable": null,
+      "sha256": "6064c06b5bba868731ee2a56fa4a504990a86e7a06720329cc536ff85c0b2cbf"
+    },
+    "docs/pre_editor/active/BUILD_PERFORMANCE_SELECTIVE_PCH_ADMISSION_01.json": {
+      "executable": null,
+      "sha256": "6daeebdaccba473b3cc30257df2dd295a7b34949b6beeb92590783b1ed5119b8"
+    },
+    "docs/pre_editor/active/MILESTONE_C_ROADMAP_ACTIVATION_01.json": {
+      "executable": null,
+      "sha256": "4b04cefc2c00e55973db0785da16c95fe62162f81c61bc8e893d7ded9e8e9447"
+    },
+    "docs/pre_editor/active/OUTPUT_PATHS.json": {
+      "executable": null,
+      "sha256": "b8d868fda409d2b0bb386d5a943239c10503d54862259b3a84193beab969ceb1"
+    },
+    "docs/pre_editor/active/PHASE_18_PLUS_ARTIFACT_RETENTION.json": {
+      "executable": null,
+      "sha256": "6aaed57e88f578cc76f642aaa9e822eb75e49625e886f698746c50189f778a44"
+    },
+    "docs/pre_editor/active/PHASE_18_PLUS_MINIMUM_SUFFICIENT_VALIDATION.md": {
+      "executable": null,
+      "sha256": "19744617ead7bb045fd4bcc925c379102d2052db84ca0b208115f09d87f99567"
+    },
+    "docs/pre_editor/active/PHASE_18_PLUS_MSV_ACTIVATION.json": {
+      "executable": null,
+      "sha256": "40dca2deb6ddf747cbc3c2c58a29724ec26261539d6fac7519143fc624086971"
+    },
+    "docs/pre_editor/active/PHASE_26_ENTRY_ACCEPTANCE_01.json": {
+      "executable": null,
+      "sha256": "80cbefabc97af54c9d041962c2186c3c3f3b70d4fb39991e8c6edb33c0236467"
+    },
+    "docs/pre_editor/active/PHASE_26_GAME_QUALITY_ENTRY_REVIEW_01.md": {
+      "executable": null,
+      "sha256": "8cd0820f8f05421ccf453e87137a94d67e746690e6f79eecb059dac6844336f6"
+    },
+    "docs/pre_editor/active/PHASE_26_OD08_GAME_QUALITY_AMENDMENT_01.json": {
+      "executable": null,
+      "sha256": "882f95c5962f2480e8ef598a69e9b156527ecc175c861edb1396bbb85eef70a4"
+    },
+    "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/ACCEPTANCE_GATES.json": {
+      "executable": null,
+      "sha256": "2b36d89effdd6905623e49251717c7ee6a2c7ef49c668f2fa602b1ea43d158a5"
+    },
+    "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/ACTIVATION.json": {
+      "executable": null,
+      "sha256": "ff24f1d0947e5853ffc6069ba48a8e862914340079e09c194ce269ad2c877b34"
+    },
+    "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/AMENDMENT.md": {
+      "executable": null,
+      "sha256": "42f0593f099aa1dbff969b4421c27d47d058cdb3e1ff47f22939e7fe75f6be60"
+    },
+    "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/MANIFEST.json": {
+      "executable": null,
+      "sha256": "c9043e624d5a96c46714c7a8ddbd7a4f38f69276530e1d66919c172d13ce7551"
+    },
+    "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/OWNER_ACCEPTANCE.md": {
+      "executable": null,
+      "sha256": "fec5a502e0c0cfb5297771937e726766bffd7c56f50a67c875508f441732adf5"
+    },
+    "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/VALIDATION_CONTRACTS.md": {
+      "executable": null,
+      "sha256": "ba1646df8738a168dcce65b4850da8cf5fc29ecaf14ce0922ad994d9b321a70b"
+    },
+    "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/phases/PHASE_27.md": {
+      "executable": null,
+      "sha256": "95789e08756bb6f05fbf4b4b9718aad0382f86a3d2c6510bd064643a3a84c2f3"
+    },
+    "docs/pre_editor/active/PHASE_27_APPROVAL_BLOCKER_CLOSURE_01.md": {
+      "executable": null,
+      "sha256": "76896b499fd8938204ad8754998f2a3ca444622099475fda39c02db9a0321b90"
+    },
+    "docs/pre_editor/active/PHASE_27_BUILD_PROFILE_OUTPUT_PATHS_01.json": {
+      "executable": null,
+      "sha256": "ebac504a124ae253bc47a8ffd3ad84d87fca45fb0ddfb7b69b30a61466dc8b2a"
+    },
+    "docs/pre_editor/active/PHASE_27_ENTRY_ACCEPTANCE_01.json": {
+      "executable": null,
+      "sha256": "4a30c1cb9df993e92543588113a032c7be77ccea9db21b8aff91bddf3a1ef020"
+    },
+    "docs/pre_editor/active/PHASE_27_FINAL_APPROVAL_REVIEW_01.md": {
+      "executable": null,
+      "sha256": "1e0ee016ebeef578a9d7de86f52fdf54647a029b68834a0a6ccd729802921175"
+    },
+    "docs/pre_editor/active/PHASE_27_G_CONTACT_VISUAL_ACCEPTANCE_01.json": {
+      "executable": null,
+      "sha256": "52e1580051eb669e16ac87c7b237053b673df83d6accc0a37fa356a57dbd8be9"
+    },
+    "docs/pre_editor/active/PHASE_27_G_CONTACT_VISUAL_AMENDMENT_REVIEW_01.md": {
+      "executable": null,
+      "sha256": "670c805804ae65cc8c802427cfe2ef90f9dc5fc1c6ffc45c0e4f993c76e0f1d5"
+    },
+    "docs/pre_editor/active/PHASE_27_JOLT_ARENA_ACCEPTANCE_01.json": {
+      "executable": null,
+      "sha256": "2efc6b2c0a2642799a8413fffa7bd3ee84d2cdb61d94683704b56c3238cc858a"
+    },
+    "docs/pre_editor/active/PHASE_27_NATIVE_GC_REMEDIATION_AUTHORIZATION_01.json": {
+      "executable": null,
+      "sha256": "73093c8438d2ba825477f3e179d13e48a1994220563e868181d0d636faa7ec76"
+    },
+    "docs/pre_editor/active/PHASE_27_PRESENTATION_CLEANUP_AUTHORIZATION_01.json": {
+      "executable": null,
+      "sha256": "25c0aec3e32d0c3d3f8cb8aee0ce5afc0f9012f73a987e118c97226fee3d51b7"
+    },
+    "docs/pre_editor/active/PHASE_27_SEAL_CLASSIFICATION_CORRECTION_01.md": {
+      "executable": null,
+      "sha256": "559fd11b7065a9182ba513c51150bf4742de2279dd69cd4431b01db7d5b11c7d"
+    },
+    "docs/pre_editor/active/PHASE_27_THUMBNAILS_ACCEPTANCE_01.json": {
+      "executable": null,
+      "sha256": "95b1145d1d39267bebc3ed3d40898bf4bdf2d3c5adf41c649a8b02b75606b92c"
+    },
+    "docs/pre_editor/active/PHASE_27_THUMBNAIL_TEXT_CLEANUP_REVIEW_01.md": {
+      "executable": null,
+      "sha256": "cf0bf22c8563db443e3e2b8675e9264c6777249197732abe2310818154d47ce8"
+    },
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/OWNER_CLARIFICATIONS.md": {
+      "executable": null,
+      "sha256": "ba511159b519ca6ee92ea6df28f743265b923e521d93daf39248a17cf16976ef"
+    },
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/RBS_SCENE_PRESET_DESIGN.md": {
+      "executable": null,
+      "sha256": "412bc8a57b611f03b40c8b4bccc11aef84b4489507e5b705911235210026adaa"
+    },
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/SEVEN_PHASE_TECHNICAL_PLAN.md": {
+      "executable": null,
+      "sha256": "c5aa941ea96301179e6d74fe309e1ba76e5c1595717f736a706fa84913cbf390"
+    },
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/VALIDATION_CONTRACTS.md": {
+      "executable": null,
+      "sha256": "363e8a11a069ab3990acc293b5cf5680249e08a2fbfe92bc6426f04ea51cef30"
+    },
+    "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_27.md": {
+      "executable": null,
+      "sha256": "f2803044711536f37182f056486e2de1fc8349f4de2228ea56eeba334446607f"
+    },
+    "external/glad/glad.vcxproj": {
+      "executable": null,
+      "sha256": "c35c1071776ab20a2bf274a27d233997c1d068f7d496819e065f51884e0a16f1"
+    },
+    "external/jolt-build/Jolt.vcxproj": {
+      "executable": null,
+      "sha256": "42061b6f9b54dff79ff234ca0bc10451ee904dcd6a93edb9e6f1591ff33865b2"
+    },
+    "external/jolt-patches/gengine-contact-resistance-01.json": {
+      "executable": null,
+      "sha256": "f69fbc2dfcf705748892d769ae176cf9ed0f3d0a4d309ba0af1e925aae7851cd"
+    },
+    "external/jolt-patches/gengine-contact-resistance-01.patch": {
+      "executable": null,
+      "sha256": "ba5b153f18cbe3d590c6063838f25376793974795628abdc1e02bba97d380ec3"
+    },
+    "external/jolt-pin.json": {
+      "executable": null,
+      "sha256": "b541b9b6ae9b50ff4aacb8518cf10c350900bd84edf6288f20cdfbde3f280339"
+    },
+    "external/jolt/Jolt/Core/STLTempAllocator.h": {
+      "executable": null,
+      "sha256": "45f2c849a06d7f71be8d2de87efeb58fcc08f792a1abdc5423f3786a6c4c7b1d"
+    },
+    "external/jolt/Jolt/Core/TempAllocator.h": {
+      "executable": null,
+      "sha256": "366bed91849bcde35effcbbbca34a76cf67baed76f0b7b6c829095c6ddc54036"
+    },
+    "external/jolt/Jolt/Physics/Constraints/ContactConstraintManager.cpp": {
+      "executable": null,
+      "sha256": "3b75a4131f4ae02ead5e2b7b60856a04f5a19120ccafd9fbdcf5f14c02e9498b"
+    },
+    "external/jolt/Jolt/Physics/IslandBuilder.cpp": {
+      "executable": null,
+      "sha256": "9a944d1788f0e14470ec962574b7ad80566799c5046d0d7eb28f2e2ae02449a8"
+    },
+    "external/jolt/Jolt/Physics/IslandBuilder.h": {
+      "executable": null,
+      "sha256": "b5de8028f7fb4f9f097f330c28feaa8e4db07f152b8b381e97ea74f14b97d583"
+    },
+    "external/jolt/Jolt/Physics/PhysicsSettings.h": {
+      "executable": null,
+      "sha256": "796b390b39e7bee5fb685a8d07dd24baa61996f817058ac6265e527f4fae2f95"
+    },
+    "external/jolt/Jolt/Physics/PhysicsSystem.cpp": {
+      "executable": null,
+      "sha256": "32084e2907d00ae0c8c9938e573da9733ac7044c8f0a0ea8b1a687771d8d2709"
+    },
+    "external/jolt/Jolt/Physics/PhysicsUpdateContext.h": {
+      "executable": null,
+      "sha256": "c0689258898d707e4997ceb010567b22710b506631c9edbe7d5ce4b8cd56d74e"
+    },
+    "logs/pre_editor/phase-27/approval-blocker-closure-01/INCOMPLETE.json": {
+      "executable": null,
+      "sha256": "8ec292cd44a7373d08b2aacd6ea6db9ed21972b49da102dbc18fb43c55c68862"
+    },
+    "logs/pre_editor/phase-27/approval-blocker-closure-01/contract-pins.json": {
+      "executable": null,
+      "sha256": "19d18019a69dd7f231a29b409128a04e6af960497691f5248aad66afeb0b0dcc"
+    },
+    "logs/pre_editor/phase-27/approval-blocker-closure-01/debug-build-admission.json": {
+      "executable": null,
+      "sha256": "057c89c16109427caacb2281ca4996906774477ac7f9afb1e477529b12f370b4"
+    },
+    "logs/pre_editor/phase-27/approval-blocker-closure-01/debug-build-result.json": {
+      "executable": null,
+      "sha256": "060b1517f45aeec039926ed65323dd22131347d079f724ea02174d31950912ae"
+    },
+    "logs/pre_editor/phase-27/approval-blocker-closure-01/editor-coverage.json": {
+      "executable": null,
+      "sha256": "7593417e68e201fc218d7f314aef338ab8da8b64b88517d3dff1166e835631c4"
+    },
+    "logs/pre_editor/phase-27/approval-blocker-closure-01/final-candidate-identities.json": {
+      "executable": null,
+      "sha256": "3259904f625ebe3a75255fabba67000fa742464008b38f24aee7173680a326c1"
+    },
+    "logs/pre_editor/phase-27/approval-blocker-closure-01/input-reuse.json": {
+      "executable": null,
+      "sha256": "e6da1ce7fc467362ee9d67aa84b4647976fd53bfd05ecf54923511fc9d8ae5b4"
+    },
+    "logs/pre_editor/phase-27/approval-blocker-closure-01/owner-acceptance.json": {
+      "executable": null,
+      "sha256": "eca0fd1024d42f20af12bb59f22854bceccdd8e1f94d5422bd034125fb1a0dcb"
+    },
+    "logs/pre_editor/phase-27/approval-blocker-closure-01/ui-access-preflight.json": {
+      "executable": null,
+      "sha256": "cb8ad400c9f622df9b3cfc5976b54919c30f9dd4fee53862bc6f1bc9c399861e"
+    },
+    "logs/pre_editor/phase-27/build-Debug-01/qualification.props": {
+      "executable": null,
+      "sha256": "8e3e30f1323c9138adc8fce6ab1b3b284ef73fb96cfc39acea7d002e107cfb44"
+    },
+    "logs/pre_editor/phase-27/build-performance-optimization-phase2/selective-pch-01/generated-selective-proof.json": {
+      "executable": null,
+      "sha256": "8487c9cceeebf76bbf569e6512db2fe5fd6246c2a11381fef048b2b527a8b6da"
+    },
+    "logs/pre_editor/phase-27/build-performance-optimization-phase2/selective-pch-01/input-closure-proof.json": {
+      "executable": null,
+      "sha256": "a4edf4afc73be194926b9cc0fc69488b37b77ee930ac368ebabc4dcb1b980394"
+    },
+    "logs/pre_editor/phase-27/build-performance-optimization-phase2/selective-pch-01/preservation-and-output-proof.json": {
+      "executable": null,
+      "sha256": "f4fecdc12f3599486206cb3b9b809c385cb69eb637fe5873df20adc8439827a3"
+    },
+    "logs/pre_editor/phase-27/build-performance-optimization-phase2/selective-pch-01/startup-results-corrected.json": {
+      "executable": null,
+      "sha256": "ab9fa39095f8a8bda18c81bcf704f9159010913fcbbe9eaf6d7c8f06953a6fa6"
+    },
+    "logs/pre_editor/phase-27/build-performance-remediation-01/final-input-and-preservation-verification.json": {
+      "executable": null,
+      "sha256": "c565b0ef2c707fb4303da5bf595b9ab5f5f359ef1075b9336a3048f6b5430082"
+    },
+    "logs/pre_editor/phase-27/candidate-01/acceptance-matrix.json": {
+      "executable": null,
+      "sha256": "92eb090dba94440969ce52fd8ea45a631da6a92368de64f6801701dabb6722a5"
+    },
+    "logs/pre_editor/phase-27/candidate-04/qualification.props": {
+      "executable": null,
+      "sha256": "dd7b9210ef70e9680d70dafe826f337c7e234e36a060a5cad5a69c7bfdec65a3"
+    },
+    "logs/pre_editor/phase-27/candidate-15/INCOMPLETE.json": {
+      "executable": null,
+      "sha256": "2d2f7ce3c7160152da47d2d47e7516b0fdd1ae1846e907495fcf2f59c48bd684"
+    },
+    "logs/pre_editor/phase-27/final-approval-01/READY.json": {
+      "executable": null,
+      "sha256": "faa3a4e9ce654ef506f417790a6faf842ea2382926c000751f7d8ed59e4d356d"
+    },
+    "logs/pre_editor/phase-27/final-approval-01/checkpoint-spec.json": {
+      "executable": null,
+      "sha256": "78b9bd16fa3522a4ca982179d67ffed73650fcdeb632aa18a0e6760e44da20d1"
+    },
+    "logs/pre_editor/phase-27/final-approval-01/contract-comparison.json": {
+      "executable": null,
+      "sha256": "33e6283166cc4dff569f16d32b84aaf475520aa3c3a05b0980572a61134a5a23"
+    },
+    "logs/pre_editor/phase-27/final-approval-01/gate-coverage.json": {
+      "executable": null,
+      "sha256": "27ba2d657a4d060bfa3eb2d60b46512070e53af76e6e7e1eded3e0f28ebe66b0"
+    },
+    "logs/pre_editor/phase-27/final-approval-01/input-comparison.json": {
+      "executable": null,
+      "sha256": "fa22ada5b25d1c69be859f76ce27c604a7a9ef22929decf8c539eb0e2909cec0"
+    },
+    "logs/pre_editor/phase-27/final-approval-01/manifest.json": {
+      "executable": null,
+      "sha256": "c6858b18c939564febcb3156481fd66666fe308cef7de3a791174fd71246042c"
+    },
+    "logs/pre_editor/phase-27/final-approval-01/owner-final-acceptance.json": {
+      "executable": null,
+      "sha256": "d5c1ace9643e7cc492854f156600df5eef42410ee1def7a039a4642715c67d1f"
+    },
+    "logs/pre_editor/phase-27/final-approval-01/source-membership-and-scope.json": {
+      "executable": null,
+      "sha256": "64e18d8782edefe733c78a1e81c6ededd6c72743823ae1d8607c77a8b1f161fc"
+    },
+    "logs/pre_editor/phase-27/gc-contact-01/acceptance-matrix.json": {
+      "executable": null,
+      "sha256": "2aa4b5da927464dd97fb06f364edf69ed72e6fbfa499f88043ef4c7f602ed9fe"
+    },
+    "logs/pre_editor/phase-27/gc-contact-01/arena-source-bounds.json": {
+      "executable": null,
+      "sha256": "caaf74ca3b0382f875812fc29d504828fbe44bfcb4f7a162a5459168f8c7f861"
+    },
+    "logs/pre_editor/phase-27/gc-contact-01/debug-lifecycle-result.json": {
+      "executable": null,
+      "sha256": "7ffadac4637685c0b1a3ab9cd3d0b4e77da41ca20bc85542b0c4e24a7ec9c5d8"
+    },
+    "logs/pre_editor/phase-27/native-gc-remediation-01/entry-and-matrix.json": {
+      "executable": null,
+      "sha256": "1d9c1d0092d3b0e7bd00a3ce73fd983499c428dc3df7fd8a3a209e1a3f28499f"
+    },
+    "logs/pre_editor/phase-27/runtime-frame-spike-followup-01/build-02/build-proof.json": {
+      "executable": null,
+      "sha256": "b975e18c02f6ab8a0f25ac0f144f7aa8fd4c6ef99bba09eab4ba2069e3d83d25"
+    },
+    "logs/pre_editor/phase-27/runtime-frame-spike-followup-01/preservation-and-validation.json": {
+      "executable": null,
+      "sha256": "86bb69ab913fd7484cbe4a65fefb90caac0dfe7d65044ae3c67ee2f86e219c0e"
+    },
+    "logs/pre_editor/phase-27/sdl-swap-interval-cpu-ab-01/preservation-and-validation.json": {
+      "executable": null,
+      "sha256": "782110bb4fc979d3733d58391c9a270edb298a89326ef2be90ad673435ac5532"
+    },
+    "logs/pre_editor/phase-27/seal-classification-correction-01/checkpoint-spec.corrected.json": {
+      "executable": null,
+      "sha256": "51c5da94d3488d2142330f5b99d84956dae4a763440a09a5236b81f7a6045b1c"
+    },
+    "logs/pre_editor/phase-27/seal-classification-correction-01/classification-correction.json": {
+      "executable": null,
+      "sha256": "2b08f93ba210e1fa61ae419d8f8207110f2c200fed801fd3efdb054d1fc97637"
+    },
+    "logs/pre_editor/phase-27/seal-classification-correction-01/failed-checkpoint-spec.original.json": {
+      "executable": null,
+      "sha256": "78b9bd16fa3522a4ca982179d67ffed73650fcdeb632aa18a0e6760e44da20d1"
+    },
+    "logs/pre_editor/phase-27/seal-classification-correction-01/identity-and-gate-verification.json": {
+      "executable": null,
+      "sha256": "247e2ccb5657d10f14b85f28b0e36d1549e2ee069eb767ae1f0e267dfa017798"
+    },
+    "logs/pre_editor/phase-27/seal-classification-correction-01/owner-authorization.json": {
+      "executable": null,
+      "sha256": "53d911049ffefcaefd75f68e2317418e737949c3b10283598dfe9fe0cc8fceee"
+    },
+    "logs/pre_editor/phase-27/seal-classification-correction-01/post-attempt-unclassified-paths.json": {
+      "executable": null,
+      "sha256": "168f7c18e683c7fba449d8d759bd60fd1f5ea80653fe09f411c4802b020f3ced"
+    },
+    "logs/pre_editor/phase-27/seal-classification-correction-01/prior-failure.json": {
+      "executable": null,
+      "sha256": "01909dfb7e8fda180ff8f9057241d7edea73baca5390167dd7118c49462232fb"
+    },
+    "logs/pre_editor/phase-27/seal-classification-correction-01/seal-attempt.json": {
+      "executable": null,
+      "sha256": "bbb298261d35527c326c4d5d01feb2ea15eef6d9f2cb9ecb7b394097356f95b6"
+    },
+    "logs/pre_editor/phase-27/seal-classification-correction-01/seal-result.json": {
+      "executable": null,
+      "sha256": "c79a3fa2436702d98ca1c58bd5e715135b74475affab208787a7b92d27294c79"
+    },
+    "logs/pre_editor/phase-27/thumbnail-text-cleanup-01/capture-01/inputs.json": {
+      "executable": null,
+      "sha256": "397605d087115de23fd9709eeb8bb212de3131eb9582dc331fa962184f8c6d83"
+    },
+    "logs/pre_editor/phase-27/thumbnail-text-cleanup-01/capture-01/result.json": {
+      "executable": null,
+      "sha256": "f26aa858b1f838de4d3c843f0cc59ea9c91355847758f90330910ae4a4fa2aca"
+    },
+    "logs/pre_editor/phase-27/thumbnail-text-cleanup-01/image-comparison.json": {
+      "executable": null,
+      "sha256": "f895d167bce99baf9f3cb118ab558c359a7b40422b78ac3c6770ff62e87151a7"
+    },
+    "logs/pre_editor/phase-27/thumbnail-text-cleanup-01/verification.json": {
+      "executable": null,
+      "sha256": "f39d5f07ce6a2ca025a6c3a021696d71f895330a8e9540bb79910402018cffb2"
+    },
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/REFACTOR_STATE.before.md": {
+      "executable": null,
+      "sha256": "df4aad509fdefb6cc9166fc822916152c472abb24d0ede1254c1539217a38d66"
+    },
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/acceptance-reuse.json": {
+      "executable": null,
+      "sha256": "3ed25c330810376dfa740a28c55c47dc3785f5c51c19ba11dbb21faedd8e2a15"
+    },
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/conditional-configuration-preview.json": {
+      "executable": null,
+      "sha256": "fe9bfd8910a6c431b67a767bdbf42d36f511d987f90466d470229315a760ba55"
+    },
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/configuration-change.json": {
+      "executable": null,
+      "sha256": "87b2690d4989f539d1a34d0c02c0394a871395c6cd39786c29494c34fc918dbb"
+    },
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/exact-paths.exclude": {
+      "executable": null,
+      "sha256": "f7751c36eb5f0e54d1be316bd9adfc3f82367dd6c3c58e4b7fd3eb5101cf4933"
+    },
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/git-config.before": {
+      "executable": null,
+      "sha256": "ab24d4a1b52294495685eb03163716a5661f6da3c645482334819f4d9f4001d7"
+    },
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/git-index-membership.before.raw": {
+      "executable": null,
+      "sha256": "aaae89a1ddb5d7d74a9ec60df7c29f4f887e726e3c114dcd43bd84fb13b6548f"
+    },
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/git-status.after.raw": {
+      "executable": null,
+      "sha256": "099f684ce7623428b80d60fd51f425766024e007fa23fda5fe47a4b80bb7b7af"
+    },
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/git-status.before.raw": {
+      "executable": null,
+      "sha256": "6457632d53462d582a87d75ae051f64bb29adbff6b493ecb22d69ad48f0b67c3"
+    },
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/git-visibility.config": {
+      "executable": null,
+      "sha256": "cdaf926d371aeb7695b07d574ade1f5a87c9138844801dd076c2add41cdfe23c"
+    },
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/gitignore.before": {
+      "executable": null,
+      "sha256": "3853296c99be921ea8412d3099fefc5c062857a1a051ae8a8c64ac8070f3058c"
+    },
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/info-exclude.before": {
+      "executable": null,
+      "sha256": "6671fe83b7a07c8932ee89164d1f2793b2318058eb8b98dc5c06ee0a5a3b0ec1"
+    },
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/input-and-gate-verification.json": {
+      "executable": null,
+      "sha256": "c4b36912ea1ed764dd059f8a4768bf2a8bfc78099c4b35c3eb5700ae976a079d"
+    },
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/owner-authorization.json": {
+      "executable": null,
+      "sha256": "f53cacc973366f64dc7e956cfd110e52d86b4163dd8e7a72087ce2fd60619d08"
+    },
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/ownership-decisions.json": {
+      "executable": null,
+      "sha256": "f350dc382be2a0fbb4c4971ba3568a297b26800108db46e7b7645f2d057d52f3"
+    },
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/preservation-before.json": {
+      "executable": null,
+      "sha256": "a74e97755a21ac374d948819fe6537799148ed4a030ed2ea975022c10e4d12a5"
+    },
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/remediation-verification.json": {
+      "executable": null,
+      "sha256": "370a76d83edc2fa92c3a8d2f4c8ba2e2f509680395677d3c3e252038726e6fc7"
+    },
+    "logs/pre_editor/phase-27/unclassified-path-remediation-01/run-once.py": {
+      "executable": null,
+      "sha256": "bfdf4ee84b5929ebe9df5e76d1a2260cd26859af628c187de012e11a3e1ed0a1"
+    },
+    "premake5.lua": {
+      "executable": null,
+      "sha256": "7be836e47cf69b1c4692121db913a92e406de3113196fe44141dbd0a864920d7"
+    },
+    "tools/postbuild.py": {
+      "executable": null,
+      "sha256": "01ba5c77113a532f6459e346754eb589484a307d9fbcb20171d8406321371c00"
+    },
+    "tools/pre_editor_phase27_qualification.py": {
+      "executable": null,
+      "sha256": "30fa47dc47506c30829c7d666d65ad9fc3ebe25e69ff97412506b0da30b42392"
+    },
+    "tools/runtime_assets.json": {
+      "executable": null,
+      "sha256": "dcd4df2ebec1f16600b8aa92987355e532712fb031a49759100e9f39e3bd3521"
+    },
+    "tools/setup_jolt.py": {
+      "executable": null,
+      "sha256": "56a5da7687ca8e302335159149c0108b8ac1aefd4c0f6725e5e47441cb6b7aab"
+    }
+  }
+}

@@ -189,6 +189,9 @@ namespace GEngine
 
 	class PhysicsSystem : public System
 	{
+#ifdef GENGINE_PHASE27_QUALIFICATION
+        friend struct Phase27GraphAccess;
+#endif
 		// Inherited via System
 	public:
 		// Last Update only, in nanoseconds; zero when physics profiling is disabled.
@@ -392,13 +395,32 @@ namespace GEngine
             if(!m_PhysicsWorld) return {};
             for(std::size_t i=0;i<m_PhysicsWorld->GetJointCount();++i) {
                 auto h=m_PhysicsWorld->JointAt(i); if(!h) return std::unexpected(DebugGeometryCode::InvalidInput);
-                auto j=m_PhysicsWorld->ReadDistanceJoint(*h); if(!j) return std::unexpected(DebugGeometryCode::InvalidInput);
+                auto j=m_PhysicsWorld->ReadJoint(*h); if(!j) return std::unexpected(DebugGeometryCode::InvalidInput);
                 if(!all && std::find(selected.begin(),selected.end(),j->descriptor.bodyA)==selected.end() &&
                     std::find(selected.begin(),selected.end(),j->descriptor.bodyB)==selected.end()) continue;
                 auto a=m_PhysicsWorld->ReadBody(j->descriptor.bodyA),b=m_PhysicsWorld->ReadBody(j->descriptor.bodyB);
                 if(!a || !b)return std::unexpected(DebugGeometryCode::InvalidInput);
+                if(j->descriptor.kind==JointKind::BallSocket) {
+                    const glm::vec4 colorA{.1f,.85f,1.f,1.f},colorB{1.f,.55f,.1f,1.f};
+                    // Different marker shapes remain legible when the anchors coincide.
+                    if(auto r=out.Sphere(j->worldAnchorA,.065f,colorA,DebugDepth::Overlay);!r)return r;
+                    for(unsigned axis=0;axis<3;++axis) {
+                        Vec3f extent(0);extent[axis]=.12f;
+                        if(auto r=out.Line(j->worldAnchorB-extent,j->worldAnchorB+extent,colorB,DebugDepth::Overlay);!r)return r;
+                    }
+                    if(auto r=out.Line(j->worldAnchorA,j->worldAnchorB,{1,.2f,.8f,1},DebugDepth::Overlay);!r)return r;
+                    if(auto r=out.Line(a->centerOfMass,j->worldAnchorA,colorA,DebugDepth::Overlay);!r)return r;
+                    if(auto r=out.Line(b->centerOfMass,j->worldAnchorB,colorB,DebugDepth::Overlay);!r)return r;
+                    for(unsigned side=0;side<2;++side) {
+                        const auto shape=ReadBodyCollider(side?j->descriptor.bodyB:j->descriptor.bodyA);
+                        if(shape)if(const auto* sphere=std::get_if<SphereShapeDesc>(&shape->dimensions))
+                            if(auto r=out.Sphere(side?b->position:a->position,sphere->radius,side?colorB:colorA,DebugDepth::Overlay);!r)return r;
+                    }
+                    continue;
+                }
                 const bool asleep=(a->inverseMass==0 || a->sleeping) && (b->inverseMass==0 || b->sleeping);
-                const glm::vec4 color=std::abs(j->error)>.005f*j->descriptor.length ? glm::vec4(1,.2f,0,1) :
+                const glm::vec4 color=std::abs(j->error)>.005f*(j->descriptor.kind==JointKind::Distance?j->descriptor.targetDistance:
+                    glm::length(j->descriptor.localAnchorA)+glm::length(j->descriptor.localAnchorB)) ? glm::vec4(1,.2f,0,1) :
                     asleep?glm::vec4(.25f,.5f,1,1):glm::vec4(.2f,1,.2f,1);
                 if(auto r=out.Line(j->worldAnchorA,j->worldAnchorB,color,DebugDepth::Overlay);!r)return r;
                 if(auto r=out.Axes(j->worldAnchorA,a->orientation,.15f);!r)return r;

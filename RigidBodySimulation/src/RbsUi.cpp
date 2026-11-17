@@ -1052,10 +1052,11 @@ bool RigidBodySimulationApp::RequestDistanceChainImpulse()
 
 void RigidBodySimulationApp::DrawDistanceChainImpulseControls()
 {
-    if (!m_ActiveSelection.IsDistanceScene()) return;
+    if (!m_ActiveSelection.IsDistanceScene() && !m_ActiveSelection.IsBallSocketScene()) return;
     using Control = Rbs::DistanceChainImpulseControl;
     ImGui::Separator();
-    ImGui::TextWrapped("Distance chain impulse - terminal link %u", m_ActiveSelection.scene==Rbs::RbsScenePreset::DistancePendulum?1:m_ActiveSelection.chainLinks);
+    if(m_ActiveSelection.IsBallSocketScene()) ImGui::TextWrapped("Ball-and-Socket impulse - dynamic body A (S: moving body)");
+    else ImGui::TextWrapped("Distance chain impulse - terminal link %u", m_ActiveSelection.scene==Rbs::RbsScenePreset::DistancePendulum?1:m_ActiveSelection.chainLinks);
     if (SandboxEnabled()) ImGui::TextWrapped("Automatic 0.5 Ns impulse after tick 300; manual controls below.");
     if (SandboxEnabled())
     {
@@ -1415,23 +1416,46 @@ void RigidBodySimulationApp::DrawEditorProperties()
         {
             const auto handle = world->JointAt(i);
             if (!handle) continue;
-            const auto joint = world->ReadDistanceJoint(*handle);
+            const auto joint = world->ReadJoint(*handle);
             if (!joint || (joint->descriptor.bodyA != pose->body && joint->descriptor.bodyB != pose->body)) continue;
             if(!foundJoint){showJoints=E::Component("Constraints / Joints",false);foundJoint=true;}
             if(!showJoints)break;
             ImGui::PushID(static_cast<int>(i));
-            ImGui::Text("Distance Joint %zu",i+1);
+            ImGui::Text("%s Joint %zu",joint->descriptor.kind==JointKind::Distance?"Distance":"Ball-and-Socket",i+1);
             {
                 const auto& desc = joint->descriptor;
                 E::ReadOnly("Endpoints", std::format("Body {} / Body {}", desc.bodyA.index, desc.bodyB.index).c_str());
-                E::ReadOnly("Length (m)", std::format("{:.3f}", desc.length).c_str());
+                if(desc.kind==JointKind::Distance) E::ReadOnly("Length (m)", std::format("{:.3f}", desc.targetDistance).c_str());
+                else E::ReadOnly("Rotation", "Free on all three axes");
                 auto a = desc.localAnchorA, b = desc.localAnchorB;
                 ImGui::BeginDisabled();
                 E::XYZ("Anchor A (m)", &a.x, 0.f, .01f, "Read-only: the current joint API has no live descriptor update operation.");
                 E::XYZ("Anchor B (m)", &b.x, 0.f, .01f, "Read-only: the current joint API has no live descriptor update operation.");
                 ImGui::EndDisabled();
                 E::ReadOnly("Connected collision", desc.collideConnected ? "Enabled" : "Disabled");
-                E::ReadOnly("Length error (m)", std::format("{:.5f}", joint->error).c_str());
+                E::ReadOnly(desc.kind==JointKind::Distance?"Length error (m)":"Anchor residual (m)", std::format("{:.5f}", joint->error).c_str());
+                if(desc.kind==JointKind::BallSocket) {
+                    ImGui::TextColored({.1f,.85f,1.f,1.f},"A: cyan ring / COM helper / collider");
+                    ImGui::TextColored({1.f,.55f,.1f,1.f},"B: orange cross / COM helper / collider");
+                    E::ReadOnly("Anchor A world (m)",std::format("{:.5f}, {:.5f}, {:.5f}",joint->worldAnchorA.x,joint->worldAnchorA.y,joint->worldAnchorA.z).c_str());
+                    E::ReadOnly("Anchor B world (m)",std::format("{:.5f}, {:.5f}, {:.5f}",joint->worldAnchorB.x,joint->worldAnchorB.y,joint->worldAnchorB.z).c_str());
+                    ImGui::TextWrapped("Pink segment: anchor error. Viewport helpers use current Physics poses.");
+                    if(m_ActiveSelection.scene==Rbs::RbsScenePreset::BallSocketContact ||
+                       m_ActiveSelection.scene==Rbs::RbsScenePreset::BallSocketContactEnabled) {
+                        const auto bodyA=world->ReadBody(desc.bodyA),bodyB=world->ReadBody(desc.bodyB);
+                        const auto shapeA=m_ActiveScene->GetPhysicsSystem()->ReadBodyCollider(desc.bodyA);
+                        const auto shapeB=m_ActiveScene->GetPhysicsSystem()->ReadBodyCollider(desc.bodyB);
+                        const auto* sphereA=shapeA?std::get_if<SphereShapeDesc>(&shapeA->dimensions):nullptr;
+                        const auto* sphereB=shapeB?std::get_if<SphereShapeDesc>(&shapeB->dimensions):nullptr;
+                        if(bodyA && bodyB && sphereA && sphereB) {
+                            const auto distance=glm::length(bodyB->position-bodyA->position);
+                            const auto radii=sphereA->radius+sphereB->radius;
+                            E::ReadOnly("Center distance (m)",std::format("{:.5f}",distance).c_str());
+                            E::ReadOnly("Sum of sphere radii (m)",std::format("{:.5f}",radii).c_str());
+                            E::ReadOnly("Sphere overlap (m)",std::format("{:.5f}",(std::max)(0.f,radii-distance)).c_str());
+                        } else E::ReadOnly("Sphere overlap", "Unavailable: requires two live sphere colliders");
+                    }
+                }
                 ImGui::TextWrapped("Read-only joint descriptor. Change the scene preset to load another configuration.");
             }
             ImGui::PopID();

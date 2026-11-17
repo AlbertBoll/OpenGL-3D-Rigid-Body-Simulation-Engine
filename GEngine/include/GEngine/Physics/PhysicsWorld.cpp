@@ -703,7 +703,7 @@ namespace GEngine
         std::size_t i = 0; while (m_Joints[i].live) ++i;
         const PhysicsJointHandle handle{static_cast<std::uint32_t>(i),*generation,m_Domain};
         if(m_Backend){auto created=m_Backend->CreateJoint(handle,d);if(!created)return std::unexpected(created.error());}
-        auto& slot = m_Joints[i]; slot.row = proposed; slot.generation = *generation; slot.live = true;
+        auto& slot = m_Joints[i]; slot.row = proposed; slot.point.Reset(); slot.kind = JointKind::Distance; slot.generation = *generation; slot.live = true;
         ++m_JointCount;
         if (m_JointMutationCallback) { m_JointMutationCallback(a); m_JointMutationCallback(b); }
         else { a->WakeUp(); b->WakeUp(); }
@@ -712,6 +712,8 @@ namespace GEngine
     JointResult<DistanceJointState> PhysicsWorld::ReadDistanceJoint(PhysicsJointHandle h) const
     {
         auto index = ResolveJoint(h,"ReadDistanceJoint"); if (!index) return std::unexpected(index.error());
+        if (m_Joints[*index].kind != JointKind::Distance)
+            return std::unexpected(JointError{JointErrorCode::WrongKind,h,"ReadDistanceJoint"});
         const auto& row = m_Joints[*index].row;
         auto* a = ResolveJointBody(row.desc.bodyA); auto* b = ResolveJointBody(row.desc.bodyB);
         if (!a || !b) return std::unexpected(JointError{JointErrorCode::InvalidEndpoint,h,"ReadDistanceJoint"});
@@ -721,6 +723,75 @@ namespace GEngine
         if (!Math::IsFinite(pa) || !Math::IsFinite(pb) || !Math::IsFinite(error) || !Math::IsFinite(impulse))
             return std::unexpected(JointError{JointErrorCode::NonFinite,h,"ReadDistanceJoint"});
         return DistanceJointState{h,row.desc,pa,pb,error,impulse,m_Backend?m_Backend->JointActive(h):row.active};
+    }
+    JointResult<PhysicsJointHandle> PhysicsWorld::CreateBallSocketJoint(const BallSocketJointDesc& d)
+    {
+        constexpr auto op = "CreateBallSocketJoint";
+        const auto fail = [](JointErrorCode c) { return std::unexpected(JointError{c,{},op}); };
+        if (!CheckAccess(op,true)) return fail(JointErrorCode::Access);
+        auto* a=ResolveJointBody(d.bodyA); auto* b=ResolveJointBody(d.bodyB);
+        if (!a || !b || a==b) return fail(JointErrorCode::InvalidEndpoint);
+        if (!Math::IsFinite(d.localAnchorA) || !Math::IsFinite(d.localAnchorB))
+            return fail(JointErrorCode::InvalidGeometry);
+        if (a->GetInverseMass()+b->GetInverseMass()<=0) return fail(JointErrorCode::NoResponse);
+        auto copyA=*a, copyB=*b;
+        BallSocketJointRow proposed; proposed.desc=d;
+        if (!proposed.Prepare(copyA,copyB,1.f/60.f)) return fail(JointErrorCode::InvalidGeometry);
+        proposed.Reset();
+        if (m_JointCount==MaxDistanceJoints) return fail(JointErrorCode::Capacity);
+        if (!m_Joints) {
+            std::unique_ptr<JointSlot[]> storage(new (std::nothrow) JointSlot[MaxDistanceJoints]);
+            if (!storage) return fail(JointErrorCode::Allocation);
+            m_Joints=std::move(storage);
+        }
+        const auto generation=Asset::AssetDetail::TakeRegistryIdentity(s_NextBodyGeneration);
+        if (!generation) return fail(JointErrorCode::Capacity);
+        std::size_t i=0; while(m_Joints[i].live) ++i;
+        const PhysicsJointHandle handle{static_cast<std::uint32_t>(i),*generation,m_Domain};
+        if (m_Backend) { auto result=m_Backend->CreateJoint(handle,d); if(!result)return std::unexpected(result.error()); }
+        auto& slot=m_Joints[i]; slot.Reset(); slot.point=proposed;
+        slot.row.desc={d.bodyA,d.bodyB,d.localAnchorA,d.localAnchorB,0,d.collideConnected};
+        slot.kind=JointKind::BallSocket; slot.generation=*generation; slot.live=true; ++m_JointCount;
+        if (m_JointMutationCallback) { m_JointMutationCallback(a); m_JointMutationCallback(b); }
+        else { a->WakeUp(); b->WakeUp(); }
+        return handle;
+    }
+    JointResult<PhysicsJointHandle> PhysicsWorld::CreateJoint(const JointDescriptor& d)
+    {
+        switch(d.kind) {
+        case JointKind::Distance: return CreateDistanceJoint({d.bodyA,d.bodyB,d.localAnchorA,d.localAnchorB,d.targetDistance,d.collideConnected});
+        case JointKind::BallSocket: return CreateBallSocketJoint({d.bodyA,d.bodyB,d.localAnchorA,d.localAnchorB,d.collideConnected});
+        }
+        return std::unexpected(JointError{JointErrorCode::WrongKind,{},"CreateJoint"});
+    }
+    JointResult<JointState> PhysicsWorld::ReadJoint(PhysicsJointHandle h) const
+    {
+        auto index=ResolveJoint(h,"ReadJoint"); if(!index)return std::unexpected(index.error());
+        const auto& slot=m_Joints[*index]; const auto& d=slot.row.desc;
+        auto* a=ResolveJointBody(d.bodyA); auto* b=ResolveJointBody(d.bodyB);
+        if(!a || !b)return std::unexpected(JointError{JointErrorCode::InvalidEndpoint,h,"ReadJoint"});
+        const auto pa=a->BodySpaceToWorldSpace(d.localAnchorA),pb=b->BodySpaceToWorldSpace(d.localAnchorB);
+        const auto delta=pb-pa; const float length=glm::length(delta);
+        Vec3f impulse{}; bool active{};
+        if(slot.kind==JointKind::BallSocket) {
+            impulse=m_Backend?m_Backend->JointVectorImpulse(h):slot.point.impulse;
+            active=m_Backend?m_Backend->JointActive(h):slot.point.active;
+        } else {
+            const float lambda=m_Backend?m_Backend->JointImpulse(h):slot.row.impulse;
+            impulse=length>0?delta*(lambda/length):Vec3f(0);
+            active=m_Backend?m_Backend->JointActive(h):slot.row.active;
+        }
+        const float error=slot.kind==JointKind::Distance?length-d.length:length;
+        if(!Math::IsFinite(pa)||!Math::IsFinite(pb)||!Math::IsFinite(impulse)||!Math::IsFinite(error))
+            return std::unexpected(JointError{JointErrorCode::NonFinite,h,"ReadJoint"});
+        return JointState{h,{slot.kind,d.bodyA,d.bodyB,d.localAnchorA,d.localAnchorB,d.length,d.collideConnected},pa,pb,delta,impulse,error,active};
+    }
+    JointResult<BallSocketJointState> PhysicsWorld::ReadBallSocketJoint(PhysicsJointHandle h) const
+    {
+        auto state=ReadJoint(h); if(!state)return std::unexpected(state.error());
+        const auto& d=state->descriptor;
+        if(d.kind!=JointKind::BallSocket)return std::unexpected(JointError{JointErrorCode::WrongKind,h,"ReadBallSocketJoint"});
+        return BallSocketJointState{h,{d.bodyA,d.bodyB,d.localAnchorA,d.localAnchorB,d.collideConnected},state->worldAnchorA,state->worldAnchorB,state->residual,state->impulse,state->active};
     }
     JointResult<PhysicsJointHandle> PhysicsWorld::JointAt(std::size_t ordinal) const
     {
@@ -738,7 +809,7 @@ namespace GEngine
         if(m_JointMutationCallback) { if(a)m_JointMutationCallback(a); if(b)m_JointMutationCallback(b); }
         else { if(a)a->WakeUp(); if(b)b->WakeUp(); }
         if(m_Backend)m_Backend->DestroyJoint(h);
-        slot.row.Reset(); slot.live=false; --m_JointCount;
+        slot.Reset(); slot.live=false; --m_JointCount;
         return {};
     }
     void PhysicsWorld::InvalidateJoints(RigidBody3D* body)
@@ -748,7 +819,7 @@ namespace GEngine
         for(std::size_t i=0;i<MaxDistanceJoints;++i) if(m_Joints[i].live) {
             auto& row=m_Joints[i].row;
             if(row.desc.bodyA==h || row.desc.bodyB==h) {
-                row.Reset();
+                m_Joints[i].Reset();
                 if(m_Backend)m_Backend->ResetJoint({static_cast<std::uint32_t>(i),m_Joints[i].generation,m_Domain});
             }
         }
@@ -761,7 +832,7 @@ namespace GEngine
             auto& slot=m_Joints[i];
             if(slot.row.desc.bodyA==h || slot.row.desc.bodyB==h) {
                 if(m_Backend)m_Backend->DestroyJoint({static_cast<std::uint32_t>(i),slot.generation,m_Domain});
-                slot.row.Reset(); slot.live=false; --m_JointCount;
+                slot.Reset(); slot.live=false; --m_JointCount;
             }
         }
     }

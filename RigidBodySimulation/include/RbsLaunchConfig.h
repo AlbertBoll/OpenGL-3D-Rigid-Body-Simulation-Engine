@@ -21,7 +21,11 @@ namespace Rbs
         SphereBoxStack,
         DistancePendulum,
         DistanceChain,
-        DistanceChainContact
+        DistanceChainContact,
+        BallSocketSwing,
+        BallSocketPair,
+        BallSocketContact,
+        BallSocketContactEnabled
     };
 
     struct SceneSelection
@@ -33,6 +37,10 @@ namespace Rbs
         {
             return scene == RbsScenePreset::DistancePendulum || scene == RbsScenePreset::DistanceChain ||
                    scene == RbsScenePreset::DistanceChainContact;
+        }
+        [[nodiscard]] constexpr bool IsBallSocketScene() const noexcept
+        {
+            return scene==RbsScenePreset::BallSocketSwing || scene==RbsScenePreset::BallSocketPair || scene==RbsScenePreset::BallSocketContact || scene==RbsScenePreset::BallSocketContactEnabled;
         }
         constexpr bool operator==(const SceneSelection&) const = default;
 
@@ -47,7 +55,11 @@ namespace Rbs
             case RbsScenePreset::BoxStack:
             case RbsScenePreset::SphereBoxStack:
             case RbsScenePreset::DistancePendulum:
-            case RbsScenePreset::DistanceChain: return true;
+            case RbsScenePreset::DistanceChain:
+            case RbsScenePreset::BallSocketSwing:
+            case RbsScenePreset::BallSocketPair:
+            case RbsScenePreset::BallSocketContact:
+            case RbsScenePreset::BallSocketContactEnabled: return true;
             case RbsScenePreset::DistanceChainContact: return chainLinks == 8;
             }
             return false;

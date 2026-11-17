@@ -5,6 +5,7 @@
 #include "../tests/BackendSwitchChecks.h"
 #include "../tests/JoltParameterExperiment.h"
 #include "../tests/JoltFinalAudit.h"
+#include "../tests/BallSocketJointChecks.h"
 #include "../tests/ImpulseEditorChecks.h"
 #ifdef GENGINE_PHASE24_VALIDATION
 namespace PreEditorValidation { void ObservePhase24Frame(const ::GEngine::RenderFrame&); }
@@ -90,6 +91,9 @@ void RigidBodySimulationApp::Update(Timestep ts)
     Rbs::SandboxChecks::BeforeUpdate(*this, ts);
 #endif
     ProcessSceneRequest();
+#ifdef GENGINE_PHASE27_QUALIFICATION
+    Rbs::BallSocketChecks::PreviewBoundary(*this);
+#endif
     SynchronizeEntityPresentation();
 #ifdef GENGINE_OWNER_REVIEW_PROBE
     if(!Rbs::OwnerReviewDriver::Begin(*this))return;
@@ -267,6 +271,10 @@ void RigidBodySimulationApp::Update(Timestep ts)
     if(!Rbs::ColliderPassive::BeforeStep(*m_ActiveScene,ts.GetSecondsPrecise())) { ShutDown(); return; }
 #endif
     auto simulationTime = ts;
+#ifdef GENGINE_PHASE27_QUALIFICATION
+    const bool phase27=Rbs::BallSocketChecks::Begin(*this);
+    if(phase27){m_EditorMode=EditorMode::Simulation;SetSimulationState(Rbs::SimulationState::Running);m_IsPause=false;}
+#endif
 #ifdef GENGINE_JOLT_FINAL_AUDIT
     const bool finalAudit=Rbs::FinalAudit::Begin(*m_ActiveScene);
     if(finalAudit && !Rbs::FinalAudit::ticks){m_EditorMode=EditorMode::Simulation;SetSimulationState(Rbs::SimulationState::Running);}
@@ -292,7 +300,13 @@ void RigidBodySimulationApp::Update(Timestep ts)
 #ifdef GENGINE_JOLT_FINAL_AUDIT
     if(finalAudit){simulationTime=Timestep(m_ActiveScene->GetPhysicsStep().count());JoltAudit::countAllocations=Rbs::FinalAudit::observed;}
 #endif
+#ifdef GENGINE_PHASE27_QUALIFICATION
+    if(phase27){simulationTime=Timestep(m_ActiveScene->GetPhysicsStep().count());Rbs::BallSocketChecks::BeforeTick();}
+#endif
     { RBS_REVIEW_SCOPE(4); m_ActiveScene->Update(simulationTime); }
+#ifdef GENGINE_PHASE27_QUALIFICATION
+    if(phase27 && Rbs::BallSocketChecks::AfterTick(*this)){ShutDown();return;}
+#endif
 #ifdef GENGINE_JOLT_FINAL_AUDIT
     if(finalAudit && Rbs::FinalAudit::After(*m_ActiveScene)){ShutDown();return;}
 #endif
@@ -318,7 +332,7 @@ void RigidBodySimulationApp::Update(Timestep ts)
         }
         for(std::size_t i=0;i<world->GetJointCount();++i)
         {
-            auto handle=world->JointAt(i);auto joint=handle?world->ReadDistanceJoint(*handle):JointResult<DistanceJointState>(std::unexpected(handle.error()));
+            auto handle=world->JointAt(i);auto joint=handle?world->ReadJoint(*handle):JointResult<JointState>(std::unexpected(handle.error()));
             if(!joint){FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Physics","Joint","Backend smoke","","Invalid joint state"});return;}
             m_BackendSmokeMaxJointError=(std::max)(m_BackendSmokeMaxJointError,std::abs(joint->error));
         }
@@ -918,6 +932,9 @@ void RigidBodySimulationApp::Render()
             return {};
         }};
         auto submitted = FrameScheduler::Render(context, &input);
+#ifdef GENGINE_PHASE27_QUALIFICATION
+        if(submitted)Rbs::BallSocketChecks::PreviewFrame(*this,input.debugLines.size());
+#endif
 #ifdef GENGINE_OWNER_REVIEW_PROBE
         if(submitted)Rbs::OwnerReviewDriver::End(*this,*submitted);
 #endif

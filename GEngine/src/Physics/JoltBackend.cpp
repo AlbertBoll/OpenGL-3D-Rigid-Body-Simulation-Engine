@@ -15,6 +15,9 @@
 #include <new>
 #include <chrono>
 #include <atomic>
+#ifdef GENGINE_PHASE27_QUALIFICATION
+#include <intrin.h>
+#endif
 
 #ifdef GENGINE_WITH_JOLT
 #include <Jolt/Jolt.h>
@@ -32,6 +35,16 @@
 #include <Jolt/Physics/Collision/Shape/OffsetCenterOfMassShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Constraints/DistanceConstraint.h>
+#include <Jolt/Physics/Constraints/PointConstraint.h>
+#ifdef GENGINE_PHASE27_QUALIFICATION
+#include <Jolt/Physics/PhysicsUpdateContext.h>
+#include <Jolt/Physics/Constraints/ContactConstraintManager.h>
+extern "C" const std::uint64_t g_Phase27TargetSizes[] = {
+    sizeof(void*),sizeof(JPH::uint32),JPH_RVECTOR_ALIGNMENT,
+    sizeof(JPH::PhysicsUpdateContext::Step),sizeof(JPH::PhysicsUpdateContext::Step::CCDBody),
+    JPH::ContactConstraintManager::cMaxConstraintSize,sizeof(JPH::BodyPair),sizeof(JPH::BodyID)
+};
+#endif
 #include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
 #include <Jolt/Physics/Collision/ContactListener.h>
 #include <Jolt/Physics/Collision/RayCast.h>
@@ -194,9 +207,26 @@ namespace GEngine
                 static auto allocate=JPH::Allocate;
                 static auto reallocate=JPH::Reallocate;
                 static auto aligned=JPH::AlignedAllocate;
-                JPH::Allocate=[](size_t n)->void* {JoltAudit::Alloc(n,true);return allocate(n);};
-                JPH::Reallocate=[](void* p,size_t old,size_t n)->void* {JoltAudit::Alloc(n,true);return reallocate(p,old,n);};
-                JPH::AlignedAllocate=[](size_t n,size_t a)->void* {JoltAudit::Alloc(n,true);return aligned(n,a);};
+                JPH::Allocate=[](size_t n)->void* {JoltAudit::Alloc(n,true);auto* p=allocate(n);
+#ifdef GENGINE_PHASE27_QUALIFICATION
+                    if(JoltAudit::countAllocations && Phase27Audit::heap)Phase27Audit::heap({reinterpret_cast<std::uintptr_t>(p),reinterpret_cast<std::uintptr_t>(_ReturnAddress()),n,true});
+#endif
+                    return p;};
+                JPH::Reallocate=[](void* p,size_t old,size_t n)->void* {JoltAudit::Alloc(n,true);auto* result=reallocate(p,old,n);
+#ifdef GENGINE_PHASE27_QUALIFICATION
+                    if(JoltAudit::countAllocations && Phase27Audit::heap)Phase27Audit::heap({reinterpret_cast<std::uintptr_t>(result),reinterpret_cast<std::uintptr_t>(_ReturnAddress()),n,true});
+#endif
+                    return result;};
+                JPH::AlignedAllocate=[](size_t n,size_t a)->void* {JoltAudit::Alloc(n,true);auto* p=aligned(n,a);
+#ifdef GENGINE_PHASE27_QUALIFICATION
+                    if(JoltAudit::countAllocations && Phase27Audit::heap)Phase27Audit::heap({reinterpret_cast<std::uintptr_t>(p),reinterpret_cast<std::uintptr_t>(_ReturnAddress()),n,true});
+#endif
+                    return p;};
+#ifdef GENGINE_PHASE27_QUALIFICATION
+                static const auto freeHeap=JPH::Free,freeAligned=JPH::AlignedFree;
+                JPH::Free=[](void* p){if(JoltAudit::countAllocations && Phase27Audit::heap)Phase27Audit::heap({reinterpret_cast<std::uintptr_t>(p),reinterpret_cast<std::uintptr_t>(_ReturnAddress()),0,false});freeHeap(p);};
+                JPH::AlignedFree=[](void* p){if(JoltAudit::countAllocations && Phase27Audit::heap)Phase27Audit::heap({reinterpret_cast<std::uintptr_t>(p),reinterpret_cast<std::uintptr_t>(_ReturnAddress()),0,false});freeAligned(p);};
+#endif
 #endif
                 JPH::Factory::sInstance = new JPH::Factory;
                 if (!JPH::Factory::sInstance){
@@ -372,7 +402,8 @@ namespace GEngine
         {
             PhysicsJointHandle m_Handle{};
             DistanceJointDesc m_Desc;
-            JPH::Ref<JPH::DistanceConstraint> m_Constraint;
+            JointKind m_Kind{JointKind::Distance};
+            JPH::Ref<JPH::TwoBodyConstraint> m_Constraint;
         };
 
         class JoltWorld final : public WorldBackend
@@ -804,13 +835,21 @@ namespace GEngine
                         auto* p=base.Allocate(n);
 #ifdef GENGINE_JOLT_FINAL_AUDIT
                         ++JoltAudit::tempCalls;JoltAudit::tempBytes+=n;JoltAudit::tempPeak=std::max(JoltAudit::tempPeak,std::uint64_t(base.GetUsage()));
+#ifdef GENGINE_PHASE27_QUALIFICATION
+                        if(Phase27Audit::arena)Phase27Audit::arena({reinterpret_cast<std::uintptr_t>(p),reinterpret_cast<std::uintptr_t>(_ReturnAddress()),n,n?JPH::AlignUp(n,JPH::uint(JPH_RVECTOR_ALIGNMENT)):0,base.GetUsage(),true});
+#endif
 #endif
 #ifdef GENGINE_G8_RESISTANCE_CHECKS
                         G8ResistanceObservation::Temporary(base.GetUsage());
 #endif
                         return p;
                     }
-                    void Free(void* p,JPH::uint n) override {base.Free(p,n);}
+                    void Free(void* p,JPH::uint n) override {
+                        base.Free(p,n);
+#ifdef GENGINE_PHASE27_QUALIFICATION
+                        if(Phase27Audit::arena)Phase27Audit::arena({reinterpret_cast<std::uintptr_t>(p),reinterpret_cast<std::uintptr_t>(_ReturnAddress()),n,n?JPH::AlignUp(n,JPH::uint(JPH_RVECTOR_ALIGNMENT)):0,base.GetUsage(),false});
+#endif
+                    }
                 } proxy(m_Temporary);
 #ifdef GENGINE_JOLT_FINAL_AUDIT
                 const auto auditUpdate=JoltAudit::Now();
@@ -878,9 +917,39 @@ namespace GEngine
                 Phase26ObservationSDK::SiteScope phase26_joint_site(Phase26ObservationSDK::ArenaSite::JointContainer);
 #endif
                 joint.m_Constraint=new JPH::DistanceConstraint(*a.m_Body,*b.m_Body,settings);
-                joint.m_Handle=handle;joint.m_Desc=desc;
+                joint.m_Handle=handle;joint.m_Desc=desc;joint.m_Kind=JointKind::Distance;
                 m_Physics.AddConstraint(joint.m_Constraint);RefreshPair(desc);
                 return {};
+            }
+            JointResult<> CreateJoint(PhysicsJointHandle handle,const BallSocketJointDesc& desc) override
+            {
+                if(handle.index>=m_Joints.size() || desc.bodyA.index>=BodyCapacity || desc.bodyB.index>=BodyCapacity)
+                    return std::unexpected(JointError{JointErrorCode::Capacity,handle,"Jolt CreatePointJoint"});
+                auto& a=m_Bodies[desc.bodyA.index]; auto& b=m_Bodies[desc.bodyB.index];
+                if(a.m_Handle!=desc.bodyA || b.m_Handle!=desc.bodyB || !a.m_Body || !b.m_Body)
+                    return std::unexpected(JointError{JointErrorCode::InvalidEndpoint,handle,"Jolt CreatePointJoint"});
+                const auto stagedA=PrepareSynchronization(a),stagedB=PrepareSynchronization(b);
+                if(!stagedA || !stagedB)
+                    return std::unexpected(JointError{JointErrorCode::InvalidEndpoint,handle,"Jolt point endpoint synchronization"});
+                CommitSynchronization(*stagedA);CommitSynchronization(*stagedB);
+                JPH::PointConstraintSettings settings;
+                settings.mSpace=JPH::EConstraintSpace::WorldSpace;
+                settings.mPoint1=V(a.m_Native->BodySpaceToWorldSpace(desc.localAnchorA));
+                settings.mPoint2=V(b.m_Native->BodySpaceToWorldSpace(desc.localAnchorB));
+                auto& joint=m_Joints[handle.index];
+                joint.m_Constraint=new JPH::PointConstraint(*a.m_Body,*b.m_Body,settings);
+                joint.m_Handle=handle; joint.m_Kind=JointKind::BallSocket;
+                joint.m_Desc={desc.bodyA,desc.bodyB,desc.localAnchorA,desc.localAnchorB,0,desc.collideConnected};
+                m_Physics.AddConstraint(joint.m_Constraint);RefreshPair(joint.m_Desc);
+                return {};
+            }
+            Vec3f JointVectorImpulse(PhysicsJointHandle handle) const noexcept override
+            {
+                if(handle.index>=m_Joints.size())return {};
+                const auto& j=m_Joints[handle.index];
+                if(j.m_Handle!=handle || !j.m_Constraint || j.m_Kind!=JointKind::BallSocket)return {};
+                const auto v=static_cast<const JPH::PointConstraint*>(j.m_Constraint.GetPtr())->GetTotalLambdaPosition();
+                return {v.GetX(),v.GetY(),v.GetZ()};
             }
             void DestroyJoint(PhysicsJointHandle handle) noexcept override
             {
@@ -891,7 +960,7 @@ namespace GEngine
             void ResetJoint(PhysicsJointHandle handle) noexcept override
             { auto& joint=m_Joints[handle.index];if(joint.m_Handle==handle && joint.m_Constraint)joint.m_Constraint->ResetWarmStart(); }
             float JointImpulse(PhysicsJointHandle handle) const noexcept override
-            { const auto& j=m_Joints[handle.index];return j.m_Handle==handle && j.m_Constraint?j.m_Constraint->GetTotalLambdaPosition():0; }
+            { const auto& j=m_Joints[handle.index];return j.m_Handle==handle && j.m_Constraint?(j.m_Kind==JointKind::Distance?static_cast<const JPH::DistanceConstraint*>(j.m_Constraint.GetPtr())->GetTotalLambdaPosition():glm::length(JointVectorImpulse(handle))):0; }
             bool JointActive(PhysicsJointHandle handle) const noexcept override
             { const auto& j=m_Joints[handle.index];return j.m_Handle==handle && j.m_Constraint && j.m_Constraint->IsActive(); }
         };

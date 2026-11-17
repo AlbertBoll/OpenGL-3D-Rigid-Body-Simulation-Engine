@@ -24,6 +24,21 @@ using namespace ::GEngine::Component;
 
 namespace
 {
+    struct PresetCard { Rbs::RbsScenePreset preset; const char* title; };
+    constexpr PresetCard PresetCards[]{
+        {Rbs::RbsScenePreset::GeometryGallery,"Geometry Gallery"},
+        {Rbs::RbsScenePreset::SphereDiamond,"Sphere Diamond"},
+        {Rbs::RbsScenePreset::SphereLattice,"Sphere Lattice"},
+        {Rbs::RbsScenePreset::BoxStack,"Box Stack"},
+        {Rbs::RbsScenePreset::SphereBoxStack,"Sphere + Box Stack"},
+        {Rbs::RbsScenePreset::DistancePendulum,"Distance Pendulum"},
+        {Rbs::RbsScenePreset::DistanceChain,"Distance Chain"},
+        {Rbs::RbsScenePreset::DistanceChainContact,"Chain + Contact"},
+        {Rbs::RbsScenePreset::BallSocketSwing,"BallSocket S - Anchored Swing"},
+        {Rbs::RbsScenePreset::BallSocketPair,"BallSocket P - Loaded Pair"},
+        {Rbs::RbsScenePreset::BallSocketContact,"BallSocket G - Collision-disabled diagnostic"},
+        {Rbs::RbsScenePreset::BallSocketContactEnabled,"BallSocket G_C - Contact-enabled demonstration"}
+    };
     const char* SimulationLabel(Rbs::SimulationState state)
     {
         switch(state)
@@ -154,12 +169,11 @@ void RigidBodySimulationApp::DrawSceneSelectionControls()
     ImGui::SetNextItemWidth(Rbs::Editor::Px(175));
     if(ImGui::BeginCombo("##ScenePreset",Rbs::SceneName(m_PendingSelection.scene)))
     {
-        for(auto preset:{Rbs::RbsScenePreset::GeometryGallery,Rbs::RbsScenePreset::SphereDiamond,
-            Rbs::RbsScenePreset::SphereLattice,Rbs::RbsScenePreset::BoxStack,Rbs::RbsScenePreset::SphereBoxStack,
-            Rbs::RbsScenePreset::DistancePendulum,Rbs::RbsScenePreset::DistanceChain,Rbs::RbsScenePreset::DistanceChainContact})
+        for(const auto& card:PresetCards)
         {
+            const auto preset=card.preset;
             const bool selected=preset==m_PendingSelection.scene;
-            if(ImGui::Selectable(Rbs::SceneName(preset),selected))
+            if(ImGui::Selectable(card.title,selected))
             {
                 m_PendingSelection.scene=preset;
                 if(preset==Rbs::RbsScenePreset::DistanceChainContact)m_PendingSelection.chainLinks=8;
@@ -500,11 +514,6 @@ void RigidBodySimulationApp::DrawDiagnosticsRegion()
 void RigidBodySimulationApp::DrawContentBrowser()
 {
     namespace E = Rbs::Editor;
-    constexpr std::array presets{Rbs::RbsScenePreset::GeometryGallery, Rbs::RbsScenePreset::SphereDiamond,
-        Rbs::RbsScenePreset::SphereLattice, Rbs::RbsScenePreset::BoxStack, Rbs::RbsScenePreset::SphereBoxStack,
-        Rbs::RbsScenePreset::DistancePendulum, Rbs::RbsScenePreset::DistanceChain, Rbs::RbsScenePreset::DistanceChainContact};
-    constexpr const char* titles[]{"Geometry Gallery", "Sphere Diamond", "Sphere Lattice", "Box Stack",
-        "Sphere + Box Stack", "Distance Pendulum", "Distance Chain", "Chain + Contact"};
     const float browserWidth=ImGui::GetContentRegionAvail().x;
     ImGui::TextUnformatted("Scenes / Presets");
     if(browserWidth>E::Px(340))ImGui::SameLine();
@@ -521,13 +530,13 @@ void RigidBodySimulationApp::DrawContentBrowser()
     if (!m_PresetThumbnailsLoaded)
     {
         m_PresetThumbnailsLoaded = true;
-        // Eight optional preview resources, owned by the existing asset registry.
-        for (std::size_t i = 0; i < presets.size(); ++i)
+        // Optional preview resources, owned by the existing asset registry.
+        for (const auto& card:PresetCards)
         {
-            const std::string path = std::string("Editor/Scenes/") + Rbs::SceneName(presets[i]);
+            const std::string path = std::string("Editor/Scenes/") + Rbs::SceneName(card.preset);
             if (!RuntimeAssets::TryFile("Images/" + path + ".png")) continue;
             auto texture = LoadSceneTexture(path);
-            if (texture) m_PresetThumbnails[i] = *texture;
+            if (texture) m_PresetThumbnails.emplace(card.preset,*texture);
         }
     }
     ImGui::BeginChild("PresetGrid",{0,std::max(E::Px(80),ImGui::GetContentRegionAvail().y)});
@@ -536,40 +545,51 @@ void RigidBodySimulationApp::DrawContentBrowser()
     const float cell=std::max(1.f,std::min(E::Px(float(E::ThumbnailWidth)+16),available/columns));
     const float imageWidth=std::max(1.f,cell-E::Px(16)), imageHeight=imageWidth*9.f/16.f;
     float labelHeight=0;
-    for(const auto* title:titles)labelHeight=std::max(labelHeight,ImGui::CalcTextSize(title,nullptr,false,imageWidth).y);
+    for(const auto& card:PresetCards)labelHeight=std::max(labelHeight,ImGui::CalcTextSize(card.title,nullptr,false,imageWidth).y);
     const float cardHeight=imageHeight+labelHeight+ImGui::GetTextLineHeight()+E::Px(22);
     ImGui::BeginDisabled(m_SceneRequest.has_value() || m_SimulationState == Rbs::SimulationState::Switching);
     if (ImGui::BeginTable("Presets", columns, ImGuiTableFlags_SizingFixedFit))
     {
-        for (std::size_t i = 0; i < presets.size(); ++i)
+        for (const auto& card:PresetCards)
         {
-            if (m_PresetFilter[0] && !ImStristr(titles[i], nullptr, m_PresetFilter.data(), nullptr)) continue;
+            if (m_PresetFilter[0] && !ImStristr(card.title, nullptr, m_PresetFilter.data(), nullptr)) continue;
             ImGui::TableNextColumn();
-            ImGui::PushID(static_cast<int>(i));
+            ImGui::PushID(static_cast<int>(card.preset));
             const auto start = ImGui::GetCursorPos();
-            const bool selected = m_PendingSelection.scene == presets[i];
+            const bool selected = m_PendingSelection.scene == card.preset;
             if (ImGui::Selectable("##Preset", selected, ImGuiSelectableFlags_AllowDoubleClick,
                 {cell - E::Px(8), cardHeight}))
             {
-                m_PendingSelection.scene = presets[i];
-                if (presets[i] == Rbs::RbsScenePreset::DistanceChainContact) m_PendingSelection.chainLinks = 8;
+                m_PendingSelection.scene = card.preset;
+                if (card.preset == Rbs::RbsScenePreset::DistanceChainContact) m_PendingSelection.chainLinks = 8;
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) RequestScene(m_PendingSelection);
             }
             if(ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
             {
-                const Rbs::ScenePresetPayload payload{1,{presets[i],presets[i]==Rbs::RbsScenePreset::DistanceChainContact?8u:m_PendingSelection.chainLinks}};
+                const Rbs::ScenePresetPayload payload{1,{card.preset,card.preset==Rbs::RbsScenePreset::DistanceChainContact?8u:m_PendingSelection.chainLinks}};
                 ImGui::SetDragDropPayload(Rbs::ScenePresetPayloadType,&payload,sizeof(payload));
-                ImGui::Text("Load %s",titles[i]);ImGui::EndDragDropSource();
+                ImGui::Text("Load %s",card.title);ImGui::EndDragDropSource();
             }
-            E::Tooltip(Rbs::SceneName(presets[i]));
+            E::Tooltip(Rbs::SceneName(card.preset));
             const auto end = ImGui::GetCursorPos();
             ImGui::SetCursorPos({start.x + E::Px(4), start.y + E::Px(4)});
-            if (m_PresetThumbnails[i]) UI::Image(m_PresetThumbnails[i], {imageWidth, imageHeight}, {0, 1}, {1, 0});
-            else ImGui::Dummy({imageWidth, imageHeight});
+            const auto preview=m_PresetThumbnails.find(card.preset);
+            if (preview!=m_PresetThumbnails.end()) UI::Image(preview->second, {imageWidth, imageHeight}, {0, 1}, {1, 0});
+            else {
+                const auto pos=ImGui::GetCursorScreenPos();
+                auto* draw=ImGui::GetWindowDrawList();
+                draw->AddRectFilled(pos,{pos.x+imageWidth,pos.y+imageHeight},IM_COL32(35,43,55,255),E::Px(4));
+                draw->AddRect(pos,{pos.x+imageWidth,pos.y+imageHeight},IM_COL32(90,110,130,255),E::Px(4));
+                draw->PushClipRect(pos,{pos.x+imageWidth,pos.y+imageHeight},true);
+                draw->AddText({pos.x+E::Px(8),pos.y+E::Px(8)},IM_COL32(220,225,235,255),"SCENE PRESET");
+                draw->AddText({pos.x+E::Px(8),pos.y+imageHeight*.55f},IM_COL32(170,185,200,255),"Preview unavailable");
+                draw->PopClipRect();
+                ImGui::Dummy({imageWidth,imageHeight});
+            }
             ImGui::SetCursorPosX(start.x + E::Px(4));
             ImGui::PushTextWrapPos(start.x + cell - E::Px(12));
-            ImGui::TextUnformatted(titles[i]);
-            ImGui::TextDisabled("%s", m_ActiveSelection.scene == presets[i] ? "ACTIVE SCENE" : "SCENE PRESET");
+            ImGui::TextUnformatted(card.title);
+            ImGui::TextDisabled("%s", m_ActiveSelection.scene == card.preset ? "ACTIVE SCENE" : "SCENE PRESET");
             ImGui::PopTextWrapPos();
             ImGui::SetCursorPos(end);
             ImGui::PopID();

@@ -10,6 +10,7 @@
 #include "Renderer/FrameScheduler.h"
 #include <array>
 #include <memory>
+#include <map>
 #include <optional>
 #include <span>
 #include <string_view>
@@ -35,6 +36,7 @@ namespace Rbs
     struct ScalableTransformChecks;
     struct ImpulseEditorChecks;
     struct DistanceChainImpulseChecks;
+    struct BallSocketChecks;
     struct SandboxChecks;
     struct BackendSwitchChecks;
     struct OwnerReviewDriver;
@@ -133,6 +135,7 @@ public:
 
 private:
     friend struct Rbs::DistanceChainImpulseChecks;
+    friend struct Rbs::BallSocketChecks;
     friend struct Rbs::SandboxChecks;
     friend struct Rbs::BackendSwitchChecks;
     friend struct Rbs::OwnerReviewDriver;
@@ -350,7 +353,7 @@ private:
     std::array<SceneIconHit,64> m_VisibleSceneIcons{};
     std::size_t m_VisibleSceneIconCount{};
     std::array<char,128> m_PresetFilter{};
-    std::array<GEngine::Asset::Texture*,8> m_PresetThumbnails{};
+    std::map<Rbs::RbsScenePreset,GEngine::Asset::Texture*> m_PresetThumbnails;
     bool m_PresetThumbnailsLoaded{};
     std::array<GEngine::Asset::Texture*,4> m_ViewportIconAtlases{};
     std::array<GEngine::Asset::Texture*,7> m_ComponentIconAtlases{};
@@ -423,7 +426,7 @@ private:
             GEngine::PhysicsBodyProperties m_Properties;
             GEngine::CollisionShapeDesc m_Collider;
         };
-        struct Joint { GEngine::DistanceJointDesc m_Desc; entt::entity m_A{entt::null}, m_B{entt::null}; };
+        struct Joint { GEngine::JointDescriptor m_Desc; entt::entity m_A{entt::null}, m_B{entt::null}; };
         std::vector<Body> m_Bodies;
         std::vector<Joint> m_Joints;
         GEngine::Math::Vec3f m_Gravity{};

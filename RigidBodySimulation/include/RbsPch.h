@@ -1,0 +1,30 @@
+#pragma once
+
+// Stable library declarations only. Keep engine/Physics and validation code out.
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <chrono>
+#include <filesystem>
+#include <format>
+#include <functional>
+#include <future>
+#include <iostream>
+#include <limits>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <queue>
+#include <span>
+#include <string>
+#include <string_view>
+#include <thread>
+#include <type_traits>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <variant>
+#include <vector>
+#include <entt/entt.hpp>
+#include <spdlog/spdlog.h>

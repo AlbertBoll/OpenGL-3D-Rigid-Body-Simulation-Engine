@@ -515,7 +515,7 @@ namespace GEngine
     {
         std::size_t count=0;
         for(std::size_t i=0;i<PhysicsWorld::MaxDistanceJoints;++i)
-            if(m_PhysicsWorld->m_Joints[i].live && m_PhysicsWorld->m_Joints[i].row.active)
+            if(m_PhysicsWorld->m_Joints[i].live && m_PhysicsWorld->m_Joints[i].kind==JointKind::Distance && m_PhysicsWorld->m_Joints[i].row.active)
                 m_JointBlock[count++].row=&m_PhysicsWorld->m_Joints[i].row;
         if(!count) return true;
 
@@ -965,6 +965,7 @@ namespace GEngine
 				{ SleepPathTimer contactTimer(m_ContactSolveNs); m_Manifolds.PreSolve(ts); }
 			}
 
+            bool hasContactPointJoint = false;
             if (m_PhysicsWorld->m_JointCount) {
                 SleepPathTimer jointTimer(m_JointSolveNs);
 #ifdef GENGINE_PHASE26_QUALIFICATION
@@ -974,7 +975,10 @@ namespace GEngine
                     auto& row=m_PhysicsWorld->m_Joints[i].row;
                     auto* a=m_PhysicsWorld->ResolveJointBody(row.desc.bodyA);
                     auto* b=m_PhysicsWorld->ResolveJointBody(row.desc.bodyB);
-                    if(!a || !b || !row.Prepare(*a,*b,dtSeconds)) {
+                    auto& slot=m_PhysicsWorld->m_Joints[i];
+                    hasContactPointJoint |= slot.kind==JointKind::BallSocket && slot.point.desc.collideConnected;
+                    const bool prepared=a && b && (slot.kind==JointKind::Distance?row.Prepare(*a,*b,dtSeconds):slot.point.Prepare(*a,*b,dtSeconds));
+                    if(!prepared) {
                         m_JointFailure=true;
                         GENGINE_CORE_ERROR("Distance joint preparation failed slot={}",i);
                         for(auto* body:PhysicsBodies) body->m_InPhysicsStep=false;
@@ -1011,7 +1015,12 @@ namespace GEngine
 #ifdef GENGINE_PHASE26_QUALIFICATION
                         Phase26Observation::JointScope jointAllocationScope;
 #endif
-                            if(!SolveDistanceJoints()) {
+                            bool solved=SolveDistanceJoints();
+                            for(std::size_t j=0;solved && j<PhysicsWorld::MaxDistanceJoints;++j) {
+                                auto& slot=m_PhysicsWorld->m_Joints[j];
+                                if(slot.live && slot.kind==JointKind::BallSocket) solved=slot.point.Solve();
+                            }
+                            if(!solved) {
                                 m_JointFailure=true;
                                 GENGINE_CORE_ERROR("Distance joint solve failed");
                                 for(auto* body:PhysicsBodies) body->m_InPhysicsStep=false;
@@ -1130,6 +1139,26 @@ namespace GEngine
                     }
                     toiDiagnostic.Finish();
 					ResolveContactAtCurrentState(current, false);
+                    // The ballistic response occurs after the ordinary joint solve.
+                    // Reconcile a point joint connecting this contact's two bodies
+                    // before integrating again, at the actual TOI pose. Its cached
+                    // impulse was already applied once; refresh without warm-starting.
+                    if (hasContactPointJoint) {
+                        SleepPathTimer jointTimer(m_JointSolveNs);
+                        for (std::size_t j=0;j<PhysicsWorld::MaxDistanceJoints;++j) {
+                            auto& slot=m_PhysicsWorld->m_Joints[j];
+                            auto& point=slot.point;
+                            if (!slot.live || slot.kind!=JointKind::BallSocket || !point.desc.collideConnected ||
+                                !((point.a==current.m_BodyA && point.b==current.m_BodyB) ||
+                                  (point.a==current.m_BodyB && point.b==current.m_BodyA))) continue;
+                            if (!point.Prepare(*point.a,*point.b,dtSeconds,false) || !point.Solve()) {
+                                m_JointFailure=true;
+                                GENGINE_CORE_ERROR("Ball socket TOI reconciliation failed slot={}",j);
+                                for (auto* body:PhysicsBodies) body->m_InPhysicsStep=false;
+                                return;
+                            }
+                        }
+                    }
 				}
 
 				// Only these bodies can have received ballistic impulses. Refresh every
@@ -1238,7 +1267,9 @@ namespace GEngine
                             if(std::find(island.dynamicBodies.begin(),island.dynamicBodies.end(),a->GetIdentity())==island.dynamicBodies.end() &&
                                std::find(island.dynamicBodies.begin(),island.dynamicBodies.end(),b->GetIdentity())==island.dynamicBodies.end()) continue;
                             const float error=glm::length(b->BodySpaceToWorldSpace(d.localAnchorB)-a->BodySpaceToWorldSpace(d.localAnchorA))-d.length;
-                            ready &= Math::IsFinite(error) && std::abs(error)<=.005f*d.length;
+                            const float scale=m_PhysicsWorld->m_Joints[j].kind==JointKind::Distance?d.length:
+                                glm::length(d.localAnchorA)+glm::length(d.localAnchorB);
+                            ready &= Math::IsFinite(error) && std::abs(error)<=.005f*scale;
                         }
                     for (auto identity : std::span(island.dynamicBodies.data(), island.dynamicBodies.size())) {
 						auto* body = ResolveBody(identity);
@@ -2143,6 +2174,18 @@ namespace GEngine
                     island.dynamicBodies.reserve(m_PhysicsWorld->GetBodyCount());
                     island.boundaryBodies.reserve(m_PhysicsWorld->GetBodyCount());
                     island.contactPairs.reserve(m_PhysicsWorld->GetBodyCount()*2);
+                }
+                if(m_PhysicsWorld->GetBackend()==PhysicsBackend::Native) {
+                    // Prepare the same reusable contact allowance for activation,
+                    // plus registered joint edges, at this authoring boundary.
+                    // Graph contents/order are still rebuilt by the existing step.
+                    const auto bodies=m_PhysicsWorld->GetBodyCount();
+                    m_ContactIslandScratch.edges.reserve(bodies*2+m_PhysicsWorld->GetJointCount());
+                    for(auto& island:m_ActivationIslands) {
+                        island.dynamicBodies.reserve(bodies);
+                        island.boundaryBodies.reserve(bodies);
+                        island.contactPairs.reserve(bodies*2);
+                    }
                 }
                 RemoveManifoldsForBody(m_Manifolds,body);
                 RemoveContactsForBody(m_Contacts,body);

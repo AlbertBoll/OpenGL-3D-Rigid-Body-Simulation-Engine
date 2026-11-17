@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 
@@ -54,6 +55,58 @@ def runtime_dlls(config, project):
         if project in ("GEngineEditor", "RigidBodySimulation"):
             names.append("assimp-vc140-mt.dll")
     return names
+
+
+def profile_destination(repo, config, project, profile):
+    """Only the admitted RBS qualification profile can redirect the ordinary pipeline."""
+    if profile != 'phase27-qualification' or project != 'RigidBodySimulation' or config not in ('Debug', 'Release'):
+        raise ValueError('Unsupported runtime build profile')
+    repo = Path(repo).resolve()
+    destination = repo / 'bin' / profile / config / project
+    for path in (destination, *destination.parents):
+        if path.exists() and (path.is_symlink() or
+                getattr(path.lstat(), 'st_file_attributes', 0) & getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0)):
+            raise ValueError('Runtime profile path has a reparse/symlink ancestor: ' + str(path))
+        if path == repo:
+            break
+    if not destination.resolve().is_relative_to(repo):
+        raise ValueError('Runtime profile escapes the workspace')
+    return destination
+
+
+def stage_profile_runtime(repo, config, destination):
+    """Copy tracked third-party runtime prerequisites, never ordinary build products."""
+    repo = Path(repo).resolve()
+    names = runtime_dlls(config, 'RigidBodySimulation')
+    sources = [repo / 'bin' / config / 'RigidBodySimulation' / name for name in names]
+    relative = [source.relative_to(repo).as_posix() for source in sources]
+    tracked = subprocess.check_output(['git', '--no-optional-locks', '-c', 'safe.directory='+repo.as_posix(),
+        '-C', str(repo), 'ls-files', '-z', '--', *relative]).decode('utf-8').split('\0')
+    if not set(relative) <= set(tracked):
+        raise RuntimeError('Qualification runtime prerequisite must be a tracked DLL')
+    destination.mkdir(parents=True, exist_ok=True)
+    identities = {}
+    for source in sources:
+        if source.is_symlink() or not source.resolve().is_relative_to(repo):
+            raise RuntimeError('Invalid runtime prerequisite source: '+str(source))
+        expected = hashlib.sha256(source.read_bytes()).hexdigest()
+        target = destination / source.name
+        if not target.is_file() or hashlib.sha256(target.read_bytes()).hexdigest() != expected:
+            temporary = target.with_name(target.name + f'.{os.getpid()}.stage-tmp')
+            try:
+                shutil.copy2(source, temporary)
+                if hashlib.sha256(temporary.read_bytes()).hexdigest() != expected:
+                    raise RuntimeError('Runtime prerequisite copy identity mismatch')
+                os.replace(temporary, target)
+            finally:
+                if temporary.is_file(): temporary.unlink()
+        identities[source.relative_to(repo).as_posix()] = expected
+    # This describes copied dependency identities; it never establishes Physics qualification.
+    data = (json.dumps(identities, indent=2)+'\n').encode('utf-8')
+    record = destination / 'runtime-dependencies.json'
+    if not record.exists() or record.read_bytes() != data:
+        record.write_bytes(data)
+    print(f'Qualification runtime copied/verified by SHA-256: {len(identities)} tracked DLLs', flush=True)
 
 
 
@@ -127,7 +180,11 @@ def main(project_dir, arguments):
     if config not in ("Debug", "Release") or project != project_dir.name:
         raise ValueError("Expected config=Debug|Release and prj=" + project_dir.name)
 
-    dest = project_dir.parent / "bin" / config / project
+    profile = args.get('profile')
+    dest = (profile_destination(project_dir.parent, config, project, profile) if profile is not None
+            else project_dir.parent / "bin" / config / project)
+    if profile is not None:
+        stage_profile_runtime(project_dir.parent, config, dest)
     sources = [project_dir / "PostBuildCopy"]
     windows = sys.platform == "win32"
     if windows:

@@ -4,6 +4,7 @@
 #include "PhysicsJoltSettings.h"
 #include "Shape.h"
 #include "Constraints/DistanceJoint.h"
+#include "Constraints/BallSocketJoint.h"
 #include <expected>
 #include <functional>
 #include <memory>
@@ -212,6 +213,10 @@ namespace GEngine
         static constexpr std::size_t MaxDistanceJoints = 256;
         [[nodiscard]] JointResult<PhysicsJointHandle> CreateDistanceJoint(const DistanceJointDesc&);
         [[nodiscard]] JointResult<DistanceJointState> ReadDistanceJoint(PhysicsJointHandle) const;
+        [[nodiscard]] JointResult<PhysicsJointHandle> CreateBallSocketJoint(const BallSocketJointDesc&);
+        [[nodiscard]] JointResult<BallSocketJointState> ReadBallSocketJoint(PhysicsJointHandle) const;
+        [[nodiscard]] JointResult<JointState> ReadJoint(PhysicsJointHandle) const;
+        [[nodiscard]] JointResult<PhysicsJointHandle> CreateJoint(const JointDescriptor&);
         [[nodiscard]] JointResult<> DestroyJoint(PhysicsJointHandle);
         [[nodiscard]] JointResult<PhysicsJointHandle> JointAt(std::size_t ordinal) const;
         std::size_t GetJointCount() const noexcept { return m_JointCount; }
@@ -243,7 +248,16 @@ namespace GEngine
             Vec3f reference{1};std::unique_ptr<PhysicalShape> shape;
         };
         mutable std::vector<EditorPlacementShape> m_EditorPlacementShapes;
-        struct JointSlot { DistanceJointRow row; std::uint64_t generation{}; bool live{}; };
+        struct JointSlot {
+            // row.desc retains common endpoints/filter metadata for both kinds.
+            // Only the selected solver row is prepared or solved.
+            DistanceJointRow row;
+            BallSocketJointRow point;
+            JointKind kind{JointKind::Distance};
+            std::uint64_t generation{};
+            bool live{};
+            void Reset() noexcept { row.Reset(); point.Reset(); }
+        };
         std::unique_ptr<JointSlot[]> m_Joints;
         std::size_t m_JointCount{};
         std::function<void(RigidBody3D*)> m_JointMutationCallback;
@@ -284,6 +298,9 @@ namespace GEngine
         const std::thread::id m_OwnerThread{std::this_thread::get_id()};
         bool m_Closed{}, m_Mutating{};
         friend class PhysicsSystem;
+#ifdef GENGINE_PHASE27_QUALIFICATION
+        friend struct Phase27GraphAccess;
+#endif
         friend class _Scene;
         friend struct PhysicsTestAccess;
     };

@@ -5,7 +5,7 @@
 
 namespace GEngine
 {
-    enum class JointKind { Distance, BallSocket };
+    enum class JointKind { Distance, BallSocket, Hinge, ConstantVelocity, LimitedConstantVelocity };
     struct PhysicsJointTag;
     using PhysicsJointHandle = Asset::AssetHandle<PhysicsJointTag>;
     struct DistanceJointDesc

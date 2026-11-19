@@ -30,6 +30,14 @@ namespace Rbs { unsigned MeshHighlightStage(); }
 #ifdef GENGINE_PHASE26_SANDBOX_CHECKS
 #include "../tests/SandboxChecks.h"
 #endif
+#ifdef GENGINE_PHASE28_QUALIFICATION
+namespace Rbs { void Phase28AngularWidget(RigidBodySimulationApp&,const char*); }
+namespace Rbs { void Phase28ComponentWidget(const char*); }
+namespace Rbs { float Phase28OutlineViewportScale(); }
+#define RBS_PHASE28_WIDGET(key) Rbs::Phase28AngularWidget(*this,key)
+#else
+#define RBS_PHASE28_WIDGET(key) ((void)0)
+#endif
 #ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
 #include "../tests/ColliderReplacementCapture.h"
 #include "../tests/ColliderReplacementObservation.h"
@@ -99,6 +107,15 @@ namespace Rbs
 #endif
     static void NoteColliderControl(const char* label)
     {
+#ifdef GENGINE_PHASE28_QUALIFICATION
+        constexpr std::pair<std::string_view,const char*> controls[]{
+            {"Current Collider","collider-current"},{"New Collider Type","collider-kind"},
+            {"Sphere","collider-kind.sphere"},{"Box","collider-kind.box"},{"Capsule","collider-kind.capsule"},
+            {"Fit to Mesh","collider-fit"},{"Radius","collider-radius"},{"Half Length","collider-half-length"},
+            {"Apply","collider-apply"},{"Revert","collider-revert"},{"Cancel","collider-cancel"},
+            {"Replace Anyway","collider-confirm"},{"Force Replace","collider-force"}};
+        for(const auto& [name,key]:controls)if(name==label){Phase28ComponentWidget(key);break;}
+#endif
 #ifdef GENGINE_COLLIDER_EDITOR_SMOKE
         ColliderEditorProbe::Observe(label);
 #endif
@@ -255,9 +272,14 @@ namespace Rbs
 
     struct ColliderInspector
     {
+        // Retain the same member defaults without expanding 64 nested preview
+        // aggregates into a single compiler constant-initialization expression.
+        ColliderInspector() noexcept {}
+
         PhysicsBodyHandle target{};
         _Entity entity;
         bool refreshRequested{};
+        bool userEdited{};
         std::optional<CollisionShapeDesc> queued;
         bool queuedForce{};
         std::array<FrameDebugLine, 260> cachedPreview{};
@@ -284,6 +306,7 @@ namespace Rbs
         void Revert(const ColliderShapeState& current)
         {
             queued.reset();
+            userEdited=false;
             replacement = current.type == ShapeType::Box ? 1 : current.type == ShapeType::Capsule ? 2 : 0;
             fitMesh = false;
             if (const auto* sphere = std::get_if<SphereShapeDesc>(&current.dimensions)) radius = sphere->radius;
@@ -558,7 +581,13 @@ namespace Rbs
     {
         const bool extents=std::string_view(label)=="Half extents";
         return Editor::XYZ(extents?"Half extents (m)":"Center (m)",&value.x,extents?.5f:0.f,.01f,"Metres. Invalid geometry leaves the proposal unchanged.",
-            extents?Editor::Numeric::Positive<float>():Editor::Numeric::Bounds<float>{},validate);
+            extents?Editor::Numeric::Positive<float>():Editor::Numeric::Bounds<float>{},validate,nullptr,[&]([[maybe_unused]] int axis){
+#ifdef GENGINE_PHASE28_QUALIFICATION
+                constexpr const char* halfKeys[]{"collider-half-x","collider-half-y","collider-half-z"};
+                constexpr const char* centerKeys[]{"collider-center-x","collider-center-y","collider-center-z"};
+                Phase28ComponentWidget(extents?halfKeys[axis]:centerKeys[axis]);
+#endif
+            });
     }
 
     static void ColliderDimensions(const ColliderShapeState& shape)
@@ -587,6 +616,7 @@ namespace Rbs
                 const auto readback = physics.ReadBodyCollider(handle);
                 if (readback && readback->type == editor.PendingType())
                 {
+                    editor.userEdited=false;
                     editor.after = *readback;
                     editor.activeIdentity = readback->identity;
                     editor.activeRevision = readback->revision;
@@ -681,6 +711,7 @@ namespace Rbs
         if (editor.preview && editor.fitMesh && entity.HasAllComponents<MeshRendererComponent>())
             edited |= editor.previewScale != entity.GetComponent<Transform3DComponent>().Scale ||
                 editor.previewMesh != entity.GetComponent<MeshRendererComponent>().mesh;
+        bool userEdit=false;
         {
         std::optional<Editor::PropertyRow> row;
         if (Editor::Active) row.emplace("Shape", "Proposed collider type; Apply uses the existing overlap admission checks.");
@@ -691,11 +722,11 @@ namespace Rbs
         {
             for (int index = 0; index < 3; ++index)
             {
-                if (ImGui::Selectable(types[index], index == editor.replacement))
+                if (ImGui::Selectable(types[index], index == editor.replacement) && index!=editor.replacement)
                 {
                     editor.replacement = index;
                     BroadcastColliderType(editor, index);
-                    edited = true;
+                    userEdit=true;
                 }
                 NoteColliderControl(types[index]);
             }
@@ -705,9 +736,9 @@ namespace Rbs
         if (Editor::Active)
         {
             Editor::PropertyRow row("Fit to mesh", "Fit the collider to the current render mesh. Disable for manual dimensions.");
-            edited |= ImGui::Checkbox("##FitMesh", &editor.fitMesh);
+            userEdit|=ImGui::Checkbox("##FitMesh", &editor.fitMesh);
         }
-        else edited |= ImGui::Checkbox("Fit to Mesh", &editor.fitMesh);
+        else userEdit|=ImGui::Checkbox("Fit to Mesh", &editor.fitMesh);
         NoteColliderControl("Fit to Mesh");
         if (!editor.fitMesh)
         {
@@ -715,16 +746,18 @@ namespace Rbs
             {return CreateCollisionShape(desc)?nullptr:"Invalid shape: dimensions, bounds or inertia are not representable. Proposal unchanged.";};
             if (editor.replacement == 1)
             {
-                edited |= ColliderVector("Half extents",editor.halfExtents,[&](const float* v){return validShape(BoxShapeDesc{{v[0],v[1],v[2]},editor.center});});
-                edited |= ColliderVector("Center",editor.center,[&](const float* v){return validShape(BoxShapeDesc{editor.halfExtents,{v[0],v[1],v[2]}});});
+                userEdit|=ColliderVector("Half extents",editor.halfExtents,[&](const float* v){return validShape(BoxShapeDesc{{v[0],v[1],v[2]},editor.center});});
+                userEdit|=ColliderVector("Center",editor.center,[&](const float* v){return validShape(BoxShapeDesc{editor.halfExtents,{v[0],v[1],v[2]}});});
             }
             else
             {
-                edited |= ColliderNumber("Radius",editor.radius,Editor::Numeric::Positive<float>(),[&](float v){return validShape(editor.replacement==2?CollisionShapeDesc{CapsuleShapeDesc{v,editor.halfLength}}:CollisionShapeDesc{SphereShapeDesc{v}});});
+                userEdit|=ColliderNumber("Radius",editor.radius,Editor::Numeric::Positive<float>(),[&](float v){return validShape(editor.replacement==2?CollisionShapeDesc{CapsuleShapeDesc{v,editor.halfLength}}:CollisionShapeDesc{SphereShapeDesc{v}});});
                 if (editor.replacement == 2)
-                    edited |= ColliderNumber("Half Length",editor.halfLength,Editor::Numeric::Nonnegative<float>(),[&](float v){return validShape(CapsuleShapeDesc{editor.radius,v});});
+                    userEdit|=ColliderNumber("Half Length",editor.halfLength,Editor::Numeric::Nonnegative<float>(),[&](float v){return validShape(CapsuleShapeDesc{editor.radius,v});});
             }
         }
+        editor.userEdited|=userEdit;
+        edited|=userEdit;
         if (edited)
         {
             EndColliderConfirmation(editor, scene, userPaused);
@@ -1046,23 +1079,32 @@ bool RigidBodySimulationApp::RequestDistanceChainImpulse()
                              m_SimulationState == Rbs::SimulationState::Failed))) return false;
     auto* world = m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
     if (!world) return false;
+    if(m_ActiveSelection.IsAngularScene() && m_Angular.committed &&
+       m_ChainImpulseMagnitude>3.f*m_Angular.committed->bodies[1].authoredMass)
+    {m_SceneDiagnostic="Angular inspection impulse exceeds the admitted 3m N*s bound.";return false;}
     return m_ChainImpulse.Request(*world, m_ChainImpulseMagnitude,
         static_cast<Rbs::DistanceChainImpulseControl::Direction>(m_ChainImpulseDirection));
 }
 
 void RigidBodySimulationApp::DrawDistanceChainImpulseControls()
 {
-    if (!m_ActiveSelection.IsDistanceScene() && !m_ActiveSelection.IsBallSocketScene()) return;
+    if (!m_ActiveSelection.IsDistanceScene() && !m_ActiveSelection.IsBallSocketScene() &&
+        !m_ActiveSelection.IsAngularScene()) return;
     using Control = Rbs::DistanceChainImpulseControl;
     ImGui::Separator();
-    if(m_ActiveSelection.IsBallSocketScene()) ImGui::TextWrapped("Ball-and-Socket impulse - dynamic body A (S: moving body)");
+    if(m_ActiveSelection.IsAngularScene()) ImGui::TextWrapped("Angular inspection impulse - dynamic bar, applied once at the next Update boundary even while paused");
+    else if(m_ActiveSelection.IsBallSocketScene()) ImGui::TextWrapped("Ball-and-Socket impulse - dynamic body A (S: moving body)");
     else ImGui::TextWrapped("Distance chain impulse - terminal link %u", m_ActiveSelection.scene==Rbs::RbsScenePreset::DistancePendulum?1:m_ActiveSelection.chainLinks);
-    if (SandboxEnabled()) ImGui::TextWrapped("Automatic 0.5 Ns impulse after tick 300; manual controls below.");
+    if (SandboxEnabled() && m_ActiveSelection.IsAngularScene())
+        ImGui::TextWrapped("The scene applies impulses after ticks 60 and 300. Reset restores the applied settings at Tick 0.");
+    else if (SandboxEnabled()) ImGui::TextWrapped("Automatic 0.5 Ns impulse after tick 300; manual controls below.");
+    const float maximum=m_ActiveSelection.IsAngularScene() && m_Angular.committed?
+        (std::min)(Control::MaxMagnitude,3.f*m_Angular.committed->bodies[1].authoredMass):Control::MaxMagnitude;
     if (SandboxEnabled())
     {
         {
-            Rbs::Editor::PropertyRow row("Impulse (Ns)", "Finite magnitude from 0 to 5 Ns. Applied once at the next Physics step.");
-            Rbs::Editor::Numeric::Scalar("##Impulse",m_ChainImpulseMagnitude,.01f,Rbs::Editor::Numeric::Closed(Control::MinMagnitude,Control::MaxMagnitude),Rbs::Editor::Numeric::Accept{},true);
+            Rbs::Editor::PropertyRow row("Impulse (Ns)", "Finite bounded magnitude; angular cases apply once at the next Update boundary.");
+            Rbs::Editor::Numeric::Scalar("##Impulse",m_ChainImpulseMagnitude,.01f,Rbs::Editor::Numeric::Closed(Control::MinMagnitude,maximum),Rbs::Editor::Numeric::Accept{},true);
         }
         {
             Rbs::Editor::PropertyRow row("Direction");
@@ -1071,18 +1113,20 @@ void RigidBodySimulationApp::DrawDistanceChainImpulseControls()
     }
     else
     {
-        Rbs::Editor::Numeric::Scalar("Impulse (Ns)",m_ChainImpulseMagnitude,.01f,Rbs::Editor::Numeric::Closed(Control::MinMagnitude,Control::MaxMagnitude),Rbs::Editor::Numeric::Accept{},true);
+        Rbs::Editor::Numeric::Scalar("Impulse (Ns)",m_ChainImpulseMagnitude,.01f,Rbs::Editor::Numeric::Closed(Control::MinMagnitude,maximum),Rbs::Editor::Numeric::Accept{},true);
         ImGui::Combo("Horizontal direction", &m_ChainImpulseDirection, "+X\0-X\0+Z\0-Z\0");
     }
     ImGui::BeginDisabled(Rbs::Editor::Numeric::HasError() || !m_ChainImpulse.Enabled() || m_ChainImpulse.Pending() || m_SceneRequest.has_value());
-    if (ImGui::Button("Apply Impulse")) RequestDistanceChainImpulse();
+    const bool impulse=ImGui::Button("Apply Impulse");
+    RBS_PHASE28_WIDGET("impulse");
+    if(impulse) RequestDistanceChainImpulse();
     ImGui::EndDisabled();
     const char* status = "Ready";
     switch (m_ChainImpulse.GetStatus())
     {
     case Control::Status::Ready: break;
     case Control::Status::Disabled: status = "Manual impulses disabled during qualification"; break;
-    case Control::Status::Queued: status = m_ActiveScene->IsPaused()
+    case Control::Status::Queued: status = m_ActiveScene->IsPaused() && !m_ActiveSelection.IsAngularScene()
         ? "Queued; resume simulation to apply" : "Queued for next Physics step"; break;
     case Control::Status::Applied: status = "Impulse applied"; break;
     case Control::Status::Zero: status = "Zero impulse; no motion requested"; break;
@@ -1108,40 +1152,77 @@ void RigidBodySimulationApp::DrawPhysicsSettings()
 {
     using State=Rbs::SimulationState;
         const auto backendLabel=[](PhysicsBackend backend){return backend==PhysicsBackend::Jolt?"Jolt 5.6.0":"Native";};
-        ImGui::TextWrapped("Active backend: %s",backendLabel(m_Backend));
-        if(auto* world=m_ActiveScene?m_ActiveScene->GetPhysicsSystem():nullptr)
-            ImGui::Text("Tick: %llu",static_cast<unsigned long long>(world->GetCompletedSteps()));
-        if(m_Backend==PhysicsBackend::Jolt)
-            ImGui::TextWrapped("Jolt native friction; authored spin/rolling resistance lengths are unsupported.");
+        auto* physics=m_ActiveScene?m_ActiveScene->GetPhysicsSystem():nullptr;
+        auto* world=physics?physics->GetPhysicsWorld():nullptr;
+        ImGui::TextWrapped("Active backend: %s",world?backendLabel(world->GetBackend()):"Unavailable");
+        if(physics)ImGui::Text("Tick: %llu",static_cast<unsigned long long>(physics->GetCompletedSteps()));
         ImGui::BeginDisabled(m_SceneRequest.has_value() || m_SimulationState==State::Switching || !m_ActiveScene);
         {
         Rbs::Editor::PropertyRow row("Backend", "Apply rebuilds this authored scene at Tick 0; failure retains the previous world.");
         const float backendWidth=ImGui::GetContentRegionAvail().x;
         const bool inlineApply=backendWidth>=Rbs::Editor::Px(240);
         ImGui::SetNextItemWidth(inlineApply?backendWidth-Rbs::Editor::Px(64):backendWidth);
-        if(ImGui::BeginCombo("##PhysicsBackend",backendLabel(m_PendingBackend)))
+        const bool backendOpen=ImGui::BeginCombo("##PhysicsBackend",backendLabel(m_PendingBackend));
+        RBS_PHASE28_WIDGET("backend");
+        if(backendOpen)
         {
             for(auto backend:{PhysicsBackend::Native,PhysicsBackend::Jolt})
             {
                 ImGui::BeginDisabled(!PhysicsBackendAvailable(backend));
-                if(ImGui::Selectable(backendLabel(backend),backend==m_PendingBackend))m_PendingBackend=backend;
+                const bool selected=ImGui::Selectable(backendLabel(backend),backend==m_PendingBackend);
+                RBS_PHASE28_WIDGET(backend==PhysicsBackend::Native?"backend.native":"backend.jolt");
+                if(selected)m_PendingBackend=backend;
                 ImGui::EndDisabled();
             }
             ImGui::EndCombo();
         }
         if(inlineApply)ImGui::SameLine();
-        ImGui::BeginDisabled(m_PendingBackend==m_Backend || !PhysicsBackendAvailable(m_PendingBackend));
-        if(ImGui::Button("Apply##PhysicsBackend"))RequestBackend(m_PendingBackend);
+        ImGui::BeginDisabled(m_PendingBackend==m_Backend || !PhysicsBackendAvailable(m_PendingBackend) ||
+            (m_ActiveSelection.IsAngularScene() && (m_Angular.dirty || m_SimulationState==State::Running)));
+        const bool backendApply=ImGui::Button("Apply##PhysicsBackend");
+        RBS_PHASE28_WIDGET("backend-apply");
+        if(backendApply)RequestBackend(m_PendingBackend);
         ImGui::EndDisabled();
         }
         ImGui::EndDisabled();
         if(!PhysicsBackendAvailable(PhysicsBackend::Jolt))ImGui::TextWrapped("Jolt 5.6.0 is not enabled in this build.");
         ImGui::TextWrapped("Apply stops and rebuilds this authored scene at Tick 0. Failure retains the previous world.");
-    DrawJoltSettings();
+    if(m_ActiveSelection.IsAngularScene())
+    {
+        ImGui::TextWrapped("These scenes use a fixed solver profile. Reset restores the applied scene settings.");
+        if(world && world->GetBackend()==PhysicsBackend::Jolt)
+        {
+            if(const auto actual=world->ReadJoltSettings())
+            {
+                ImGui::TextWrapped("Effective Jolt settings (read-only): velocity %d, position %d, collision substeps %d; restitution threshold %.6g m/s, Baumgarte %.6g.",
+                    actual->velocitySteps,actual->positionSteps,actual->collisionSteps,
+                    actual->minRestitutionVelocity,actual->baumgarte);
+                ImGui::TextWrapped("Penetration slop %.6g m, speculative distance %.6g m; sleep %s, dwell %.6g s, point speed %.6g m/s.",
+                    actual->penetrationSlop,actual->speculativeDistance,
+                    actual->allowSleeping?"on":"off",actual->timeBeforeSleep,actual->pointVelocitySleepThreshold);
+                ImGui::TextWrapped("Warm start %s, pair cache %s, manifold reduction %s.",
+                    actual->warmStarting?"on":"off",actual->bodyPairCache?"on":"off",
+                    actual->manifoldReduction?"on":"off");
+            }
+            else ImGui::TextWrapped("Effective Jolt settings readback unavailable.");
+        }
+        else if(world)ImGui::TextWrapped("The Native angular solver uses the scene's fixed settings.");
+    }
+    else DrawJoltSettings();
     DrawDistanceChainImpulseControls();
     ImGui::TextWrapped("%s",m_SceneDiagnostic.c_str());
 }
 
+
+bool RigidBodySimulationApp::HasPendingColliderDraft() const
+{
+    const auto& edit=Rbs::colliderEditor;
+    if(!m_ActiveScene || edit.sceneIdentity!=m_ActiveScene.get() ||
+       !(edit.userEdited || edit.queued || edit.confirmation) ||
+       edit.entity!=m_HoveredEntity || edit.entity.GetSceneContext()!=m_ActiveScene.get())return false;
+    const auto binding=m_ActiveScene->GetBodyBinding(edit.entity);
+    return binding && *binding==edit.target;
+}
 
 void RigidBodySimulationApp::PrepareColliderUi()
 {
@@ -1194,7 +1275,9 @@ void RigidBodySimulationApp::DrawLegacyDiagnosticPanels()
         }
         DrawDistanceChainImpulseControls();
         DrawPhysicsDebugSection();
-        DrawObjectProperties();
+        if(m_ActiveSelection.IsAngularScene())
+            ImGui::TextDisabled("Select a joint endpoint in Properties to edit its body and collider.");
+        else DrawObjectProperties();
         DrawPresentationSettings();
     }
     ImGui::End();
@@ -1266,21 +1349,450 @@ void RigidBodySimulationApp::DrawObjectProperties()
             ImGui::TextWrapped("Select a body to edit its collider.");
         }
 }
+void RigidBodySimulationApp::DrawAngularWorldSettings()
+{
+    namespace E=Rbs::Editor;
+    if(!m_Angular.committed || !m_Angular.draft)return;
+    const bool worldOpen=E::Component("Scene Physics",true);
+    RBS_PHASE28_WIDGET("book-world-section");
+    if(!worldOpen)return;
+    const auto* world=m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
+    if(world) {
+        const auto actual=world->GetGravity();
+        E::ReadOnly("Applied gravity (m/s^2)",std::format("({:.3f}, {:.3f}, {:.3f})",actual.x,actual.y,actual.z).c_str());
+    }
+    else E::ReadOnly("Applied gravity","World unavailable");
+    E::ReadOnly("Fixed step (s)",std::format("{:.9f}",m_Angular.committed->fixedStepSeconds).c_str());
+    E::ReadOnly("Solver profile","Existing Native one pass / Jolt current defaults; fixed for this case");
+    ImGui::BeginDisabled(m_SceneRequest.has_value() || m_EditorMode!=EditorMode::Edit ||
+        (m_SimulationState!=Rbs::SimulationState::Ready && m_SimulationState!=Rbs::SimulationState::Paused));
+    {
+        E::PropertyRow row("Draft gravity Y (m/s^2)",
+            "Current-world override; X/Z remain zero. Applies by Tick-0 reconstruction.");
+        const bool changed=E::Numeric::Scalar("##value",m_Angular.draft->gravity.y,.1f,
+            E::Numeric::Closed(-10.f,0.f),E::Numeric::Accept{});
+        RBS_PHASE28_WIDGET("gravity");
+        if(changed)m_Angular.dirty=true;
+    }
+    ImGui::EndDisabled();
+}
+
+void RigidBodySimulationApp::DrawAngularProperties()
+{
+    namespace E=Rbs::Editor;
+    if(!m_Angular.committed || !m_Angular.draft)
+    {ImGui::TextWrapped("Object properties are unavailable while the scene initializes.");return;}
+    auto& session=m_Angular;
+    auto& draft=*session.draft;
+    auto* physics=m_ActiveScene->GetPhysicsSystem();
+    auto* world=physics?physics->GetPhysicsWorld():nullptr;
+    const bool canAuthor=m_EditorMode==EditorMode::Edit && !m_SceneRequest &&
+        (m_SimulationState==Rbs::SimulationState::Ready || m_SimulationState==Rbs::SimulationState::Paused);
+    const bool selected=m_HoveredEntity.GetSceneContext()==m_ActiveScene.get() &&
+        m_HoveredEntity && m_ActiveScene->RenderData().Identify(m_HoveredEntity).has_value() &&
+        m_HoveredEntity.HasAllComponents<Transform3DComponent>();
+    PhysicsBodyHandle selectedHandle{};
+    bool selectedHasBody=false;
+    if(selected)
+        if(auto binding=m_ActiveScene->GetBodyBinding(m_HoveredEntity))
+        {selectedHandle=*binding;selectedHasBody=true;}
+    Rbs::AngularBodyPacket* endpoint=nullptr;
+    if(selectedHasBody && m_EditorSelection.count<=1) {
+        for(std::size_t i=0;i<2 && i<m_AngularBindings.bodyCount;++i) {
+            if(static_cast<entt::entity>(m_HoveredEntity)==m_AngularBindings.entities[i] &&
+               selectedHandle==m_AngularBindings.bodies[i])endpoint=&draft.bodies[i];
+        }
+    }
+    const auto vectorText=[](const Vec3f& v){return std::format("({:.4f}, {:.4f}, {:.4f})",v.x,v.y,v.z);};
+    const auto motionName=[](BodyType type){return type==BodyType::Static?"Static":type==BodyType::Dynamic?"Dynamic":"Kinematic";};
+    const auto number=[&](const char* label,float& value,float speed,const char* tip,
+                          E::Numeric::Bounds<float> bounds,const char* key) {
+        E::PropertyRow row(label,tip);
+        const bool changed=E::Numeric::Scalar("##value",value,speed,bounds);
+        RBS_PHASE28_WIDGET(key);
+        return changed;
+    };
+    const auto axes=[&](const char* label,Vec3f& value,float reset,float speed,const char* tip,
+                        E::Numeric::Bounds<float> bounds,const char* key,int observedAxis,
+                        const Vec3f* minimum=nullptr,const Vec3f* maximum=nullptr,const Vec3f* defaults=nullptr) {
+        const auto valid=[&](const float* candidate)->const char* {
+            for(int axis=0;minimum && maximum && axis<3;++axis)
+                if(candidate[axis]<(*minimum)[axis] || candidate[axis]>(*maximum)[axis])
+                    return "Dimension outside this endpoint's supported range.";
+            return nullptr;
+        };
+        return E::XYZ(label,&value.x,reset,speed,tip,bounds,valid,nullptr,[&](int axis){
+            if(axis==observedAxis)RBS_PHASE28_WIDGET(key);
+#ifdef GENGINE_PHASE28_QUALIFICATION
+            else if(std::string_view(key)=="size-x" && endpoint && endpoint->key==Rbs::AngularBodyKey::Bar)
+                RBS_PHASE28_WIDGET(axis==1?"scale":"size-z");
+#endif
+        },defaults?&defaults->x:nullptr);
+    };
+    if(!endpoint) {
+        ImGui::TextWrapped("The selected joint endpoint has no current body binding. Reselect it after the scene finishes loading.");
+        return;
+    }
+    ImGui::TextWrapped("%s",m_HoveredEntity.GetName().c_str());
+    if(session.dirty)ImGui::TextWrapped("Pending changes. Apply to rebuild the scene at Tick 0.");
+    if(!canAuthor)ImGui::TextWrapped("Pause the simulation and enter Edit mode to change properties.");
+    {
+        const bool bar=endpoint->key==Rbs::AngularBodyKey::Bar;
+        const Vec3f baseHalf=bar?Vec3f{.15f,1.f,.15f}:Vec3f{.25f};
+        const auto minHalf=.75f*baseHalf,maxHalf=1.25f*baseHalf;
+        const auto baseScale=2.f*baseHalf,minScale=2.f*minHalf,maxScale=2.f*maxHalf;
+        ImGui::PushID(static_cast<int>(m_SceneGeneration));
+        ImGui::PushID(static_cast<int>(endpoint->key));
+        ImGui::BeginDisabled(!canAuthor);
+        if(E::Component("Transform",true)) {
+            auto position=endpoint->center;
+            auto rotation=glm::degrees(glm::eulerAngles(endpoint->orientation));
+            auto scale=endpoint->sphere?endpoint->halfExtents:2.f*endpoint->halfExtents;
+            if(axes("Translation (m)",position,0.f,.05f,"Tick-0 world position of the selected endpoint.",
+                    {},"position-x",0)) {
+                Rbs::SetAngularBodyPosition(draft,endpoint->key,position);
+                session.dirty=true;
+            }
+            if(axes("Rotation (deg)",rotation,0.f,.25f,"Tick-0 world orientation in degrees.",
+                    E::Numeric::Closed(-180.f,180.f),"rotation-y",1)) {
+                Rbs::SetAngularBodyRotation(draft,endpoint->key,glm::quat(glm::radians(rotation)));
+                session.dirty=true;
+            }
+            if(endpoint->sphere) {
+                if(number("Uniform scale",scale.x,.005f,"The sphere mesh uses a unit radius. Scale and collider radius stay equal.",
+                   E::Numeric::Closed(minHalf.x,maxHalf.x),"sphere-scale")) {
+                    Rbs::SetAngularBodyHalfExtents(draft,endpoint->key,Vec3f{scale.x});
+                    session.dirty=true;
+                }
+            } else if(axes("Scale",scale,1.f,.01f,"Box size is 75% to 125% of its default on each axis. Rebuilds the collider and inertia.",
+                    E::Numeric::Positive<float>(),"scale-x",0,&minScale,&maxScale,&baseScale)) {
+                Rbs::SetAngularBodyHalfExtents(draft,endpoint->key,.5f*scale);
+                session.dirty=true;
+            }
+            ImGui::TextWrapped("Position and rotation move the connected pair around this endpoint. Use these fields to keep both joint frames aligned.");
+        }
+        ImGui::EndDisabled();
+        ImGui::PopID();
+        ImGui::PopID();
+        DrawContextProperties(ContextSection::Surface);
+        ImGui::PushID(static_cast<int>(m_SceneGeneration));
+        ImGui::PushID(static_cast<int>(endpoint->key));
+        ImGui::BeginDisabled(!canAuthor);
+        if(E::Component("Collider",true)) {
+            if(!bar) {
+                E::PropertyRow row("Shape","Select the anchor shape. The mesh and collider rebuild together.");
+                const bool open=ImGui::BeginCombo("##shape",endpoint->sphere?"Sphere":"Box");
+                RBS_PHASE28_WIDGET("shape");
+                if(open) {
+                    for(bool sphere:{false,true}) {
+                        if(ImGui::Selectable(sphere?"Sphere":"Box",endpoint->sphere==sphere) && endpoint->sphere!=sphere) {
+                            Rbs::SetAngularAnchorSphere(draft,sphere);session.dirty=true;
+                        }
+                        RBS_PHASE28_WIDGET(sphere?"shape.sphere":"shape.box");
+                    }
+                    ImGui::EndCombo();
+                }
+            } else {
+                E::ReadOnly("Shape",endpoint->sphere?"Sphere":"Box",
+                    bar?"The dynamic bar uses a box beam with a joint at its end.":nullptr);
+                RBS_PHASE28_WIDGET("angular-shape-readonly");
+            }
+            auto half=endpoint->halfExtents;
+            if(endpoint->sphere) {
+                if(number("Radius (m)",half.x,.005f,"Sphere radius, 0.1875 to 0.3125 m.",
+                    E::Numeric::Closed(minHalf.x,maxHalf.x),"radius")) {
+                    Rbs::SetAngularBodyHalfExtents(draft,endpoint->key,Vec3f{half.x});session.dirty=true;
+                }
+            } else if(axes("Half extents (m)",half,.25f,.005f,bar?
+                "X/Z from 0.1125 to 0.1875 m, Y from 0.75 to 1.25 m.":
+                "Each half extent ranges from 0.1875 to 0.3125 m.",
+                E::Numeric::Positive<float>(),"size-x",0,&minHalf,&maxHalf,&baseHalf)) {
+                Rbs::SetAngularBodyHalfExtents(draft,endpoint->key,half);session.dirty=true;
+            }
+        }
+        if(E::Component("RigidBody",true)) {
+            if(!bar) {
+                E::PropertyRow row("Motion type","The anchor may be Static or Kinematic. The bar remains the dynamic endpoint.");
+                const bool open=ImGui::BeginCombo("##motion",endpoint->kinematic?"Kinematic":"Static");
+                RBS_PHASE28_WIDGET("motion");
+                if(open) {
+                    for(bool kinematic:{false,true}) {
+                        if(ImGui::Selectable(kinematic?"Kinematic":"Static",kinematic==endpoint->kinematic) && kinematic!=endpoint->kinematic) {
+                            endpoint->kinematic=kinematic;session.dirty=true;
+                        }
+                        RBS_PHASE28_WIDGET(kinematic?"motion.kinematic":"motion.static");
+                    }
+                    ImGui::EndCombo();
+                }
+            } else {
+                E::ReadOnly("Motion type","Dynamic","The bar is the dynamic joint endpoint.");
+                RBS_PHASE28_WIDGET("angular-motion-readonly");
+            }
+            float mass=endpoint->authoredMass;
+            if(bar) {
+                if(number("Mass (kg)",mass,.05f,"0.5 to 2 kg. Apply rebuilds inertia and scales the scheduled impulses.",
+                    E::Numeric::Closed(.5f,2.f),"mass")){Rbs::SetAngularBarMass(draft,mass);session.dirty=true;}
+            } else {
+                E::ReadOnly("Retained mass (kg)",std::format("{:.3f}",mass).c_str(),
+                    "The anchor retains 1 kg with zero effective inverse mass.");
+                RBS_PHASE28_WIDGET("angular-mass-readonly");
+            }
+            session.dirty|=number("Friction",endpoint->friction,.01f,"Contact friction from 0 to 1.",
+                E::Numeric::Closed(0.f,1.f),"friction");
+            session.dirty|=number("Restitution",endpoint->restitution,.01f,"Contact restitution from 0 to 1.",
+                E::Numeric::Closed(0.f,1.f),"restitution");
+            if(bar && m_Backend==PhysicsBackend::Jolt) {
+                session.dirty|=number("Linear damping",endpoint->linearDamping,.01f,"Dynamic Jolt body, range 0 to 1.",
+                    E::Numeric::Closed(0.f,1.f),"linear-damping");
+                session.dirty|=number("Angular damping",endpoint->angularDamping,.01f,"Dynamic Jolt body, range 0 to 1.",
+                    E::Numeric::Closed(0.f,1.f),"angular-damping");
+            } else {
+                E::ReadOnly("Damping",bar?"Fixed at zero on Native":"Fixed at zero for the anchor");
+                RBS_PHASE28_WIDGET("angular-damping-readonly");
+            }
+        }
+        ImGui::EndDisabled();
+        ImGui::PopID();
+        ImGui::PopID();
+    }
+    if(E::Component("Angular Joint",true)) {
+        const bool hinge=draft.scene==Rbs::RbsScenePreset::HingeBasic ||
+            draft.scene==Rbs::RbsScenePreset::HingeQuaternion || draft.scene==Rbs::RbsScenePreset::HingeLimited;
+        E::ReadOnly("Constraint",hinge?"Hinge":draft.scene==Rbs::RbsScenePreset::CvLimited?"Limited Constant Velocity":"Constant Velocity");
+        RBS_PHASE28_WIDGET("angular-kind-readonly");
+        E::ReadOnly("Endpoints","Angular Anchor and Angular Bar");
+        ImGui::BeginDisabled(!canAuthor);
+        E::ReadOnly("Local anchor A (m)",vectorText(draft.joint.localAnchorA).c_str());
+        E::ReadOnly("Local anchor B (m)",vectorText(draft.joint.localAnchorB).c_str());
+        if(const auto reference=Rbs::ReferenceAngularPacket(draft.scene,draft.variant)) {
+            const auto base=reference->joint.localFrameA;
+            auto offset=glm::degrees(glm::eulerAngles(draft.joint.localFrameA*glm::inverse(base)));
+            if(axes("Joint frame offset (deg)",offset,0.f,.25f,
+                "Rotation from the default local frame. Apply aligns both endpoint frames at Tick 0.",
+                E::Numeric::Closed(-180.f,180.f),"joint-frame",2)) {
+                Rbs::SetAngularJointFrame(draft,glm::normalize(glm::quat(glm::radians(offset))*base));
+                session.dirty=true;
+            }
+        }
+        if(draft.scene==Rbs::RbsScenePreset::HingeLimited) {
+            float lower=glm::degrees(draft.joint.lower),upper=glm::degrees(draft.joint.upper);
+            if(number("Lower limit (deg)",lower,1.f,"Lower angular bound, from -45 to 0 degrees.",
+               E::Numeric::Closed(-45.f,0.f),"limit-lower")){draft.joint.lower=glm::radians(lower);session.dirty=true;}
+            if(number("Upper limit (deg)",upper,1.f,"Upper angular bound, from 0 to 45 degrees.",
+               E::Numeric::Closed(0.f,45.f),"limit-upper")){draft.joint.upper=glm::radians(upper);session.dirty=true;}
+        } else if(draft.scene==Rbs::RbsScenePreset::CvLimited) {
+            float u=glm::degrees(draft.joint.halfAngleU),v=glm::degrees(draft.joint.halfAngleV);
+            if(number("Pyramid U (deg)",u,1.f,"Symmetric U half-angle, 15 to 45 degrees.",
+               E::Numeric::Closed(15.f,45.f),"limit-u")){draft.joint.halfAngleU=glm::radians(u);session.dirty=true;}
+            if(number("Pyramid V (deg)",v,1.f,"Symmetric V half-angle, 15 to 45 degrees.",
+               E::Numeric::Closed(15.f,45.f),"limit-v")){draft.joint.halfAngleV=glm::radians(v);session.dirty=true;}
+        } else {
+            E::ReadOnly("Angular limits","Free");
+            RBS_PHASE28_WIDGET("angular-free-limits-readonly");
+        }
+        ImGui::EndDisabled();
+    }
+    DrawContextProperties(ContextSection::View);
+    DrawSceneAuthoringActions();
+    if(!session.diagnostic.empty())ImGui::TextWrapped("%s",session.diagnostic.c_str());
+    const bool advancedOpen=E::Component("Advanced / Backend Readback",false);
+    RBS_PHASE28_WIDGET("advanced");
+    if(advancedOpen)
+    {
+        if(!world || !physics)E::ReadOnly("World","Provider readback unavailable");
+        else
+        {
+            E::ReadOnly("World backend",world->GetBackend()==PhysicsBackend::Jolt?"Jolt 5.6.0":"Native");
+            E::ReadOnly("Scene generation",std::format("{}",m_SceneGeneration).c_str());
+            E::ReadOnly("Applied gravity (m/s^2)",std::format("({:.4f}, {:.4f}, {:.4f})",
+                world->GetGravity().x,world->GetGravity().y,world->GetGravity().z).c_str());
+            E::ReadOnly("Completed fixed steps",std::format("{}",physics->GetCompletedSteps()).c_str());
+            E::ReadOnly("Actual bodies / joints",std::format("{} / {}",world->GetBodyCount(),world->GetJointCount()).c_str());
+            if(selectedHasBody)
+            {
+                const char* role="Environment / other selected body";
+                for(std::size_t i=0;i<m_AngularBindings.bodyCount;++i)
+                    if(selectedHandle==m_AngularBindings.bodies[i])
+                    {role=i==0?"Angular Anchor":i==1?"Angular Bar":
+                        SandboxEnabled()?"Shared Sandbox Floor (Contact ground)":"Contact Floor";break;}
+                E::ReadOnly("Selected body role",role);
+                E::ReadOnly("Selected body handle",std::format("{} / {}",
+                    selectedHandle.index,selectedHandle.generation).c_str());
+            }
+            if(!selected)E::ReadOnly("Selected body","None; select a live scene object for body and joint readback");
+            else if(!selectedHasBody)E::ReadOnly("Selected body","Selected entity has no Physics body");
+            else if(auto body=world->ReadEffectiveBody(selectedHandle))
+            {
+                const auto& transform=m_HoveredEntity.Transform();
+                E::ReadOnly("Render scale",vectorText(transform.Scale).c_str());
+                E::ReadOnly("Collider shape",Rbs::ColliderTypeName(body->shapeType));
+                E::ReadOnly("Local bounds half extents (m)",vectorText(.5f*(body->localBounds.maxs-body->localBounds.mins)).c_str());
+                E::ReadOnly("Local bounds center (m)",vectorText(.5f*(body->localBounds.maxs+body->localBounds.mins)).c_str());
+                E::ReadOnly("Motion",motionName(body->type));
+                E::ReadOnly("Friction / restitution",std::format("{:.4f} / {:.4f}",body->material.friction,body->material.restitution).c_str());
+                RBS_PHASE28_WIDGET("effective-material");
+                if(auto p=world->ReadBodyProperties(selectedHandle)) {
+                    E::ReadOnly("Retained mass (kg)",std::format("{:.4f}",p->mass).c_str());
+                    RBS_PHASE28_WIDGET("effective-mass");
+                    E::ReadOnly("Linear / angular damping",std::format("{:.4f} / {:.4f}",p->linearDamping,p->angularDamping).c_str());
+                    RBS_PHASE28_WIDGET("effective-damping");
+                } else E::ReadOnly("RigidBody properties","Provider readback unavailable");
+                E::ReadOnly("Inverse mass (1/kg)",std::format("{:.4f}",body->inverseMass).c_str());
+                RBS_PHASE28_WIDGET("effective-inverse-mass");
+                E::ReadOnly("Linear velocity (m/s)",vectorText(body->linearVelocity).c_str());
+                RBS_PHASE28_WIDGET("effective-linear-velocity");
+                E::ReadOnly("Angular velocity (rad/s)",vectorText(body->angularVelocity).c_str());
+                RBS_PHASE28_WIDGET("effective-angular-velocity");
+                E::ReadOnly("Actual position (m)",std::format("({:.4f}, {:.4f}, {:.4f})",
+                    body->position.x,body->position.y,body->position.z).c_str());
+                RBS_PHASE28_WIDGET("effective-position");
+                E::ReadOnly("Actual orientation (w,x,y,z)",std::format("({:.4f}, {:.4f}, {:.4f}, {:.4f})",
+                    body->orientation.w,body->orientation.x,body->orientation.y,body->orientation.z).c_str());
+                RBS_PHASE28_WIDGET("effective-orientation");
+                E::ReadOnly("Actual center of mass (m)",std::format("({:.4f}, {:.4f}, {:.4f})",
+                    body->centerOfMass.x,body->centerOfMass.y,body->centerOfMass.z).c_str());
+                RBS_PHASE28_WIDGET("effective-com");
+                E::ReadOnly("Body inverse inertia diagonal (1/kg m^2)",std::format("({:.6g}, {:.6g}, {:.6g})",
+                    body->inverseInertiaBody[0][0],body->inverseInertiaBody[1][1],body->inverseInertiaBody[2][2]).c_str());
+                RBS_PHASE28_WIDGET("effective-body-inertia");
+                E::ReadOnly("World inverse inertia diagonal (1/kg m^2)",std::format("({:.6g}, {:.6g}, {:.6g})",
+                    body->inverseInertiaWorld[0][0],body->inverseInertiaWorld[1][1],body->inverseInertiaWorld[2][2]).c_str());
+                RBS_PHASE28_WIDGET("effective-world-inertia");
+            }
+            else E::ReadOnly("Selected body","Body handle is stale or backend readback failed");
+            const auto joint=m_AngularBindings.joint?world->ReadJoint(m_AngularBindings.joint):
+                JointResult<JointState>(std::unexpected(JointError{JointErrorCode::InvalidHandle}));
+            if(!joint)E::ReadOnly("Angular joint","Provider readback unavailable; current state is unverified");
+            else if(!selectedHasBody ||
+                (selectedHandle!=joint->descriptor.bodyA && selectedHandle!=joint->descriptor.bodyB))
+                E::ReadOnly("Angular joint","Selected entity is not an endpoint of the scene joint");
+            else
+            {
+                const bool hinge=joint->descriptor.kind==JointKind::Hinge;
+                E::ReadOnly("Provider",world->GetBackend()==PhysicsBackend::Native?"Native angular rows":
+                    hinge?(joint->descriptor.angular.limitsEnabled?"Jolt limited hinge":"Jolt HingeConstraint"):
+                    "Jolt constant velocity");
+                E::ReadOnly("Joint kind",hinge?"Hinge":joint->descriptor.kind==JointKind::ConstantVelocity?
+                    "Constant Velocity":"Limited Constant Velocity");
+                E::ReadOnly("Authored joint key","Primary; Anchor -> Bar (stable authored keys)");
+                const auto xA=joint->descriptor.angular.localFrameA*Vec3f{1.f,0.f,0.f};
+                const auto xB=joint->descriptor.angular.localFrameB*Vec3f{1.f,0.f,0.f};
+                E::ReadOnly("Local axis A",std::format("({:.3f}, {:.3f}, {:.3f})",xA.x,xA.y,xA.z).c_str());
+                E::ReadOnly("Local axis B",std::format("({:.3f}, {:.3f}, {:.3f})",xB.x,xB.y,xB.z).c_str());
+                E::ReadOnly("Anchor A world (m)",std::format("({:.4f}, {:.4f}, {:.4f})",joint->worldAnchorA.x,joint->worldAnchorA.y,joint->worldAnchorA.z).c_str());
+                E::ReadOnly("Anchor B world (m)",std::format("({:.4f}, {:.4f}, {:.4f})",joint->worldAnchorB.x,joint->worldAnchorB.y,joint->worldAnchorB.z).c_str());
+                E::ReadOnly("Anchor residual (m)",std::format("{:.6f}",joint->error).c_str());
+                RBS_PHASE28_WIDGET("effective-anchor-residual");
+                if(hinge)
+                {
+                    E::ReadOnly("Signed principal angle (deg)",std::format("{:.3f}",glm::degrees(joint->angular.signedAngle)).c_str());
+                    E::ReadOnly("Axis error (deg)",std::format("{:.4f}",glm::degrees(joint->angular.axisError)).c_str());
+                    E::ReadOnly("Limits (deg)",joint->descriptor.angular.limitsEnabled?
+                        std::format("{:.2f} .. {:.2f}",glm::degrees(joint->descriptor.angular.lower),glm::degrees(joint->descriptor.angular.upper)).c_str():"Free");
+                    E::ReadOnly("Limit state",joint->angular.limitU<0?"Lower":joint->angular.limitU>0?"Upper":"Free");
+                }
+                else
+                {
+                    E::ReadOnly("CV relation error (deg)",std::format("{:.4f}",glm::degrees(joint->angular.cvError)).c_str());
+                    const bool limited=joint->descriptor.kind==JointKind::LimitedConstantVelocity;
+                    E::ReadOnly("Effective U limits (deg)",limited?
+                        std::format("{:.2f} .. {:.2f}",-glm::degrees(joint->descriptor.angular.halfAngleU),
+                            glm::degrees(joint->descriptor.angular.halfAngleU)).c_str():"Free");
+                    E::ReadOnly("Effective V limits (deg)",limited?
+                        std::format("{:.2f} .. {:.2f}",-glm::degrees(joint->descriptor.angular.halfAngleV),
+                            glm::degrees(joint->descriptor.angular.halfAngleV)).c_str():"Free");
+                    E::ReadOnly("U / V angles (deg)",std::format("{:.3f} / {:.3f}",glm::degrees(joint->angular.angleU),glm::degrees(joint->angular.angleV)).c_str());
+                    E::ReadOnly("U / V limit state",std::format("{} / {}",joint->angular.limitU,joint->angular.limitV).c_str());
+                    E::ReadOnly("U / V violation (deg)",std::format("{:.4f} / {:.4f}",glm::degrees(joint->angular.violationU),glm::degrees(joint->angular.violationV)).c_str());
+                }
+                if(joint->angular.impulseAvailable && physics->GetCompletedSteps()>0)
+                    E::ReadOnly("Provider row impulse (Nms)",std::format("({:.4f}, {:.4f}, {:.4f})",joint->angular.angularImpulse.x,joint->angular.angularImpulse.y,joint->angular.angularImpulse.z).c_str());
+                else if(physics->GetCompletedSteps()==0)
+                    E::ReadOnly("Provider row impulse","Unavailable until a completed fixed step");
+                else if(world->GetBackend()==PhysicsBackend::Jolt && hinge)
+                    E::ReadOnly("Provider row impulse","Jolt hinge provider reports complete row impulse unavailable");
+                else E::ReadOnly("Provider row impulse","Provider did not expose complete row impulse data for this tick");
+            }
+        }
+        E::ReadOnly("Applied revision",std::format("{}",session.revision).c_str());
+        if(selected)
+            if(const auto id=m_ActiveScene->RenderData().Identify(m_HoveredEntity))
+                E::ReadOnly("Selected entity identity",std::format("{} / {} / {}",
+                    id->registry,id->index,id->generation).c_str());
+        if(session.interactive)ImGui::TextWrapped("Reset restores the applied scene after a manual action.");
+        if(!m_PropertyDiagnostic.empty())ImGui::TextWrapped("%s",m_PropertyDiagnostic.c_str());
+        if(!m_SceneDiagnostic.empty())ImGui::TextWrapped("%s",m_SceneDiagnostic.c_str());
+        ImGui::TextWrapped("Optional axes/limits overlays use Physics Debug; visualization starts Off. Runtime diagnostics identify the last completed tick where available.");
+    }
+}
+
+void RigidBodySimulationApp::DrawSceneAuthoringActions()
+{
+    namespace E=Rbs::Editor;
+    const bool angular=m_ActiveSelection.IsAngularScene();
+    const bool pending=m_SceneDefaultsPending || (angular && m_Angular.dirty);
+    const bool switching=m_SceneRequest.has_value() || m_BackendRequest.has_value();
+    const bool canAuthor=!switching && m_EditorMode==EditorMode::Edit &&
+        (m_SimulationState==Rbs::SimulationState::Ready || m_SimulationState==Rbs::SimulationState::Paused);
+    const bool pendingComponent=HasPendingObjectProperties();
+    if(pendingComponent)ImGui::TextWrapped("Apply or Revert the selected component before resetting or restoring the scene.");
+    if(m_SceneDefaultsPending)ImGui::TextWrapped("Scene defaults are staged. Apply to restore them, or Revert to keep the current scene.");
+    if(angular || pending) {
+        ImGui::BeginDisabled(!canAuthor || !pending || pendingComponent || E::Numeric::HasError());
+        if(ImGui::Button("Apply##scene")) {
+            if(angular)RequestAngularApply();else ApplySceneDefaults();
+        }
+        RBS_PHASE28_WIDGET("apply");
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::BeginDisabled(switching || (!pending && !E::Numeric::HasError()));
+        if(ImGui::Button("Revert##scene")) {
+            if(angular)RevertAngularDraft();else RevertSceneDefaults();
+        }
+        RBS_PHASE28_WIDGET("revert");
+        ImGui::EndDisabled();
+    }
+    ImGui::BeginDisabled(!canAuthor || pendingComponent);
+    if(ImGui::Button("Restore Scene Defaults")) {
+        if(angular)RestoreAngularDefaults();else StageSceneDefaults();
+    }
+    RBS_PHASE28_WIDGET("restore-defaults");
+    ImGui::EndDisabled();
+    if(angular) {
+        ImGui::BeginDisabled(switching || pending || pendingComponent);
+        if(ImGui::Button("Reset Simulation"))RequestScene(m_ActiveSelection);
+        RBS_PHASE28_WIDGET("reset");
+        ImGui::EndDisabled();
+    }
+}
+
 void RigidBodySimulationApp::DrawEditorProperties()
 {
     namespace E = Rbs::Editor;
-    if (!m_HoveredEntity || !m_HoveredEntity.HasAllComponents<Transform3DComponent>())
+    DrawCameraPilotControls();
+    if(m_CameraPilot)ImGui::TextWrapped("Navigation authors this Camera pose. Commit or Cancel Pilot before other property edits.");
+    ImGui::BeginDisabled(m_CameraPilot.has_value());
+    struct PilotPropertyScope {~PilotPropertyScope(){ImGui::EndDisabled();}} pilotPropertyScope;
+    if (m_HoveredEntity.GetSceneContext()!=m_ActiveScene.get() || !m_HoveredEntity)
     {
         ImGui::TextUnformatted("No entity selected");
         ImGui::TextWrapped("Select an entity in Hierarchy or click an object in the Viewport.");
         ImGui::PushStyleColor(ImGuiCol_Text,ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
         ImGui::TextWrapped("Ctrl+click adds to selection. Esc clears.");
         ImGui::PopStyleColor();
+        DrawSceneAuthoringActions();
         return;
     }
-    ImGui::TextWrapped("%s", m_HoveredEntity.GetName().c_str());
-    DrawEntityPresentationProperties();
     const bool multiple=m_EditorSelection.count>1;
+    if(!multiple && IsAngularEndpoint(m_HoveredEntity)){DrawAngularProperties();return;}
+    ImGui::TextWrapped("%s", m_HoveredEntity.GetName().c_str());
+    const bool protectedTransform=SelectionProtectsAngularTransform();
+    if(multiple && protectedTransform) {
+        ImGui::TextWrapped("This selection includes a connected joint endpoint or its parent. Select one endpoint for joint authoring, or select the other objects separately for a group edit.");
+        if(E::Component("Visibility",true))DrawEntityPresentationProperties();
+        DrawSceneAuthoringActions();
+        return;
+    }
     const bool hasMesh=m_HoveredEntity.HasAllComponents<MeshRendererComponent>();
     const char* type=m_HoveredEntity.HasAllComponents<RenderCameraComponent>()?"Camera":
         m_HoveredEntity.HasAllComponents<RenderLightComponent>()?"Light":hasMesh?"Mesh":"Entity";
@@ -1288,49 +1800,87 @@ void RigidBodySimulationApp::DrawEditorProperties()
     if (m_ColliderOutlines.capacityReached) ImGui::TextWrapped("Selection limit reached (4096).");
     if(!m_PropertyDiagnostic.empty())ImGui::TextWrapped("%s",m_PropertyDiagnostic.c_str());
     if(m_EditorSelection.count>1)ImGui::TextWrapped("Group Transform: one atomic gesture. History: up to 32 commands / 8 MiB. Unsupported batches retain the full selection.");
+    const auto pose=m_ActiveScene->ReadBodyTransform(m_HoveredEntity);
+    auto* world=m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
+    const auto body=pose?world->ReadBody(pose->body):PhysicsBodyResult<PhysicsBodyState>{
+        std::unexpected(PhysicsBodyError{PhysicsBodyErrorCode::InvalidHandle})};
     ImGui::Separator();
-    ImGui::BeginDisabled(m_SceneRequest.has_value() || m_SimulationState == Rbs::SimulationState::Switching);
-    if (E::Component("Transform"))
+    const bool switching=m_SceneRequest.has_value() || m_BackendRequest.has_value() ||
+        m_SimulationState==Rbs::SimulationState::Switching;
+    ImGui::BeginDisabled(switching);
+    if (m_HoveredEntity==m_SkyBoxEntity)
+        ImGui::TextWrapped("The sky follows the camera. Use sky visibility to control the background.");
+    else if (m_HoveredEntity.HasAllComponents<Transform3DComponent>() && E::Component("Transform"))
     {
-        ImGui::BeginDisabled(m_EditorSelection.count>1);
+        if(protectedTransform)ImGui::TextWrapped("Moving this parent would move a joint endpoint. Select the endpoint to edit the connected transforms.");
+        const bool numericPose=TransformEditingAllowed() && m_SimulationState!=Rbs::SimulationState::Running;
+        if(!numericPose)ImGui::TextWrapped("Pause and enter Edit mode for numeric transforms.");
+        ImGui::BeginDisabled(multiple || protectedTransform || !numericPose);
         auto position = m_HoveredEntity.Transform().Translation;
         const bool componentPose=m_HoveredEntity.HasAnyComponents<RenderCameraComponent,RenderLightComponent>();
+        const auto* light=m_HoveredEntity.HasAllComponents<RenderLightComponent>()?
+            &m_HoveredEntity.GetComponent<RenderLightComponent>():nullptr;
+        const bool directional=light && light->kind==RenderLightKind::Directional;
+        const bool point=light && light->kind==RenderLightKind::Point;
         // Authored lights may set the quaternion directly. Display the actual
         // local orientation used by RenderState, not a stale Euler convenience field.
         auto rotation = glm::degrees(componentPose?glm::eulerAngles(m_HoveredEntity.Transform().QuatRotation):m_HoveredEntity.Transform().EulerRotation);
         auto scale = m_HoveredEntity.Transform().Scale;
-        if (E::XYZ("Translation (m)", &position.x, 0.f))
+        ImGui::BeginDisabled(directional);
+        if (E::XYZ("Translation (m)", &position.x, 0.f, .05f,
+            directional?"Directional lighting uses rotation.":"Drag or Ctrl+click to edit position. Click an axis to reset it.",
+            {},E::Numeric::Accept{},nullptr,[&](int axis){
+                if(axis==0){RBS_PHASE28_WIDGET("reference-position-x");RBS_PHASE28_WIDGET("generic-position-x");}
+                if(axis==1)RBS_PHASE28_WIDGET("generic-position-y");
+                if(axis==2)RBS_PHASE28_WIDGET("generic-position-z");
+            }))
             QueueTransformEdit(TransformTool::Translate, position);
-        if (E::XYZ("Rotation (deg)", &rotation.x, 0.f, .25f))
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(point);
+        if (E::XYZ("Rotation (deg)", &rotation.x, 0.f, .25f,
+            point?"A point light radiates equally in every direction.":"Drag or Ctrl+click to edit the selected object's local rotation.",
+            {},E::Numeric::Accept{},nullptr,[&](int axis){
+                if(axis==0)RBS_PHASE28_WIDGET("generic-rotation-x");
+                if(axis==1)RBS_PHASE28_WIDGET("generic-rotation-y");
+                if(axis==2)RBS_PHASE28_WIDGET("generic-rotation-z");}))
             QueueTransformEdit(TransformTool::Rotate, glm::radians(rotation));
-        const bool componentScale=m_HoveredEntity.HasAnyComponents<RenderCameraComponent,RenderLightComponent>();
-        const bool unsupportedScale=componentScale;
-        ImGui::BeginDisabled(unsupportedScale);
-        if (E::XYZ("Scale", &scale.x, 1.f, .02f, unsupportedScale ?
-            (componentScale?"Camera/Light scale is not supported; edit projection size or light range/cones.":"Sphere/Capsule require uniform scale.") :
-            "Reset an axis to 1. Scale edits use Scene validation; collider fitting remains explicit."))
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(componentPose);
+        if(body && (body->shapeType==ShapeType::Sphere || body->shapeType==ShapeType::Capsule)) {
+            E::PropertyRow row("Uniform scale","Apply one positive scale to all axes of the mesh and its collider.");
+            if(E::Numeric::Scalar("##value",scale.x,.02f,E::Numeric::Positive<float>()))
+                QueueTransformEdit(TransformTool::Scale,Vec3f{scale.x});
+            RBS_PHASE28_WIDGET("generic-scale-x");
+        }
+        else if (E::XYZ("Scale", &scale.x, 1.f, .02f, componentPose ?
+            "Edit the camera projection or the light's applicable range and cone settings." :
+            "Scale changes the selected mesh and its bound collider.",
+            {},E::Numeric::Accept{},nullptr,[&](int axis){if(axis==0)RBS_PHASE28_WIDGET("generic-scale-x");}))
             QueueTransformEdit(TransformTool::Scale, scale);
         ImGui::EndDisabled();
         ImGui::EndDisabled();
+        if(directional)ImGui::TextWrapped("Rotate this directional light to change the direction of illumination.");
+        if(point)ImGui::TextWrapped("Translate this point light to move its center of illumination.");
         if(m_EditorSelection.count>1)ImGui::TextWrapped("Numeric Transform fields describe the active object. Use the toolbar gizmo for an atomic group gesture (up to 4096 roots; collider/query budgets apply).");
     }
     // Context editing remains single-object; no fabricated common material values.
-    if(!multiple)DrawContextProperties();
-    if(!multiple && hasMesh && E::Component("Geometry / Mesh",false))
-    {
-        const auto& mesh=m_HoveredEntity.GetComponent<MeshRendererComponent>();
-        E::ReadOnly("Mesh / submesh",std::format("{} / {}",mesh.mesh.index,mesh.submesh).c_str());
-        E::ReadOnly("Cast shadows",mesh.castShadows?"Enabled":"Disabled");
-        E::ReadOnly("Receive shadows",mesh.receiveShadows?"Enabled":"Disabled");
-        E::ReadOnly("Pickable",mesh.pickable?"Enabled":"Disabled");
-        ImGui::TextWrapped("Scene Visible in the entity header affects editor visibility only. Mesh assignment is read-only here.");
+    if(!multiple) {
+        DrawContextProperties(ContextSection::Surface);
     }
-    const auto pose = m_ActiveScene->ReadBodyTransform(m_HoveredEntity);
-    auto* world = m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
-    const auto body = pose ? world->ReadBody(pose->body) : PhysicsBodyResult<PhysicsBodyState>{
-        std::unexpected(PhysicsBodyError{PhysicsBodyErrorCode::InvalidHandle})};
+    else if(E::Component("Visibility",true))DrawEntityPresentationProperties();
+    if (pose && !multiple) {
+        const bool colliderOpen=E::Component("Collider",false);
+        RBS_PHASE28_WIDGET("generic-collider");
+        if(colliderOpen)Rbs::DrawColliderInspector(Rbs::colliderEditor, *m_ActiveScene, *m_SceneResources,
+            m_HoveredEntity, pose->body, m_IsPause);
+    }
     if(multiple)DrawBulkBodyProperties();
-    if (body && !multiple && E::Component("Rigidbody",false))
+    bool rigidBodyOpen=false;
+    if(body && !multiple) {
+        rigidBodyOpen=E::Component("Rigidbody",false);
+        RBS_PHASE28_WIDGET("generic-rigidbody");
+    }
+    if (rigidBodyOpen)
     {
         auto& edit=m_BodyPropertyEditor;
         const auto actual=world->ReadBodyProperties(pose->body);
@@ -1343,30 +1893,51 @@ void RigidBodySimulationApp::DrawEditorProperties()
         auto& p=edit.draft;
         ImGui::BeginDisabled(edit.queued);
         {E::PropertyRow row("Motion type","Changes preserve body identity; a joint must retain a Dynamic endpoint.");
-            int type=int(p.type);if(ImGui::Combo("##Motion",&type,"Static\0Dynamic\0Kinematic\0")){p.type=BodyType(type);edit.dirty=true;}}
+            int type=int(p.type);if(ImGui::Combo("##Motion",&type,"Static\0Dynamic\0Kinematic\0")){p.type=BodyType(type);edit.dirty=true;}
+            RBS_PHASE28_WIDGET("generic-motion");}
         edit.dirty |= E::Number("Mass (kg)",p.mass,.05f,"Positive authored mass. Recomputes inertia; retained while fixed.",E::Numeric::Positive<float>(),[](float v)->const char*{return std::isfinite(1.f/v)&&1.f/v>0?nullptr:"Mass must have a finite, positive inverse.";});
+        RBS_PHASE28_WIDGET("generic-mass");
         ImGui::EndDisabled();
         auto linear = body->linearVelocity, angular = body->angularVelocity;
         ImGui::BeginDisabled(body->type == BodyType::Static);
-        bool changed = E::XYZ("Velocity (m/s)", &linear.x, 0.f);
-        changed |= E::XYZ("Angular (rad/s)", &angular.x, 0.f, .02f);
+        bool changed = E::XYZ("Velocity (m/s)", &linear.x, 0.f,.05f,"Drag or Ctrl+click a value to edit. Click an axis to reset only that axis.",{},E::Numeric::Accept{},nullptr,
+            [&](int axis){if(axis==0)RBS_PHASE28_WIDGET("generic-linear-velocity-x");});
+        changed |= E::XYZ("Angular (rad/s)", &angular.x, 0.f, .02f,"Drag or Ctrl+click a value to edit. Click an axis to reset only that axis.",{},E::Numeric::Accept{},nullptr,
+            [&](int axis){if(axis==0)RBS_PHASE28_WIDGET("generic-angular-velocity-x");});
         if (changed)
         {m_VelocityEdit=VelocityEdit{m_HoveredEntity,pose->body,linear,angular,m_SceneGeneration};m_PropertyDiagnostic="Velocity edit queued for Update.";}
         ImGui::EndDisabled();
         ImGui::BeginDisabled(edit.queued);
-        edit.dirty |= E::Number("Friction",p.material.friction,.01f,"Finite and nonnegative.",E::Numeric::Nonnegative<float>());
+        {
+            E::PropertyRow row("Friction","Finite and nonnegative.");
+            edit.dirty|=E::Numeric::Scalar("##value",p.material.friction,.01f,E::Numeric::Nonnegative<float>());
+            RBS_PHASE28_WIDGET("generic-friction");
+        }
         edit.dirty |= E::Number("Restitution",p.material.restitution,.01f,"Range 0 to 1.",E::Numeric::Closed(0.f,1.f));
+        RBS_PHASE28_WIDGET("generic-restitution");
         const bool jolt=m_Backend==PhysicsBackend::Jolt;
         ImGui::BeginDisabled(!jolt);
+        ImGui::BeginDisabled(p.type!=BodyType::Dynamic);
         edit.dirty |= E::Number("Linear damping",p.linearDamping,.01f,"Jolt only; range 0 to 1.",E::Numeric::Closed(0.f,1.f));
+        RBS_PHASE28_WIDGET("generic-linear-damping");
         edit.dirty |= E::Number("Angular damping",p.angularDamping,.01f,"Jolt only; range 0 to 1.",E::Numeric::Closed(0.f,1.f));
+        RBS_PHASE28_WIDGET("generic-angular-damping");
         edit.dirty |= E::Number("Gravity factor",p.gravityFactor,.05f,"Jolt only; range 0 to 10.",E::Numeric::Closed(0.f,10.f));
-        {E::PropertyRow row("CCD");edit.dirty |= ImGui::Checkbox("##CCD",&p.continuousCollision);}
-        {E::PropertyRow row("Allow sleeping");edit.dirty |= ImGui::Checkbox("##Sleep",&p.allowSleeping);}
-        if(ImGui::TreeNode("Solver overrides")) {
+        RBS_PHASE28_WIDGET("generic-gravity-factor");
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(p.type==BodyType::Static);
+        {E::PropertyRow row("CCD");edit.dirty |= ImGui::Checkbox("##CCD",&p.continuousCollision);RBS_PHASE28_WIDGET("generic-ccd");}
+        {E::PropertyRow row("Allow sleeping");edit.dirty |= ImGui::Checkbox("##Sleep",&p.allowSleeping);RBS_PHASE28_WIDGET("generic-allow-sleeping");}
+        ImGui::EndDisabled();
+        if(jolt && p.type==BodyType::Static)ImGui::TextWrapped("Static bodies have no effective damping, gravity, CCD or sleeping behavior.");
+        const bool solverOpen=ImGui::TreeNode("Solver overrides");
+        RBS_PHASE28_WIDGET("generic-solver");
+        if(solverOpen) {
             ImGui::BeginDisabled(p.type!=BodyType::Dynamic);
             edit.dirty|=E::Number("Velocity override",p.velocityStepsOverride,1.f,"0 inherits world; 2..255. Maximum override can affect the entire contact/constraint island.",E::Numeric::Closed(0,255),[](int v)->const char*{return v==1?"Use 0 (world) or at least 2 so friction can operate.":nullptr;});
+            RBS_PHASE28_WIDGET("generic-velocity-steps");
             edit.dirty|=E::Number("Position override",p.positionStepsOverride,1.f,"0 inherits world. Jolt uses the maximum across the island, not an isolated per-body solver.",E::Numeric::Closed(0,255));
+            RBS_PHASE28_WIDGET("generic-position-steps");
             ImGui::EndDisabled();
             ImGui::TextWrapped("Experimental. Public Jolt MotionProperties setters; safe boundary, no body rebuild. Dynamic colliding bodies only. May change the whole island.");
             if(actual)ImGui::TextWrapped("Effective overrides: %d / %d. Jolt native: 0 / 0 (inherit).",actual->velocityStepsOverride,actual->positionStepsOverride);
@@ -1374,41 +1945,48 @@ void RigidBodySimulationApp::DrawEditorProperties()
         }
         ImGui::EndDisabled();
         if(!jolt)ImGui::TextWrapped("Native: damping 0, gravity factor 1, CCD and sleep policy are fixed. Sleep thresholds are editable below.");
-        if(ImGui::TreeNode("Sleep thresholds"))
+        const bool sleepOpen=ImGui::TreeNode("Sleep thresholds");
+        RBS_PHASE28_WIDGET("generic-sleep");
+        if(sleepOpen)
         {
             ImGui::BeginDisabled(jolt);
             edit.dirty |= E::Number("Linear (m/s)",p.sleep.linearSpeedThreshold,.01f,"Finite, nonnegative Native threshold.",E::Numeric::Nonnegative<float>());
+            RBS_PHASE28_WIDGET("generic-sleep-linear");
             edit.dirty |= E::Number("Angular (rad/s)",p.sleep.angularSpeedThreshold,.01f,"Finite, nonnegative Native threshold.",E::Numeric::Nonnegative<float>());
+            RBS_PHASE28_WIDGET("generic-sleep-angular");
             edit.dirty |= E::Number("Dwell (s)",p.sleep.inactivitySeconds,.01f,"Finite, positive Native dwell time.",E::Numeric::Positive<double>());
+            RBS_PHASE28_WIDGET("generic-sleep-dwell");
             ImGui::EndDisabled();
             if(jolt)ImGui::TextWrapped("Jolt world thresholds are under World Settings > Physics > Sleeping. These Native per-body thresholds cannot be mapped.");
             ImGui::TreePop();
         }
         ImGui::BeginDisabled(!edit.dirty || E::Numeric::HasError());
         if(ImGui::Button("Apply Rigidbody"))edit.queued=true;
+        RBS_PHASE28_WIDGET("generic-body-apply");
         ImGui::EndDisabled();
         if(ImGui::GetContentRegionAvail().x>E::Px(280))ImGui::SameLine();
         if(ImGui::Button("Revert Rigidbody") && actual){p=*actual;edit.dirty=false;E::Numeric::Reset();}
-        E::Tooltip("Discard this draft and read the active body. Reset restores preset defaults. Backend Apply preserves supported applied edits.");
+        RBS_PHASE28_WIDGET("generic-body-revert");
+        E::Tooltip("Discard this draft and read the active body.");
         const auto baseline=std::find_if(m_JoltSettingsEditor.bodyBaseline.begin(),m_JoltSettingsEditor.bodyBaseline.end(),[&](const auto& b){return b.first==pose->body;});
         ImGui::BeginDisabled(baseline==m_JoltSettingsEditor.bodyBaseline.end());
         if(ImGui::Button("Reset to Baseline##Body")){p=baseline->second;edit.dirty=true;E::Numeric::Reset();}
+        RBS_PHASE28_WIDGET("generic-body-baseline");
         ImGui::EndDisabled();
         ImGui::EndDisabled();
-        E::Tooltip("Stage the preserved world-entry body settings; Apply is still required. Main Reset restores authored preset defaults.");
+        E::Tooltip("Stage the preserved world-entry body settings, then Apply Rigidbody.");
         ImGui::TextWrapped("%s",edit.queued?"Apply queued for simulation boundary.":edit.dirty?"Unapplied draft":"Active body settings");
-        if (ImGui::TreeNodeEx("Material details",0,"Contact resistance"))
+        const bool resistanceOpen=ImGui::TreeNodeEx("Material details",0,"Contact resistance");
+        RBS_PHASE28_WIDGET("generic-resistance");
+        if (resistanceOpen)
         {
             E::ReadOnly("Spin length (m)", std::format("{:.3f}", body->material.spinResistanceLength).c_str());
+            RBS_PHASE28_WIDGET("generic-spin-readback");
             E::ReadOnly("Rolling length (m)", std::format("{:.3f}", body->material.rollingResistanceLength).c_str());
-            if (m_Backend == PhysicsBackend::Jolt)
-                ImGui::TextWrapped("Spin and rolling resistance lengths are unsupported by Jolt. Authored values are retained.");
+            RBS_PHASE28_WIDGET("generic-rolling-readback");
             ImGui::TreePop();
         }
     }
-    if (pose && !multiple && E::Component("Collider", false))
-        Rbs::DrawColliderInspector(Rbs::colliderEditor, *m_ActiveScene, *m_SceneResources,
-            m_HoveredEntity, pose->body, m_IsPause);
     if (pose && !multiple)
     {
         bool foundJoint=false,showJoints=false;
@@ -1462,6 +2040,8 @@ void RigidBodySimulationApp::DrawEditorProperties()
         }
     }
     if(body || multiple)DrawImpulseProperties();
+    if(!multiple)DrawContextProperties(ContextSection::View);
+    DrawSceneAuthoringActions();
     if(E::Component("Advanced / Diagnostics",false))
     {
         if(multiple)ImGui::TextWrapped("Identifiers below describe the active object, not a common value.");
@@ -1471,6 +2051,13 @@ void RigidBodySimulationApp::DrawEditorProperties()
         if(pose)E::ReadOnly("Body identity",std::format("{} / {}",pose->body.index,pose->body.generation).c_str());
         if(body && !multiple)
         {
+            if(auto effective=world->ReadEffectiveBody(pose->body)) {
+                E::ReadOnly("Effective position (m)",std::format("({:.4f}, {:.4f}, {:.4f})",
+                    effective->position.x,effective->position.y,effective->position.z).c_str());
+                E::ReadOnly("Effective collider",Rbs::ColliderTypeName(effective->shapeType));
+                E::ReadOnly("Effective friction / restitution",std::format("{:.4f} / {:.4f}",
+                    effective->material.friction,effective->material.restitution).c_str());
+            } else E::ReadOnly("Effective body","Backend readback unavailable");
             const bool jolt=m_Backend==PhysicsBackend::Jolt;
             const auto actual=world->ReadBodyProperties(pose->body);
             if(jolt && ImGui::TreeNode("Effective / SDK body defaults")) {
@@ -1937,6 +2524,7 @@ void RigidBodySimulationApp::DrawMenus()
 void RigidBodySimulationApp::DrawCameraMenu()
 {
     if (!ImGui::BeginMenu("Cameras")) return;
+    if(m_CameraPilot){DrawCameraPilotControls();ImGui::EndMenu();return;}
     if (ImGui::MenuItem("Editor view", nullptr, m_CameraView == CameraView::Editor))
         (void)SetCameraView(CameraView::Editor);
     if (ImGui::MenuItem("Active Scene view", nullptr, m_CameraView == CameraView::ActiveScene))
@@ -1952,7 +2540,12 @@ void RigidBodySimulationApp::DrawCameraMenu()
         const bool live = bool(entity);
         const auto label = std::format("{}###SceneCamera{}",live ? _Entity{*entity,m_ActiveScene.get()}.Name() : "Missing Scene Camera",slot);
         if (!ImGui::BeginMenu(label.c_str())) continue;
-        if (ImGui::MenuItem("Select active", nullptr, active && *active && **active == id, live))
+        if(ImGui::MenuItem("Pilot Camera",nullptr,false,live && !m_CameraPilot))(void)BeginCameraPilot(id);
+        if (ImGui::MenuItem("Edit Transform", nullptr, false, live))
+            (void)EditSceneCamera(id);
+        if (ImGui::MenuItem("Open Camera View", nullptr, false, live))
+            OpenCameraPanel(id);
+        if (ImGui::MenuItem("Make Active", nullptr, active && *active && **active == id, live))
             (void)SelectSceneCamera(id);
         if (ImGui::MenuItem("Preview", nullptr,
                             m_CameraView == CameraView::Preview && m_PreviewCamera == id, live))
@@ -2013,6 +2606,11 @@ void RigidBodySimulationApp::DrawViewport()
     const bool hasArea = viewportVisible && viewportPanelSize.x > 0 && viewportPanelSize.y > 0;
     auto scale = hasArea ? UI::CurrentViewportFramebufferScale()
                          : std::expected<FramebufferScale, PlatformError>(FramebufferScale{});
+#ifdef GENGINE_PHASE28_QUALIFICATION
+    // Exercise actual backing-target allocation and coordinate conversion together.
+    // Ordinary Editor builds never alter the platform-reported framebuffer scale.
+    if(scale) {const float factor=Rbs::Phase28OutlineViewportScale();scale->X*=factor;scale->Y*=factor;}
+#endif
     if (scale)
     {
         if (auto sized = SetEditorViewport(
@@ -2061,9 +2659,12 @@ void RigidBodySimulationApp::DrawViewport()
         // above world gizmos even when responsive layout stacks the groups.
         auto* draw=ImGui::GetWindowDrawList();draw->ChannelsSplit(2);
         draw->ChannelsSetCurrent(1);DrawViewportOverlay();
-        draw->ChannelsSetCurrent(0);DrawViewportGizmo();
+        draw->ChannelsSetCurrent(0);
+        DrawViewportGizmo();
         DrawImpulseOverlay();DrawComponentOverlays();DrawViewportMarquee();
-        draw->ChannelsSetCurrent(1);DrawGroupTransformActions();draw->ChannelsMerge();
+        draw->ChannelsSetCurrent(1);
+        DrawGroupTransformActions();
+        draw->ChannelsMerge();
     }
     if (!m_CameraAvailable && !m_CameraUnavailableDiagnostic.empty())
         ImGui::TextWrapped("%s", m_CameraUnavailableDiagnostic.c_str());

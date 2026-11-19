@@ -23,16 +23,33 @@
 
 namespace GEngine
 {
-#ifdef GENGINE_PHASE26_QUALIFICATION
+#if defined(GENGINE_PHASE26_QUALIFICATION) || defined(GENGINE_PHASE28_QUALIFICATION)
     // Isolated observer only: complete Update lifetime, with common parity capture
     // outside the timing boundary. No ordinary build API/callback is added.
     namespace Phase26Observation {
         struct Observer { void* context{}; void (*begin)(void*) noexcept{};
-            void (*end)(void*,std::uint64_t) noexcept{}; };
+            void (*end)(void*,std::uint64_t) noexcept{};
+#ifdef GENGINE_PHASE28_QUALIFICATION
+            void (*allocation)(void*,unsigned,bool) noexcept{};
+#endif
+        };
         inline thread_local Observer* observer{};
         inline thread_local bool jointHot{};
+#ifdef GENGINE_PHASE28_QUALIFICATION
+        struct AllocationScope {
+            Observer* sink=observer;
+            unsigned kind;
+            explicit AllocationScope(unsigned value):kind(value) {
+                if(sink && sink->allocation)sink->allocation(sink->context,kind,true);
+            }
+            ~AllocationScope(){if(sink && sink->allocation)sink->allocation(sink->context,kind,false);}
+        };
+#endif
         struct JointScope {
             bool previous=jointHot;
+#ifdef GENGINE_PHASE28_QUALIFICATION
+            AllocationScope allocations{0};
+#endif
             JointScope(){jointHot=true;}
             ~JointScope(){jointHot=previous;}
         };
@@ -289,7 +306,7 @@ namespace GEngine
         std::uint64_t GetContactSolveNanoseconds() const { return m_ContactSolveNs; }
         bool HasJointFailure() const { return m_JointFailure; }
         const std::optional<PhysicsBodyError>& GetBackendFailure() const noexcept { return m_BackendFailure; }
-#ifdef GENGINE_PHASE26_QUALIFICATION
+#if defined(GENGINE_PHASE26_QUALIFICATION) || defined(GENGINE_PHASE28_QUALIFICATION)
         std::size_t QualificationJointStorageBytes() const {
             return sizeof(m_JointBlock)+sizeof(m_JointEdges)+
                 (m_PhysicsWorld && m_PhysicsWorld->m_Joints?PhysicsWorld::MaxDistanceJoints*sizeof(PhysicsWorld::JointSlot):0);
@@ -400,6 +417,47 @@ namespace GEngine
                     std::find(selected.begin(),selected.end(),j->descriptor.bodyB)==selected.end()) continue;
                 auto a=m_PhysicsWorld->ReadBody(j->descriptor.bodyA),b=m_PhysicsWorld->ReadBody(j->descriptor.bodyB);
                 if(!a || !b)return std::unexpected(DebugGeometryCode::InvalidInput);
+                if(AngularJoint::IsKind(j->descriptor.kind)) {
+                    const auto& p=j->descriptor.angular;
+                    const auto frameA=a->orientation*p.localFrameA,frameB=b->orientation*p.localFrameB;
+                    if(auto r=out.Sphere(j->worldAnchorA,.065f,{.1f,.85f,1,1},DebugDepth::Overlay);!r)return r;
+                    if(auto r=out.Line(j->worldAnchorA,j->worldAnchorB,{1,.2f,.8f,1},DebugDepth::Overlay);!r)return r;
+                    if(auto r=out.Axes(j->worldAnchorA,frameA,.4f);!r)return r;
+                    if(auto r=out.Axes(j->worldAnchorB,frameB,.3f);!r)return r;
+                    const auto ray=[&](float angle,unsigned plane,glm::vec4 color)->DebugGeometryResult {
+                        Vec3f direction(0);direction[plane]=std::cos(angle);direction[plane==1?2:1]=std::sin(angle);
+                        return out.Line(j->worldAnchorA,j->worldAnchorA+frameA*direction*.55f,color,DebugDepth::Overlay);
+                    };
+                    if(j->descriptor.kind==JointKind::Hinge && p.limitsEnabled) {
+                        if(auto r=ray(p.lower,1,{1,.65f,.1f,1});!r)return r;
+                        if(auto r=ray(p.upper,1,{1,.65f,.1f,1});!r)return r;
+                        Vec3f previous=j->worldAnchorA+frameA*Vec3f(0,std::cos(p.lower),std::sin(p.lower))*.55f;
+                        for(unsigned step=1;step<=24;++step) {
+                            const float angle=p.lower+(p.upper-p.lower)*float(step)/24;
+                            const auto next=j->worldAnchorA+frameA*Vec3f(0,std::cos(angle),std::sin(angle))*.55f;
+                            if(auto r=out.Line(previous,next,{1,.65f,.1f,1},DebugDepth::Overlay);!r)return r;
+                            previous=next;
+                        }
+                    } else if(j->descriptor.kind==JointKind::LimitedConstantVelocity) {
+                        // Exact image of the independent q.y/q.z rectangle on
+                        // the no-twist quaternion manifold, not an SDK cone.
+                        const float u=std::sin(p.halfAngleU*.5f),v=std::sin(p.halfAngleV*.5f);
+                        for(unsigned edge=0;edge<4;++edge) {
+                            Vec3f previous{};
+                            for(unsigned step=0;step<=16;++step) {
+                                const float t=2*float(step)/16-1;
+                                const float y=edge<2?(edge==0?-u:u):t*u;
+                                const float z=edge<2?t*v:(edge==2?-v:v);
+                                const Quat relative(std::sqrt(std::max(0.f,1-y*y-z*z)),0,y,z);
+                                const auto next=j->worldAnchorA+frameA*(relative*Vec3f(1,0,0))*.65f;
+                                if(step) {if(auto r=out.Line(previous,next,{.3f,.8f,1,1},DebugDepth::Overlay);!r)return r;}
+                                else if(auto r=out.Line(j->worldAnchorA,next,{.3f,.8f,1,1},DebugDepth::Overlay);!r)return r;
+                                previous=next;
+                            }
+                        }
+                    }
+                    continue;
+                }
                 if(j->descriptor.kind==JointKind::BallSocket) {
                     const glm::vec4 colorA{.1f,.85f,1.f,1.f},colorB{1.f,.55f,.1f,1.f};
                     // Different marker shapes remain legible when the anchors coincide.

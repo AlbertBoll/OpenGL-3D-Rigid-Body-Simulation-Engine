@@ -15,12 +15,19 @@
 #include <new>
 #include <chrono>
 #include <atomic>
-#ifdef GENGINE_PHASE27_QUALIFICATION
+#include <cmath>
+#include <cfloat>
+#include <cstring>
+#include <string_view>
+#if defined(GENGINE_PHASE27_QUALIFICATION) || defined(GENGINE_PHASE28_QUALIFICATION)
 #include <intrin.h>
 #endif
 
 #ifdef GENGINE_WITH_JOLT
 #include <Jolt/Jolt.h>
+#ifdef JPH_EXTERNAL_PROFILE
+#include <Jolt/Core/Profiler.h>
+#endif
 #include <Jolt/RegisterTypes.h>
 #include <Jolt/Core/Factory.h>
 #include <Jolt/Core/TempAllocator.h>
@@ -36,7 +43,18 @@
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Constraints/DistanceConstraint.h>
 #include <Jolt/Physics/Constraints/PointConstraint.h>
-#ifdef GENGINE_PHASE27_QUALIFICATION
+#include <Jolt/Physics/Constraints/HingeConstraint.h>
+#include <Jolt/Physics/Constraints/TwoBodyConstraint.h>
+#include <Jolt/Physics/Constraints/ConstraintPart/PointConstraintPart.h>
+#include <Jolt/Physics/Constraints/ConstraintPart/AngleConstraintPart.h>
+#include <Jolt/Physics/StateRecorder.h>
+#include <Jolt/Core/StreamIn.h>
+#include <Jolt/Core/StreamOut.h>
+#include <Jolt/ObjectStream/TypeDeclarations.h>
+#ifdef JPH_DEBUG_RENDERER
+#include <Jolt/Renderer/DebugRenderer.h>
+#endif
+#if defined(GENGINE_PHASE27_QUALIFICATION) || defined(GENGINE_PHASE28_QUALIFICATION)
 #include <Jolt/Physics/PhysicsUpdateContext.h>
 #include <Jolt/Physics/Constraints/ContactConstraintManager.h>
 extern "C" const std::uint64_t g_Phase27TargetSizes[] = {
@@ -55,6 +73,98 @@ extern "C" const std::uint64_t g_Phase27TargetSizes[] = {
 #include <Jolt/Physics/QualificationObservation.h>
 #endif
 #include <glm/gtx/quaternion.hpp>
+#endif
+
+#ifdef GENGINE_PHASE28_QUALIFICATION
+// Qualification-only counters consumed by the ordinary RBS process. They are
+// reset at each fixed-tick boundary; concurrent Jolt workers publish atomically.
+extern "C" {
+    std::atomic<std::uint64_t> g_Phase28ObserverWrapperNs{};
+    std::atomic<std::uint64_t> g_Phase28ObserverWrapperCalls{};
+    std::atomic<std::uint64_t> g_Phase28JoltStageNs[8]{};
+    std::atomic<std::uint64_t> g_Phase28JoltStageCalls[8]{};
+    std::atomic<std::uint64_t> g_Phase28JoltProfileHookNs{};
+    std::atomic<std::uint64_t> g_Phase28JoltProfileHookCalls{};
+}
+#endif
+
+#if defined(GENGINE_WITH_JOLT) && defined(JPH_EXTERNAL_PROFILE) && !defined(JPH_SHARED_LIBRARY)
+#if defined(GENGINE_PHASE28_QUALIFICATION) && defined(GENGINE_JOLT_FINAL_AUDIT)
+namespace
+{
+    // Jolt's static-library profiler provides 64 bytes in each stack scope.
+    // This payload has no lifetime outside its Jolt profile scope or Update.
+    struct Phase28JoltScope
+    {
+        std::uint64_t beginNs{};
+        std::uint8_t stage{8};
+        std::uint8_t active{};
+    };
+    static_assert(sizeof(Phase28JoltScope)<=64);
+
+    bool Phase28ScopeName(std::string_view name,std::string_view function) noexcept
+    {
+        // MSVC may append instantiated template arguments to __FUNCTION__.
+        // The admitted SDK manager names themselves contain no '<'.
+        if(const auto templateStart=name.find('<');templateStart!=std::string_view::npos)
+            name=name.substr(0,templateStart);
+        if(name==function)return true;
+        if(name.size()<=function.size()+1 || name.substr(name.size()-function.size())!=function)return false;
+        return name[name.size()-function.size()-1]==':';
+    }
+
+    std::uint8_t Phase28JoltStage(const char* name) noexcept
+    {
+        const std::string_view n{name?name:""};
+        if(Phase28ScopeName(n,"sSetupVelocityConstraints"))return 0;
+        if(Phase28ScopeName(n,"sWarmStartVelocityConstraints"))return 1;
+        if(Phase28ScopeName(n,"sSolveVelocityConstraints"))return 2;
+        if(Phase28ScopeName(n,"sSolvePositionConstraints"))return 3;
+        if(Phase28ScopeName(n,"AddContactConstraint") || n=="Add Constraint From Cached Manifold")return 4;
+        if(Phase28ScopeName(n,"WarmStartVelocityConstraints"))return 5;
+        if(Phase28ScopeName(n,"SolveVelocityConstraints"))return 6;
+        if(Phase28ScopeName(n,"SolvePositionConstraints"))return 7;
+        return 8;
+    }
+}
+#endif
+
+JPH::ExternalProfileMeasurement::ExternalProfileMeasurement(const char* inName,JPH::uint32 inColor)
+{
+    (void)inColor;
+#if defined(GENGINE_PHASE28_QUALIFICATION) && defined(GENGINE_JOLT_FINAL_AUDIT)
+    const bool active=GEngine::JoltAudit::countAllocations.load(std::memory_order_relaxed);
+    const auto hookBegin=active?GEngine::JoltAudit::Now():0;
+    Phase28JoltScope scope{};
+    scope.active=active?1:0;
+    if(active)scope.stage=Phase28JoltStage(inName);
+    std::memcpy(mUserData,&scope,sizeof scope);
+    if(active){
+        g_Phase28JoltProfileHookCalls.fetch_add(1,std::memory_order_relaxed);
+        g_Phase28JoltProfileHookNs.fetch_add(GEngine::JoltAudit::Now()-hookBegin,std::memory_order_relaxed);
+        const auto begin=GEngine::JoltAudit::Now();
+        std::memcpy(mUserData,&begin,sizeof begin);
+    }
+#else
+    (void)inName;
+#endif
+}
+
+JPH::ExternalProfileMeasurement::~ExternalProfileMeasurement()
+{
+#if defined(GENGINE_PHASE28_QUALIFICATION) && defined(GENGINE_JOLT_FINAL_AUDIT)
+    Phase28JoltScope scope{};
+    std::memcpy(&scope,mUserData,sizeof scope);
+    if(!scope.active)return;
+    const auto hookBegin=GEngine::JoltAudit::Now();
+    if(scope.stage<8){
+        g_Phase28JoltStageNs[scope.stage].fetch_add(hookBegin-scope.beginNs,std::memory_order_relaxed);
+        g_Phase28JoltStageCalls[scope.stage].fetch_add(1,std::memory_order_relaxed);
+    }
+    g_Phase28JoltProfileHookCalls.fetch_add(1,std::memory_order_relaxed);
+    g_Phase28JoltProfileHookNs.fetch_add(GEngine::JoltAudit::Now()-hookBegin,std::memory_order_relaxed);
+#endif
+}
 #endif
 
 namespace GEngine
@@ -98,6 +208,25 @@ namespace GEngine
 #ifdef GENGINE_WITH_JOLT
     namespace
     {
+#if defined(GENGINE_PHASE28_QUALIFICATION) && defined(GENGINE_JOLT_FINAL_AUDIT)
+        struct Phase28ObserverTimer
+        {
+            bool enabled;
+            std::uint64_t start;
+            explicit Phase28ObserverTimer(bool active) noexcept
+                : enabled(active),start(active?JoltAudit::Now():0) {}
+            ~Phase28ObserverTimer()
+            {
+                if(!enabled)return;
+                // Whole-wrapper duration includes actual SDK allocator work.
+                // This intentionally overstates observer-only cost; the audit
+                // adds a per-call clock-quantum allowance on top.
+                const auto elapsed=JoltAudit::Now()-start;
+                g_Phase28ObserverWrapperNs.fetch_add(elapsed,std::memory_order_relaxed);
+                g_Phase28ObserverWrapperCalls.fetch_add(1,std::memory_order_relaxed);
+            }
+        };
+#endif
         constexpr std::size_t BodyCapacity = 4096;
         static_assert(BodyCapacity==PhysicsWorld::MaxImpulseBodies);
         std::mutex s_LifetimeMutex;
@@ -207,25 +336,45 @@ namespace GEngine
                 static auto allocate=JPH::Allocate;
                 static auto reallocate=JPH::Reallocate;
                 static auto aligned=JPH::AlignedAllocate;
-                JPH::Allocate=[](size_t n)->void* {JoltAudit::Alloc(n,true);auto* p=allocate(n);
-#ifdef GENGINE_PHASE27_QUALIFICATION
+                JPH::Allocate=[](size_t n)->void* {
+#ifdef GENGINE_PHASE28_QUALIFICATION
+                    Phase28ObserverTimer observerTimer(JoltAudit::countAllocations.load(std::memory_order_relaxed));
+#endif
+                    JoltAudit::Alloc(n,true);auto* p=allocate(n);
+#if defined(GENGINE_PHASE27_QUALIFICATION) || defined(GENGINE_PHASE28_QUALIFICATION)
                     if(JoltAudit::countAllocations && Phase27Audit::heap)Phase27Audit::heap({reinterpret_cast<std::uintptr_t>(p),reinterpret_cast<std::uintptr_t>(_ReturnAddress()),n,true});
 #endif
                     return p;};
-                JPH::Reallocate=[](void* p,size_t old,size_t n)->void* {JoltAudit::Alloc(n,true);auto* result=reallocate(p,old,n);
-#ifdef GENGINE_PHASE27_QUALIFICATION
+                JPH::Reallocate=[](void* p,size_t old,size_t n)->void* {
+#ifdef GENGINE_PHASE28_QUALIFICATION
+                    Phase28ObserverTimer observerTimer(JoltAudit::countAllocations.load(std::memory_order_relaxed));
+#endif
+                    JoltAudit::Alloc(n,true);auto* result=reallocate(p,old,n);
+#if defined(GENGINE_PHASE27_QUALIFICATION) || defined(GENGINE_PHASE28_QUALIFICATION)
                     if(JoltAudit::countAllocations && Phase27Audit::heap)Phase27Audit::heap({reinterpret_cast<std::uintptr_t>(result),reinterpret_cast<std::uintptr_t>(_ReturnAddress()),n,true});
 #endif
                     return result;};
-                JPH::AlignedAllocate=[](size_t n,size_t a)->void* {JoltAudit::Alloc(n,true);auto* p=aligned(n,a);
-#ifdef GENGINE_PHASE27_QUALIFICATION
+                JPH::AlignedAllocate=[](size_t n,size_t a)->void* {
+#ifdef GENGINE_PHASE28_QUALIFICATION
+                    Phase28ObserverTimer observerTimer(JoltAudit::countAllocations.load(std::memory_order_relaxed));
+#endif
+                    JoltAudit::Alloc(n,true);auto* p=aligned(n,a);
+#if defined(GENGINE_PHASE27_QUALIFICATION) || defined(GENGINE_PHASE28_QUALIFICATION)
                     if(JoltAudit::countAllocations && Phase27Audit::heap)Phase27Audit::heap({reinterpret_cast<std::uintptr_t>(p),reinterpret_cast<std::uintptr_t>(_ReturnAddress()),n,true});
 #endif
                     return p;};
-#ifdef GENGINE_PHASE27_QUALIFICATION
+#if defined(GENGINE_PHASE27_QUALIFICATION) || defined(GENGINE_PHASE28_QUALIFICATION)
                 static const auto freeHeap=JPH::Free,freeAligned=JPH::AlignedFree;
-                JPH::Free=[](void* p){if(JoltAudit::countAllocations && Phase27Audit::heap)Phase27Audit::heap({reinterpret_cast<std::uintptr_t>(p),reinterpret_cast<std::uintptr_t>(_ReturnAddress()),0,false});freeHeap(p);};
-                JPH::AlignedFree=[](void* p){if(JoltAudit::countAllocations && Phase27Audit::heap)Phase27Audit::heap({reinterpret_cast<std::uintptr_t>(p),reinterpret_cast<std::uintptr_t>(_ReturnAddress()),0,false});freeAligned(p);};
+                JPH::Free=[](void* p){
+#ifdef GENGINE_PHASE28_QUALIFICATION
+                    Phase28ObserverTimer observerTimer(JoltAudit::countAllocations.load(std::memory_order_relaxed));
+#endif
+                    if(JoltAudit::countAllocations && Phase27Audit::heap)Phase27Audit::heap({reinterpret_cast<std::uintptr_t>(p),reinterpret_cast<std::uintptr_t>(_ReturnAddress()),0,false});freeHeap(p);};
+                JPH::AlignedFree=[](void* p){
+#ifdef GENGINE_PHASE28_QUALIFICATION
+                    Phase28ObserverTimer observerTimer(JoltAudit::countAllocations.load(std::memory_order_relaxed));
+#endif
+                    if(JoltAudit::countAllocations && Phase27Audit::heap)Phase27Audit::heap({reinterpret_cast<std::uintptr_t>(p),reinterpret_cast<std::uintptr_t>(_ReturnAddress()),0,false});freeAligned(p);};
 #endif
 #endif
                 JPH::Factory::sInstance = new JPH::Factory;
@@ -259,6 +408,361 @@ namespace GEngine
         JPH::Quat Q(const Quat& q) { return {q.x,q.y,q.z,q.w}; }
         Vec3f V(JPH::Vec3Arg v) { return {v.GetX(),v.GetY(),v.GetZ()}; }
         Quat Q(JPH::QuatArg q) { return {q.GetW(),q.GetX(),q.GetY(),q.GetZ()}; }
+
+        // Keep Jolt's point, hinge-axis and position solver. Its built-in hard
+        // limit becomes active only after the angle has crossed an authored
+        // bound, so one transient SDK angle row catches an impending crossing
+        // after the native point/axis velocity solve in the same iteration.
+        class BookHingeConstraint final : public JPH::TwoBodyConstraint
+        {
+        public:
+            JPH_OVERRIDE_NEW_DELETE
+            BookHingeConstraint(JPH::Body& a,JPH::Body& b,const JPH::HingeConstraintSettings& settings)
+                : JPH::TwoBodyConstraint(a,b,settings),mNative(a,b,settings) {}
+            JPH::EConstraintSubType GetSubType() const override {return JPH::EConstraintSubType::User2;}
+            void NotifyShapeChanged(const JPH::BodyID& id,JPH::Vec3Arg delta) override
+            {mNative.NotifyShapeChanged(id,delta);}
+            JPH::Mat44 GetConstraintToBody1Matrix() const override
+            {return mNative.GetConstraintToBody1Matrix();}
+            JPH::Mat44 GetConstraintToBody2Matrix() const override
+            {return mNative.GetConstraintToBody2Matrix();}
+            void ResetWarmStart() override
+            {mNative.ResetWarmStart();mGuard.Deactivate();mSide=0;}
+            void SetupVelocityConstraint(float dt) override
+            {mStepDeltaTime=dt;mGuard.Deactivate();mSide=0;mNative.SetupVelocityConstraint(dt);}
+            void WarmStartVelocityConstraint(float ratio) override
+            {mNative.WarmStartVelocityConstraint(ratio);}
+            bool SolveVelocityConstraint(float dt) override
+            {
+                bool changed=mNative.SolveVelocityConstraint(dt);
+                const float angle=mNative.GetCurrentAngle();
+                const float lower=mNative.GetLimitsMin(),upper=mNative.GetLimitsMax();
+                if(angle>lower && angle<upper && mStepDeltaTime>0)
+                {
+                    if(mSide==0)
+                    {
+                        const auto axis=mBody1->GetRotation()*mNative.GetLocalSpaceHingeAxis1();
+                        const float rate=axis.Dot(mBody2->GetAngularVelocity()-mBody1->GetAngularVelocity());
+                        const float future=angle+mStepDeltaTime*rate;
+                        mSide=future<lower?-1:future>upper?1:0;
+                        if(mSide)
+                        {
+                            mAxis=axis;
+                            const float bound=mSide<0?lower:upper;
+                            mBias=(angle-bound)/mStepDeltaTime;
+                            mGuard.CalculateConstraintProperties(*mBody1,*mBody2,mAxis,mBias);
+                            if(!mGuard.IsActive())mSide=0;
+                        }
+                    }
+                    if(mSide)
+                        changed=mGuard.SolveVelocityConstraint(*mBody1,*mBody2,mAxis,
+                            mSide<0?0.f:-FLT_MAX,mSide<0?FLT_MAX:0.f)||changed;
+                }
+                return changed;
+            }
+            bool SolvePositionConstraint(float dt,float baumgarte) override
+            {return mNative.SolvePositionConstraint(dt,baumgarte);}
+#ifdef JPH_DEBUG_RENDERER
+            void DrawConstraint(JPH::DebugRenderer* renderer) const override
+            {mNative.DrawConstraint(renderer);}
+            void DrawConstraintLimits(JPH::DebugRenderer* renderer) const override
+            {mNative.DrawConstraintLimits(renderer);}
+#endif
+            void SaveState(JPH::StateRecorder& stream) const override
+            {
+                JPH::TwoBodyConstraint::SaveState(stream);
+                mNative.SaveState(stream);mGuard.SaveState(stream);
+                stream.Write(mStepDeltaTime);stream.Write(mSide);
+                stream.Write(mAxis);stream.Write(mBias);
+            }
+            void RestoreState(JPH::StateRecorder& stream) override
+            {
+                JPH::TwoBodyConstraint::RestoreState(stream);
+                mNative.RestoreState(stream);mGuard.RestoreState(stream);
+                stream.Read(mStepDeltaTime);stream.Read(mSide);
+                stream.Read(mAxis);stream.Read(mBias);
+            }
+            JPH::Ref<JPH::ConstraintSettings> GetConstraintSettings() const override
+            {
+                auto settings=mNative.GetConstraintSettings();
+                ToConstraintSettings(*settings);
+                return settings;
+            }
+            const JPH::HingeConstraint& Native() const noexcept {return mNative;}
+        private:
+            JPH::HingeConstraint mNative;
+            JPH::AngleConstraintPart mGuard;
+            JPH::Vec3 mAxis{};
+            float mStepDeltaTime{},mBias{};
+            int mSide{};
+        };
+
+        const JPH::HingeConstraint* NativeHinge(const JPH::TwoBodyConstraint* constraint) noexcept
+        {
+            return constraint->GetSubType()==JPH::EConstraintSubType::User2?
+                &static_cast<const BookHingeConstraint*>(constraint)->Native():
+                static_cast<const JPH::HingeConstraint*>(constraint);
+        }
+
+        class BookCvConstraint;
+        class BookCvConstraintSettings final : public JPH::TwoBodyConstraintSettings
+        {
+            JPH_DECLARE_SERIALIZABLE_VIRTUAL(, BookCvConstraintSettings)
+        public:
+            JPH::TwoBodyConstraint* Create(JPH::Body&,JPH::Body&) const override;
+            void SaveBinaryState(JPH::StreamOut&) const override;
+            JPH::Vec3 point1{},point2{}; // Body-local, relative to each center of mass.
+            JPH::Quat frame1{JPH::Quat::sIdentity()},frame2{JPH::Quat::sIdentity()};
+            float halfU{},halfV{};
+            bool limited{};
+        protected:
+            void RestoreBinaryState(JPH::StreamIn&) override;
+        };
+
+        // Chapters 19/20: one pivot and the exact quaternion-component CV
+        // relation, plus two independent unilateral pyramid limits. A Jolt
+        // SwingTwist/Pyramid has a different finite-angle boundary and Jacobian.
+        // This is one SDK two-body constraint in the existing island/scheduler.
+        class BookCvConstraint final : public JPH::TwoBodyConstraint
+        {
+        public:
+            JPH_OVERRIDE_NEW_DELETE
+            BookCvConstraint(JPH::Body& a,JPH::Body& b,const BookCvConstraintSettings& s)
+                : JPH::TwoBodyConstraint(a,b,s),mPoint1(s.point1),mPoint2(s.point2),
+                  mFrame1(s.frame1),mFrame2(s.frame2),mHalfU(s.halfU),mHalfV(s.halfV),
+                  mBoundU(std::sin(.5f*s.halfU)),mBoundV(std::sin(.5f*s.halfV)),
+                  mLimited(s.limited) {}
+            JPH::EConstraintSubType GetSubType() const override {return JPH::EConstraintSubType::User1;}
+            void NotifyShapeChanged(const JPH::BodyID& id,JPH::Vec3Arg delta) override
+            {
+                if(mBody1->GetID()==id)mPoint1-=delta;
+                else if(mBody2->GetID()==id)mPoint2-=delta;
+            }
+            JPH::Mat44 GetConstraintToBody1Matrix() const override
+            {return JPH::Mat44::sRotationTranslation(mFrame1,mPoint1);}
+            JPH::Mat44 GetConstraintToBody2Matrix() const override
+            {return JPH::Mat44::sRotationTranslation(mFrame2,mPoint2);}
+            void ResetWarmStart() override
+            {
+                mPoint.Deactivate();
+                for(auto& row:mAngle)row.Deactivate();
+                for(auto& row:mPositionAngle)row.Deactivate();
+                mSide={};
+            }
+            void SetupVelocityConstraint(float dt) override
+            {
+                mStepDeltaTime=dt;
+                UpdatePoint();
+            }
+            void WarmStartVelocityConstraint(float ratio) override
+            {
+                // Keep a row for an already violated bound. Choose an inside
+                // prospective side after the point and q.x rows have changed
+                // the angular velocity in SolveVelocityConstraint.
+                UpdateAngles(mStepDeltaTime,false,mLimited);
+                mPoint.WarmStart(*mBody1,*mBody2,ratio);
+                for(auto& row:mAngle)if(row.IsActive())row.WarmStart(*mBody1,*mBody2,ratio);
+            }
+            bool SolveVelocityConstraint(float dt) override
+            {
+                bool changed=mPoint.SolveVelocityConstraint(*mBody1,*mBody2);
+                if(mAngle[0].IsActive())
+                    changed=mAngle[0].SolveVelocityConstraint(*mBody1,*mBody2,mAxis[0],-FLT_MAX,FLT_MAX)||changed;
+                if(mLimited)ActivatePredictedLimits(dt);
+                for(std::size_t i=1;i<mAngle.size();++i)if(mAngle[i].IsActive())
+                {
+                    // An upper-bound row can only apply a negative impulse;
+                    // a lower-bound row can only apply a positive impulse.
+                    const float low=mSide[i]>0?-FLT_MAX:0.f;
+                    const float high=mSide[i]<0?FLT_MAX:0.f;
+                    changed=mAngle[i].SolveVelocityConstraint(*mBody1,*mBody2,mAxis[i],low,high)||changed;
+                }
+                return changed;
+            }
+            bool SolvePositionConstraint(float,float baumgarte) override
+            {
+                UpdatePoint();
+                bool changed=mPoint.SolvePositionConstraint(*mBody1,*mBody2,baumgarte);
+                UpdateAngles(0.f,true);
+                for(std::size_t i=0;i<mPositionAngle.size();++i)if(mPositionAngle[i].IsActive())
+                    changed=mPositionAngle[i].SolvePositionConstraint(*mBody1,*mBody2,mC[i],baumgarte)||changed;
+                return changed;
+            }
+#ifdef JPH_DEBUG_RENDERER
+            void DrawConstraint(JPH::DebugRenderer* renderer) const override
+            {
+                renderer->DrawMarker(mBody1->GetCenterOfMassTransform()*mPoint1,JPH::Color::sRed,.1f);
+                renderer->DrawMarker(mBody2->GetCenterOfMassTransform()*mPoint2,JPH::Color::sGreen,.1f);
+            }
+#endif
+            void SaveState(JPH::StateRecorder& stream) const override
+            {
+                JPH::TwoBodyConstraint::SaveState(stream);
+                mPoint.SaveState(stream);
+                for(const auto& row:mAngle)row.SaveState(stream);
+                stream.Write(mPreviousQ);
+                for(int side:mSide)stream.Write(side);
+            }
+            void RestoreState(JPH::StateRecorder& stream) override
+            {
+                JPH::TwoBodyConstraint::RestoreState(stream);
+                mPoint.RestoreState(stream);
+                for(auto& row:mAngle)row.RestoreState(stream);
+                stream.Read(mPreviousQ);
+                for(int& side:mSide)stream.Read(side);
+            }
+            JPH::Ref<JPH::ConstraintSettings> GetConstraintSettings() const override
+            {
+                auto* settings=new BookCvConstraintSettings;
+                ToConstraintSettings(*settings);
+                settings->point1=mPoint1;settings->point2=mPoint2;
+                settings->frame1=mFrame1;settings->frame2=mFrame2;
+                settings->halfU=mHalfU;settings->halfV=mHalfV;settings->limited=mLimited;
+                return settings;
+            }
+            Vec3f AngularImpulse() const noexcept
+            {return {mAngle[0].GetTotalLambda(),mAngle[1].GetTotalLambda(),mAngle[2].GetTotalLambda()};}
+            Vec3f PointImpulse() const noexcept
+            {const auto value=mPoint.GetTotalLambda();return {value.GetX(),value.GetY(),value.GetZ()};}
+            JPH::Vec3 LocalPoint1() const noexcept {return mPoint1;}
+            JPH::Vec3 LocalPoint2() const noexcept {return mPoint2;}
+            JPH::Quat LocalFrame1() const noexcept {return mFrame1;}
+            JPH::Quat LocalFrame2() const noexcept {return mFrame2;}
+            float HalfAngleU() const noexcept {return mHalfU;}
+            float HalfAngleV() const noexcept {return mHalfV;}
+            bool Limited() const noexcept {return mLimited;}
+        private:
+            void UpdatePoint()
+            {
+                mPoint.CalculateConstraintProperties(*mBody1,JPH::Mat44::sRotation(mBody1->GetRotation()),mPoint1,
+                    *mBody2,JPH::Mat44::sRotation(mBody2->GetRotation()),mPoint2);
+            }
+            void ActivatePredictedLimits(float horizon)
+            {
+                if(!(horizon>0))return;
+                const auto worldFrame1=mBody1->GetRotation()*mFrame1;
+                auto q=worldFrame1.Conjugated()*(mBody2->GetRotation()*mFrame2);
+                if(q.GetW()<0)q=-q;
+                const float w=q.GetW(),x=q.GetX(),y=q.GetY(),z=q.GetZ();
+                const JPH::Vec3 gradient[2]={{-z,w,x},{y,-x,w}};
+                const float component[2]={y,z};
+                const float bound[2]={mBoundU,mBoundV};
+                for(std::size_t index=0;index<2;++index)
+                {
+                    const std::size_t i=index+1;
+                    if(mAngle[i].IsActive())continue;
+                    if(!(component[index]>-bound[index] && component[index]<bound[index]))continue;
+                    const float lengthSquared=gradient[index].LengthSq();
+                    if(lengthSquared<=1.e-10f)continue;
+                    const float length=std::sqrt(lengthSquared);
+                    const auto axis=worldFrame1*(gradient[index]/length);
+                    const float rate=axis.Dot(mBody2->GetAngularVelocity()-mBody1->GetAngularVelocity());
+                    const float upperGap=2.f*(component[index]-bound[index])/length;
+                    const float lowerGap=2.f*(component[index]+bound[index])/length;
+                    const int side=upperGap+horizon*rate>0?1:lowerGap+horizon*rate<0?-1:0;
+                    if(!side)continue;
+                    mSide[i]=side;mAxis[i]=axis;
+                    mC[i]=2.f*(component[index]-side*bound[index])/length;
+                    const float bias=mC[i]/horizon; // Strictly inside: finite-step gap.
+                    mAngle[i].CalculateConstraintProperties(*mBody1,*mBody2,mAxis[i],bias);
+                }
+            }
+            void UpdateAngles(float horizon,bool positionPass,bool deferInsidePrediction=false)
+            {
+                // q = (R_A C_A)^-1 (R_B C_B). For qdot = 1/2 (0,omega_rel_A) q,
+                // each component derivative is 1/2 g_i dot omega_rel_A.
+                // The normalized world g_i gives the exact angular Jacobian.
+                const auto worldFrame1=mBody1->GetRotation()*mFrame1;
+                auto q=worldFrame1.Conjugated()*(mBody2->GetRotation()*mFrame2);
+                // Limited bounds use the principal quaternion. The free CV
+                // manifold keeps a continuous sign across a half turn.
+                if(mLimited ? q.GetW()<0 : q.Dot(mPreviousQ)<0)q=-q;
+                auto& rows=positionPass?mPositionAngle:mAngle;
+                if(!positionPass && q.Dot(mPreviousQ)<0)
+                    for(auto& row:mAngle)row.Deactivate();
+                if(!positionPass)mPreviousQ=q;
+                const float w=q.GetW(),x=q.GetX(),y=q.GetY(),z=q.GetZ();
+                const JPH::Vec3 gradient[3]={{w,z,-y},{-z,w,x},{y,-x,w}};
+                const float component[3]={x,y,z};
+                const float bound[3]={0.f,mBoundU,mBoundV};
+                for(std::size_t i=0;i<rows.size();++i)
+                {
+                    const float lengthSquared=gradient[i].LengthSq();
+                    if(lengthSquared<=1.e-10f)
+                    {rows[i].Deactivate();mC[i]=0.f;if(!positionPass)mSide[i]=0;continue;}
+                    const float length=std::sqrt(lengthSquared);
+                    const auto axis=worldFrame1*(gradient[i]/length);
+                    int side=0;
+                    if(i==0)side=2; // bilateral relation q.x = 0.
+                    else if(mLimited)
+                    {
+                        side=component[i]>=bound[i]?1:(component[i]<=-bound[i]?-1:0);
+                        if(side==0 && horizon>0 && !deferInsidePrediction)
+                        {
+                            const float rate=axis.Dot(mBody2->GetAngularVelocity()-mBody1->GetAngularVelocity());
+                            const float upperGap=2.f*(component[i]-bound[i])/length;
+                            const float lowerGap=2.f*(component[i]+bound[i])/length;
+                            if(upperGap+horizon*rate>0)side=1;
+                            else if(lowerGap+horizon*rate<0)side=-1;
+                        }
+                    }
+                    if(!positionPass && side!=mSide[i])rows[i].Deactivate();
+                    if(!positionPass)mSide[i]=side;
+                    if(side==0)
+                    {rows[i].Deactivate();mC[i]=0.f;continue;}
+                    mAxis[i]=axis;
+                    mC[i]=2.f*(component[i]-(i==0?0.f:side*bound[i]))/length;
+                    // Inside the boundary, the finite-step gap allows motion
+                    // up to the surface. Outside it, Baumgarte corrects drift.
+                    const bool violated=i>0 && side*mC[i]>0;
+                    const float bias=horizon>0 && i>0?(violated?.2f:1.f)*mC[i]/horizon:0.f;
+                    rows[i].CalculateConstraintProperties(*mBody1,*mBody2,mAxis[i],bias);
+                }
+            }
+            JPH::Vec3 mPoint1,mPoint2;
+            JPH::Quat mFrame1,mFrame2;
+            float mHalfU,mHalfV,mBoundU,mBoundV;
+            float mStepDeltaTime{};
+            bool mLimited;
+            JPH::PointConstraintPart mPoint;
+            std::array<JPH::AngleConstraintPart,3> mAngle{};
+            std::array<JPH::AngleConstraintPart,3> mPositionAngle{};
+            std::array<JPH::Vec3,3> mAxis{};
+            std::array<float,3> mC{};
+            std::array<int,3> mSide{};
+            JPH::Quat mPreviousQ=JPH::Quat::sIdentity();
+        };
+
+        JPH_IMPLEMENT_SERIALIZABLE_VIRTUAL(BookCvConstraintSettings)
+        {
+            JPH_ADD_BASE_CLASS(BookCvConstraintSettings,JPH::TwoBodyConstraintSettings)
+            JPH_ADD_ATTRIBUTE(BookCvConstraintSettings,point1)
+            JPH_ADD_ATTRIBUTE(BookCvConstraintSettings,point2)
+            JPH_ADD_ATTRIBUTE(BookCvConstraintSettings,frame1)
+            JPH_ADD_ATTRIBUTE(BookCvConstraintSettings,frame2)
+            JPH_ADD_ATTRIBUTE(BookCvConstraintSettings,halfU)
+            JPH_ADD_ATTRIBUTE(BookCvConstraintSettings,halfV)
+            JPH_ADD_ATTRIBUTE(BookCvConstraintSettings,limited)
+        }
+        JPH::TwoBodyConstraint* BookCvConstraintSettings::Create(JPH::Body& a,JPH::Body& b) const
+        {return new BookCvConstraint(a,b,*this);}
+        void BookCvConstraintSettings::SaveBinaryState(JPH::StreamOut& stream) const
+        {
+            JPH::ConstraintSettings::SaveBinaryState(stream);
+            stream.Write(point1);stream.Write(point2);stream.Write(frame1);stream.Write(frame2);
+            stream.Write(halfU);stream.Write(halfV);stream.Write(limited);
+        }
+        void BookCvConstraintSettings::RestoreBinaryState(JPH::StreamIn& stream)
+        {
+            JPH::ConstraintSettings::RestoreBinaryState(stream);
+            stream.Read(point1);stream.Read(point2);stream.Read(frame1);stream.Read(frame2);
+            stream.Read(halfU);stream.Read(halfV);stream.Read(limited);
+        }
+        Quat FrameFromAxes(JPH::Vec3Arg primary,JPH::Vec3Arg normal) noexcept
+        {
+            const Vec3f x=V(primary),y=V(normal);
+            return glm::normalize(glm::quat_cast(Mat3(x,y,glm::cross(x,y))));
+        }
         auto Error(PhysicsBodyErrorCode code, PhysicsBodyHandle h, std::string_view operation)
         { return std::unexpected(PhysicsBodyError{code,h,operation}); }
         JPH::EMotionType Motion(Component::BodyType type)
@@ -404,6 +908,7 @@ namespace GEngine
             DistanceJointDesc m_Desc;
             JointKind m_Kind{JointKind::Distance};
             JPH::Ref<JPH::TwoBodyConstraint> m_Constraint;
+            bool m_AngularImpulseValid{};
         };
 
         class JoltWorld final : public WorldBackend
@@ -679,6 +1184,7 @@ namespace GEngine
                         // Public anchors are measured from the shape COM (BodySpaceToWorldSpace).
                         // Preserve that convention: local anchor coordinates stay unchanged.
                         joint.m_Constraint->ResetWarmStart();
+                        joint.m_AngularImpulseValid=false;
                         owner.Wake(joint.m_Desc.bodyA); owner.Wake(joint.m_Desc.bodyB);
                     }
                     // Only these fields were published. In particular, retain any
@@ -748,6 +1254,61 @@ namespace GEngine
                 p.velocityStepsOverride=int(motion->GetNumVelocityStepsOverride());p.positionStepsOverride=int(motion->GetNumPositionStepsOverride());
                 p.continuousCollision=motion->GetMotionQuality()==JPH::EMotionQuality::LinearCast;
             }
+            PhysicsBodyResult<> ReadEffectiveBody(PhysicsBodyState& state) const override
+            {
+                const auto record = FindMassRecord(state.handle);
+                if (!record) return std::unexpected(record.error());
+                const auto& body = *(*record)->m_Body;
+                const auto* shape = body.GetShape();
+                auto subtype = shape->GetSubType();
+                if (subtype == JPH::EShapeSubType::RotatedTranslated || subtype == JPH::EShapeSubType::OffsetCenterOfMass) {
+                    // MakeShape decorates only offset boxes and COM-adjusted convex hulls.
+                    // Use the inner type for classification and the outer shape for geometry.
+                    const auto* inner = static_cast<const JPH::DecoratedShape*>(shape)->GetInnerShape();
+                    const auto expected = subtype == JPH::EShapeSubType::RotatedTranslated ?
+                        JPH::EShapeSubType::Box : JPH::EShapeSubType::ConvexHull;
+                    if (!inner || inner->GetSubType() != expected)
+                        return Error(PhysicsBodyErrorCode::UnsupportedFeature, state.handle,
+                            "Effective readback encountered an unsupported decorated collider");
+                    subtype = inner->GetSubType();
+                }
+                switch (subtype) {
+                case JPH::EShapeSubType::Box: state.shapeType = ShapeType::Box; break;
+                case JPH::EShapeSubType::Sphere: state.shapeType = ShapeType::Sphere; break;
+                case JPH::EShapeSubType::Capsule: state.shapeType = ShapeType::Capsule; break;
+                case JPH::EShapeSubType::ConvexHull: state.shapeType = ShapeType::Convex; break;
+                default: return Error(PhysicsBodyErrorCode::UnsupportedFeature, state.handle,
+                    "Effective readback requires a supported primitive or convex hull");
+                }
+                state.type = body.IsDynamic() ? Component::BodyType::Dynamic :
+                    body.IsStatic() ? Component::BodyType::Static : Component::BodyType::Kinematic;
+                state.position = V(body.GetPosition());
+                state.orientation = Q(body.GetRotation());
+                state.linearVelocity = V(body.GetLinearVelocity());
+                state.angularVelocity = V(body.GetAngularVelocity());
+                state.centerOfMass = V(body.GetCenterOfMassPosition());
+                const auto bounds = shape->GetLocalBounds();
+                state.localBounds.mins = V(bounds.mMin + shape->GetCenterOfMass());
+                state.localBounds.maxs = V(bounds.mMax + shape->GetCenterOfMass());
+                const auto& worldBounds = body.GetWorldSpaceBounds();
+                state.worldBounds.mins = V(worldBounds.mMin);
+                state.worldBounds.maxs = V(worldBounds.mMax);
+                const auto& motion = *body.GetMotionPropertiesUnchecked();
+                state.inverseMass = motion.GetInverseMassUnchecked();
+                state.inverseInertiaBody = LocalInverse(motion);
+                state.inverseInertiaWorld = Mat3(0.f);
+                if (body.IsDynamic()) {
+                    const auto inverse = body.GetInverseInertia();
+                    state.inverseInertiaWorld = Mat3(V(inverse.GetColumn3(0)),
+                        V(inverse.GetColumn3(1)), V(inverse.GetColumn3(2)));
+                }
+                state.material.friction = body.GetFriction();
+                state.material.restitution = body.GetRestitution();
+                state.material.spinResistanceLength = (*record)->m_SpinLength;
+                state.material.rollingResistanceLength = (*record)->m_RollingLength;
+                state.sleeping = !body.IsStatic() && !body.IsActive();
+                return {};
+            }
             PhysicsWorldSleepSettings ReadWorldSleepSettings() const noexcept override
             {
                 const auto& settings=m_Physics.GetPhysicsSettings();
@@ -804,6 +1365,7 @@ namespace GEngine
                 { auto settings=m_Physics.GetPhysicsSettings();settings.mAllowSleeping=sleeping;m_Physics.SetPhysicsSettings(settings);
                   if(!sleeping)for(const auto& record:m_Bodies)if(record.m_Body)Wake(record.m_Handle);m_AllowSleeping=sleeping; }
                 for(std::size_t i=0;i<synchronizeCount;++i)CommitSynchronization(m_Synchronization[i]);
+                for(auto& joint:m_Joints)joint.m_AngularImpulseValid=false;
                 // Contact material is immutable throughout Update; diagnostics remain optional.
                 m_ContactIdentityFailure.store(false,std::memory_order_relaxed);
                 if(m_Diagnostic)m_Diagnostic->count.store(0);
@@ -823,8 +1385,16 @@ namespace GEngine
                             n?JPH::AlignUp(n,static_cast<JPH::uint>(JPH_RVECTOR_ALIGNMENT)):0,base.GetUsage(),1,action};
                         Phase26ObservationSDK::PublishSynthetic(context,Phase26ObservationSDK::EventKind::Storage,&record,sizeof(record));
                     }
-                    void* Allocate(JPH::uint n) override {auto* p=base.Allocate(n);Report(n,p,Phase26ObservationSDK::StorageAction::Reserve);return p;}
-                    void Free(void* p,JPH::uint n) override {base.Free(p,n);Report(n,p,Phase26ObservationSDK::StorageAction::Release);}
+                    void* Allocate(JPH::uint n) override {
+#if defined(GENGINE_PHASE28_QUALIFICATION) && defined(GENGINE_JOLT_FINAL_AUDIT)
+                        Phase28ObserverTimer observerTimer(JoltAudit::countAllocations.load(std::memory_order_relaxed));
+#endif
+                        auto* p=base.Allocate(n);Report(n,p,Phase26ObservationSDK::StorageAction::Reserve);return p;}
+                    void Free(void* p,JPH::uint n) override {
+#if defined(GENGINE_PHASE28_QUALIFICATION) && defined(GENGINE_JOLT_FINAL_AUDIT)
+                        Phase28ObserverTimer observerTimer(JoltAudit::countAllocations.load(std::memory_order_relaxed));
+#endif
+                        base.Free(p,n);Report(n,p,Phase26ObservationSDK::StorageAction::Release);}
                 } proxy(m_Temporary);
                 const auto error=m_Physics.Update(dt,m_CollisionSteps,&proxy,&m_Jobs);
 #elif defined(GENGINE_JOLT_FINAL_AUDIT) || defined(GENGINE_G8_RESISTANCE_CHECKS)
@@ -832,10 +1402,13 @@ namespace GEngine
                     JPH::TempAllocatorImpl& base;
                     explicit TempProxy(JPH::TempAllocatorImpl& b):base(b){}
                     void* Allocate(JPH::uint n) override {
+#if defined(GENGINE_PHASE28_QUALIFICATION) && defined(GENGINE_JOLT_FINAL_AUDIT)
+                        Phase28ObserverTimer observerTimer(JoltAudit::countAllocations.load(std::memory_order_relaxed));
+#endif
                         auto* p=base.Allocate(n);
 #ifdef GENGINE_JOLT_FINAL_AUDIT
                         ++JoltAudit::tempCalls;JoltAudit::tempBytes+=n;JoltAudit::tempPeak=std::max(JoltAudit::tempPeak,std::uint64_t(base.GetUsage()));
-#ifdef GENGINE_PHASE27_QUALIFICATION
+#if defined(GENGINE_PHASE27_QUALIFICATION) || defined(GENGINE_PHASE28_QUALIFICATION)
                         if(Phase27Audit::arena)Phase27Audit::arena({reinterpret_cast<std::uintptr_t>(p),reinterpret_cast<std::uintptr_t>(_ReturnAddress()),n,n?JPH::AlignUp(n,JPH::uint(JPH_RVECTOR_ALIGNMENT)):0,base.GetUsage(),true});
 #endif
 #endif
@@ -845,8 +1418,11 @@ namespace GEngine
                         return p;
                     }
                     void Free(void* p,JPH::uint n) override {
+#if defined(GENGINE_PHASE28_QUALIFICATION) && defined(GENGINE_JOLT_FINAL_AUDIT)
+                        Phase28ObserverTimer observerTimer(JoltAudit::countAllocations.load(std::memory_order_relaxed));
+#endif
                         base.Free(p,n);
-#ifdef GENGINE_PHASE27_QUALIFICATION
+#if defined(GENGINE_PHASE27_QUALIFICATION) || defined(GENGINE_PHASE28_QUALIFICATION)
                         if(Phase27Audit::arena)Phase27Audit::arena({reinterpret_cast<std::uintptr_t>(p),reinterpret_cast<std::uintptr_t>(_ReturnAddress()),n,n?JPH::AlignUp(n,JPH::uint(JPH_RVECTOR_ALIGNMENT)):0,base.GetUsage(),false});
 #endif
                     }
@@ -888,6 +1464,13 @@ namespace GEngine
                     if(!native.HasFiniteState())return Error(PhysicsBodyErrorCode::NonFiniteResult,record.m_Handle,"Jolt publish");
                     record.Remember();
                 }
+                // Row lambdas are a provider measurement only after a completed
+                // active update. Creation, reset, retirement, and sleeping do not
+                // advertise stale or fabricated impulse samples.
+                for(auto& joint:m_Joints)if(joint.m_Constraint &&
+                    (joint.m_Kind==JointKind::ConstantVelocity ||
+                     joint.m_Kind==JointKind::LimitedConstantVelocity))
+                    joint.m_AngularImpulseValid=joint.m_Constraint->IsActive();
 #ifdef GENGINE_JOLT_FINAL_AUDIT
                 JoltAudit::ns[4]+=JoltAudit::Now()-auditPublish;
                 JoltAudit::bodyVisits+=m_Bodies.size()*2;
@@ -943,13 +1526,145 @@ namespace GEngine
                 m_Physics.AddConstraint(joint.m_Constraint);RefreshPair(joint.m_Desc);
                 return {};
             }
+            JointResult<> CreateJoint(PhysicsJointHandle handle,const AngularJointDesc& desc) override
+            {
+                if(handle.index>=m_Joints.size() || desc.bodyA.index>=BodyCapacity || desc.bodyB.index>=BodyCapacity)
+                    return std::unexpected(JointError{JointErrorCode::Capacity,handle,"Jolt CreateAngularJoint"});
+                auto& a=m_Bodies[desc.bodyA.index];auto& b=m_Bodies[desc.bodyB.index];
+                if(a.m_Handle!=desc.bodyA || b.m_Handle!=desc.bodyB || !a.m_Body || !b.m_Body)
+                    return std::unexpected(JointError{JointErrorCode::InvalidEndpoint,handle,"Jolt CreateAngularJoint"});
+                const auto stagedA=PrepareSynchronization(a),stagedB=PrepareSynchronization(b);
+                if(!stagedA || !stagedB)
+                    return std::unexpected(JointError{JointErrorCode::InvalidEndpoint,handle,"Jolt angular endpoint synchronization"});
+                CommitSynchronization(*stagedA);CommitSynchronization(*stagedB);
+                const auto worldA=V(a.m_Native->BodySpaceToWorldSpace(desc.localAnchorA));
+                const auto worldB=V(b.m_Native->BodySpaceToWorldSpace(desc.localAnchorB));
+                if(desc.kind==JointKind::ConstantVelocity || desc.kind==JointKind::LimitedConstantVelocity)
+                {
+                    const auto frameA=a.m_Body->GetRotation()*Q(desc.angular.localFrameA).Normalized();
+                    const auto frameB=b.m_Body->GetRotation()*Q(desc.angular.localFrameB).Normalized();
+                    const auto q=frameA.Conjugated()*frameB;
+                    const float gradientSquared=q.GetW()*q.GetW()+q.GetY()*q.GetY()+q.GetZ()*q.GetZ();
+                    if(!(gradientSquared>1.e-8f))
+                        return std::unexpected(JointError{JointErrorCode::InvalidGeometry,handle,"Jolt CV singular initial frame"});
+                }
+                auto& joint=m_Joints[handle.index];
+#ifdef JPH_GENGINE_PHASE26_OBSERVATION
+                Phase26ObservationSDK::SiteScope phase26_joint_site(Phase26ObservationSDK::ArenaSite::JointContainer);
+#endif
+                if(desc.kind==JointKind::Hinge)
+                {
+                    JPH::HingeConstraintSettings settings;
+                    settings.mSpace=JPH::EConstraintSpace::WorldSpace;
+                    settings.mPoint1=worldA;settings.mPoint2=worldB;
+                    const auto frameA=a.m_Body->GetRotation()*Q(desc.angular.localFrameA).Normalized();
+                    const auto frameB=b.m_Body->GetRotation()*Q(desc.angular.localFrameB).Normalized();
+                    settings.mHingeAxis1=frameA.RotateAxisX();settings.mNormalAxis1=frameA.RotateAxisY();
+                    settings.mHingeAxis2=frameB.RotateAxisX();settings.mNormalAxis2=frameB.RotateAxisY();
+                    if(desc.angular.limitsEnabled)
+                    {settings.mLimitsMin=desc.angular.lower;settings.mLimitsMax=desc.angular.upper;}
+                    joint.m_Constraint=desc.angular.limitsEnabled?
+                        static_cast<JPH::TwoBodyConstraint*>(new BookHingeConstraint(*a.m_Body,*b.m_Body,settings)):
+                        static_cast<JPH::TwoBodyConstraint*>(new JPH::HingeConstraint(*a.m_Body,*b.m_Body,settings));
+                }
+                else
+                {
+                    BookCvConstraintSettings settings;
+                    settings.point1=JPH::Vec3(a.m_Body->GetInverseCenterOfMassTransform()*worldA);
+                    settings.point2=JPH::Vec3(b.m_Body->GetInverseCenterOfMassTransform()*worldB);
+                    settings.frame1=Q(desc.angular.localFrameA).Normalized();
+                    settings.frame2=Q(desc.angular.localFrameB).Normalized();
+                    settings.halfU=desc.angular.halfAngleU;settings.halfV=desc.angular.halfAngleV;
+                    settings.limited=desc.kind==JointKind::LimitedConstantVelocity;
+                    joint.m_Constraint=new BookCvConstraint(*a.m_Body,*b.m_Body,settings);
+                }
+                joint.m_Handle=handle;joint.m_Kind=desc.kind;
+                joint.m_Desc={desc.bodyA,desc.bodyB,desc.localAnchorA,desc.localAnchorB,0,desc.collideConnected};
+                joint.m_AngularImpulseValid=false;
+                m_Physics.AddConstraint(joint.m_Constraint);RefreshPair(joint.m_Desc);
+                return {};
+            }
+            JointResult<AngularJointDesc> ReadAngularJoint(PhysicsJointHandle handle) const override
+            {
+                if(handle.index>=m_Joints.size())
+                    return std::unexpected(JointError{JointErrorCode::InvalidHandle,handle,"Jolt ReadAngularJoint"});
+                const auto& joint=m_Joints[handle.index];
+                if(joint.m_Handle!=handle || !joint.m_Constraint)
+                    return std::unexpected(JointError{JointErrorCode::StaleHandle,handle,"Jolt ReadAngularJoint"});
+                if(joint.m_Kind!=JointKind::Hinge && joint.m_Kind!=JointKind::ConstantVelocity &&
+                   joint.m_Kind!=JointKind::LimitedConstantVelocity)
+                    return std::unexpected(JointError{JointErrorCode::WrongKind,handle,"Jolt ReadAngularJoint"});
+                // GEngine and Jolt both express these local points from the
+                // body's center of mass. Read the actual SDK point rather than
+                // remapping through a potentially pending authored world pose.
+                AngularJointDesc result{joint.m_Kind,joint.m_Desc.bodyA,joint.m_Desc.bodyB,
+                    {},{},joint.m_Desc.collideConnected,{}};
+                if(joint.m_Kind==JointKind::Hinge)
+                {
+                    const auto* hinge=NativeHinge(joint.m_Constraint.GetPtr());
+                    result.localAnchorA=V(hinge->GetLocalSpacePoint1());
+                    result.localAnchorB=V(hinge->GetLocalSpacePoint2());
+                    result.angular.localFrameA=FrameFromAxes(hinge->GetLocalSpaceHingeAxis1(),
+                        hinge->GetLocalSpaceNormalAxis1());
+                    result.angular.localFrameB=FrameFromAxes(hinge->GetLocalSpaceHingeAxis2(),
+                        hinge->GetLocalSpaceNormalAxis2());
+                    result.angular.lower=hinge->GetLimitsMin();
+                    result.angular.upper=hinge->GetLimitsMax();
+                    result.angular.limitsEnabled=hinge->HasLimits();
+                }
+                else
+                {
+                    const auto* cv=static_cast<const BookCvConstraint*>(joint.m_Constraint.GetPtr());
+                    result.kind=cv->Limited()?JointKind::LimitedConstantVelocity:JointKind::ConstantVelocity;
+                    result.localAnchorA=V(cv->LocalPoint1());result.localAnchorB=V(cv->LocalPoint2());
+                    result.angular.localFrameA=Q(cv->LocalFrame1());
+                    result.angular.localFrameB=Q(cv->LocalFrame2());
+                    result.angular.halfAngleU=cv->HalfAngleU();
+                    result.angular.halfAngleV=cv->HalfAngleV();
+                    result.angular.limitsEnabled=cv->Limited();
+                }
+                if(!AngularJoint::Valid(result))
+                    return std::unexpected(JointError{JointErrorCode::NonFinite,handle,"Jolt angular provider readback"});
+                return result;
+            }
             Vec3f JointVectorImpulse(PhysicsJointHandle handle) const noexcept override
             {
                 if(handle.index>=m_Joints.size())return {};
                 const auto& j=m_Joints[handle.index];
-                if(j.m_Handle!=handle || !j.m_Constraint || j.m_Kind!=JointKind::BallSocket)return {};
-                const auto v=static_cast<const JPH::PointConstraint*>(j.m_Constraint.GetPtr())->GetTotalLambdaPosition();
-                return {v.GetX(),v.GetY(),v.GetZ()};
+                if(j.m_Handle!=handle || !j.m_Constraint)return {};
+                if(j.m_Kind==JointKind::BallSocket)
+                {
+                    const auto v=static_cast<const JPH::PointConstraint*>(j.m_Constraint.GetPtr())->GetTotalLambdaPosition();
+                    return {v.GetX(),v.GetY(),v.GetZ()};
+                }
+                if(j.m_Kind==JointKind::Hinge)
+                {
+                    const auto v=NativeHinge(j.m_Constraint.GetPtr())->GetTotalLambdaPosition();
+                    return {v.GetX(),v.GetY(),v.GetZ()};
+                }
+                if(j.m_Kind==JointKind::ConstantVelocity || j.m_Kind==JointKind::LimitedConstantVelocity)
+                    return static_cast<const BookCvConstraint*>(j.m_Constraint.GetPtr())->PointImpulse();
+                return {};
+            }
+            Vec3f AngularImpulse(PhysicsJointHandle handle) const noexcept override
+            {
+                if(handle.index>=m_Joints.size())return {};
+                const auto& joint=m_Joints[handle.index];
+                if(joint.m_Handle!=handle || !joint.m_Constraint || !joint.m_AngularImpulseValid)return {};
+                // Hinge's SDK position pass may deactivate a velocity limit row
+                // and clear its cached lambda before this public readback.
+                // Report unavailable rather than claim that cache is the full
+                // completed velocity-row impulse.
+                if(joint.m_Kind==JointKind::ConstantVelocity || joint.m_Kind==JointKind::LimitedConstantVelocity)
+                    return static_cast<const BookCvConstraint*>(joint.m_Constraint.GetPtr())->AngularImpulse();
+                return {};
+            }
+            bool AngularImpulseAvailable(PhysicsJointHandle handle) const noexcept override
+            {
+                if(handle.index>=m_Joints.size())return false;
+                const auto& joint=m_Joints[handle.index];
+                return joint.m_Handle==handle && joint.m_Constraint && joint.m_AngularImpulseValid &&
+                    (joint.m_Kind==JointKind::ConstantVelocity || joint.m_Kind==JointKind::LimitedConstantVelocity);
             }
             void DestroyJoint(PhysicsJointHandle handle) noexcept override
             {
@@ -958,7 +1673,7 @@ namespace GEngine
                 auto desc=joint.m_Desc;m_Physics.RemoveConstraint(joint.m_Constraint);joint={};RefreshPair(desc);
             }
             void ResetJoint(PhysicsJointHandle handle) noexcept override
-            { auto& joint=m_Joints[handle.index];if(joint.m_Handle==handle && joint.m_Constraint)joint.m_Constraint->ResetWarmStart(); }
+            { if(handle.index>=m_Joints.size())return;auto& joint=m_Joints[handle.index];if(joint.m_Handle==handle && joint.m_Constraint){joint.m_Constraint->ResetWarmStart();joint.m_AngularImpulseValid=false;} }
             float JointImpulse(PhysicsJointHandle handle) const noexcept override
             { const auto& j=m_Joints[handle.index];return j.m_Handle==handle && j.m_Constraint?(j.m_Kind==JointKind::Distance?static_cast<const JPH::DistanceConstraint*>(j.m_Constraint.GetPtr())->GetTotalLambdaPosition():glm::length(JointVectorImpulse(handle))):0; }
             bool JointActive(PhysicsJointHandle handle) const noexcept override

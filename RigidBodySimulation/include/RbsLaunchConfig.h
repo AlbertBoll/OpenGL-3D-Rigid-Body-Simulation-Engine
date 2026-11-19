@@ -2,6 +2,7 @@
 
 #include "Core/LaunchConfig.h"
 #include "Physics/PhysicsBackend.h"
+#include "Math/Math.h"
 #include <optional>
 #include <expected>
 #include <span>
@@ -25,7 +26,12 @@ namespace Rbs
         BallSocketSwing,
         BallSocketPair,
         BallSocketContact,
-        BallSocketContactEnabled
+        BallSocketContactEnabled,
+        HingeBasic,
+        HingeQuaternion,
+        HingeLimited,
+        CvFree,
+        CvLimited
     };
 
     struct SceneSelection
@@ -41,6 +47,12 @@ namespace Rbs
         [[nodiscard]] constexpr bool IsBallSocketScene() const noexcept
         {
             return scene==RbsScenePreset::BallSocketSwing || scene==RbsScenePreset::BallSocketPair || scene==RbsScenePreset::BallSocketContact || scene==RbsScenePreset::BallSocketContactEnabled;
+        }
+        [[nodiscard]] constexpr bool IsAngularScene() const noexcept
+        {
+            return scene == RbsScenePreset::HingeBasic || scene == RbsScenePreset::HingeQuaternion ||
+                   scene == RbsScenePreset::HingeLimited || scene == RbsScenePreset::CvFree ||
+                   scene == RbsScenePreset::CvLimited;
         }
         constexpr bool operator==(const SceneSelection&) const = default;
 
@@ -59,7 +71,12 @@ namespace Rbs
             case RbsScenePreset::BallSocketSwing:
             case RbsScenePreset::BallSocketPair:
             case RbsScenePreset::BallSocketContact:
-            case RbsScenePreset::BallSocketContactEnabled: return true;
+            case RbsScenePreset::BallSocketContactEnabled:
+            case RbsScenePreset::HingeBasic:
+            case RbsScenePreset::HingeQuaternion:
+            case RbsScenePreset::HingeLimited:
+            case RbsScenePreset::CvFree:
+            case RbsScenePreset::CvLimited: return true;
             case RbsScenePreset::DistanceChainContact: return chainLinks == 8;
             }
             return false;
@@ -71,6 +88,67 @@ namespace Rbs
     // values before construction. LaunchConfig{} retains GeometryGallery below.
     inline constexpr SceneSelection DefaultSceneSelection{RbsScenePreset::DistanceChain, 8};
     static_assert(DefaultSceneSelection.IsValid(), "Invalid RBS default scene/link selection");
+
+    // Phase 28 authoring is app-owned session data, separate from the V1
+    // SceneSelection drag payload and the borrowed immutable LaunchConfig.
+    enum class AngularVariant : std::uint8_t { Air, Contact };
+    enum class AngularBodyKey : std::uint8_t { Anchor, Bar, Floor };
+    enum class AngularJointKey : std::uint8_t { Primary };
+    enum class AngularField : std::uint8_t {
+        Case, Variant, Identity, Body, Mass, Scale, Gravity, Frame, Limits,
+        Anchor, Material, Action, Backend, Generation
+    };
+    struct AngularPacketError {
+        AngularField field{AngularField::Case};
+        std::string_view message{"Invalid angular packet"};
+    };
+    struct AngularBodyPacket {
+        AngularBodyKey key{AngularBodyKey::Anchor};
+        GEngine::Math::Vec3f center{}, halfExtents{.25f};
+        GEngine::Math::Quat orientation{1.f,0.f,0.f,0.f};
+        GEngine::Math::Vec3f initialLinearVelocity{}, initialAngularVelocity{};
+        float authoredMass{1.f}, friction{.5f}, restitution{};
+        float linearDamping{}, angularDamping{};
+        bool sphere{}, kinematic{};
+        friend bool operator==(const AngularBodyPacket&, const AngularBodyPacket&) = default;
+    };
+    struct AngularJointPacket {
+        AngularJointKey key{AngularJointKey::Primary};
+        AngularBodyKey bodyA{AngularBodyKey::Anchor}, bodyB{AngularBodyKey::Bar};
+        GEngine::Math::Vec3f localAnchorA{0.f,-.25f,0.f}, localAnchorB{0.f,1.f,0.f};
+        GEngine::Math::Quat localFrameA{1.f,0.f,0.f,0.f}, localFrameB{1.f,0.f,0.f,0.f};
+        float lower{-GEngine::Math::Pi}, upper{GEngine::Math::Pi};
+        float halfAngleU{GEngine::Math::Pi/4.f}, halfAngleV{GEngine::Math::Pi/4.f};
+        bool limitsEnabled{}, collideConnected{};
+        friend bool operator==(const AngularJointPacket&, const AngularJointPacket&) = default;
+    };
+    struct AngularPacket {
+        RbsScenePreset scene{RbsScenePreset::HingeBasic};
+        AngularVariant variant{AngularVariant::Air};
+        std::uint32_t referenceRevision{1};
+        std::string_view sourceSha256{"6237bcafd5bb648ade5a36563e1ac1599b21d02fa29553b320f7271b66da3c56"};
+        std::string_view fixtureSha256{"bc91dde2019284820bd80c209fe1bae8c58ccdf83a4ed595ca28430dfaeae2c5"};
+        std::array<AngularBodyPacket,3> bodies{};
+        std::uint8_t bodyCount{2};
+        GEngine::Math::Vec3f gravity{0.f,-10.f,0.f};
+        double fixedStepSeconds{1.0/60.0};
+        AngularJointPacket joint{};
+        std::array<GEngine::Math::Vec3f,2> scheduledImpulses{};
+        friend bool operator==(const AngularPacket&, const AngularPacket&) = default;
+    };
+    [[nodiscard]] constexpr bool IsAngularScene(RbsScenePreset scene) noexcept
+    { return SceneSelection{scene,8}.IsAngularScene(); }
+    [[nodiscard]] std::expected<AngularPacket,AngularPacketError> ReferenceAngularPacket(
+        RbsScenePreset, AngularVariant = AngularVariant::Air);
+    void SetAngularBarScale(AngularPacket&, float) noexcept;
+    void SetAngularBarMass(AngularPacket&, float) noexcept;
+    void SetAngularBodyPosition(AngularPacket&, AngularBodyKey, const GEngine::Math::Vec3f&) noexcept;
+    void SetAngularBodyRotation(AngularPacket&, AngularBodyKey, const GEngine::Math::Quat&) noexcept;
+    void SetAngularBodyHalfExtents(AngularPacket&, AngularBodyKey, const GEngine::Math::Vec3f&) noexcept;
+    void SetAngularAnchorSphere(AngularPacket&, bool) noexcept;
+    void SetAngularJointFrame(AngularPacket&, const GEngine::Math::Quat&) noexcept;
+    [[nodiscard]] std::expected<void,AngularPacketError> ValidateAngularPacket(
+        const AngularPacket&, GEngine::PhysicsBackend, bool requireFrozenFixture = false);
 
     enum class RbsEnvironmentPreset { Qualification, InteractiveSandbox };
 
@@ -164,13 +242,15 @@ namespace Rbs
     struct LaunchConfig
     {
         GEngine::EngineLaunchConfig engine;
-        GEngine::PhysicsBackend m_Backend{GEngine::PhysicsBackend::Native};
+        GEngine::PhysicsBackend m_Backend{GEngine::DefaultPhysicsBackend};
+        bool m_BackendExplicit{};
         unsigned m_BackendSmokeTicks{}; // Explicit bounded safety check; ordinary owner run is unlimited.
         bool m_BackendSwitchChecks{};
         std::string joltParameterProfile, joltParameterOutput; // Opt-in experimental campaign, never qualification.
         unsigned joltParameterTicks{1800};
         bool joltParameterCapture{};
         RbsScenePreset scene = RbsScenePreset::GeometryGallery;
+        AngularVariant angularVariant{AngularVariant::Air};
         StartupMesh startupMesh = StartupMesh::None;
         unsigned chainLinks = 8;
         RbsEnvironmentPreset environment = RbsEnvironmentPreset::InteractiveSandbox;

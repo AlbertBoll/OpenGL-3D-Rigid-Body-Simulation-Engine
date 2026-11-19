@@ -441,7 +441,7 @@ namespace GEngine
 		template<typename T>
 		void OnComponentAdded(_Entity entity, T& component);
 
-        PhysicsBackend m_PhysicsBackend{PhysicsBackend::Native};
+        PhysicsBackend m_PhysicsBackend{DefaultPhysicsBackend};
         [[nodiscard]] std::expected<void, PhysicsShapeError> OnPhysics3DStart();
 		void OnPhysics3DStop();
 

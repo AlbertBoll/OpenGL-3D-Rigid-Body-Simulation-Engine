@@ -6,6 +6,9 @@
 #include "../tests/JoltParameterExperiment.h"
 #include "../tests/JoltFinalAudit.h"
 #include "../tests/BallSocketJointChecks.h"
+#ifdef GENGINE_PHASE28_QUALIFICATION
+#include "../tests/AngularJointChecks.h"
+#endif
 #include "../tests/ImpulseEditorChecks.h"
 #ifdef GENGINE_PHASE24_VALIDATION
 namespace PreEditorValidation { void ObservePhase24Frame(const ::GEngine::RenderFrame&); }
@@ -20,7 +23,6 @@ namespace PreEditorValidation::ColliderReplacement { void ObserveColliderRuntime
 #include "Core/Window.h"
 #include "Scene/_Scene.h"
 #include "Physics/PhysicsSystem.h"
-#include "../tests/RestingContactDiagnosis.h"
 #ifdef GENGINE_PHASE25_QUALIFICATION
 #include "../tests/PhysicsCostChecks.h"
 #endif
@@ -34,10 +36,12 @@ namespace PreEditorValidation::ColliderReplacement { void ObserveColliderRuntime
 #endif
 #include <new>
 #include <format>
+#include <chrono>
 
 #include "Managers/AssetsManager.h"
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
+#include <sdl2/SDL.h>
 #include <cmath>
 #include <print>
 #ifdef GENGINE_PHASE26_SANDBOX_CHECKS
@@ -52,6 +56,16 @@ namespace Rbs
 #endif
 #ifdef GENGINE_COLLIDER_EDITOR_SMOKE
     unsigned MeshHighlightStage(); void MeshHighlightDescriptor(::GEngine::FrameSubmission&, ::GEngine::FrameSubmissionDesc&);
+#endif
+#ifdef GENGINE_PHASE28_QUALIFICATION
+    void Phase28AngularWidget(RigidBodySimulationApp& app,const char* key)
+    { AngularJointChecks::Widget(app,key); }
+    void Phase28ComponentWidget(const char* key)
+    { AngularJointChecks::WidgetKey(key); }
+    bool Phase28AngularOwnsActions()
+    { return AngularJointChecks::OwnsActions(); }
+    float Phase28OutlineViewportScale()
+    { return AngularJointChecks::OutlineViewportScale(); }
 #endif
     void ResetColliderEditor(::GEngine::_Scene&, bool);
     void ProcessColliderEditorCommands(::GEngine::_Scene&, const ::GEngine::_Entity&, bool&);
@@ -85,12 +99,35 @@ namespace PreEditorInput
 }
 #endif
 
+namespace
+{
+    std::optional<glm::dvec2> ScenePointerLogical(const Window& window,double x,double y)
+    {
+        // InputManager accepts only its own SDL window's events, whose positions
+        // are client-local. ImGui multi-viewports use desktop logical positions.
+        glm::dvec2 point{x,y};
+        if(ImGui::GetIO().ConfigFlags&ImGuiConfigFlags_ViewportsEnable) {
+            auto* native=SDL_GetWindowFromID(window.GetWindowID());
+            if(!native)return {};
+            int left{},top{};SDL_GetWindowPosition(native,&left,&top);
+            point+=glm::dvec2(left,top);
+        }
+        return point;
+    }
+}
+
 void RigidBodySimulationApp::Update(Timestep ts)
 {
 #ifdef GENGINE_PHASE26_SANDBOX_CHECKS
     Rbs::SandboxChecks::BeforeUpdate(*this, ts);
 #endif
     ProcessSceneRequest();
+#ifdef GENGINE_PHASE28_QUALIFICATION
+    Rbs::AngularJointChecks::PreviewBoundary(*this);
+    const bool phase28=Rbs::AngularJointChecks::Begin(*this);
+    if(phase28){m_SimulationState=Rbs::SimulationState::Running;m_EditorMode=EditorMode::Simulation;
+        m_IsPause=false;m_ActiveScene->SetPaused(false);}
+#endif
 #ifdef GENGINE_PHASE27_QUALIFICATION
     Rbs::BallSocketChecks::PreviewBoundary(*this);
 #endif
@@ -99,6 +136,12 @@ void RigidBodySimulationApp::Update(Timestep ts)
     if(!Rbs::OwnerReviewDriver::Begin(*this))return;
 #endif
     if(SandboxEnabled()) { Rbs::ProcessColliderEditorCommands(*m_ActiveScene,m_HoveredEntity,m_IsPause); ProcessBodyPropertyCommand(); ProcessBulkBodyProperties(); ProcessWorldSleepCommand(); ProcessJoltSettingsCommand(); ProcessTransformEdit(); ProcessContextProperties(); ProcessImpulseCommand(); }
+    if(SandboxEnabled() && m_ActiveSelection.IsAngularScene() && m_ChainImpulse.Pending())
+    {
+        const auto before=m_ChainImpulse.AppliedCount();
+        m_ChainImpulse.Consume(*m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld(),false);
+        if(m_ChainImpulse.AppliedCount()!=before)m_Angular.interactive=true;
+    }
     if(!m_Launch.joltParameterProfile.empty() && !Rbs::JoltParameterExperiment::Boundary(*this))return;
     if(m_Launch.m_BackendSwitchChecks && !Rbs::BackendSwitchChecks::Boundary(*this))return;
     Rbs::ImpulseEditorChecks::PresetBoundary(*this);
@@ -188,7 +231,8 @@ void RigidBodySimulationApp::Update(Timestep ts)
     //auto entity = m_ActiveScene->FindEntityByName("sphere");
 
     //auto& relationship = entity.GetComponent<RelationshipComponent>();
-    if (m_CameraView == CameraView::Editor && !m_Launch.restingContactDiagnostic)
+    if(m_CameraPilot)UpdateCameraPilot(ts);
+    else if (m_CameraView == CameraView::Editor && !m_Launch.restingContactDiagnostic)
         m_EditorCamera_.OnUpdate(ts);
 
     const auto authored = [this](const auto& result)
@@ -229,25 +273,13 @@ void RigidBodySimulationApp::Update(Timestep ts)
     //}
 
     // Scene accumulates elapsed time and owns the bounded fixed physics ticks.
-    if (m_Launch.restingContactDiagnostic)
-    {
-        auto& diagnostic=*Rbs::RestDiagnosis::session;
-        if (diagnostic.episodeDone && !diagnostic.complete && !diagnostic.failed)
-        {
-            ++diagnostic.episode;
-            if (!diagnostic.BeginEpisode(*m_ActiveScene,*m_SceneResources,diagnostic.assets,m_PhysicsShapes))
-            {
-                FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Phase19","","episode setup","",diagnostic.failure});
-                return;
-            }
-        }
-        m_IsPause=false;
-    }
+    if (m_Launch.restingContactDiagnostic && !BeginRestingContactEpisode())
+        return;
 #ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
     m_IsPause=Rbs::ColliderReplay::FramePaused(m_IsPause);
 #endif
     if (std::exchange(m_ColliderEscapeRequested, false))
-        if (!Rbs::CancelColliderConfirmation(*m_ActiveScene, m_IsPause)) ClearColliderSelection();
+        if (!Rbs::CancelColliderConfirmation(*m_ActiveScene, m_IsPause) && !HasPendingObjectProperties()) ClearColliderSelection();
     const bool confirmationPause = Rbs::ColliderEditorTemporarilyPaused(*m_ActiveScene, m_HoveredEntity, m_IsPause);
     m_ActiveScene->SetPaused(m_IsPause || confirmationPause);
 #ifdef GENGINE_COLLIDER_REPLACEMENT_DIAGNOSTIC
@@ -303,7 +335,15 @@ void RigidBodySimulationApp::Update(Timestep ts)
 #ifdef GENGINE_PHASE27_QUALIFICATION
     if(phase27){simulationTime=Timestep(m_ActiveScene->GetPhysicsStep().count());Rbs::BallSocketChecks::BeforeTick();}
 #endif
+#ifdef GENGINE_PHASE28_QUALIFICATION
+    if(phase28){simulationTime=Timestep(m_ActiveScene->GetPhysicsStep().count());Rbs::AngularJointChecks::BeforeTick();}
+    if(!Rbs::AngularJointChecks::BeforeEditorSceneUpdate(*this,simulationTime))return;
+#endif
     { RBS_REVIEW_SCOPE(4); m_ActiveScene->Update(simulationTime); }
+#ifdef GENGINE_PHASE28_QUALIFICATION
+    Rbs::AngularJointChecks::AfterEditorSceneUpdate(*this);
+    if(phase28 && Rbs::AngularJointChecks::AfterTick(*this)){ShutDown();return;}
+#endif
 #ifdef GENGINE_PHASE27_QUALIFICATION
     if(phase27 && Rbs::BallSocketChecks::AfterTick(*this)){ShutDown();return;}
 #endif
@@ -357,16 +397,8 @@ void RigidBodySimulationApp::Update(Timestep ts)
 #endif
     if (Rbs::ColliderReplacementObservation::AfterFrame()) { ShutDown(); return; }
 #endif
-    if (m_Launch.restingContactDiagnostic)
-    {
-        auto& diagnostic=*Rbs::RestDiagnosis::session;
-        if (!diagnostic.FrameComplete(ts.GetSecondsPrecise()))
-        {
-            FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Phase19","","record diagnostic","",diagnostic.failure});
-            return;
-        }
-        if (diagnostic.complete) ShutDown();
-    }
+    if (m_Launch.restingContactDiagnostic && !CompleteRestingContactFrame(ts))
+        return;
 
     //update entities
     /*auto view = m_ActiveScene->GetAllEntitiesWith<Transform3DComponent>();
@@ -468,11 +500,13 @@ void RigidBodySimulationApp::UpdateMaterialAnimation(Timestep ts)
 
 bool RigidBodySimulationApp::CancelCameraGesture()
 {
-    const auto position = m_EditorCamera_.GetPosition();
-    const auto pitch = m_EditorCamera_.m_Pitch + m_EditorCamera_.m_PitchDelta;
-    const auto yaw = m_EditorCamera_.m_Yaw + m_EditorCamera_.m_YawDelta;
-    const bool pendingMovement = m_EditorCamera_.m_PositionDelta != Vec3f{} ||
-        m_EditorCamera_.m_PitchDelta != 0 || m_EditorCamera_.m_YawDelta != 0;
+    ClearOutlineHover();
+    auto& camera=NavigationCamera();
+    const auto position = camera.GetPosition();
+    const auto pitch = camera.m_Pitch + camera.m_PitchDelta;
+    const auto yaw = camera.m_Yaw + camera.m_YawDelta;
+    const bool pendingMovement = camera.m_PositionDelta != Vec3f{} ||
+        camera.m_PitchDelta != 0 || camera.m_YawDelta != 0;
     if (auto cancelled = GetInputManager()->CancelInput(InputCancelReason::OwnerRelease); !cancelled)
     {
         m_CameraDiagnostic = std::format("Camera switch rejected: input cancellation {}", int(cancelled.error()));
@@ -480,19 +514,20 @@ bool RigidBodySimulationApp::CancelCameraGesture()
     }
     // Angular damping participates in the controller's current orientation. Consume
     // cancellation, then retain that effective pose with no pending movement.
-    m_EditorCamera_.OnUpdate(Timestep(0));
-    m_EditorCamera_.m_Position = position;
-    m_EditorCamera_.m_Pitch = pitch;
-    m_EditorCamera_.m_Yaw = yaw;
+    camera.OnUpdate(Timestep(0));
+    camera.m_Position = position;
+    camera.m_Pitch = pitch;
+    camera.m_Yaw = yaw;
     if (pendingMovement)
-        m_EditorCamera_.m_FocalPoint = position +
-            m_EditorCamera_.GetForwardDirection() * m_EditorCamera_.GetDistance();
+        camera.m_FocalPoint = position +
+            camera.GetForwardDirection() * camera.GetDistance();
     m_FramePickPixel.reset();
     return true;
 }
 
 bool RigidBodySimulationApp::SetCameraView(CameraView role, EntityRenderId preview)
 {
+    if(m_CameraPilot || role==CameraView::Pilot){m_CameraDiagnostic="Commit or Cancel Pilot before changing views.";return false;}
     if (role == CameraView::Editor)
     {
         if (auto valid = m_ActiveScene->ValidateEditorViewIdentity(m_EditorViewIdentity); !valid)
@@ -547,6 +582,7 @@ bool RigidBodySimulationApp::EndCameraPreview()
 
 bool RigidBodySimulationApp::SelectSceneCamera(EntityRenderId id)
 {
+    if(m_CameraPilot){m_CameraDiagnostic="Commit or Cancel Pilot before changing the active Camera.";return false;}
     auto access = m_SceneResources->Publication().BeginFrame();
     auto resources = m_SceneResources->ForFrame(access);
     if (auto valid = m_ActiveScene->SnapshotSceneCamera(id, resources, {}); !valid)
@@ -566,6 +602,7 @@ bool RigidBodySimulationApp::SelectSceneCamera(EntityRenderId id)
 
 bool RigidBodySimulationApp::RetireSceneCamera(std::size_t slot, bool replace)
 {
+    if(m_CameraPilot){m_CameraDiagnostic="Commit or Cancel Pilot before retiring a Camera.";return false;}
     const auto old = m_SceneCameras[slot];
     auto source = m_ActiveScene->RenderData().Resolve(old);
     if (!source) { m_CameraDiagnostic = "Scene Camera has already retired"; return false; }
@@ -610,6 +647,7 @@ bool RigidBodySimulationApp::BindCameraScene(RefPtr<_Scene> scene)
     // finish its other authoring bindings before the next application Update.
     if (!scene) { m_CameraDiagnostic = "Camera binding requires a Scene"; return false; }
     if (scene == m_ActiveScene) return true;
+    if(m_CameraPilot && !FinishCameraPilot(false))return false;
     auto view = scene->CreateEditorViewIdentity();
     if (!view) { m_CameraDiagnostic = "New Scene view identity unavailable"; return false; }
     if (!CancelCameraGesture()) { (void)scene->RetireEditorViewIdentity(*view); return false; }
@@ -637,6 +675,83 @@ bool RigidBodySimulationApp::BindCameraScene(RefPtr<_Scene> scene)
     return true;
 }
 
+void RigidBodySimulationApp::ClearOutlineHover()
+{
+    m_OutlineHoverEntity={};m_OutlineHoverIcon={};
+    m_FrameHoverPixel.reset();m_OutlineHoverPixel.reset();
+    m_OutlineHoverInputsDirty=true;
+}
+
+void RigidBodySimulationApp::PrepareOutlineHover()
+{
+    m_FrameHoverPixel.reset();
+    if(m_CameraPilot){ClearOutlineHover();return;} // Selection is fixed during the Camera transaction.
+    const auto& input=*GetInputManager();
+    const auto& physical=input.GetPhysicalState();
+    const auto& mouse=physical.m_Mouse;
+    const auto* ui=ImGui::GetCurrentContext();
+    const auto* viewportWindow=ui?ImGui::FindWindowByName("Viewport"):nullptr;
+    const bool gesture=mouse.isButtonHeld(GENGINE_BUTTON_RIGHT) || mouse.isButtonHeld(GENGINE_BUTTON_MIDDLE) ||
+        (mouse.isButtonHeld(GENGINE_BUTTON_LEFT) && !m_FramePickPixel);
+    if(!SandboxEnabled() || !m_CameraSnapshot || !input.Focused() || !m_ViewportHovered ||
+       input.Routing().uiMouse || input.PointerCapture()!=InputLayer::None || gesture ||
+       (physical.modifiers&(LeftAlt|RightAlt)) || m_ViewportActivationButtons ||
+       m_GizmoHovered || m_GizmoUsing || m_ViewportOverlayInteracting || m_ViewportPopupOpen ||
+       m_Marquee.armed || m_Marquee.waiting || m_SceneRequest || m_BackendRequest ||
+       m_SimulationState==Rbs::SimulationState::Switching || m_SimulationState==Rbs::SimulationState::Failed ||
+       !ui || !viewportWindow || viewportWindow->Viewport!=ImGui::GetMainViewport() ||
+       ui->DragDropActive || ui->OpenPopupStack.Size || ui->IO.WantTextInput)
+    {ClearOutlineHover();return;}
+    const auto localPoint=mouse.GetPosition();
+    const auto point=ScenePointerLogical(*GetWindow(),localPoint.x,localPoint.y);
+    if(!point){ClearOutlineHover();return;}
+    const auto pixel=m_CameraSnapshot->ReadbackPixelAt(*point);
+    if(!pixel){ClearOutlineHover();return;}
+    // Icons use the existing ordinary overlay hit rectangles and own their hover.
+    for(std::size_t i=0;i<m_VisibleSceneIconCount;++i) {
+        const auto& icon=m_VisibleSceneIcons[i];
+        if(point->x>=icon.lo.x && point->x<icon.hi.x && point->y>=icon.lo.y && point->y<icon.hi.y)
+        {ClearOutlineHover();return;}
+    }
+    if(m_OutlineHoverGeneration!=m_SceneGeneration) {
+        ClearOutlineHover();m_OutlineHoverGeneration=m_SceneGeneration;
+    }
+    if(m_OutlineHoverEntity) {
+        const auto resolved=m_ActiveScene->RenderData().Resolve(m_OutlineHoverEntity);
+        if(!resolved || !EditorEntityVisible(m_OutlineHoverEntity))m_OutlineHoverEntity={};
+        else {
+            const _Entity entity{*resolved,m_ActiveScene.get()};
+            if(!entity.HasAllComponents<MeshRendererComponent>() || !entity.GetComponent<MeshRendererComponent>().pickable ||
+               (entity.HasAllComponents<VisibilityComponent>() && !entity.GetComponent<VisibilityComponent>().enabled))
+                m_OutlineHoverEntity={};
+        }
+    }
+    const bool moved=!m_OutlineHoverPixel || *m_OutlineHoverPixel!=*pixel;
+    if(!moved && !m_OutlineHoverInputsDirty)return;
+    if(moved)m_OutlineHoverEntity={}; // Never trail the old object while the pointer moves.
+    const double now=std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    if((m_FramePickPixel && *m_FramePickPixel==*pixel) || m_OutlineHoverLastReadbackTime<0 || now-m_OutlineHoverLastReadbackTime>=1.0/30.0) {
+        m_FrameHoverPixel=*pixel;++m_OutlineHoverRequests;
+    }
+}
+
+void RigidBodySimulationApp::ReadOutlineHover(glm::uvec2 position,std::optional<std::int32_t> sharedPixel)
+{
+    m_FrameHoverPixel.reset();m_OutlineHoverEntity={};
+    if(!m_ActiveScene || m_OutlineHoverGeneration!=m_SceneGeneration)return;
+    m_OutlineHoverPixel=position;m_OutlineHoverInputsDirty=false;
+    m_OutlineHoverLastReadbackTime=std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    if(!sharedPixel) {
+        ++m_OutlineHoverReadbacks;
+        const auto read=m_MousePickFrameBuffer->ReadPixel(int(position.x),int(position.y));
+        if(!read){ReportFramebufferError("hover picking read",read.error());return;}
+        sharedPixel=*read;
+    }
+    if(*sharedPixel==EntityPickTable::InvalidPixel)return;
+    const auto id=m_ActiveScene->RenderData().ResolvePick(m_PickTable,*sharedPixel);
+    if(id && EditorEntityVisible(*id))m_OutlineHoverEntity=*id;
+}
+
 ScheduleResult RigidBodySimulationApp::PrepareCameraFrame(RenderContext& context,
                                                           FrameSceneInput& input, FrameCamera& camera)
 {
@@ -646,8 +761,8 @@ ScheduleResult RigidBodySimulationApp::PrepareCameraFrame(RenderContext& context
     m_FramePickPixel.reset();
     m_CameraAvailable = false;
     m_CameraUnavailableDiagnostic.clear();
-    if (!context.visible) return {};
-    EntityRenderId id = m_EditorViewIdentity;
+    if (!context.visible) {ClearOutlineHover();return {};}
+    EntityRenderId id = m_CameraPilot?m_CameraPilot->command->edits[0].entity:m_EditorViewIdentity;
     if (m_CameraView == CameraView::Preview)
     {
         if (!m_ActiveScene->RenderData().Resolve(m_PreviewCamera))
@@ -681,6 +796,7 @@ ScheduleResult RigidBodySimulationApp::PrepareCameraFrame(RenderContext& context
         id = m_EditorViewIdentity;
         if (!m_ActiveScene->ValidateEditorViewIdentity(id))
         {
+            ClearOutlineHover();
             context.visible = false;
             m_CameraUnavailableDiagnostic = "Editor view unavailable: retired identity";
             return {};
@@ -711,7 +827,7 @@ ScheduleResult RigidBodySimulationApp::PrepareCameraFrame(RenderContext& context
         if (snapshot) m_CameraSnapshot = *snapshot;
         else m_CameraUnavailableDiagnostic = std::format("Scene view unavailable: camera error {}", int(snapshot.error().code));
     }
-    if (!m_CameraSnapshot) { context.visible = false; return {}; }
+    if (!m_CameraSnapshot) { ClearOutlineHover();context.visible = false; return {}; }
     m_CameraAvailable = true;
     camera = FrameCamera::FromSnapshot(id, *m_CameraSnapshot);
     const auto& desc = m_CameraSnapshot->Description();
@@ -722,6 +838,7 @@ ScheduleResult RigidBodySimulationApp::PrepareCameraFrame(RenderContext& context
     const auto cascades=Rbs::Editor::CameraCascadeSplits(m_ShadowCascadeLevels,
         m_EditorCamera_.GetNearClip(),m_EditorCamera_.GetFarClip(),desc.nearPlane,desc.farPlane);
     if(!cascades) {
+        ClearOutlineHover();
         context.visible=false;m_CameraAvailable=false;
         m_CameraUnavailableDiagnostic="Camera view unavailable: clip interval cannot represent five shadow slices";
         return {};
@@ -739,14 +856,16 @@ ScheduleResult RigidBodySimulationApp::PrepareCameraFrame(RenderContext& context
     if (requestedPick && m_ViewportActive && !m_ViewportActivationButtons &&
         mouse.isButtonPressed(GEngineMouseCode::GENGINE_BUTTON_LEFT))
     {
-        const auto point = mouse.GetPosition();
+        const auto localPoint = mouse.GetPosition();
+        const auto point = ScenePointerLogical(*GetWindow(),localPoint.x,localPoint.y);
+        if(!point){ClearOutlineHover();return {};}
 #ifdef GENGINE_LIFECYCLE_PICK_TRACE
-        auto pixel = m_CameraSnapshot->ReadbackPixelAt({point.x, point.y});
+        auto pixel = m_CameraSnapshot->ReadbackPixelAt(*point);
         PreEditorLifecycle::PickTraceValues("pick_conversion", bool(pixel),
             {pixel ? pixel->x : 0, pixel ? pixel->y : 0, pixel ? 0 : std::uint64_t(pixel.error().code) + 1});
         if (pixel)
 #else
-        if (auto pixel = m_CameraSnapshot->ReadbackPixelAt({point.x, point.y}); pixel)
+        if (auto pixel = m_CameraSnapshot->ReadbackPixelAt(*point); pixel)
 #endif
             m_FramePickPixel = *pixel;
     }
@@ -754,7 +873,8 @@ ScheduleResult RigidBodySimulationApp::PrepareCameraFrame(RenderContext& context
     PreEditorLifecycle::PickTraceValues("pick_ready", m_FramePickPixel.has_value(),
         {m_FramePickPixel ? m_FramePickPixel->x : 0, m_FramePickPixel ? m_FramePickPixel->y : 0});
 #endif
-    input.targets.pickingEnabled = m_FramePickPixel.has_value();
+    PrepareOutlineHover();
+    input.targets.pickingEnabled = m_FramePickPixel.has_value() || m_FrameHoverPixel.has_value();
     if(m_Marquee.queued && m_Marquee.generation==m_SceneGeneration) {
         input.targets.rectangleSelection=m_Marquee.request;input.targets.pickingEnabled=true;m_Marquee.queued=false;
     }
@@ -848,6 +968,14 @@ void RigidBodySimulationApp::Render()
             Rbs::SandboxChecks::ObserveFrame(*static_cast<RigidBodySimulationApp*>(user), frame);
         };
 #endif
+#ifdef GENGINE_PHASE28_QUALIFICATION
+        if (Rbs::AngularJointChecks::editorMode && Rbs::AngularJointChecks::ComponentRole(Rbs::AngularJointChecks::editorSession)) {
+            input.observationContext = this;
+            input.observeFrame = [](void* user, const RenderFrame& frame) noexcept {
+                Rbs::AngularJointChecks::ObserveComponentFrame(*static_cast<RigidBodySimulationApp*>(user), frame);
+            };
+        }
+#endif
         struct Preparation { RigidBodySimulationApp& app; RenderContext& context;
                              FrameSceneInput& input; FrameCamera& camera; } preparation{*this, context, input, camera};
         context.updateResources = {&preparation, [](void* user) -> ScheduleResult
@@ -888,6 +1016,10 @@ void RigidBodySimulationApp::Render()
             p.input.targets.selectedEntities = {app.m_ColliderOutlines.entities.data(), app.m_ColliderOutlines.count};
             if(app.m_EditorSelection.count)
                 p.input.targets.selectedEntities = {app.m_EditorSelection.ids.data(),app.m_EditorSelection.count};
+            p.input.targets.hoveredEntity=app.m_OutlineHoverEntity;
+#ifdef GENGINE_PHASE28_QUALIFICATION
+            Rbs::AngularJointChecks::PrepareOutlineDescriptor(app,p.input.targets);
+#endif
 #ifdef GENGINE_OWNER_REVIEW_PROBE
             Rbs::OwnerReviewDriver::Targets(app,p.input.targets);
 #endif
@@ -932,8 +1064,20 @@ void RigidBodySimulationApp::Render()
             return {};
         }};
         auto submitted = FrameScheduler::Render(context, &input);
+        if(submitted) {
+            // Consume the renderer's exact picking-input comparison rather than
+            // inventing a second scene/camera/material dirty key in the Editor.
+            const auto& picking=submitted->submission.decisions[2];
+            m_OutlineHoverInputsDirty=picking.reasons!=PassDirtyReason::None && !picking.requested;
+        }
 #ifdef GENGINE_PHASE27_QUALIFICATION
         if(submitted)Rbs::BallSocketChecks::PreviewFrame(*this,input.debugLines.size());
+#endif
+#ifdef GENGINE_PHASE28_QUALIFICATION
+        if(submitted) {
+            Rbs::AngularJointChecks::ObserveOutlineSubmission(*this,submitted->submission);
+            Rbs::AngularJointChecks::PreviewFrame(*this);
+        }
 #endif
 #ifdef GENGINE_OWNER_REVIEW_PROBE
         if(submitted)Rbs::OwnerReviewDriver::End(*this,*submitted);
@@ -989,6 +1133,7 @@ void RigidBodySimulationApp::Render()
 
 void RigidBodySimulationApp::ClearColliderSelection()
 {
+    ClearOutlineHover();
     m_ColliderOutlines.Clear();
     m_EditorSelection.Clear();
     CancelViewportMarquee();
@@ -1000,6 +1145,8 @@ void RigidBodySimulationApp::ClearColliderSelection()
 
 void RigidBodySimulationApp::SelectColliderEntity(_Entity entity, bool toggle)
 {
+    if(SandboxEnabled() && HasPendingObjectProperties() && (toggle || entity!=m_HoveredEntity))
+    {m_PropertyDiagnostic="Apply or Revert pending object edits before changing selection.";return;}
     // Never dereference an entity borrowed from a previous/different scene.
     if(entity.GetSceneContext() && entity.GetSceneContext()!=m_ActiveScene.get())return;
     if(entity.GetSceneContext() && !entity)return;
@@ -1048,6 +1195,10 @@ void RigidBodySimulationApp::SynchronizeEditorSelection()
 void RigidBodySimulationApp::OnMouseClicked()
 {
     RBS_REVIEW_SCOPE(3);
+    if(!m_FramePickPixel) {
+        if(m_FrameHoverPixel && m_CameraSnapshot)ReadOutlineHover(*m_FrameHoverPixel);
+        return;
+    }
 #ifdef GENGINE_LIFECYCLE_PICK_TRACE
     PreEditorLifecycle::PickTraceValues("pick_readback_enter", -1,
         {m_FramePickPixel.has_value(), m_CameraSnapshot.has_value(),
@@ -1068,9 +1219,12 @@ void RigidBodySimulationApp::OnMouseClicked()
 #endif
         if (!pixel)
         {
+            ClearOutlineHover();
             ReportFramebufferError("picking read", pixel.error());
             return;
         }
+        if(m_FrameHoverPixel && *m_FrameHoverPixel==glm::uvec2(unsigned(x),unsigned(y)))
+            ReadOutlineHover(*m_FrameHoverPixel,*pixel);
         _Entity picked{};
         if (*pixel != EntityPickTable::InvalidPixel)
         {
@@ -1138,4 +1292,6 @@ void RigidBodySimulationApp::OnViewportResize(int, int)
     if (!width || !height)
         return;
     m_EditorCamera_.SetViewportSize(static_cast<float>(width), static_cast<float>(height));
+    if(m_CameraPilot && (m_CameraPilot->navigation.m_ViewportWidth!=width || m_CameraPilot->navigation.m_ViewportHeight!=height))
+        m_CameraPilot->navigation.SetViewportSize(static_cast<float>(width),static_cast<float>(height));
 }

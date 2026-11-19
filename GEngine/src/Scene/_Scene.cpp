@@ -1,4 +1,7 @@
 #include "gepch.h"
+#ifdef GENGINE_FRAME_SPIKE_AUDIT
+#include "Core/FrameSpikeCapture.h"
+#endif
 #include "Physics/JoltAuditObservation.h"
 #include "Scene/EditorTransformBudget.h"
 #include "Core/InitializationProgress.h"
@@ -392,6 +395,9 @@ namespace GEngine
 
 	void _Scene::Update(Timestep ts)
 	{
+#ifdef GENGINE_FRAME_SPIKE_AUDIT
+        FrameSpike::Scope auditSceneUpdate(FrameSpike::SceneUpdate);
+#endif
 #ifdef GENGINE_JOLT_FINAL_AUDIT
         JoltAudit::Scope auditScene(0);
 #endif
@@ -456,7 +462,13 @@ namespace GEngine
 					pose.previousRotation = pose.currentRotation;
 				}
                 m_PhysicsStepStarted=true;
+#ifdef GENGINE_FRAME_SPIKE_AUDIT
+                { FrameSpike::Scope auditPhysics(FrameSpike::Physics);
+#endif
 				m_PhysicsSystem->Update(Timestep(m_PhysicsStepSeconds));
+#ifdef GENGINE_FRAME_SPIKE_AUDIT
+                }
+#endif
 				for (auto e : m_Registry.view<RigidBody3DComponent, RuntimePhysicsPose>())
 				{
 					auto& pose = m_Registry.get<RuntimePhysicsPose>(e);
@@ -1963,16 +1975,17 @@ namespace GEngine
             bool complete = false;
             ~Rollback() { if (!complete) { scene.m_IsRunning = false; scene.OnPhysics3DStop(); } }
         } rollback{*this};
-        auto* world = new (std::nothrow) PhysicsWorld{};
-        if (!world)
-            return std::unexpected(PhysicsShapeError{PhysicsShapeErrorCode::Allocation,
-                "_Scene::OnPhysics3DStart", "Physics world allocation failed"});
-        if(auto configured=world->ConfigureBackend(m_PhysicsBackend);!configured)
+        auto createdWorld = PhysicsWorld::Create(m_PhysicsBackend);
+        if (!createdWorld)
         {
-            delete world;
-            return std::unexpected(PhysicsShapeError{PhysicsShapeErrorCode::BackendUnavailable,
-                "_Scene::OnPhysics3DStart","Requested Physics backend could not initialize"});
+            const auto code = createdWorld.error().code == PhysicsBodyErrorCode::Allocation
+                ? PhysicsShapeErrorCode::Allocation
+                : createdWorld.error().code == PhysicsBodyErrorCode::BackendUnavailable
+                    ? PhysicsShapeErrorCode::BackendUnavailable : PhysicsShapeErrorCode::BackendFailure;
+            return std::unexpected(PhysicsShapeError{code, "_Scene::OnPhysics3DStart",
+                "Requested Physics backend could not initialize"});
         }
+        auto* world = createdWorld->release();
         m_PhysicsSystem->SetPhysicsWorld(world);
         std::uint64_t initializedBodies=0;
         const auto totalBodies=m_Registry.view<RigidBody3DComponent>().size();

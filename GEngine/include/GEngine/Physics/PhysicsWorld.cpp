@@ -72,10 +72,23 @@ namespace GEngine
         }
     }
 
-    PhysicsWorld::PhysicsWorld()
+    PhysicsWorld::PhysicsWorld(UnconfiguredTag)
     {
         if (auto domain = Asset::AssetDetail::TakeRegistryIdentity(Asset::AssetDetail::nextRegistryIdentity))
             m_Domain = *domain;
+    }
+    PhysicsWorld::PhysicsWorld() : PhysicsWorld(DefaultPhysicsBackend) {}
+    PhysicsWorld::PhysicsWorld(PhysicsBackend backend) : PhysicsWorld(UnconfiguredTag{})
+    {
+        if (auto initialized = ConfigureBackend(backend); !initialized) throw initialized.error();
+    }
+    PhysicsBodyResult<std::unique_ptr<PhysicsWorld>> PhysicsWorld::Create(PhysicsBackend backend)
+    {
+        std::unique_ptr<PhysicsWorld> world(new (std::nothrow) PhysicsWorld(UnconfiguredTag{}));
+        if (!world) return Failure(Code::Allocation, {}, "PhysicsWorld::Create");
+        if (auto initialized = world->ConfigureBackend(backend); !initialized)
+            return std::unexpected(initialized.error());
+        return std::move(world);
     }
     PhysicsBodyResult<> PhysicsWorld::ConfigureBackend(PhysicsBackend backend)
     {
@@ -91,7 +104,9 @@ namespace GEngine
         else m_Backend.reset();
         m_BackendKind=backend;return {};
     }
-    PhysicsWorld::PhysicsWorld(const Vec3f& gravity) : PhysicsWorld() { m_Gravity = gravity; }
+    PhysicsWorld::PhysicsWorld(const Vec3f& gravity) : PhysicsWorld(DefaultPhysicsBackend, gravity) {}
+    PhysicsWorld::PhysicsWorld(PhysicsBackend backend, const Vec3f& gravity) : PhysicsWorld(backend)
+    { m_Gravity = gravity; }
     PhysicsBodyResult<PhysicsJoltSettings> PhysicsWorld::ReadJoltSettings() const {
         if(auto a=CheckAccess("ReadJoltSettings",false);!a)return std::unexpected(a.error());
         if(!m_Backend)return Failure(Code::UnsupportedFeature,{},"Jolt settings are unavailable on Native");
@@ -324,6 +339,22 @@ namespace GEngine
             b.m_Shape->GetBounds(), b.GetWorldBounds(), b.GetCenterOfMassWorldSpace(),
             b.GetInverseInertiaTensorBodySpace(), b.GetInverseInertiaTensorWorldSpace(),
             b.GetSleepSettings(), b.GetInactiveSeconds(), b.IsSleeping()};
+    }
+    PhysicsBodyResult<PhysicsBodyState> PhysicsWorld::ReadEffectiveBody(PhysicsBodyHandle h) const
+    {
+        if (auto idle = CheckAccess("ReadEffectiveBody", true); !idle)
+            return std::unexpected(idle.error());
+        auto state = ReadBody(h);
+        if (!state || !m_Backend) return state;
+        if (auto read = m_Backend->ReadEffectiveBody(*state); !read)
+            return std::unexpected(read.error());
+        if (!ValidPose(state->position, state->orientation) || !Math::IsFinite(state->centerOfMass) ||
+            !Math::IsFinite(state->linearVelocity) || !Math::IsFinite(state->angularVelocity) ||
+            !std::isfinite(state->inverseMass) || state->inverseMass < 0 || !ValidMaterial(state->material) ||
+            !FiniteBounds(state->localBounds) || !FiniteBounds(state->worldBounds) ||
+            !FiniteMatrix(state->inverseInertiaBody) || !FiniteMatrix(state->inverseInertiaWorld))
+            return Failure(Code::NonFiniteResult, h, "ReadEffectiveBody");
+        return state;
     }
     PhysicsBodyResult<Bounds> PhysicsWorld::GetBodyBoundsAt(PhysicsBodyHandle h, const Vec3f& p, const Quat& q) const
     {
@@ -756,11 +787,50 @@ namespace GEngine
         else { a->WakeUp(); b->WakeUp(); }
         return handle;
     }
+    JointResult<PhysicsJointHandle> PhysicsWorld::CreateAngularJoint(const AngularJointDesc& d)
+    {
+        constexpr auto op="CreateAngularJoint";
+        const auto fail=[](JointErrorCode c){return std::unexpected(JointError{c,{},op});};
+        if(!CheckAccess(op,true))return fail(JointErrorCode::Access);
+        auto* a=ResolveJointBody(d.bodyA);auto* b=ResolveJointBody(d.bodyB);
+        if(!a||!b||a==b)return fail(JointErrorCode::InvalidEndpoint);
+        if(!AngularJoint::Valid(d))return fail(JointErrorCode::InvalidGeometry);
+        if(d.kind!=JointKind::Hinge) {
+            const auto q=AngularJoint::Observe(d,a->m_Orientation,b->m_Orientation).relativeRotation;
+            if(q.w*q.w+q.y*q.y+q.z*q.z<=1.e-8f)return fail(JointErrorCode::InvalidGeometry);
+        }
+        if(a->GetInverseMass()+b->GetInverseMass()<=0)return fail(JointErrorCode::NoResponse);
+        auto copyA=*a,copyB=*b;
+        AngularJointRow proposed;proposed.desc=d;
+        if(!proposed.Prepare(copyA,copyB,1.f/60.f))return fail(JointErrorCode::InvalidGeometry);
+        proposed.Reset();
+        if(m_JointCount==MaxDistanceJoints)return fail(JointErrorCode::Capacity);
+        if(!m_Joints) {
+            std::unique_ptr<JointSlot[]> storage(new(std::nothrow) JointSlot[MaxDistanceJoints]);
+            if(!storage)return fail(JointErrorCode::Allocation);
+            m_Joints=std::move(storage);
+        }
+        const auto generation=Asset::AssetDetail::TakeRegistryIdentity(s_NextBodyGeneration);
+        if(!generation)return fail(JointErrorCode::Capacity);
+        std::size_t i=0;while(m_Joints[i].live)++i;
+        const PhysicsJointHandle handle{static_cast<std::uint32_t>(i),*generation,m_Domain};
+        if(m_Backend){auto result=m_Backend->CreateJoint(handle,d);if(!result)return std::unexpected(result.error());}
+        auto& slot=m_Joints[i];slot.Reset();slot.angular=proposed;
+        slot.row.desc={d.bodyA,d.bodyB,d.localAnchorA,d.localAnchorB,0,d.collideConnected};
+        slot.kind=d.kind;slot.generation=*generation;slot.live=true;++m_JointCount;
+        if(m_JointMutationCallback){m_JointMutationCallback(a);m_JointMutationCallback(b);}
+        else {a->WakeUp();b->WakeUp();}
+        return handle;
+    }
     JointResult<PhysicsJointHandle> PhysicsWorld::CreateJoint(const JointDescriptor& d)
     {
         switch(d.kind) {
         case JointKind::Distance: return CreateDistanceJoint({d.bodyA,d.bodyB,d.localAnchorA,d.localAnchorB,d.targetDistance,d.collideConnected});
         case JointKind::BallSocket: return CreateBallSocketJoint({d.bodyA,d.bodyB,d.localAnchorA,d.localAnchorB,d.collideConnected});
+        case JointKind::Hinge:
+        case JointKind::ConstantVelocity:
+        case JointKind::LimitedConstantVelocity:
+            return CreateAngularJoint({d.kind,d.bodyA,d.bodyB,d.localAnchorA,d.localAnchorB,d.collideConnected,d.angular});
         }
         return std::unexpected(JointError{JointErrorCode::WrongKind,{},"CreateJoint"});
     }
@@ -776,6 +846,9 @@ namespace GEngine
         if(slot.kind==JointKind::BallSocket) {
             impulse=m_Backend?m_Backend->JointVectorImpulse(h):slot.point.impulse;
             active=m_Backend?m_Backend->JointActive(h):slot.point.active;
+        } else if(AngularJoint::IsKind(slot.kind)) {
+            impulse=m_Backend?m_Backend->JointVectorImpulse(h):slot.angular.impulse;
+            active=m_Backend?m_Backend->JointActive(h):slot.angular.active;
         } else {
             const float lambda=m_Backend?m_Backend->JointImpulse(h):slot.row.impulse;
             impulse=length>0?delta*(lambda/length):Vec3f(0);
@@ -784,7 +857,28 @@ namespace GEngine
         const float error=slot.kind==JointKind::Distance?length-d.length:length;
         if(!Math::IsFinite(pa)||!Math::IsFinite(pb)||!Math::IsFinite(impulse)||!Math::IsFinite(error))
             return std::unexpected(JointError{JointErrorCode::NonFinite,h,"ReadJoint"});
-        return JointState{h,{slot.kind,d.bodyA,d.bodyB,d.localAnchorA,d.localAnchorB,d.length,d.collideConnected},pa,pb,delta,impulse,error,active};
+        JointState state{h,{slot.kind,d.bodyA,d.bodyB,d.localAnchorA,d.localAnchorB,d.length,d.collideConnected},pa,pb,delta,impulse,error,active};
+        if(AngularJoint::IsKind(slot.kind)) {
+            auto effective=slot.angular.desc;
+            if(m_Backend) {
+                auto readback=m_Backend->ReadAngularJoint(h);
+                if(!readback)return std::unexpected(readback.error());
+                effective=*readback;
+            }
+            if(!AngularJoint::Valid(effective))return std::unexpected(JointError{JointErrorCode::NonFinite,h,"ReadJoint"});
+            state.descriptor={effective.kind,effective.bodyA,effective.bodyB,effective.localAnchorA,
+                effective.localAnchorB,0,effective.collideConnected,effective.angular};
+            state.worldAnchorA=a->BodySpaceToWorldSpace(effective.localAnchorA);
+            state.worldAnchorB=b->BodySpaceToWorldSpace(effective.localAnchorB);
+            state.residual=state.worldAnchorB-state.worldAnchorA;state.error=glm::length(state.residual);
+            state.angular=AngularJoint::Observe(effective,a->m_Orientation,b->m_Orientation);
+            state.angular.angularImpulse=m_Backend?m_Backend->AngularImpulse(h):slot.angular.angularImpulse;
+            state.angular.impulseAvailable=m_Backend?m_Backend->AngularImpulseAvailable(h):slot.angular.impulseAvailable;
+            if(!Math::IsFinite(state.worldAnchorA)||!Math::IsFinite(state.worldAnchorB)||!std::isfinite(state.error)||
+                !Math::IsFinite(state.angular.angularImpulse)||!std::isfinite(state.angular.axisError)||!std::isfinite(state.angular.cvError))
+                return std::unexpected(JointError{JointErrorCode::NonFinite,h,"ReadJoint"});
+        }
+        return state;
     }
     JointResult<BallSocketJointState> PhysicsWorld::ReadBallSocketJoint(PhysicsJointHandle h) const
     {

@@ -12,6 +12,12 @@
 #ifdef GENGINE_PHASE26_SANDBOX_CHECKS
 #include "../tests/SandboxChecks.h"
 #endif
+#ifdef GENGINE_PHASE28_QUALIFICATION
+namespace Rbs { void Phase28AngularWidget(RigidBodySimulationApp&,const char*); }
+#define RBS_PHASE28_WIDGET(key) Rbs::Phase28AngularWidget(*this,key)
+#else
+#define RBS_PHASE28_WIDGET(key) ((void)0)
+#endif
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
 #include <algorithm>
@@ -37,8 +43,31 @@ namespace
         {Rbs::RbsScenePreset::BallSocketSwing,"BallSocket S - Anchored Swing"},
         {Rbs::RbsScenePreset::BallSocketPair,"BallSocket P - Loaded Pair"},
         {Rbs::RbsScenePreset::BallSocketContact,"BallSocket G - Collision-disabled diagnostic"},
-        {Rbs::RbsScenePreset::BallSocketContactEnabled,"BallSocket G_C - Contact-enabled demonstration"}
+        {Rbs::RbsScenePreset::BallSocketContactEnabled,"BallSocket G_C - Contact-enabled demonstration"},
+        {Rbs::RbsScenePreset::HingeBasic,"Basic Hinge"},
+        {Rbs::RbsScenePreset::HingeQuaternion,"Quaternion Hinge"},
+        {Rbs::RbsScenePreset::HingeLimited,"Limited Hinge"},
+        {Rbs::RbsScenePreset::CvFree,"Constant Velocity"},
+        {Rbs::RbsScenePreset::CvLimited,"Limited Constant Velocity"}
     };
+    const char* AngularPresetWidgetKey(Rbs::RbsScenePreset preset)
+    {
+        switch(preset)
+        {
+        case Rbs::RbsScenePreset::GeometryGallery:return "preset.geometry-gallery";
+        case Rbs::RbsScenePreset::BoxStack:return "preset.box-stack";
+        case Rbs::RbsScenePreset::SphereBoxStack:return "preset.sphere-box-stack";
+        case Rbs::RbsScenePreset::SphereLattice:return "preset.sphere-lattice";
+        case Rbs::RbsScenePreset::DistanceChain:return "preset.distance-chain";
+        case Rbs::RbsScenePreset::BallSocketPair:return "preset.ball-socket-p";
+        case Rbs::RbsScenePreset::HingeBasic:return "preset.hinge-basic";
+        case Rbs::RbsScenePreset::HingeQuaternion:return "preset.hinge-quaternion";
+        case Rbs::RbsScenePreset::HingeLimited:return "preset.hinge-limited";
+        case Rbs::RbsScenePreset::CvFree:return "preset.cv-free";
+        case Rbs::RbsScenePreset::CvLimited:return "preset.cv-limited";
+        default:return nullptr;
+        }
+    }
     const char* SimulationLabel(Rbs::SimulationState state)
     {
         switch(state)
@@ -167,16 +196,21 @@ void RigidBodySimulationApp::DrawSceneSelectionControls()
 {
     ImGui::BeginDisabled(m_SceneRequest.has_value() || m_SimulationState==Rbs::SimulationState::Switching);
     ImGui::SetNextItemWidth(Rbs::Editor::Px(175));
-    if(ImGui::BeginCombo("##ScenePreset",Rbs::SceneName(m_PendingSelection.scene)))
+    const bool sceneComboOpen=ImGui::BeginCombo("##ScenePreset",Rbs::SceneName(m_PendingSelection.scene));
+    RBS_PHASE28_WIDGET("scene-combo");
+    if(sceneComboOpen)
     {
         for(const auto& card:PresetCards)
         {
             const auto preset=card.preset;
             const bool selected=preset==m_PendingSelection.scene;
-            if(ImGui::Selectable(card.title,selected))
+            const bool chosen=ImGui::Selectable(card.title,selected);
+            if(chosen)
             {
                 m_PendingSelection.scene=preset;
                 if(preset==Rbs::RbsScenePreset::DistanceChainContact)m_PendingSelection.chainLinks=8;
+                if(preset!=Rbs::RbsScenePreset::HingeLimited && preset!=Rbs::RbsScenePreset::CvLimited)
+                    m_PendingAngularVariant=Rbs::AngularVariant::Air;
             }
             if(selected)ImGui::SetItemDefaultFocus();
         }
@@ -191,8 +225,27 @@ void RigidBodySimulationApp::DrawSceneSelectionControls()
         if(ImGui::Combo("Links",&index,"4\0" "8\0" "16\0"))m_PendingSelection.chainLinks=std::array{4u,8u,16u}[index];
         ImGui::EndDisabled();
     }
+    if(m_PendingSelection.scene==Rbs::RbsScenePreset::HingeLimited ||
+       m_PendingSelection.scene==Rbs::RbsScenePreset::CvLimited)
+    {
+        ImGui::SameLine();ImGui::SetNextItemWidth(Rbs::Editor::Px(85));
+        int variant=m_PendingAngularVariant==Rbs::AngularVariant::Contact?1:0;
+        const bool changed=ImGui::Combo("##AngularVariant",&variant,"Air\0Contact\0");
+        RBS_PHASE28_WIDGET("variant");
+        if(changed)
+            m_PendingAngularVariant=variant?Rbs::AngularVariant::Contact:Rbs::AngularVariant::Air;
+        if(ImGui::IsItemHovered())ImGui::SetTooltip("Contact uses the admitted finite floor and the same joint provider");
+    }
     ImGui::SameLine();
-    if(ImGui::Button("Load"))RequestScene(m_PendingSelection);
+    const bool load=ImGui::Button("Load");
+    RBS_PHASE28_WIDGET("scene-load");
+    if(load)
+    {
+        if(m_PendingSelection==m_ActiveSelection && m_ActiveSelection.IsAngularScene() &&
+           m_Angular.committed && m_PendingAngularVariant!=m_Angular.committed->variant)
+            RequestAngularVariant(m_PendingAngularVariant);
+        else RequestScene(m_PendingSelection);
+    }
     if(ImGui::IsItemHovered())ImGui::SetTooltip("Load selected scene at the next Update boundary");
     ImGui::EndDisabled();
 }
@@ -211,7 +264,11 @@ bool RigidBodySimulationApp::ExecuteSelectionCommand(Rbs::Editor::SelectionComma
 {
     namespace E=Rbs::Editor;using Command=E::SelectionCommand;
     if(!m_ActiveScene || m_SceneRequest || m_BackendRequest)return false;
-    if(command==Command::Clear){m_EditorSelection.Clear();SynchronizeEditorSelection();m_HierarchyRevealed={};return true;}
+    if(command==Command::Clear){
+        if(!m_EditorSelection.count)return true;
+        if(HasPendingObjectProperties()){m_PropertyDiagnostic="Apply or Revert the selected object's pending changes first.";return false;}
+        m_EditorSelection.Clear();SynchronizeEditorSelection();m_HierarchyRevealed={};return true;
+    }
     try {
         m_Hierarchy.Build(*m_ActiveScene,m_HierarchyFilter.data());
         if(command==Command::Children && !m_ActiveScene->RenderData().Resolve(root))return false;
@@ -243,6 +300,11 @@ bool RigidBodySimulationApp::ExecuteSelectionCommand(Rbs::Editor::SelectionComma
             default:break;
             }
             if(include)targets.push_back(n.identity);
+        }
+        if(HasPendingObjectProperties()) {
+            if(targets.size()==m_EditorSelection.count &&
+               std::equal(targets.begin(),targets.end(),m_EditorSelection.ids.begin()))return true;
+            m_PropertyDiagnostic="Apply or Revert the selected object's pending changes first.";return false;
         }
         if(!m_EditorSelection.SelectSet(m_ActiveScene->RenderData(),targets,E::EntitySelection::SetOperation::Replace)) {
             m_PropertyDiagnostic="Selection rejected: stale identity, allocation failure or 4096-entity renderer budget. Previous selection retained.";return false;
@@ -355,6 +417,28 @@ void RigidBodySimulationApp::DrawHierarchyRegion()
             const auto rowStart=ImGui::GetCursorScreenPos();
             const float eyeX=ImGui::GetWindowPos().x+ImGui::GetWindowContentRegionMax().x-E::Px(26);
             const bool open=row("##Entity",n.name.data(),icon,flags,entity==m_HoveredEntity,m_RenameTarget==n.identity);
+#ifdef GENGINE_PHASE28_QUALIFICATION
+            auto probeEntity=entity;
+            const auto& probeName=probeEntity.GetName();
+            if(probeName=="Angular Anchor")RBS_PHASE28_WIDGET("hierarchy.anchor");
+            else if(probeName=="Angular Bar")RBS_PHASE28_WIDGET("hierarchy.bar");
+            else if(m_ActiveSelection.scene==Rbs::RbsScenePreset::SphereBoxStack && probeName=="wood_sphere_0")
+                RBS_PHASE28_WIDGET("hierarchy.reference-sphere");
+            else if(probeName=="Sandbox Floor")RBS_PHASE28_WIDGET("hierarchy.floor");
+            else if(probeName=="Sandbox Wall -X")RBS_PHASE28_WIDGET("hierarchy.wall");
+            else if(probeName=="Sandbox Wall +X")RBS_PHASE28_WIDGET("hierarchy.wall-px");
+            else if(probeName=="Sandbox Wall -Z")RBS_PHASE28_WIDGET("hierarchy.wall-nz");
+            else if(probeName=="Sandbox Wall +Z")RBS_PHASE28_WIDGET("hierarchy.wall-pz");
+            else if(probeName=="ambient_light")RBS_PHASE28_WIDGET("hierarchy.directional");
+            else if(probeName=="point_light")RBS_PHASE28_WIDGET("hierarchy.point");
+            else if(probeName=="Scene Camera A")RBS_PHASE28_WIDGET("hierarchy.camera");
+            else if(probeName=="Scene Camera B")RBS_PHASE28_WIDGET("hierarchy.camera-b");
+            else if(probeName=="Template Plane")RBS_PHASE28_WIDGET("hierarchy.mesh");
+            else if(probeName=="Environment_SkyBox")RBS_PHASE28_WIDGET("hierarchy.sky");
+            else if(probeName=="grid")RBS_PHASE28_WIDGET("hierarchy.grid");
+            else if(probeName=="axis")RBS_PHASE28_WIDGET("hierarchy.axis");
+            if(entity==m_HoveredEntity)RBS_PHASE28_WIDGET("hierarchy.selected");
+#endif
             const bool onName=ImGui::GetMousePos().x<eyeX;
             if(ImGui::IsItemHovered() && onName && ImGui::IsMouseDoubleClicked(0) && !ImGui::IsItemToggledOpen())BeginEntityRename(n.identity);
             if(ImGui::BeginPopupContextItem("EntityMenu")) {
@@ -379,11 +463,16 @@ void RigidBodySimulationApp::DrawHierarchyRegion()
             if(m_RenameTarget==n.identity) {
                 ImGui::SetCursorScreenPos({rowStart.x+ImGui::GetTreeNodeToLabelSpacing()+E::Px(25),rowStart.y});
                 DrawEntityRename(n.identity,std::max(E::Px(60),eyeX-ImGui::GetCursorScreenPos().x-E::Px(4)));
+                RBS_PHASE28_WIDGET("hierarchy.rename");
             }
             ImGui::SetCursorScreenPos({eyeX,rowStart.y});
             const bool visible=EditorEntityVisible(n.identity);
             ImGui::PushStyleColor(ImGuiCol_Button,E::Color(0x202329));
             if(ImGui::Button("##SceneVisible",{E::Px(24),E::Px(22)}))QueueEntityVisibility(n.identity,!visible);
+#ifdef GENGINE_PHASE28_QUALIFICATION
+            if(probeName=="point_light")RBS_PHASE28_WIDGET("hierarchy.point-eye");
+            else if(probeName=="axis")RBS_PHASE28_WIDGET("hierarchy.axis-eye");
+#endif
             E::DrawIcon(visible?E::Icon::Eye:E::Icon::EyeOff,m_ViewportIconAtlases[atlas],E::AtlasPixels[atlas],{eyeX+E::Px(2),rowStart.y+E::Px(1)},E::Px(20),visible?E::Color(0xA6B3C3):E::Color(0x718093));
             E::Tooltip("Scene Visible: editor mesh/icon/picking only. Camera output, illumination, shadows and Physics are unchanged.");
             ImGui::PopStyleColor();ImGui::SetCursorScreenPos(nextRow);
@@ -406,6 +495,12 @@ void RigidBodySimulationApp::DrawHierarchyRegion()
             ImGuiTreeNodeFlags flags=ImGuiTreeNodeFlags_SpanAvailWidth;
             if(g==int(E::EntityGroup::PhysicsBodies))flags|=ImGuiTreeNodeFlags_DefaultOpen;
             const bool open=row("##Group",label,icons[g],flags,false);
+#ifdef GENGINE_PHASE28_QUALIFICATION
+            if(g==int(E::EntityGroup::Cameras))RBS_PHASE28_WIDGET("hierarchy.cameras-group");
+            else if(g==int(E::EntityGroup::Lighting))RBS_PHASE28_WIDGET("hierarchy.lights-group");
+            else if(g==int(E::EntityGroup::Other))RBS_PHASE28_WIDGET("hierarchy.entities-group");
+            else if(g==int(E::EntityGroup::Environment))RBS_PHASE28_WIDGET("hierarchy.environment-group");
+#endif
             if(ImGui::IsItemClicked()){m_HierarchyFocusedGroup=g;m_HierarchySphereCohort=false;}
             if(ImGui::BeginPopupContextItem("GroupMenu")) {
                 selectionMenu({});
@@ -425,7 +520,9 @@ void RigidBodySimulationApp::DrawHierarchyRegion()
         {
             if(ImGui::GetIO().KeyShift)
             {
-                if(m_EditorSelection.SelectRange(m_ActiveScene->RenderData(),m_VisibleHierarchyRows,clicked,ImGui::GetIO().KeyCtrl))
+                if(HasPendingObjectProperties())
+                    m_PropertyDiagnostic="Apply or Revert the selected object's pending changes before selecting a range.";
+                else if(m_EditorSelection.SelectRange(m_ActiveScene->RenderData(),m_VisibleHierarchyRows,clicked,ImGui::GetIO().KeyCtrl))
                     SynchronizeEditorSelection();
                 else if(m_EditorSelection.capacityReached)m_PropertyDiagnostic="Range exceeds 4096 selections; previous selection retained.";
             }
@@ -476,7 +573,10 @@ void RigidBodySimulationApp::DrawWorldProperties()
 {
     ImGui::TextWrapped("Scene: %s",Rbs::SceneName(m_ActiveSelection.scene));
     ImGui::TextUnformatted("Interactive Sandbox");
-    if(Rbs::Editor::Component("Physics"))DrawPhysicsSettings();
+    if(m_ActiveSelection.IsAngularScene())DrawAngularWorldSettings();
+    const bool physicsOpen=Rbs::Editor::Component("Physics");
+    RBS_PHASE28_WIDGET("world-physics-section");
+    if(physicsOpen)DrawPhysicsSettings();
     if(Rbs::Editor::Component("Environment",false))DrawEnvironmentProperties();
     if(Rbs::Editor::Component("Materials", false))DrawMaterialSection();
     if(Rbs::Editor::Component("Custom shaders", false))DrawShaderSection();
@@ -489,7 +589,9 @@ void RigidBodySimulationApp::DrawDiagnosticsRegion()
         PublishPanelInputRegion();
         if(ImGui::BeginTabBar("DiagnosticsTabs"))
         {
-            if (ImGui::BeginTabItem("Content Browser"))
+            const bool contentOpen=ImGui::BeginTabItem("Content Browser");
+            RBS_PHASE28_WIDGET("content-tab");
+            if (contentOpen)
             {
                 DrawContentBrowser();
                 ImGui::EndTabItem();
@@ -516,6 +618,14 @@ void RigidBodySimulationApp::DrawContentBrowser()
     namespace E = Rbs::Editor;
     const float browserWidth=ImGui::GetContentRegionAvail().x;
     ImGui::TextUnformatted("Scenes / Presets");
+    if(m_ActiveSelection.IsAngularScene() && m_Angular.committed)
+    {
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s | revision %llu",
+            m_Angular.committed->variant==Rbs::AngularVariant::Contact?"Contact":"Air",
+            static_cast<unsigned long long>(m_Angular.revision));
+        if(m_Angular.dirty)ImGui::TextWrapped("Apply or Revert pending edits before changing the scene, variant or backend.");
+    }
     if(browserWidth>E::Px(340))ImGui::SameLine();
     ImGui::SetNextItemWidth(std::min(E::Px(200),ImGui::GetContentRegionAvail().x));
     ImGui::InputTextWithHint("##PresetFilter", "Search scenes", m_PresetFilter.data(), m_PresetFilter.size());
@@ -557,12 +667,22 @@ void RigidBodySimulationApp::DrawContentBrowser()
             ImGui::PushID(static_cast<int>(card.preset));
             const auto start = ImGui::GetCursorPos();
             const bool selected = m_PendingSelection.scene == card.preset;
-            if (ImGui::Selectable("##Preset", selected, ImGuiSelectableFlags_AllowDoubleClick,
-                {cell - E::Px(8), cardHeight}))
+            const bool chosen=ImGui::Selectable("##Preset", selected, ImGuiSelectableFlags_AllowDoubleClick,
+                {cell - E::Px(8), cardHeight});
+            if(const char* key=AngularPresetWidgetKey(card.preset))RBS_PHASE28_WIDGET(key);
+            if(chosen)
             {
                 m_PendingSelection.scene = card.preset;
                 if (card.preset == Rbs::RbsScenePreset::DistanceChainContact) m_PendingSelection.chainLinks = 8;
-                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) RequestScene(m_PendingSelection);
+                if(card.preset!=Rbs::RbsScenePreset::HingeLimited && card.preset!=Rbs::RbsScenePreset::CvLimited)
+                    m_PendingAngularVariant=Rbs::AngularVariant::Air;
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                {
+                    if(m_PendingSelection==m_ActiveSelection && m_ActiveSelection.IsAngularScene() &&
+                       m_Angular.committed && m_PendingAngularVariant!=m_Angular.committed->variant)
+                        RequestAngularVariant(m_PendingAngularVariant);
+                    else RequestScene(m_PendingSelection);
+                }
             }
             if(ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
             {
@@ -761,10 +881,33 @@ void RigidBodySimulationApp::ProcessContextProperties()
         const auto actual=m_SceneResources->DescribeMaterial(edit.materialTarget);
         applied=bool(actual);if(actual){edit.material=edit.materialBefore=*actual;edit.materialDirty=false;}
     }
+    if(command==4 && edit.mesh && edit.meshBefore && entity.HasAllComponents<MeshRendererComponent>())
+    {
+        if(entity.GetComponent<MeshRendererComponent>()!=*edit.meshBefore)
+        {edit.diagnostic="Mesh changed since drafting; Revert to refresh.";return;}
+        // Only flags are authored here; resource ownership and geometry stay intact.
+        auto value=*edit.meshBefore;
+        value.castShadows=edit.mesh->castShadows;
+        value.receiveShadows=edit.mesh->receiveShadows;
+        value.pickable=edit.mesh->pickable;
+        applied=bool(m_ActiveScene->RenderData().Replace(edit.target,value));
+        if(applied){edit.mesh=edit.meshBefore=entity.GetComponent<MeshRendererComponent>();edit.meshDirty=false;}
+    }
+    if(command==5 && edit.visibility && edit.visibilityBefore && entity.HasAllComponents<VisibilityComponent>())
+    {
+        if(entity.GetComponent<VisibilityComponent>()!=*edit.visibilityBefore)
+        {edit.diagnostic="Visibility changed since drafting; Revert to refresh.";return;}
+        applied=bool(m_ActiveScene->RenderData().Replace(edit.target,*edit.visibility));
+        if(applied)
+        {
+            edit.visibility=edit.visibilityBefore=entity.GetComponent<VisibilityComponent>();edit.visibilityDirty=false;
+            if(entity==m_GridEntity)Rbs::Editor::Snap.visible=edit.visibility->enabled;
+        }
+    }
     edit.diagnostic=applied?"Applied at Update; authoritative readback refreshed.":"Edit rejected; previous component retained.";
 }
 
-void RigidBodySimulationApp::DrawContextProperties()
+void RigidBodySimulationApp::DrawContextProperties(ContextSection section)
 {
     namespace E=Rbs::Editor;
     auto& edit=m_ContextEditor;const auto id=m_ActiveScene->RenderData().Identify(m_HoveredEntity);
@@ -774,6 +917,10 @@ void RigidBodySimulationApp::DrawContextProperties()
         edit.camera=edit.cameraBefore=m_HoveredEntity.GetComponent<RenderCameraComponent>();
     if(m_HoveredEntity.HasAllComponents<RenderLightComponent>() && !edit.lightDirty && edit.queued!=2)
         edit.light=edit.lightBefore=m_HoveredEntity.GetComponent<RenderLightComponent>();
+    if(m_HoveredEntity.HasAllComponents<MeshRendererComponent>() && !edit.meshDirty && edit.queued!=4)
+        edit.mesh=edit.meshBefore=m_HoveredEntity.GetComponent<MeshRendererComponent>();
+    if(m_HoveredEntity.HasAllComponents<VisibilityComponent>() && !edit.visibilityDirty && edit.queued!=5)
+        edit.visibility=edit.visibilityBefore=m_HoveredEntity.GetComponent<VisibilityComponent>();
     if(m_HoveredEntity.HasAllComponents<MeshRendererComponent>() && !edit.materialDirty && edit.queued!=3)
     {
         edit.materialTarget=m_HoveredEntity.GetComponent<MeshRendererComponent>().material;
@@ -785,10 +932,51 @@ void RigidBodySimulationApp::DrawContextProperties()
         if(invalid)ImGui::TextWrapped("%s",invalid);
         ImGui::BeginDisabled(!dirty || invalid || edit.queued || E::Numeric::HasError());
         if(ImGui::Button("Apply"))edit.queued=command;
+        RBS_PHASE28_WIDGET(command==1?"camera-apply":command==2?"light-apply":command==3?"material-apply":command==4?"mesh-apply":"visibility-apply");
         ImGui::EndDisabled();ImGui::SameLine();
         if(ImGui::Button("Revert")){E::Numeric::Reset();dirty=false;edit.queued=0;edit.diagnostic="Draft discarded; current component will be reloaded.";}
+        RBS_PHASE28_WIDGET(command==1?"camera-revert":command==2?"light-revert":command==3?"material-revert":command==4?"mesh-revert":"visibility-revert");
     };
-    if(m_HoveredEntity.HasAllComponents<MeshRendererComponent>() && E::Component("Surface Material",true,"Surface material"))
+    const auto number=[&](const char* label,float& value,float speed,const char* tip,
+                          E::Numeric::Bounds<float> bounds,auto validate,[[maybe_unused]] const char* key) {
+        E::PropertyRow row(label,tip);
+        const bool changed=E::Numeric::Scalar("##value",value,speed,bounds,validate);
+        RBS_PHASE28_WIDGET(key);
+        return changed;
+    };
+    const auto layers=[&](const char* label,std::uint32_t& value,const char* tip,[[maybe_unused]] const char* key) {
+        std::uint64_t candidate=value;
+        E::PropertyRow row(label,tip);
+        const bool changed=E::Numeric::Scalar("##value",candidate,1.f,
+            E::Numeric::Closed(std::uint64_t{0},std::uint64_t{0xffffffffu}));
+        RBS_PHASE28_WIDGET(key);
+        if(changed)value=static_cast<std::uint32_t>(candidate);
+        return changed;
+    };
+    ImGui::BeginDisabled(edit.queued!=0 || m_SceneRequest.has_value() || m_BackendRequest.has_value());
+    if(section==ContextSection::Surface && edit.mesh)
+    {
+        const bool open=E::Component("Geometry / Mesh",false);
+        RBS_PHASE28_WIDGET("mesh-section");
+        if(open)
+        {
+            ImGui::PushID("MeshRenderer");auto& mesh=*edit.mesh;
+            E::ReadOnly("Mesh / submesh",std::format("{} / {}",mesh.mesh.index,mesh.submesh).c_str(),
+                "Resource assignment has no scene asset-picker transaction here. Collider shape editing owns physics-backed geometry.");
+            RBS_PHASE28_WIDGET("mesh-identity");
+            edit.meshDirty|=ImGui::Checkbox("Cast shadows",&mesh.castShadows);
+            RBS_PHASE28_WIDGET("mesh-cast-shadows");
+            E::Tooltip("Caster intent; the material must also support shadow casting.");
+            edit.meshDirty|=ImGui::Checkbox("Receive shadows",&mesh.receiveShadows);
+            RBS_PHASE28_WIDGET("mesh-receive-shadows");
+            E::Tooltip("Shadow reception for material pipelines that consume shadow lighting.");
+            edit.meshDirty|=ImGui::Checkbox("Pickable",&mesh.pickable);
+            RBS_PHASE28_WIDGET("mesh-pickable");
+            E::Tooltip("Viewport mesh picking. Hierarchy selection remains available when disabled.");
+            actions(4,edit.meshDirty,nullptr);ImGui::PopID();
+        }
+    }
+    if(section==ContextSection::Surface && m_HoveredEntity.HasAllComponents<MeshRendererComponent>() && E::Component("Surface Material",true,"Surface material"))
     {
         ImGui::PushID("SurfaceMaterial");
         E::ReadOnly("Material instance",std::format("{}",edit.materialTarget.index).c_str());
@@ -797,54 +985,107 @@ void RigidBodySimulationApp::DrawContextProperties()
         {
             auto& material=*edit.material;
             ImGui::TextWrapped("Shared material: edits affect all objects using this material. Physics friction/restitution remain in Rigidbody.");
-            edit.materialDirty|=E::Color3("Base color (linear)",material.baseColor.data());
+            edit.materialDirty|=E::Color3("Base color (linear)",material.baseColor.data(),[&](int axis){
+                RBS_PHASE28_WIDGET(axis==0?"material-color-r":axis==1?"material-color-g":"material-color-b");
+            });
             edit.materialDirty|=E::Number("Metallic",material.metallic,.01f,"0 to 1; multiplier when a metallic texture is bound.",E::Numeric::Closed(0.f,1.f));
-            edit.materialDirty|=E::Number("Roughness",material.roughness,.01f,"0 to 1; multiplier when a roughness texture is bound.",E::Numeric::Closed(0.f,1.f));
+            RBS_PHASE28_WIDGET("material-metallic");
+            edit.materialDirty|=number("Roughness",material.roughness,.01f,"0 to 1; multiplier when a roughness texture is bound.",E::Numeric::Closed(0.f,1.f),E::Numeric::Accept{},"material-roughness");
             edit.materialDirty|=E::Number("Normal strength",material.normalStrength,.01f,"Range 0 to 2.",E::Numeric::Closed(0.f,2.f));
+            RBS_PHASE28_WIDGET("material-normal");
             edit.materialDirty|=E::Number("AO strength",material.aoStrength,.01f,"Range 0 to 1.",E::Numeric::Closed(0.f,1.f));
+            RBS_PHASE28_WIDGET("material-ao");
             edit.materialDirty|=E::Number("UV repeat X",material.uvTiling[0],.05f,"Range 0.001 to 1024.",E::Numeric::Closed(.001f,1024.f));
+            RBS_PHASE28_WIDGET("material-uv-x");
             edit.materialDirty|=E::Number("UV repeat Y",material.uvTiling[1],.05f,"Range 0.001 to 1024.",E::Numeric::Closed(.001f,1024.f));
+            RBS_PHASE28_WIDGET("material-uv-y");
             actions(3,edit.materialDirty,nullptr);
         }
         ImGui::PopID();
     }
-    if(edit.camera && E::Component("Camera"))
+    if(section==ContextSection::Surface && E::Component("Visibility",true))
+    {
+        if(edit.visibility)
+        {
+            ImGui::PushID("RuntimeVisibility");
+            edit.visibilityDirty|=ImGui::Checkbox("Render enabled",&edit.visibility->enabled);
+            RBS_PHASE28_WIDGET("visibility-enabled");
+            E::Tooltip("Runtime mesh extraction, including mesh shadows and mesh picking. Does not disable lights, cameras or collisions.");
+            edit.visibilityDirty|=layers("Render layers",edit.visibility->layers,
+                "32-bit decimal mask. Mesh visibility/picking requires an overlap with camera layers; shadow casting is independent.","visibility-layers");
+            actions(5,edit.visibilityDirty,nullptr);ImGui::PopID();
+        }
+        DrawEntityPresentationProperties();
+    }
+    if(section==ContextSection::View && m_HoveredEntity==m_SkyBoxEntity && E::Component("Environment"))DrawEnvironmentProperties();
+    if(section==ContextSection::View && edit.camera && E::Component("Camera"))
     {
         ImGui::PushID("SceneCamera");auto& camera=*edit.camera;
+        if(!m_CameraPilot && ImGui::Button("Pilot Camera"))(void)BeginCameraPilot(*id);
+        E::Tooltip("Navigate through this actual Scene Camera in the main Viewport. Commit creates one undoable pose; Cancel restores it. Editor view is preserved.");
         const auto cameraCheck=[&](auto member){return [&,member](float v){auto candidate=camera;candidate.*member=v;return E::ValidateCamera(candidate);};};
-        ImGui::TextWrapped("Scene Camera. Editing does not change the Editor Camera or the active view.");
+        ImGui::TextWrapped("Position and Rotation are in Transform above. T/R and the gizmo edit the selected Camera in Edit mode.");
+        if(ImGui::Button("Edit Transform"))(void)EditSceneCamera(*id);
+        RBS_PHASE28_WIDGET("camera-edit-transform");
+        ImGui::SameLine();
+        ImGui::BeginDisabled(bool(m_HoveredEntity.GetParent()));
+        if(ImGui::Button("Match Editor View"))(void)EditSceneCamera(*id,true);
+        RBS_PHASE28_WIDGET("camera-match-editor");
+        ImGui::EndDisabled();
+        E::Tooltip("Copy the independently navigated Editor Camera pose to this root Camera, preserving projection. Uses atomic Transform and Undo. Pilot instead navigates this Scene Camera directly.");
         const auto active=m_ActiveScene->ActiveSceneCamera();
         ImGui::TextUnformatted(active && *active && **active==*id?"Active Scene Camera":"Scene Camera (not active)");
         if(m_CameraView==CameraView::Preview && m_PreviewCamera==*id) {
             if(ImGui::Button("End camera preview"))(void)EndCameraPreview();
         } else if(ImGui::Button("Preview this camera"))(void)SetCameraView(CameraView::Preview,*id);
+        RBS_PHASE28_WIDGET("camera-preview");
         if(ImGui::Button("Open Camera View"))OpenCameraPanel(*id);
+        RBS_PHASE28_WIDGET("camera-open-view");
         ImGui::SameLine();if(ImGui::Button("Make active"))(void)SelectSceneCamera(*id);
+        RBS_PHASE28_WIDGET("camera-active");
+        ImGui::TextWrapped("Make Active selects the Scene's runtime camera. Preview only looks through it. Open Camera View creates a separate output monitor.");
         {E::PropertyRow row("Projection");int projection=int(camera.projection);
-            if(ImGui::Combo("##projection",&projection,"Perspective\0Orthographic\0")){camera.projection=Component::CameraProjection(projection);edit.cameraDirty=true;}}
+            if(ImGui::Combo("##projection",&projection,"Perspective\0Orthographic\0")){camera.projection=Component::CameraProjection(projection);edit.cameraDirty=true;}
+            RBS_PHASE28_WIDGET("camera-projection");}
         if(camera.projection==Component::CameraProjection::Perspective)
-        {float fov=glm::degrees(camera.verticalFovRadians);if(E::Number("Vertical FOV (deg)",fov,.1f,"Open range: 1 to 179 degrees; finite, invertible projection required.",E::Numeric::Bounds<float>{glm::degrees(.0174533f),glm::degrees(3.124139f),true,true},[&](float v){auto candidate=camera;candidate.verticalFovRadians=glm::radians(v);return E::ValidateCamera(candidate);})){camera.verticalFovRadians=glm::radians(fov);edit.cameraDirty=true;}}
+        {
+            float fov=glm::degrees(camera.verticalFovRadians);
+            const auto validateFov=[&](float value){auto candidate=camera;candidate.verticalFovRadians=glm::radians(value);return E::ValidateCamera(candidate);};
+            if(number("Vertical FOV (deg)",fov,.1f,"Open range: 1 to 179 degrees; finite, invertible projection required.",
+                      {glm::degrees(.0174533f),glm::degrees(3.124139f),true,true},validateFov,"camera-fov"))
+            {camera.verticalFovRadians=glm::radians(fov);edit.cameraDirty=true;}
+        }
         else {
             float size=camera.orthographicHeight*.5f;
             if(E::Number("Orthographic size (m)",size,.1f,"Positive half-height; full view height is twice this size.",E::Numeric::Positive<float>(),[&](float v){auto c=camera;c.orthographicHeight=2.f*v;return E::ValidateCamera(c);})){camera.orthographicHeight=size*2.f;edit.cameraDirty=true;}
+            RBS_PHASE28_WIDGET("camera-ortho-size");
         }
         edit.cameraDirty|=E::Number("Near clip (m)",camera.nearPlane,.01f,"0 < near < far.",E::Numeric::Bounds<float>{0.f,camera.farPlane,true,true},cameraCheck(&RenderCameraComponent::nearPlane));
+        RBS_PHASE28_WIDGET("camera-near");
         edit.cameraDirty|=E::Number("Far clip (m)",camera.farPlane,1.f,"Far must exceed near; finite, invertible projection required.",E::Numeric::Bounds<float>{camera.nearPlane,{},true},cameraCheck(&RenderCameraComponent::farPlane));
+        RBS_PHASE28_WIDGET("camera-far");
+        edit.cameraDirty|=layers("Visible layers",camera.visibleLayers,
+            "32-bit decimal mask for this Scene Camera. A mesh must share a layer to render or enter the picking list; shadows are independent.","camera-layers");
         actions(1,edit.cameraDirty,E::ValidateCamera(camera));ImGui::PopID();
     }
-    if(edit.light && E::Component("Light"))
+    if(section==ContextSection::View && edit.light && E::Component("Light"))
     {
         ImGui::PushID("SceneLight");auto& light=*edit.light;
         {E::PropertyRow row("Type","Renderer supports one Directional, one Point and one Spot Light.");int kind=int(light.kind);
-            if(ImGui::Combo("##kind",&kind,"Directional\0Point\0Spot\0")){light.kind=RenderLightKind(kind);edit.lightDirty=true;}}
-        edit.lightDirty|=E::Color3("Color (linear)",light.color.data());
-        edit.lightDirty|=E::Number("Intensity",light.intensity,.05f,"Linear multiplier; finite and nonnegative.",E::Numeric::Nonnegative<float>());
+            if(ImGui::Combo("##kind",&kind,"Directional\0Point\0Spot\0")){light.kind=RenderLightKind(kind);edit.lightDirty=true;}
+            RBS_PHASE28_WIDGET("light-kind");}
+        edit.lightDirty|=E::Color3("Color (linear)",light.color.data(),[&](int axis){
+            RBS_PHASE28_WIDGET(axis==0?"light-color-r":axis==1?"light-color-g":"light-color-b");
+        });
+        edit.lightDirty|=number("Intensity",light.intensity,.05f,"Linear multiplier; finite and nonnegative.",
+                                E::Numeric::Nonnegative<float>(),E::Numeric::Accept{},"light-intensity");
         ImGui::BeginDisabled(light.kind==RenderLightKind::Directional);
         const bool point=light.kind==RenderLightKind::Point;
         edit.lightDirty|=E::Number(point?"Shadow range (m)":"Range (m)",light.range,.1f,
             point?"Cube-shadow far clip and spherical guide radius. Point illumination has no finite cutoff.":"Spot range is the radial illumination cutoff; Directional lights have no finite range.",
             E::Numeric::Bounds<float>{point?m_NearPlane:0.f,{},true},
             [&](float value){auto candidate=light;candidate.range=value;return E::ValidateLight(candidate,m_NearPlane);});ImGui::EndDisabled();
+        RBS_PHASE28_WIDGET("light-range");
         if(point) {
             ImGui::PushStyleColor(ImGuiCol_Text,ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
             ImGui::TextWrapped("Finite illumination cutoff is unsupported; the sphere shows shadow coverage.");
@@ -854,20 +1095,26 @@ void RigidBodySimulationApp::DrawContextProperties()
         {
             float inner=glm::degrees(light.innerConeRadians),outer=glm::degrees(light.outerConeRadians);
             if(E::Number("Inner cone (deg)",inner,.1f,"0 <= inner <= outer.",E::Numeric::Closed(0.f,outer),[&](float v){auto candidate=light;candidate.innerConeRadians=glm::radians(v);return E::ValidateLight(candidate);})){light.innerConeRadians=glm::radians(inner);edit.lightDirty=true;}
+            RBS_PHASE28_WIDGET("light-inner");
             if(E::Number("Outer cone (deg)",outer,.1f,"inner <= outer < 90; outer must be positive.",E::Numeric::Bounds<float>{inner,glm::degrees(1.5707963f),inner==0,true},[&](float v){auto candidate=light;candidate.outerConeRadians=glm::radians(v);return E::ValidateLight(candidate);})){light.outerConeRadians=glm::radians(outer);edit.lightDirty=true;}
+            RBS_PHASE28_WIDGET("light-outer");
         }
         edit.lightDirty|=ImGui::Checkbox("Cast shadows",&light.castShadows);
+        RBS_PHASE28_WIDGET("light-cast-shadows");
         if(light.kind==RenderLightKind::Spot) {
             ImGui::BeginDisabled(!light.castShadows);
             edit.lightDirty|=E::Number("Shadow resolution",light.spotShadow.resolution,64.f,"1 to 8192 pixels; GPU allocation is validated before Apply.",E::Numeric::Closed(1,8192));
+            RBS_PHASE28_WIDGET("light-shadow-resolution");
             edit.lightDirty|=E::Number("Shadow bias",light.spotShadow.bias,.0001f,"Normalized projected depth, 0 to 1.",E::Numeric::Closed(0.f,1.f));
-            {E::PropertyRow row("Filtering");edit.lightDirty|=ImGui::Combo("##PCF",&light.spotShadow.pcfRadius,"Hard\0PCF 3 x 3\0PCF 5 x 5\0");}
+            RBS_PHASE28_WIDGET("light-shadow-bias");
+            {E::PropertyRow row("Filtering");edit.lightDirty|=ImGui::Combo("##PCF",&light.spotShadow.pcfRadius,"Hard\0PCF 3 x 3\0PCF 5 x 5\0");RBS_PHASE28_WIDGET("light-shadow-filter");}
             ImGui::EndDisabled();
         }
         if(light.kind==RenderLightKind::Directional)ImGui::TextWrapped("Direction comes from Rotation. Position is an editor anchor and does not affect illumination or shadows.");
         actions(2,edit.lightDirty,E::ValidateLight(light,m_NearPlane));ImGui::PopID();
     }
-    if(!edit.diagnostic.empty())ImGui::TextWrapped("%s",edit.diagnostic.c_str());
+    ImGui::EndDisabled();
+    if(section==ContextSection::View && !edit.diagnostic.empty())ImGui::TextWrapped("%s",edit.diagnostic.c_str());
 }
 
 void RigidBodySimulationApp::DrawEnvironmentProperties()
@@ -876,11 +1123,15 @@ void RigidBodySimulationApp::DrawEnvironmentProperties()
     {
         bool visible=m_SkyVisibilityEdit.value_or(!m_SkyBoxEntity.HasAllComponents<VisibilityComponent>() || m_SkyBoxEntity.GetComponent<VisibilityComponent>().enabled);
         if(ImGui::Checkbox("Sky visibility",&visible)){m_ContextEditor.generation=m_SceneGeneration;m_SkyVisibilityEdit=visible;}
+#ifdef GENGINE_PHASE28_QUALIFICATION
+        if(std::string_view(ImGui::GetCurrentWindow()->Name)=="Properties")RBS_PHASE28_WIDGET("sky-visible");
+#endif
     }
     else ImGui::TextDisabled("No sky entity in this scene");
     ImGui::BeginDisabled();float ambient=.05f;Rbs::Editor::Number("Ambient factor",ambient);ImGui::EndDisabled();
-    ImGui::TextWrapped("Ambient factor is fixed by the current PBR shader. Sky tint, exposure and rotation have no Scene authoring API.");
-    ImGui::TextWrapped("Select Ground or a wall in Hierarchy for Transform, Surface material and Rigidbody settings. Lighting is edited on real Light entities.");
+    ImGui::TextWrapped("The current sky pipeline fixes the ambient factor and animates sky rotation. Sky tint and exposure are unavailable.");
+    if(m_HoveredEntity!=m_SkyBoxEntity)
+        ImGui::TextWrapped("Select the Sandbox Floor or a wall in Hierarchy for Transform, Surface Material and Rigidbody settings. Select a Light entity for lighting controls.");
 }
 
 #include "RbsJoltParameterUi.inl"

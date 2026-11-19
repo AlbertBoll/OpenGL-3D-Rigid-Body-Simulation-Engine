@@ -37,6 +37,7 @@ namespace Rbs
     struct ImpulseEditorChecks;
     struct DistanceChainImpulseChecks;
     struct BallSocketChecks;
+    struct AngularJointChecks;
     struct SandboxChecks;
     struct BackendSwitchChecks;
     struct OwnerReviewDriver;
@@ -136,6 +137,7 @@ public:
 private:
     friend struct Rbs::DistanceChainImpulseChecks;
     friend struct Rbs::BallSocketChecks;
+    friend struct Rbs::AngularJointChecks;
     friend struct Rbs::SandboxChecks;
     friend struct Rbs::BackendSwitchChecks;
     friend struct Rbs::OwnerReviewDriver;
@@ -150,6 +152,18 @@ private:
     friend struct Rbs::JoltParameterExperiment;
     bool SandboxEnabled() const { return m_Launch.InteractiveSandboxEnabled(); }
     bool RequestScene(Rbs::SceneSelection);
+    bool RequestAngularVariant(Rbs::AngularVariant);
+    bool RequestAngularApply();
+    void RevertAngularDraft();
+    void RestoreAngularDefaults();
+    void StageSceneDefaults();
+    bool ApplySceneDefaults();
+    void RevertSceneDefaults();
+    bool HasPendingObjectProperties() const;
+    bool HasPendingColliderDraft() const;
+    void DrawSceneAuthoringActions();
+    void DrawAngularProperties();
+    void DrawAngularWorldSettings();
     void ProcessSceneRequest();
     void ProcessBodyPropertyCommand();
     void ProcessWorldSleepCommand();
@@ -225,6 +239,7 @@ private:
     bool ValidateTransformPlacement(Rbs::Editor::TransformBatch&,const GEngine::PhysicsPlacementSettings&,GEngine::Mat4* pivot=nullptr);
     void ProcessTransformPreview();
     void OpenCameraPanel(GEngine::EntityRenderId);
+    bool EditSceneCamera(GEngine::EntityRenderId, bool matchEditorPose = false);
     void DrawCameraPanels();
     void RenderCameraPanels();
     void DrawEntityPresentationProperties();
@@ -243,6 +258,9 @@ private:
     bool m_GizmoCancelled=false;
     void SetEditorMode(EditorMode);
     bool TransformEditingAllowed() const;
+    bool IsAngularEndpoint(GEngine::_Entity entity) const;
+    bool ProtectsAngularTransform(GEngine::_Entity entity) const;
+    bool SelectionProtectsAngularTransform() const;
     void FinishTransformGesture();
     bool HandleTransformToolShortcut(const GEngine::Manager::InputEvent&,
         const GEngine::Manager::InputRouting&, std::uint32_t mouseButtons, bool pointerCaptured);
@@ -253,7 +271,8 @@ private:
     void CancelGroupTransform();
     void ProcessGroupTransform();
     void DrawGroupTransformActions();
-    void DrawContextProperties();
+    enum class ContextSection { Surface, View };
+    void DrawContextProperties(ContextSection);
     void ProcessContextProperties();
     void DrawEnvironmentProperties();
     void DrawComponentOverlays();
@@ -304,8 +323,31 @@ private:
     const Rbs::LaunchConfig& m_Launch;
     Rbs::SceneSelection m_ActiveSelection, m_PendingSelection;
     std::optional<Rbs::SceneSelection> m_SceneRequest;
-    GEngine::PhysicsBackend m_Backend{GEngine::PhysicsBackend::Native};
-    GEngine::PhysicsBackend m_PendingBackend{GEngine::PhysicsBackend::Native};
+    bool m_SceneDefaultsPending{};
+    struct AngularSession {
+        std::optional<Rbs::AngularPacket> committed,draft;
+        std::uint64_t revision{},draftBaseRevision{},draftGeneration{};
+        Rbs::AngularBodyKey selectedBody{Rbs::AngularBodyKey::Bar};
+        bool dirty{},interactive{};
+        std::string diagnostic;
+    } m_Angular;
+    struct AngularCandidate {
+        Rbs::AngularPacket packet;
+        std::uint64_t expectedGeneration{},expectedRevision{};
+        bool apply{};
+    };
+    std::optional<AngularCandidate> m_AngularRequest;
+    Rbs::AngularVariant m_PendingAngularVariant{Rbs::AngularVariant::Air};
+    struct AngularBindings {
+        std::array<entt::entity,3> entities{entt::null,entt::null,entt::null};
+        std::array<GEngine::PhysicsBodyHandle,3> bodies{};
+        std::array<entt::entity,5> environmentEntities{
+            entt::null,entt::null,entt::null,entt::null,entt::null};
+        GEngine::PhysicsJointHandle joint{};
+        std::size_t bodyCount{};
+    } m_AngularBindings;
+    GEngine::PhysicsBackend m_Backend{GEngine::DefaultPhysicsBackend};
+    GEngine::PhysicsBackend m_PendingBackend{GEngine::DefaultPhysicsBackend};
     std::optional<GEngine::PhysicsBackend> m_BackendRequest;
     float m_BackendSmokeMaxJointError{};
     bool m_EditorLayoutPrepared{};
@@ -386,9 +428,11 @@ private:
         std::uint64_t generation{};
         std::optional<GEngine::Component::RenderCameraComponent> camera, cameraBefore;
         std::optional<GEngine::Component::RenderLightComponent> light, lightBefore;
+        std::optional<GEngine::Component::MeshRendererComponent> mesh, meshBefore;
+        std::optional<GEngine::Component::VisibilityComponent> visibility, visibilityBefore;
         std::optional<GEngine::MaterialAuthoringDesc> material, materialBefore;
         GEngine::MaterialHandle materialTarget;
-        bool cameraDirty{},lightDirty{},materialDirty{};
+        bool cameraDirty{},lightDirty{},materialDirty{},meshDirty{},visibilityDirty{};
         int queued{};
         std::string diagnostic;
     } m_ContextEditor;
@@ -425,8 +469,30 @@ private:
             GEngine::RigidBody3D::SleepSettings m_Sleep;
             GEngine::PhysicsBodyProperties m_Properties;
             GEngine::CollisionShapeDesc m_Collider;
+            GEngine::ShapeType m_Shape{};
+            GEngine::Math::Vec3f m_LocalMin{},m_LocalMax{};
         };
         struct Joint { GEngine::JointDescriptor m_Desc; entt::entity m_A{entt::null}, m_B{entt::null}; };
+        struct Object
+        {
+            entt::entity source{entt::null};
+            std::uint64_t key{};
+            std::string signature;
+            std::optional<GEngine::SceneBodyPose> localPose;
+            GEngine::Math::Vec3f scale{1.f};
+            std::optional<GEngine::Component::VisibilityComponent> visibility;
+            std::optional<GEngine::Component::RenderCameraComponent> camera;
+            std::optional<GEngine::Component::RenderLightComponent> light;
+            std::optional<std::array<bool,3>> meshFlags;
+            std::optional<GEngine::MaterialAuthoringDesc> material;
+            bool endpoint{},sphere{},activeCamera{};
+        };
+        std::vector<Object> m_Objects;
+        // Local to one cold reconstruction. Values only identify entities in its candidate registry.
+        mutable std::map<entt::entity,entt::entity> m_Rebound;
+        bool m_Ordinary{},m_PacketOwnsJoint{};
+        entt::entity Rebound(entt::entity) const;
+        GEngine::ApplicationInitializationResult RestoreObjects(RigidBodySimulationApp&) const;
         std::vector<Body> m_Bodies;
         std::vector<Joint> m_Joints;
         GEngine::Math::Vec3f m_Gravity{};
@@ -434,11 +500,15 @@ private:
         bool m_Sleeping{true};
         std::optional<GEngine::PhysicsWorldSleepSettings> m_WorldSleep;
         std::optional<GEngine::PhysicsJoltSettings> m_JoltWorld;
-        static std::expected<BackendAuthoring, GEngine::SceneError> Capture(GEngine::_Scene&);
+        static std::expected<BackendAuthoring, GEngine::SceneError> Capture(GEngine::_Scene&, RigidBodySimulationApp* = nullptr);
         GEngine::ApplicationInitializationResult ApplyBeforeStart(GEngine::_Scene&) const;
         GEngine::ApplicationInitializationResult ApplyAfterStart(GEngine::_Scene&) const;
     };
-    GEngine::ApplicationInitializationResult InitializeScene(const BackendAuthoring* = nullptr);
+    GEngine::ApplicationInitializationResult InitializeScene(const BackendAuthoring* = nullptr,
+        const Rbs::AngularPacket* angularCandidate = nullptr);
+    GEngine::ApplicationInitializationResult InitializeAngularScene(
+        const Rbs::AngularPacket&,const Rbs::SceneAssets&,const BackendAuthoring* = nullptr);
+    GEngine::ApplicationInitializationResult VerifyAngularCandidate(const Rbs::AngularPacket&,const BackendAuthoring* = nullptr) const;
     GEngine::ApplicationInitializationResult ConnectApplicationEventHandlers();
     GEngine::ApplicationInitializationResult
     InitializeValidationPlatform(const std::initializer_list<GEngine::WindowProperties>&);
@@ -493,7 +563,8 @@ private:
                          GEngine::Component::SphereFixture3DComponent&,
                          GEngine::Component::BoxFixture3DComponent&);
     GEngine::ApplicationInitializationResult CreateEnvironmentHelpers();
-    GEngine::ApplicationInitializationResult CreateGroundAndWalls(const Rbs::SceneAssets&);
+    GEngine::ApplicationInitializationResult CreateGroundAndWalls(const Rbs::SceneAssets&,
+        std::array<entt::entity,5>* sandboxEntities=nullptr);
     GEngine::ApplicationInitializationResult CreateTemplateGallery(Rbs::SceneAssets&);
     GEngine::ApplicationInitializationResult CreateGeometryExamples(Rbs::SceneAssets&);
     GEngine::ApplicationInitializationResult CreateMaterialGallery(const Rbs::SceneAssets&);
@@ -514,6 +585,9 @@ private:
     static void FocusMaterialCamera(GEngine::Camera::_EditorCamera&, const GEngine::Math::Vec3f&,
                                     float, float, float);
     void SetMaterialComparison(int);
+    GEngine::ApplicationInitializationResult InitializeRestingContactScene(Rbs::SceneAssets&);
+    bool BeginRestingContactEpisode();
+    bool CompleteRestingContactFrame(GEngine::Timestep);
     void UpdateMaterialAnimation(GEngine::Timestep);
     GEngine::ScheduleResult ApplyAsyncTextureEdit(GEngine::SceneRenderResources&,
                                                   GEngine::Asset::AsyncTextureLoader&,
@@ -539,6 +613,12 @@ private:
     // this same snapshot until the scheduler's pre-UI readback callback completes.
     std::optional<GEngine::CameraSnapshot> m_CameraSnapshot;
     std::optional<glm::uvec2> m_FramePickPixel;
+    // Transient presentation only: never aliases the active Editor selection.
+    GEngine::EntityRenderId m_OutlineHoverEntity, m_OutlineHoverIcon;
+    std::optional<glm::uvec2> m_FrameHoverPixel, m_OutlineHoverPixel;
+    std::uint64_t m_OutlineHoverGeneration{}, m_OutlineHoverRequests{}, m_OutlineHoverReadbacks{};
+    double m_OutlineHoverLastReadbackTime = -1.0;
+    bool m_OutlineHoverInputsDirty = true;
     GEngine::Asset::AsyncTextureLoader* m_TextureLoads{}; // Borrowed root-owned service.
     GEngine::Asset::UploadTicket m_WoodRequest{};
     GEngine::Asset::MaterialInstanceHandle m_AsyncBoxMaterial{};
@@ -547,7 +627,7 @@ private:
     std::unique_ptr<GEngine::Asset::AsyncMeshLoader> m_MeshLoads;
     GEngine::Asset::UploadTicket m_BarrelRequest{};
     bool m_LoadBarrel{}, m_BarrelSettled{};
-    enum class CameraView { Editor, ActiveScene, Preview };
+    enum class CameraView { Editor, ActiveScene, Preview, Pilot };
     CameraView m_CameraView = CameraView::Editor;
     CameraView m_PreviewReturnView = CameraView::Editor;
     GEngine::EntityRenderId m_EditorViewIdentity{}, m_PreviewCamera{};
@@ -561,9 +641,29 @@ private:
     bool BindCameraScene(GEngine::RefPtr<GEngine::_Scene>);
     bool SelectSceneCamera(GEngine::EntityRenderId);
     bool RetireSceneCamera(std::size_t slot, bool replace);
+    struct CameraPilot
+    {
+        GEngine::Camera::_EditorCamera navigation;
+        std::unique_ptr<Rbs::Editor::TransformBatch> command;
+        GEngine::EditorTransformValue current;
+        GEngine::Quat parentRotation{1,0,0,0}, orientationOffset{1,0,0,0};
+        GEngine::Vec3f navigationPosition{};
+        GEngine::Quat navigationRotation{1,0,0,0};
+        int finish{}; // 1 Commit, 2 Cancel; consumed at Update, never inside input delivery.
+    };
+    std::optional<CameraPilot> m_CameraPilot;
+    bool BeginCameraPilot(GEngine::EntityRenderId);
+    bool FinishCameraPilot(bool commit);
+    void UpdateCameraPilot(GEngine::Timestep);
+    void DrawCameraPilotControls(float availableWidth=0.f);
+    GEngine::Camera::_EditorCamera& NavigationCamera()
+    { return m_CameraPilot ? m_CameraPilot->navigation : m_EditorCamera_; }
     GEngine::ApplicationInitializationResult CreateSceneCamera(std::size_t slot);
     GEngine::ScheduleResult PrepareCameraFrame(GEngine::RenderContext&,
                                               GEngine::FrameSceneInput&, GEngine::FrameCamera&);
+    void ClearOutlineHover();
+    void PrepareOutlineHover();
+    void ReadOutlineHover(glm::uvec2, std::optional<std::int32_t> sharedPixel = {});
 #ifdef GENGINE_CAMERA_VALIDATION
     GEngine::Component::RenderCameraComponent m_CameraValidationIntent;
 #endif

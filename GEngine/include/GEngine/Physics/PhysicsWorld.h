@@ -5,6 +5,7 @@
 #include "Shape.h"
 #include "Constraints/DistanceJoint.h"
 #include "Constraints/BallSocketJoint.h"
+#include "Constraints/AngularJoint.h"
 #include <expected>
 #include <functional>
 #include <memory>
@@ -157,10 +158,14 @@ namespace GEngine
     class PhysicsWorld
     {
     public:
+        [[nodiscard]] static PhysicsBodyResult<std::unique_ptr<PhysicsWorld>> Create(
+            PhysicsBackend = DefaultPhysicsBackend);
         PhysicsWorld();
+        explicit PhysicsWorld(PhysicsBackend);
         [[nodiscard]] PhysicsBodyResult<> ConfigureBackend(PhysicsBackend);
         PhysicsBackend GetBackend() const noexcept { return m_BackendKind; }
         explicit PhysicsWorld(const Math::Vec3f& gravity);
+        PhysicsWorld(PhysicsBackend, const Math::Vec3f& gravity);
         ~PhysicsWorld();
         PhysicsWorld(const PhysicsWorld&) = delete;
         PhysicsWorld& operator=(const PhysicsWorld&) = delete;
@@ -172,6 +177,9 @@ namespace GEngine
         [[nodiscard]] PhysicsBodyResult<> DestroyBody(PhysicsBodyHandle);
         [[nodiscard]] PhysicsBodyResult<> Close();
         [[nodiscard]] PhysicsBodyResult<PhysicsBodyState> ReadBody(PhysicsBodyHandle) const;
+        // At an idle owner boundary, inspect the published provider body. Jolt
+        // reports unsupported shape representations explicitly.
+        [[nodiscard]] PhysicsBodyResult<PhysicsBodyState> ReadEffectiveBody(PhysicsBodyHandle) const;
         [[nodiscard]] PhysicsBodyResult<PhysicsPlacementResult> QueryEditorPlacement(
             std::span<const PhysicsPlacementPose>, const PhysicsPlacementSettings&) const;
         [[nodiscard]] PhysicsBodyResult<PhysicsBodyHandle> BodyAt(std::size_t index) const;
@@ -215,6 +223,7 @@ namespace GEngine
         [[nodiscard]] JointResult<DistanceJointState> ReadDistanceJoint(PhysicsJointHandle) const;
         [[nodiscard]] JointResult<PhysicsJointHandle> CreateBallSocketJoint(const BallSocketJointDesc&);
         [[nodiscard]] JointResult<BallSocketJointState> ReadBallSocketJoint(PhysicsJointHandle) const;
+        [[nodiscard]] JointResult<PhysicsJointHandle> CreateAngularJoint(const AngularJointDesc&);
         [[nodiscard]] JointResult<JointState> ReadJoint(PhysicsJointHandle) const;
         [[nodiscard]] JointResult<PhysicsJointHandle> CreateJoint(const JointDescriptor&);
         [[nodiscard]] JointResult<> DestroyJoint(PhysicsJointHandle);
@@ -224,6 +233,8 @@ namespace GEngine
         auto GetGravity() const { return m_Gravity; }
         void ConstructWorld() {} // Retained no-op configuration hook.
     private:
+        struct UnconfiguredTag {};
+        explicit PhysicsWorld(UnconfiguredTag);
         // Command-local scratch: at most two incident endpoints per managed joint.
         // Independent impulse targets retain their separate 4096-body batch bound.
         struct ImpulseActivationPlan {
@@ -253,10 +264,11 @@ namespace GEngine
             // Only the selected solver row is prepared or solved.
             DistanceJointRow row;
             BallSocketJointRow point;
+            AngularJointRow angular;
             JointKind kind{JointKind::Distance};
             std::uint64_t generation{};
             bool live{};
-            void Reset() noexcept { row.Reset(); point.Reset(); }
+            void Reset() noexcept { row.Reset(); point.Reset(); angular.Reset(); }
         };
         std::unique_ptr<JointSlot[]> m_Joints;
         std::size_t m_JointCount{};

@@ -563,7 +563,7 @@ namespace Rbs::RestDiagnosis
             std::array<double,185> bodyPenetration{};
             PhysicsProfileSnapshot before{};
         };
-        std::array<Row,32> rows{};
+        std::array<Row,32> rows;
         // Accepted P21-PEN-01: current-tick values only, no Physics mutations.
         struct PenContact {
             unsigned a{},b{},manifold{},slot{},featureA{},featureB{};
@@ -574,7 +574,7 @@ namespace Rbs::RestDiagnosis
             unsigned stage{},tick{},count{},contacts{};
             std::array<PD::BodyState,185> body{};
             std::array<std::uint64_t,185> slots{},generations{};
-            std::array<PenContact,1024> contact{};
+            std::array<PenContact,1024> contact;
         };
         struct PenPosition {
             unsigned a{},b{},slot{};
@@ -582,8 +582,8 @@ namespace Rbs::RestDiagnosis
             double depth{};
         };
         struct PenPacket {
-            std::array<PenStage,4> stages{};
-            std::array<PenPosition,1024> positions{};
+            std::array<PenStage,4> stages;
+            std::array<PenPosition,1024> positions;
             unsigned positionCount{},source{},a{},b{},manifold{},slot{};
             double ground{};
             bool correcting{},written{};
@@ -600,8 +600,8 @@ namespace Rbs::RestDiagnosis
         static_assert(sizeof(PairState)==64,"frozen pair-state capacity");
         struct PairStorage {
             struct Difference { double maximum{}; unsigned samples{},first{},last{}; };
-            std::array<PairState,17020> state{}; // 185 choose 2; ten static/static entries unused
-            std::array<Difference,17020> differences{};
+            std::array<PairState,17020> state; // 185 choose 2; ten static/static entries unused
+            std::array<Difference,17020> differences;
             std::array<std::uint16_t,17020> work{},pending{};
             std::array<std::uint64_t,185> slots{},generations{};
             std::array<unsigned,185> quietTicks{};
@@ -759,13 +759,29 @@ namespace Rbs::RestDiagnosis
         std::string failure;
         // P21_BEGIN
         std::unique_ptr<Phase21Capture> phase21;
+        // D26-ENTRY-02 borrows only the small-fixture recorder, never old authority.
+        bool entry26{};
+        std::array<unsigned,5> entryQuiet{};
+        std::array<std::uint64_t,5> entrySlots{},entryGenerations{};
+        std::uint64_t entryNamedStoragePeak{},entryContactRows{};
+        double entryMinY{},entryMaxY{};
 
-        bool OpenPhase21(const char* request)
+        bool OpenPhase21(const char* request,bool currentEntry=false)
         {
-            const auto expected=(std::filesystem::path(config.outputDirectory).parent_path()/"phase21-request.txt").lexically_normal();
+            const auto expected=(std::filesystem::path(config.outputDirectory).parent_path()/(currentEntry?"d26-entry-request.txt":"phase21-request.txt")).lexically_normal();
             const auto path=std::filesystem::path(request);
             std::ifstream in(path); std::string magic,run,end;
-            if (!path.is_absolute() || path.lexically_normal()!=expected || !(in>>magic>>run>>end) ||
+            if (currentEntry) {
+                std::string stack,wake; unsigned shz{},sp{},st{},whz{},wp{},wt{},ticks{},seconds{},wall{};
+                std::uint64_t recorder{},storage{},exports{};
+                if (!path.is_absolute() || path.lexically_normal()!=expected ||
+                    !(in>>magic>>run>>stack>>shz>>sp>>st>>wake>>whz>>wp>>wt>>ticks>>seconds>>wall>>recorder>>storage>>exports>>end) ||
+                    magic!="D26-ENTRY-02" || run!="entry26" || stack!="stack60" || wake!="wake60" ||
+                    shz!=60 || sp!=1 || st!=1200 || whz!=60 || wp!=1 || wt!=600 || ticks!=1800 || seconds!=30 || wall!=180 ||
+                    recorder!=8*1024*1024 || storage!=64*1024*1024 || exports!=64*1024*1024 || end!="END" ||
+                    config.observation!=Observation::Observed) { Fail("invalid D26-ENTRY-02 request"); return false; }
+                entry26=true;
+            } else if (!path.is_absolute() || path.lexically_normal()!=expected || !(in>>magic>>run>>end) ||
                 (magic!="P21_GAME_ENGINE_01" && magic!="P21_GAME_ENGINE_02" && magic!="P21_GAME_ENGINE_03" && magic!="P21_LONG_TAIL_01" && magic!="P21_L60_CAUSAL_01" && magic!="P21_COUPLED_REFINEMENT_01") || end!="END") { Fail("invalid Phase21 request"); return false; }
             in>>std::ws; if (!in.eof()) { Fail("Phase21 trailing request fields"); return false; }
             phase21.reset(new(std::nothrow) Phase21Capture);
@@ -779,7 +795,8 @@ namespace Rbs::RestDiagnosis
             p.amended=p.amended || p.longTail || p.recovery03 || p.refined;
             if (p.amended && run=="penetration") { Fail("consumed diagnostic cannot use qualification authority"); return false; }
             using C=Phase21Capture::Case;
-            if (run=="debug") { p.count=3; p.cases={C{0,120,1,1800,true,"debug-lattice"},C{1,60,1,1200,true,"stack60"},C{2,60,1,600,true,"wake60"}}; }
+            if (entry26) { p.count=2; p.cases={C{1,60,1,1200,true,"stack60"},C{2,60,1,600,true,"wake60"}}; }
+            else if (run=="debug") { p.count=3; p.cases={C{0,120,1,1800,true,"debug-lattice"},C{1,60,1,1200,true,"stack60"},C{2,60,1,600,true,"wake60"}}; }
             else if (p.renderedSupport) { p.count=2; p.cases[0]=C{3,60,1,1200,true,"SphereBox-support"}; p.cases[1]=C{4,60,1,1200,true,"SphereBoxStack-support"}; }
             else if (run=="L60-causal") { p.count=1; p.cases[0]=C{0,60,1,73,true,"L60-causal-diagnostic"}; }
             else if (run=="penetration") { p.count=1; p.cases[0]=C{0,120,1,1800,true,"penetration-diagnostic"}; }
@@ -789,7 +806,7 @@ namespace Rbs::RestDiagnosis
                 p.cases[0]={0,hz,run=="LP"?2u:1u,(run=="prefix"?15u:120u)*hz,run!="LA",nullptr};
                 p.cases[0].name=p.run.c_str();
             } else { Fail("unknown Phase21 case"); return false; }
-            if ((run=="prefix")==p.observed || !LoadLattice(config.latticePath,lattice)) { Fail("Phase21 mode/input mismatch"); return false; }
+            if ((run=="prefix")==p.observed || (!entry26 && !LoadLattice(config.latticePath,lattice))) { Fail("Phase21 mode/input mismatch"); return false; }
             const auto dir=std::filesystem::path(config.outputDirectory); std::error_code ec;
             if (!std::filesystem::is_directory(dir,ec) || ec) return false;
             for (const char* name:{"bodies.bin","metrics.csv","frames.csv","initial.csv","episodes.csv","impulse.csv","result.json","first-failure.bin","pair-trace.bin","pair-events.bin","pair-capacity.json","attribution.csv","anchor-examples.csv","energy-examples.csv","refinement-work.csv","direct-refinement.jsonl"})
@@ -805,6 +822,12 @@ namespace Rbs::RestDiagnosis
             initial<<"episode,index,slot,generation,shape,type,inverse_mass,elasticity,friction,layer,mask,radius,px,py,pz,qw,qx,qy,qz,vx,vy,vz,wx,wy,wz,spin_length,rolling_length,linear_sleep,angular_sleep,dwell,ixx,iyy,izz\n";
             events<<"episode,name,hz,passes,sleep,ticks,initial_energy,bodies\n";
             timing<<"episode,after_tick,sleeping_before,awake_after,energy_before,energy_after,impulse_x\n";
+            if (entry26) {
+                if (std::filesystem::exists(dir/"contacts.csv",ec) || ec) { Fail("D26 contact output exists"); return false; }
+                contacts.open(dir/"contacts.csv"); contacts<<std::setprecision(17);
+                contacts<<"episode,tick,a,b,a_slot,a_generation,b_slot,b_generation,feature_a,feature_b,ax,ay,az,bx,by,bz,nx,ny,nz,depth,lax,lay,laz,lbx,lby,lbz\n";
+                if (!contacts) { Fail("D26 contact evidence open"); return false; }
+            }
             failure.reserve(256);
             if (p.amended) {
                 p.pairTrace.rdbuf()->pubsetbuf(p.pairs.traceBuffer.data(),p.pairs.traceBuffer.size());
@@ -2044,6 +2067,10 @@ namespace Rbs::RestDiagnosis
                     const auto& body=*all[i]; const auto state=PD::Capture(body);
                     if (!body.HasFiniteState() || !world.IsBodyIdentityValid(body.GetIdentity())) { Fail("Phase21 invalid body state/identity"); scene->SetPaused(true); return; }
                     row.body[i]=state; row.slots[i]=body.GetIdentity().GetSlot(); row.generations[i]=body.GetIdentity().GetGeneration();
+                    if (entry26 && (i>=entrySlots.size() || row.slots[i]!=entrySlots[i] || row.generations[i]!=entryGenerations[i] ||
+                        (inputs[i].inverseMass==0 && (state.position!=inputs[i].position || state.orientation!=inputs[i].orientation)))) {
+                        Fail("D26 membership/static geometry drift"); scene->SetPaused(true); return;
+                    }
                     if (p.amended && p.cases[episode].kind==0 && (row.slots[i]!=p.pairs.slots[i] || row.generations[i]!=p.pairs.generations[i])) { Fail("Phase21 pair identity changed INCONCLUSIVE"); scene->SetPaused(true); return; }
                     if (p.longTail && i<5 && (state.position!=inputs[i].position || state.orientation!=inputs[i].orientation)) { Fail("Phase21 static geometry changed INCONCLUSIVE"); scene->SetPaused(true); return; }
                     for (float f:{state.position.x,state.position.y,state.position.z,state.orientation.w,state.orientation.x,state.orientation.y,state.orientation.z,state.linear.x,state.linear.y,state.linear.z,state.angular.x,state.angular.y,state.angular.z}) hash(f);
@@ -2097,6 +2124,13 @@ namespace Rbs::RestDiagnosis
                     if (ia>=all.size() || ib>=all.size() || all[ia]!=c.m_BodyA || all[ib]!=c.m_BodyB) { Fail("Phase21 contact mapping"); scene->SetPaused(true); return; }
                     ++row.bodyContacts[ia]; ++row.bodyContacts[ib];
                     row.bodyPenetration[ia]=std::max(row.bodyPenetration[ia],depth); row.bodyPenetration[ib]=std::max(row.bodyPenetration[ib],depth);
+                    if (entry26) {
+                        contacts<<episode<<','<<tick<<','<<ia<<','<<ib<<','<<row.slots[ia]<<','<<row.generations[ia]
+                            <<','<<row.slots[ib]<<','<<row.generations[ib]<<','<<c.featureA<<','<<c.featureB;
+                        CsvVector(contacts,pa); CsvVector(contacts,pb); CsvVector(contacts,c.normal); contacts<<','<<depth;
+                        CsvVector(contacts,c.ptOnA_LocalSpace); CsvVector(contacts,c.ptOnB_LocalSpace); contacts<<'\n'; ++entryContactRows;
+                        if (!contacts) Fail("D26 contact evidence write");
+                    }
                     if (p.amended && p.cases[episode].kind==0) {
                         const unsigned key=Phase21PairTouch(ia,ib); auto& pair=p.pairs.state[key];
                         if (p.recovery03) {
@@ -2118,6 +2152,27 @@ namespace Rbs::RestDiagnosis
                     Fail("Phase21 lattice safety bound");
                 }
                 if (p.amended && sizeof(Session)+sizeof(Phase21Capture)+row.capacity>64*1024*1024) { overflow=true; Fail("Phase21 named storage capacity INCONCLUSIVE"); }
+                if (entry26) {
+                    const auto named=sizeof(Session)+sizeof(Phase21Capture)+row.capacity;
+                    entryNamedStoragePeak=std::max(entryNamedStoragePeak,std::uint64_t(named));
+                    if (sizeof(Phase21Capture)>8*1024*1024 || named>64*1024*1024) { overflow=true; Fail("D26 recorder/storage capacity INCOMPLETE"); }
+                    if (tick>TickLimit()-120) {
+                        if (row.penetration>.035) Fail("D26 final support penetration");
+                        for (unsigned i=1;i<row.count;++i) {
+                            const auto& state=row.body[i]; const auto settings=all[i]->GetSleepSettings();
+                            const bool quiet=state.sleeping || (glm::length(glm::dvec3(state.linear))<=settings.linearSpeedThreshold &&
+                                glm::length(glm::dvec3(state.angular))<=settings.angularSpeedThreshold);
+                            entryQuiet[i]+=quiet;
+                            if (p.cases[episode].kind==2) {
+                                if (tick==TickLimit()-119) entryMinY=entryMaxY=state.position.y;
+                                entryMinY=std::min(entryMinY,double(state.position.y)); entryMaxY=std::max(entryMaxY,double(state.position.y));
+                                if (!quiet || entryMaxY-entryMinY>.02 || std::abs(state.linear.y)>.05) Fail("D26 final sphere quiet/height/speed");
+                            }
+                        }
+                    }
+                    if (tick==TickLimit() && p.cases[episode].kind==1)
+                        for (unsigned i=1;i<row.count;++i) if (entryQuiet[i]<108) Fail("D26 final stack quiet fraction");
+                }
                 if (p.cases[episode].kind==2 && tick==300) { p.impulsePending=true; scene->SetPaused(true); }
                 if (p.cases[episode].kind==2 && tick==301 && row.body[1].sleeping) Fail("Phase21 next-tick wake");
                 row.callbackNs+=PD::Nanoseconds()-start; ++p.used; ++p.totalTicks; p.pending=true;
@@ -2142,7 +2197,7 @@ namespace Rbs::RestDiagnosis
                     Binary(bodies,episode); Binary(bodies,row.tick); Binary(bodies,i);
                     Binary(bodies,row.slots[i]); Binary(bodies,row.generations[i]); BinaryState(bodies,row.body[i]);
                     Binary(bodies,row.bodyContacts[i]);
-                    if (p.longTail || p.recovery03) Binary(bodies,row.bodyPenetration[i]);
+                    if (p.longTail || p.recovery03 || entry26) Binary(bodies,row.bodyPenetration[i]);
                 }
             }
             p.used=0;
@@ -2153,12 +2208,12 @@ namespace Rbs::RestDiagnosis
             auto& p=*phase21;
             // Commit existing raw evidence before the next case can start. A case
             // capture marker never substitutes for numerical or shutdown PASS.
-            const std::array<std::pair<const char*,std::ofstream*>,13> streams{{
+            const std::array<std::pair<const char*,std::ofstream*>,14> streams{{
                 {"bodies.bin",&bodies},{"metrics.csv",&metrics},{"frames.csv",&frames},
                 {"initial.csv",&initial},{"episodes.csv",&events},{"impulse.csv",&timing},
                 {"pair-trace.bin",&p.pairTrace},{"pair-events.bin",&p.pairEvents},
                 {"attribution.csv",&p.audit.ledger},{"anchor-examples.csv",&p.audit.packets},
-                {"energy-examples.csv",&p.audit.energyPackets},{"refinement-work.csv",&p.refinement.work},{"direct-refinement.jsonl",&p.refinement.direct}}};
+                {"energy-examples.csv",&p.audit.energyPackets},{"refinement-work.csv",&p.refinement.work},{"direct-refinement.jsonl",&p.refinement.direct},{"contacts.csv",&contacts}}};
             for (const auto& [name,stream]:streams) {
                 if (!stream->is_open()) continue;
                 stream->flush();
@@ -2213,6 +2268,7 @@ namespace Rbs::RestDiagnosis
             std::uint64_t size=p.packetBytes+(p.amended?p.pairBytes:0)+p.caseMetadataBytes;
             for (auto* out:{&bodies,&metrics,&frames,&initial,&events,&timing}) { const auto n=out->tellp(); if (n<0) Fail("Phase21 stream position"); else size+=std::uint64_t(n); }
             p.exportBytes=size;
+            if (entry26) { const auto n=contacts.tellp(); if (n<0) Fail("D26 contact stream position"); else p.exportBytes+=std::uint64_t(n); }
             if (p.refined) for (auto* out:{&p.refinement.work,&p.refinement.direct}) if (out->is_open()) {
                 const auto n=out->tellp(); if (n<0) Fail("Phase21 refinement stream position"); else p.exportBytes+=std::uint64_t(n);
             }
@@ -2232,6 +2288,7 @@ namespace Rbs::RestDiagnosis
         bool Phase21Finish(bool clean)
         {
             PD::observer=nullptr;
+            if (entry26) { contacts.flush(); if (!contacts) Fail("D26 contact final flush"); contacts.close(); }
             if (phase21->refined) for (auto* stream:{&phase21->refinement.work,&phase21->refinement.direct}) if (stream->is_open()) {
                 stream->flush(); if (!*stream) Fail("Phase21 refinement final flush"); stream->close();
             }
@@ -2242,15 +2299,19 @@ namespace Rbs::RestDiagnosis
             }
             if (phase21->amended) { Phase21PairsEnd(); phase21->pairTrace.close(); phase21->pairEvents.close(); }
             for (auto* out:{&bodies,&metrics,&frames,&initial,&events,&timing}) { out->flush(); if (!*out) Fail("Phase21 final flush"); out->close(); }
-            const bool ok=clean && complete && !failed && completedEpisodes==phase21->count && !overflow;
+            const bool ok=clean && complete && !failed && completedEpisodes==phase21->count && !overflow &&
+                (!entry26 || (completedEpisodes==2 && completedTicks==1800 && phase21->totalTicks==1800 && phase21->impulseApplied));
             std::ofstream out(std::filesystem::path(config.outputDirectory)/"result.json");
-            out<<"{\"schema\":1,\"phase\":21,\"complete\":"<<(ok?"true":"false")<<",\"shutdown\":"<<(clean?"true":"false")
+            out<<"{\"schema\":1,\"phase\":"<<(entry26?26:21)<<",\"complete\":"<<(ok?"true":"false")<<",\"shutdown\":"<<(clean?"true":"false")
                <<",\"episodes\":"<<completedEpisodes<<",\"ticks\":"<<phase21->totalTicks<<",\"observer_bytes\":"<<sizeof(Phase21Capture)
-               <<",\"diagnostic_only\":"<<(phase21->longTail?"true":"false")<<",\"duration_violations\":"<<phase21->durationViolations
+               <<",\"diagnostic_only\":"<<((phase21->longTail || entry26)?"true":"false")<<",\"duration_violations\":"<<phase21->durationViolations
                <<",\"duration_violation_samples\":"<<phase21->durationViolationSamples<<",\"pending_recovery_episodes\":"<<phase21->pendingAtEnd
                <<",\"refinement_direct_checks\":"<<phase21->refinement.directChecks<<",\"refinement_direct_failures\":"<<phase21->refinement.directFailures
                <<",\"refinement_summary_ticks\":"<<phase21->refinement.summaryTicks<<",\"refinement_eligible_ticks\":"<<phase21->refinement.eligibleTicks<<",\"refinement_extra_events\":"<<phase21->refinement.extraEvents
-               <<",\"session_bytes\":"<<sizeof(Session)<<",\"export_bytes\":"<<phase21->exportBytes<<",\"discarded_wall_seconds\":"<<std::setprecision(17)<<phase21->discardedWallSeconds<<",\"profiling_enabled\":"<<(IsPhysicsProfilingEnabled()?"true":"false")<<",\"failure\":\""<<failure<<"\"}\n";
+               <<",\"session_bytes\":"<<sizeof(Session)<<",\"export_bytes\":"<<phase21->exportBytes<<",\"discarded_wall_seconds\":"<<std::setprecision(17)<<phase21->discardedWallSeconds<<",\"profiling_enabled\":"<<(IsPhysicsProfilingEnabled()?"true":"false")<<",\"failure\":\""<<failure<<'"';
+            if (entry26) out<<",\"diagnostic_id\":\"D26-ENTRY-02\",\"observed\":true,\"body_record_bytes\":101,\"named_storage_peak_bytes\":"<<entryNamedStoragePeak
+                <<",\"contact_rows\":"<<entryContactRows<<",\"visual_guard\":\"PENDING\",\"rendered_application_scene\":false";
+            out<<"}\n";
             return ok && bool(out);
         }
         // P21_END
@@ -2693,8 +2754,14 @@ namespace Rbs::RestDiagnosis
                 if (error) Fail("diagnostic request environment read failed");
                 return std::unique_ptr<char,decltype(&std::free)>(value,&std::free);
             };
+            const auto entryRequest=readRequest("GENGINE_D26_ENTRY_REQUEST");
             const auto phase21Request=readRequest("GENGINE_P21_REQUEST");
             if (failed) return false;
+            if (entryRequest) {
+                const auto otherRequest=readRequest("GENGINE_P20_CONDITIONAL_FOCUSED_REQUEST");
+                if (failed || phase21Request || otherRequest) { Fail("D26 conflicts with historical diagnostic request"); return false; }
+                return OpenPhase21(entryRequest.get(),true);
+            }
             if (phase21Request) return OpenPhase21(phase21Request.get());
             const auto phase20Request=readRequest("GENGINE_P20_CONDITIONAL_FOCUSED_REQUEST");
             if (failed) return false;
@@ -3172,6 +3239,13 @@ namespace Rbs::RestDiagnosis
             tick=0; sequence=0; wakeCount=sleepCount=0; lastStorage=storageGrowth=0;
             previous.clear(); previous.reserve(all.size());
             for (auto* b:all) previous.push_back(PD::Capture(*b));
+            if (entry26) {
+                if (episode>=2 || all.size()!=(episode==0?5u:2u)) { Fail("D26 exact fixture membership"); return false; }
+                entryQuiet={}; entryMinY=entryMaxY=0;
+                for (unsigned i=0;i<all.size();++i) {
+                    entrySlots[i]=all[i]->GetIdentity().GetSlot(); entryGenerations[i]=all[i]->GetIdentity().GetGeneration();
+                }
+            }
             if (phase21 && phase21->amended && phase21->cases[episode].kind==0) {
                 auto& pairs=phase21->pairs;
                 for (unsigned i=0;i<all.size();++i) {

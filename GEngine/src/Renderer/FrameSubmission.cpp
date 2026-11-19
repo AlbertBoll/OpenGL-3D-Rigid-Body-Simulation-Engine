@@ -201,7 +201,7 @@ namespace GEngine
                 glBindVertexArray(vao);
             }
         };
-        std::expected<Shader, SubmissionError> CoverageProgram(RenderPass pass, bool multiSelection = false)
+        std::expected<Shader, SubmissionError> CoverageProgram(RenderPass pass, bool multiSelection = false, bool sampleSelection = false)
         {
             const bool selection=pass==RenderPass::SelectionMask, spot=pass==RenderPass::SpotShadow;
             const bool picking=pass==RenderPass::Picking || selection, point=pass==RenderPass::PointShadow;
@@ -269,10 +269,13 @@ void main() {
   }
 )";
             if(selection) {
+                // Static use requests per-sample gl_FragCoord/alpha evaluation.
+                // Resolve must retain actual covered-sample depth, not pixel-center depth.
+                if(sampleSelection) fragment+="if(gl_SampleID<0) discard;\n";
                 if (multiSelection) {
-                    RenderBackend::ReplaceAll(fragment,"out vec2 selectedCoverage;","out vec4 selectedCoverage;\nuniform bool secondarySelection;");
-                    fragment+="if(frameOpacity*frameBaseAlpha<=0.0) discard; selectedCoverage=secondarySelection?vec4(0,0,1,gl_FragCoord.z):vec4(1,gl_FragCoord.z,0,0);";
-                } else fragment+="if(frameOpacity*frameBaseAlpha<=0.0) discard; selectedCoverage=vec2(1.0,gl_FragCoord.z);";
+                    RenderBackend::ReplaceAll(fragment,"out vec2 selectedCoverage;","out vec4 selectedCoverage;\nuniform bool hoverCoverage;");
+                    fragment+="if(frameOpacity*frameBaseAlpha<=0.0) discard; selectedCoverage=hoverCoverage?vec4(0,0,1,1.0-gl_FragCoord.z):vec4(1,1.0-gl_FragCoord.z,0,0);";
+                } else fragment+="if(frameOpacity*frameBaseAlpha<=0.0) discard; selectedCoverage=vec2(1.0,1.0-gl_FragCoord.z);";
             }
             else if(picking) fragment+="pixel=gePickingPixel;";
             if(point) fragment+="gl_FragDepth=length(FragPos.xyz-lightPos)/far_plane;";
@@ -487,36 +490,47 @@ void main() {
                 return {};
             }
         };
-        std::expected<Shader,SubmissionError> SelectionVisibilityProgram(bool multisample,bool multi=false)
+        std::expected<Shader,SubmissionError> SelectionVisibilityProgram(bool multisample,bool multi=false,bool shared=true)
         {
-            std::string fragment=std::string(R"(#version 450 core
-uniform )")+(multisample?"usampler2DMS":"usampler2D")+R"( selectedStencil;
-uniform )"+(multisample?"sampler2DMS":"sampler2D")+R"( selectedDepth;
-uniform int sampleCount;
-layout(location=0) out vec2 selectedCoverage;
+            std::string fragment="#version 450 core\n";
+            const auto sample=multisample?"s":"0";
+            if(shared) {
+                fragment+=std::string("uniform ")+(multisample?"usampler2DMS":"usampler2D")+" selectedStencil;\n";
+                fragment+=std::string("uniform ")+(multisample?"sampler2DMS":"sampler2D")+" selectedDepth;\n";
+            } else fragment+=std::string("uniform ")+(multisample?"sampler2DMS":"sampler2D")+" selectedSamples;\n";
+            fragment+="uniform int sampleCount;\nlayout(location=0) out ";
+            fragment+=multi?"vec4 selectedCoverage;\n":"vec2 selectedCoverage;\n";
+            fragment+=R"(
 void main() {
-  ivec2 p=ivec2(gl_FragCoord.xy); vec2 sum=vec2(0);
+  ivec2 p=ivec2(gl_FragCoord.xy);
+  vec2 count=vec2(0),nearest=vec2(0);
   for(int s=0;s<sampleCount;++s) {
-)"+(multisample?R"(    bool selected=(texelFetch(selectedStencil,p,s).r&1u)!=0u;
-    float depth=texelFetch(selectedDepth,p,s).r;
-)":R"(    bool selected=(texelFetch(selectedStencil,p,0).r&1u)!=0u;
-    float depth=texelFetch(selectedDepth,p,0).r;
-)")+R"(    if(selected) sum+=vec2(1,depth);
-  }
-  selectedCoverage=sum/float(sampleCount);
-})";
-            if(multi) {
-                RenderBackend::ReplaceAll(fragment,"out vec2 selectedCoverage;","out vec4 selectedCoverage;");
-                RenderBackend::ReplaceAll(fragment,"vec2 sum=vec2(0)","vec4 sum=vec4(0)");
-                RenderBackend::ReplaceAll(fragment,"bool selected=","uint selected=");
-                RenderBackend::ReplaceAll(fragment,"&1u)!=0u","&3u)");
-                RenderBackend::ReplaceAll(fragment,"if(selected) sum+=vec2(1,depth);","if(selected==1u) sum.xy+=vec2(1,depth); else if(selected==2u) sum.zw+=vec2(1,depth);");
+)";
+            if(shared) {
+                fragment+="uint kind=texelFetch(selectedStencil,p,"+std::string(sample)+").r&"+(multi?"3u":"1u")+";\n";
+                fragment+="float reversedDepth=1.0-texelFetch(selectedDepth,p,"+std::string(sample)+").r;\n";
+                fragment+=R"(    if((kind&1u)!=0u) {count.x+=1.0;nearest.x=max(nearest.x,reversedDepth);}
+    if((kind&2u)!=0u) {count.y+=1.0;nearest.y=max(nearest.y,reversedDepth);}
+)";
+            } else {
+                fragment+="vec4 c="+std::string(multi?"texelFetch(selectedSamples,p,":"vec4(texelFetch(selectedSamples,p,")+sample+(multi?");\n":").rg,0.0,0.0);\n");
+                fragment+=R"(    if(c.r>0.0) {count.x+=1.0;nearest.x=max(nearest.x,c.g);}
+    if(c.b>0.0) {count.y+=1.0;nearest.y=max(nearest.y,c.a);}
+)";
             }
+            fragment+=R"(
+  }
+  // Coverage remains exact for interior rejection and occupancy. Depth is a
+  // real nearest covered sample, never an average between separate surfaces.
+  vec4 resolved=vec4(count.x/float(sampleCount),1.0-nearest.x,
+                     count.y/float(sampleCount),1.0-nearest.y);
+)";
+            fragment+=multi?"selectedCoverage=resolved;\n}":"selectedCoverage=resolved.rg;\n}";
             constexpr std::string_view vertex=R"(#version 450 core
 void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.0-1.0,0,1); })";
             const Asset::ShaderSource stages[]{
-                {Asset::ShaderStage::Vertex,vertex,"selection shared visibility vertex"},
-                {Asset::ShaderStage::Fragment,fragment,"selection shared visibility resolve"}};
+                {Asset::ShaderStage::Vertex,vertex,"selection visibility vertex"},
+                {Asset::ShaderStage::Fragment,fragment,"selection nearest covered depth resolve"}};
             auto result=Asset::CreateShaderProgram(stages);
             if(!result) return std::unexpected(SubmissionError{"selection visibility shader",result.error()});
             return std::move(*result);
@@ -524,7 +538,7 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
         std::expected<Shader,SubmissionError> SelectionTileProgram()
         {
             // Exact occupancy of 8x8 resolved-mask texels, including partial MSAA
-            // coverage and both selection classes. No filtered/thresholded mask.
+            // coverage of selection and hover. No filtered/thresholded mask.
             constexpr std::string_view compute=R"(#version 450 core
 layout(local_size_x=8,local_size_y=8) in;
 uniform sampler2D selectedMask;
@@ -537,7 +551,8 @@ void main() {
   ivec2 p=ivec2(gl_GlobalInvocationID.xy);
   if(all(lessThan(p,regionSize))) {
     vec4 c=texelFetch(selectedMask,p,0);
-    if(c.r>0.0 || c.b>0.0) atomicOr(occupied,1u);
+    uint classes=(c.r>0.0?1u:0u)|(c.b>0.0?2u:0u);
+    if(classes!=0u) atomicOr(occupied,classes);
   }
   barrier();
   if(gl_LocalInvocationIndex==0u) imageStore(occupiedTiles,ivec2(gl_WorkGroupID.xy),uvec4(occupied));
@@ -558,59 +573,81 @@ uniform ivec2 regionOrigin,regionSize;
 uniform vec2 pixelsPerDip;
 uniform int sampleCount;
 layout(location=0) out vec4 color;
-vec2 coverage(ivec2 p) {
-  if(any(lessThan(p,ivec2(0))) || any(greaterThanEqual(p,regionSize))) return vec2(0);
-  return texelFetch(selectedMask,p,0).rg;
+vec4 coverage(ivec2 p) {
+  if(any(lessThan(p,ivec2(0))) || any(greaterThanEqual(p,regionSize))) return vec4(0);
+  return vec4(texelFetch(selectedMask,p,0).rg,0.0,0.0);
 }
 void main() {
   ivec2 p=ivec2(gl_FragCoord.xy)-regionOrigin;
-  float center=coverage(p).r;
+  vec4 centerCoverage=coverage(p);
+  float center=centerCoverage.r;
   if(center>=0.9999) discard;
-  // A conservative superset of the unchanged circular kernel. Reject only if
-  // every intersected tile has exactly zero selected coverage.
-  ivec2 radius=ivec2(ceil(6.0*pixelsPerDip));
+  // Hover interiors suppress hover only. They must never punch holes in the
+  // persistent selected contour on a background floor or another object.
+  bool hoverInterior=centerCoverage.b>=0.9999;
+  // A conservative superset of the circular kernel. Reject only if
+  // every intersected tile has exactly zero selected and hover coverage.
+  ivec2 radius=ivec2(ceil(3.45*pixelsPerDip));
+  uint candidates=hoverInterior?1u:3u;
   if(useOccupiedTiles) {
     ivec2 first=max(p-radius,ivec2(0))/8;
     ivec2 last=min(p+radius,regionSize-1)/8;
     uint occupied=0u;
     for(int y=first.y;y<=last.y;++y) for(int x=first.x;x<=last.x;++x)
       occupied|=texelFetch(occupiedTiles,ivec2(x,y),0).r;
-    if(occupied==0u) discard;
+    candidates&=occupied;
+    if(candidates==0u) discard;
   }
   float depth=1.0;
-)"+(multisample?"for(int s=0;s<sampleCount;++s) depth=min(depth,texelFetch(sceneDepth,p,s).r);":"depth=texelFetch(sceneDepth,p,0).r;")+R"(
-  float ring=0.0,glow=0.0;
+)"+(multisample?"depth=texelFetch(sceneDepth,p,gl_SampleID).r;":"depth=texelFetch(sceneDepth,p,0).r;")+R"(
+  float ring=0.0,contrast=0.0,hover=0.0;
   for(int y=-radius.y;y<=radius.y;++y) for(int x=-radius.x;x<=radius.x;++x) {
     float distance=length(vec2(x,y)/pixelsPerDip);
-    if(distance>6.0) continue;
-    vec2 c=coverage(p+ivec2(x,y));
-    if(c.r<=0.0 || depth+0.000002<c.g/c.r) continue;
-    ring=max(ring,c.r*(1.0-smoothstep(1.5,2.5,distance)));
-    glow=max(glow,c.r*0.22*pow(max(0.0,1.0-distance/6.0),2.0));
+    if(distance>3.45) continue;
+    vec4 c=coverage(p+ivec2(x,y));
+    if((candidates&1u)!=0u && c.r>0.0 && depth+0.000002>=c.g) {
+      // Every actually visible sample seeds a full-strength silhouette. A distant
+      // 1-of-N covered pixel must not reduce the whole contour's opacity to1/N.
+      ring=max(ring,1.0-smoothstep(1.7,2.7,distance));
+      contrast=max(contrast,0.45*(1.0-smoothstep(2.45,3.45,distance)));
+    }
+    // Keep the two nearest covered depths independent: a nearer hovered
+    // surface must never make an occluded selected neighbor appear visible.
+    if((candidates&2u)!=0u && c.b>0.0 && depth+0.000002>=c.a) {
+      float edge=0.55*(1.0-smoothstep(0.5,1.5,distance));
+      float halo=0.07*pow(max(0.0,1.0-distance/3.0),2.0);
+      hover=max(hover,c.b*max(edge,halo));
+    }
   }
-  float alpha=max(ring,glow)*(1.0-center);
+  float gold=max(ring,hover);
+  float under=contrast*(1.0-gold);
+  float combined=gold+under;
+  // Stencil (shared path) or the exact fallback sample rejects interiors.
+  // Multiplying by1-center again would attenuate MSAA edges a second time.
+  float alpha=combined;
   if(alpha<=0.0001) discard;
-  color=vec4(1.0,0.72,0.08,alpha);
+  // Gold over a restrained neutral dark edge, expressed as one straight-alpha
+  // composite. Opaque gold stays exactly (1.0,0.72,0.08).
+  color=vec4((vec3(1.0,0.72,0.08)*gold+vec3(0.025)*under)/combined,alpha);
 })";
             if(multi) {
-                // Active is an editing identity, not a selection style. Combine
-                // the disjoint visibility classes before the unchanged Phase24
-                // Gold coverage/depth, ring, glow and alpha calculation.
-                RenderBackend::ReplaceAll(fragment,"return texelFetch(selectedMask,p,0).rg;",
-                    "vec4 selected=texelFetch(selectedMask,p,0).rgba; return selected.rg+selected.ba;");
+                RenderBackend::ReplaceAll(fragment,"return vec4(texelFetch(selectedMask,p,0).rg,0.0,0.0);",
+                    "return texelFetch(selectedMask,p,0).rgba;");
             }
             if(multisample && !shared) {
-                fragment.insert(fragment.find('\n')+1,"uniform sampler2DMS selectedSamples;\nout int gl_SampleMask[(gl_MaxSamples+31)/32];\n");
-                const auto at=fragment.find("  float depth=1.0;");
+                fragment.insert(fragment.find('\n')+1,"uniform sampler2DMS selectedSamples;\n");
+                const auto at=fragment.find("  // A conservative superset");
                 fragment.insert(at,R"(
-  for(int word=0;word<(gl_MaxSamples+31)/32;++word) gl_SampleMask[word]=-1;
-  if(center>0.0) for(int s=0;s<sampleCount;++s)
-    if(texelFetch(selectedSamples,p,s).r>0.0)
-      gl_SampleMask[s/32]&=~(1<<(s%32));
+  vec4 interior=texelFetch(selectedSamples,p,gl_SampleID);
+  if(interior.r>0.0) discard;
+  hoverInterior=interior.b>0.0;
 )");
             }
-            if(multi && multisample && !shared)
-                RenderBackend::ReplaceAll(fragment,"texelFetch(selectedSamples,p,s).r>0.0","(texelFetch(selectedSamples,p,s).r+texelFetch(selectedSamples,p,s).b)>0.0");
+            if(multisample && shared && multi) {
+                fragment.insert(fragment.find('\n')+1,"uniform usampler2DMS selectedStencil;\n");
+                fragment.insert(fragment.find("  // A conservative superset"),
+                    "  hoverInterior=(texelFetch(selectedStencil,p,gl_SampleID).r&2u)!=0u;\n");
+            }
             constexpr std::string_view vertex=R"(#version 450 core
 void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.0-1.0,0,1); })";
             const Asset::ShaderSource stages[]{
@@ -869,7 +906,7 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
         Shader point, cascade, pick, debug, spot;
         FrameBuffer spotTarget;
         PassInputs spotScratch;
-        struct SelectionVariant { Shader mask, composite; SelectionScratch scratch; };
+        struct SelectionVariant { Shader mask, resolve, composite; SelectionScratch scratch; };
         Shader selectionTiles;
         std::array<SelectionVariant,8> selectionVariants;
         RenderBackend::UploadBuffer frameUpload, materialUpload, instanceUpload;
@@ -1310,7 +1347,7 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
         auto instancePlan=InstancePlan::Create(count,m_Storage->materialLimit,desc.instancingEnabled,spotShadow);
         if(!instancePlan) return std::unexpected(instancePlan.error());
         const auto* stencilSelected=desc.color.Description().Storage.Depth==FramebufferFormat::Depth24Stencil8
-            && (desc.selectedEntity || !desc.selectedEntities.empty()) ? &desc : nullptr;
+            && (desc.selectedEntity || !desc.selectedEntities.empty() || desc.hoveredEntity) ? &desc : nullptr;
         if(stencilSelected) {
             // Selection must not fragment otherwise compatible opaque instances
             // into alternating serial draws. Reorder only within a compatible
@@ -1376,11 +1413,12 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
         auto& storage=*m_Storage;
         bool sharedSelection=false, multiSelection=false;
         Storage::SelectionVariant* selection=nullptr;
-        if(desc.selectedEntity || !desc.selectedEntities.empty()) {
+        if(desc.selectedEntity || !desc.selectedEntities.empty() || desc.hoveredEntity) {
             for(auto i:mainVisible) {
                 const auto classification=draws[i].selectionClass;
                 if(classification==1) ++stats.selectionActiveDraws;
                 if(classification==2) {++stats.selectionSecondaryDraws;multiSelection=true;}
+                if(classification==3) {++stats.selectionHoverDraws;multiSelection=true;}
             }
             if(!std::isfinite(desc.selectionPixelsPerDip.x) || !std::isfinite(desc.selectionPixelsPerDip.y)
                 || desc.selectionPixelsPerDip.x<=0 || desc.selectionPixelsPerDip.y<=0)
@@ -1401,12 +1439,17 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
                     auto tiles=SelectionTileProgram();if(!tiles)return std::unexpected(tiles.error());
                     storage.selectionTiles=std::move(*tiles);
                 }
-                if(!selection->mask.IsLinked() || !selection->composite.IsLinked()) {
-                    auto mask=sharedSelection?SelectionVisibilityProgram(ms,multiSelection):CoverageProgram(RenderPass::SelectionMask,multiSelection);
-                    if(!mask) return std::unexpected(mask.error());
+                if((!sharedSelection && !selection->mask.IsLinked()) || !selection->resolve.IsLinked() || !selection->composite.IsLinked()) {
+                    if(!sharedSelection) {
+                        auto mask=CoverageProgram(RenderPass::SelectionMask,multiSelection,ms);
+                        if(!mask) return std::unexpected(mask.error());
+                        selection->mask=std::move(*mask);
+                    }
+                    auto resolve=SelectionVisibilityProgram(ms,multiSelection,sharedSelection);
+                    if(!resolve) return std::unexpected(resolve.error());
                     auto composite=SelectionCompositeProgram(ms,sharedSelection,multiSelection);
                     if(!composite) return std::unexpected(composite.error());
-                    selection->mask=std::move(*mask);selection->composite=std::move(*composite);
+                    selection->resolve=std::move(*resolve);selection->composite=std::move(*composite);
                 }
                 const auto format=target.Depth==FramebufferFormat::Depth24Stencil8?GL_DEPTH24_STENCIL8:
                     target.Depth==FramebufferFormat::Depth24?GL_DEPTH_COMPONENT24:
@@ -1418,6 +1461,7 @@ void main(){ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.
                     return std::unexpected(prepared.error());
             }
         }
+        stats.selectionSharedVisibility=selection && sharedSelection;
         if(selection) stats.selectionCurrentScratchBytes=selection->scratch.Bytes();
         for(const auto& variant:storage.selectionVariants) {
             stats.selectionScratchBytes+=variant.scratch.Bytes();
@@ -1647,7 +1691,10 @@ void main(){ color=lineColor; }
                 // decide visibility. Mixed color batches isolate the selected
                 // entity; picking and shadow batching are unchanged.
                 Toggle(GL_STENCIL_TEST,true);state.StencilMask(multiSelection?3u:1u);
-                glStencilFunc(GL_ALWAYS,prepared.selectionClass,multiSelection?3u:1u);
+                // Public classes retain active/secondary/hover identity. Stencil
+                // ownership is independent: selected bit1, transient hover bit2.
+                const unsigned coverageClass=prepared.selectionClass==3?2u:prepared.selectionClass?1u:0u;
+                glStencilFunc(GL_ALWAYS,coverageClass,multiSelection?3u:1u);
                 glStencilOp(GL_KEEP,GL_KEEP,GL_REPLACE);
             }
             if(auto result=Draw(prepared,shader,group,stats);!result) return result;
@@ -1740,11 +1787,15 @@ void main(){ color=lineColor; }
                 state.Viewport(-GLint(region.x),-GLint(region.y),target.Width,target.Height);
                 state.Scissor(0,0,region.width,region.height);
                 constexpr GLfloat clear[]{0,0,0,0};glClearNamedFramebufferfv(scratch.maskFbo,GL_COLOR,0,clear);
+                // MAX preserves the selected/hover unions and nearest reversed
+                // depth through overlaps, without another texture or depth write.
+                Toggle(GL_BLEND,true);state.BlendEquation(GL_MAX,GL_MAX);
+                state.BlendFunction(GL_ONE,GL_ONE,GL_ONE,GL_ONE);
                 BindProgram(selection->mask);
                 for(auto i:mainVisible) {
                     const auto& draw=draws[i];
                     if(!desc.SelectionClass(draw.draw->entity) || draw.role->kind==SceneMaterialKind::Sky) continue;
-                    if(multiSelection) Uniform(selection->mask,"secondarySelection",desc.SelectionClass(draw.draw->entity)==2);
+                    if(multiSelection) Uniform(selection->mask,"hoverCoverage",desc.SelectionClass(draw.draw->entity)==3);
                     if(auto covered=coverage(draw,selection->mask,true);!covered) return std::unexpected(covered.error());
                     Toggle(GL_CULL_FACE,draw.resources->Material().Pipeline().Description().cull!=CullMode::None);
                     if(auto result=Draw(draw,selection->mask,{i},stats);!result) return std::unexpected(result.error());
@@ -1755,18 +1806,20 @@ void main(){ color=lineColor; }
             {
                 PassTiming::Scope timing(RenderPass::SelectionResolve);
                 selectionPass(RenderPass::SelectionResolve);state.Scissor(0,0,region.width,region.height);
-                if(sharedSelection) {
+                {
                     state.Framebuffer(GL_FRAMEBUFFER,scratch.resolvedFbo);
                     state.Viewport(0,0,region.width,region.height);
-                    BindProgram(selection->mask);const auto& shader=selection->mask;
+                    BindProgram(selection->resolve);const auto& shader=selection->resolve;
                     const auto textureTarget=scratch.samples>1?GL_TEXTURE_2D_MULTISAMPLE:GL_TEXTURE_2D;
-                    state.Texture(0,textureTarget,scratch.stencil);state.Sampler(0,0);
-                    state.Texture(1,textureTarget,scratch.depth);state.Sampler(1,0);
-                    Uniform(shader,"selectedStencil",0);Uniform(shader,"selectedDepth",1);Uniform(shader,"sampleCount",int(scratch.samples));
+                    state.Texture(0,textureTarget,sharedSelection?scratch.stencil:scratch.mask);state.Sampler(0,0);
+                    if(sharedSelection) {
+                        state.Texture(1,textureTarget,scratch.depth);state.Sampler(1,0);
+                        Uniform(shader,"selectedStencil",0);Uniform(shader,"selectedDepth",1);
+                    } else Uniform(shader,"selectedSamples",0);
+                    Uniform(shader,"sampleCount",int(scratch.samples));
                     state.VertexArray(scratch.vao);glDrawArrays(GL_TRIANGLES,0,3);
                     ++stats.selectionDrawCalls;++stats.submittedDrawCalls;++stats.submittedInstances;PassTiming::Submitted(1,1);
-                } else glBlitNamedFramebuffer(scratch.maskFbo,scratch.resolvedFbo,0,0,region.width,region.height,
-                    0,0,region.width,region.height,GL_COLOR_BUFFER_BIT,GL_NEAREST);
+                }
                 if(useOccupiedTiles) {
                 BindProgram(storage.selectionTiles);
                 state.Texture(0,GL_TEXTURE_2D,scratch.resolved);state.Sampler(0,0);
@@ -1797,16 +1850,21 @@ void main(){ color=lineColor; }
                     state.Texture(2,GL_TEXTURE_2D_MULTISAMPLE,scratch.mask);state.Sampler(2,0);
                     Uniform(shader,"selectedSamples",2);
                 }
+                if(sharedSelection && multiSelection && scratch.samples>1) {
+                    state.Texture(2,GL_TEXTURE_2D_MULTISAMPLE,scratch.stencil);state.Sampler(2,0);
+                    Uniform(shader,"selectedStencil",2);
+                }
                 glUniform2i(Location(shader,"regionOrigin"),region.x,region.y);
                 glUniform2i(Location(shader,"regionSize"),region.width,region.height);
                 glUniform2f(Location(shader,"pixelsPerDip"),desc.selectionPixelsPerDip.x,desc.selectionPixelsPerDip.y);
                 state.VertexArray(scratch.vao);
+                state.BlendEquation(GL_FUNC_ADD,GL_FUNC_ADD);
                 state.BlendFunction(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ZERO,GL_ONE);
                 if(sharedSelection) {
                     // Reject each actually covered scene sample, including edge
                     // samples. The composite can never alter selected PBR color.
                     Toggle(GL_STENCIL_TEST,true);state.StencilMask(0u);
-                    glStencilFunc(GL_EQUAL,0,multiSelection?3u:1u);glStencilOp(GL_KEEP,GL_KEEP,GL_KEEP);
+                    glStencilFunc(GL_EQUAL,0,1u);glStencilOp(GL_KEEP,GL_KEEP,GL_KEEP);
                 }
                 glDrawArrays(GL_TRIANGLES,0,3);
                 ++stats.selectionDrawCalls;++stats.submittedDrawCalls;++stats.submittedInstances;

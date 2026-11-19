@@ -82,6 +82,9 @@ namespace GEngine
 		const std::vector<Manifold>& manifolds, std::vector<ContactIsland>& islands,
 		ContactIslandScratch& scratch, std::span<const std::array<RigidBodyIdentity,2>> joints)
 	{
+#ifdef GENGINE_PHASE28_QUALIFICATION
+        Phase26Observation::AllocationScope allocationScope(1);
+#endif
 		using namespace ContactIslandDetail;
 		using Node = ContactIslandScratch::Node;
 		GE_PHYSICS_PROFILE_SCOPE(contactIslandBuildTimeNs);
@@ -582,7 +585,7 @@ namespace GEngine
 #ifdef GENGINE_JOLT_FINAL_AUDIT
         JoltAudit::Scope auditPhysics(1);
 #endif
-#ifdef GENGINE_PHASE26_QUALIFICATION
+#if defined(GENGINE_PHASE26_QUALIFICATION) || defined(GENGINE_PHASE28_QUALIFICATION)
         Phase26Observation::CompleteStep phase26CompleteStep;
 #endif
         SleepPathTimer inclusiveTimer(m_InclusiveNs);
@@ -766,6 +769,9 @@ namespace GEngine
         GE_PHYSICS_PROFILE_ADD(phase25broadphaseInvocations, 1);
 #endif
 				//Timeit("	BroadPhase")
+#ifdef GENGINE_PHASE28_QUALIFICATION
+                Phase26Observation::AllocationScope allocationScope(2);
+#endif
 				m_Broadphase.FindPairs(PhysicsBodies, m_CollisionPairs, dtSeconds);
 			}
             observe(PhysicsDiagnostic::Stage::Broadphase);
@@ -968,7 +974,7 @@ namespace GEngine
             bool hasContactPointJoint = false;
             if (m_PhysicsWorld->m_JointCount) {
                 SleepPathTimer jointTimer(m_JointSolveNs);
-#ifdef GENGINE_PHASE26_QUALIFICATION
+#if defined(GENGINE_PHASE26_QUALIFICATION) || defined(GENGINE_PHASE28_QUALIFICATION)
                 Phase26Observation::JointScope jointAllocationScope;
 #endif
                 for(std::size_t i=0;i<PhysicsWorld::MaxDistanceJoints;++i) if(m_PhysicsWorld->m_Joints[i].live) {
@@ -977,7 +983,8 @@ namespace GEngine
                     auto* b=m_PhysicsWorld->ResolveJointBody(row.desc.bodyB);
                     auto& slot=m_PhysicsWorld->m_Joints[i];
                     hasContactPointJoint |= slot.kind==JointKind::BallSocket && slot.point.desc.collideConnected;
-                    const bool prepared=a && b && (slot.kind==JointKind::Distance?row.Prepare(*a,*b,dtSeconds):slot.point.Prepare(*a,*b,dtSeconds));
+                    const bool prepared=a && b && (slot.kind==JointKind::Distance?row.Prepare(*a,*b,dtSeconds):
+                        slot.kind==JointKind::BallSocket?slot.point.Prepare(*a,*b,dtSeconds):slot.angular.Prepare(*a,*b,dtSeconds));
                     if(!prepared) {
                         m_JointFailure=true;
                         GENGINE_CORE_ERROR("Distance joint preparation failed slot={}",i);
@@ -1012,13 +1019,14 @@ namespace GEngine
                     { SleepPathTimer contactTimer(m_ContactSolveNs); m_Manifolds.Solve(); }
                     if(m_PhysicsWorld->m_JointCount) {
                         SleepPathTimer jointTimer(m_JointSolveNs);
-#ifdef GENGINE_PHASE26_QUALIFICATION
+#if defined(GENGINE_PHASE26_QUALIFICATION) || defined(GENGINE_PHASE28_QUALIFICATION)
                         Phase26Observation::JointScope jointAllocationScope;
 #endif
                             bool solved=SolveDistanceJoints();
                             for(std::size_t j=0;solved && j<PhysicsWorld::MaxDistanceJoints;++j) {
                                 auto& slot=m_PhysicsWorld->m_Joints[j];
                                 if(slot.live && slot.kind==JointKind::BallSocket) solved=slot.point.Solve();
+                                else if(slot.live && AngularJoint::IsKind(slot.kind)) solved=slot.angular.Solve();
                             }
                             if(!solved) {
                                 m_JointFailure=true;
@@ -1270,6 +1278,13 @@ namespace GEngine
                             const float scale=m_PhysicsWorld->m_Joints[j].kind==JointKind::Distance?d.length:
                                 glm::length(d.localAnchorA)+glm::length(d.localAnchorB);
                             ready &= Math::IsFinite(error) && std::abs(error)<=.005f*scale;
+                            const auto& slot=m_PhysicsWorld->m_Joints[j];
+                            if(AngularJoint::IsKind(slot.kind)) {
+                                const auto state=AngularJoint::Observe(slot.angular.desc,a->m_Orientation,b->m_Orientation);
+                                const float relation=slot.kind==JointKind::Hinge?state.axisError:state.cvError;
+                                ready &= std::isfinite(relation) && relation<=std::asin(.005f) &&
+                                    state.violationU<=std::asin(.005f) && state.violationV<=std::asin(.005f);
+                            }
                         }
                     for (auto identity : std::span(island.dynamicBodies.data(), island.dynamicBodies.size())) {
 						auto* body = ResolveBody(identity);
@@ -1470,7 +1485,12 @@ namespace GEngine
         const auto rotation = (*resolved)->m_Orientation;
         if (!SetBodyPose(*resolved, p, q))
             return TransformBodyFailure(PhysicsBodyErrorCode::InvalidPose, handle, "SetBodyPose");
-        return position != (*resolved)->m_Position || rotation != (*resolved)->m_Orientation;
+        const bool changed = position != (*resolved)->m_Position || rotation != (*resolved)->m_Orientation;
+        // A stopped Editor can read the provider before another fixed step.
+        // Publish the accepted pose at the same boundary as the ECS transform.
+        if (changed && m_PhysicsWorld->m_Backend)
+            m_PhysicsWorld->m_Backend->CommitPose(handle, **resolved);
+        return changed;
     }
 
     void PhysicsSystem::InvalidateBodyContacts(RigidBody3D* body)

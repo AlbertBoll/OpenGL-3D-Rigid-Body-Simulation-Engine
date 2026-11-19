@@ -7,6 +7,9 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <algorithm>
 #include <cmath>
+#ifdef GENGINE_PHASE28_QUALIFICATION
+namespace Rbs { void Phase28AngularWidget(RigidBodySimulationApp&,const char*); }
+#endif
 
 using namespace ::GEngine;
 using namespace ::GEngine::Component;
@@ -32,13 +35,48 @@ namespace
 }
 
 
+bool RigidBodySimulationApp::IsAngularEndpoint(_Entity entity) const
+{
+    if(!m_ActiveSelection.IsAngularScene() || !m_ActiveScene ||
+       entity.GetSceneContext()!=m_ActiveScene.get() || !entity)return false;
+    const auto binding=m_ActiveScene->GetBodyBinding(entity);
+    for(std::size_t i=0;i<2 && i<m_AngularBindings.bodyCount;++i)
+        if(static_cast<entt::entity>(entity)==m_AngularBindings.entities[i] ||
+           (binding && *binding==m_AngularBindings.bodies[i]))return true;
+    return false;
+}
+
+bool RigidBodySimulationApp::ProtectsAngularTransform(_Entity entity) const
+{
+    if(!m_ActiveSelection.IsAngularScene() || !m_ActiveScene ||
+       entity.GetSceneContext()!=m_ActiveScene.get() || !entity)return false;
+    if(IsAngularEndpoint(entity))return true;
+    for(std::size_t i=0;i<2 && i<m_AngularBindings.bodyCount;++i) {
+        const _Entity endpoint{m_AngularBindings.entities[i],m_ActiveScene.get()};
+        if(!endpoint)continue;
+        for(auto parent=endpoint.GetParent();parent;parent=parent.GetParent())
+            if(parent==entity)return true;
+    }
+    return false;
+}
+
+bool RigidBodySimulationApp::SelectionProtectsAngularTransform() const
+{
+    if(!m_ActiveSelection.IsAngularScene() || !m_ActiveScene)return false;
+    for(std::size_t i=0;i<m_EditorSelection.count;++i)
+        if(auto id=m_ActiveScene->RenderData().Resolve(m_EditorSelection.ids[i]);id &&
+           ProtectsAngularTransform(_Entity{*id,m_ActiveScene.get()}))return true;
+    return false;
+}
+
 bool RigidBodySimulationApp::TransformEditingAllowed() const
 {
-    return m_EditorMode==EditorMode::Edit || m_LiveEdit;
+    return !m_CameraPilot && (m_EditorMode==EditorMode::Edit || m_LiveEdit);
 }
 
 void RigidBodySimulationApp::SetEditorMode(EditorMode mode)
 {
+    if(m_CameraPilot){m_CameraDiagnostic="Commit or Cancel Pilot before changing Editor mode.";return;}
     if(m_EditorMode==mode)return;
     // Preserve a released gesture queued for Update; cancel only an active drag.
     CancelGroupTransform();m_EditorMode=mode;
@@ -56,6 +94,7 @@ void RigidBodySimulationApp::FinishTransformGesture()
 
 const char* RigidBodySimulationApp::TransformToolDisabled(TransformTool tool) const
 {
+    if(m_CameraPilot)return "Commit or Cancel Pilot before using Transform tools.";
     if(tool==TransformTool::Select)return nullptr;
     if(m_SceneRequest || m_BackendRequest || m_SimulationState==Rbs::SimulationState::Switching)
         return "Wait for the scene transaction to complete.";
@@ -69,6 +108,8 @@ const char* RigidBodySimulationApp::TransformToolDisabled(TransformTool tool) co
         if(!id)return "Selection contains a stale entity.";
         const _Entity entity{*id,m_ActiveScene.get()};
         if(!entity.HasAllComponents<Transform3DComponent>())return "Every selected object needs a Transform.";
+        if(ProtectsAngularTransform(entity))return "Select one joint endpoint and use Transform in Properties to move the connected pair.";
+        if(entity==m_SkyBoxEntity)return "The sky follows the camera. Its visibility is available in Properties.";
         if(entity.HasAllComponents<RenderCameraComponent>() && tool==TransformTool::Scale)
             return "Camera supports Translate and Rotate; use projection properties for size.";
         if(entity.HasAllComponents<RenderLightComponent>()) {
@@ -117,6 +158,7 @@ bool RigidBodySimulationApp::HandleTransformToolShortcut(const InputEvent& event
        mouseButtons || pointerCaptured || m_GizmoUsing || m_ViewportPopupOpen || m_RenameTarget)return false;
     if(auto* ui=ImGui::GetCurrentContext();ui && (ui->IO.WantTextInput || ui->ActiveId || ui->DragDropActive ||
        ImGui::IsPopupOpen(nullptr,ImGuiPopupFlags_AnyPopupId|ImGuiPopupFlags_AnyPopupLevel)))return false;
+    if(m_CameraPilot)return false; // WASD belongs to the existing navigation controller.
     if(m_EditorMode==EditorMode::Simulation) {
         if(event.key==GENGINE_KEY_S && m_SimulationState==Rbs::SimulationState::Ready)SetSimulationState(Rbs::SimulationState::Running);
         else if(event.key==GENGINE_KEY_P && m_SimulationState==Rbs::SimulationState::Running)SetSimulationState(Rbs::SimulationState::Paused);
@@ -188,6 +230,11 @@ bool RigidBodySimulationApp::ValidateTransformPlacement(Rbs::Editor::TransformBa
     auto& poses=m_GroupTransform.poses;std::size_t count=0;
     try {poses.resize(batch.count);}catch(const std::bad_alloc&){m_PropertyDiagnostic="Placement staging allocation failed; no objects modified.";return false;}
     for(auto& edit:std::span(batch.edits.data(),batch.count)) {
+        const auto resolved=m_ActiveScene->RenderData().Resolve(edit.entity);
+        if(!resolved){m_PropertyDiagnostic="The transform target is no longer in this scene.";return false;}
+        const _Entity target{*resolved,m_ActiveScene.get()};
+        if(ProtectsAngularTransform(target) || target==m_SkyBoxEntity)
+        {m_PropertyDiagnostic="This target requires its own Properties controls.";return false;}
         const auto current=m_ActiveScene->ReadEditorTransform(edit.entity);
         if(current && m_GroupTransform.live && edit.body && current->scale==edit.before.scale)
             edit.before=*current; // Only a live gesture rebases the precommit pose, never Undo/Redo.
@@ -232,6 +279,7 @@ void RigidBodySimulationApp::ProcessTransformPreview()
 
 void RigidBodySimulationApp::ProcessGroupTransform()
 {
+    if(m_CameraPilot)return;
     using Action=Rbs::Editor::TransformSession::Action;
     auto& session=m_GroupTransform;
     if(session.generation!=m_SceneGeneration){CancelGroupTransform();session.Reset(m_SceneGeneration);return;}
@@ -310,7 +358,27 @@ void RigidBodySimulationApp::ProcessGroupTransform()
 void RigidBodySimulationApp::DrawGroupTransformActions()
 {
     namespace E=Rbs::Editor;using Action=E::TransformSession::Action;
-    auto& session=m_GroupTransform;if(!session.dirty || session.preview.kind!=E::TransformBatch::Kind::Transform)return;
+    auto& session=m_GroupTransform;
+    if(m_CameraPilot) {
+        const auto saved=ImGui::GetCursorScreenPos();const auto origin=ImGui::GetMainViewport()->Pos;
+        const float margin=E::Px(10);
+        const ImVec2 padding{std::max(margin,ImGui::GetStyle().WindowPadding.x),std::max(E::Px(8),ImGui::GetStyle().WindowPadding.y)};
+        const auto layout=E::MeasurePilotControls(m_ViewportBounds[1].x-m_ViewportBounds[0].x-2.f*(margin+padding.x));
+        const ImVec2 size{layout.size.x+2.f*padding.x,layout.size.y+2.f*padding.y};
+        if(layout.size.x<layout.minimumWidth || size.y+2.f*margin>m_ViewportBounds[1].y-m_ViewportBounds[0].y)
+            return; // Too small for usable actions; the shared Properties panel retains them.
+        const ImVec2 p{m_ViewportBounds[0].x+margin,m_ViewportBounds[1].y-margin-size.y};
+        const ImVec2 end{p.x+size.x,p.y+size.y};
+        ImGui::GetWindowDrawList()->AddRectFilled(p,end,IM_COL32(24,29,37,245),E::Px(6));
+        ImGui::SetCursorScreenPos({p.x+padding.x,p.y+padding.y});DrawCameraPilotControls(layout.size.x);
+#ifdef GENGINE_PHASE28_QUALIFICATION
+        Rbs::Phase28AngularWidget(*this,"pilot-overlay-bounds");
+#endif
+        (void)GetInputManager()->AddUIRegion({p.x-origin.x,p.y-origin.y,end.x-origin.x,end.y-origin.y});
+        if(ImGui::IsMouseHoveringRect(p,end)){m_ViewportOverlayInteracting=true;m_ViewPickRequested=false;}
+        ImGui::SetCursorScreenPos(saved);return;
+    }
+    if(!session.dirty || session.preview.kind!=E::TransformBatch::Kind::Transform)return;
     const auto saved=ImGui::GetCursorScreenPos();const float width=std::min(E::Px(480),m_ViewportBounds[1].x-m_ViewportBounds[0].x-E::Px(28));
     if(width<E::Px(80))return;
     const float height=E::Px(100);
@@ -331,6 +399,8 @@ void RigidBodySimulationApp::DrawGroupTransformActions()
 void RigidBodySimulationApp::QueueTransformEdit(TransformTool tool, const Math::Vec3f& value)
 {
     if(!m_HoveredEntity || m_SceneRequest || m_BackendRequest)return;
+    if(ProtectsAngularTransform(m_HoveredEntity) || m_HoveredEntity==m_SkyBoxEntity)
+    {m_PropertyDiagnostic="Use the selected object's supported Properties controls.";return;}
     if(!TransformEditingAllowed() || m_SimulationState==Rbs::SimulationState::Running) {
         m_PropertyDiagnostic="Use a Live Edit gizmo while running; pause for numeric Transform fields.";return;
     }
@@ -348,19 +418,30 @@ void RigidBodySimulationApp::ProcessTransformEdit()
         m_GridVisibilityEdit.reset();
     }
     if(m_GridEntity && m_GridEntity.GetComponent<VisibilityComponent>().enabled!=Rbs::Editor::Snap.visible)
-        m_GridEntity.AddOrReplaceComponent<VisibilityComponent>(VisibilityComponent{Rbs::Editor::Snap.visible});
+    {
+        auto visibility=m_GridEntity.GetComponent<VisibilityComponent>();
+        visibility.enabled=Rbs::Editor::Snap.visible;
+        m_GridEntity.AddOrReplaceComponent<VisibilityComponent>(visibility);
+    }
     if(m_VelocityEdit)
     {
         const auto edit=*m_VelocityEdit;m_VelocityEdit.reset();
         if(edit.generation!=m_SceneGeneration || edit.entity!=m_HoveredEntity || !edit.entity)
             m_PropertyDiagnostic="Selection/world changed; velocity edit cancelled.";
+        else if(IsAngularEndpoint(edit.entity))
+            m_PropertyDiagnostic="Joint endpoint initial velocities are fixed by the angular scene.";
         else if(const auto binding=m_ActiveScene->GetBodyBinding(edit.entity); !binding || *binding!=edit.body)
             m_PropertyDiagnostic="Body identity changed; velocity edit cancelled.";
         else
         {
             auto* world=m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
             const auto result=world->SetBodyVelocity(edit.body,edit.linear,edit.angular);
-            m_PropertyDiagnostic=result&&world->ReadBody(edit.body)?"Velocity applied; body readback refreshed.":"Velocity rejected; previous state retained.";
+            if(!result)m_PropertyDiagnostic="Velocity rejected; previous state retained.";
+            else if(auto actual=world->ReadEffectiveBody(edit.body);!actual)
+                m_PropertyDiagnostic="Velocity accepted. Effective backend readback is unavailable.";
+            else if(actual->linearVelocity==edit.linear && actual->angularVelocity==edit.angular)
+                m_PropertyDiagnostic="Velocity applied and confirmed by the backend.";
+            else m_PropertyDiagnostic="Velocity staged for the next Physics step.";
         }
     }
     if(!m_TransformEdit)return;
@@ -369,6 +450,8 @@ void RigidBodySimulationApp::ProcessTransformEdit()
     // Check the generation before dereferencing the borrowed entity/scene.
     if(command.generation!=m_SceneGeneration || command.entity!=m_HoveredEntity || !command.entity)
     {m_PropertyDiagnostic="Selection/world changed; Transform edit cancelled.";return;}
+    if(ProtectsAngularTransform(command.entity) || command.entity==m_SkyBoxEntity)
+    {m_PropertyDiagnostic="This object requires its own Properties controls.";return;}
     const auto binding=m_ActiveScene->GetBodyBinding(command.entity);
     if(command.body && (!binding || *binding!=command.body))
     {m_PropertyDiagnostic="Body identity changed; Transform edit cancelled.";return;}
@@ -397,17 +480,24 @@ void RigidBodySimulationApp::ProcessTransformEdit()
 void RigidBodySimulationApp::DrawViewportOverlay()
 {
     namespace E=Rbs::Editor;
+    ImGui::BeginDisabled(m_CameraPilot.has_value());
+    struct PilotToolbarScope {~PilotToolbarScope(){ImGui::EndDisabled();}} pilotToolbarScope;
     using State=Rbs::SimulationState;
     const auto restore=ImGui::GetCursorScreenPos();
     const auto min=m_ViewportBounds[0],max=m_ViewportBounds[1];
     const float pad=E::Px(4),gap=E::Px(2),hit=E::Px(E::IconHitPixels),margin=E::Px(10);
-    const float leftWidth=pad*2+9.3f*hit+6*gap,centerWidth=pad*2+3*hit+4*gap+E::Px(174),rightWidth=pad*2+hit;
+    const float fullLeft=pad*2+9.3f*hit+6*gap,fullCenter=pad*2+3*hit+4*gap+E::Px(174),rightWidth=pad*2+hit;
     const float height=pad*2+hit;
-    // Keep all three groups accessible in a narrow customized Viewport.
-    const bool stacked=max.x-min.x < centerWidth+2*std::max(leftWidth,rightWidth)+margin*4;
-    const bool stackRight=max.x-min.x < leftWidth+rightWidth+margin*3;
-    const float centerY=min.y+margin+(stacked?height+gap:0);
-    const float rightY=min.y+margin+(stackRight?2*(height+gap):0);
+    const float availableWidth=max.x-min.x;
+    const bool compact=availableWidth<fullLeft+fullCenter+rightWidth+4*margin;
+    const bool toolMenu=compact && availableWidth<E::Px(430);
+    const bool modeInMenu=compact && availableWidth<E::Px(240);
+    const float modeWidth=compact?E::Px(44):E::Px(92);
+    const float leftWidth=compact?pad*2+(toolMenu?hit:4*hit+3*gap):fullLeft;
+    const float centerWidth=compact?pad*2+2*hit+gap+(modeInMenu?0:modeWidth+gap):fullCenter;
+    const float centerX=min.x+margin+leftWidth+gap;
+    const float rightX=compact?centerX+centerWidth+gap:max.x-margin-rightWidth;
+    const float rowY=min.y+margin;
     const auto origin=ImGui::GetMainViewport()->Pos;
     m_ViewportOverlayInteracting=false;
     const auto group=[&](float x,float y,float width)
@@ -433,60 +523,112 @@ void RigidBodySimulationApp::DrawViewportOverlay()
     // The image has zero WindowPadding; tooltips/popups need normal panel padding.
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,{E::Px(10),E::Px(10)});
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,{gap,gap});
-    group(min.x+margin,min.y+margin,leftWidth);
+    group(min.x+margin,rowY,leftWidth);
     constexpr const char* names[]{"Select","Translate","Rotate","Scale"};
     constexpr const char* tips[]{"Select objects | Ctrl+click toggles selection", "Translate selected objects (T) | shared/individual pivot; World/Local axes",
         "Rotate selected objects (R) | shared/individual pivot; World/Local axes", "Uniformly scale selected objects (S) | shared/individual pivot; World/Local axes"};
-    for(int i=0;i<4;++i)
+    for(int i=0;!toolMenu && i<4;++i)
     {
         if(i)ImGui::SameLine();
         const auto tool=TransformTool(i);const char* reason=TransformToolDisabled(tool);
-        if(button(names[i],E::Icon(i),m_TransformTool==tool,!reason,reason?reason:tips[i]))
+        const bool clicked=button(names[i],E::Icon(i),m_TransformTool==tool,!reason,reason?reason:tips[i]);
+#ifdef GENGINE_PHASE28_QUALIFICATION
+        if(i==0)Rbs::Phase28AngularWidget(*this,"outline.select-tool");
+#endif
+        if(clicked)
             (void)ActivateTransformTool(tool);
     }
+    if(toolMenu) {
+        if(button("TransformTools",E::Icon(int(m_TransformTool)),true,true,"Select / Translate / Rotate / Scale"))ImGui::OpenPopup("ViewportTransformTools");
+        if(ImGui::BeginPopup("ViewportTransformTools")) {
+            for(int i=0;i<4;++i){const auto tool=TransformTool(i);const auto* reason=TransformToolDisabled(tool);
+                if(ImGui::MenuItem(names[i],nullptr,m_TransformTool==tool,!reason))(void)ActivateTransformTool(tool);
+                if(reason && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))ImGui::SetTooltip("%s",reason);}
+            ImGui::EndPopup();
+        }
+    }
+    const bool connectedSelection=SelectionProtectsAngularTransform();
+    const char* pivotNames[]{"Center","Pivot","Individual Origins"};
+    if(!compact) {
     ImGui::SameLine();
+    ImGui::BeginDisabled(connectedSelection);
     if(E::Snap.grid || E::Snap.surface || E::Snap.resolve)ImGui::PushStyleColor(ImGuiCol_Button,E::Color(0x284B70));
     if(ImGui::Button("Snap",{hit*1.5f,hit})) {ImGui::OpenPopup("ViewportSnapOptions");SetViewportActive(true,false);m_ViewportOverlayInteracting=true;}
     if(E::Snap.grid || E::Snap.surface || E::Snap.resolve)ImGui::PopStyleColor();
     if(ImGui::IsItemHovered())ImGui::SetTooltip("Grid / surface snapping and collision-safe placement");
-    ImGui::SameLine();const char* pivotNames[]{"Center","Pivot","Individual Origins"};
+    ImGui::SameLine();
     if(ImGui::Button(E::TransformPivot==2?"Origins":pivotNames[E::TransformPivot],{2*hit,hit})) {ImGui::OpenPopup("TransformPivotOptions");m_ViewportOverlayInteracting=true;}
     E::Tooltip("Center: mean of transform roots. Pivot: active entity origin. Individual: each root rotates/scales about itself.");
     ImGui::SameLine();
     if(ImGui::Button(E::TransformOrientation?"Local":"World",{1.8f*hit,hit})) {CancelGroupTransform();E::TransformOrientation=1-E::TransformOrientation;ImGui::MarkIniSettingsDirty();m_ViewportOverlayInteracting=true;}
     E::Tooltip("World axes / active entity Local axes. Individual Local rotation uses each root's own axes.");
-    group((min.x+max.x-centerWidth)*.5f,centerY,centerWidth);
-    const bool available=!m_SceneRequest && !m_BackendRequest && m_SimulationState!=State::Switching;
+    ImGui::EndDisabled();
+    }
+    group(centerX,rowY,centerWidth);
+    const bool available=!m_CameraPilot && !m_SceneRequest && !m_BackendRequest && m_SimulationState!=State::Switching;
     const bool editMode=m_EditorMode==EditorMode::Edit;
-    if(ImGui::Button(editMode?"Edit":"Simulation",{E::Px(92),hit})) {
+    if(!modeInMenu) {
+    const bool modeClicked=ImGui::Button(editMode?"Edit":compact?"Sim":"Simulation",{modeWidth,hit});
+#ifdef GENGINE_PHASE28_QUALIFICATION
+    Rbs::Phase28AngularWidget(*this,"mode-toggle");
+#endif
+    if(modeClicked) {
         SetEditorMode(editMode?EditorMode::Simulation:EditorMode::Edit);SetViewportActive(true,false);m_ViewportRequestFocus=false;m_ViewportOverlayInteracting=true;
     }
     if(ImGui::IsItemHovered())ImGui::SetTooltip("Mode: Edit pauses physics; T/R/S select tools. Simulation: S Start, P Pause, R Resume; select tools with the toolbar.");
-    ImGui::SameLine();ImGui::BeginDisabled(editMode);
+    ImGui::SameLine();
+    }
+    if(!compact) {
+    ImGui::BeginDisabled(editMode || connectedSelection);
     if(ImGui::Button(m_LiveEdit?"Live ON":"Live OFF",{E::Px(78),hit})) {CancelGroupTransform();m_LiveEdit=!m_LiveEdit;SetViewportActive(true,false);m_ViewportRequestFocus=false;m_ViewportOverlayInteracting=true;}
     ImGui::EndDisabled();ImGui::SameLine();
+    }
+    if(!compact) {
     if(button("Play",E::Icon::Play,m_SimulationState==State::Running,available&&!editMode&&m_SimulationState==State::Ready,
         "Start simulation (S in Simulation mode)"))SetSimulationState(State::Running);
     ImGui::SameLine();
     const bool paused=m_SimulationState==State::Paused;
     if(button("PauseResume",paused?E::Icon::Play:E::Icon::Pause,paused,available&&!editMode&&(paused||m_SimulationState==State::Running),
         paused?"Resume simulation (R in Simulation mode)":"Pause simulation (P in Simulation mode)"))SetSimulationState(paused?State::Running:State::Paused);
+    } else {
+        const bool running=m_SimulationState==State::Running;
+        if(button("StartPauseResume",running?E::Icon::Pause:E::Icon::Play,running,
+            available && (m_SimulationState==State::Ready || m_SimulationState==State::Paused || running),
+            running?"Pause simulation":"Start / Resume simulation; enters Simulation mode")) {
+            if(!running)SetEditorMode(EditorMode::Simulation);
+            SetSimulationState(running?State::Paused:State::Running);
+        }
+    }
     ImGui::SameLine();
     if(button("Reset",E::Icon::Reset,false,available,"Reset current scene to authored state at Tick 0"))RequestScene(m_ActiveSelection);
-    group(max.x-margin-rightWidth,rightY,rightWidth);
-    if(button("DisplayOptions",E::Icon::Options,ImGui::IsPopupOpen("ViewportDisplayOptions"),true,"Viewport display options"))ImGui::OpenPopup("ViewportDisplayOptions");
+#ifdef GENGINE_PHASE28_QUALIFICATION
+    Rbs::Phase28AngularWidget(*this,"general-reset");
+#endif
+    group(rightX,rowY,rightWidth);
+    if(button("DisplayOptions",E::Icon::Options,ImGui::IsPopupOpen("ViewportDisplayOptions"),true,compact?"More: mode, snapping, pivot, axes, Live Edit, cameras and display":"Viewport display options"))ImGui::OpenPopup("ViewportDisplayOptions");
     ImGui::PopStyleVar(); // Icon gaps must not compress menu labels/shortcuts.
     const bool wasPopup=m_ViewportPopupOpen;
+    bool openSnap=false;
     m_ViewportPopupOpen=ImGui::BeginPopup("ViewportDisplayOptions");
     if(m_ViewportPopupOpen)
     {
+        if(compact) {
+            if(ImGui::MenuItem(editMode?"Switch to Simulation mode":"Switch to Edit mode"))SetEditorMode(editMode?EditorMode::Simulation:EditorMode::Edit);
+            ImGui::BeginDisabled(connectedSelection);
+            if(ImGui::MenuItem("Snap settings...")){openSnap=true;ImGui::CloseCurrentPopup();}
+            if(ImGui::BeginMenu("Transform pivot")){for(int i=0;i<3;++i)if(ImGui::MenuItem(pivotNames[i],nullptr,E::TransformPivot==i)){CancelGroupTransform();E::TransformPivot=i;ImGui::MarkIniSettingsDirty();}ImGui::EndMenu();}
+            if(ImGui::MenuItem(E::TransformOrientation?"Use World axes":"Use Local axes")){CancelGroupTransform();E::TransformOrientation=1-E::TransformOrientation;ImGui::MarkIniSettingsDirty();}
+            if(ImGui::MenuItem("Live Edit",nullptr,m_LiveEdit,!editMode)){CancelGroupTransform();m_LiveEdit=!m_LiveEdit;}
+            ImGui::EndDisabled();ImGui::Separator();
+        }
         if(ImGui::MenuItem("Select Through",nullptr,&E::SelectThrough))ImGui::MarkIniSettingsDirty();
         E::Tooltip("Marquee: select occluded geometry too. Default OFF uses visible raster coverage. Drag over objects or empty space; Shift adds, Ctrl toggles, Esc cancels.");
         bool grid=m_GridVisibilityEdit.value_or(m_GridEntity && m_GridEntity.GetComponent<VisibilityComponent>().enabled);
         if(ImGui::MenuItem("Grid",nullptr,&grid)){m_GridVisibilityEdit=grid;E::Snap.visible=grid;ImGui::MarkIniSettingsDirty();}
         ImGui::MenuItem("Selected collider outlines",nullptr,&m_ShowSelectedColliderOutlines);
         ImGui::MenuItem("Physics debug (all bodies)","Space",&m_IsShowDebugBoundingBox);
-        ImGui::MenuItem("Gizmo",nullptr,&m_ShowGizmo);
+        ImGui::MenuItem("Gizmo",nullptr,&m_ShowGizmo,!connectedSelection);
+        if(connectedSelection)E::Tooltip("Use Properties to transform the joint endpoints together.");
         ImGui::MenuItem("Impulse direction arrows",nullptr,&m_Impulse.showArrows);
         bool changed=ImGui::MenuItem("Scene icons",nullptr,&E::SceneIcons);
         ImGui::SetNextItemWidth(E::Px(220));
@@ -513,6 +655,7 @@ void RigidBodySimulationApp::DrawViewportOverlay()
         if(ImGui::BeginMenu("Physics debug layers")){DrawPhysicsDebugSection();ImGui::EndMenu();}
         ImGui::EndPopup();
     }
+    if(openSnap)ImGui::OpenPopup("ViewportSnapOptions");
     const bool snapPopup=ImGui::BeginPopup("ViewportSnapOptions");
     if(snapPopup) {
         bool grid=m_GridVisibilityEdit.value_or(m_GridEntity && m_GridEntity.GetComponent<VisibilityComponent>().enabled);
@@ -538,7 +681,7 @@ void RigidBodySimulationApp::DrawViewportOverlay()
     const bool pivotPopup=ImGui::BeginPopup("TransformPivotOptions");
     if(pivotPopup) {for(int i=0;i<3;++i)if(ImGui::MenuItem(pivotNames[i],nullptr,E::TransformPivot==i)) {
         CancelGroupTransform();E::TransformPivot=i;ImGui::MarkIniSettingsDirty();}ImGui::EndPopup();}
-    m_ViewportPopupOpen|=snapPopup||pivotPopup;
+    m_ViewportPopupOpen|=snapPopup||pivotPopup||ImGui::IsPopupOpen("ViewportTransformTools");
     m_ViewportOverlayInteracting|=wasPopup || m_ViewportPopupOpen;
     ImGui::PopStyleVar();
     ImGui::SetCursorScreenPos(restore);
@@ -664,6 +807,7 @@ void RigidBodySimulationApp::DrawComponentOverlays()
 {
     namespace E=Rbs::Editor;
     m_VisibleSceneIconCount=0;
+    m_OutlineHoverIcon={};
     if(!m_CameraSnapshot)return;
     const auto lo=m_ViewportBounds[0],hi=m_ViewportBounds[1];
     const auto vp=m_CameraSnapshot->Projection()*m_CameraSnapshot->View();
@@ -690,7 +834,17 @@ void RigidBodySimulationApp::DrawComponentOverlays()
         draw->AddLine(pixel(p),pixel(q),color,E::Px(1));
     };
     const auto saved=ImGui::GetCursorScreenPos();
-    struct Hit {EntityRenderId id;ImVec2 lo,hi;};std::array<Hit,64> hits{};std::size_t hitCount{};
+    struct Hit {EntityRenderId id;ImVec2 lo,hi,center;float radius;};std::array<Hit,64> hits{};std::size_t hitCount{};
+    const auto outline=[&](ImVec2 center,float radius,bool selected)
+    {
+        // ImGui tessellates these screen-space strokes; no implementation-defined
+        // GL wide lines. Keep the same gold as the existing mesh selection pass.
+        // Draw-data framebuffer scaling applies once; UI/font scale changes the
+        // icon radius, not the logical selection stroke's apparent thickness.
+        const float width=selected?2.2f:1.f;
+        draw->AddCircle(center,radius,IM_COL32(12,15,20,selected?180:90),48,width+1.5f);
+        draw->AddCircle(center,radius,ImGui::GetColorU32(ImVec4{1.f,.72f,.08f,selected?1.f:.5f}),48,width);
+    };
     const auto render=[&](auto tag)
     {
         using T=decltype(tag);
@@ -767,7 +921,7 @@ void RigidBodySimulationApp::DrawComponentOverlays()
                 icon=kind==RenderLightKind::Directional?E::Icon::Sun:kind==RenderLightKind::Spot?E::Icon::Spot:E::Icon::Light;
             }
             if(icon==E::Icon::Spot && E::SpotArtwork)icon=E::SpotArtwork==1?E::Icon::SpotA:E::Icon::SpotC;
-            if(selected)draw->AddCircle(*screen,hit*.56f,IM_COL32(90,155,221,170),32,E::Px(1));
+            if(selected)outline(*screen,hit*.56f,true);
             int atlas=0;while(atlas+1<int(std::size(E::BillboardPixels)) && E::BillboardPixels[atlas]<hit)++atlas;
             E::DrawIcon(icon,m_ComponentIconAtlases[atlas],E::BillboardPixels[atlas],{p.x+E::Px(1),p.y+E::Px(1)},hit,E::Color(0x111820,.8f));
             E::DrawIcon(icon,m_ComponentIconAtlases[atlas],E::BillboardPixels[atlas],p,hit,
@@ -777,7 +931,7 @@ void RigidBodySimulationApp::DrawComponentOverlays()
             const auto origin=ImGui::GetMainViewport()->Pos;
             const ImVec2 hitLo{std::max(p.x,lo.x),std::max(p.y,lo.y)},hitHi{std::min(p.x+hit,hi.x),std::min(p.y+hit,hi.y)};
             (void)GetInputManager()->AddUIRegion({hitLo.x-origin.x,hitLo.y-origin.y,hitHi.x-origin.x,hitHi.y-origin.y});
-            if(ImGui::IsMouseHoveringRect(hitLo,hitHi) && hitCount<hits.size())hits[hitCount++]={*identity,hitLo,hitHi};
+            if(ImGui::IsMouseHoveringRect(hitLo,hitHi) && hitCount<hits.size())hits[hitCount++]={*identity,hitLo,hitHi,*screen,hit*.56f};
         }
     };
     render(RenderCameraComponent{});render(RenderLightComponent{});
@@ -786,6 +940,10 @@ void RigidBodySimulationApp::DrawComponentOverlays()
         if(hitCount>1)for(std::size_t i=0;i<hitCount;++i)if(m_EditorSelection.count && m_EditorSelection.ids[m_EditorSelection.count-1]==hits[i].id){pick=(i+1)%hitCount;break;}
         if(auto e=m_ActiveScene->RenderData().Resolve(hits[pick].id)) {
             _Entity entity{*e,m_ActiveScene.get()};ImGui::SetTooltip("%s | Scene icon%s",entity.Name().c_str(),hitCount>1?" | click to cycle overlapping icons":"");
+            if(!m_ViewportOverlayInteracting && ImGui::IsWindowHovered() && !ImGui::GetCurrentContext()->OpenPopupStack.Size) {
+                m_OutlineHoverIcon=hits[pick].id;
+                if(!m_EditorSelection.Contains(hits[pick].id))outline(hits[pick].center,hits[pick].radius,false);
+            }
             if(ImGui::IsMouseClicked(0)) {SelectColliderEntity(entity,ImGui::GetIO().KeyCtrl);m_ViewPickRequested=false;m_ViewportOverlayInteracting=true;SetViewportActive(true,false);m_ViewportRequestFocus=false;}
         }
     }
@@ -819,6 +977,10 @@ void RigidBodySimulationApp::CommitViewportClick()
     const bool add=m_Marquee.add,toggle=m_Marquee.toggle;
     CancelViewportMarquee();
     if(generation!=m_SceneGeneration || !m_ActiveScene)return;
+    if(HasPendingObjectProperties()) {
+        m_PropertyDiagnostic="Apply or Revert the selected object's pending changes before changing selection.";
+        return;
+    }
     if(clicked) {
         auto& render=m_ActiveScene->RenderData();
         if(!render.Resolve(clicked) || !EditorEntityVisible(clicked))return;
@@ -840,6 +1002,10 @@ void RigidBodySimulationApp::DrawViewportMarquee()
        io.WantTextInput || m_RenameTarget || ImGui::GetTopMostPopupModal() || ImGui::GetCurrentContext()->DragDropActive ||
        ImGui::IsKeyPressed(ImGuiKey_Escape,false)) {CancelViewportMarquee();return;}
     if(m.waiting) {
+        if(HasPendingObjectProperties()) {
+            m_PropertyDiagnostic="Apply or Revert the selected object's pending changes before changing selection.";
+            CancelViewportMarquee();return;
+        }
         const auto result=m_FrameSubmission->PollRectangleSelection();
         if(!result){m_PropertyDiagnostic="Marquee GPU query failed; selection retained.";CancelViewportMarquee();return;}
         if(*result && (*result)->serial==m.serial) {

@@ -37,7 +37,14 @@ namespace GEngine
         virtual PhysicsBodyResult<> Step(float, const Vec3f&, bool sleeping) = 0;
         virtual JointResult<> CreateJoint(PhysicsJointHandle, const DistanceJointDesc&) = 0;
         virtual JointResult<> CreateJoint(PhysicsJointHandle, const BallSocketJointDesc&) = 0;
+        virtual JointResult<> CreateJoint(PhysicsJointHandle, const AngularJointDesc&) = 0;
+        // Effective provider geometry and limits, recovered from native rows.
+        virtual JointResult<AngularJointDesc> ReadAngularJoint(PhysicsJointHandle) const = 0;
         virtual Vec3f JointVectorImpulse(PhysicsJointHandle) const noexcept = 0;
+        // Components are accumulated provider angular row impulses (N*m*s).
+        // They are not world-space XYZ torque components.
+        virtual Vec3f AngularImpulse(PhysicsJointHandle) const noexcept = 0;
+        virtual bool AngularImpulseAvailable(PhysicsJointHandle) const noexcept = 0;
         virtual void DestroyJoint(PhysicsJointHandle) noexcept = 0;
         virtual void ResetJoint(PhysicsJointHandle) noexcept = 0;
         virtual float JointImpulse(PhysicsJointHandle) const noexcept = 0;
@@ -59,6 +66,7 @@ namespace GEngine
         virtual void CommitImpulseActivation(std::span<const PhysicsBodyHandle>) noexcept = 0;
         virtual void CommitPose(PhysicsBodyHandle, const RigidBody3D&) noexcept = 0;
         virtual void ReadProperties(PhysicsBodyHandle, PhysicsBodyProperties&) const noexcept = 0;
+        virtual PhysicsBodyResult<> ReadEffectiveBody(PhysicsBodyState&) const = 0;
         virtual PhysicsJoltSettings ReadJoltSettings() const noexcept = 0;
         virtual PhysicsJoltSettings ReadJoltNativeDefaults() const noexcept = 0;
         virtual void UpdateJoltSettings(const PhysicsJoltSettings&) noexcept = 0;

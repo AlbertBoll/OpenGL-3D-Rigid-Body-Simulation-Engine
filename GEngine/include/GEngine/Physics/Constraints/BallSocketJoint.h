@@ -3,7 +3,7 @@
 
 namespace GEngine
 {
-#ifdef GENGINE_PHASE27_QUALIFICATION
+#if defined(GENGINE_PHASE27_QUALIFICATION) || defined(GENGINE_PHASE28_QUALIFICATION)
     namespace Phase27Audit {
         struct ArenaEvent {
             std::uintptr_t address{}, caller{};
@@ -22,6 +22,36 @@ namespace GEngine
         bool collideConnected{false};
     };
 
+    // Body-local, right-handed frames: X is the hinge/CV axis; Y/Z are U/V.
+    // The frames retain the authored zero relation. No per-read recalibration.
+    struct AngularJointParameters
+    {
+        Quat localFrameA{1,0,0,0}, localFrameB{1,0,0,0};
+        float lower{-3.14159265358979323846f}, upper{3.14159265358979323846f};
+        float halfAngleU{.78539816339744830962f}, halfAngleV{.78539816339744830962f};
+        bool limitsEnabled{};
+        friend bool operator==(const AngularJointParameters&, const AngularJointParameters&) = default;
+    };
+    struct AngularJointDesc
+    {
+        JointKind kind{JointKind::Hinge};
+        PhysicsBodyHandle bodyA{}, bodyB{};
+        Vec3f localAnchorA{}, localAnchorB{};
+        bool collideConnected{};
+        AngularJointParameters angular{};
+    };
+    struct JointAngularState
+    {
+        Quat relativeRotation{1,0,0,0};
+        // Provider row impulses (N*m*s), not world XYZ torque:
+        // hinge {limit,alignment0,alignment1}; CV {relation,U,V}.
+        Vec3f angularImpulse{};
+        float signedAngle{}, axisError{}, cvError{}, angleU{}, angleV{};
+        float violationU{}, violationV{};
+        int limitU{}, limitV{}; // -1 lower, 0 free, +1 upper.
+        bool impulseAvailable{};
+    };
+
     // Kind-tagged semantic readback for shared inspection and reconstruction.
     // targetDistance is meaningful only for Distance; point anchors coincide.
     struct JointDescriptor
@@ -31,6 +61,7 @@ namespace GEngine
         Vec3f localAnchorA{}, localAnchorB{};
         float targetDistance{};
         bool collideConnected{};
+        AngularJointParameters angular{};
     };
     struct JointState
     {
@@ -39,6 +70,7 @@ namespace GEngine
         Vec3f worldAnchorA{}, worldAnchorB{}, residual{}, impulse{};
         float error{};
         bool active{};
+        JointAngularState angular{};
     };
     struct BallSocketJointState
     {

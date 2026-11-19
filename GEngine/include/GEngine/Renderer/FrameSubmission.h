@@ -124,8 +124,8 @@ namespace GEngine
         bool instancingEnabled = true;
         // Conservative shadow relevance; false retains the broadcast reference.
         bool shadowCullingEnabled = true;
-        // Empty identity means no selection work. Identity is resolved only against
-        // this immutable frame; no scene access, retained entity or picking request.
+        // Empty selection/hover means no outline work. Identities resolve only
+        // against this immutable frame; no scene access or picking request.
         EntityRenderId selectedEntity;
         glm::vec2 selectionPixelsPerDip{1.f};
         // Full presentation selection; the legacy identity remains the active mesh.
@@ -137,11 +137,13 @@ namespace GEngine
         { return !std::binary_search(editorHiddenEntities.begin(),editorHiddenEntities.end(),id); }
         std::optional<RectangleSelectionRequest> rectangleSelection; // One gesture, never a steady-state pass.
         bool measureSubmission = false; // Opt-in existing PassTiming owner; no query when false.
+        EntityRenderId hoveredEntity; // Transient presentation only; selection always wins.
         unsigned SelectionClass(EntityRenderId entity) const noexcept
         {
             if (!entity) return 0;
             if (entity == selectedEntity) return 1;
             for (const auto selected : selectedEntities) if (entity == selected) return 2;
+            if (entity == hoveredEntity) return 3;
             return 0;
         }
     };
@@ -172,6 +174,8 @@ namespace GEngine
         std::array<PassDecision, 4> decisions{}; // Spot appended; historical indices retained.
         std::size_t selectionDrawCalls{}, selectionPasses{}, selectionScratchBytes{};
         std::size_t selectionActiveDraws{}, selectionSecondaryDraws{}, selectionCurrentScratchBytes{}, selectionScratchAllocations{};
+        std::size_t selectionHoverDraws{};
+        bool selectionSharedVisibility = false; // True only for an active shared-depth/stencil outline.
         std::size_t rectangleSelectionDraws{},rectangleQueryAllocations{};
         PassViewport selectionRegion;
     };

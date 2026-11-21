@@ -1,0 +1,750 @@
+{
+  "slot": "R-Native-R29_TILT_LIMIT_WAKE_V01",
+  "status": "FAIL",
+  "checks": {
+    "physical_filter_and_no_wall": true,
+    "actual_shape": true,
+    "normalized_orientation": true,
+    "body_render_translation": true,
+    "body_render_quaternion": true,
+    "reference_pose": true,
+    "initial_velocities": true,
+    "effective_mass": true,
+    "effective_inertia": true,
+    "central_domain": true,
+    "energy_work": true,
+    "joint_frame_readback": true,
+    "angular_provider_parity": true,
+    "angular_residual_limit": false,
+    "individual_anchor_bound": false,
+    "summed_anchor_bound": false,
+    "maximum_penetration": false,
+    "penetration_recovery": false,
+    "closed_contact_episodes": false,
+    "actual_floor_response_and_recovery": true,
+    "initial_sleep_by_900": true,
+    "connected_wake_961": true,
+    "returned_sleep_1080": true,
+    "settled_windows": true,
+    "settled_energy": true,
+    "settled_pose_jitter": true,
+    "settled_high_frequency": true,
+    "loaded_joint_high_frequency": false,
+    "dynamic_bound_visit_and_exit": false,
+    "energy_trend": true,
+    "inclusive_cpu": true,
+    "joint_allocation": true
+  },
+  "failures": [
+    [
+      "angular_residual_limit",
+      [
+        40,
+        4,
+        0.010533970772925859,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        40,
+        4,
+        0.08070201552882693
+      ]
+    ],
+    [
+      "summed_anchor_bound",
+      [
+        40,
+        [
+          0.008513091442155715,
+          0.005588929777067237,
+          0.003239860523826844,
+          0.005565561606738374,
+          0.08070201552882693
+        ]
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        41,
+        0,
+        0.023080004030065056,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        41,
+        0,
+        0.05899395787274609
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        41,
+        1,
+        0.05515138640099769
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        41,
+        2,
+        0.06918492765002224
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        41,
+        3,
+        0.026322843473775663,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        41,
+        3,
+        0.029247513902041295
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        41,
+        4,
+        0.06427107021941497
+      ]
+    ],
+    [
+      "summed_anchor_bound",
+      [
+        41,
+        [
+          0.05899395787274609,
+          0.05515138640099769,
+          0.06918492765002224,
+          0.029247513902041295,
+          0.06427107021941497
+        ]
+      ]
+    ],
+    [
+      "maximum_penetration",
+      [
+        41,
+        [
+          5,
+          6
+        ],
+        0.045128389751500686
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        42,
+        0,
+        0.03739660835953991,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        42,
+        0,
+        0.04928544216149857
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        42,
+        1,
+        0.017921236819353502,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        42,
+        1,
+        0.04316319825343053
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        42,
+        2,
+        0.012575157851679052,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        42,
+        2,
+        0.11416907909658386
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        42,
+        3,
+        0.03505889897489857,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        42,
+        3,
+        0.035142718920897646
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        42,
+        4,
+        0.05095643636290959
+      ]
+    ],
+    [
+      "summed_anchor_bound",
+      [
+        42,
+        [
+          0.04928544216149857,
+          0.04316319825343053,
+          0.11416907909658386,
+          0.035142718920897646,
+          0.05095643636290959
+        ]
+      ]
+    ],
+    [
+      "maximum_penetration",
+      [
+        42,
+        [
+          5,
+          6
+        ],
+        0.09193443481292585
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        43,
+        0,
+        0.04501724748438408,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        43,
+        0,
+        0.0310023775831725
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        43,
+        1,
+        0.013141516081791555,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        43,
+        1,
+        0.027882226880531807
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        43,
+        2,
+        0.010697125690935156,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        43,
+        2,
+        0.12329540546769652
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        43,
+        3,
+        0.018041315650606078,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        43,
+        3,
+        0.037638920985809295
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        43,
+        4,
+        0.04023106450218532
+      ]
+    ],
+    [
+      "summed_anchor_bound",
+      [
+        43,
+        [
+          0.0310023775831725,
+          0.027882226880531807,
+          0.12329540546769652,
+          0.037638920985809295,
+          0.04023106450218532
+        ]
+      ]
+    ],
+    [
+      "maximum_penetration",
+      [
+        43,
+        [
+          5,
+          6
+        ],
+        0.10539622676259741
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        44,
+        0,
+        0.032810507990696035,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        44,
+        0,
+        0.029294154855264154
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        44,
+        1,
+        0.04473828474945913
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        44,
+        2,
+        0.08607202149380473
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        44,
+        3,
+        0.02902721835622335,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        44,
+        3,
+        0.05029448160134939
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        44,
+        4,
+        0.03133920371980531
+      ]
+    ],
+    [
+      "summed_anchor_bound",
+      [
+        44,
+        [
+          0.029294154855264154,
+          0.04473828474945913,
+          0.08607202149380473,
+          0.05029448160134939,
+          0.03133920371980531
+        ]
+      ]
+    ],
+    [
+      "maximum_penetration",
+      [
+        44,
+        [
+          5,
+          6
+        ],
+        0.0928334471595329
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        45,
+        0,
+        0.05108841632090994,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        45,
+        0,
+        0.05507177627081031
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        45,
+        1,
+        0.011256954571423344,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        45,
+        1,
+        0.09979841698707675
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        45,
+        2,
+        0.01064933906018645,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        45,
+        2,
+        0.023345119591567202
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        45,
+        3,
+        0.05332276496141341,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        45,
+        3,
+        0.0659592315263626
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        45,
+        4,
+        0.023691247573172154
+      ]
+    ],
+    [
+      "summed_anchor_bound",
+      [
+        45,
+        [
+          0.05507177627081031,
+          0.09979841698707675,
+          0.023345119591567202,
+          0.0659592315263626,
+          0.023691247573172154
+        ]
+      ]
+    ],
+    [
+      "maximum_penetration",
+      [
+        45,
+        [
+          5,
+          6
+        ],
+        0.05726804505714567
+      ]
+    ],
+    [
+      "penetration_recovery",
+      [
+        45,
+        [
+          5,
+          6
+        ],
+        41,
+        0.05726804505714567
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        46,
+        0,
+        0.05140839462492516,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        46,
+        0,
+        0.04673251469573437
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        46,
+        1,
+        0.011884992950943194,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        46,
+        1,
+        0.12829264043464791
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        46,
+        2,
+        0.021986759292092532,
+        0
+      ]
+    ]
+  ],
+  "incomplete": [
+    "Measured same-tick conservative upper bound exceeds observer-cost allowance",
+    "Native allocation deltas require per-site causal assignment"
+  ],
+  "metrics": {
+    "floor_witness": {
+      "tick": 87,
+      "actual_floor_pairs": [
+        [
+          1,
+          6
+        ]
+      ],
+      "overlap_at_tick_m": [
+        0.0014648862157140563
+      ],
+      "recovery_ticks": [
+        88
+      ],
+      "whole_assembly_vertical_contact_impulse_Ns": 7.941630446662505,
+      "isolated_bone_floor_impulse": {
+        "normal_impulse_Ns": 0.004635353883107651,
+        "roundoff_bound_Ns": 0.00032293784731033764
+      }
+    },
+    "max_penetration_m": 0.23897272749673004,
+    "peak_energy_excess_J": 0.0,
+    "peak_raw_energy_J": 317.4999976158142,
+    "post_420_slope_J_per_s": -0.024115800661017508,
+    "full_slope_J_per_s": -6.487744173208323,
+    "cost_ns": {
+      "inclusive_ns": {
+        "mean": 187884.91666666666,
+        "median": 61300.0,
+        "p95": 557700,
+        "p99": 746400,
+        "maximum": 1093200,
+        "max_sliding60": 597670.0
+      },
+      "observer_upper_ns": {
+        "mean": 189005.16666666666,
+        "median": 62500.0,
+        "p95": 559100,
+        "p99": 747700,
+        "maximum": 1094200,
+        "max_sliding60": 598926.6666666666
+      },
+      "joint_ns": {
+        "mean": 15067.666666666666,
+        "median": 13800.0,
+        "p95": 27800,
+        "p99": 38100,
+        "maximum": 65400,
+        "max_sliding60": 29446.666666666668
+      },
+      "contact_ns": {
+        "mean": 18455.083333333332,
+        "median": 2500.0,
+        "p95": 65200,
+        "p99": 94100,
+        "maximum": 118400,
+        "max_sliding60": 71020.0
+      },
+      "adapter_pre_ns": {
+        "mean": 0.0,
+        "median": 0.0,
+        "p95": 0,
+        "p99": 0,
+        "maximum": 0,
+        "max_sliding60": 0.0
+      },
+      "sdk_ns": {
+        "mean": 0.0,
+        "median": 0.0,
+        "p95": 0,
+        "p99": 0,
+        "maximum": 0,
+        "max_sliding60": 0.0
+      },
+      "adapter_post_ns": {
+        "mean": 0.0,
+        "median": 0.0,
+        "p95": 0,
+        "p99": 0,
+        "maximum": 0,
+        "max_sliding60": 0.0
+      },
+      "stage0_ns": {
+        "mean": 0.0,
+        "median": 0.0,
+        "p95": 0,
+        "p99": 0,
+        "maximum": 0,
+        "max_sliding60": 0.0
+      },
+      "stage1_ns": {
+        "mean": 0.0,
+        "median": 0.0,
+        "p95": 0,
+        "p99": 0,
+        "maximum": 0,
+        "max_sliding60": 0.0
+      },
+      "stage2_ns": {
+        "mean": 0.0,
+        "median": 0.0,
+        "p95": 0,
+        "p99": 0,
+        "maximum": 0,
+        "max_sliding60": 0.0
+      },
+      "stage3_ns": {
+        "mean": 0.0,
+        "median": 0.0,
+        "p95": 0,
+        "p99": 0,
+        "maximum": 0,
+        "max_sliding60": 0.0
+      },
+      "stage4_ns": {
+        "mean": 0.0,
+        "median": 0.0,
+        "p95": 0,
+        "p99": 0,
+        "maximum": 0,
+        "max_sliding60": 0.0
+      },
+      "stage5_ns": {
+        "mean": 0.0,
+        "median": 0.0,
+        "p95": 0,
+        "p99": 0,
+        "maximum": 0,
+        "max_sliding60": 0.0
+      },
+      "stage6_ns": {
+        "mean": 0.0,
+        "median": 0.0,
+        "p95": 0,
+        "p99": 0,
+        "maximum": 0,
+        "max_sliding60": 0.0
+      },
+      "stage7_ns": {
+        "mean": 0.0,
+        "median": 0.0,
+        "p95": 0,
+        "p99": 0,
+        "maximum": 0,
+        "max_sliding60": 0.0
+      }
+    },
+    "p95_goal_only_ns": 1666666.6666666667,
+    "allocation": {
+      "arena_peak_bytes": 0,
+      "heap_site_pairs": [],
+      "job_pool_teardown": null,
+      "unclassified_heap_site_pairs": []
+    }
+  },
+  "F_OWNER": "PENDING"
+}

@@ -31,7 +31,7 @@ namespace GEngine
         InvalidMaterial, InvalidVelocity, InvalidForce, InvalidDuration,
         WrongBodyType, NonFiniteResult, NotSleepEligible,
         BackendUnavailable, BackendInitialization, UnsupportedFeature, Capacity,
-        Penetration, NoSurface, QueryLimit
+        Penetration, NoSurface, QueryLimit, JointSolveFailed
     };
     struct PhysicsBodyError
     {
@@ -40,6 +40,17 @@ namespace GEngine
         std::string_view operation;
     };
     template<class T = void> using PhysicsBodyResult = std::expected<T, PhysicsBodyError>;
+    enum class StepDisposition { NoStep, Completed };
+    enum class PhysicsStepStage { Preparation, SdkUpdate, Publication, NativePrepare, NativeSolve, NativeToi };
+    struct PhysicsStepFailure
+    {
+        PhysicsBodyError cause;
+        PhysicsStepStage stage;
+        std::uint32_t sdkMask{};
+        std::size_t jointSlot{std::numeric_limits<std::size_t>::max()};
+    };
+    using BackendStepResult = std::expected<void, PhysicsStepFailure>;
+
     struct PhysicsMaterial
     {
         float friction{.5f}, restitution{.5f};
@@ -229,7 +240,17 @@ namespace GEngine
         [[nodiscard]] JointResult<> DestroyJoint(PhysicsJointHandle);
         [[nodiscard]] JointResult<PhysicsJointHandle> JointAt(std::size_t ordinal) const;
         std::size_t GetJointCount() const noexcept { return m_JointCount; }
-        void SetGravity(const Math::Vec3f& gravity) { m_Gravity = gravity; }
+        void SetGravity(const Math::Vec3f& gravity) { if (std::this_thread::get_id()==m_OwnerThread && !m_Closed && !m_StepError) m_Gravity = gravity; }
+        const std::optional<PhysicsBodyError>& GetStepError() const noexcept { return m_StepError; }
+        std::optional<PhysicsStepFailure> GetStepFailure() const noexcept
+        {
+            if (!m_StepError) return {};
+            return PhysicsStepFailure{*m_StepError, m_StepStage, m_StepMask, m_StepJoint};
+        }
+        std::uint64_t GetWorldDomain() const noexcept { return m_Domain; }
+#if defined(GENGINE_PHASE29_STEP_SAFETY)
+        friend struct Phase29StepTestAccess;
+#endif
         auto GetGravity() const { return m_Gravity; }
         void ConstructWorld() {} // Retained no-op configuration hook.
     private:
@@ -296,8 +317,17 @@ namespace GEngine
         void SetBodyRemovalCallback(const BodyRemovalCallback& callback) { m_BodyRemovalCallback = callback; }
         void ReleaseBodyIdentity(RigidBody3D*);
         PhysicsBodyHandle HandleOf(RigidBodyIdentity) const;
-        PhysicsBodyResult<> CheckAccess(std::string_view, bool mutation) const;
-        PhysicsBodyResult<RigidBody3D*> Resolve(PhysicsBodyHandle, std::string_view, bool mutation = false) const;
+        PhysicsBodyResult<> CheckAccess(std::string_view, bool mutation, bool authoredRead = false) const;
+        void ReleaseTerminalStorage() noexcept;
+        std::optional<PhysicsBodyError> m_StepError;
+        PhysicsStepStage m_StepStage{PhysicsStepStage::Preparation};
+        std::uint32_t m_StepMask{};
+        std::size_t m_StepJoint{std::numeric_limits<std::size_t>::max()};
+        bool m_StepActive{};
+#if defined(GENGINE_PHASE29_STEP_SAFETY)
+        bool m_RejectNativePrepareForTest{};
+#endif
+        PhysicsBodyResult<RigidBody3D*> Resolve(PhysicsBodyHandle, std::string_view, bool mutation = false, bool authoredRead = false) const;
         void SetSceneRetirement(PhysicsBodyHandle, std::function<void()>);
         Math::Vec3f m_Gravity{0, -12, 0};
         std::vector<RigidBody3D*> m_RigidBodies;

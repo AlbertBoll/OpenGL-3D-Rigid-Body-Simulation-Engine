@@ -1,0 +1,50 @@
+{
+  "status": "PASS",
+  "closed_utc": "2026-11-21T10:38:06.732793+00:00",
+  "pid": 21280,
+  "exit": 1,
+  "timeout": false,
+  "wall_seconds": 20.7004373,
+  "post_census": [],
+  "reconciliation": {
+    "attempted": 8,
+    "completed": 3,
+    "world_domains": [
+      "36",
+      "39",
+      "51",
+      "52",
+      "53",
+      "21"
+    ],
+    "observed_fatal": "Jolt body mirror publication"
+  },
+  "errors": [],
+  "raw": [
+    {
+      "path": "logs/pre_editor/phase-29/step-safety-01/safety-role-02/stdout.log",
+      "sha256": "c4ca0a28cd48ed986cacf46cd6f9e4c52eb3a10940d8191fae87069f749587a7"
+    },
+    {
+      "path": "runtime/RigidBodySimulation/Debug/phase29-step-safety-replacement-jxqm8pgg/GEngine.log",
+      "sha256": "dde75b83a5c7d64c15714c9590049b954847f46b1fa302a98d8677f0d37501f6"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/step-safety-01/safety-role-02/data/cases.tsv",
+      "sha256": "9b381e5b5cd35105a76e1dc833e026a5c67a7f8dcb36505e3cbc1e6336972528"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/step-safety-01/safety-role-02/data/fatal.tsv",
+      "sha256": "bcc6f2de588d1de71c5171b5993a2dfa92bea9bf9e9bc179c5d8525e11bb28cd"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/step-safety-01/safety-role-02/data/shutdown.tsv",
+      "sha256": "17295888028b782407dac558f3f83d7855987ac670cb0818327041af158e8ba1"
+    }
+  ],
+  "debited_attempts": 8,
+  "planning_after": 6496,
+  "historical_actual_ticks": null,
+  "retries": 0,
+  "numerical_replacements": 0
+}

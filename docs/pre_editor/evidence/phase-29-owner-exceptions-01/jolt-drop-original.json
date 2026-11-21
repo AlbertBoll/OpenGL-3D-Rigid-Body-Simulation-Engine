@@ -1,0 +1,725 @@
+{
+  "slot": "R-Jolt-R29_DROP_WAKE_V01",
+  "status": "FAIL",
+  "checks": {
+    "physical_filter_and_no_wall": true,
+    "actual_shape": true,
+    "normalized_orientation": true,
+    "body_render_translation": true,
+    "body_render_quaternion": true,
+    "reference_pose": true,
+    "initial_velocities": true,
+    "effective_mass": true,
+    "effective_inertia": true,
+    "central_domain": true,
+    "energy_work": true,
+    "joint_frame_readback": true,
+    "angular_provider_parity": true,
+    "angular_residual_limit": false,
+    "individual_anchor_bound": false,
+    "summed_anchor_bound": true,
+    "maximum_penetration": false,
+    "penetration_recovery": true,
+    "closed_contact_episodes": true,
+    "actual_floor_response_and_recovery": true,
+    "initial_sleep_by_900": true,
+    "connected_wake_961": true,
+    "returned_sleep_1080": true,
+    "settled_windows": true,
+    "settled_energy": true,
+    "settled_pose_jitter": true,
+    "settled_high_frequency": true,
+    "loaded_joint_high_frequency": false,
+    "energy_trend": true,
+    "inclusive_cpu": true,
+    "complete_evidence": false
+  },
+  "failures": [
+    [
+      "maximum_penetration",
+      [
+        33,
+        [
+          4,
+          6
+        ],
+        0.05834516503439202
+      ]
+    ],
+    [
+      "maximum_penetration",
+      [
+        33,
+        [
+          5,
+          6
+        ],
+        0.05834516503439202
+      ]
+    ],
+    [
+      "maximum_penetration",
+      [
+        34,
+        [
+          4,
+          6
+        ],
+        0.013624932086093056
+      ]
+    ],
+    [
+      "maximum_penetration",
+      [
+        34,
+        [
+          5,
+          6
+        ],
+        0.012986560843733619
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        145,
+        2,
+        0.013280008502022761,
+        0.0017736606838281155
+      ]
+    ],
+    [
+      "maximum_penetration",
+      [
+        145,
+        [
+          2,
+          6
+        ],
+        0.02832402456604277
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        146,
+        1,
+        0.025167747991478615,
+        0.007143359965452456
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        146,
+        2,
+        0.017203059884893124,
+        0.005481225754919272
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        147,
+        1,
+        0.019423078187246676,
+        0.008372264165254939
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        147,
+        2,
+        0.010212196157465289,
+        0.004709417947235561
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        148,
+        1,
+        0.012284914117464001,
+        0.006483271881394526
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        166,
+        0,
+        0.016097730635261917,
+        0
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        167,
+        0,
+        0.01412079904146614,
+        0
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        168,
+        0,
+        0.011819025867053783,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        168,
+        0,
+        0.016052802346565146
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        169,
+        0,
+        0.011793558546707678,
+        0
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        170,
+        0,
+        0.013710635162709157,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        170,
+        0,
+        0.015055509180382662
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        171,
+        0,
+        0.015432628205187664,
+        0
+      ]
+    ],
+    [
+      "individual_anchor_bound",
+      [
+        171,
+        0,
+        0.0153894959342297
+      ]
+    ],
+    [
+      "maximum_penetration",
+      [
+        171,
+        [
+          2,
+          6
+        ],
+        0.012700642133735118
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        172,
+        0,
+        0.014097312508285912,
+        0
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        172,
+        1,
+        0.018255456746804448,
+        0
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        172,
+        3,
+        0.013633904579083108,
+        0
+      ]
+    ],
+    [
+      "maximum_penetration",
+      [
+        172,
+        [
+          4,
+          6
+        ],
+        0.06272403435388318
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        173,
+        0,
+        0.012155506726441815,
+        0
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        173,
+        1,
+        0.011644396160698426,
+        0
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        174,
+        0,
+        0.011576113179070507,
+        0
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        175,
+        0,
+        0.01155129670848141,
+        0
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        176,
+        0,
+        0.011449630895418903,
+        0
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        177,
+        0,
+        0.010953999196375401,
+        0
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        178,
+        0,
+        0.01054235762066256,
+        0
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        179,
+        0,
+        0.01015822963045301,
+        0
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        181,
+        0,
+        0.010490828523375288,
+        0
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        182,
+        0,
+        0.010457094863162458,
+        0
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        183,
+        0,
+        0.010398124915517818,
+        0
+      ]
+    ],
+    [
+      "angular_residual_limit",
+      [
+        184,
+        0,
+        0.01016265393823292,
+        0
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        33,
+        1,
+        0.004212418595584372
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        33,
+        3,
+        0.003058201924207637
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        34,
+        0,
+        0.0020551620833118506
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        34,
+        1,
+        0.002815446833564282
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        34,
+        3,
+        0.0036751665837070984
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        41,
+        2,
+        0.002472680715493541
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        48,
+        0,
+        0.0026218755693191258
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        48,
+        1,
+        0.003053043005133681
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        48,
+        3,
+        0.003449810071752541
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        49,
+        0,
+        0.0025803948042364467
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        49,
+        1,
+        0.003175229642218778
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        49,
+        3,
+        0.003942831713065765
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        52,
+        2,
+        0.0023881435092490302
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        53,
+        0,
+        0.0022811680732091246
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        53,
+        2,
+        0.0031176046628016056
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        144,
+        0,
+        0.0037537577815839568
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        144,
+        2,
+        0.010709219896501965
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        145,
+        0,
+        0.006090081402171889
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        145,
+        1,
+        0.008342134780595527
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        145,
+        2,
+        0.01639332962711452
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        145,
+        4,
+        0.002787167576691769
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        146,
+        0,
+        0.002152092359942511
+      ]
+    ],
+    [
+      "loaded_joint_high_frequency",
+      [
+        146,
+        1,
+        0.011975268061803993
+      ]
+    ],
+    [
+      "complete_evidence",
+      "heap callback and global JPH counters disagree"
+    ]
+  ],
+  "incomplete": [],
+  "metrics": {
+    "floor_witness": {
+      "tick": 34,
+      "actual_floor_pairs": [
+        [
+          4,
+          6
+        ],
+        [
+          5,
+          6
+        ]
+      ],
+      "overlap_at_tick_m": [
+        0.013624932086093056,
+        0.012986560843733619
+      ],
+      "recovery_ticks": [
+        35,
+        35
+      ],
+      "whole_assembly_vertical_contact_impulse_Ns": 41.67558260758718
+    },
+    "max_penetration_m": 0.06272403435388318,
+    "peak_energy_excess_J": 0.0,
+    "peak_raw_energy_J": 252.5,
+    "post_420_slope_J_per_s": -0.02474199770234366,
+    "full_slope_J_per_s": -5.279507668636081,
+    "cost_ns": {
+      "inclusive_ns": {
+        "mean": 93589.16666666667,
+        "median": 67500.0,
+        "p95": 201300,
+        "p99": 282100,
+        "maximum": 443100,
+        "max_sliding60": 185590.0
+      },
+      "observer_upper_ns": {
+        "mean": 95296.58333333333,
+        "median": 69350.0,
+        "p95": 203200,
+        "p99": 285600,
+        "maximum": 447900,
+        "max_sliding60": 187176.66666666666
+      },
+      "joint_ns": {
+        "mean": 0.0,
+        "median": 0.0,
+        "p95": 0,
+        "p99": 0,
+        "maximum": 0,
+        "max_sliding60": 0.0
+      },
+      "contact_ns": {
+        "mean": 0.0,
+        "median": 0.0,
+        "p95": 0,
+        "p99": 0,
+        "maximum": 0,
+        "max_sliding60": 0.0
+      },
+      "adapter_pre_ns": {
+        "mean": 37667.416666666664,
+        "median": 29700.0,
+        "p95": 86700,
+        "p99": 128800,
+        "maximum": 252300,
+        "max_sliding60": 86445.0
+      },
+      "sdk_ns": {
+        "mean": 38630.75,
+        "median": 12400.0,
+        "p95": 140500,
+        "p99": 178200,
+        "maximum": 274900,
+        "max_sliding60": 136693.33333333334
+      },
+      "adapter_post_ns": {
+        "mean": 15442.75,
+        "median": 10900.0,
+        "p95": 34200,
+        "p99": 78800,
+        "maximum": 187700,
+        "max_sliding60": 54178.333333333336
+      },
+      "stage0_ns": {
+        "mean": 838.0,
+        "median": 0.0,
+        "p95": 4100,
+        "p99": 7100,
+        "maximum": 23400,
+        "max_sliding60": 3778.3333333333335
+      },
+      "stage1_ns": {
+        "mean": 351.3333333333333,
+        "median": 0.0,
+        "p95": 1600,
+        "p99": 3200,
+        "maximum": 5800,
+        "max_sliding60": 1611.6666666666667
+      },
+      "stage2_ns": {
+        "mean": 1036.1666666666667,
+        "median": 0.0,
+        "p95": 5200,
+        "p99": 6100,
+        "maximum": 10500,
+        "max_sliding60": 5236.666666666667
+      },
+      "stage3_ns": {
+        "mean": 1118.3333333333333,
+        "median": 0.0,
+        "p95": 5400,
+        "p99": 6500,
+        "maximum": 9900,
+        "max_sliding60": 5465.0
+      },
+      "stage4_ns": {
+        "mean": 835.9166666666666,
+        "median": 0.0,
+        "p95": 4900,
+        "p99": 8700,
+        "maximum": 15200,
+        "max_sliding60": 5820.0
+      },
+      "stage5_ns": {
+        "mean": 77.5,
+        "median": 0.0,
+        "p95": 400,
+        "p99": 700,
+        "maximum": 1800,
+        "max_sliding60": 498.3333333333333
+      },
+      "stage6_ns": {
+        "mean": 5309.5,
+        "median": 0.0,
+        "p95": 27800,
+        "p99": 36200,
+        "maximum": 50100,
+        "max_sliding60": 28151.666666666668
+      },
+      "stage7_ns": {
+        "mean": 3282.0833333333335,
+        "median": 0.0,
+        "p95": 15700,
+        "p99": 19000,
+        "maximum": 24500,
+        "max_sliding60": 14841.666666666666
+      }
+    },
+    "p95_goal_only_ns": 1666666.6666666667
+  },
+  "F_OWNER": "PENDING"
+}

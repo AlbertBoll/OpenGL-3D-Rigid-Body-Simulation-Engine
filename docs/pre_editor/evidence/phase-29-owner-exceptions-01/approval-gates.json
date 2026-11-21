@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "kind": "NORMATIVE_WORKFLOW_GATE_TABLE_NOT_A_PHASE_RESULT",
+  "effective_phases": [
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32"
+  ],
+  "required_gate_ids": [
+    "A_PHYSICS",
+    "B_SAFETY",
+    "C_COST",
+    "D_EDITOR",
+    "E_INTERACTION",
+    "F_OWNER"
+  ],
+  "ready": {
+    "status": "READY FOR OWNER RBS ACCEPTANCE",
+    "required_results": {
+      "A_PHYSICS": [
+        "PASS"
+      ],
+      "B_SAFETY": [
+        "PASS",
+        "ACCEPTED_EXCEPTION"
+      ],
+      "C_COST": [
+        "PASS",
+        "ACCEPTED_EXCEPTION"
+      ],
+      "D_EDITOR": [
+        "PASS"
+      ],
+      "E_INTERACTION": [
+        "PASS"
+      ],
+      "F_OWNER": [
+        "PENDING"
+      ]
+    },
+    "ordinary_editor_required": true,
+    "applicable_subcoverage_complete": true,
+    "candidate_and_evidence_binding_required": true,
+    "p0_or_unknown_critical_blocks": true,
+    "missing_gate_blocks": true
+  },
+  "approve": {
+    "requires_ready_coverage": true,
+    "human_status": "PASS",
+    "human_source": "ACTUAL_OWNER_REPORT",
+    "human_candidate_must_match": true,
+    "explicit_command_template": "APPROVE PRE_EDITOR PHASE {phase}",
+    "missing_human_blocks": true,
+    "missing_approval_blocks": true
+  },
+  "exception": {
+    "requires": [
+      "actual_outcome",
+      "specific_owner_acceptance",
+      "criterion",
+      "evidence",
+      "residual_owner",
+      "revisit_trigger"
+    ],
+    "never_covers": [
+      "P0",
+      "unknown_critical_exposure",
+      "integrity",
+      "omitted_editor_delivery"
+    ],
+    "phase26_exceptions_inherited": false
+  },
+  "semantics": "Workflow performs completeness/meaning checks under AGENTS and common addendum; unchanged checkpoint helper validates supplied rows and sealed hashes. This JSON does not assert that any phase has passed."
+}

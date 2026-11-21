@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "phase": "29",
+  "status": "FROZEN_BEFORE_RUNTIME_UNDER_DELEGATED_OD08_PLANNING",
+  "authority": {
+    "path": "docs/pre_editor/active/PHASE_26_OD08_GAME_QUALITY_AMENDMENT_01.json",
+    "sha256": "882f95c5962f2480e8ef598a69e9b156527ecc175c861edb1396bbb85eef70a4"
+  },
+  "scope": "Both exact Release workloads, both backends. New assembly evidence required; unchanged Phase28 provider tests reused only with source-impact proof.",
+  "finite": "All bodies, rotations, impulses, errors, inertia, elapsed times finite; normalized orientation |q norm-1|<=1e-5. No crash/assertion, invalid handle access, ownership leak or resource overflow.",
+  "contact": {
+    "characteristic_D_m": 0.5,
+    "definition": "Minimum full thickness of either colliding box, excluding a larger floor/wall; for reference every body minimum thickness=.5m.",
+    "quiet_max_m": 0.005,
+    "transient_max_m": 0.01,
+    "recovery_ticks": 4,
+    "confirmation_ticks": 2,
+    "episode": "First geometric overlap>.005 at tick t requires <=.005 by t+4 and both following ticks; re-crossing does not reset deadline. Pending episode at end FAIL. All-tick .010 limit always applies.",
+    "measurement": "Every enabled body-floor/nonadjacent pair each tick, normalized 15-axis OBB SAT min(rA+rB-|delta dot axis|); depth=max(0,min). Use actual body geometry/transforms, double precision, skip only cross axes norm<1e-10. Manifold absence never substitutes zero. Record actual contact IDs and impulse provenance.",
+    "coverage": "Each workload must have >=1 actual floor contact with nonzero response and measured positive geometric overlap, followed by clearance/recovery. Record all pair depths and maximum. Filtered adjacent penetration is reported separately and cannot stand in for contact coverage."
+  },
+  "joints": {
+    "characteristic_L": {
+      "neck": 1.5,
+      "left_shoulder": 2.25,
+      "right_shoulder": 2.25,
+      "left_hip": 1.9142135623730951,
+      "right_hip": 1.9142135623730951
+    },
+    "L_derivation": "sum of magnitudes of original COM-local endpoint lever arms, fixed for each packet",
+    "quiet_error_fraction_L": 0.005,
+    "transient_error_fraction_L": 0.01,
+    "aggregate": "sum absolute anchor errors <= fraction * sum L; individual bound also required, no cancellation",
+    "angular": "Reuse Phase28 definitions: hinge axis alignment and CV relation residual <=.005 quiet/.010 transient; limited angle violation <=.005 rad quiet/.010 rad transient. Use actual AngularJoint::Observe plus independent frame calculations; permitted coordinates are not errors.",
+    "dynamic_coverage": "TILT case: each hinge signed angle and each shoulder U/V coordinate must visit both bound neighborhoods (within .05 rad) after tick0, and exit each to >=.10 rad inside that bound on a later tick. No pre-positioned limit counts. If fixed excitation fails coverage, preserve FAIL and require causal versioned input correction; no tolerance reduction.",
+    "mapping": "All 6 bone keys/5 joints unique, generation-safe, exact endpoints and Chapter21 rest frames; render-to-body COM/quaternion parity <=1e-5 per component up to quaternion sign."
+  },
+  "settling": {
+    "initial_all_asleep_by_tick": 900,
+    "initial_quiet_window": [
+      901,
+      960
+    ],
+    "wake_before_tick": 961,
+    "all_connected_awake_by_completed_tick": 961,
+    "returned_all_asleep_by_tick": 1080,
+    "final_quiet_window": [
+      1081,
+      1200
+    ],
+    "rationale": "15s initial fall/contact/excitation settling budget (TILT final excitation tick391 leaves >8s); retain 2s wake-response settling interval. These are frozen proposed Phase29 workload windows, not inherited proof or forced-sleep calls.",
+    "quiet": "sleeping OR speed<=.05m/s AND angular speed<=.02rad/s, all dynamic endpoints for 30 consecutive ticks; fixed settle windows require actual all-asleep states and zero uncommanded wakes",
+    "position_peak_to_peak_m": 0.0005,
+    "orientation_peak_to_peak_rad": 0.002,
+    "high_frequency_position_m": 0.00025,
+    "high_frequency_orientation_rad": 0.001,
+    "high_frequency_anchor_error_fraction_L": 0.001,
+    "measurements": "Every sliding60 window wholly inside a settled window. Euclidean position diameter; shortest quaternion arc diameter; 3-point residual x_t-(x_(t-1)+x_(t+1))/2 and sign-invariant slerp equivalent. Joint high-frequency residual applies throughout loaded motion."
+  },
+  "energy": {
+    "raw": "E=sum(.5*m*v^2+.5*omega dot I_world omega+m*10*y). E-E_tick0-sum(actual work)<=allowance at every tick. No potential-height clamping or hidden work.",
+    "rest_allowance_J": 0.000625,
+    "rest_derivation": ".5 * smallest reference mass .5kg * quiet speed .05^2: one quiet-link allowance for entire assembly",
+    "loaded_allowance": "Before first external action use .000625J. Thereafter max(.000625, .1025 * sum nominal positive isolated kinetic increments of admitted actions so far). .1025=1.05^2-1, same delegated 5% equivalent impulse-speed excess. Compute nominal increment from frozen mass/inertia and packet impulses, not observed favorable data. Actual W still uses measured pre-state.",
+    "quiet_gate": "Additionally E_t-E_900<=.000625 over 901..960 and E_t-E_1080<=.000625 over1081..1200; no actions inside those windows.",
+    "trend": "OLS slope of nonoverlapping completed60tick means of E-E0-cumulativeW after tick420 through1200 <=.000625/12 J/s; also report full-run slope and raw peaks. Fixed bins, no data trimming."
+  },
+  "cost": {
+    "dt_seconds": 0.016666666666666666,
+    "clock_quantum_ns_max": 1000,
+    "inclusive_mean_median_max_seconds": 0.008333333333333333,
+    "inclusive_p95_max_sliding60_mean_seconds": 0.0125,
+    "method": "Every completed Release tick including sleep/contact/action ticks; statistic+measured q, nearest rank p95/p99, all sliding60 means, no warmup deletion, pooling or observer subtraction.",
+    "report": "mean,median,p95,p99,max,max sliding60 for inclusive Update and available nested joint/contact/graph/filter/arena costs; nested durations not summed as disjoint",
+    "goal_p95_seconds": 0.0016666666666666668,
+    "goal": "GOAL_ONLY on pinned qualified hardware; no invented PASS when target/hardware not established",
+    "observer": "Same tick U=Update and O=additional observation; state/parity capture common outside both. mean/median(O)+2q<=dt/100; p95/max sliding60(O)+2q<=dt/50. Include allocator management in U.",
+    "allocations": "Zero incremental joint-induced steady-state heap calls and bytes on both providers. Construction/teardown separate; all sites attributed, no netting frees. Only separately approved bounded Jolt arena reservations allowed."
+  },
+  "lifetime": "Deterministic partial creation rollback at each of 6 body and 5 joint positions; joints before owned bodies; unrelated static sentinel and old committed scene unchanged; repeated destroy idempotent; deletion of each member retires incident joints and makes stale mapping a typed failure; no ABA identity reuse.",
+  "human": "Actual ordinary Editor inspection remains mandatory. Numeric PASS cannot override implausible motion, persistent jitter, visible penetration or authoring failures. F_OWNER=PENDING.",
+  "no_waivers": "No global slop/sleep/solver/material tuning, Native contact repair, rejected Phase21 candidate, or absolute Phase28 .003/.006 reuse on a different .5m feature scale."
+}

@@ -581,21 +581,85 @@ namespace GEngine
     }
 
 	void PhysicsSystem::Update(Timestep ts)
-	{
+    {
+        (void)TryFixedStep(ts);
+    }
+
+#if defined(GENGINE_PHASE29_STEP_SAFETY)
+    extern "C" bool Phase29ReserveSafetyAttempt() noexcept;
+#endif
+    PhysicsBodyResult<StepDisposition> PhysicsSystem::TryFixedStep(Timestep ts)
+    {
+#if defined(GENGINE_PHASE26_QUALIFICATION) || defined(GENGINE_PHASE28_QUALIFICATION)
+        // Time admission and the scope guards too. Rejected re-entry leaves the
+        // observer dormant. Its begin callback retains its separately billed interval.
+        struct InclusiveStepSample {
+            using Clock=std::chrono::steady_clock;
+            Clock::time_point start=Clock::now();
+            Phase26Observation::Observer* sink{};
+            void Begin() noexcept {
+                sink=Phase26Observation::observer;
+                if (!sink) return;
+                const auto before=Clock::now();
+                sink->begin(sink->context);
+                start+=Clock::now()-before;
+            }
+            ~InclusiveStepSample() {
+                if (sink) sink->end(sink->context,
+                    std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now()-start).count());
+            }
+        } inclusiveSample;
+#endif
+        auto* world = m_PhysicsWorld;
+        if (!world) return StepDisposition::NoStep;
+        if (std::this_thread::get_id() != world->m_OwnerThread)
+            return std::unexpected(PhysicsBodyError{PhysicsBodyErrorCode::WrongThread,{},"Physics Step"});
+        if (world->m_StepError) return std::unexpected(*world->m_StepError);
+        if (world->m_Closed) return std::unexpected(PhysicsBodyError{PhysicsBodyErrorCode::Closed,{},"Physics Step"});
+        if (world->m_Mutating || world->m_StepActive)
+            return std::unexpected(PhysicsBodyError{PhysicsBodyErrorCode::Busy,{},"Physics Step"});
+        struct StepGuard {
+            bool& active;
+            explicit StepGuard(bool& flag) : active(flag) { active=true; }
+            ~StepGuard() { active=false; }
+        } guard(world->m_StepActive);
 #ifdef GENGINE_JOLT_FINAL_AUDIT
         JoltAudit::Scope auditPhysics(1);
 #endif
 #if defined(GENGINE_PHASE26_QUALIFICATION) || defined(GENGINE_PHASE28_QUALIFICATION)
-        Phase26Observation::CompleteStep phase26CompleteStep;
+        inclusiveSample.Begin();
 #endif
         SleepPathTimer inclusiveTimer(m_InclusiveNs);
 #ifdef GENGINE_PHASE25_QUALIFICATION
         // First declared: includes the existing setup and every local destructor.
         Phase25Observation::CompleteStep phase25CompleteStep;
 #endif
-        if(m_BackendFailure)return;
-        if (m_BeforeStep && m_PhysicsWorld && float(ts)>0) m_BeforeStep(*m_PhysicsWorld,m_CompletedSteps);
-        if (m_JointFailure) return;
+        const auto fail = [&](PhysicsStepFailure failure) -> PhysicsBodyResult<StepDisposition> {
+            world->m_StepError = failure.cause;
+            world->m_StepStage = failure.stage;
+            world->m_StepMask = failure.sdkMask;
+            world->m_StepJoint = failure.jointSlot;
+            m_ContactIslands.clear();
+            m_ActivationIslands.clear();
+            m_Manifolds.Clear();
+            m_CollisionPairs.clear();
+            m_Contacts.clear();
+            m_Broadphase.Clear();
+            return std::unexpected(failure.cause);
+        };
+        const float duration = float(ts);
+        if (!Math::IsFinite(duration) || duration < 0)
+            return fail({{PhysicsBodyErrorCode::InvalidDuration,{},"Physics Step duration"},PhysicsStepStage::Preparation});
+        if (duration > 0) {
+#if defined(GENGINE_PHASE29_STEP_SAFETY)
+            if (!Phase29ReserveSafetyAttempt())
+                return fail({{PhysicsBodyErrorCode::Capacity,{},"Debug safety role attempt ceiling"},PhysicsStepStage::Preparation});
+#endif
+            ++m_AttemptedSteps;
+            if (m_BeforeStep) m_BeforeStep(*world,m_CompletedSteps);
+        }
+        if (!Math::IsFinite(world->GetGravity()))
+            return fail({{PhysicsBodyErrorCode::InvalidDuration,{},"Physics Step gravity"},PhysicsStepStage::Preparation});
         if(m_PhysicsWorld && m_PhysicsWorld->m_Backend)
         {
             ++m_ColliderContextRevision;
@@ -604,9 +668,10 @@ namespace GEngine
             for(auto* body:m_PhysicsWorld->m_RigidBodies)body->m_InPhysicsStep=true;
             auto result=m_PhysicsWorld->m_Backend->Step(float(ts),m_PhysicsWorld->GetGravity(),m_SleepingEnabled);
             for(auto* body:m_PhysicsWorld->m_RigidBodies)body->m_InPhysicsStep=false;
-            if(!result)m_BackendFailure=result.error();
-            else if(float(ts)>0)++m_CompletedSteps;
-            return;
+            if (!result) return fail(result.error());
+            if (duration == 0) return StepDisposition::NoStep;
+            ++m_CompletedSteps;
+            return StepDisposition::Completed;
         }
         m_JointSolveNs=0;
         // A confirmation is valid only between simulation updates.
@@ -631,12 +696,6 @@ namespace GEngine
 		std::vector<ContactIsland> previousIslands;
 		previousIslands.swap(m_ContactIslands);
 		const float dtSeconds = static_cast<float>(ts);
-		GENGINE_CORE_ASSERT(Math::IsFinite(dtSeconds), "Physics timestep must be finite");
-		if (!Math::IsFinite(dtSeconds))
-		{
-			return;
-		}
-
 		GE_PHYSICS_PROFILE_SCOPE(physicsWorldTimeNs);
 		GE_PHYSICS_PROFILE_ADD(stepCount, 1);
 
@@ -644,7 +703,7 @@ namespace GEngine
 
 		if (m_PhysicsWorld && dtSeconds > 0.0f) {
 			const auto gravity = m_PhysicsWorld->GetGravity();
-			if (!Math::IsFinite(gravity)) return;
+			// Gravity was validated at the admission boundary.
 			const bool gravityChanged = m_HasSleepGravity && gravity != m_LastSleepGravity;
 			bool hasSleeping = false;
 			const auto& bodies = m_PhysicsWorld->GetPhysicsBodies();
@@ -716,18 +775,6 @@ namespace GEngine
 			auto& PhysicsBodies = m_PhysicsWorld->GetPhysicsBodies();
 			size_t size = PhysicsBodies.size();
 			auto gravity = m_PhysicsWorld->GetGravity();
-			GENGINE_CORE_ASSERT(Math::IsFinite(gravity), "Physics gravity must be finite");
-			if (!Math::IsFinite(gravity))
-			{
-				if (refreshCandidates) {
-					GE_PHYSICS_PROFILE_SCOPE(manifoldTimeNs);
-#ifdef GENGINE_PHASE25_QUALIFICATION
-        GE_PHYSICS_PROFILE_ADD(phase25manifoldInvocations, 1);
-#endif
-					m_Manifolds.RemoveExpired();
-				}
-				return;
-			}
 			SleepPathTimer flagsTimer(m_SleepTimings.stepFlagsNs);
 			for (RigidBody3D* body : PhysicsBodies)
 			{
@@ -985,11 +1032,16 @@ namespace GEngine
                     hasContactPointJoint |= slot.kind==JointKind::BallSocket && slot.point.desc.collideConnected;
                     const bool prepared=a && b && (slot.kind==JointKind::Distance?row.Prepare(*a,*b,dtSeconds):
                         slot.kind==JointKind::BallSocket?slot.point.Prepare(*a,*b,dtSeconds):slot.angular.Prepare(*a,*b,dtSeconds));
-                    if(!prepared) {
+#if defined(GENGINE_PHASE29_STEP_SAFETY)
+                    const bool injected = std::exchange(world->m_RejectNativePrepareForTest,false);
+#else
+                    constexpr bool injected = false;
+#endif
+                    if(!prepared || injected) {
                         m_JointFailure=true;
                         GENGINE_CORE_ERROR("Distance joint preparation failed slot={}",i);
                         for(auto* body:PhysicsBodies) body->m_InPhysicsStep=false;
-                        return;
+                        return fail({{PhysicsBodyErrorCode::JointSolveFailed,{},"Native joint preparation"},PhysicsStepStage::NativePrepare,0,i});
                     }
                 }
             }
@@ -1023,16 +1075,18 @@ namespace GEngine
                         Phase26Observation::JointScope jointAllocationScope;
 #endif
                             bool solved=SolveDistanceJoints();
+                            auto failedSlot=std::numeric_limits<std::size_t>::max();
                             for(std::size_t j=0;solved && j<PhysicsWorld::MaxDistanceJoints;++j) {
                                 auto& slot=m_PhysicsWorld->m_Joints[j];
                                 if(slot.live && slot.kind==JointKind::BallSocket) solved=slot.point.Solve();
                                 else if(slot.live && AngularJoint::IsKind(slot.kind)) solved=slot.angular.Solve();
+                                if (!solved) failedSlot=j;
                             }
                             if(!solved) {
                                 m_JointFailure=true;
                                 GENGINE_CORE_ERROR("Distance joint solve failed");
                                 for(auto* body:PhysicsBodies) body->m_InPhysicsStep=false;
-                                return;
+                                return fail({{PhysicsBodyErrorCode::JointSolveFailed,{},"Native joint solve"},PhysicsStepStage::NativeSolve,0,failedSlot});
                             }
                     }
 				}
@@ -1163,7 +1217,7 @@ namespace GEngine
                                 m_JointFailure=true;
                                 GENGINE_CORE_ERROR("Ball socket TOI reconciliation failed slot={}",j);
                                 for (auto* body:PhysicsBodies) body->m_InPhysicsStep=false;
-                                return;
+                                return fail({{PhysicsBodyErrorCode::JointSolveFailed,{},"Native joint TOI"},PhysicsStepStage::NativeToi,0,j});
                             }
                         }
                     }
@@ -1352,6 +1406,7 @@ namespace GEngine
 		}
         if(m_PhysicsWorld && dtSeconds>0) ++m_CompletedSteps;
         observe(PhysicsDiagnostic::Stage::End);
+        return duration > 0 ? StepDisposition::Completed : StepDisposition::NoStep;
 	}
 
     DebugGeometryResult PhysicsSystem::AppendColliderGeometry(DebugGeometry& out, const PhysicalShape& shape,
@@ -2116,7 +2171,7 @@ namespace GEngine
 
 	bool PhysicsSystem::SetBodyPose(RigidBody3D* body, const Vec3f& position, const Quat& orientation)
 	{
-		if (!m_PhysicsWorld || !body || !Math::IsFinite(position) || !Math::IsFinite(orientation))
+		if (!m_PhysicsWorld || m_PhysicsWorld->GetStepError() || !body || !Math::IsFinite(position) || !Math::IsFinite(orientation))
 			return false;
 
 		// Check ownership before dereferencing the caller's pointer.
@@ -2141,7 +2196,8 @@ namespace GEngine
 	}
 
 	void PhysicsSystem::OnExit()
-	{
+    {
+        if (m_PhysicsWorld && (std::this_thread::get_id()!=m_PhysicsWorld->m_OwnerThread || m_PhysicsWorld->m_StepActive)) return;
         ++m_ColliderContextRevision;
 		m_ActivationIslands.clear();
 		m_HasSleepGravity = false;
@@ -2151,7 +2207,11 @@ namespace GEngine
 		m_CollisionPairs.clear();
 		m_Contacts.clear();
 
-		m_BackendFailure.reset();
+		if (m_PhysicsWorld) {
+            m_BackendFailure = m_PhysicsWorld->GetStepError();
+            m_RetiredStepFailure = m_PhysicsWorld->GetStepFailure();
+        }
+        m_AttemptedSteps=0;
 		m_BeforeStep={}; m_CompletedSteps=0; m_JointFailure=false; m_JointEdgeCount=0;
 		PhysicsWorld* physicsWorld = m_PhysicsWorld;
 		m_PhysicsWorld = nullptr;
@@ -2165,8 +2225,11 @@ namespace GEngine
 			return;
 		}
 
+        if (m_PhysicsWorld && (std::this_thread::get_id()!=m_PhysicsWorld->m_OwnerThread || m_PhysicsWorld->m_StepActive)) return;
+        if (physics_world && std::this_thread::get_id()!=physics_world->m_OwnerThread) return;
 		OnExit();
 		m_PhysicsWorld = physics_world;
+        if (physics_world) { m_BackendFailure.reset(); m_RetiredStepFailure.reset(); }
 		if (m_PhysicsWorld)
 		{
             m_PhysicsWorld->m_BodyPropertyMutationCallback=[this](std::span<RigidBody3D* const> changed) {

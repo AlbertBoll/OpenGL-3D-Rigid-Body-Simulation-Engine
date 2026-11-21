@@ -11,6 +11,13 @@
 #include <vector>
 #include <array>
 
+namespace GEngine {
+    struct PassiveRagdollDesc;
+    struct RagdollBodyDesc;
+    struct RagdollError;
+    enum class RagdollBone : std::uint8_t;
+    enum class ShapeType;
+}
 namespace Rbs
 {
     enum class RbsScenePreset
@@ -31,7 +38,8 @@ namespace Rbs
         HingeQuaternion,
         HingeLimited,
         CvFree,
-        CvLimited
+        CvLimited,
+        PassiveRagdoll
     };
 
     struct SceneSelection
@@ -54,6 +62,8 @@ namespace Rbs
                    scene == RbsScenePreset::HingeLimited || scene == RbsScenePreset::CvFree ||
                    scene == RbsScenePreset::CvLimited;
         }
+        [[nodiscard]] constexpr bool IsRagdollScene() const noexcept
+        { return scene==RbsScenePreset::PassiveRagdoll; }
         constexpr bool operator==(const SceneSelection&) const = default;
 
         [[nodiscard]] constexpr bool IsValid() const noexcept
@@ -76,6 +86,7 @@ namespace Rbs
             case RbsScenePreset::HingeQuaternion:
             case RbsScenePreset::HingeLimited:
             case RbsScenePreset::CvFree:
+            case RbsScenePreset::PassiveRagdoll:
             case RbsScenePreset::CvLimited: return true;
             case RbsScenePreset::DistanceChainContact: return chainLinks == 8;
             }
@@ -149,6 +160,19 @@ namespace Rbs
     void SetAngularJointFrame(AngularPacket&, const GEngine::Math::Quat&) noexcept;
     [[nodiscard]] std::expected<void,AngularPacketError> ValidateAngularPacket(
         const AngularPacket&, GEngine::PhysicsBackend, bool requireFrozenFixture = false);
+
+    // The complete bounded descriptor is declared in Physics/PassiveRagdoll.h.
+    using RagdollPacket = GEngine::PassiveRagdollDesc;
+    [[nodiscard]] RagdollPacket ReferenceRagdollPacket();
+    [[nodiscard]] RagdollPacket TiltRagdollPacket();
+    [[nodiscard]] std::expected<void,GEngine::RagdollError> ValidateRagdollPacket(
+        const RagdollPacket&, GEngine::PhysicsBackend);
+    [[nodiscard]] GEngine::Math::Vec3f RagdollRenderScale(const GEngine::RagdollBodyDesc&) noexcept;
+    void SetRagdollBodyPose(RagdollPacket&, GEngine::RagdollBone, const GEngine::Math::Vec3f&, const GEngine::Math::Quat&) noexcept;
+    void SetRagdollShapeDimensions(RagdollPacket&, GEngine::RagdollBone, GEngine::ShapeType,
+        const GEngine::Math::Vec3f& halfExtents, float radius, float halfLength) noexcept;
+    void SetRagdollHalfExtents(RagdollPacket&, GEngine::RagdollBone, const GEngine::Math::Vec3f&) noexcept;
+    void SetRagdollColliderCenter(RagdollPacket&, GEngine::RagdollBone, const GEngine::Math::Vec3f&) noexcept;
 
     enum class RbsEnvironmentPreset { Qualification, InteractiveSandbox };
 

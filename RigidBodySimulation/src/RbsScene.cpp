@@ -41,6 +41,43 @@ using namespace ::GEngine::Camera;
 
 namespace
 {
+    // One rust tile spans one metre on the reference body. Keep UVs on the mesh
+    // so each bone's ordinary material UV controls remain independent multipliers.
+    constexpr float RagdollRustTileMeters = 1.f;
+
+    class RagdollBoxGeometry final : public Geometry
+    {
+    public:
+        explicit RagdollBoxGeometry(const Vec3f& referenceSize)
+        {
+            // Use the same outward tangent frames and winding as the generated unit cube.
+            constexpr Vec3f x{1,0,0}, y{0,1,0}, z{0,0,1};
+            const std::array<std::pair<Vec3f,Vec3f>,6> faces{{
+                {-z,y},{z,y},{x,-z},{x,z},{x,y},{-x,y}}};
+            constexpr std::array<Vec2f,4> corners{{{0,0},{1,0},{0,1},{1,1}}};
+            std::vector<Vec3f> positions, normals;
+            std::vector<Vec2f> uv;
+            std::vector<unsigned int> indices;
+            for(const auto& [u,v]:faces)
+            {
+                const Vec3f n=glm::cross(u,v);
+                const Vec2f repeats{std::abs(glm::dot(u,referenceSize))/RagdollRustTileMeters,
+                                    std::abs(glm::dot(v,referenceSize))/RagdollRustTileMeters};
+                const auto first=static_cast<unsigned int>(positions.size());
+                for(const auto& corner:corners)
+                {
+                    positions.push_back(.5f*n+(corner.x-.5f)*u+(corner.y-.5f)*v);
+                    normals.push_back(n);
+                    uv.push_back(corner*repeats);
+                }
+                for(unsigned int i:{0u,1u,3u,0u,3u,2u})indices.push_back(first+i);
+            }
+            AddAttributes(positions,std::vector<Vec3f>(positions.size(),Vec3f(1.f)),uv,normals);
+            AddIndices(indices);
+            UnBindVAO();
+        }
+    };
+
     // Five immutable prototypes use the existing retained-source shape adapter.
     // Only UVs differ from the unit cube; entity scale still owns every dimension.
     class SandboxRoomGeometry final : public Geometry
@@ -1239,7 +1276,7 @@ RigidBodySimulationApp::CreateAsyncExamples(const Rbs::SceneAssets& assets)
 }
 
 ApplicationInitializationResult RigidBodySimulationApp::InitializeScene(
-    const BackendAuthoring* authoring,const Rbs::AngularPacket* angularCandidate)
+    const BackendAuthoring* authoring,const Rbs::AngularPacket* angularCandidate,const Rbs::RagdollPacket* ragdollCandidate)
 {
     m_BuildingPreset=SandboxEnabled();m_PresetOrdinals={};
     struct EndPreset {bool& flag;~EndPreset(){flag=false;}} endPreset{m_BuildingPreset};
@@ -1258,6 +1295,21 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeScene(
         return result;
     if (auto result = CreateSceneLights(assets); !result)
         return result;
+    if(m_ActiveSelection.IsRagdollScene())
+    {
+        const auto* packet=ragdollCandidate?ragdollCandidate:(m_Ragdoll.committed?&*m_Ragdoll.committed:nullptr);
+        if(!packet)return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"Passive Ragdoll","Missing scene packet"});
+#ifdef GENGINE_PHASE29_QUALIFICATION
+        if(const char* name=std::getenv("GENGINE_PHASE29_CASE");
+           name && std::string_view(name)=="R29_TILT_LIMIT_WAKE_V01")
+        {
+            if(SandboxEnabled() || authoring || *packet!=Rbs::ReferenceRagdollPacket())
+                return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"Passive Ragdoll","Invalid tilted fixture environment"});
+            return InitializeRagdollScene(Rbs::TiltRagdollPacket(),assets,nullptr);
+        }
+#endif
+        return InitializeRagdollScene(*packet,assets,authoring);
+    }
     if(m_ActiveSelection.IsAngularScene())
     {
         const auto* packet=angularCandidate?angularCandidate:
@@ -1505,6 +1557,168 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeScene(
         FocusMaterialCamera(m_EditorCamera_, focal, .28f, -.2f, distance);
     }
     return {};
+}
+
+ApplicationInitializationResult RigidBodySimulationApp::InitializeRagdollScene(
+    const Rbs::RagdollPacket& packet,const Rbs::SceneAssets& assets,const BackendAuthoring* authoring)
+{
+    const auto failure=[](std::string_view why)->ApplicationInitializationResult{
+        return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"Passive Ragdoll",why});};
+    if(auto checked=Rbs::ValidateRagdollPacket(packet,m_Backend);!checked)return failure(checked.error().message);
+    m_RagdollBindings={};
+    if(SandboxEnabled())
+    {
+        if(auto room=CreateGroundAndWalls(assets,&m_RagdollBindings.environmentEntities);!room)return room;
+    }
+    else
+    {
+        // The reference sandbox uses +Y up. Keep its geometry and surfaces
+        // independent from the interactive room and its authored settings.
+        struct Boundary {const char* name; Vec3f center,halfExtents; float friction;};
+        const std::array<Boundary,5> room{{
+            {"Floor",{0,-.5f,0},{50,.5f,25},.5f},
+            {"Wall +X",{50,2.5f,0},{1,2.5f,25},0},
+            {"Wall -X",{-50,2.5f,0},{1,2.5f,25},0},
+            {"Wall -Z",{0,2.5f,-25},{50,2.5f,1},0},
+            {"Wall +Z",{0,2.5f,25},{50,2.5f,1},0}}};
+        for(std::size_t i=0;i<room.size();++i)
+        {
+            const auto& boundary=room[i];
+            auto e=CreatePresetEntity(7,boundary.name);
+            if(!e)return std::unexpected(e.error());
+            m_RagdollBindings.environmentEntities[i]=static_cast<entt::entity>(*e);
+            e->AddOrReplaceComponent<Transform3DComponent>(boundary.center,Vec3f{},2.f*boundary.halfExtents);
+            RigidBody3DComponent rigid;
+            rigid.Type=BodyType::Static;
+            e->AddOrReplaceComponent<RigidBody3DComponent>(rigid);
+            BoxFixture3DComponent box;
+            box.Property.m_InvMass=0;
+            box.Property.m_Position=boundary.center;
+            box.Property.m_Friction=boundary.friction;
+            box.Property.m_Elasticity=.5f;
+            e->AddOrReplaceComponent<BoxFixture3DComponent>(box);
+            if(auto visual=CreateRenderable(*e,assets.boxMesh,i==0?assets.floorMaterial:assets.wallMaterial,"Box");!visual)return visual;
+        }
+    }
+    const Vec3f placement{0,packet.dropOffset+(SandboxEnabled()?Rbs::SandboxEnvironment::FloorTop:0.f),0};
+    const auto reference=Rbs::ReferenceRagdollPacket();
+    for(std::size_t i=0;i<packet.bodies.size();++i)
+    {
+        const auto& b=packet.bodies[i];
+        auto e=CreatePresetEntity(32,RagdollName(b.key));
+        if(!e)return std::unexpected(e.error());
+        m_RagdollBindings.entities[i]=static_cast<entt::entity>(*e);
+        const Vec3f scale=Rbs::RagdollRenderScale(b);
+        e->AddOrReplaceComponent<Transform3DComponent>(b.center+placement,Vec3f{},scale);
+        e->Transform().SetRotation(b.orientation);
+        e->AddOrReplaceComponent<VisibilityComponent>(VisibilityComponent{b.visible});
+        RigidBody3DComponent rigid;
+        rigid.Type=b.properties.type;
+        e->AddOrReplaceComponent<RigidBody3DComponent>(rigid);
+        Fixture3DProperty props;
+        props.m_Position=b.center+placement;
+        props.m_Orientation=b.orientation;
+        props.m_InvMass=rigid.Type==BodyType::Dynamic?1.f/b.properties.mass:0.f;
+        props.m_Friction=b.properties.material.friction;
+        props.m_Elasticity=b.properties.material.restitution;
+        props.m_LinearVelocity=b.initialLinearVelocity;
+        props.m_AngularVelocity=b.initialAngularVelocity;
+        auto mesh=assets.boxMesh;
+        if(b.shape==ShapeType::Box)
+        {
+            BoxFixture3DComponent box;
+            box.Property=props;
+            box.Shape={Vec3f(.5f),b.colliderCenter/scale};
+            e->AddOrReplaceComponent<BoxFixture3DComponent>(box);
+            // Only three immutable UV layouts are needed. Ordinary size edits
+            // stretch the authored skin with the box without creating cache keys.
+            const char* shapeName=b.key==RagdollBone::Head?"RbsRagdollRustHead":
+                                  b.key==RagdollBone::Torso?"RbsRagdollRustTorso":"RbsRagdollRustLimb";
+            auto shape=ShapeManager::_GetShape<RagdollBoxGeometry>(shapeName,
+                Rbs::RagdollRenderScale(reference.bodies[i]));
+            if(!shape)return std::visit([](const auto& error)->ApplicationInitializationResult
+                {return std::unexpected(error);},shape.error());
+            auto authored=m_SceneResources->PublishShape(shapeName);
+            if(!authored)return SceneFailure(authored.error());
+            mesh=*authored;
+        }
+        else if(b.shape==ShapeType::Sphere)
+        {
+            SphereFixture3DComponent sphere;
+            sphere.Property=props;sphere.Radius=b.radius;
+            e->AddOrReplaceComponent<SphereFixture3DComponent>(sphere);
+            GeometryTemplates::Sphere geometry;
+            // Integral longitudinal repeats close the seam. In metres, the
+            // pole-to-pole meridian is half the equatorial circumference.
+            const float wraps=std::max(1.f,std::round(2.f*Math::Pi*b.radius/RagdollRustTileMeters));
+            geometry.Options.UVTiling={wraps,.5f*wraps};
+            auto authored=m_SceneResources->PublishGeometry(geometry);
+            if(!authored)return SceneFailure(authored.error());
+            mesh=*authored;
+        }
+        else
+        {
+            CapsuleFixture3DComponent capsule;
+            capsule.Property=props;capsule.Shape={1.f,b.halfLength/b.radius};
+            e->AddOrReplaceComponent<CapsuleFixture3DComponent>(capsule);
+            GeometryTemplates::Capsule geometry;
+            geometry.radius=1.f;geometry.height=2.f*(1.f+capsule.Shape.halfLength);
+            const float circumference=2.f*Math::Pi*b.radius;
+            const float wraps=std::max(1.f,std::round(circumference/RagdollRustTileMeters));
+            const float meridian=Math::Pi*b.radius+2.f*b.halfLength;
+            geometry.Options.UVTiling={wraps,wraps*meridian/circumference};
+            auto authored=m_SceneResources->PublishGeometry(geometry);
+            if(!authored)return SceneFailure(authored.error());
+            mesh=*authored;
+        }
+        // The Sphere preset's five PBR bindings are shared; editable instances are per bone.
+        auto material=m_SceneResources->CloneMaterial(assets.sphereMaterial);
+        if(!material)return SceneFailure(material.error());
+        if(auto visual=CreateRenderable(*e,mesh,*material,"");!visual)return visual;
+    }
+    if(auto helpers=CreateEnvironmentHelpers();!helpers)return helpers;
+    m_AxisEntity.AddOrReplaceComponent<VisibilityComponent>(VisibilityComponent{false});
+    if(auto started=StartSceneRuntime(authoring);!started)return started;
+    auto* physics=m_ActiveScene->GetPhysicsSystem();
+    auto* world=physics?physics->GetPhysicsWorld():nullptr;
+    if(!world || world->GetBodyCount()!=11 || world->GetJointCount()!=0)return failure("Incomplete scene body membership");
+    const Vec3f gravity{0,packet.gravityY,0};
+    world->SetGravity(gravity);
+    std::array<PhysicsBodyHandle,6> handles{};
+    for(std::size_t i=0;i<handles.size();++i)
+    {
+        const auto& b=packet.bodies[i];
+        auto h=m_ActiveScene->GetBodyBinding(_Entity{m_RagdollBindings.entities[i],m_ActiveScene.get()});
+        if(!h)return failure("Missing Physics binding for a ragdoll member");
+        handles[i]=*h;
+        const auto initial=world->ReadBodyProperties(*h);
+        if(!initial || (*initial!=b.properties && !world->UpdateBodyProperties(*h,b.properties)))
+            return failure("Backend rejected authored body properties");
+        const auto state=world->ReadEffectiveBody(*h);
+        const auto bodyProps=world->ReadBodyProperties(*h);
+        const auto extents=RagdollShapeHalfExtents(b);
+        if(!state || !bodyProps || std::abs(bodyProps->mass-b.properties.mass)>1.e-5f ||
+           glm::length(state->position-b.center-placement)>1.e-5f ||
+           glm::length(state->linearVelocity-b.initialLinearVelocity)>1.e-5f ||
+           glm::length(state->angularVelocity-b.initialAngularVelocity)>1.e-5f ||
+           glm::length(state->localBounds.mins-(b.colliderCenter-extents))>1.e-5f ||
+           glm::length(state->localBounds.maxs-(b.colliderCenter+extents))>1.e-5f)
+            return failure("Effective body dimensions, mass, velocity or placement differ from the draft");
+    }
+    auto binding=PassiveRagdoll::Bind(*world,packet,handles);
+    if(!binding)return failure(binding.error().message);
+    m_RagdollBindings.mapping=*binding;
+    if(authoring)
+        if(auto restored=authoring->ApplyAfterStart(*m_ActiveScene);!restored)return restored;
+    if(world->GetGravity()!=gravity || world->GetJointCount()!=5)return failure("Effective gravity or ragdoll joint count differs");
+    physics->SetBeforeStep([this,physics](PhysicsWorld&,std::uint64_t){
+        if(physics->HasJointFailure())FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,
+            "Physics","PassiveRagdoll","Update","Phase29","Joint numerical failure"});
+    });
+    // The reference limbs span Z. View across X so left and right stay distinct.
+    FocusMaterialCamera(m_EditorCamera_,packet.bodies[1].center+placement,.12f,1.32f,13.f);
+    m_IsShowDebugBoundingBox=false;m_ShowSelectedColliderOutlines=false;
+    return ConnectApplicationEventHandlers();
 }
 
 ApplicationInitializationResult RigidBodySimulationApp::InitializeAngularScene(

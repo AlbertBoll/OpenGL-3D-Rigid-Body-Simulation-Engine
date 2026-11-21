@@ -387,7 +387,7 @@ namespace GEngine
     {
         m_RenderData.RequireMutable();
         const auto seconds=step.count();
-        if (m_PhysicsStepStarted || m_PhysicsTiming.pendingSeconds != 0.0 ||
+        if (m_PhysicsSystem->GetBackendFailure() || m_PhysicsStepStarted || m_PhysicsTiming.pendingSeconds != 0.0 ||
             (seconds != PhysicsStepSeconds && seconds != 1.0/120.0)) return false;
         m_PhysicsStepSeconds=seconds;
         return true;
@@ -406,10 +406,19 @@ namespace GEngine
 		if (!timingWorld || timingWorld != m_TimingWorld)
 		{
 			m_PhysicsTiming = {};
+            m_PhysicsStepStarted = false;
 			m_TimingWorld = timingWorld;
 		}
 		m_PhysicsTiming.stepsLastUpdate = 0;
 		m_PhysicsTiming.discardedSeconds = 0.0;
+        if (m_PhysicsSystem->GetBackendFailure()) {
+            // A legacy caller can fault the same world between Scene updates.
+            if (m_PhysicsTiming.pendingSeconds > 0) {
+                m_PhysicsTiming.abandonedOnFaultSeconds = m_PhysicsTiming.pendingSeconds;
+                m_PhysicsTiming.pendingSeconds = 0;
+            }
+            return;
+        }
 		for (auto e : m_Registry.view<RigidBody3DComponent, Transform3DComponent, RuntimePhysicsPose>())
 		{
 			auto& rigidBody = m_Registry.get<RigidBody3DComponent>(e);
@@ -432,7 +441,8 @@ namespace GEngine
 			{
 				const auto changed = m_PhysicsSystem->SetBodyPose(pose.handle, transform.Translation, transform.QuatRotation);
                 body = m_PhysicsSystem->ReadBodyPose(pose.handle);
-                if (changed && body) pose.authored = {body->position, body->orientation};
+                if (!body) continue;
+                if (changed) pose.authored = {body->position, body->orientation};
 				// Rejected edits restore the last accepted body pose, including Euler display data.
 				PublishPhysicsPose(transform, pose, *body);
 			}
@@ -454,27 +464,43 @@ namespace GEngine
 			while (!m_IsPaused && m_PhysicsTiming.stepsLastUpdate < MaxPhysicsStepsPerUpdate &&
 				m_PhysicsTiming.pendingSeconds + roundoff >= m_PhysicsStepSeconds)
 			{
-				for (auto e : m_Registry.view<RigidBody3DComponent, RuntimePhysicsPose>())
-				{
-					auto& pose = m_Registry.get<RuntimePhysicsPose>(e);
-					if (!ValidPhysicsPose(timingWorld, m_Registry.get<RigidBody3DComponent>(e), pose)) continue;
-					pose.previousTranslation = pose.currentTranslation;
-					pose.previousRotation = pose.currentRotation;
-				}
-                m_PhysicsStepStarted=true;
+                PhysicsBodyResult<StepDisposition> result;
 #ifdef GENGINE_FRAME_SPIKE_AUDIT
                 { FrameSpike::Scope auditPhysics(FrameSpike::Physics);
 #endif
-				m_PhysicsSystem->Update(Timestep(m_PhysicsStepSeconds));
+				result = m_PhysicsSystem->TryFixedStep(Timestep(m_PhysicsStepSeconds));
 #ifdef GENGINE_FRAME_SPIKE_AUDIT
                 }
 #endif
+                if (!result) {
+                    if (m_PhysicsSystem->GetBackendFailure()) {
+                        m_PhysicsTiming.abandonedOnFaultSeconds = m_PhysicsTiming.pendingSeconds;
+                        m_PhysicsTiming.pendingSeconds = 0;
+                        if (m_PhysicsTiming.stepsLastUpdate) {
+                            for (auto e : m_Registry.view<RigidBody3DComponent, Transform3DComponent, RuntimePhysicsPose>()) {
+                                auto& pose=m_Registry.get<RuntimePhysicsPose>(e);
+                                const auto& binding=m_Registry.get<RigidBody3DComponent>(e);
+                                if (!pose.handle || pose.handle!=binding.RuntimeBody || pose.handle.registry!=timingWorld->GetWorldDomain()) continue;
+                                auto& transform=m_Registry.get<Transform3DComponent>(e);
+                                transform.SetTranslation(pose.currentTranslation);
+                                transform.SetRotation(pose.currentRotation);
+                                pose.translation=transform.Translation;
+                                pose.rotation=transform.QuatRotation;
+                            }
+                        }
+                    }
+                    return;
+                }
+                if (*result != StepDisposition::Completed) break;
+                m_PhysicsStepStarted = true;
 				for (auto e : m_Registry.view<RigidBody3DComponent, RuntimePhysicsPose>())
 				{
 					auto& pose = m_Registry.get<RuntimePhysicsPose>(e);
 					if (!ValidPhysicsPose(timingWorld, m_Registry.get<RigidBody3DComponent>(e), pose)) continue;
                     if (auto body = m_PhysicsSystem->ReadBodyPose(pose.handle))
                     {
+                        pose.previousTranslation = pose.currentTranslation;
+                        pose.previousRotation = pose.currentRotation;
                         pose.currentTranslation = body->position;
                         pose.currentRotation = body->orientation;
                     }
@@ -498,10 +524,27 @@ namespace GEngine
 		}
 	}
 
+#if defined(GENGINE_PHASE29_STEP_SAFETY)
+    std::uint64_t _Scene::CommittedPoseFingerprintForTest() const
+    {
+        std::uint64_t hash=14695981039346656037ULL;
+        const auto add = [&](const auto& value) {
+            for (auto byte : std::as_bytes(std::span(&value,1))) { hash ^= std::to_integer<unsigned>(byte); hash *= 1099511628211ULL; }
+        };
+        for (auto e : m_Registry.view<const RuntimePhysicsPose>()) {
+            const auto& pose=m_Registry.get<RuntimePhysicsPose>(e);
+            add(pose.previousTranslation); add(pose.previousRotation);
+            add(pose.currentTranslation); add(pose.currentRotation);
+        }
+        return hash;
+    }
+#endif
+
 	double _Scene::GetRenderInterpolationAlpha() const
 	{
 		// Whole retained ticks indicate overload: show current state, never extrapolate
 		// or wrap the remainder back toward an older pose.
+		if (m_PhysicsSystem->GetBackendFailure()) return 1.0;
 		return std::clamp(m_PhysicsTiming.pendingSeconds / m_PhysicsStepSeconds, 0.0, 1.0);
 	}
 
@@ -531,6 +574,7 @@ namespace GEngine
         input.translation = transform.Translation;
         input.rotation = transform.QuatRotation;
         input.scale = transform.Scale;
+        if (m_PhysicsSystem->GetBackendFailure()) return input;
         if(m_EditorTransformPreviewCount)
         {
             const auto end=m_EditorTransformPreview.begin()+m_EditorTransformPreviewCount;
@@ -2109,6 +2153,7 @@ namespace GEngine
         // Clearing runtime poses releases scoped callbacks before body/shape teardown.
 		m_PhysicsTiming = {};
 		m_TimingWorld = nullptr;
+        m_PhysicsStepStarted = false;
 		m_Registry.clear<RuntimePhysicsPose>();
 		for (auto& e : m_Registry.view<RigidBody3DComponent>())
 		{

@@ -1,0 +1,689 @@
+{
+  "schema": 1,
+  "kind": "OWNER_MILESTONE_DISPOSITION_AND_SOURCE_ARCHIVE",
+  "version": "01",
+  "phase": "29",
+  "recorded_utc": "2026-11-21T17:55:46.839967+00:00",
+  "owner_instruction": "PRE_EDITOR PHASE 29  FINAL OWNER APPROVAL, COMMIT, TAG AND PUSH",
+  "owner_decision": "APPROVED_WITH_DOCUMENTED_EXCEPTIONS",
+  "scope": "Milestone progression; formal approved checkpoint blocked by unchanged approval governance.",
+  "owner_words": [
+    "FINAL OWNER DECISION: APPROVE PHASE 29 WITH DOCUMENTED EXCEPTIONS.",
+    "Owner disposition: APPROVED_WITH_DOCUMENTED_EXCEPTIONS for milestone progression.",
+    "Preserve the completed commit and evidence, report the precise publication blocker, and stop only the invalid approval/tag step."
+  ],
+  "manual_review": {
+    "status": "PASS",
+    "subject": "overall visual behavior of the inspected current Passive Ragdoll",
+    "inspected_executable_sha256": null,
+    "inspected_backend": null,
+    "unobserved_properties_credited": 0,
+    "final_candidate_identity_binding": "UNVERIFIED"
+  },
+  "step_failure_propagation": {
+    "status": "PASS",
+    "cases_passed": 6,
+    "attempted": 8,
+    "completed": 3,
+    "exit": 1,
+    "executable_sha256": "e8036631dbf0883588bffffaffbd47ad7b662c6f0174eb57cd40daa74dd9e021"
+  },
+  "criterion_dispositions": [
+    {
+      "criterion": "Jolt R29_DROP_WAKE_V01 mandatory motion and numerical safety",
+      "actual_outcome": "FAIL: floor penetration 62.724 / 10 mm, neck gap 16.053 / 15 mm, CV relation 0.025168 / 0.010 rad, loaded shoulder residual 16.393 / 2.25 mm",
+      "owner_disposition": "Outstanding exception expressly accepted for milestone progression",
+      "residual_owner": "GEngine Owner",
+      "revisit_trigger": "A production motion claim, changed contact or joint behavior, or a repeatable gameplay defect"
+    },
+    {
+      "criterion": "Jolt R29_TILT_LIMIT_WAKE_V01",
+      "actual_outcome": "NOT_EXECUTED",
+      "owner_disposition": "Outstanding coverage accepted in this milestone disposition",
+      "residual_owner": "GEngine Owner",
+      "revisit_trigger": "Before claiming Jolt TILT, dynamic limit visitation or full motion qualification"
+    },
+    {
+      "criterion": "Jolt Release inclusive CPU, observer CPU, Arena, heap and shutdown lifetime",
+      "actual_outcome": "INCOMPLETE",
+      "owner_disposition": "Historical DROP observations retained at their tested scope",
+      "residual_owner": "GEngine Owner",
+      "revisit_trigger": "Before a full Release cost/lifetime claim, allocation growth, a provider change, or a candidate-matched teardown measurement"
+    },
+    {
+      "criterion": "D_EDITOR and E_INTERACTION including Component Governance V01",
+      "actual_outcome": "INCOMPLETE: 976 pending rows; no new row-level observations",
+      "owner_disposition": "Owner accepts the incomplete interaction coverage for milestone progression",
+      "residual_owner": "GEngine Owner",
+      "revisit_trigger": "Before claiming authoring/interaction coverage or a qualified final Editor candidate"
+    },
+    {
+      "criterion": "Native Passive Ragdoll",
+      "actual_outcome": "EXPERIMENTAL; original Native DROP and TILT both FAIL",
+      "owner_disposition": "Retain the active feature-specific backend scope",
+      "residual_owner": "GEngine Owner",
+      "revisit_trigger": "Before Native production promotion or following a shared safety/integrity regression"
+    },
+    {
+      "criterion": "Ordinary Editor frame pacing",
+      "actual_outcome": "INTERMITTENT_FRAME_PACING_ANOMALY / ROOT_CAUSE_UNKNOWN / DEFERRED",
+      "owner_disposition": "Deferred by Owner with the cause unresolved",
+      "residual_owner": "GEngine Owner",
+      "revisit_trigger": "Reliable trigger, recurrence with useful telemetry, or stronger evidence"
+    }
+  ],
+  "formal_publication": {
+    "phase_ready": false,
+    "approved_checkpoint_eligible": false,
+    "full_production_qualification": false,
+    "approved_tag_requested": "pre-editor-phase-29-approved",
+    "approved_tag_issued": false,
+    "seal_or_approval_journal": null,
+    "checkpoint_receipt": null,
+    "approval_journal_complete": false,
+    "component_verifier_result": "BLOCKED",
+    "component_verifier_reason": "Jolt.head.Transform.Translation: PENDING blocks READY",
+    "matrix_rows": 976,
+    "pending_rows": 976,
+    "pass_only_gates": [
+      "A_PHYSICS",
+      "D_EDITOR",
+      "E_INTERACTION"
+    ],
+    "limited_exception_gates": [
+      "B_SAFETY",
+      "C_COST"
+    ],
+    "required_final_owner_binding": "matching final candidate",
+    "formal_predecessor": {
+      "phase": "28",
+      "commit": "a983eac5e9f2c7993a17d90ef054ce216315c5d6",
+      "annotated_tag": "pre-editor-phase-28-approved",
+      "tag_object": "cc0d456d1eec388e03a4f0c65de15dfdc478d21b",
+      "public_receipt": {
+        "path": "pre-editor-checkpoints/phase-28.json",
+        "sha256": "f5e8ea456219ad2cf463b6f6649d766cff061656017a22f61ada1c14ffe0c47b"
+      },
+      "private_journal_status": "COMPLETE"
+    }
+  },
+  "archive": {
+    "branch": "pre-editor/refactor",
+    "remote": "origin",
+    "source_parent": "a983eac5e9f2c7993a17d90ef054ce216315c5d6",
+    "role": "untagged preservation commit; independent of approved-checkpoint seal/finish",
+    "canonical_rbs_prearchive_index": "100644 d1dc5df89d91f9f433eb35f870d34fcfcf597a92 0\tRigidBodySimulation/src/RigidBodySimulation.cpp",
+    "production_and_support": [
+      {
+        "path": "GEngine/include/GEngine/Physics/PassiveRagdoll.h",
+        "bytes": 3202,
+        "worktree_sha256": "3b7c11ecac7a5cdaec2ee43f55e312cff7077a667b47d68eb025562daf7e0f25",
+        "git_blob": "535107e53757be0c7483830b6db6a340fcaece0f",
+        "raw_recovery": "Git blob bytes"
+      },
+      {
+        "path": "GEngine/src/Physics/PassiveRagdoll.cpp",
+        "bytes": 10371,
+        "worktree_sha256": "502f6591b3b6ec467310f63579b5f2bb6908bbe2562752ffcaa8b49464aee3bd",
+        "git_blob": "dffa7a1b75fddcb3558b737bcc4ce4079ac8d061",
+        "raw_recovery": "Git blob bytes"
+      },
+      {
+        "path": "RigidBodySimulation/include/RbsLaunchConfig.h",
+        "bytes": 13430,
+        "worktree_sha256": "9a5549841f247064c052b7a8393b94a021683c27cd13ea5b35d0ebe952016aa9",
+        "git_blob": "8cb7e501e605d910bb86f24024efb4c248e5dc7c",
+        "raw_recovery": "Expand each LF in the Git blob to CRLF"
+      },
+      {
+        "path": "RigidBodySimulation/src/RbsLaunchConfig.cpp",
+        "bytes": 41080,
+        "worktree_sha256": "e20d4db7d7610cb06e81cddf4040f1eb9a60d8ffec5ad4c5acb236f282deb211",
+        "git_blob": "c3160e591fb8e1f204ef9ffbb17a1996ccbb32e4",
+        "raw_recovery": "Expand each LF in the Git blob to CRLF"
+      },
+      {
+        "path": "RigidBodySimulation/include/RigidBodySimulation.h",
+        "bytes": 37981,
+        "worktree_sha256": "63cea530f5bfe13d62d20b62dc39a442ddc374fe3bb554a6a5321e35bcab0118",
+        "git_blob": "ee35642f7a2c4aa3aed4c4e435211f02001b4e9c",
+        "raw_recovery": "Expand each LF in the Git blob to CRLF"
+      },
+      {
+        "path": "RigidBodySimulation/src/RigidBodySimulation.cpp",
+        "bytes": 87359,
+        "worktree_sha256": "e5f616d9dc0078ae2cf59ab7c882b3f8ebd57198f4216b8db35f82f84f489f70",
+        "git_blob": "aa2ec8e58664429934c8b67d6d4fa0953c9361ea",
+        "raw_recovery": "Expand each LF in the Git blob to CRLF"
+      },
+      {
+        "path": "RigidBodySimulation/src/RbsScene.cpp",
+        "bytes": 117816,
+        "worktree_sha256": "10a92fb1d2e4560ffad54443b8bcaeadb0bdacb0a00f04f35bf6540b88026088",
+        "git_blob": "03e1414cf7f19f1bc30b092a94299d68cee197bb",
+        "raw_recovery": "Expand each LF in the Git blob to CRLF"
+      },
+      {
+        "path": "RigidBodySimulation/src/RbsUi.cpp",
+        "bytes": 189743,
+        "worktree_sha256": "3e87ad59037b028590248ecc5e9951fb8262cdaf17b9284d012ac63e2b16bb2d",
+        "git_blob": "8052449f9e92817635b079d3001c455e4c7a73b3",
+        "raw_recovery": "Expand each LF in the Git blob to CRLF"
+      },
+      {
+        "path": "RigidBodySimulation/src/RbsEditorUi.cpp",
+        "bytes": 75148,
+        "worktree_sha256": "f9992f982746f59e36235561df0cc2fad5fcaaea864f2f6654de02a22aa5c3bb",
+        "git_blob": "0e3d9e27d7ee6345079a6eff59d977a567e7315a",
+        "raw_recovery": "Expand each LF in the Git blob to CRLF"
+      },
+      {
+        "path": "RigidBodySimulation/src/RbsViewportToolbar.cpp",
+        "bytes": 78277,
+        "worktree_sha256": "bccc0f1a1eb4dcf864e5b318c5a99e9e8a02080744c4bb86502384c9a15c3757",
+        "git_blob": "83af8cfa6f6251f599f192f0415059557ec6b8ee",
+        "raw_recovery": "Expand each LF in the Git blob to CRLF"
+      },
+      {
+        "path": "RigidBodySimulation/src/RbsFrame.cpp",
+        "bytes": 68751,
+        "worktree_sha256": "74366f8d41248ecf6d9c07c302b66a1448fa179a2135f00bffacb93ac79bef41",
+        "git_blob": "bdb1607c2ff3f089542677d0e78547864b0e9078",
+        "raw_recovery": "Expand each LF in the Git blob to CRLF"
+      },
+      {
+        "path": "GEngine/include/GEngine/Assets/Images/Editor/Scenes/passive-ragdoll.png",
+        "bytes": 776411,
+        "worktree_sha256": "d13bc9390c8e81218501c58ab4ed56ec92b9d8ad48b594006a5fdd75b0595237",
+        "git_blob": "a3c998e1a995ce0d9efd14412984a65898f5ed61",
+        "raw_recovery": "Git blob bytes"
+      },
+      {
+        "path": "tools/runtime_assets.json",
+        "bytes": 30125,
+        "worktree_sha256": "c15e7066ad59dcc51a455c9b8726c868b0f6e9474ae2e1dd6a1c5a5bf6a98079",
+        "git_blob": "61e473c84d71b8cf8b1aeed0fcca71c7062607d5",
+        "raw_recovery": "Git blob bytes"
+      },
+      {
+        "path": "GEngine/src/Physics/WorldBackend.h",
+        "bytes": 6268,
+        "worktree_sha256": "9c7e759e6c27f0ff75ba7ccb563f138f1c18addc025661a1c35481a2c9e4c259",
+        "git_blob": "8e34c73443f778a0091d3d06211f1be6fd16c426",
+        "raw_recovery": "Expand each LF in the Git blob to CRLF"
+      },
+      {
+        "path": "GEngine/src/Physics/JoltBackend.cpp",
+        "bytes": 111477,
+        "worktree_sha256": "d5e2620176d79ac0564882cc13567eb800c25e4583d78ede9e7078fac0a7c667",
+        "git_blob": "a2fc99dd5012f949617d565b14a2e9a0ed67b7ed",
+        "raw_recovery": "Expand each LF in the Git blob to CRLF"
+      },
+      {
+        "path": "GEngine/include/GEngine/Physics/PhysicsWorld.h",
+        "bytes": 18793,
+        "worktree_sha256": "681bc4f8f552d150595e19a33ffc98bd0c417432a77578e573924258a0e31576",
+        "git_blob": "cbd5185019683b2b23233b1643c623af8d214fed",
+        "raw_recovery": "Expand each LF in the Git blob to CRLF"
+      },
+      {
+        "path": "GEngine/include/GEngine/Physics/PhysicsWorld.cpp",
+        "bytes": 61005,
+        "worktree_sha256": "037031b329a2a1288a62e201cd3e29434a69d62c1a8339dd96ba87831735aa7f",
+        "git_blob": "40b95ef617b40bd85f9d90c8e7b990269ba6aad6",
+        "raw_recovery": "Expand each LF in the Git blob to CRLF"
+      },
+      {
+        "path": "GEngine/include/GEngine/Physics/PhysicsSystem.h",
+        "bytes": 32037,
+        "worktree_sha256": "3dc7fb1f71b04ccfdba36ed845a4e91c8e44f8ff18dc610a79b318539ade0c9a",
+        "git_blob": "ec4ebe0903aa968cb2c16cf75fd5961002530d9f",
+        "raw_recovery": "Expand each LF in the Git blob to CRLF"
+      },
+      {
+        "path": "GEngine/include/GEngine/Physics/PhysicsSystem.cpp",
+        "bytes": 162068,
+        "worktree_sha256": "2a90ca0e1bd4316db990195947167863086493e0b21c101af6bef5db215ea6e3",
+        "git_blob": "7a8d1059e8eaa5e67f3503d538a2415d3e261249",
+        "raw_recovery": "Expand each LF in the Git blob to CRLF"
+      },
+      {
+        "path": "GEngine/include/GEngine/Scene/_Scene.h",
+        "bytes": 22825,
+        "worktree_sha256": "3a5bb062e301a8add61c3f7c762a970f8317b7e2dc17f8b9380c2a840fd215ec",
+        "git_blob": "49322478f6948f4a5c8423ebdab9724d3c60d08e",
+        "raw_recovery": "Expand each LF in the Git blob to CRLF"
+      },
+      {
+        "path": "GEngine/src/Scene/_Scene.cpp",
+        "bytes": 107360,
+        "worktree_sha256": "74f6b929ea05a6550b4cee3c923d512ac76782c4bec57ed08e57008e026d7408",
+        "git_blob": "90e6231bb92f3e1fa895aa04878923dec6c3b9e5",
+        "raw_recovery": "Expand each LF in the Git blob to CRLF"
+      },
+      {
+        "path": "RigidBodySimulation/tests/PassiveRagdollChecks.h",
+        "bytes": 41438,
+        "worktree_sha256": "ab7f23b13458a7e126f10d640c7ba575e9998fcbe239988c29bdeb6fbe030cb3",
+        "git_blob": "d6efd7a20eccdbc3b12c0cf5a0bb3106c163a16d",
+        "raw_recovery": "Git blob bytes"
+      },
+      {
+        "path": "tools/pre_editor_phase29_qualification.py",
+        "bytes": 54474,
+        "worktree_sha256": "80a17bbd39610707548f05efeffa66da838a945a49b46da546c2d37112a602e5",
+        "git_blob": "8ca6c0f84424d4f67f82857864a2b42bcc60ffd6",
+        "raw_recovery": "Git blob bytes"
+      },
+      {
+        "path": "docs/pre_editor/PHASE_29_BOOK_CONFORMANCE.md",
+        "bytes": 3318,
+        "worktree_sha256": "4ab9a87f5339b4fb4faa0df1eb79f21ae4490bc238818e005910cc7ee9747fed",
+        "git_blob": "17a9cdb99c5e530daed1059edd7249cfa7d1e24d",
+        "raw_recovery": "Git blob bytes"
+      },
+      {
+        "path": "tools/pre_editor_phase29_step_safety.py",
+        "bytes": 26066,
+        "worktree_sha256": "cb017419343ecf6294a1173c19867d34039a2f8b0fe16d9f4896603aa058db52",
+        "git_blob": "0647a9b0bef5221456776e8644a93b6d80ca7127",
+        "raw_recovery": "Git blob bytes"
+      }
+    ],
+    "documentation": [
+      {
+        "path": "docs/pre_editor/proposals/PHASE_29_FINAL_QUALIFICATION_RESOURCES_01.md",
+        "bytes": 10310,
+        "worktree_sha256": "38250db46d5ad0ee0ceeb3c9fb98cc0620445ede2992f5a28b7fd6ec91f686b5",
+        "git_blob": "c778ce9f5059fb2d9f22125d66880525cbbe93e3",
+        "raw_recovery": "Git blob bytes"
+      },
+      {
+        "path": "docs/pre_editor/proposals/PHASE_29_HISTORICAL_UNMETERED_EXECUTION_DISPOSITION_01.md",
+        "bytes": 8264,
+        "worktree_sha256": "db8acdc93ac485bc5cf5c1f780cac59c9848d427080ebc955a9a85310d3e5791",
+        "git_blob": "cb4023cd768160e5ea811376ebd31a6449ae25c0",
+        "raw_recovery": "Git blob bytes"
+      },
+      {
+        "path": "docs/pre_editor/proposals/PHASE_29_JOLT_CONTACT_FEASIBILITY_01/DECISION.md",
+        "bytes": 26868,
+        "worktree_sha256": "edafe7b46dbe00522a2302c950f19709414442ea23532382f9a15ec91ea774a1",
+        "git_blob": "a0024dbee24ecb31ee6f9e6e3fc67105984153c7",
+        "raw_recovery": "Git blob bytes"
+      },
+      {
+        "path": "docs/pre_editor/proposals/PHASE_29_JOLT_NATIVE_ARCHITECTURE_DECISION_01.md",
+        "bytes": 13637,
+        "worktree_sha256": "0a6cf1b3922316cec482c76964db141715b7a99521fbb189e5d101d4c6e2a749",
+        "git_blob": "78bcb5ae8c951c77c9f68ec7adfb0bff34dde505",
+        "raw_recovery": "Git blob bytes"
+      },
+      {
+        "path": "docs/pre_editor/proposals/PHASE_29_JOLT_REMEDIATION_02/DESIGN.md",
+        "bytes": 13447,
+        "worktree_sha256": "d1ce2488302015469c9e5810095ee2c166a0d46c0025948b9622dab8080647cc",
+        "git_blob": "55675c2a1828f373111ea586b57c1efb86448af7",
+        "raw_recovery": "Git blob bytes"
+      },
+      {
+        "path": "docs/pre_editor/proposals/PHASE_29_JOLT_REMEDIATION_02/RESOURCE_AMENDMENT.md",
+        "bytes": 8977,
+        "worktree_sha256": "8949777b27fe9f909d3d3511191b0cf478a65b5b5fb67d122af7b5bcfb41d3ba",
+        "git_blob": "4d7bc6c062feaee4648e978b62caaabe99663b61",
+        "raw_recovery": "Git blob bytes"
+      },
+      {
+        "path": "docs/pre_editor/proposals/PHASE_29_LOADED_JITTER_ACCEPTANCE_01.md",
+        "bytes": 3870,
+        "worktree_sha256": "e01b6f928a7c23f082d935fd677d9143bc15be29a8962459a9330f8b8ac867dc",
+        "git_blob": "34fc25957d0cae9ee7a6bc0b9253e9266d5177fa",
+        "raw_recovery": "Git blob bytes"
+      },
+      {
+        "path": "docs/pre_editor/proposals/PHASE_29_POST_NATIVE_ARCHITECTURE_REVIEW_01.md",
+        "bytes": 17329,
+        "worktree_sha256": "e95cac5e0e9baf56d7441e815695c824c31b231896218dce3781c908e7ddbf65",
+        "git_blob": "c734c2127f7060b480895773355445e18193276c",
+        "raw_recovery": "Git blob bytes"
+      },
+      {
+        "path": "docs/pre_editor/proposals/PHASE_29_STEP_FAILURE_PROPAGATION_01.md",
+        "bytes": 24500,
+        "worktree_sha256": "fb209a4f8ae2dd6cd4347779de54e77ac10cd355ca6d7331a8308a56d4763932",
+        "git_blob": "3768dd53d0722a712c95fea51513da51bda06437",
+        "raw_recovery": "Git blob bytes"
+      },
+      {
+        "path": "docs/pre_editor/PHASE_29_OWNER_APPROVAL_WITH_DOCUMENTED_EXCEPTIONS_01.md",
+        "bytes": 4938,
+        "worktree_sha256": "33b37ede65ec61a9ccf3386e54f34c37065081ed2158a0d5f245e1a31424e66e",
+        "git_blob": "1a3e3053ea01c8803037467ebad3fbf90694b040",
+        "raw_recovery": "Git blob bytes"
+      }
+    ],
+    "historical_proposals_do_not_activate_authority": true,
+    "evidence_copies": [
+      {
+        "original": {
+          "path": "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/ACCEPTANCE_GATES.json",
+          "sha256": "2b36d89effdd6905623e49251717c7ee6a2c7ef49c668f2fa602b1ea43d158a5"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/approval-gates.json",
+          "bytes": 1824,
+          "worktree_sha256": "2b36d89effdd6905623e49251717c7ee6a2c7ef49c668f2fa602b1ea43d158a5",
+          "git_blob": "0f4039c9a29d945d6f91ba620fbfa34e0291f2f8",
+          "raw_recovery": "Git blob bytes"
+        }
+      },
+      {
+        "original": {
+          "path": "docs/pre_editor/active/PHASE_29_BACKEND_SCOPE_AMENDMENT_01/ACTIVATION.json",
+          "sha256": "017ebe28c2750d39cea26adac1d671169dc5b6d86bdd9977a342d4581ddc51b2"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/backend-scope-activation.json",
+          "bytes": 7655,
+          "worktree_sha256": "017ebe28c2750d39cea26adac1d671169dc5b6d86bdd9977a342d4581ddc51b2",
+          "git_blob": "14d6f4a6329767bef26d3c2cdf93675763caf65d",
+          "raw_recovery": "Git blob bytes"
+        }
+      },
+      {
+        "original": {
+          "path": "docs/pre_editor/active/PHASE_29_STEP_SAFETY_AMENDMENT_01.json",
+          "sha256": "5b5fb4d0916a22ad04cf99ab38dc07a1717dd4da0e9151b172a89989ca09102c"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/step-source-amendment.json",
+          "bytes": 3150,
+          "worktree_sha256": "5b5fb4d0916a22ad04cf99ab38dc07a1717dd4da0e9151b172a89989ca09102c",
+          "git_blob": "a0e9a7ca88a9c9940eed46182a3fa36c4afd9567",
+          "raw_recovery": "Git blob bytes"
+        }
+      },
+      {
+        "original": {
+          "path": "logs/pre_editor/phase-29/admission-02/reference-packet.json",
+          "sha256": "7bcfbc06105bfdee83fdb95e6b2b1a3fde49e7f2d962011e308c7e599ad4fffd"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/reference-packet.json",
+          "bytes": 29699,
+          "worktree_sha256": "7bcfbc06105bfdee83fdb95e6b2b1a3fde49e7f2d962011e308c7e599ad4fffd",
+          "git_blob": "86736eaeb013617e99170daf89cbe585dc0575c6",
+          "raw_recovery": "Git blob bytes"
+        }
+      },
+      {
+        "original": {
+          "path": "logs/pre_editor/phase-29/admission-02/workloads.json",
+          "sha256": "134a6851d0d970a71df7d4ffb0c16ff745dd488606f9c726dbcda58edcca86db"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/workloads.json",
+          "bytes": 11842,
+          "worktree_sha256": "134a6851d0d970a71df7d4ffb0c16ff745dd488606f9c726dbcda58edcca86db",
+          "git_blob": "350a036b82c1279d2e9682a7c8b216d3291fbc42",
+          "raw_recovery": "Git blob bytes"
+        }
+      },
+      {
+        "original": {
+          "path": "logs/pre_editor/phase-29/admission-02/criteria.json",
+          "sha256": "eb848d856ccf4cadf3092b732f1a36afa54fd8e6ddd91ab7c8ad2e83394b8340"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/criteria.json",
+          "bytes": 7381,
+          "worktree_sha256": "eb848d856ccf4cadf3092b732f1a36afa54fd8e6ddd91ab7c8ad2e83394b8340",
+          "git_blob": "90d6d31068ce30568cbb38721ab4d89ea33f01a2",
+          "raw_recovery": "Git blob bytes"
+        }
+      },
+      {
+        "original": {
+          "path": "logs/pre_editor/phase-29/admission-02/arena-proposal.json",
+          "sha256": "8cd3a7371b3fc86cbcfe8bad83679e8060202febac6961e94e9a582545b9c60b"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/arena-contract.json",
+          "bytes": 5817,
+          "worktree_sha256": "8cd3a7371b3fc86cbcfe8bad83679e8060202febac6961e94e9a582545b9c60b",
+          "git_blob": "e605a9e58ee6dcd12f509ddc58a8c9045ce7f286",
+          "raw_recovery": "Git blob bytes"
+        }
+      },
+      {
+        "original": {
+          "path": "logs/pre_editor/phase-29/final-qualification-01/evidence.json",
+          "sha256": "6a0084a13c9791fa29f0661667d801a9aeb28f03b875db1dbce34748e5680eec"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/qualification-at-review.json",
+          "bytes": 11738,
+          "worktree_sha256": "6a0084a13c9791fa29f0661667d801a9aeb28f03b875db1dbce34748e5680eec",
+          "git_blob": "fb99b60f3ded5b1062b6ed639cd7983af8aca9ba",
+          "raw_recovery": "Git blob bytes"
+        }
+      },
+      {
+        "original": {
+          "path": "logs/pre_editor/phase-29/resume-01/qualification/attempt-03-R-Jolt-R29_DROP_WAKE_V01/assessment.json",
+          "sha256": "669151d2885a60dbf27685fde583f3f51df2f4e5d043c9ea6db23c6734738219"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/jolt-drop-original.json",
+          "bytes": 12424,
+          "worktree_sha256": "669151d2885a60dbf27685fde583f3f51df2f4e5d043c9ea6db23c6734738219",
+          "git_blob": "85877f27330a251bb3ed62711f1e92cfa7b31c75",
+          "raw_recovery": "Git blob bytes"
+        }
+      },
+      {
+        "original": {
+          "path": "logs/pre_editor/phase-29/resume-01/jolt-drop-independent-numerical-findings-01.json",
+          "sha256": "3892fd64a4566b7e62394e43af1306212e627653bf7bf87b8449269d8deab060"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/jolt-drop-independent.json",
+          "bytes": 7544,
+          "worktree_sha256": "3892fd64a4566b7e62394e43af1306212e627653bf7bf87b8449269d8deab060",
+          "git_blob": "0e8df9107bb80ec29452a5c9298eb4eeb29ab11e",
+          "raw_recovery": "Git blob bytes"
+        }
+      },
+      {
+        "original": {
+          "path": "logs/pre_editor/phase-29/resume-01/drop-allocation-review-01/assessment.json",
+          "sha256": "b05847a08b8e93a84613e5aa79388f65652d32c5a22a6605a77428341aea4b3e"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/jolt-drop-allocation.json",
+          "bytes": 7371,
+          "worktree_sha256": "b05847a08b8e93a84613e5aa79388f65652d32c5a22a6605a77428341aea4b3e",
+          "git_blob": "09359116d12b6fa34b7b4eb4b2265255b6fbfaaa",
+          "raw_recovery": "Expand each LF in the Git blob to CRLF"
+        }
+      },
+      {
+        "original": {
+          "path": "logs/pre_editor/phase-29/resume-01/qualification/attempt-05-R-Native-R29_DROP_WAKE_V01/assessment.json",
+          "sha256": "97ac2a4542a9d215239065fa781527a44adf5f14f35a07988fe7080a0fc61402"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/native-drop-original.json",
+          "bytes": 12837,
+          "worktree_sha256": "97ac2a4542a9d215239065fa781527a44adf5f14f35a07988fe7080a0fc61402",
+          "git_blob": "14ebdbed249f813534eae6be168aaa0c49f036db",
+          "raw_recovery": "Git blob bytes"
+        }
+      },
+      {
+        "original": {
+          "path": "logs/pre_editor/phase-29/resume-01/qualification/attempt-06-R-Native-R29_TILT_LIMIT_WAKE_V01/assessment.json",
+          "sha256": "cf2294d652d9fda9483d226853733ff46f7f15ce1a6fd3739a24fcac1d967252"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/native-tilt-original.json",
+          "bytes": 12908,
+          "worktree_sha256": "cf2294d652d9fda9483d226853733ff46f7f15ce1a6fd3739a24fcac1d967252",
+          "git_blob": "024d86668d2ad5275a9795b9825786935c335f8e",
+          "raw_recovery": "Git blob bytes"
+        }
+      },
+      {
+        "original": {
+          "path": "logs/pre_editor/phase-29/step-safety-01/build-verification.json",
+          "sha256": "ea690f4dd04c38a3d28d79fe87e21024107fab9f120c23b3caa0994e57d5bf94"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/step-build-verification.json",
+          "bytes": 10056,
+          "worktree_sha256": "ea690f4dd04c38a3d28d79fe87e21024107fab9f120c23b3caa0994e57d5bf94",
+          "git_blob": "ad7672b8907215391caee496c53dc53f45ec3f73",
+          "raw_recovery": "Git blob bytes"
+        }
+      },
+      {
+        "original": {
+          "path": "logs/pre_editor/phase-29/step-safety-01/safety-role-02/process.json",
+          "sha256": "139c0f30e9e40e4fc4597504749b4a2ac2233d99062ede9ef91a3508c6633751"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/step-safety-result.json",
+          "bytes": 1491,
+          "worktree_sha256": "139c0f30e9e40e4fc4597504749b4a2ac2233d99062ede9ef91a3508c6633751",
+          "git_blob": "551e3447c322518e0726915fb22670b3406c24f3",
+          "raw_recovery": "Git blob bytes"
+        }
+      },
+      {
+        "original": {
+          "path": "logs/pre_editor/phase-29/step-safety-01/safety-role-02/data/cases.tsv",
+          "sha256": "9b381e5b5cd35105a76e1dc833e026a5c67a7f8dcb36505e3cbc1e6336972528"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/step-cases.tsv",
+          "bytes": 136,
+          "worktree_sha256": "9b381e5b5cd35105a76e1dc833e026a5c67a7f8dcb36505e3cbc1e6336972528",
+          "git_blob": "5cbd44b30e534e6dd74b468453c2856ed8108f70",
+          "raw_recovery": "Expand each LF in the Git blob to CRLF"
+        }
+      },
+      {
+        "original": {
+          "path": "logs/pre_editor/phase-29/step-safety-01/safety-role-02/data/fatal.tsv",
+          "sha256": "bcc6f2de588d1de71c5171b5993a2dfa92bea9bf9e9bc179c5d8525e11bb28cd"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/step-fatal.tsv",
+          "bytes": 44,
+          "worktree_sha256": "bcc6f2de588d1de71c5171b5993a2dfa92bea9bf9e9bc179c5d8525e11bb28cd",
+          "git_blob": "14e46dfede5dc4f76346eaf234fbd43441e6d2c3",
+          "raw_recovery": "Expand each LF in the Git blob to CRLF"
+        }
+      },
+      {
+        "original": {
+          "path": "logs/pre_editor/phase-29/step-safety-01/safety-role-02/data/shutdown.tsv",
+          "sha256": "17295888028b782407dac558f3f83d7855987ac670cb0818327041af158e8ba1"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/step-shutdown.tsv",
+          "bytes": 12,
+          "worktree_sha256": "17295888028b782407dac558f3f83d7855987ac670cb0818327041af158e8ba1",
+          "git_blob": "e4904ae1ed78bb5eed3f774bd13c501299a47215",
+          "raw_recovery": "Expand each LF in the Git blob to CRLF"
+        }
+      },
+      {
+        "original": {
+          "path": "logs/pre_editor/phase-29/ragdoll-resume-02/performance-disposition.json",
+          "sha256": "32c437e4070d0c14d3fcec47362f33e96f95362f7ca8ecd7be1aa39f2dd3285c"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/frame-pacing-disposition.json",
+          "bytes": 2662,
+          "worktree_sha256": "32c437e4070d0c14d3fcec47362f33e96f95362f7ca8ecd7be1aa39f2dd3285c",
+          "git_blob": "24f832c1ef2cdc9f86911ff11d2b0c74def84864",
+          "raw_recovery": "Expand each LF in the Git blob to CRLF"
+        }
+      },
+      {
+        "original": {
+          "path": "logs/pre_editor/phase-29/remediation-01/ragdoll-surface-source-and-uv.json",
+          "sha256": "f2725785571575a19604459de28ea3b0c5702e62a8dedd679df66e3eb591cdfd"
+        },
+        "archived": {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/ragdoll-surfaces.json",
+          "bytes": 13859,
+          "worktree_sha256": "f2725785571575a19604459de28ea3b0c5702e62a8dedd679df66e3eb591cdfd",
+          "git_blob": "d2e24b733e2730f961518b24fba478ad30813a54",
+          "raw_recovery": "Git blob bytes"
+        }
+      }
+    ],
+    "additional_immutable_local_bindings": [
+      {
+        "path": "logs/pre_editor/phase-29/start-01/entry-snapshot.json",
+        "sha256": "7c38193f47b4515ab99a27ab69a4dd29dc9b2bc7dec454a034dfddb1dd9e7853"
+      },
+      {
+        "path": "logs/pre_editor/phase-29/step-safety-01/component-matrix-08.json",
+        "sha256": "91c960a059f4e5f5df2c1fe42d412d21368086a2a32c73a52c86590fe646d03e"
+      },
+      {
+        "path": "logs/pre_editor/phase-29/step-safety-01/component-entry-08.json",
+        "sha256": "7000b0165f0ff3fb13fad010016c8974679ab5482a2ffa283441e5a14c2712ab"
+      },
+      {
+        "path": "logs/pre_editor/phase-29/step-safety-01/safety-role-02/job-process.json",
+        "sha256": "c4123bda0109dd828b487ff1c3f2d6c1d430747726d31c80be4578183d7b7db9"
+      },
+      {
+        "path": "logs/pre_editor/phase-29/step-safety-01/safety-role-01/process.json",
+        "sha256": "43e4260c04f6fe5a3f250859cf8f1bc20c1744042e726b8cce61cfad09d71a7c"
+      },
+      {
+        "path": "logs/pre_editor/phase-29/step-safety-disposition-01/owner-disposition.json",
+        "sha256": "2a7a3159cd28a49b67bbec6614e5dc59060c8cfb48bc91ec85df34d9f3ba0cc6"
+      },
+      {
+        "path": "docs/pre_editor/active/PHASE_29_FINAL_QUALIFICATION_GATE_REVIEW_01.md",
+        "sha256": "04ce7e9bc5ac2ea2a7abed943439de70ec1a6f33bd07c4807cd4769200d5aa9e"
+      },
+      {
+        "path": "docs/pre_editor/active/PHASE_29_BACKEND_SCOPE_AMENDMENT_01/AMENDMENT.md",
+        "sha256": "42c33ce8a922beac3b53bd7f1cd26b591546fb1a404805004edf61231f636831"
+      },
+      {
+        "path": "docs/pre_editor/active/PHASE_29_OWNER_UI_METHOD_REVIEW_01.md",
+        "sha256": "28e59199dab10ad148de05e86fb9dcc17440044cdcee94cf0e5a5430330465f1"
+      },
+      {
+        "path": "docs/pre_editor/active/PHASE_18_PLUS_MINIMUM_SUFFICIENT_VALIDATION.md",
+        "sha256": "19744617ead7bb045fd4bcc925c379102d2052db84ca0b208115f09d87f99567"
+      },
+      {
+        "path": "docs/pre_editor/active/EDITOR_COMPONENT_EXPOSURE_AUTHORING_01/verify.py",
+        "sha256": "92723790d850a766d3f51b4b7d9c76ef223deb7bf6693bf8c8bda7f7dd47b349"
+      },
+      {
+        "path": ".codex/tools/rendering_checkpoint.py",
+        "sha256": "f01404daf131ea140f82f867863c8e0a8ce7d71fa7137a64b706917bf72add46"
+      }
+    ]
+  },
+  "resources": {
+    "administrative_booked": 6496,
+    "historical_actual_ticks": null,
+    "strict_historical_ceiling_compliance": "UNVERIFIED",
+    "new_builds": 0,
+    "new_RBS_starts": 0,
+    "new_Physics_ticks": 0,
+    "new_manual_inspections": 0,
+    "additional_authority": false
+  }
+}

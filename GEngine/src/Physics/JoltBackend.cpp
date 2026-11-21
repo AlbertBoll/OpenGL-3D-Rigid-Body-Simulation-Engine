@@ -925,7 +925,7 @@ namespace GEngine
                 bool massChanged{},changed{};
             };
             // Reused command-boundary scratch: no allocation or extra full slot scan.
-            std::array<Synchronization,BodyCapacity> m_Synchronization{};
+            std::array<Synchronization,BodyCapacity> m_Synchronization;
             static_assert(sizeof(Synchronization)==48);
             static_assert(sizeof(m_Synchronization)==196608);
             Layers m_Layers;
@@ -935,6 +935,7 @@ namespace GEngine
             JPH::PhysicsSystem m_Physics;
             JPH::JobSystemThreadPool m_Jobs{JPH::cMaxPhysicsJobs,JPH::cMaxPhysicsBarriers,2};
             bool m_AllowSleeping{true};
+            bool m_Retiring{};
 #ifdef JPH_GENGINE_PHASE26_OBSERVATION
             void PublishIdentity(const BodyRecord& record,Phase26ObservationSDK::IdentityAction action) noexcept
             {
@@ -1098,6 +1099,12 @@ namespace GEngine
                     { return a.GetFriction()*b.GetFriction(); });
                 m_Physics.SetCombineRestitution([](const JPH::Body& a,const JPH::SubShapeID&,const JPH::Body& b,const JPH::SubShapeID&)
                     { return a.GetRestitution()*b.GetRestitution(); });
+            }
+            void PrepareTerminalRetirement() noexcept override
+            {
+                m_Retiring = true;
+                m_Physics.SetContactListener(nullptr);
+                m_Diagnostic.reset();
             }
             ~JoltWorld() override
             {
@@ -1336,27 +1343,58 @@ namespace GEngine
                 for(auto& joint:m_Joints) if(joint.m_Constraint &&
                     (joint.m_Desc.bodyA==handle || joint.m_Desc.bodyB==handle)) DestroyJoint(joint.m_Handle);
                 auto& api=m_Physics.GetBodyInterface(); const auto id=record.m_Body->GetID();
-                PublishResistance(record,0,0,false);
+                if (!m_Retiring) PublishResistance(record,0,0,false);
 #ifdef JPH_GENGINE_PHASE26_OBSERVATION
                 PublishIdentity(record,Phase26ObservationSDK::IdentityAction::Destroy);
 #endif
                 api.RemoveBody(id); api.DestroyBody(id); record={};
                 m_Suppressed[handle.index].reset();
             }
-            PhysicsBodyResult<> Step(float dt,const Vec3f& gravity,bool sleeping) override
+#if defined(GENGINE_PHASE29_STEP_SAFETY)
+            std::uint64_t PublicationFingerprintForTest(bool sdkState) const noexcept override
+            {
+                std::uint64_t hash = 14695981039346656037ULL;
+                const auto add = [&](const auto& value) {
+                    const auto bytes = std::as_bytes(std::span(&value, 1));
+                    for (auto byte : bytes) { hash ^= std::to_integer<unsigned>(byte); hash *= 1099511628211ULL; }
+                };
+                if (sdkState) {
+                    const auto gravity=V(m_Physics.GetGravity()); add(gravity);
+                    add(m_Physics.GetPhysicsSettings().mAllowSleeping);
+                    for (const auto& r:m_Bodies) if (r.m_Body) {
+                        const auto& b=*r.m_Body;
+                        add(V(b.GetPosition())); add(Q(b.GetRotation())); add(V(b.GetLinearVelocity()));
+                        add(V(b.GetAngularVelocity())); add(b.IsActive());
+                        if (b.IsDynamic()) add(b.GetMotionProperties()->GetInverseMass());
+                    }
+                    return hash;
+                }
+                for (const auto& r : m_Bodies) if (r.m_Body) {
+                    const auto& b = *r.m_Native;
+                    add(b.m_Position); add(b.m_Orientation); add(b.m_LinearVelocity); add(b.m_AngularVelocity);
+                    add(b.IsSleeping()); add(b.GetInactiveSeconds()); add(r.m_Position); add(r.m_Rotation);
+                    add(r.m_Linear); add(r.m_Angular); add(r.m_Sleeping); add(r.m_InverseMass);
+                    add(r.m_Friction); add(r.m_Restitution); add(r.m_Layer); add(r.m_Mask); add(r.m_ShapeRevision);
+                }
+                for (const auto& j : m_Joints) if (j.m_Constraint) add(j.m_AngularImpulseValid);
+                if (m_Diagnostic) add(m_Diagnostic->step);
+                return hash;
+            }
+#endif
+            BackendStepResult Step(float dt,const Vec3f& gravity,bool sleeping) override
             {
 #ifdef GENGINE_JOLT_FINAL_AUDIT
                 const auto auditStart=JoltAudit::Now();
 #endif
                 if(!Math::IsFinite(dt) || dt<0 || !Math::IsFinite(gravity))
-                    return Error(PhysicsBodyErrorCode::InvalidDuration,{},"Jolt Step");
+                    return std::unexpected(PhysicsStepFailure{{PhysicsBodyErrorCode::InvalidDuration,{},"Jolt Step"},PhysicsStepStage::Preparation});
                 if(dt==0) return {};
                 std::size_t synchronizeCount{};
                 // Complete preparation before ANY SDK gravity, sleeping, body or
                 // cache publication. Reuse the original pre-sync slot traversal.
                 for(auto& record:m_Bodies) if(record.m_Body) {
                     const auto prepared=PrepareSynchronization(record);
-                    if(!prepared)return std::unexpected(prepared.error());
+                    if(!prepared)return std::unexpected(PhysicsStepFailure{prepared.error(),PhysicsStepStage::Preparation});
                     if(prepared->changed)m_Synchronization[synchronizeCount++]=*prepared;
                 }
                 m_Physics.SetGravity(V(gravity));
@@ -1365,7 +1403,6 @@ namespace GEngine
                 { auto settings=m_Physics.GetPhysicsSettings();settings.mAllowSleeping=sleeping;m_Physics.SetPhysicsSettings(settings);
                   if(!sleeping)for(const auto& record:m_Bodies)if(record.m_Body)Wake(record.m_Handle);m_AllowSleeping=sleeping; }
                 for(std::size_t i=0;i<synchronizeCount;++i)CommitSynchronization(m_Synchronization[i]);
-                for(auto& joint:m_Joints)joint.m_AngularImpulseValid=false;
                 // Contact material is immutable throughout Update; diagnostics remain optional.
                 m_ContactIdentityFailure.store(false,std::memory_order_relaxed);
                 if(m_Diagnostic)m_Diagnostic->count.store(0);
@@ -1445,15 +1482,54 @@ namespace GEngine
 #else
                 const auto error=m_Physics.Update(dt,m_CollisionSteps,&m_Temporary,&m_Jobs);
 #endif
-                if(m_ContactIdentityFailure.load(std::memory_order_relaxed))
-                    return Error(PhysicsBodyErrorCode::StaleHandle,{},"Jolt contact callback identity failure; world cannot continue");
-                if((error & JPH::EPhysicsUpdateError::ContactResistanceInvalid)!=JPH::EPhysicsUpdateError::None)
-                    return Error(PhysicsBodyErrorCode::NonFiniteResult,{},"Jolt authored contact resistance failed; world cannot continue");
-                if(error!=JPH::EPhysicsUpdateError::None)
-                    return Error(PhysicsBodyErrorCode::Capacity,{},"Jolt collision capacity exceeded");
-                if(m_Diagnostic)m_Diagnostic->Finish(std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-timingStart).count());
-                for(auto& record:m_Bodies)if(record.m_Body)
-                {
+                auto mask = static_cast<std::uint32_t>(error);
+#if defined(GENGINE_PHASE29_STEP_SAFETY)
+                const auto inject = std::exchange(nextTestFault, TestFault::None);
+                const BodyRecord* invalidRecord = nullptr;
+                if (inject == TestFault::LastMirror) {
+                    for (auto it=m_Bodies.rbegin();it!=m_Bodies.rend();++it)
+                        if (it->m_Body) { invalidRecord=&*it; break; }
+                }
+                if (inject == TestFault::Capacity)
+                    mask |= static_cast<std::uint32_t>(JPH::EPhysicsUpdateError::ManifoldCacheFull);
+#endif
+                const auto sdkFault = [&](PhysicsBodyErrorCode code, std::string_view operation) {
+                    return std::unexpected(PhysicsStepFailure{{code,{},operation},PhysicsStepStage::SdkUpdate,mask});
+                };
+                if (m_ContactIdentityFailure.load(std::memory_order_relaxed))
+                    return sdkFault(PhysicsBodyErrorCode::StaleHandle,"Jolt contact callback identity failure");
+                if (mask & static_cast<std::uint32_t>(JPH::EPhysicsUpdateError::ContactResistanceInvalid))
+                    return sdkFault(PhysicsBodyErrorCode::NonFiniteResult,"Jolt authored contact resistance failed");
+                if (mask) return sdkFault(PhysicsBodyErrorCode::Capacity,"Jolt collision capacity exceeded");
+                const double observedMs = m_Diagnostic ?
+                    std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-timingStart).count() : 0.0;
+                std::size_t liveCount = 0;
+                for (auto& record : m_Bodies) if (record.m_Body) {
+                    const auto fault = [&](PhysicsBodyErrorCode code, std::string_view operation) {
+                        return std::unexpected(PhysicsStepFailure{{code,record.m_Handle,operation},PhysicsStepStage::Publication});
+                    };
+                    if (!ValidContactRecord(record)) return fault(PhysicsBodyErrorCode::StaleHandle,"Jolt output identity");
+                    const auto& body = *record.m_Body;
+                    const auto& native = *record.m_Native;
+                    const auto q = Q(body.GetRotation());
+                    const double norm = std::sqrt(double(q.w)*q.w + double(q.x)*q.x + double(q.y)*q.y + double(q.z)*q.z);
+                    if (!std::isfinite(norm)) return fault(PhysicsBodyErrorCode::NonFiniteResult,"Jolt output rotation");
+                    if (std::abs(norm-1.0)>1.e-5) return fault(PhysicsBodyErrorCode::InvalidPose,"Jolt output rotation norm");
+                    auto position = V(body.GetPosition());
+#if defined(GENGINE_PHASE29_STEP_SAFETY)
+                    if (&record == invalidRecord) position.x = std::numeric_limits<float>::quiet_NaN();
+#endif
+                    const double inactive = !body.IsStatic() && !body.IsActive() ? native.GetInactiveSeconds()+dt : 0.0;
+                    if (!Math::IsFinite(position) || !Math::IsFinite(V(body.GetLinearVelocity())) ||
+                        !Math::IsFinite(V(body.GetAngularVelocity())) || !Math::IsFinite(native.GetInverseMass()) ||
+                        !Math::IsFinite(native.m_Friction) || !Math::IsFinite(native.m_Elasticity) || !std::isfinite(inactive))
+                        return fault(PhysicsBodyErrorCode::NonFiniteResult,"Jolt body mirror publication");
+                    m_Synchronization[liveCount++].record = &record;
+                }
+                // Synchronous Update has joined its workers. No caller can mutate bodies
+                // between validation and this no-fail commit on the owning thread.
+                for (std::size_t i=0;i<liveCount;++i) {
+                    auto& record = *m_Synchronization[i].record;
 #ifdef JPH_GENGINE_PHASE26_OBSERVATION
                     PublishIdentity(record,Phase26ObservationSDK::IdentityAction::Snapshot);
 #endif
@@ -1461,9 +1537,9 @@ namespace GEngine
                     native.m_Position=V(body.GetPosition());native.m_Orientation=Q(body.GetRotation());
                     native.m_LinearVelocity=V(body.GetLinearVelocity());native.m_AngularVelocity=V(body.GetAngularVelocity());
                     PublishSleep(native,!body.IsStatic() && !body.IsActive(),dt);
-                    if(!native.HasFiniteState())return Error(PhysicsBodyErrorCode::NonFiniteResult,record.m_Handle,"Jolt publish");
                     record.Remember();
                 }
+                if (m_Diagnostic) m_Diagnostic->Finish(observedMs);
                 // Row lambdas are a provider measurement only after a completed
                 // active update. Creation, reset, retirement, and sleeping do not
                 // advertise stale or fabricated impulse samples.
@@ -1473,7 +1549,7 @@ namespace GEngine
                     joint.m_AngularImpulseValid=joint.m_Constraint->IsActive();
 #ifdef GENGINE_JOLT_FINAL_AUDIT
                 JoltAudit::ns[4]+=JoltAudit::Now()-auditPublish;
-                JoltAudit::bodyVisits+=m_Bodies.size()*2;
+                JoltAudit::bodyVisits+=m_Bodies.size()*2+liveCount;
 #endif
                 return {};
             }
@@ -1670,7 +1746,7 @@ namespace GEngine
             {
                 if(handle.index>=m_Joints.size())return;
                 auto& joint=m_Joints[handle.index];if(joint.m_Handle!=handle || !joint.m_Constraint)return;
-                auto desc=joint.m_Desc;m_Physics.RemoveConstraint(joint.m_Constraint);joint={};RefreshPair(desc);
+                auto desc=joint.m_Desc;m_Physics.RemoveConstraint(joint.m_Constraint);joint={};if (!m_Retiring) RefreshPair(desc);
             }
             void ResetJoint(PhysicsJointHandle handle) noexcept override
             { if(handle.index>=m_Joints.size())return;auto& joint=m_Joints[handle.index];if(joint.m_Handle==handle && joint.m_Constraint){joint.m_Constraint->ResetWarmStart();joint.m_AngularImpulseValid=false;} }

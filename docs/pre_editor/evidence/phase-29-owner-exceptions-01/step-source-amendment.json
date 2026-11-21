@@ -1,0 +1,77 @@
+{
+  "version": "01",
+  "phase": "29",
+  "status": "ACTIVE_BOUNDED_OWNER_APPROVAL",
+  "decision": {
+    "path": "docs/pre_editor/proposals/PHASE_29_STEP_FAILURE_PROPAGATION_01.md",
+    "sha256": "fb209a4f8ae2dd6cd4347779de54e77ac10cd355ca6d7331a8308a56d4763932"
+  },
+  "review": {
+    "path": "logs/pre_editor/phase-29/step-failure-propagation-01/static-check.json",
+    "sha256": "b67de994c5adc923f172f3571f5cf525078f3d4a0a7d969c1e35ca8b1bb96f99"
+  },
+  "predecessor": {
+    "path": "logs/pre_editor/phase-29/admission-02/source-envelope.json",
+    "sha256": "b6c5f6372041f53d0a02019d140603c01a75acd9d848c7c26cbdcaa67db687dc"
+  },
+  "production_runtime": [
+    "GEngine/include/GEngine/Physics/PassiveRagdoll.h",
+    "GEngine/src/Physics/PassiveRagdoll.cpp",
+    "RigidBodySimulation/include/RbsLaunchConfig.h",
+    "RigidBodySimulation/src/RbsLaunchConfig.cpp",
+    "RigidBodySimulation/include/RigidBodySimulation.h",
+    "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "RigidBodySimulation/src/RbsScene.cpp",
+    "RigidBodySimulation/src/RbsUi.cpp",
+    "RigidBodySimulation/src/RbsEditorUi.cpp",
+    "RigidBodySimulation/src/RbsViewportToolbar.cpp",
+    "RigidBodySimulation/src/RbsFrame.cpp",
+    "GEngine/include/GEngine/Assets/Images/Editor/Scenes/passive-ragdoll.png",
+    "tools/runtime_assets.json",
+    "GEngine/src/Physics/WorldBackend.h",
+    "GEngine/src/Physics/JoltBackend.cpp",
+    "GEngine/include/GEngine/Physics/PhysicsWorld.h",
+    "GEngine/include/GEngine/Physics/PhysicsWorld.cpp",
+    "GEngine/include/GEngine/Physics/PhysicsSystem.h",
+    "GEngine/include/GEngine/Physics/PhysicsSystem.cpp",
+    "GEngine/include/GEngine/Scene/_Scene.h",
+    "GEngine/src/Scene/_Scene.cpp"
+  ],
+  "admitted_edit_paths": [
+    "GEngine/src/Physics/WorldBackend.h",
+    "GEngine/src/Physics/JoltBackend.cpp",
+    "GEngine/include/GEngine/Physics/PhysicsWorld.h",
+    "GEngine/include/GEngine/Physics/PhysicsWorld.cpp",
+    "GEngine/include/GEngine/Physics/PhysicsSystem.h",
+    "GEngine/include/GEngine/Physics/PhysicsSystem.cpp",
+    "GEngine/include/GEngine/Scene/_Scene.h",
+    "GEngine/src/Scene/_Scene.cpp",
+    "RigidBodySimulation/src/RbsFrame.cpp",
+    "RigidBodySimulation/src/RbsEditorUi.cpp",
+    "RigidBodySimulation/src/RbsUi.cpp"
+  ],
+  "supporting": [
+    "RigidBodySimulation/tests/PassiveRagdollChecks.h",
+    "tools/pre_editor_phase29_qualification.py",
+    "docs/pre_editor/PHASE_29_BOOK_CONFORMANCE.md",
+    "tools/pre_editor_phase29_step_safety.py"
+  ],
+  "supporting_edits": [
+    "RigidBodySimulation/tests/PassiveRagdollChecks.h",
+    "tools/pre_editor_phase29_step_safety.py"
+  ],
+  "scope": "Only the Step boundary, fault recovery and the two committed Native Ragdoll disclosures per the bound decision. Frozen Physics models, thresholds and evidence retained.",
+  "build_seconds_remaining_at_entry": {
+    "Debug": 975,
+    "Release": 676.751
+  },
+  "conditional_role": {
+    "starts": 1,
+    "attempts": 8,
+    "seconds": 180,
+    "retries": 0,
+    "numerical_replacements": 0,
+    "release": "HOLD pending Owner-consistent history, new witnessed cutoff and candidate preflight"
+  },
+  "F_OWNER": "PENDING"
+}

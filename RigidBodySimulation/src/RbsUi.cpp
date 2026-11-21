@@ -11,6 +11,7 @@ namespace Rbs { unsigned MeshHighlightStage(); }
 #include "Core/Window.h"
 #include "Scene/_Scene.h"
 #include "Physics/PhysicsSystem.h"
+#include "Physics/GJK.h"
 #include "Renderer/SceneRenderResources.h"
 #include <algorithm>
 #include <cmath>
@@ -1178,6 +1179,7 @@ void RigidBodySimulationApp::DrawPhysicsSettings()
         }
         if(inlineApply)ImGui::SameLine();
         ImGui::BeginDisabled(m_PendingBackend==m_Backend || !PhysicsBackendAvailable(m_PendingBackend) ||
+            (m_Ragdoll.draft && (m_Ragdoll.dirty || m_SimulationState==State::Running)) ||
             (m_ActiveSelection.IsAngularScene() && (m_Angular.dirty || m_SimulationState==State::Running)));
         const bool backendApply=ImGui::Button("Apply##PhysicsBackend");
         RBS_PHASE28_WIDGET("backend-apply");
@@ -1187,7 +1189,7 @@ void RigidBodySimulationApp::DrawPhysicsSettings()
         ImGui::EndDisabled();
         if(!PhysicsBackendAvailable(PhysicsBackend::Jolt))ImGui::TextWrapped("Jolt 5.6.0 is not enabled in this build.");
         ImGui::TextWrapped("Apply stops and rebuilds this authored scene at Tick 0. Failure retains the previous world.");
-    if(m_ActiveSelection.IsAngularScene())
+    if(m_ActiveSelection.IsAngularScene() || m_Ragdoll.draft)
     {
         ImGui::TextWrapped("These scenes use a fixed solver profile. Reset restores the applied scene settings.");
         if(world && world->GetBackend()==PhysicsBackend::Jolt)
@@ -1206,7 +1208,7 @@ void RigidBodySimulationApp::DrawPhysicsSettings()
             }
             else ImGui::TextWrapped("Effective Jolt settings readback unavailable.");
         }
-        else if(world)ImGui::TextWrapped("The Native angular solver uses the scene's fixed settings.");
+        else if(world)ImGui::Text("Native solver iterations: %d",physics->GetSolverIterations());
     }
     else DrawJoltSettings();
     DrawDistanceChainImpulseControls();
@@ -1275,7 +1277,7 @@ void RigidBodySimulationApp::DrawLegacyDiagnosticPanels()
         }
         DrawDistanceChainImpulseControls();
         DrawPhysicsDebugSection();
-        if(m_ActiveSelection.IsAngularScene())
+        if(m_ActiveSelection.IsAngularScene() || RagdollBoneFor(m_HoveredEntity))
             ImGui::TextDisabled("Select a joint endpoint in Properties to edit its body and collider.");
         else DrawObjectProperties();
         DrawPresentationSettings();
@@ -1302,6 +1304,17 @@ void RigidBodySimulationApp::DrawPhysicsDebugSection()
             ImGui::EndDisabled();
             if(m_Backend==PhysicsBackend::Jolt)ImGui::TextWrapped("Native contact diagnostic overlays are unavailable for Jolt.");
             ImGui::TreePop();
+        }
+        if(m_Ragdoll.draft) {
+            ImGui::Checkbox("Ragdoll diagnostics",&m_Ragdoll.debugEnabled);
+            if(m_Ragdoll.debugEnabled) {
+                ImGui::Checkbox("Joint anchors",&m_Ragdoll.showAnchors);
+                ImGui::Checkbox("Joint axes",&m_Ragdoll.showAxes);
+                ImGui::Checkbox("Joint limits",&m_Ragdoll.showLimits);
+                ImGui::Checkbox("Joint errors",&m_Ragdoll.showErrors);
+                ImGui::Checkbox("Contact measurement",&m_Ragdoll.showContacts);
+                if(m_Ragdoll.showContacts)ImGui::TextWrapped("Measure contact geometry in a bone's Advanced / Backend Readback to display a snapshot with its tick.");
+            }
         }
 }
 void RigidBodySimulationApp::DrawObjectProperties()
@@ -1726,39 +1739,503 @@ void RigidBodySimulationApp::DrawAngularProperties()
     }
 }
 
+namespace
+{
+    std::string RagdollVectorText(const Vec3f& v)
+    {
+        return std::format("({:.4g}, {:.4g}, {:.4g})",v.x,v.y,v.z);
+    }
+
+    std::string RagdollQuaternionText(const Quat& q)
+    {
+        return std::format("({:.4g}, {:.4g}, {:.4g}, {:.4g})",q.w,q.x,q.y,q.z);
+    }
+
+    bool RagdollRotationField(const char* label,Quat& orientation)
+    {
+        Vec3f angles=glm::degrees(glm::eulerAngles(orientation));
+        if(!Rbs::Editor::XYZ(label,&angles.x,0.f,.25f,"COM-local right-handed frame, in degrees."))return false;
+        orientation=glm::normalize(glm::quat(glm::radians(angles)));
+        return true;
+    }
+
+    bool DrawRagdollBodyFields(RagdollBodyDesc& body,PhysicsBackend backend)
+    {
+        namespace E=Rbs::Editor;
+        auto& p=body.properties;
+        bool changed=false;
+        int motion=int(p.type);
+        {E::PropertyRow row("Motion type");
+            if(ImGui::Combo("##motion",&motion,"Static\0Dynamic\0Kinematic\0")) {
+                p.type=static_cast<BodyType>(motion);changed=true;
+            }}
+        changed|=E::Number("Mass (kg)",p.mass,.05f,"Positive retained mass. Apply rebuilds inertia.",E::Numeric::Positive<float>());
+        changed|=E::Number("Friction",p.material.friction,.01f,"Contact friction.",E::Numeric::Closed(0.f,1.f));
+        changed|=E::Number("Restitution",p.material.restitution,.01f,"Contact restitution.",E::Numeric::Closed(0.f,1.f));
+        ImGui::BeginDisabled(p.type==BodyType::Static);
+        changed|=E::XYZ("Initial velocity (m/s)",&body.initialLinearVelocity.x,0.f,.05f);
+        changed|=E::XYZ("Initial angular velocity (rad/s)",&body.initialAngularVelocity.x,0.f,.02f);
+        ImGui::EndDisabled();
+        if(backend==PhysicsBackend::Jolt) {
+            ImGui::BeginDisabled(p.type!=BodyType::Dynamic);
+            changed|=E::Number("Linear damping",p.linearDamping,.01f,"Dynamic Jolt body.",E::Numeric::Closed(0.f,1.f));
+            changed|=E::Number("Angular damping",p.angularDamping,.01f,"Dynamic Jolt body.",E::Numeric::Closed(0.f,1.f));
+            changed|=E::Number("Gravity factor",p.gravityFactor,.05f,"Dynamic Jolt body.",E::Numeric::Closed(0.f,10.f));
+            changed|=E::Number("Velocity override",p.velocityStepsOverride,1.f,"0 inherits world, 2 to 255 overrides island iterations.",
+                E::Numeric::Closed(0,255),[](int n)->const char*{return n==1?"Use 0 or at least 2 velocity steps.":nullptr;});
+            changed|=E::Number("Position override",p.positionStepsOverride,1.f,"0 inherits world.",E::Numeric::Closed(0,255));
+            ImGui::EndDisabled();
+            ImGui::BeginDisabled(p.type==BodyType::Static);
+            changed|=ImGui::Checkbox("Continuous collision",&p.continuousCollision);
+            changed|=ImGui::Checkbox("Allow sleeping",&p.allowSleeping);
+            ImGui::EndDisabled();
+            E::ReadOnly("Per-body sleep thresholds","Unavailable on Jolt (world three-point test)");
+        } else {
+            E::ReadOnly("Damping / gravity factor",std::format("{} / {} / {}",p.linearDamping,p.angularDamping,p.gravityFactor).c_str());
+            E::ReadOnly("CCD / allow sleeping",std::format("{} / {} (Native policy)",p.continuousCollision,p.allowSleeping).c_str());
+            E::ReadOnly("Velocity / position override",std::format("{} / {} (Native policy)",p.velocityStepsOverride,p.positionStepsOverride).c_str());
+            changed|=E::Number("Sleep linear speed (m/s)",p.sleep.linearSpeedThreshold,.01f,"Native body threshold.",E::Numeric::Nonnegative<float>());
+            changed|=E::Number("Sleep angular speed (rad/s)",p.sleep.angularSpeedThreshold,.01f,"Native body threshold.",E::Numeric::Nonnegative<float>());
+            changed|=E::Number("Sleep dwell (s)",p.sleep.inactivitySeconds,.01f,"Minimum continuous inactive time.",E::Numeric::Positive<double>());
+        }
+        E::ReadOnly("Spin / rolling length (m)",std::format("{} / {}",p.material.spinResistanceLength,p.material.rollingResistanceLength).c_str(),
+            "The passive ragdoll keeps the reference resistance values.");
+        return changed;
+    }
+
+    bool DrawRagdollJointFields(RagdollJointDesc& joint)
+    {
+        namespace E=Rbs::Editor;
+        bool changed=false;
+        const bool hinge=joint.Kind()==JointKind::Hinge;
+        E::ReadOnly("Constraint",hinge?"Hinge":joint.angular.limitsEnabled?"Limited Constant Velocity":"Constant Velocity");
+        E::ReadOnly("Endpoints",std::format("{} to {}",RagdollName(joint.bodyA),RagdollName(joint.bodyB)).c_str());
+        changed|=E::XYZ("Local anchor A (m)",&joint.localAnchorA.x,0.f,.005f,"COM-local on the first endpoint.");
+        changed|=E::XYZ("Local anchor B (m)",&joint.localAnchorB.x,0.f,.005f,"COM-local on the second endpoint.");
+        changed|=RagdollRotationField("Local frame A (deg)",joint.angular.localFrameA);
+        changed|=RagdollRotationField("Local frame B (deg)",joint.angular.localFrameB);
+        changed|=ImGui::Checkbox("Collide connected",&joint.collideConnected);
+        changed|=ImGui::Checkbox("Enable limits",&joint.angular.limitsEnabled);
+        if(joint.angular.limitsEnabled) {
+            const auto angle=[](const char* label,float& radians,float minimum,float maximum){
+                float degrees=glm::degrees(radians);
+                if(!E::Number(label,degrees,.5f,"Degrees in the authored local frame.",E::Numeric::Closed(minimum,maximum)))return false;
+                radians=glm::radians(degrees);return true;
+            };
+            if(hinge) {
+                changed|=angle("Lower (deg)",joint.angular.lower,-45.f,-15.f);
+                changed|=angle("Upper (deg)",joint.angular.upper,15.f,45.f);
+            } else {
+                changed|=angle("Half-angle U (deg)",joint.angular.halfAngleU,15.f,45.f);
+                changed|=angle("Half-angle V (deg)",joint.angular.halfAngleV,15.f,45.f);
+            }
+        }
+        return changed;
+    }
+
+    void DrawRagdollJointReadback(const JointState& state,const PhysicsWorld& world,std::uint64_t tick)
+    {
+        namespace E=Rbs::Editor;
+        const auto& desc=state.descriptor;
+        const auto& angular=state.angular;
+        E::ReadOnly("Descriptor",std::format("{}{}; {} to {}; connected collision {}",
+            desc.kind==JointKind::Hinge?"Hinge":"Constant Velocity",desc.angular.limitsEnabled?" (limited)":"",
+            desc.bodyA.index,desc.bodyB.index,desc.collideConnected).c_str());
+        E::ReadOnly("COM-local anchors (m)",std::format("{} / {}",RagdollVectorText(desc.localAnchorA),RagdollVectorText(desc.localAnchorB)).c_str());
+        E::ReadOnly("COM-local frames (w,x,y,z)",std::format("{} / {}",RagdollQuaternionText(desc.angular.localFrameA),RagdollQuaternionText(desc.angular.localFrameB)).c_str());
+        if(desc.angular.limitsEnabled) {
+            const bool hinge=desc.kind==JointKind::Hinge;
+            E::ReadOnly(hinge?"Applied bounds (deg)":"Applied U/V half-angles (deg)",
+                std::format("{:.4g} / {:.4g}",glm::degrees(hinge?desc.angular.lower:desc.angular.halfAngleU),
+                    glm::degrees(hinge?desc.angular.upper:desc.angular.halfAngleV)).c_str());
+        }
+        E::ReadOnly("World anchors (m)",std::format("{} / {}",RagdollVectorText(state.worldAnchorA),RagdollVectorText(state.worldAnchorB)).c_str());
+        E::ReadOnly("Anchor error (m)",std::format("{:.6g}",state.error).c_str());
+        E::ReadOnly("Relative rotation (w,x,y,z)",RagdollQuaternionText(angular.relativeRotation).c_str());
+        const auto a=world.ReadEffectiveBody(desc.bodyA),b=world.ReadEffectiveBody(desc.bodyB);
+        if(a && b)E::ReadOnly("Relative angular velocity (rad/s)",RagdollVectorText(b->angularVelocity-a->angularVelocity).c_str());
+        if(desc.kind==JointKind::Hinge) {
+            E::ReadOnly("Signed angle / axis error (deg)",std::format("{:.4g} / {:.4g}",
+                glm::degrees(angular.signedAngle),glm::degrees(angular.axisError)).c_str());
+        } else {
+            E::ReadOnly("U / V / CV error (deg)",std::format("{:.4g} / {:.4g} / {:.4g}",
+                glm::degrees(angular.angleU),glm::degrees(angular.angleV),glm::degrees(angular.cvError)).c_str());
+        }
+        E::ReadOnly("Limit state U / V",std::format("{} / {}",angular.limitU,angular.limitV).c_str());
+        E::ReadOnly("Limit violation U / V (deg)",std::format("{:.5g} / {:.5g}",
+            glm::degrees(angular.violationU),glm::degrees(angular.violationV)).c_str());
+        E::ReadOnly("Constraint active",state.active?"Yes":"No");
+        E::ReadOnly("Point impulse (N s)",tick?RagdollVectorText(state.impulse).c_str():"Awaiting first tick");
+        E::ReadOnly("Angular row impulse (N m s)",tick && angular.impulseAvailable?
+            RagdollVectorText(angular.angularImpulse).c_str():"Unavailable for this provider or tick");
+    }
+
+    // Minimum separating-axis translation for two oriented boxes. A negative
+    // result proves separation. The inputs are the current effective shapes.
+    double RagdollBoxOverlap(const PhysicsBodyState& a,const PhysicsBodyState& b)
+    {
+        const auto axisA=glm::mat3_cast(glm::dquat(a.orientation));
+        const auto axisB=glm::mat3_cast(glm::dquat(b.orientation));
+        const auto halfA=.5*(glm::dvec3(a.localBounds.maxs)-glm::dvec3(a.localBounds.mins));
+        const auto halfB=.5*(glm::dvec3(b.localBounds.maxs)-glm::dvec3(b.localBounds.mins));
+        const auto center=[](const PhysicsBodyState& body){
+            return glm::dvec3(body.position)+glm::dquat(body.orientation)*
+                (.5*(glm::dvec3(body.localBounds.maxs)+glm::dvec3(body.localBounds.mins)));
+        };
+        const auto delta=center(b)-center(a);
+        double depth=std::numeric_limits<double>::max();
+        const auto project=[&](glm::dvec3 axis){
+            const double length=glm::length(axis);
+            if(length<1.e-12)return;
+            axis/=length;
+            const auto radiusA=glm::dot(halfA,glm::abs(glm::transpose(axisA)*axis));
+            const auto radiusB=glm::dot(halfB,glm::abs(glm::transpose(axisB)*axis));
+            depth=(std::min)(depth,radiusA+radiusB-std::abs(glm::dot(axis,delta)));
+        };
+        for(int i=0;i<3;++i) {
+            project(axisA[i]);project(axisB[i]);
+            for(int j=0;j<3;++j)project(glm::cross(axisA[i],axisB[j]));
+        }
+        return depth;
+    }
+
+    std::string RagdollContactSnapshot(PhysicsSystem& physics,const PassiveRagdoll& mapping,
+        const std::array<PhysicsBodyHandle,11>& handles,std::uint64_t generation)
+    {
+        const auto& world=*physics.GetPhysicsWorld();
+        std::array<std::optional<PhysicsBodyState>,11> states;
+        std::array<std::unique_ptr<PhysicalShape>,11> shapes;
+        bool filtered[6][6]{};
+        for(auto handle:mapping.joints) {
+            const auto joint=world.ReadJoint(handle);
+            if(!joint)return "Contact snapshot unavailable: a joint has retired.";
+            const auto& d=joint->descriptor;
+            auto a=std::find(mapping.bodies.begin(),mapping.bodies.end(),d.bodyA);
+            auto b=std::find(mapping.bodies.begin(),mapping.bodies.end(),d.bodyB);
+            if(a==mapping.bodies.end() || b==mapping.bodies.end())return "Unexpected endpoint in current ragdoll mapping.";
+            if(!d.collideConnected)filtered[a-mapping.bodies.begin()][b-mapping.bodies.begin()]=
+                filtered[b-mapping.bodies.begin()][a-mapping.bodies.begin()]=true;
+        }
+        for(std::size_t i=0;i<handles.size();++i) {
+            const auto state=world.ReadEffectiveBody(handles[i]);
+            if(!state)return "Contact geometry unavailable: a mapped body has retired or has no effective collider.";
+            states[i]=*state;
+        }
+        const auto proxy=[&](std::size_t i,RigidBody3D& body){
+            if(!shapes[i]) {
+                const auto desc=physics.CopyBodyShapeDescriptor(handles[i]);
+                if(!desc)return false;
+                const auto expected=states[i]->shapeType;
+                if(expected!=ShapeType::Box && expected!=ShapeType::Sphere && expected!=ShapeType::Capsule)return false;
+                auto copy=CreateCollisionShape(*desc);
+                if(!copy || (*copy)->GetShapeType()!=expected)return false;
+                shapes[i]=std::move(*copy);
+            }
+            body.m_Shape=shapes[i].get();body.m_Position=states[i]->position;body.m_Orientation=states[i]->orientation;
+            return true;
+        };
+        std::size_t self=0,room=0,unknown=0;
+        double maxDepth=0;
+        for(std::size_t i=0;i<mapping.bodies.size();++i)for(std::size_t j=i+1;j<handles.size();++j) {
+            if(j<mapping.bodies.size() && filtered[i][j])continue;
+            const auto& a=*states[i];const auto& b=*states[j];
+            if(!a.worldBounds.DoesIntersect(b.worldBounds))continue;
+            double depth{};
+            if(a.shapeType==ShapeType::Box && b.shapeType==ShapeType::Box) {
+                depth=RagdollBoxOverlap(a,b);
+                if(depth<0)continue;
+            } else {
+                RigidBody3D pa,pb;
+                if(!proxy(i,pa) || !proxy(j,pb)){++unknown;continue;}
+                Vec3f ptA{},ptB{};
+                const auto outcome=GJK_GetContact(&pa,&pb,0.f,ptA,ptB);
+                if(outcome==GjkContactStatus::Separated)continue;
+                if(outcome==GjkContactStatus::Failed){++unknown;continue;}
+                depth=glm::length(glm::dvec3(ptB)-glm::dvec3(ptA));
+            }
+            if(j<mapping.bodies.size())++self;else ++room;
+            maxDepth=(std::max)(maxDepth,depth);
+        }
+        return std::format("Generation {}, tick {}. Geometric touching/overlap pairs: {} body-body, {} body-room. "
+            "Maximum measured penetration {:.6g} m. Unresolved shape queries: {}.",generation,
+            physics.GetCompletedSteps(),self,room,maxDepth,unknown);
+    }
+}
+
+void RigidBodySimulationApp::DrawRagdollWorldSettings()
+{
+    namespace E=Rbs::Editor;
+    if(!m_Ragdoll.draft || !m_ActiveScene || !E::Component("Scene Physics",true))return;
+    auto* physics=m_ActiveScene->GetPhysicsSystem();
+    const auto* world=physics?physics->GetPhysicsWorld():nullptr;
+    if(!world){E::ReadOnly("Physics world","Unavailable");return;}
+    if (m_ActiveSelection.IsRagdollScene() && world->GetBackend()==PhysicsBackend::Native)
+        ImGui::TextWrapped("Native Passive Ragdoll is experimental. Its motion has not passed production qualification.");
+    E::ReadOnly("Applied gravity (m/s^2)",RagdollVectorText(world->GetGravity()).c_str());
+    E::ReadOnly("Fixed step (s)",std::format("{:.9g}",m_ActiveScene->GetPhysicsStep().count()).c_str());
+    if(world->GetBackend()==PhysicsBackend::Native)
+        E::ReadOnly("Native solver iterations",std::to_string(physics->GetSolverIterations()).c_str());
+    else if(const auto settings=world->ReadJoltSettings())
+        E::ReadOnly("Jolt velocity / position / collision steps",
+            std::format("{} / {} / {}",settings->velocitySteps,settings->positionSteps,settings->collisionSteps).c_str());
+    ImGui::BeginDisabled(m_SceneRequest || m_BackendRequest || m_EditorMode!=EditorMode::Edit ||
+        (m_SimulationState!=Rbs::SimulationState::Ready && m_SimulationState!=Rbs::SimulationState::Paused));
+    m_Ragdoll.dirty|=E::Number("Draft gravity Y (m/s^2)",m_Ragdoll.draft->gravityY,.1f,
+        "Applies to the complete reconstructed world.",E::Numeric::Closed(-10.f,0.f));
+    ImGui::EndDisabled();
+}
+
+void RigidBodySimulationApp::DrawRagdollProperties(std::size_t selected)
+{
+    namespace E=Rbs::Editor;
+    if(RagdollBoneFor(m_HoveredEntity)!=selected || !m_Ragdoll.committed)return;
+    auto& draft=*m_Ragdoll.draft;
+    auto& body=draft.bodies[selected];
+    const auto handle=m_RagdollBindings.mapping.bodies[selected];
+    auto& physics=*m_ActiveScene->GetPhysicsSystem();
+    auto& world=*physics.GetPhysicsWorld();
+    const bool canEdit=m_EditorMode==EditorMode::Edit && !m_SceneRequest && !m_BackendRequest &&
+        (m_SimulationState==Rbs::SimulationState::Ready || m_SimulationState==Rbs::SimulationState::Paused);
+    const Vec3f placement{0,Rbs::SandboxEnvironment::FloorTop+draft.dropOffset,0};
+    ImGui::PushID(static_cast<int>(m_SceneGeneration));
+    ImGui::PushID(static_cast<int>(selected));
+    ImGui::TextWrapped("%s",m_HoveredEntity.GetName().c_str());
+    E::ReadOnly("Authored bone",RagdollName(body.key));
+    if(m_Ragdoll.dirty)ImGui::TextWrapped("Pending changes. Apply reconstructs the assembly at Tick 0.");
+    if(!canEdit)ImGui::TextWrapped("Pause and enter Edit mode to change the ragdoll.");
+    ImGui::BeginDisabled(!canEdit);
+    if(E::Component("Transform",true)) {
+        ImGui::TextWrapped("Translation and rotation move the six connected bones around this selected bone. Scale resizes this bone and its collider.");
+        auto position=body.center+placement;
+        auto rotation=glm::degrees(glm::eulerAngles(body.orientation));
+        auto scale=Rbs::RagdollRenderScale(body);
+        if(E::XYZ("Translation (m)",&position.x,0.f,.05f))StageRagdollTransform(selected,TransformTool::Translate,position-placement);
+        if(E::XYZ("Rotation (deg)",&rotation.x,0.f,.25f))StageRagdollTransform(selected,TransformTool::Rotate,glm::radians(rotation));
+        if(body.shape==ShapeType::Box) {
+            if(E::XYZ("Scale",&scale.x,1.f,.01f,"Dimensions of the unit box.",E::Numeric::Positive<float>()))
+                StageRagdollTransform(selected,TransformTool::Scale,scale);
+        } else if(E::Number("Uniform scale",scale.x,.005f,"Scales the primitive and its collider.",E::Numeric::Positive<float>()))
+            StageRagdollTransform(selected,TransformTool::Scale,Vec3f{scale.x});
+    }
+    ImGui::EndDisabled();
+    DrawContextProperties(ContextSection::Surface);
+    ImGui::BeginDisabled(!canEdit);
+    if(E::Component("Collider",true)) {
+        int policy=draft.anchorResizePolicy==RagdollAnchorResizePolicy::ScaleWithBody?1:0;
+        {E::PropertyRow row("Anchor resize policy","Review both endpoints and their staged world pivots below.");
+            if(ImGui::Combo("##policy",&policy,"Preserve local metres\0Scale with body\0")) {
+                draft.anchorResizePolicy=policy?RagdollAnchorResizePolicy::ScaleWithBody:RagdollAnchorResizePolicy::PreserveLocalMeters;
+                m_Ragdoll.dirty=true;
+            }}
+        auto shape=body.shape;
+        {E::PropertyRow row("Shape");
+            if(ImGui::BeginCombo("##shape",Rbs::ColliderTypeName(shape))) {
+                for(auto type:{ShapeType::Box,ShapeType::Sphere,ShapeType::Capsule})
+                    if(ImGui::Selectable(Rbs::ColliderTypeName(type),shape==type))shape=type;
+                ImGui::EndCombo();
+            }}
+        auto half=body.halfExtents,center=body.colliderCenter;
+        float radius=body.radius,length=body.halfLength;
+        bool dimensions=body.shape!=shape;
+        if(shape==ShapeType::Box) {
+            dimensions|=E::XYZ("Half extents (m)",&half.x,.25f,.005f,"75% to 125% of each reference dimension.",E::Numeric::Positive<float>());
+            if(E::XYZ("Local center (m)",&center.x,0.f,.005f,"Mesh-local offset. The connected anchors are expressed about the COM.")) {
+                Rbs::SetRagdollColliderCenter(draft,body.key,center);
+                m_Ragdoll.dirty=true;
+            }
+        } else {
+            E::ReadOnly("Local center (m)","At primitive origin");
+            dimensions|=E::Number("Radius (m)",radius,.005f,"Primitive radius.",E::Numeric::Positive<float>());
+            if(shape==ShapeType::Capsule)
+                dimensions|=E::Number("Half length (m)",length,.005f,"Center-line half length, excluding caps.",E::Numeric::Positive<float>());
+        }
+        if(ImGui::Button("Fit to current mesh")) {
+            const auto fitted=Rbs::PrepareMeshColliderAdmission(*m_ActiveScene,*m_SceneResources,m_HoveredEntity,shape);
+            if(!fitted)m_Ragdoll.diagnostic=fitted.error().reason;
+            else {
+                if(const auto* box=std::get_if<BoxShapeDesc>(&*fitted)) {
+                    half=box->halfExtents;
+                    Rbs::SetRagdollColliderCenter(draft,body.key,box->center);
+                } else if(const auto* sphere=std::get_if<SphereShapeDesc>(&*fitted))radius=sphere->radius;
+                else if(const auto* capsule=std::get_if<CapsuleShapeDesc>(&*fitted)) {
+                    radius=capsule->radius;length=capsule->halfLength;
+                }
+                dimensions=true;
+            }
+        }
+        if(dimensions) {
+            if(shape!=ShapeType::Box && body.colliderCenter!=Vec3f{0})
+                m_Ragdoll.diagnostic="Set the Box local center to zero before switching to a centered primitive.";
+            else {
+                Rbs::SetRagdollShapeDimensions(draft,body.key,shape,half,radius,length);
+                m_Ragdoll.dirty=true;
+            }
+        }
+    }
+    if(E::Component("RigidBody",true))m_Ragdoll.dirty|=DrawRagdollBodyFields(body,world.GetBackend());
+    if(E::Component("Constraints / Joints",true)) {
+        for(auto& joint:draft.joints) {
+            if(joint.bodyA!=body.key && joint.bodyB!=body.key)continue;
+            ImGui::PushID(static_cast<int>(joint.key));
+            if(ImGui::TreeNode(RagdollName(joint.key))) {
+                m_Ragdoll.dirty|=DrawRagdollJointFields(joint);
+                const auto pivot=[&](RagdollBone bone,const Vec3f& anchor) {
+                    const auto& endpoint=draft.bodies[static_cast<std::size_t>(bone)];
+                    return placement+endpoint.center+endpoint.orientation*(endpoint.colliderCenter+anchor);
+                };
+                E::ReadOnly("Staged pivot A / B (world m)",std::format("{} / {}",
+                    RagdollVectorText(pivot(joint.bodyA,joint.localAnchorA)),
+                    RagdollVectorText(pivot(joint.bodyB,joint.localAnchorB))).c_str());
+                ImGui::TreePop();
+            }
+            ImGui::PopID();
+        }
+    }
+    if(E::Component("Passive ragdoll",false)) {
+        static const auto reference=Rbs::ReferenceRagdollPacket();
+        const auto& committed=*m_Ragdoll.committed;
+        const bool referencePose=committed.dropOffset==reference.dropOffset &&
+            std::equal(committed.bodies.begin(),committed.bodies.end(),reference.bodies.begin(),
+                [](const RagdollBodyDesc& a,const RagdollBodyDesc& b){return a.center==b.center && a.orientation==b.orientation;});
+        E::ReadOnly("Initial pose source",std::format("{} | applied revision {}",
+            referencePose?"Chapter 21 reference, pp. 82-84 (Y-up)":"Authored from Chapter 21, pp. 82-84",m_Ragdoll.revision).c_str());
+        m_Ragdoll.dirty|=E::Number("Drop offset (m)",draft.dropOffset,.025f,"Vertical offset from the reference in the common room.",E::Numeric::Closed(0.f,2.f));
+        for(const auto& member:draft.bodies) {
+            const auto parent=RagdollParent(member.key);
+            const auto binding=m_RagdollBindings.mapping.bodies[static_cast<std::size_t>(member.key)];
+            E::ReadOnly(RagdollName(member.key),std::format("{} | {} | body {}:{}",
+                parent?RagdollName(*parent):"Root",world.IsBodyValid(binding)?"Bound":"Missing",binding.index,binding.generation).c_str());
+        }
+        for(const auto& joint:draft.joints)
+            E::ReadOnly(RagdollName(joint.key),std::format("{} to {}",RagdollName(joint.bodyA),RagdollName(joint.bodyB)).c_str());
+        E::ReadOnly("Nonadjacent pairs","10 pairs retain ordinary body collision filtering");
+    }
+    ImGui::EndDisabled();
+    DrawImpulseProperties();
+    DrawContextProperties(ContextSection::View);
+    DrawSceneAuthoringActions();
+    if(!m_Ragdoll.diagnostic.empty())ImGui::TextWrapped("%s",m_Ragdoll.diagnostic.c_str());
+    if(!m_SceneDiagnostic.empty())ImGui::TextWrapped("%s",m_SceneDiagnostic.c_str());
+    if(E::Component("Advanced / Backend Readback",false)) {
+        E::ReadOnly("Applied revision / generation",std::format("{} / {}",m_Ragdoll.revision,m_SceneGeneration).c_str());
+        E::ReadOnly("Completed fixed steps",std::to_string(physics.GetCompletedSteps()).c_str());
+        E::ReadOnly("Body handle",std::format("{} / {}",handle.index,handle.generation).c_str());
+        if(const auto actual=world.ReadEffectiveBody(handle)) {
+            E::ReadOnly("Position (m)",RagdollVectorText(actual->position).c_str());
+            E::ReadOnly("Orientation (w,x,y,z)",RagdollQuaternionText(actual->orientation).c_str());
+            E::ReadOnly("Center of mass (m)",RagdollVectorText(actual->centerOfMass).c_str());
+            E::ReadOnly("Effective shape",Rbs::ColliderTypeName(actual->shapeType));
+            E::ReadOnly("Local bounds (m)",std::format("{} to {}",RagdollVectorText(actual->localBounds.mins),RagdollVectorText(actual->localBounds.maxs)).c_str());
+            E::ReadOnly("Inverse mass",std::format("{:.6g}",actual->inverseMass).c_str());
+            const auto inertia=[](const Mat3& matrix){return std::format("{} / {} / {}",
+                RagdollVectorText(matrix[0]),RagdollVectorText(matrix[1]),RagdollVectorText(matrix[2]));};
+            E::ReadOnly("Body inverse inertia (columns)",inertia(actual->inverseInertiaBody).c_str());
+            E::ReadOnly("World inverse inertia (columns)",inertia(actual->inverseInertiaWorld).c_str());
+            E::ReadOnly("Linear velocity (m/s)",RagdollVectorText(actual->linearVelocity).c_str());
+            E::ReadOnly("Angular velocity (rad/s)",RagdollVectorText(actual->angularVelocity).c_str());
+            E::ReadOnly("Sleep state",actual->type!=BodyType::Dynamic?"Fixed or kinematic":actual->sleeping?"Sleeping":"Awake");
+        } else E::ReadOnly("Body readback","Unavailable");
+        if(const auto actual=world.ReadBodyProperties(handle)) {
+            E::ReadOnly("Motion / authored mass (kg)",std::format("{} / {:.5g}",
+                actual->type==BodyType::Dynamic?"Dynamic":actual->type==BodyType::Static?"Static":"Kinematic",actual->mass).c_str());
+            E::ReadOnly("Friction / restitution",std::format("{} / {}",actual->material.friction,actual->material.restitution).c_str());
+            E::ReadOnly("Damping (linear / angular)",std::format("{} / {}",actual->linearDamping,actual->angularDamping).c_str());
+            E::ReadOnly("Gravity / CCD / sleeping",std::format("{} / {} / {}",actual->gravityFactor,actual->continuousCollision,actual->allowSleeping).c_str());
+            E::ReadOnly("Iteration overrides",std::format("{} / {}",actual->velocityStepsOverride,actual->positionStepsOverride).c_str());
+            if(world.GetBackend()==PhysicsBackend::Native)
+                E::ReadOnly("Sleep thresholds (m/s, rad/s, s)",std::format("{} / {} / {}",actual->sleep.linearSpeedThreshold,
+                    actual->sleep.angularSpeedThreshold,actual->sleep.inactivitySeconds).c_str());
+        }
+        for(const auto& joint:draft.joints) {
+            const auto actual=m_RagdollBindings.mapping.ReadJoint(world,joint.key);
+            if(!actual){E::ReadOnly(RagdollName(joint.key),"Missing or stale joint");continue;}
+            E::ReadOnly(RagdollName(joint.key),std::format("Anchor error {:.5g} m",actual->error).c_str());
+            if(actual->descriptor.bodyA!=handle && actual->descriptor.bodyB!=handle)continue;
+            ImGui::PushID(static_cast<int>(joint.key));
+            if(ImGui::TreeNode("Provider details")) {
+                DrawRagdollJointReadback(*actual,world,physics.GetCompletedSteps());
+                ImGui::TreePop();
+            }
+            ImGui::PopID();
+        }
+        std::size_t sleeping=0,live=0;
+        for(const auto member:m_RagdollBindings.mapping.bodies)
+            if(const auto actual=world.ReadEffectiveBody(member)){++live;if(actual->sleeping)++sleeping;}
+        E::ReadOnly("Assembly sleeping / bound",std::format("{} / {}",sleeping,live).c_str());
+        if(ImGui::Button("Measure contact geometry")) {
+            std::array<PhysicsBodyHandle,11> handles{};
+            std::copy(m_RagdollBindings.mapping.bodies.begin(),m_RagdollBindings.mapping.bodies.end(),handles.begin());
+            for(std::size_t i=0;i<m_RagdollBindings.environmentEntities.size();++i) {
+                const _Entity object{m_RagdollBindings.environmentEntities[i],m_ActiveScene.get()};
+                if(object)handles[i+6]=m_ActiveScene->GetBodyBinding(object).value_or(PhysicsBodyHandle{});
+            }
+            try {m_Ragdoll.contactDiagnostic=RagdollContactSnapshot(physics,m_RagdollBindings.mapping,handles,m_SceneGeneration);}
+            catch(const std::bad_alloc&){m_Ragdoll.contactDiagnostic="Contact snapshot allocation failed. No measurement available.";}
+        }
+        E::Tooltip("Measure geometry of live enabled ragdoll pairs and the room at the current tick. Solver manifolds are reported separately.");
+        if(!m_Ragdoll.contactDiagnostic.empty())ImGui::TextWrapped("%s",m_Ragdoll.contactDiagnostic.c_str());
+        if(world.GetBackend()==PhysicsBackend::Jolt) {
+            const auto view=world.ReadJoltDiagnostics();
+            if(view && view->enabled) {
+                std::size_t count=0;
+                float deepest=0;
+                for(const auto& contact:view->contacts) {
+                    const auto& bones=m_RagdollBindings.mapping.bodies;
+                    if(std::find(bones.begin(),bones.end(),contact.bodyA)==bones.end() &&
+                       std::find(bones.begin(),bones.end(),contact.bodyB)==bones.end())continue;
+                    ++count;deepest=(std::max)(deepest,contact.penetration);
+                }
+                E::ReadOnly("Jolt contact samples",std::format("Tick {}: {} samples, maximum depth {:.5g} m, {} overflow",
+                    view->step,count,deepest,view->overflow).c_str());
+            } else E::ReadOnly("Jolt contact samples","Provider contact sampling is off");
+        } else {
+            std::size_t count=0;
+            const auto member=[&](RigidBodyIdentity id){
+                return std::any_of(m_RagdollBindings.mapping.bodies.begin(),m_RagdollBindings.mapping.bodies.end(),
+                    [&](PhysicsBodyHandle h){return id.IsValid() && id.GetSlot()-1==h.index && id.GetGeneration()==h.generation;});
+            };
+            for(const auto& island:physics.GetContactIslands())for(const auto& pair:island.contactPairs)
+                if(member(pair.bodyA) || member(pair.bodyB))++count;
+            E::ReadOnly("Native resting-solve contact pairs",std::to_string(count).c_str());
+        }
+    }
+    ImGui::PopID();ImGui::PopID();
+}
+
 void RigidBodySimulationApp::DrawSceneAuthoringActions()
 {
     namespace E=Rbs::Editor;
     const bool angular=m_ActiveSelection.IsAngularScene();
-    const bool pending=m_SceneDefaultsPending || (angular && m_Angular.dirty);
+    const bool ragdoll=m_Ragdoll.draft.has_value();
+    const bool pending=m_SceneDefaultsPending || (angular && m_Angular.dirty) || (ragdoll && m_Ragdoll.dirty);
     const bool switching=m_SceneRequest.has_value() || m_BackendRequest.has_value();
     const bool canAuthor=!switching && m_EditorMode==EditorMode::Edit &&
         (m_SimulationState==Rbs::SimulationState::Ready || m_SimulationState==Rbs::SimulationState::Paused);
-    const bool pendingComponent=HasPendingObjectProperties();
+    const bool pendingComponent=HasPendingObjectProperties(!ragdoll);
     if(pendingComponent)ImGui::TextWrapped("Apply or Revert the selected component before resetting or restoring the scene.");
     if(m_SceneDefaultsPending)ImGui::TextWrapped("Scene defaults are staged. Apply to restore them, or Revert to keep the current scene.");
-    if(angular || pending) {
+    if(angular || ragdoll || pending) {
         ImGui::BeginDisabled(!canAuthor || !pending || pendingComponent || E::Numeric::HasError());
         if(ImGui::Button("Apply##scene")) {
-            if(angular)RequestAngularApply();else ApplySceneDefaults();
+            if(ragdoll)RequestRagdollApply();else if(angular)RequestAngularApply();else ApplySceneDefaults();
         }
         RBS_PHASE28_WIDGET("apply");
         ImGui::EndDisabled();
         ImGui::SameLine();
         ImGui::BeginDisabled(switching || (!pending && !E::Numeric::HasError()));
         if(ImGui::Button("Revert##scene")) {
-            if(angular)RevertAngularDraft();else RevertSceneDefaults();
+            if(ragdoll)RevertRagdollDraft();else if(angular)RevertAngularDraft();else RevertSceneDefaults();
         }
         RBS_PHASE28_WIDGET("revert");
         ImGui::EndDisabled();
     }
     ImGui::BeginDisabled(!canAuthor || pendingComponent);
     if(ImGui::Button("Restore Scene Defaults")) {
-        if(angular)RestoreAngularDefaults();else StageSceneDefaults();
+        if(ragdoll)RestoreRagdollDefaults();else if(angular)RestoreAngularDefaults();else StageSceneDefaults();
     }
     RBS_PHASE28_WIDGET("restore-defaults");
     ImGui::EndDisabled();
-    if(angular) {
+    if(angular || ragdoll) {
         ImGui::BeginDisabled(switching || pending || pendingComponent);
         if(ImGui::Button("Reset Simulation"))RequestScene(m_ActiveSelection);
         RBS_PHASE28_WIDGET("reset");
@@ -1784,6 +2261,7 @@ void RigidBodySimulationApp::DrawEditorProperties()
         return;
     }
     const bool multiple=m_EditorSelection.count>1;
+    if(!multiple)if(const auto bone=RagdollBoneFor(m_HoveredEntity)){DrawRagdollProperties(*bone);return;}
     if(!multiple && IsAngularEndpoint(m_HoveredEntity)){DrawAngularProperties();return;}
     ImGui::TextWrapped("%s", m_HoveredEntity.GetName().c_str());
     const bool protectedTransform=SelectionProtectsAngularTransform();

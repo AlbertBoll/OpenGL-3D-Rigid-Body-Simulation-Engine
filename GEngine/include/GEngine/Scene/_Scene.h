@@ -233,12 +233,16 @@ namespace GEngine
 		struct PhysicsTiming
 		{
 			double pendingSeconds{};
+            double abandonedOnFaultSeconds{};
 			double discardedSeconds{}; // Latest update's backlog overflow.
 			double totalDiscardedSeconds{};
 			std::uint64_t totalSteps{};
 			std::uint32_t stepsLastUpdate{};
 		};
 		const PhysicsTiming& GetPhysicsTiming() const { return m_PhysicsTiming; }
+#if defined(GENGINE_PHASE29_STEP_SAFETY)
+        std::uint64_t CommittedPoseFingerprintForTest() const;
+#endif
 
         // Select the existing clock before its first tick. Only the ordinary
         // 60 Hz step and admitted 120 Hz diagnostic step are supported.
@@ -475,6 +479,7 @@ namespace GEngine
 		PhysicsTiming m_PhysicsTiming{};
         double m_PhysicsStepSeconds = PhysicsStepSeconds;
         bool m_PhysicsStepStarted = false;
+
 		PhysicsWorld* m_TimingWorld{};
 		std::unordered_map<UUID, entt::entity> m_EntityMap;
 		// Transitional grouping: ascending program order and insertion order within a group.

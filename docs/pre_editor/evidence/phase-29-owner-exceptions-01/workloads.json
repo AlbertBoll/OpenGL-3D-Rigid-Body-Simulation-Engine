@@ -1,0 +1,338 @@
+{
+  "schema": 1,
+  "phase": "29",
+  "status": "FROZEN_INPUTS_PENDING_ADMISSION_AND_IMPLEMENTATION",
+  "reference": {
+    "path": "logs/pre_editor/phase-29/admission-02/reference-packet.json",
+    "sha256": "7bcfbc06105bfdee83fdb95e6b2b1a3fde49e7f2d962011e308c7e599ad4fffd"
+  },
+  "cases": [
+    {
+      "id": "R29_DROP_WAKE_V01",
+      "ticks": 1200,
+      "pose": "exact reference-packet engine transforms",
+      "actions": [
+        {
+          "before_tick": 961,
+          "body": "torso",
+          "linear_impulse_world": [
+            1,
+            0,
+            0
+          ],
+          "point": "COM",
+          "angular_impulse_world": [
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "R29_TILT_LIMIT_WAKE_V01",
+      "ticks": 1200,
+      "pose_transform": {
+        "rotation_wxyz": [
+          0.9810602621904069,
+          0.17298739392508944,
+          0.01513443590133862,
+          0.08583165117743129
+        ],
+        "pivot": [
+          0.0,
+          3.884615384615385,
+          0.0
+        ],
+        "translation": [
+          0,
+          1,
+          0
+        ]
+      },
+      "pose_rule": "p_new=COM+Q*(p-COM)+(0,1,0); q_new=Q*q; transform every joint world frame/pivot identically; local anchors/frames unchanged",
+      "actions": [
+        {
+          "before_tick": 1,
+          "joint": "neck",
+          "axis": "x",
+          "angular_impulse_B_world": [
+            -0.0024039284962762827,
+            0.013633355976592624,
+            -0.03803517750800101
+          ],
+          "angular_impulse_A_world": [
+            0.0024039284962762827,
+            -0.013633355976592624,
+            0.03803517750800101
+          ],
+          "nominal_relative_delta_omega": 2,
+          "sign": 1,
+          "instruction": "multiply both frozen angular impulse vectors by sign; atomically apply to the two named bodies; no current-state target/servo"
+        },
+        {
+          "before_tick": 31,
+          "joint": "left_shoulder",
+          "axis": "u",
+          "angular_impulse_B_world": [
+            -0.489524316142788,
+            -0.08631634464883389,
+            0.0
+          ],
+          "angular_impulse_A_world": [
+            0.489524316142788,
+            0.08631634464883389,
+            -0.0
+          ],
+          "nominal_relative_delta_omega": 2,
+          "sign": 1,
+          "instruction": "multiply both frozen angular impulse vectors by sign; atomically apply to the two named bodies; no current-state target/servo"
+        },
+        {
+          "before_tick": 61,
+          "joint": "left_shoulder",
+          "axis": "v",
+          "angular_impulse_B_world": [
+            -0.04280849521344274,
+            0.24277904062918954,
+            0.08972750673667226
+          ],
+          "angular_impulse_A_world": [
+            0.04280849521344274,
+            -0.24277904062918954,
+            -0.08972750673667226
+          ],
+          "nominal_relative_delta_omega": 2,
+          "sign": 1,
+          "instruction": "multiply both frozen angular impulse vectors by sign; atomically apply to the two named bodies; no current-state target/servo"
+        },
+        {
+          "before_tick": 91,
+          "joint": "right_shoulder",
+          "axis": "u",
+          "angular_impulse_B_world": [
+            0.489524316142788,
+            0.08631634464883389,
+            0.0
+          ],
+          "angular_impulse_A_world": [
+            -0.489524316142788,
+            -0.08631634464883389,
+            -0.0
+          ],
+          "nominal_relative_delta_omega": 2,
+          "sign": 1,
+          "instruction": "multiply both frozen angular impulse vectors by sign; atomically apply to the two named bodies; no current-state target/servo"
+        },
+        {
+          "before_tick": 121,
+          "joint": "right_shoulder",
+          "axis": "v",
+          "angular_impulse_B_world": [
+            -0.04280849521344274,
+            0.24277904062918954,
+            0.08972750673667226
+          ],
+          "angular_impulse_A_world": [
+            0.04280849521344274,
+            -0.24277904062918954,
+            -0.08972750673667226
+          ],
+          "nominal_relative_delta_omega": 2,
+          "sign": 1,
+          "instruction": "multiply both frozen angular impulse vectors by sign; atomically apply to the two named bodies; no current-state target/servo"
+        },
+        {
+          "before_tick": 151,
+          "joint": "left_hip",
+          "axis": "x",
+          "angular_impulse_B_world": [
+            -0.028045832456556636,
+            0.15905581972691396,
+            -0.44374373759334523
+          ],
+          "angular_impulse_A_world": [
+            0.028045832456556636,
+            -0.15905581972691396,
+            0.44374373759334523
+          ],
+          "nominal_relative_delta_omega": 2,
+          "sign": 1,
+          "instruction": "multiply both frozen angular impulse vectors by sign; atomically apply to the two named bodies; no current-state target/servo"
+        },
+        {
+          "before_tick": 181,
+          "joint": "right_hip",
+          "axis": "x",
+          "angular_impulse_B_world": [
+            -0.028045832456556636,
+            0.15905581972691396,
+            -0.44374373759334523
+          ],
+          "angular_impulse_A_world": [
+            0.028045832456556636,
+            -0.15905581972691396,
+            0.44374373759334523
+          ],
+          "nominal_relative_delta_omega": 2,
+          "sign": 1,
+          "instruction": "multiply both frozen angular impulse vectors by sign; atomically apply to the two named bodies; no current-state target/servo"
+        },
+        {
+          "before_tick": 211,
+          "joint": "neck",
+          "axis": "x",
+          "angular_impulse_B_world": [
+            -0.0024039284962762827,
+            0.013633355976592624,
+            -0.03803517750800101
+          ],
+          "angular_impulse_A_world": [
+            0.0024039284962762827,
+            -0.013633355976592624,
+            0.03803517750800101
+          ],
+          "nominal_relative_delta_omega": 2,
+          "sign": -1,
+          "instruction": "multiply both frozen angular impulse vectors by sign; atomically apply to the two named bodies; no current-state target/servo"
+        },
+        {
+          "before_tick": 241,
+          "joint": "left_shoulder",
+          "axis": "u",
+          "angular_impulse_B_world": [
+            -0.489524316142788,
+            -0.08631634464883389,
+            0.0
+          ],
+          "angular_impulse_A_world": [
+            0.489524316142788,
+            0.08631634464883389,
+            -0.0
+          ],
+          "nominal_relative_delta_omega": 2,
+          "sign": -1,
+          "instruction": "multiply both frozen angular impulse vectors by sign; atomically apply to the two named bodies; no current-state target/servo"
+        },
+        {
+          "before_tick": 271,
+          "joint": "left_shoulder",
+          "axis": "v",
+          "angular_impulse_B_world": [
+            -0.04280849521344274,
+            0.24277904062918954,
+            0.08972750673667226
+          ],
+          "angular_impulse_A_world": [
+            0.04280849521344274,
+            -0.24277904062918954,
+            -0.08972750673667226
+          ],
+          "nominal_relative_delta_omega": 2,
+          "sign": -1,
+          "instruction": "multiply both frozen angular impulse vectors by sign; atomically apply to the two named bodies; no current-state target/servo"
+        },
+        {
+          "before_tick": 301,
+          "joint": "right_shoulder",
+          "axis": "u",
+          "angular_impulse_B_world": [
+            0.489524316142788,
+            0.08631634464883389,
+            0.0
+          ],
+          "angular_impulse_A_world": [
+            -0.489524316142788,
+            -0.08631634464883389,
+            -0.0
+          ],
+          "nominal_relative_delta_omega": 2,
+          "sign": -1,
+          "instruction": "multiply both frozen angular impulse vectors by sign; atomically apply to the two named bodies; no current-state target/servo"
+        },
+        {
+          "before_tick": 331,
+          "joint": "right_shoulder",
+          "axis": "v",
+          "angular_impulse_B_world": [
+            -0.04280849521344274,
+            0.24277904062918954,
+            0.08972750673667226
+          ],
+          "angular_impulse_A_world": [
+            0.04280849521344274,
+            -0.24277904062918954,
+            -0.08972750673667226
+          ],
+          "nominal_relative_delta_omega": 2,
+          "sign": -1,
+          "instruction": "multiply both frozen angular impulse vectors by sign; atomically apply to the two named bodies; no current-state target/servo"
+        },
+        {
+          "before_tick": 361,
+          "joint": "left_hip",
+          "axis": "x",
+          "angular_impulse_B_world": [
+            -0.028045832456556636,
+            0.15905581972691396,
+            -0.44374373759334523
+          ],
+          "angular_impulse_A_world": [
+            0.028045832456556636,
+            -0.15905581972691396,
+            0.44374373759334523
+          ],
+          "nominal_relative_delta_omega": 2,
+          "sign": -1,
+          "instruction": "multiply both frozen angular impulse vectors by sign; atomically apply to the two named bodies; no current-state target/servo"
+        },
+        {
+          "before_tick": 391,
+          "joint": "right_hip",
+          "axis": "x",
+          "angular_impulse_B_world": [
+            -0.028045832456556636,
+            0.15905581972691396,
+            -0.44374373759334523
+          ],
+          "angular_impulse_A_world": [
+            0.028045832456556636,
+            -0.15905581972691396,
+            0.44374373759334523
+          ],
+          "nominal_relative_delta_omega": 2,
+          "sign": -1,
+          "instruction": "multiply both frozen angular impulse vectors by sign; atomically apply to the two named bodies; no current-state target/servo"
+        },
+        {
+          "before_tick": 961,
+          "body": "torso",
+          "linear_impulse_world": [
+            1,
+            0,
+            0
+          ],
+          "point": "COM",
+          "angular_impulse_world": [
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  ],
+  "boundaries": "Tick0 captured after full creation/readback; actions occur before numbered positive fixed tick, once, never per-render frame. No adaptive impulses, force sleep, retuning, extra solver iterations or workload truncation.",
+  "work": "For every applied packet capture actual pre/post velocity, orientation, COM, inverse inertia, accepted impulse and clamping. W_linear=J dot v_before+|J|^2/(2m); W_angular=L dot omega_before+0.5 L dot I_world_inverse L. Sum endpoints/actions. Reject unexpected caps, state mismatch or unaccounted work; no netting against solver/contact losses.",
+  "comparison": "Jolt first, then Native, identical physical input packet/action identities. Backend implementation differences are explicit source facts, not altered workloads.",
+  "admission_domain": {
+    "dynamic_bodies": 6,
+    "joints": 5,
+    "static_environment_bodies": 5,
+    "nonadjacent_pairs": 10,
+    "central_domain": "Each dynamic COM remains within 10m horizontally of origin and below 15m height; walls remain enabled and any wall contact invalidates this bounded central-workload admission, never discarded as an outlier.",
+    "reference_material": "1/1 bodies, .5/.5 floor, 0/.5 walls; preserved even if reference fails",
+    "excluded": "No additional ragdolls, soft bodies, listeners, motors, driven pose, constraints to outside bodies or SDK changes"
+  },
+  "policy": "PHY-01/OD-06 suitability is proposed for these two named workloads only, not universal contact validation or approval of Phase21."
+}

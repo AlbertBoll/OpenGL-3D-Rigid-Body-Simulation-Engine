@@ -154,7 +154,12 @@ namespace GEngine
     }
     PhysicsWorld::~PhysicsWorld()
     {
+        ReleaseTerminalStorage();
+    }
+    void PhysicsWorld::ReleaseTerminalStorage() noexcept
+    {
         m_Closed = true;
+        if (m_StepError && m_Backend) m_Backend->PrepareTerminalRetirement();
         m_Backend.reset(); // Retire constraints/workers while native mirrors are alive.
         m_Joints.reset(); m_JointCount = 0;
         for (auto* body : m_RigidBodies)
@@ -165,19 +170,25 @@ namespace GEngine
             delete body;
             m_OwnedResources[slot].shape.reset();
         }
+        m_RigidBodies.clear();
+        m_BodyIdentitySlots.clear();
+        m_OwnedResources.clear();
+        m_EditorPlacementShapes.clear();
     }
-    PhysicsBodyResult<> PhysicsWorld::CheckAccess(std::string_view operation, bool mutation) const
+    PhysicsBodyResult<> PhysicsWorld::CheckAccess(std::string_view operation, bool mutation, bool authoredRead) const
     {
         if (std::this_thread::get_id() != m_OwnerThread) return Failure(Code::WrongThread, {}, operation);
         if (m_Closed) return Failure(Code::Closed, {}, operation);
+        if (m_StepError && !(authoredRead && !mutation && m_StepStage == PhysicsStepStage::Preparation))
+            return std::unexpected(*m_StepError);
         if (m_Mutating || (mutation && std::any_of(m_RigidBodies.begin(), m_RigidBodies.end(),
                 [](const auto* b) { return b->m_InPhysicsStep; }))) return Failure(Code::Busy, {}, operation);
         return {};
     }
     PhysicsBodyResult<RigidBody3D*> PhysicsWorld::Resolve(PhysicsBodyHandle h,
-        std::string_view operation, bool mutation) const
+        std::string_view operation, bool mutation, bool authoredRead) const
     {
-        if (auto access = CheckAccess(operation, mutation); !access) return std::unexpected(access.error());
+        if (auto access = CheckAccess(operation, mutation, authoredRead); !access) return std::unexpected(access.error());
         if (!h) return Failure(Code::InvalidHandle, h, operation);
         if (h.registry != m_Domain) return Failure(Code::WrongWorld, h, operation);
         if (h.index >= m_BodyIdentitySlots.size()) return Failure(Code::StaleHandle, h, operation);
@@ -206,7 +217,7 @@ namespace GEngine
     }
     RigidBody3D* PhysicsWorld::CreateRigidBody3D()
     {
-        if (!m_Domain || m_Closed || m_Mutating) return nullptr;
+        if (!m_Domain || m_Closed || m_Mutating || m_StepError) return nullptr;
         const bool append = m_FreeBodyIdentitySlots.empty();
         if (append && m_BodyIdentitySlots.size() >= PhysicsBodyHandle::NullIndex) return nullptr;
         std::unique_ptr<RigidBody3D> body(new (std::nothrow) RigidBody3D);
@@ -320,6 +331,8 @@ namespace GEngine
     {
         if (std::this_thread::get_id() != m_OwnerThread) return Failure(Code::WrongThread, {}, "Close");
         if (m_Closed) return {};
+        if (m_Mutating || m_StepActive) return Failure(Code::Busy, {}, "Close");
+        if (m_StepError) { ReleaseTerminalStorage(); return {}; }
         if (auto access = CheckAccess("Close", true); !access) return access;
         while (!m_RigidBodies.empty()) RemoveRigidBody3D(m_RigidBodies.back());
         m_EditorPlacementShapes.clear();
@@ -329,7 +342,7 @@ namespace GEngine
     }
     PhysicsBodyResult<PhysicsBodyState> PhysicsWorld::ReadBody(PhysicsBodyHandle h) const
     {
-        auto resolved = Resolve(h, "ReadBody");
+        auto resolved = Resolve(h, "ReadBody", false, true);
         if (!resolved) return std::unexpected(resolved.error());
         const auto& b = **resolved;
         if (!b.m_Shape || !b.m_Shape->IsValid()) return Failure(Code::InvalidShape, h, "ReadBody");

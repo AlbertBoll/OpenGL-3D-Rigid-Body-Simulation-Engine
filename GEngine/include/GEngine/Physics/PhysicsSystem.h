@@ -222,6 +222,10 @@ namespace GEngine
 		virtual ~PhysicsSystem();
 		void Initialize() override;
 		void Update(Timestep ts) override;
+        [[nodiscard]] PhysicsBodyResult<StepDisposition> TryFixedStep(Timestep ts);
+        std::uint64_t GetAttemptedSteps() const noexcept { return m_AttemptedSteps; }
+        std::optional<PhysicsStepFailure> GetStepFailure() const noexcept
+        { return m_PhysicsWorld ? m_PhysicsWorld->GetStepFailure() : m_RetiredStepFailure; }
 		void OnExit() override;
 		void SetPhysicsWorld(PhysicsWorld* physics_world);
 		PhysicsWorld* GetPhysicsWorld() { return m_PhysicsWorld; }
@@ -305,7 +309,7 @@ namespace GEngine
         std::uint64_t GetLastUpdateNanoseconds() const { return m_InclusiveNs; }
         std::uint64_t GetContactSolveNanoseconds() const { return m_ContactSolveNs; }
         bool HasJointFailure() const { return m_JointFailure; }
-        const std::optional<PhysicsBodyError>& GetBackendFailure() const noexcept { return m_BackendFailure; }
+        const std::optional<PhysicsBodyError>& GetBackendFailure() const noexcept { return m_PhysicsWorld ? m_PhysicsWorld->GetStepError() : m_BackendFailure; }
 #if defined(GENGINE_PHASE26_QUALIFICATION) || defined(GENGINE_PHASE28_QUALIFICATION)
         std::size_t QualificationJointStorageBytes() const {
             return sizeof(m_JointBlock)+sizeof(m_JointEdges)+
@@ -352,6 +356,7 @@ namespace GEngine
         [[nodiscard]] DebugGeometryResult AppendDebugGeometry(DebugGeometry& out,
             const DebugLayers& layers, std::span<const PhysicsBodyHandle> selected, bool all)
         {
+            if (m_PhysicsWorld && m_PhysicsWorld->GetStepError()) return std::unexpected(DebugGeometryCode::InvalidInput);
             if (!m_PhysicsWorld || !layers.Any() || (!all && selected.empty())) return {};
             const auto includes = [&](RigidBodyIdentity identity)
             {
@@ -514,6 +519,8 @@ namespace GEngine
 
 
         std::optional<PhysicsBodyError> m_BackendFailure;
+        std::optional<PhysicsStepFailure> m_RetiredStepFailure;
+        std::uint64_t m_AttemptedSteps{};
         std::function<void(PhysicsWorld&,std::uint64_t)> m_BeforeStep;
         std::uint64_t m_CompletedSteps{}, m_JointSolveNs{}, m_InclusiveNs{}, m_ContactSolveNs{};
         bool m_JointFailure{};

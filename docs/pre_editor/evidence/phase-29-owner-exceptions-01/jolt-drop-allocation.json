@@ -1,0 +1,166 @@
+{
+  "status": "OFFLINE_SUBASSESSMENT_OF_ONE_CAPTURE",
+  "workload": "R-Jolt-R29_DROP_WAKE_V01",
+  "base_outcome": "FAIL",
+  "full_phase_C_COST": "INCOMPLETE",
+  "F_OWNER": "PENDING",
+  "inputs": [
+    {
+      "path": "logs/pre_editor/phase-29/resume-01/qualification/attempt-03-R-Jolt-R29_DROP_WAKE_V01/assessment.json",
+      "sha256": "669151d2885a60dbf27685fde583f3f51df2f4e5d043c9ea6db23c6734738219"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/resume-01/qualification/attempt-03-R-Jolt-R29_DROP_WAKE_V01/process.json",
+      "sha256": "b7568b76ff6292da87073e06634b269827c5d60d064dd141b98bcced362929a9"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/resume-01/qualification/attempt-03-R-Jolt-R29_DROP_WAKE_V01/reservation.json",
+      "sha256": "45450b18323042c90f19fb5aacb6a9164a3d54bd6a7b1a8e3fb62cdeb61a2504"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/resume-01/qualification/attempt-03-R-Jolt-R29_DROP_WAKE_V01/data/cost.csv",
+      "sha256": "e28abc636567e75fdf083a16b280b59b28f3b378e21ac2533c802dab98dd533b"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/resume-01/qualification/attempt-03-R-Jolt-R29_DROP_WAKE_V01/data/allocations.csv",
+      "sha256": "60e8934f724aea30067a1218506f72160ce02cd591dc077e0dfdb1cfe28d8664"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/resume-01/qualification/attempt-03-R-Jolt-R29_DROP_WAKE_V01/data/listener-construction.txt",
+      "sha256": "52b8dfcab7c718bbe005fae8babe281273872362a6bf5afc1b80550a6d720f93"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/resume-01/qualification/attempt-03-R-Jolt-R29_DROP_WAKE_V01/data/result.txt",
+      "sha256": "9e92535f881b4679f9fa519404e10c192efaefa75cd7e5e722f4c352a9948741"
+    },
+    {
+      "path": "bin/phase29-qualification/Release/RigidBodySimulation/phase29.map",
+      "sha256": "74521acc5d7d893041a340dd4de11bd9a40b7fd6d8a87edcc05e20ba22b66f8d"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/resume-01/build-Release-abi-02.json",
+      "sha256": "b15f940ccac3225666b1f48db6d870039aa3b13c68f571743c140361920a6c2b"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/resume-01/drop-allocation-review-01/analyze.py",
+      "sha256": "03dd888b1da674c1099805b9a97dc0689c36817456f08b7293bba14dbc44ae2e"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/admission-02/arena-proposal.json",
+      "sha256": "8cd3a7371b3fc86cbcfe8bad83679e8060202febac6961e94e9a582545b9c60b"
+    },
+    {
+      "path": "GEngine/src/Physics/JoltBackend.cpp",
+      "sha256": "233bce279ed7c20655c2c125218a944275bdd2b541e170e48ed67c614f184aa5"
+    },
+    {
+      "path": "RigidBodySimulation/tests/PassiveRagdollChecks.h",
+      "sha256": "ca80307f03114a0b72213b950e795dd075f3e9e2e8179d4239f6bf8bcefb1787"
+    },
+    {
+      "path": "external/jolt/Jolt/Core/JobSystemThreadPool.cpp",
+      "sha256": "4aa1a791c8724e87ce948dad83755c9a240d520099332fa8bbbde9921bc31868"
+    },
+    {
+      "path": "external/jolt/Jolt/Core/FixedSizeFreeList.inl",
+      "sha256": "a65a0b153fabf473d97476288906d5258e5d5531bf2fb1e63afbb2e6ea7b1f90"
+    },
+    {
+      "path": "external/jolt/Jolt/Physics/PhysicsSettings.h",
+      "sha256": "796b390b39e7bee5fb685a8d07dd24baa61996f817058ac6265e527f4fae2f95"
+    },
+    {
+      "path": "external/jolt/Jolt/Physics/PhysicsSystem.cpp",
+      "sha256": "32084e2907d00ae0c8c9938e573da9733ac7044c8f0a0ea8b1a687771d8d2709"
+    },
+    {
+      "path": "external/jolt/Jolt/Physics/Collision/BroadPhase/QuadTree.cpp",
+      "sha256": "b9e7b3728952100f61a554faa575b39d38c8f1c7cb1f427de4098fce1048be6f"
+    },
+    {
+      "path": "external/jolt/Jolt/Physics/IslandBuilder.cpp",
+      "sha256": "9a944d1788f0e14470ec962574b7ad80566799c5046d0d7eb28f2e2ae02449a8"
+    }
+  ],
+  "arena": {
+    "evidence": "All positive requests and releases match by address and size in LIFO order. Tracked aggregate occupancy agrees at every event; every tick ends with zero outstanding arena bytes.",
+    "ticks": 1200,
+    "ticks_with_reservations": 286,
+    "positive_reservations": 5042,
+    "matched_releases": 5042,
+    "max_positive_requests_one_tick": 18,
+    "peak_B": 12460448,
+    "frozen_positive_sites": 19,
+    "frozen_sum_B": 12526080,
+    "capacity_B": 33554432
+  },
+  "heap": {
+    "counter_mismatch_ticks": 0,
+    "counts_including_first_tick": {
+      "cpp_calls": 0,
+      "cpp_bytes": 0,
+      "joint_calls": 0,
+      "joint_bytes": 0,
+      "graph_calls": 0,
+      "graph_bytes": 0,
+      "broad_calls": 0,
+      "broad_bytes": 0,
+      "jph_calls": 575,
+      "jph_bytes": 263796
+    },
+    "total_observed_frees": 574,
+    "quadtree_pairs": 574,
+    "quadtree_requested_B": 34420,
+    "one_outstanding_at_end_of_Update_observation": {
+      "request_tick": 1,
+      "requested_B": 229376,
+      "pointer": 1884953102144,
+      "source": "JobSystemThreadPool initializes a single job storage page for all 2048 jobs. FixedSizeFreeList::ConstructObject lazily allocates it on the first job. PhysicsSystem::Update creates UpdateBroadPhaseFinalize unconditionally before the constraint-solve jobs. FixedSizeFreeList's destructor explicitly frees each page. Shutdown returned exit 0; the pointer's teardown free is outside this recording."
+    },
+    "original_checker_defect": "The original arena_audit combined heap per-tick counter equality and empty per-tick heap lifetime in one require. The global JPH counters exactly match all 1200 ticks. An SDK world-lifetime job pool page remains live at tick boundaries. The original failure assessment remains immutable."
+  },
+  "listener": {
+    "construction_calls": 1,
+    "observed_cpp_bytes": 917536,
+    "element_bytes": 112,
+    "capacity": 8192,
+    "fixed_sample_bytes": 917504,
+    "no_callback_overflow": "Each of 1200 updates checked callback count/overflow and completed the capture."
+  },
+  "cost": {
+    "inclusive_gate_this_capture": true,
+    "same_tick_conservative_observer_upper_bound_suffices_this_capture": true,
+    "clock_quantum_ns": 100,
+    "observer_upper_ns": {
+      "mean": 95296.58333333333,
+      "median": 69350.0,
+      "p95": 203200,
+      "p99": 285600,
+      "maximum": 447900,
+      "max_sliding60": 187176.66666666666
+    },
+    "inclusive_ns": {
+      "mean": 93589.16666666667,
+      "median": 67500.0,
+      "p95": 201300,
+      "p99": 282100,
+      "maximum": 443100,
+      "max_sliding60": 185590.0
+    }
+  },
+  "limits": "The ongoing input/output record does not contain a free callback after observation stops at tick 1200. Source ownership and a clean exit are separate from a directly observed pointer release at teardown. No other Release workload or Native costs are qualified by these data.",
+  "tables": [
+    {
+      "path": "logs/pre_editor/phase-29/resume-01/drop-allocation-review-01/per-tick.csv",
+      "sha256": "22d682f3d80a539606b454a771eed7eba517a7dafbef32842e25ad986d7267fa"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/resume-01/drop-allocation-review-01/arena-sites.csv",
+      "sha256": "910463a438ba3c34b5bac1d1f95665bcb480e284c017bc368d1813923ee68bef"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/resume-01/drop-allocation-review-01/heap-sites.csv",
+      "sha256": "d15fe9c6f12cf47c36df94205576ac5c08cc44bbb961e99c595ada2480308463"
+    }
+  ]
+}

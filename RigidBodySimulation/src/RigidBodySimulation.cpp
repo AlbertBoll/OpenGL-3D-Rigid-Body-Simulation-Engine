@@ -7,6 +7,9 @@
 #include "Core/RuntimeAssets.h"
 #include "Scene/_Scene.h"
 #include "../tests/RestingContactDiagnosis.h"
+#ifdef GENGINE_PHASE29_QUALIFICATION
+#include "../tests/PassiveRagdollChecks.h"
+#endif
 #include <format>
 
 #include <new>
@@ -222,6 +225,12 @@ RigidBodySimulationApp::RigidBodySimulationApp(const Rbs::LaunchConfig& launch)
     : BaseApp(launch.engine), m_Launch(launch),
       m_ActiveSelection{launch.scene, launch.chainLinks}, m_PendingSelection(m_ActiveSelection), m_Backend(launch.m_Backend), m_PendingBackend(m_Backend)
 {
+    if (launch.scene == Rbs::RbsScenePreset::PassiveRagdoll)
+    {
+        m_Ragdoll.committed = Rbs::ReferenceRagdollPacket();
+        m_Ragdoll.draft = m_Ragdoll.committed;
+        m_Ragdoll.draftGeneration = m_SceneGeneration;
+    }
     if (m_ActiveSelection.IsAngularScene())
     {
         if (auto reference=Rbs::ReferenceAngularPacket(launch.scene,launch.angularVariant))
@@ -266,6 +275,7 @@ struct RigidBodySimulationApp::SceneStateStorage
     Rbs::SceneSelection m_Selection;
     PhysicsBackend m_Backend{DefaultPhysicsBackend};
     AngularBindings m_AngularBindings;
+    RagdollBindings m_RagdollBindings;
 
     bool RetireView()
     {
@@ -346,6 +356,7 @@ void RigidBodySimulationApp::SwapSceneState(SceneStateStorage& state) noexcept
     swap(m_ActiveSelection, state.m_Selection);
     swap(m_Backend, state.m_Backend);
     swap(m_AngularBindings, state.m_AngularBindings);
+    swap(m_RagdollBindings, state.m_RagdollBindings);
 }
 
 bool RigidBodySimulationApp::ResetSceneInteraction()
@@ -385,6 +396,8 @@ void RigidBodySimulationApp::SetSimulationState(Rbs::SimulationState state)
 {
     if (!SandboxEnabled()) return;
     if(m_CameraPilot && state==Rbs::SimulationState::Running){m_CameraDiagnostic="Commit or Cancel Pilot before running simulation.";return;}
+    if(m_Ragdoll.dirty && state==Rbs::SimulationState::Running)
+    {m_SceneDiagnostic="Apply or Revert the pending ragdoll changes before starting.";return;}
     if(state==Rbs::SimulationState::Running){CancelGroupTransform();m_EditorMode=EditorMode::Simulation;}
     if (state == Rbs::SimulationState::Running && !m_ActiveScene)
         state = Rbs::SimulationState::Failed;
@@ -419,6 +432,10 @@ bool RigidBodySimulationApp::RequestScene(Rbs::SceneSelection selection)
         return false;
     }
     std::optional<AngularCandidate> angular;
+    const bool ragdoll=selection.scene==Rbs::RbsScenePreset::PassiveRagdoll;
+    if(selection!=m_ActiveSelection && (ragdoll || m_Ragdoll.committed) &&
+       m_SimulationState==Rbs::SimulationState::Running)
+    {m_SceneDiagnostic="Pause before changing the ragdoll scene.";return false;}
     if (selection.IsAngularScene())
     {
         if (selection==m_ActiveSelection && m_Angular.committed)
@@ -435,6 +452,10 @@ bool RigidBodySimulationApp::RequestScene(Rbs::SceneSelection selection)
     }
     m_PendingSelection = selection;
     m_AngularRequest=std::move(angular);
+    if(ragdoll)
+        m_RagdollRequest=RagdollCandidate{selection==m_ActiveSelection && m_Ragdoll.committed ?
+            *m_Ragdoll.committed : Rbs::ReferenceRagdollPacket(),m_SceneGeneration,m_Ragdoll.revision,false};
+    else m_RagdollRequest.reset();
     m_SceneRequest = selection;
     return true;
 }
@@ -501,9 +522,49 @@ void RigidBodySimulationApp::RestoreAngularDefaults()
     m_Angular.diagnostic="Default parameters staged. Select Apply to update the simulation.";
 }
 
-bool RigidBodySimulationApp::HasPendingObjectProperties() const
+bool RigidBodySimulationApp::RequestRagdollApply()
 {
-    return m_CameraPilot.has_value() || (m_ContextEditor.generation==m_SceneGeneration && (m_ContextEditor.cameraDirty ||
+    if(!m_ActiveScene || !m_Ragdoll.draft || !m_Ragdoll.committed ||
+       (!m_Ragdoll.dirty && !m_SceneDefaultsPending) || m_SceneRequest ||
+       HasPendingObjectProperties(false) || m_EditorMode!=EditorMode::Edit ||
+       (m_SimulationState!=Rbs::SimulationState::Ready && m_SimulationState!=Rbs::SimulationState::Paused) ||
+       m_Ragdoll.draftGeneration!=m_SceneGeneration || m_Ragdoll.draftBaseRevision!=m_Ragdoll.revision)
+    {m_Ragdoll.diagnostic="Pause in Edit mode and resolve pending changes before Apply.";return false;}
+    if(auto valid=Rbs::ValidateRagdollPacket(*m_Ragdoll.draft,m_Backend);!valid)
+    {m_Ragdoll.diagnostic=valid.error().message;return false;}
+    m_RagdollRequest=RagdollCandidate{*m_Ragdoll.draft,m_SceneGeneration,m_Ragdoll.revision,true};
+    m_SceneRequest=m_ActiveSelection;
+    return true;
+}
+
+void RigidBodySimulationApp::RevertRagdollDraft()
+{
+    if(!m_Ragdoll.committed || m_SceneRequest)return;
+    m_Ragdoll.draft=m_Ragdoll.committed;
+    m_Ragdoll.draftBaseRevision=m_Ragdoll.revision;
+    m_Ragdoll.draftGeneration=m_SceneGeneration;
+    m_Ragdoll.dirty=false;
+    m_SceneDefaultsPending=false;
+    Rbs::Editor::Numeric::Reset();
+    m_Ragdoll.diagnostic="Pending edits reverted.";
+}
+
+void RigidBodySimulationApp::RestoreRagdollDefaults()
+{
+    if(!m_Ragdoll.committed || m_SceneRequest || HasPendingObjectProperties(false) ||
+       m_EditorMode!=EditorMode::Edit || (m_SimulationState!=Rbs::SimulationState::Ready &&
+       m_SimulationState!=Rbs::SimulationState::Paused))return;
+    m_Ragdoll.draft=Rbs::ReferenceRagdollPacket();
+    m_Ragdoll.draftGeneration=m_SceneGeneration;
+    m_Ragdoll.draftBaseRevision=m_Ragdoll.revision;
+    m_Ragdoll.dirty=m_SceneDefaultsPending=true;
+    Rbs::Editor::Numeric::Reset();
+    m_Ragdoll.diagnostic="Scene defaults staged for Apply.";
+}
+
+bool RigidBodySimulationApp::HasPendingObjectProperties(bool includeRagdoll) const
+{
+    return (includeRagdoll && m_Ragdoll.dirty) || m_CameraPilot.has_value() || (m_ContextEditor.generation==m_SceneGeneration && (m_ContextEditor.cameraDirty ||
         m_ContextEditor.lightDirty || m_ContextEditor.materialDirty || m_ContextEditor.meshDirty ||
         m_ContextEditor.visibilityDirty || m_ContextEditor.queued ||
         m_SkyVisibilityEdit.has_value())) ||
@@ -517,6 +578,7 @@ bool RigidBodySimulationApp::HasPendingObjectProperties() const
 
 void RigidBodySimulationApp::StageSceneDefaults()
 {
+    if(m_Ragdoll.committed){RestoreRagdollDefaults();return;}
     if(!SandboxEnabled() || !m_ActiveScene || m_SceneRequest || HasPendingObjectProperties() ||
        m_EditorMode!=EditorMode::Edit || (m_SimulationState!=Rbs::SimulationState::Ready &&
        m_SimulationState!=Rbs::SimulationState::Paused))return;
@@ -527,6 +589,7 @@ void RigidBodySimulationApp::StageSceneDefaults()
 
 bool RigidBodySimulationApp::ApplySceneDefaults()
 {
+    if(m_Ragdoll.committed)return RequestRagdollApply();
     if(!m_SceneDefaultsPending || !m_ActiveScene || m_SceneRequest || HasPendingObjectProperties() ||
        m_EditorMode!=EditorMode::Edit || (m_SimulationState!=Rbs::SimulationState::Ready &&
        m_SimulationState!=Rbs::SimulationState::Paused))return false;
@@ -538,6 +601,7 @@ bool RigidBodySimulationApp::ApplySceneDefaults()
 
 void RigidBodySimulationApp::RevertSceneDefaults()
 {
+    if(m_Ragdoll.committed){RevertRagdollDraft();return;}
     if(m_SceneRequest)return;
     if(m_ActiveSelection.IsAngularScene()){RevertAngularDraft();return;}
     m_SceneDefaultsPending=false;
@@ -558,6 +622,13 @@ RigidBodySimulationApp::BackendAuthoring::Capture(_Scene& source,RigidBodySimula
     BackendAuthoring result;
     result.m_Ordinary=app!=nullptr;
     result.m_PacketOwnsJoint=app && app->m_ActiveSelection.IsAngularScene();
+    const bool ragdoll=app && app->m_ActiveSelection.scene==Rbs::RbsScenePreset::PassiveRagdoll;
+    result.m_PacketBodyCount=ragdoll?6u:result.m_PacketOwnsJoint?2u:0u;
+    result.m_PacketOwnsJoint=result.m_PacketBodyCount!=0;
+    const auto packetEndpoint=[&](entt::entity id){
+        if(ragdoll)return std::ranges::find(app->m_RagdollBindings.entities,id)!=app->m_RagdollBindings.entities.end();
+        return result.m_PacketOwnsJoint && (id==app->m_AngularBindings.entities[0] || id==app->m_AngularBindings.entities[1]);
+    };
     if(app)
     {
         const auto active=source.ActiveSceneCamera();
@@ -572,8 +643,7 @@ RigidBodySimulationApp::BackendAuthoring::Capture(_Scene& source,RigidBodySimula
             object.signature=identity.signature;
             if(!object.key || object.signature.empty())
                 return BackendAuthoringFailure("Scene object lacks its frozen preset identity");
-            object.endpoint=result.m_PacketOwnsJoint &&
-                (id==app->m_AngularBindings.entities[0] || id==app->m_AngularBindings.entities[1]);
+            object.endpoint=packetEndpoint(id);
             object.sphere=entity.HasAllComponents<SphereFixture3DComponent>();
             if(entity!=app->m_SkyBoxEntity && entity.HasAllComponents<Transform3DComponent>() && !entity.HasAllComponents<RigidBody3DComponent>())
             {
@@ -610,9 +680,10 @@ RigidBodySimulationApp::BackendAuthoring::Capture(_Scene& source,RigidBodySimula
         result.m_WorldSleep=*settings;
         if(const auto settings=world->ReadJoltSettings())result.m_JoltWorld=*settings;
     }
+    std::size_t livePacketBodies=0;
     for(auto id:source.GetAllEntitiesWith<RigidBody3DComponent,Transform3DComponent,TagComponent>())
     {
-        if(result.m_PacketOwnsJoint && (id==app->m_AngularBindings.entities[0] || id==app->m_AngularBindings.entities[1]))continue;
+        if(packetEndpoint(id)){++livePacketBodies;continue;}
         _Entity entity{id,&source};auto pose=source.ReadBodyTransform(entity);
         if(!pose)return BackendAuthoringFailure("Authored body binding is invalid");
         auto state=app?world->ReadEffectiveBody(pose->body):world->ReadBody(pose->body);
@@ -657,7 +728,7 @@ RigidBodySimulationApp::BackendAuthoring::Capture(_Scene& source,RigidBodySimula
         },body.m_Fixture);
         result.m_Bodies.push_back(std::move(body));
     }
-    if(result.m_Bodies.size()+(result.m_PacketOwnsJoint?2u:0u)!=world->GetBodyCount())
+    if(result.m_Bodies.size()+livePacketBodies!=world->GetBodyCount())
         return BackendAuthoringFailure("Every rebuilt body requires authored Scene membership");
     if(result.m_PacketOwnsJoint)return result;
     result.m_Joints.reserve(world->GetJointCount());
@@ -705,7 +776,7 @@ ApplicationInitializationResult RigidBodySimulationApp::BackendAuthoring::ApplyB
     }
     std::size_t count=0;
     for(auto id:target.GetAllEntitiesWith<RigidBody3DComponent>()){(void)id;++count;}
-    if(count!=m_Bodies.size()+(m_PacketOwnsJoint?2u:0u) || !target.SetPhysicsStep(m_Step))
+    if(count!=m_Bodies.size()+m_PacketBodyCount || !target.SetPhysicsStep(m_Step))
         return BackendAuthoringFailure("Generated scene differs from the authored body/clock configuration");
     for(const auto& body:m_Bodies)
     {
@@ -723,7 +794,7 @@ ApplicationInitializationResult RigidBodySimulationApp::BackendAuthoring::ApplyB
 ApplicationInitializationResult RigidBodySimulationApp::BackendAuthoring::ApplyAfterStart(_Scene& target) const
 {
     auto* physics=target.GetPhysicsSystem();auto* world=physics->GetPhysicsWorld();
-    if(!world || world->GetBodyCount()!=m_Bodies.size()+(m_PacketOwnsJoint?2u:0u))return BackendAuthoringFailure("Replacement body membership differs");
+    if(!world || world->GetBodyCount()!=m_Bodies.size()+m_PacketBodyCount)return BackendAuthoringFailure("Replacement body membership differs");
     if(!m_PacketOwnsJoint)world->SetGravity(m_Gravity);
     physics->SetSleepingEnabled(m_Sleeping);
     if(m_JoltWorld) {
@@ -822,8 +893,10 @@ ApplicationInitializationResult RigidBodySimulationApp::BackendAuthoring::Restor
             mesh.castShadows=flags[0];mesh.receiveShadows=flags[1];mesh.pickable=flags[2];
             if(mesh!=entity.GetComponent<MeshRendererComponent>() && !render.Replace(*id,mesh))
                 return BackendAuthoringFailure("Mesh visibility and shadow flags could not be restored");
-            // A shape edit may deliberately select a different generated material for a joint endpoint.
-            if(object.material && (!object.endpoint || entity.HasAllComponents<SphereFixture3DComponent>()==object.sphere))
+            // Angular anchor shapes select different surfaces. Ragdoll shapes all
+            // carry the same bone's authored rust surface through reconstruction.
+            if(object.material && (!object.endpoint || app.m_ActiveSelection.IsRagdollScene() ||
+                                   entity.HasAllComponents<SphereFixture3DComponent>()==object.sphere))
             {
                 auto current=app.m_SceneResources->DescribeMaterial(mesh.material);
                 if(!current)return BackendAuthoringFailure("Could not read replacement material");
@@ -848,7 +921,7 @@ bool RigidBodySimulationApp::RequestBackend(PhysicsBackend backend)
     {m_SceneDiagnostic="Backend unavailable; current scene retained.";return false;}
     if(backend==m_Backend)
     {m_SceneDiagnostic="Selected backend is already active.";return false;}
-    if(m_ActiveSelection.IsAngularScene() && m_SimulationState==Rbs::SimulationState::Running)
+    if((m_ActiveSelection.IsAngularScene() || m_Ragdoll.committed) && m_SimulationState==Rbs::SimulationState::Running)
     {m_SceneDiagnostic="Pause before changing the angular scene backend.";return false;}
     if(!RequestScene(m_ActiveSelection))return false;
     m_PendingBackend=backend;
@@ -862,11 +935,20 @@ void RigidBodySimulationApp::ProcessSceneRequest()
     if (!SandboxEnabled() || !m_SceneRequest) return;
     const auto requested = *std::exchange(m_SceneRequest, std::nullopt);
     const auto angularCandidate=std::exchange(m_AngularRequest,std::nullopt);
+    const auto ragdollCandidate=std::exchange(m_RagdollRequest,std::nullopt);
     const auto backendRequest=std::exchange(m_BackendRequest,std::nullopt);
     const auto requestedBackend=backendRequest.value_or(m_Backend);
     const auto oldSelection=m_ActiveSelection;
-    if(HasPendingObjectProperties())
+    if(HasPendingObjectProperties(!(ragdollCandidate && ragdollCandidate->apply)))
     {m_SceneDiagnostic="Apply or Revert pending object edits before reconstructing the current scene.";return;}
+    if(requested.scene==Rbs::RbsScenePreset::PassiveRagdoll)
+    {
+        if(!ragdollCandidate || ragdollCandidate->expectedGeneration!=m_SceneGeneration ||
+           ragdollCandidate->expectedRevision!=m_Ragdoll.revision)
+        {m_SceneDiagnostic="Ragdoll request is stale or incomplete.";return;}
+        if(auto checked=Rbs::ValidateRagdollPacket(ragdollCandidate->packet,requestedBackend);!checked)
+        {m_SceneDiagnostic=checked.error().message;m_Ragdoll.diagnostic=m_SceneDiagnostic;return;}
+    }
     if(requested.IsAngularScene())
     {
         if(!angularCandidate || angularCandidate->expectedGeneration!=m_SceneGeneration ||
@@ -884,7 +966,7 @@ void RigidBodySimulationApp::ProcessSceneRequest()
         {
             _Entity entity{*e,m_ActiveScene.get()};
             if(entity.HasAllComponents<Rbs::Editor::PresetIdentity>())
-                selection.push_back({entity.GetComponent<Rbs::Editor::PresetIdentity>(),IsAngularEndpoint(entity)});
+                selection.push_back({entity.GetComponent<Rbs::Editor::PresetIdentity>(),IsAngularEndpoint(entity) || RagdollBoneFor(entity).has_value()});
         }
     std::array<Rbs::Editor::PresetIdentity,2> previousEndpoints{};
     if(oldSelection==requested && requested.IsAngularScene())
@@ -906,7 +988,7 @@ void RigidBodySimulationApp::ProcessSceneRequest()
             if(found==current.end())continue;
             _Entity entity{found->second,m_ActiveScene.get()};
             if(entity.GetComponent<Rbs::Editor::PresetIdentity>().signature!=selected.identity.signature &&
-               !(selected.endpoint && IsAngularEndpoint(entity)))continue;
+               !(selected.endpoint && (IsAngularEndpoint(entity) || RagdollBoneFor(entity))))continue;
             if(auto id=m_ActiveScene->RenderData().Identify(entity))resolved.push_back(*id);
         }
         if(!resolved.empty() && m_EditorSelection.SelectSet(m_ActiveScene->RenderData(),resolved,Rbs::Editor::EntitySelection::SetOperation::Replace))
@@ -956,11 +1038,11 @@ void RigidBodySimulationApp::ProcessSceneRequest()
             m_FrameSubmission.emplace(std::move(*submission));
             m_LoadBarrel = m_Launch.startupMesh == Rbs::StartupMesh::Barrel;
             auto initialized = InitializeScene(authoring?&*authoring:nullptr,
-                angularCandidate?&angularCandidate->packet:nullptr);
+                angularCandidate?&angularCandidate->packet:nullptr,ragdollCandidate?&ragdollCandidate->packet:nullptr);
             if (!initialized) return initialized;
             if(authoring)
             {
-                if(!angularCandidate)
+                if(!angularCandidate && !ragdollCandidate)
                     if(auto restored=authoring->ApplyAfterStart(*m_ActiveScene);!restored)return restored;
                 if(auto restored=authoring->RestoreObjects(*this);!restored)return restored;
             }
@@ -1005,6 +1087,7 @@ void RigidBodySimulationApp::ProcessSceneRequest()
         SetSimulationState(m_ActiveScene ? Rbs::SimulationState::Paused : Rbs::SimulationState::Failed);
         m_SkipSimulationElapsed = true;
         if(angularCandidate)m_Angular.diagnostic=m_SceneDiagnostic;
+        if(ragdollCandidate)m_Ragdoll.diagnostic=m_SceneDiagnostic;
         return;
     }
     previous.Retire();
@@ -1042,6 +1125,19 @@ void RigidBodySimulationApp::ProcessSceneRequest()
         m_PendingAngularVariant=angularCandidate->packet.variant;
     }
     else if(oldSelection.IsAngularScene())m_Angular={};
+    if(ragdollCandidate)
+    {
+        if(requested!=oldSelection)m_Ragdoll.revision=0;
+        if(ragdollCandidate->apply)++m_Ragdoll.revision;
+        m_Ragdoll.committed=ragdollCandidate->packet;
+        m_Ragdoll.draft=m_Ragdoll.committed;
+        m_Ragdoll.draftGeneration=m_SceneGeneration;
+        m_Ragdoll.draftBaseRevision=m_Ragdoll.revision;
+        m_Ragdoll.dirty=false;
+        m_Ragdoll.contactDiagnostic.clear();
+        m_Ragdoll.diagnostic="Committed ragdoll reconstructed at Tick 0.";
+    }
+    else m_Ragdoll={};
     if(oldSelection==requested)restoreSelection();
     Rbs::Editor::Numeric::Reset();
     if(backendRequest)
@@ -1117,8 +1213,14 @@ RigidBodySimulationApp::~RigidBodySimulationApp()
             Log::GetCoreLogger()->info("PRE_EDITOR_PHASE_17_TEARDOWN_PASS transient_retired=true capture=none");
 #endif
         m_EditorViewIdentity = {};
+#ifdef GENGINE_PHASE29_QUALIFICATION
+        const bool observingWorldTeardown=Rbs::Phase29::BeginWorldTeardown(m_ActiveScene);
+#endif
         m_ActiveScene.reset();
         m_EditorScene.reset();
+#ifdef GENGINE_PHASE29_QUALIFICATION
+        if(observingWorldTeardown)Rbs::Phase29::EndWorldTeardown();
+#endif
         m_PhysicsShapes.clear();
         m_CameraPanels.clear();
         m_FrameSubmission.reset();

@@ -1,0 +1,293 @@
+{
+  "phase": 29,
+  "recorded_utc": "2026-11-21T17:18:07.906885+00:00",
+  "phase_ready": false,
+  "new_runtime_starts": 0,
+  "new_attempts": 0,
+  "new_completions": 0,
+  "new_builds": 0,
+  "owner": {
+    "statement": "OWNER MANUAL REVIEW: PASS",
+    "reported_subject": "current Passive Ragdoll",
+    "verdict": "PASS",
+    "confirmed_scope": "overall visual behavior of the inspected implementation",
+    "unknown": {
+      "inspected_executable_sha256": null,
+      "configuration": null,
+      "backend": null,
+      "inspection_time": null,
+      "packet": null,
+      "property_observations": null,
+      "tick_range": null
+    },
+    "new_component_rows_credited": 0,
+    "formal_final_candidate_binding": "PENDING",
+    "phase_approval": false
+  },
+  "current_vs_release_file": {
+    "path": "bin/Release/RigidBodySimulation/RigidBodySimulation.exe",
+    "sha256": "9d8e33dd7098d46137e1d8441c44ac65b5377831449801162685b0212a3802a5",
+    "file_write_utc": "2026-11-21T17:06:47.885570+00:00",
+    "inspection_identity_established": false
+  },
+  "later_project_log": {
+    "snapshot": {
+      "path": "logs/pre_editor/phase-29/final-qualification-01/ordinary-project-log-20261121T170738Z.log",
+      "sha256": "4801f6fdf75956a272f6c178a5ece062768ce43f066f13b6a856de2fba9cb764"
+    },
+    "source_at_read": {
+      "path": "RigidBodySimulation/GEngine.log",
+      "sha256": "4801f6fdf75956a272f6c178a5ece062768ce43f066f13b6a856de2fba9cb764"
+    },
+    "mtime_utc": "2026-11-21T17:07:38.773927+00:00",
+    "previous_cutoff_log": {
+      "path": "RigidBodySimulation/GEngine.log",
+      "sha256": "c0894f2d0269aba7709fb5a823e9ac174d0f924cd9f7339ad8ac6f42ed7181df"
+    },
+    "process_lower_bound_delta": 1,
+    "jolt_initializations": 3,
+    "named_scene": "DistanceChain/8",
+    "later_scenes": "unnamed",
+    "binding_to_owner_report": null,
+    "actual_physics_ticks": null
+  },
+  "retained_images": {
+    "safety": {
+      "path": "bin/phase29-step-safety-01/safety/RigidBodySimulation/RigidBodySimulation.exe",
+      "sha256": "e8036631dbf0883588bffffaffbd47ad7b662c6f0174eb57cd40daa74dd9e021"
+    },
+    "ordinary": {
+      "path": "bin/phase29-step-safety-01/ordinary/RigidBodySimulation/RigidBodySimulation.exe",
+      "sha256": "af181bcade2e943ae16bc79438a7554affaafc00ad45dfa893c3bdf7c858bd20"
+    },
+    "qualification": {
+      "path": "bin/phase29-step-safety-01/qualification/RigidBodySimulation/RigidBodySimulation.exe",
+      "sha256": "24a31ae0ba9a0090b4b9cd9bd4a1719871f7f141b578fc5a2df48e4fe6b833a0"
+    }
+  },
+  "matching_step_source_after_hashes": 12,
+  "matching_profile_dependency_hashes": {
+    "safety": 998,
+    "ordinary": 997,
+    "qualification": 998
+  },
+  "historical_fixture_results": [
+    {
+      "slot": "D-J",
+      "assessment": {
+        "path": "logs/pre_editor/phase-29/resume-01/qualification/attempt-01-D-J/assessment.json",
+        "sha256": "9cc2166da2ebffd61b0ee516505eeca1dc944a48695a4fb2b0a2fcc052bb55c3"
+      },
+      "outcome": "FAIL",
+      "booked_ticks": 240
+    },
+    {
+      "slot": "D-J",
+      "assessment": {
+        "path": "logs/pre_editor/phase-29/resume-01/qualification/attempt-02-D-J/assessment.json",
+        "sha256": "09569eabdfd944720c5874b3af974d3fb745c20ed795c7089f968234a60147e5"
+      },
+      "outcome": "PASS",
+      "booked_ticks": 0
+    },
+    {
+      "slot": "R-Jolt-R29_DROP_WAKE_V01",
+      "assessment": {
+        "path": "logs/pre_editor/phase-29/resume-01/qualification/attempt-03-R-Jolt-R29_DROP_WAKE_V01/assessment.json",
+        "sha256": "669151d2885a60dbf27685fde583f3f51df2f4e5d043c9ea6db23c6734738219"
+      },
+      "outcome": "FAIL",
+      "booked_ticks": 1200
+    },
+    {
+      "slot": "D-N",
+      "assessment": {
+        "path": "logs/pre_editor/phase-29/resume-01/qualification/attempt-04-D-N/assessment.json",
+        "sha256": "bdd844d73e964a3093f94aca0dd35e434fec6d95cada0d21a486329a5765145d"
+      },
+      "outcome": "PASS",
+      "booked_ticks": 0
+    },
+    {
+      "slot": "R-Native-R29_DROP_WAKE_V01",
+      "assessment": {
+        "path": "logs/pre_editor/phase-29/resume-01/qualification/attempt-05-R-Native-R29_DROP_WAKE_V01/assessment.json",
+        "sha256": "97ac2a4542a9d215239065fa781527a44adf5f14f35a07988fe7080a0fc61402"
+      },
+      "outcome": "FAIL",
+      "booked_ticks": 1200
+    },
+    {
+      "slot": "R-Native-R29_TILT_LIMIT_WAKE_V01",
+      "assessment": {
+        "path": "logs/pre_editor/phase-29/resume-01/qualification/attempt-06-R-Native-R29_TILT_LIMIT_WAKE_V01/assessment.json",
+        "sha256": "cf2294d652d9fda9483d226853733ff46f7f15ce1a6fd3739a24fcac1d967252"
+      },
+      "outcome": "FAIL",
+      "booked_ticks": 1200
+    }
+  ],
+  "frozen_bindings": {
+    "criteria.json": {
+      "path": "logs/pre_editor/phase-29/admission-02/criteria.json",
+      "sha256": "eb848d856ccf4cadf3092b732f1a36afa54fd8e6ddd91ab7c8ad2e83394b8340"
+    },
+    "workloads.json": {
+      "path": "logs/pre_editor/phase-29/admission-02/workloads.json",
+      "sha256": "134a6851d0d970a71df7d4ffb0c16ff745dd488606f9c726dbcda58edcca86db"
+    },
+    "reference-packet.json": {
+      "path": "logs/pre_editor/phase-29/admission-02/reference-packet.json",
+      "sha256": "7bcfbc06105bfdee83fdb95e6b2b1a3fde49e7f2d962011e308c7e599ad4fffd"
+    },
+    "arena-proposal.json": {
+      "path": "logs/pre_editor/phase-29/admission-02/arena-proposal.json",
+      "sha256": "8cd3a7371b3fc86cbcfe8bad83679e8060202febac6961e94e9a582545b9c60b"
+    },
+    "execution-plan.json": {
+      "path": "logs/pre_editor/phase-29/admission-02/execution-plan.json",
+      "sha256": "e0fb8432f8d82f9ae7b35e789e7e36bccc13e4f6c51106b2d428deb04ada8bb0"
+    },
+    "source-envelope.json": {
+      "path": "logs/pre_editor/phase-29/admission-02/source-envelope.json",
+      "sha256": "b6c5f6372041f53d0a02019d140603c01a75acd9d848c7c26cbdcaa67db687dc"
+    },
+    "backend_amendment": {
+      "path": "docs/pre_editor/active/PHASE_29_BACKEND_SCOPE_AMENDMENT_01/AMENDMENT.md",
+      "sha256": "42c33ce8a922beac3b53bd7f1cd26b591546fb1a404805004edf61231f636831"
+    },
+    "performance_disposition": {
+      "path": "logs/pre_editor/phase-29/ragdoll-resume-02/performance-disposition.json",
+      "sha256": "32c437e4070d0c14d3fcec47362f33e96f95362f7ca8ecd7be1aa39f2dd3285c"
+    },
+    "visual_gap_review": {
+      "path": "docs/pre_editor/active/PHASE_29_ACCEPTANCE_GAP_REVIEW_01.md",
+      "sha256": "ccdb4e14784d20667692740067babfba87a7849d2befc8cce76335b2964671ae"
+    }
+  },
+  "other_evidence": [
+    {
+      "path": "logs/pre_editor/phase-29/step-safety-01/build-verification.json",
+      "sha256": "ea690f4dd04c38a3d28d79fe87e21024107fab9f120c23b3caa0994e57d5bf94"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/step-safety-01/static-verification-final.json",
+      "sha256": "c059efc455b57282e99f8e025aa29405d30d5eca1274169ceefc7aafe300f3ee"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/step-safety-01/actual-compiler-and-link-dependencies.json",
+      "sha256": "6c6551c6eb97f40a95bbb275875d26685b9ac7cc192238deed04426cd112cc06"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/step-safety-01/component-entry-08.json",
+      "sha256": "7000b0165f0ff3fb13fad010016c8974679ab5482a2ffa283441e5a14c2712ab"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/step-safety-01/component-matrix-08.json",
+      "sha256": "91c960a059f4e5f5df2c1fe42d412d21368086a2a32c73a52c86590fe646d03e"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/step-safety-01/safety-role-02/reservation.json",
+      "sha256": "ea6ae59f8210cc3aac2bfac95803002da3c10e914e2e39c822e2620a66725c31"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/step-safety-01/safety-role-02/job-process.json",
+      "sha256": "c4123bda0109dd828b487ff1c3f2d6c1d430747726d31c80be4578183d7b7db9"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/step-safety-01/safety-role-02/process.json",
+      "sha256": "139c0f30e9e40e4fc4597504749b4a2ac2233d99062ede9ef91a3508c6633751"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/step-safety-disposition-01/owner-disposition.json",
+      "sha256": "2a7a3159cd28a49b67bbec6614e5dc59060c8cfb48bc91ec85df34d9f3ba0cc6"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/step-safety-job-01/status.json",
+      "sha256": "4479556d06c45527ff20ee7e4b856696804588f4d73d02b52e779a50d692e499"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/resume-01/jolt-drop-independent-numerical-findings-01.json",
+      "sha256": "3892fd64a4566b7e62394e43af1306212e627653bf7bf87b8449269d8deab060"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/acceptance-gap-01/drop-excursions.csv",
+      "sha256": "201aad191bec39ddf2d2ad55b85eed81ca9651254f4d2b4919c6092ad5aa70ae"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/resume-01/drop-allocation-review-01/assessment.json",
+      "sha256": "b05847a08b8e93a84613e5aa79388f65652d32c5a22a6605a77428341aea4b3e"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/remediation-01/heap-correction-offline.json",
+      "sha256": "306457370b399f1414029e09185ab8c119be1489722a07b194aae66777987d9b"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/resume-01/owner-editor-budget.json",
+      "sha256": "db39b0cf4dbf7313d98b3f31e974b7c481b1925439a65cd1cfcac4014f66332c"
+    },
+    {
+      "path": "docs/pre_editor/active/PHASE_29_BACKEND_SCOPE_AMENDMENT_01/ACTIVATION.json",
+      "sha256": "017ebe28c2750d39cea26adac1d671169dc5b6d86bdd9977a342d4581ddc51b2"
+    },
+    {
+      "path": "docs/pre_editor/active/PHASE_29_STEP_SAFETY_FIXTURE_03.md",
+      "sha256": "09f1a1d4587463e283758d5899a58ceec6401b1ec5a9356bc90f758ecccc49f5"
+    },
+    {
+      "path": "GEngine/src/Core/Log.cpp",
+      "sha256": "d9e615b4395ff65951abec8cf11d74c149bb3a08ec04b127c101e6555bbb8103"
+    }
+  ],
+  "gates": {
+    "A_PHYSICS": "FAIL (Jolt DROP), Jolt TILT pending",
+    "B_SAFETY": "FAIL (Jolt numerical); named Step Failure Propagation PASS",
+    "C_COST": "INCOMPLETE",
+    "D_EDITOR": "PENDING",
+    "E_INTERACTION": "PENDING",
+    "F_OWNER": "Observed Passive Ragdoll manual PASS; exact final Jolt candidate binding PENDING"
+  },
+  "loaded_jitter_diagnostic": {
+    "status": "OFFLINE_DESCRIPTION_ONLY",
+    "raw_joint_endpoints": {
+      "path": "logs/pre_editor/phase-29/resume-01/qualification/attempt-03-R-Jolt-R29_DROP_WAKE_V01/data/joints.csv",
+      "sha256": "0f41a1628e830dbff685524982d80ad258e77718a9aa45f6c7ebe7960ae4ec1c"
+    },
+    "episodes": {
+      "path": "logs/pre_editor/phase-29/final-qualification-01/loaded-jitter-episodes.csv",
+      "sha256": "1c16ecbe7e60ef9f93ca7bfd01f21610b16530c3ff208cb7d9e6a4da854e983d"
+    },
+    "flagged_centers_by_joint": 32,
+    "separate_center_ticks": 16,
+    "same_joint_runs": 18,
+    "interior_peak_counts": {"zero": 4, "one": 14, "more_than_one": 0},
+    "runs_with_independent_absolute_gap_violation_in_support": 1,
+    "perceptual_result": null,
+    "frozen_numerical_result": "FAIL"
+  },
+  "component_records": {
+    "count": 976,
+    "row_results": {
+      "PENDING": 976
+    }
+  },
+  "ledger": {
+    "historical_booking": 5400,
+    "older_provisional": 720,
+    "approved_later_charge": 360,
+    "failed_safety_reservation": 8,
+    "passed_replacement_reservation": 8,
+    "booked": 6496,
+    "original_ceiling": 8400,
+    "arithmetic_difference_only": 1904,
+    "new_post_window_charge_proposed_only": 360,
+    "historical_actual_ticks": null,
+    "historical_manual_start_count": null,
+    "strict_historical_compliance": null,
+    "lower_bound_all_processes": 16,
+    "lower_bound_explanation": "14 through failed Debug, one replacement, at least one later ordinary process. The unbound Owner inspection is not added again.",
+    "prospective_roles_released": 0,
+    "numerical_replacements_consumed": 1,
+    "numerical_replacements_total": 2
+  }
+}

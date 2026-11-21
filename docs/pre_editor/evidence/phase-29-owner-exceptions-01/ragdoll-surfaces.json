@@ -1,0 +1,486 @@
+{
+  "phase": 29,
+  "recorded_utc": "2026-11-20T06:44:25.660227+00:00",
+  "scope": "Source inspection, staged PNG byte verification and independent UV math only.",
+  "original_sphere": {
+    "scenes": [
+      "Sphere Lattice",
+      "Sphere Diamond",
+      "Sphere Box Stack"
+    ],
+    "geometry": "ShapeManager Sphere, an Ellipsoid of radius 1 m with 64 longitude and 64 latitude intervals.",
+    "uv": "One U wrap over two pi radians. One V wrap over pi + 0.2 radians (the legacy sphere extends the latitude range by 0.1 radian at either pole). Sphere material UV multipliers are 1,1.",
+    "parameters": {
+      "baseColor_linear": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "roughness": 0.9,
+      "metallic": 1.0,
+      "dielectricReflectance": [
+        0.8,
+        0.8,
+        0.8
+      ],
+      "normalConvention": "NegativeY",
+      "normalStrength": 1.0,
+      "aoStrength": 1.0
+    },
+    "six_independent_instances": "One CloneMaterial per body copies the source material instance and its texture and sampler handles into a new scene-registry material handle. No new texture import. The scene builders and five Sphere bindings are unchanged.",
+    "channels": [
+      {
+        "slot": "albedoMap",
+        "path": "GEngine/include/GEngine/Assets/Images/PBR/rustediron/rustediron2_basecolor.png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 10806142,
+        "sha256": "ea49f2c44684c8810dfb628297c6b1bd8a8477fc77c469510f54db83edd1ba3b",
+        "color_space": "sRGB",
+        "phase29_staged_sha256": {
+          "Debug": "ea49f2c44684c8810dfb628297c6b1bd8a8477fc77c469510f54db83edd1ba3b",
+          "Release": "ea49f2c44684c8810dfb628297c6b1bd8a8477fc77c469510f54db83edd1ba3b"
+        }
+      },
+      {
+        "slot": "normalMap",
+        "path": "GEngine/include/GEngine/Assets/Images/PBR/rustediron/rustediron2_normal.png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 7725049,
+        "sha256": "dea7d47c6c25f557803e4be7337c5bdb7b5b1592115d1dde18c1d661f17aa5e3",
+        "color_space": "linear",
+        "phase29_staged_sha256": {
+          "Debug": "dea7d47c6c25f557803e4be7337c5bdb7b5b1592115d1dde18c1d661f17aa5e3",
+          "Release": "dea7d47c6c25f557803e4be7337c5bdb7b5b1592115d1dde18c1d661f17aa5e3"
+        }
+      },
+      {
+        "slot": "metallicMap",
+        "path": "GEngine/include/GEngine/Assets/Images/PBR/rustediron/rustediron2_metallic.png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 3419179,
+        "sha256": "571e89a4552fd8ae250e39a6058b484047798815f751f9eace60455ae64f0f91",
+        "color_space": "linear",
+        "phase29_staged_sha256": {
+          "Debug": "571e89a4552fd8ae250e39a6058b484047798815f751f9eace60455ae64f0f91",
+          "Release": "571e89a4552fd8ae250e39a6058b484047798815f751f9eace60455ae64f0f91"
+        }
+      },
+      {
+        "slot": "roughnessMap",
+        "path": "GEngine/include/GEngine/Assets/Images/PBR/rustediron/rustediron2_roughness.png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 3116093,
+        "sha256": "b078c4d5c20f9a04e7fe48c96119629d4692897bb6fa414c8419200946f125bc",
+        "color_space": "linear",
+        "phase29_staged_sha256": {
+          "Debug": "b078c4d5c20f9a04e7fe48c96119629d4692897bb6fa414c8419200946f125bc",
+          "Release": "b078c4d5c20f9a04e7fe48c96119629d4692897bb6fa414c8419200946f125bc"
+        }
+      },
+      {
+        "slot": "aoMap",
+        "path": "GEngine/include/GEngine/Assets/Images/PBR/subtle_black_granite/subtle-black-granite_ao.png",
+        "width": 2048,
+        "height": 2048,
+        "bytes": 61048,
+        "sha256": "b3fa938ce5cdb2cf78f72b91379e3acd9c7ca1583b2496bac2c370c0bc75d5b7",
+        "color_space": "linear",
+        "phase29_staged_sha256": {
+          "Debug": "b3fa938ce5cdb2cf78f72b91379e3acd9c7ca1583b2496bac2c370c0bc75d5b7",
+          "Release": "b3fa938ce5cdb2cf78f72b91379e3acd9c7ca1583b2496bac2c370c0bc75d5b7"
+        }
+      }
+    ]
+  },
+  "box_uv": {
+    "face_order": [
+      "+X",
+      "-X",
+      "+Y",
+      "-Y",
+      "+Z",
+      "-Z"
+    ],
+    "models": [
+      {
+        "bone": "Head",
+        "size_m": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "uv_span_per_face": [
+          [
+            0.5,
+            0.5
+          ],
+          [
+            0.5,
+            0.5
+          ],
+          [
+            0.5,
+            0.5
+          ],
+          [
+            0.5,
+            0.5
+          ],
+          [
+            0.5,
+            0.5
+          ],
+          [
+            0.5,
+            0.5
+          ]
+        ],
+        "triangles_checked": 12,
+        "world_m_per_repeat_in_both_directions": 1.0
+      },
+      {
+        "bone": "Torso",
+        "size_m": [
+          0.5,
+          2.0,
+          1.0
+        ],
+        "uv_span_per_face": [
+          [
+            1.0,
+            2.0
+          ],
+          [
+            1.0,
+            2.0
+          ],
+          [
+            0.5,
+            1.0
+          ],
+          [
+            0.5,
+            1.0
+          ],
+          [
+            0.5,
+            2.0
+          ],
+          [
+            0.5,
+            2.0
+          ]
+        ],
+        "triangles_checked": 12,
+        "world_m_per_repeat_in_both_directions": 1.0
+      },
+      {
+        "bone": "LeftArm",
+        "size_m": [
+          2.0,
+          0.5,
+          0.5
+        ],
+        "uv_span_per_face": [
+          [
+            0.5,
+            0.5
+          ],
+          [
+            0.5,
+            0.5
+          ],
+          [
+            2.0,
+            0.5
+          ],
+          [
+            2.0,
+            0.5
+          ],
+          [
+            2.0,
+            0.5
+          ],
+          [
+            2.0,
+            0.5
+          ]
+        ],
+        "triangles_checked": 12,
+        "world_m_per_repeat_in_both_directions": 1.0
+      },
+      {
+        "bone": "RightArm",
+        "size_m": [
+          2.0,
+          0.5,
+          0.5
+        ],
+        "uv_span_per_face": [
+          [
+            0.5,
+            0.5
+          ],
+          [
+            0.5,
+            0.5
+          ],
+          [
+            2.0,
+            0.5
+          ],
+          [
+            2.0,
+            0.5
+          ],
+          [
+            2.0,
+            0.5
+          ],
+          [
+            2.0,
+            0.5
+          ]
+        ],
+        "triangles_checked": 12,
+        "world_m_per_repeat_in_both_directions": 1.0
+      },
+      {
+        "bone": "LeftLeg",
+        "size_m": [
+          2.0,
+          0.5,
+          0.5
+        ],
+        "uv_span_per_face": [
+          [
+            0.5,
+            0.5
+          ],
+          [
+            0.5,
+            0.5
+          ],
+          [
+            2.0,
+            0.5
+          ],
+          [
+            2.0,
+            0.5
+          ],
+          [
+            2.0,
+            0.5
+          ],
+          [
+            2.0,
+            0.5
+          ]
+        ],
+        "triangles_checked": 12,
+        "world_m_per_repeat_in_both_directions": 1.0
+      },
+      {
+        "bone": "RightLeg",
+        "size_m": [
+          2.0,
+          0.5,
+          0.5
+        ],
+        "uv_span_per_face": [
+          [
+            0.5,
+            0.5
+          ],
+          [
+            0.5,
+            0.5
+          ],
+          [
+            2.0,
+            0.5
+          ],
+          [
+            2.0,
+            0.5
+          ],
+          [
+            2.0,
+            0.5
+          ],
+          [
+            2.0,
+            0.5
+          ]
+        ],
+        "triangles_checked": 12,
+        "world_m_per_repeat_in_both_directions": 1.0
+      }
+    ],
+    "enhanced": "The immutable reference UV layout stays attached to the box during Enhanced resizing. Each physical metre-per-repeat varies from 0.75 through 1.25 relative to the default independently on each local axis. Four limbs share one reference mesh."
+  },
+  "curved_uv": {
+    "cases": [
+      {
+        "shape": "Sphere",
+        "radius": 0.1875,
+        "cylinder_half_length": 0,
+        "wraps": [
+          1,
+          0.5
+        ],
+        "equatorial_and_meridional_m_per_repeat": 1.1780972450961724
+      },
+      {
+        "shape": "Sphere",
+        "radius": 0.25,
+        "cylinder_half_length": 0,
+        "wraps": [
+          2,
+          1.0
+        ],
+        "equatorial_and_meridional_m_per_repeat": 0.7853981633974483
+      },
+      {
+        "shape": "Sphere",
+        "radius": 0.3125,
+        "cylinder_half_length": 0,
+        "wraps": [
+          2,
+          1.0
+        ],
+        "equatorial_and_meridional_m_per_repeat": 0.9817477042468103
+      },
+      {
+        "shape": "Sphere",
+        "radius": 1.25,
+        "cylinder_half_length": 0,
+        "wraps": [
+          8,
+          4.0
+        ],
+        "equatorial_and_meridional_m_per_repeat": 0.9817477042468103
+      },
+      {
+        "shape": "Capsule",
+        "radius": 0.1875,
+        "cylinder_half_length": 0.05,
+        "wraps": [
+          1,
+          0.5848826363156775
+        ],
+        "equatorial_and_meridional_m_per_repeat": 1.1780972450961724
+      },
+      {
+        "shape": "Capsule",
+        "radius": 0.1875,
+        "cylinder_half_length": 0.5,
+        "wraps": [
+          1,
+          1.3488263631567752
+        ],
+        "equatorial_and_meridional_m_per_repeat": 1.1780972450961724
+      },
+      {
+        "shape": "Capsule",
+        "radius": 0.1875,
+        "cylinder_half_length": 1.25,
+        "wraps": [
+          1,
+          2.6220659078919377
+        ],
+        "equatorial_and_meridional_m_per_repeat": 1.1780972450961724
+      },
+      {
+        "shape": "Capsule",
+        "radius": 0.25,
+        "cylinder_half_length": 0.05,
+        "wraps": [
+          2,
+          1.1273239544735163
+        ],
+        "equatorial_and_meridional_m_per_repeat": 0.7853981633974483
+      },
+      {
+        "shape": "Capsule",
+        "radius": 0.25,
+        "cylinder_half_length": 0.5,
+        "wraps": [
+          2,
+          2.2732395447351625
+        ],
+        "equatorial_and_meridional_m_per_repeat": 0.7853981633974483
+      },
+      {
+        "shape": "Capsule",
+        "radius": 0.25,
+        "cylinder_half_length": 1.25,
+        "wraps": [
+          2,
+          4.183098861837907
+        ],
+        "equatorial_and_meridional_m_per_repeat": 0.7853981633974483
+      },
+      {
+        "shape": "Capsule",
+        "radius": 0.3125,
+        "cylinder_half_length": 0.05,
+        "wraps": [
+          2,
+          1.101859163578813
+        ],
+        "equatorial_and_meridional_m_per_repeat": 0.9817477042468103
+      },
+      {
+        "shape": "Capsule",
+        "radius": 0.3125,
+        "cylinder_half_length": 0.5,
+        "wraps": [
+          2,
+          2.0185916357881304
+        ],
+        "equatorial_and_meridional_m_per_repeat": 0.9817477042468103
+      },
+      {
+        "shape": "Capsule",
+        "radius": 0.3125,
+        "cylinder_half_length": 1.25,
+        "wraps": [
+          2,
+          3.5464790894703255
+        ],
+        "equatorial_and_meridional_m_per_repeat": 0.9817477042468103
+      }
+    ],
+    "scope": "Analytic samples of the supported ranges. Horizontal wrap is integral. Along the equator and in the meridian, metres per repeat agree. Spherical latitude distortion persists near poles.",
+    "mesh": "Existing scene-owned GeometryTemplates use arc-length parameterization for the capsule and polar-angle latitude for the sphere."
+  },
+  "authoring": {
+    "target": "MeshRenderer material handle on the selected entity; Surface Material Apply validates the current descriptor, uses EditMaterial and calls DescribeMaterial again.",
+    "reconstruction": "Same-scene ordinary Capture/RestoreObjects retains editable values by preset identity; replacement textures come from its own fresh registry. Ragdoll shapes share the surface family. Existing Angular endpoint shape policy is unchanged.",
+    "physics": "Only render-mesh selection/UVs, material cloning and render-material restoration changed in this work item."
+  },
+  "inputs_sha256": {
+    "RigidBodySimulation/src/RbsScene.cpp": "10a92fb1d2e4560ffad54443b8bcaeadb0bdacb0a00f04f35bf6540b88026088",
+    "RigidBodySimulation/src/RbsEditorUi.cpp": "af81e8fd9177cc200adbd874c7a54c0b4f9f3e81d0b679e3f6f47acffa61a594",
+    "RigidBodySimulation/src/RbsLaunchConfig.cpp": "e20d4db7d7610cb06e81cddf4040f1eb9a60d8ffec5ad4c5acb236f282deb211",
+    "GEngine/src/Mesh/GeometryTemplates.cpp": "73c5ca9ed38cf24e79798e5da0688d84458d00a5944048f9528150b10b6572e8",
+    "GEngine/src/Renderer/SceneRenderResources.cpp": "b08313b4c4451fa9dbb5320016baa3a11bf08fe6b6751ed332b22a4758812b0b",
+    "GEngine/include/GEngine/Assets/Shaders/pbr_cascade_shadow.frag": "4ac36496e27d050398f2688aeb17f7810a104c41cf96753061c1dc039d3a8c43",
+    "GEngine/src/Renderer/SubmissionGpuLayout.h": "482dec74cc79df2f41fb6832f884a2f23567c4d61130fca09f9a2a9bed531481",
+    "GEngine/include/GEngine/Shapes/Sphere.h": "856916da66d4780288e014384e8a7d009f3068f553bea51a1ce7953ef902f2dd",
+    "GEngine/include/GEngine/Shapes/Ellipsoid.h": "a6ec2c4ed3e7b96ebfdb03996b8797e970f91481ac55998e0c01eeb73dfcbdf5",
+    "GEngine/include/GEngine/Shapes/ParametricSurface.h": "369df86485fd2278048f6dd747fadcf0ed1c509bb8117721ddfe311dadc4a8f3",
+    "GEngine/include/GEngine/Renderer/SceneRenderResources.h": "6237cc98f0155a9e9ca47ad4e8745407397532f94ea7b60d7607a9996dc90dc0",
+    "tools/runtime_assets.json": "c15e7066ad59dcc51a455c9b8726c868b0f6e9474ae2e1dd6a1c5a5bf6a98079"
+  },
+  "restore_function_sha256_utf8_normalized_lf": "06a1aad735898a3f0939e5a808c671a12d01ab4f225ddcbe6375ea929852ccb7",
+  "outstanding": "Actual SDL/ImGui material readback, back-to-back visual checks, GPU or CPU cost, appearance and F_OWNER are not established by this source and arithmetic record. The thumbnail was not changed."
+}

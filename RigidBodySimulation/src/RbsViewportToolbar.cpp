@@ -7,6 +7,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <algorithm>
 #include <cmath>
+#include <format>
 #ifdef GENGINE_PHASE28_QUALIFICATION
 namespace Rbs { void Phase28AngularWidget(RigidBodySimulationApp&,const char*); }
 #endif
@@ -35,6 +36,18 @@ namespace
 }
 
 
+std::optional<std::size_t> RigidBodySimulationApp::RagdollBoneFor(_Entity entity) const
+{
+    if(!m_Ragdoll.draft || !m_ActiveScene || entity.GetSceneContext()!=m_ActiveScene.get() || !entity)
+        return {};
+    const auto binding=m_ActiveScene->GetBodyBinding(entity);
+    if(!binding)return {};
+    for(std::size_t i=0;i<m_RagdollBindings.entities.size();++i)
+        if(m_RagdollBindings.entities[i]==static_cast<entt::entity>(entity) &&
+           m_RagdollBindings.mapping.bodies[i]==*binding)return i;
+    return {};
+}
+
 bool RigidBodySimulationApp::IsAngularEndpoint(_Entity entity) const
 {
     if(!m_ActiveSelection.IsAngularScene() || !m_ActiveScene ||
@@ -48,6 +61,7 @@ bool RigidBodySimulationApp::IsAngularEndpoint(_Entity entity) const
 
 bool RigidBodySimulationApp::ProtectsAngularTransform(_Entity entity) const
 {
+    if(RagdollBoneFor(entity))return true;
     if(!m_ActiveSelection.IsAngularScene() || !m_ActiveScene ||
        entity.GetSceneContext()!=m_ActiveScene.get() || !entity)return false;
     if(IsAngularEndpoint(entity))return true;
@@ -62,7 +76,7 @@ bool RigidBodySimulationApp::ProtectsAngularTransform(_Entity entity) const
 
 bool RigidBodySimulationApp::SelectionProtectsAngularTransform() const
 {
-    if(!m_ActiveSelection.IsAngularScene() || !m_ActiveScene)return false;
+    if(!m_ActiveScene || (!m_ActiveSelection.IsAngularScene() && !m_Ragdoll.draft))return false;
     for(std::size_t i=0;i<m_EditorSelection.count;++i)
         if(auto id=m_ActiveScene->RenderData().Resolve(m_EditorSelection.ids[i]);id &&
            ProtectsAngularTransform(_Entity{*id,m_ActiveScene.get()}))return true;
@@ -108,7 +122,13 @@ const char* RigidBodySimulationApp::TransformToolDisabled(TransformTool tool) co
         if(!id)return "Selection contains a stale entity.";
         const _Entity entity{*id,m_ActiveScene.get()};
         if(!entity.HasAllComponents<Transform3DComponent>())return "Every selected object needs a Transform.";
-        if(ProtectsAngularTransform(entity))return "Select one joint endpoint and use Transform in Properties to move the connected pair.";
+        if(RagdollBoneFor(entity)) {
+            if(m_EditorSelection.count!=1)return "Select one ragdoll bone to stage a connected transform.";
+            if(m_EditorMode!=EditorMode::Edit ||
+               (m_SimulationState!=Rbs::SimulationState::Ready && m_SimulationState!=Rbs::SimulationState::Paused))
+                return "Pause and enter Edit mode to stage a ragdoll transform.";
+        }
+        else if(ProtectsAngularTransform(entity))return "Select one joint endpoint and use Transform in Properties to move the connected pair.";
         if(entity==m_SkyBoxEntity)return "The sky follows the camera. Its visibility is available in Properties.";
         if(entity.HasAllComponents<RenderCameraComponent>() && tool==TransformTool::Scale)
             return "Camera supports Translate and Rotate; use projection properties for size.";
@@ -203,8 +223,15 @@ bool RigidBodySimulationApp::BeginGroupTransform()
                 {inherited=true;break;}
         if(i+1==m_EditorSelection.count)activeWorld=GizmoWorldMatrix(*m_ActiveScene,entity).value_or(Mat4(1));
         if(inherited)continue; // Real descendants inherit their selected ancestor exactly once.
-        const auto value=m_ActiveScene->ReadEditorTransform(m_EditorSelection.ids[i]);
+        auto value=m_ActiveScene->ReadEditorTransform(m_EditorSelection.ids[i]);
         const auto world=GizmoWorldMatrix(*m_ActiveScene,entity);if(!value || !world)return false;
+        if(const auto bone=RagdollBoneFor(entity)) {
+            const auto& draft=m_Ragdoll.draft->bodies[*bone];
+            value->translation=draft.center+Vec3f{0,Rbs::SandboxEnvironment::FloorTop+m_Ragdoll.draft->dropOffset,0};
+            value->rotation=draft.orientation;
+            value->scale=Rbs::RagdollRenderScale(draft);
+            activeWorld=glm::translate(Mat4(1),value->translation)*glm::mat4_cast(value->rotation);
+        }
 
         const auto parent=entity.GetParent();const auto index=session.preview.count++;
         session.preview.edits[index]={m_EditorSelection.ids[i],parent?m_ActiveScene->RenderData().Identify(parent).value_or(EntityRenderId{}):EntityRenderId{},
@@ -269,6 +296,12 @@ void RigidBodySimulationApp::ProcessTransformPreview()
         CancelGroupTransform();m_PropertyDiagnostic="Scene/simulation changed; candidate cancelled.";return;
     }
     auto& proposal=s.proposal;auto pivot=s.proposedPivot;
+    if(proposal.count==1 && RagdollBoneFor(m_HoveredEntity) &&
+       m_ActiveScene->RenderData().Identify(m_HoveredEntity)==proposal.edits[0].entity) {
+        s.preview=proposal;s.pivot=pivot;s.invalid=false;
+        m_PropertyDiagnostic="Ragdoll draft preview. Release to stage at Tick 0, then Apply in Properties.";
+        return;
+    }
     if(!ValidateTransformPlacement(proposal,s.placement,&pivot)){s.invalid=true;return;}
     if(!m_ActiveScene->PreviewEditorTransforms(proposal.Span())) {
         s.invalid=true;m_PropertyDiagnostic="Preview identity changed; candidate rejected.";return;
@@ -290,6 +323,20 @@ void RigidBodySimulationApp::ProcessGroupTransform()
     const bool released=std::exchange(session.released,false);
     const auto action=std::exchange(session.pending,Action::None);if(action==Action::None)return;
     if(action==Action::Cancel){CancelGroupTransform();m_PropertyDiagnostic="Group preview cancelled; Scene and bodies unchanged.";return;}
+    if(action==Action::Apply && session.preview.count==1 &&
+       session.preview.kind==Rbs::Editor::TransformBatch::Kind::Transform) {
+        const auto& edit=session.preview.edits[0];
+        if(const auto bone=RagdollBoneFor(m_HoveredEntity);bone && !session.invalid && session.dirty &&
+           !session.queryPending && edit.body==m_RagdollBindings.mapping.bodies[*bone] &&
+           m_ActiveScene->RenderData().Identify(m_HoveredEntity)==edit.entity) {
+            const auto& after=edit.after;
+            const auto value=m_TransformTool==TransformTool::Translate?
+                after.translation-Vec3f{0,Rbs::SandboxEnvironment::FloorTop+m_Ragdoll.draft->dropOffset,0}:
+                m_TransformTool==TransformTool::Rotate?glm::eulerAngles(after.rotation):after.scale;
+            StageRagdollTransform(*bone,m_TransformTool,value);
+            CancelGroupTransform();return;
+        }
+    }
     if(!session.history)
     {
         session.history.reset(new(std::nothrow) std::array<std::unique_ptr<Rbs::Editor::TransformBatch>,Rbs::Editor::TransformSession::HistoryCapacity>);
@@ -409,6 +456,36 @@ void RigidBodySimulationApp::QueueTransformEdit(TransformTool tool, const Math::
     m_PropertyDiagnostic="Transform edit queued for Update.";
 }
 
+bool RigidBodySimulationApp::StageRagdollTransform(std::size_t selected,TransformTool tool,const Vec3f& value)
+{
+    if(!m_Ragdoll.draft || m_SceneRequest || m_BackendRequest ||
+       m_EditorMode!=EditorMode::Edit || m_Ragdoll.draftGeneration!=m_SceneGeneration ||
+       m_Ragdoll.draftBaseRevision!=m_Ragdoll.revision || RagdollBoneFor(m_HoveredEntity)!=selected ||
+       (m_SimulationState!=Rbs::SimulationState::Ready && m_SimulationState!=Rbs::SimulationState::Paused))
+        return false;
+    auto& packet=*m_Ragdoll.draft;
+    const auto& body=packet.bodies[selected];
+    if(!Math::IsFinite(value))return false;
+    if(tool==TransformTool::Translate)
+        Rbs::SetRagdollBodyPose(packet,body.key,value,body.orientation);
+    else if(tool==TransformTool::Rotate)
+        Rbs::SetRagdollBodyPose(packet,body.key,body.center,glm::quat(value));
+    else if(tool==TransformTool::Scale) {
+        if(glm::any(glm::lessThanEqual(value,Vec3f{0})))return false;
+        if(body.shape==ShapeType::Box)
+            Rbs::SetRagdollHalfExtents(packet,body.key,.5f*value);
+        else {
+            if(std::abs(value.x-value.y)>1.e-5f || std::abs(value.x-value.z)>1.e-5f)return false;
+            Rbs::SetRagdollShapeDimensions(packet,body.key,body.shape,body.halfExtents,
+                value.x,body.halfLength*(value.x/body.radius));
+        }
+    }
+    else return false;
+    m_Ragdoll.dirty=true;
+    m_Ragdoll.diagnostic="Transform staged. Review the connected pivots, then Apply or Revert.";
+    return true;
+}
+
 void RigidBodySimulationApp::ProcessTransformEdit()
 {
     ProcessGroupTransform();
@@ -428,8 +505,8 @@ void RigidBodySimulationApp::ProcessTransformEdit()
         const auto edit=*m_VelocityEdit;m_VelocityEdit.reset();
         if(edit.generation!=m_SceneGeneration || edit.entity!=m_HoveredEntity || !edit.entity)
             m_PropertyDiagnostic="Selection/world changed; velocity edit cancelled.";
-        else if(IsAngularEndpoint(edit.entity))
-            m_PropertyDiagnostic="Joint endpoint initial velocities are fixed by the angular scene.";
+        else if(RagdollBoneFor(edit.entity) || IsAngularEndpoint(edit.entity))
+            m_PropertyDiagnostic="Use the connected body's authoring controls for its initial velocity.";
         else if(const auto binding=m_ActiveScene->GetBodyBinding(edit.entity); !binding || *binding!=edit.body)
             m_PropertyDiagnostic="Body identity changed; velocity edit cancelled.";
         else
@@ -732,6 +809,13 @@ void RigidBodySimulationApp::DrawViewportGizmo()
     if(m_Marquee.armed || m_Marquee.waiting || !m_ShowGizmo || m_TransformTool==TransformTool::Select || !m_CameraSnapshot || TransformToolDisabled(m_TransformTool))
     {ImGuizmo::Enable(false);return;}
     if(m_GroupTransform.released)return;
+    const auto ragdollBone=RagdollBoneFor(m_HoveredEntity);
+    if(ragdollBone && !m_GroupTransform.dirty && !ImGuizmo::IsUsing() && m_GroupTransform.preview.count) {
+        const auto& body=m_Ragdoll.draft->bodies[*ragdollBone];
+        const auto& previous=m_GroupTransform.preview.edits[0].before;
+        if(previous.translation!=body.center+Vec3f{0,Rbs::SandboxEnvironment::FloorTop+m_Ragdoll.draft->dropOffset,0} ||
+           previous.rotation!=body.orientation || previous.scale!=Rbs::RagdollRenderScale(body))CancelGroupTransform();
+    }
     if(!m_GroupTransform.dirty && !ImGuizmo::IsUsing() && m_GroupTransform.previewTick!=m_ActiveScene->GetPhysicsSystem()->GetCompletedSteps())CancelGroupTransform();
     if(!BeginGroupTransform())return;
     auto& session=m_GroupTransform;
@@ -781,12 +865,13 @@ void RigidBodySimulationApp::DrawViewportGizmo()
         int axis=0;for(int i=1;i<3;++i)if(std::abs(ratio[i]-1)>std::abs(ratio[axis]-1))axis=i;
         uniformFactor=ratio[axis];matrix=session.dragOrigin;for(int i=0;i<3;++i)matrix[i]*=uniformFactor;
     }
-    if(m_TransformTool==TransformTool::Translate && Rbs::Editor::Snap.grid) {
+    if(!ragdollBone && m_TransformTool==TransformTool::Translate && Rbs::Editor::Snap.grid) {
         const auto snapped=Rbs::Editor::SnapGrid(Vec3f(matrix[3]),Rbs::Editor::Snap.increment);
         if(!snapped){m_PropertyDiagnostic="Grid result is not representable; candidate rejected.";session.invalid=true;return;}
         matrix[3]=glm::vec4(*snapped,1);
     }
     if(!StageGroupTransform(matrix,uniformFactor))return;
+    if(ragdollBone)return;
     session.placement={};session.placement.pivot=Vec3f(matrix[3]);
     const auto& snap=Rbs::Editor::Snap;
     session.placement.surface=snap.surface && m_Backend==PhysicsBackend::Jolt;session.placement.alignNormal=session.placement.surface&&snap.align;
@@ -833,6 +918,47 @@ void RigidBodySimulationApp::DrawComponentOverlays()
         const auto pixel=[&](const glm::vec4& v){return ImVec2{lo.x+(v.x/v.w*.5f+.5f)*(hi.x-lo.x),lo.y+(.5f-v.y/v.w*.5f)*(hi.y-lo.y)};};
         draw->AddLine(pixel(p),pixel(q),color,E::Px(1));
     };
+    if(m_Ragdoll.draft && m_Ragdoll.debugEnabled) {
+        auto& world=*m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
+        for(std::size_t i=0;i<m_RagdollBindings.mapping.joints.size();++i) {
+            const auto joint=world.ReadJoint(m_RagdollBindings.mapping.joints[i]);
+            if(!joint)continue;
+            const auto pixel=project(joint->worldAnchorA);
+            const auto& d=joint->descriptor;
+            if(m_Ragdoll.showAnchors) {
+                if(pixel)draw->AddCircle(*pixel,E::Px(4.f),IM_COL32(30,214,245,255));
+                if(const auto b=project(joint->worldAnchorB))draw->AddCircle(*b,E::Px(2.f),IM_COL32(254,170,46,255));
+            }
+            if(m_Ragdoll.showAxes) {
+                for(bool first:{true,false}) {
+                    const auto body=world.ReadEffectiveBody(first?d.bodyA:d.bodyB);
+                    if(!body)continue;
+                    const auto frame=body->orientation*(first?d.angular.localFrameA:d.angular.localFrameB);
+                    const auto start=first?joint->worldAnchorA:joint->worldAnchorB;
+                    const auto length=first?.4f:.25f;
+                    line(start,start+frame*Vec3f{length,0,0},IM_COL32(240,78,72,240));
+                    line(start,start+frame*Vec3f{0,length,0},IM_COL32(70,218,112,240));
+                    line(start,start+frame*Vec3f{0,0,length},IM_COL32(89,157,250,240));
+                }
+            }
+            if(m_Ragdoll.showErrors) {
+                line(joint->worldAnchorA,joint->worldAnchorB,IM_COL32(255,86,179,255));
+                if(pixel)draw->AddText({pixel->x+E::Px(8),pixel->y},IM_COL32(255,169,216,255),
+                    std::format("{}: {:.3g} m",RagdollName(static_cast<RagdollJoint>(i)),joint->error).c_str());
+            }
+            if(m_Ragdoll.showLimits && pixel) {
+                const bool hinge=d.kind==JointKind::Hinge;
+                const auto label=!d.angular.limitsEnabled?std::string("Free"):
+                    std::format("{} {:.3g} / {:.3g} deg",hinge?"Hinge":"CV U/V",
+                        glm::degrees(hinge?d.angular.lower:d.angular.halfAngleU),
+                        glm::degrees(hinge?d.angular.upper:d.angular.halfAngleV));
+                draw->AddText({pixel->x+E::Px(8),pixel->y+ImGui::GetTextLineHeight()},IM_COL32(255,199,100,255),label.c_str());
+            }
+        }
+        if(m_Ragdoll.showContacts)
+            draw->AddText({lo.x+E::Px(8),hi.y-ImGui::GetTextLineHeight()*2},IM_COL32(245,231,177,255),
+                m_Ragdoll.contactDiagnostic.empty()?"Contact geometry: awaiting measurement":m_Ragdoll.contactDiagnostic.c_str());
+    }
     const auto saved=ImGui::GetCursorScreenPos();
     struct Hit {EntityRenderId id;ImVec2 lo,hi,center;float radius;};std::array<Hit,64> hits{};std::size_t hitCount{};
     const auto outline=[&](ImVec2 center,float radius,bool selected)

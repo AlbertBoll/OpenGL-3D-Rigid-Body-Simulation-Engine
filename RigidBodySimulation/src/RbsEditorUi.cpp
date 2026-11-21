@@ -48,7 +48,8 @@ namespace
         {Rbs::RbsScenePreset::HingeQuaternion,"Quaternion Hinge"},
         {Rbs::RbsScenePreset::HingeLimited,"Limited Hinge"},
         {Rbs::RbsScenePreset::CvFree,"Constant Velocity"},
-        {Rbs::RbsScenePreset::CvLimited,"Limited Constant Velocity"}
+        {Rbs::RbsScenePreset::CvLimited,"Limited Constant Velocity"},
+        {Rbs::RbsScenePreset::PassiveRagdoll,"Passive Ragdoll"}
     };
     const char* AngularPresetWidgetKey(Rbs::RbsScenePreset preset)
     {
@@ -186,6 +187,9 @@ void RigidBodySimulationApp::DrawEditorToolbar()
     ImGui::Separator();
     ImGui::Text("%s | Tick %llu",SimulationLabel(m_SimulationState),
         static_cast<unsigned long long>(m_ActiveScene->GetPhysicsSystem()->GetCompletedSteps()));
+    const auto* world=m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
+    if (m_ActiveSelection.IsRagdollScene() && world && world->GetBackend()==PhysicsBackend::Native)
+        ImGui::TextUnformatted("Passive Ragdoll \xC2\xB7 Native (Experimental)");
     if(m_Launch.m_BackendSwitchChecks)Rbs::BackendSwitchChecks::PanelDrawn();
 #ifdef GENGINE_PHASE26_SANDBOX_CHECKS
     Rbs::SandboxChecks::PanelDrawn();
@@ -327,6 +331,23 @@ void RigidBodySimulationApp::DrawHierarchyRegion()
         m_Hierarchy.Build(*m_ActiveScene,m_HierarchyFilter.data(),active);
         const bool sceneChanged=!m_Hierarchy.nodes.empty() && previousRegistry!=m_Hierarchy.nodes.front().identity.registry;
         ImGui::TextWrapped("%s | %zu entities",Rbs::SceneName(m_ActiveSelection.scene),m_Hierarchy.nodes.size());
+        if(m_ActiveSelection.IsRagdollScene() && ImGui::TreeNode("Bone hierarchy"))
+        {
+            const auto selectBone=[&](RagdollBone key){
+                const auto i=static_cast<std::size_t>(key);
+                _Entity member{m_RagdollBindings.entities[i],m_ActiveScene.get()};
+                if(!member || !m_ActiveScene->GetBodyBinding(member))
+                {ImGui::TextDisabled("%s (missing)",RagdollName(key));return;}
+                if(ImGui::Selectable(RagdollName(key),member==m_HoveredEntity))
+                    SelectColliderEntity(member,false);
+            };
+            selectBone(RagdollBone::Torso);
+            ImGui::Indent();
+            for(const auto& body:m_Ragdoll.committed->bodies)
+                if(RagdollParent(body.key)==RagdollBone::Torso)selectBone(body.key);
+            ImGui::Unindent();
+            ImGui::TreePop();
+        }
         ImGui::TextDisabled("%zu selected",m_EditorSelection.count);
         ImGui::SameLine();if(ImGui::SmallButton("Select..."))ImGui::OpenPopup("HierarchySelection");
         E::SelectionCommand selectionCommand{};E::SelectionType selectionType{};EntityRenderId childrenRoot=active;bool requested=false;
@@ -574,6 +595,7 @@ void RigidBodySimulationApp::DrawWorldProperties()
     ImGui::TextWrapped("Scene: %s",Rbs::SceneName(m_ActiveSelection.scene));
     ImGui::TextUnformatted("Interactive Sandbox");
     if(m_ActiveSelection.IsAngularScene())DrawAngularWorldSettings();
+    if(m_ActiveSelection.IsRagdollScene())DrawRagdollWorldSettings();
     const bool physicsOpen=Rbs::Editor::Component("Physics");
     RBS_PHASE28_WIDGET("world-physics-section");
     if(physicsOpen)DrawPhysicsSettings();

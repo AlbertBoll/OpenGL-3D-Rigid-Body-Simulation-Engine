@@ -1,4 +1,5 @@
 #include "RbsLaunchConfig.h"
+#include "Physics/PassiveRagdoll.h"
 #include <algorithm>
 #include <filesystem>
 #include <charconv>
@@ -33,6 +34,181 @@ namespace Rbs
         { return scene==RbsScenePreset::HingeLimited || scene==RbsScenePreset::CvLimited; }
         bool IsHinge(RbsScenePreset scene)
         { return scene==RbsScenePreset::HingeBasic || scene==RbsScenePreset::HingeQuaternion || scene==RbsScenePreset::HingeLimited; }
+    }
+
+    RagdollPacket ReferenceRagdollPacket()
+    {
+        using namespace GEngine;
+        RagdollPacket p;
+        // Chapter 21 source coordinates converted by R(x,y,z)=(x,z,-y).
+        // Keep the source's literal limb rotation, including its small offset from pi/2.
+        const float limbAngle=3.1415f/2.f;
+        constexpr std::array<Vec3f,6> centers{{{0,5.5f,0},{0,4,0},{0,4.75f,-2},{0,4.75f,2},{0,2.5f,-1},{0,2.5f,1}}};
+        constexpr std::array<Vec3f,6> extents{{{.25f,.25f,.25f},{.25f,1,.5f},{1,.25f,.25f},{1,.25f,.25f},{1,.25f,.25f},{1,.25f,.25f}}};
+        constexpr std::array<float,6> mass{.5f,2.f,1.f,1.f,1.f,1.f};
+        for(std::size_t i=0;i<p.bodies.size();++i) {
+            auto& b=p.bodies[i];
+            b.key=static_cast<RagdollBone>(i);
+            b.center=centers[i]; b.halfExtents=extents[i];
+            b.properties.mass=mass[i];
+            b.properties.material={1.f,1.f,0.f,0.f};
+        }
+        p.bodies[2].orientation=glm::angleAxis(-limbAngle,Vec3f(0,1,0));
+        p.bodies[3].orientation=glm::angleAxis( limbAngle,Vec3f(0,1,0));
+        p.bodies[4].orientation=p.bodies[5].orientation=glm::angleAxis(-limbAngle,Vec3f(0,0,1));
+        constexpr std::array<RagdollBone,5> aKeys{RagdollBone::Head,RagdollBone::Torso,RagdollBone::Torso,RagdollBone::Torso,RagdollBone::Torso};
+        constexpr std::array<RagdollBone,5> bKeys{RagdollBone::Torso,RagdollBone::LeftArm,RagdollBone::RightArm,RagdollBone::LeftLeg,RagdollBone::RightLeg};
+        constexpr std::array<Vec3f,5> pivots{{{0,5,0},{0,4.75f,-1},{0,4.75f,1},{0,3,-1},{0,3,1}}};
+        for(std::size_t i=0;i<p.joints.size();++i) {
+            auto& j=p.joints[i];
+            j.key=static_cast<RagdollJoint>(i);
+            j.bodyA=aKeys[i]; j.bodyB=bKeys[i];
+            const auto& a=p.bodies[static_cast<std::size_t>(j.bodyA)];
+            const auto& b=p.bodies[static_cast<std::size_t>(j.bodyB)];
+            // Named world frame columns X/U/V retain the book's handedness.
+            const float z=j.key==RagdollJoint::RightShoulder?1.f:-1.f;
+            const auto frame=glm::quat_cast(Mat3(Vec3f(0,0,z),Vec3f(z,0,0),Vec3f(0,1,0)));
+            j.localAnchorA=glm::conjugate(a.orientation)*(pivots[i]-a.center);
+            j.localAnchorB=glm::conjugate(b.orientation)*(pivots[i]-b.center);
+            j.angular.localFrameA=glm::normalize(glm::conjugate(a.orientation)*frame);
+            j.angular.localFrameB=glm::normalize(glm::conjugate(b.orientation)*frame);
+            j.angular.lower=-Math::Pi/4.f; j.angular.upper=Math::Pi/4.f;
+            j.angular.halfAngleU=j.angular.halfAngleV=Math::Pi/4.f;
+            j.angular.limitsEnabled=true;
+        }
+        return p;
+    }
+
+    RagdollPacket TiltRagdollPacket()
+    {
+        auto p=ReferenceRagdollPacket();
+        const Quat rotation=glm::normalize(Quat(.9810602621904069f,.17298739392508944f,.01513443590133862f,.08583165117743129f));
+        const Vec3f pivot{0,3.884615384615385f,0};
+        for(auto& b:p.bodies) {
+            b.center=pivot+rotation*(b.center-pivot)+Vec3f(0,1,0);
+            b.orientation=glm::normalize(rotation*b.orientation);
+        }
+        return p;
+    }
+
+    GEngine::Math::Vec3f RagdollRenderScale(const GEngine::RagdollBodyDesc& b) noexcept
+    {
+        return b.shape==GEngine::ShapeType::Box?2.f*b.halfExtents:Vec3f(b.radius);
+    }
+
+    void SetRagdollBodyPose(RagdollPacket& p,GEngine::RagdollBone key,const Vec3f& position,const Quat& orientation) noexcept
+    {
+        const auto i=static_cast<std::size_t>(key);
+        if(i>=p.bodies.size())return;
+        const Vec3f pivot=p.bodies[i].center;
+        const Quat delta=orientation*glm::conjugate(p.bodies[i].orientation);
+        for(auto& b:p.bodies) {
+            b.center=position+delta*(b.center-pivot);
+            b.orientation=glm::normalize(delta*b.orientation);
+        }
+    }
+
+    void SetRagdollShapeDimensions(RagdollPacket& p,GEngine::RagdollBone key,GEngine::ShapeType shape,
+        const Vec3f& halfExtents,float radius,float halfLength) noexcept
+    {
+        using namespace GEngine;
+        const auto index=static_cast<std::size_t>(key);
+        if(index>=p.bodies.size())return;
+        auto& b=p.bodies[index];
+        const auto oldExtents=RagdollShapeHalfExtents(b);
+        b.shape=shape; b.halfExtents=halfExtents; b.radius=radius; b.halfLength=halfLength;
+        const auto newExtents=RagdollShapeHalfExtents(b);
+        if(p.anchorResizePolicy!=RagdollAnchorResizePolicy::ScaleWithBody ||
+            !Finite(oldExtents) || glm::any(glm::lessThanEqual(oldExtents,Vec3f(0))) ||
+            !Finite(newExtents) || glm::any(glm::lessThanEqual(newExtents,Vec3f(0))))return;
+        for(auto& joint:p.joints) {
+            if(joint.bodyA!=key && joint.bodyB!=key)continue;
+            const bool first=joint.bodyA==key;
+            const auto otherKey=first?joint.bodyB:joint.bodyA;
+            const auto otherIndex=static_cast<std::size_t>(otherKey);
+            if(otherIndex>=p.bodies.size())continue;
+            auto& local=first?joint.localAnchorA:joint.localAnchorB;
+            auto& counterpart=first?joint.localAnchorB:joint.localAnchorA;
+            local*=newExtents/oldExtents;
+            const auto pivot=b.center+b.orientation*(b.colliderCenter+local);
+            const auto& other=p.bodies[otherIndex];
+            counterpart=glm::conjugate(other.orientation)*(pivot-other.center)-other.colliderCenter;
+        }
+    }
+    void SetRagdollHalfExtents(RagdollPacket& p,GEngine::RagdollBone key,const Vec3f& halfExtents) noexcept
+    {
+        const auto index=static_cast<std::size_t>(key);
+        if(index>=p.bodies.size())return;
+        const auto& b=p.bodies[index];
+        SetRagdollShapeDimensions(p,key,b.shape,halfExtents,b.radius,b.halfLength);
+    }
+    void SetRagdollColliderCenter(RagdollPacket& p,GEngine::RagdollBone key,const Vec3f& center) noexcept
+    {
+        const auto index=static_cast<std::size_t>(key);
+        if(index>=p.bodies.size())return;
+        auto& b=p.bodies[index];
+        // Keep the explicit mesh-space point fixed as its offset from COM changes.
+        for(auto& j:p.joints) {
+            if(j.bodyA==key)j.localAnchorA+=b.colliderCenter-center;
+            if(j.bodyB==key)j.localAnchorB+=b.colliderCenter-center;
+        }
+        b.colliderCenter=center;
+    }
+
+    std::expected<void,GEngine::RagdollError> ValidateRagdollPacket(const RagdollPacket& p,GEngine::PhysicsBackend backend)
+    {
+        using namespace GEngine;
+        const auto between=[](double value,double lower,double upper) {return value>=lower && value<=upper;};
+        if(!PhysicsBackendAvailable(backend))
+            return std::unexpected(RagdollError{RagdollErrorCode::Capability,"Requested backend unavailable"});
+        if(!between(p.gravityY,-10,0) || !between(p.dropOffset,0,2) ||
+            (p.anchorResizePolicy!=RagdollAnchorResizePolicy::PreserveLocalMeters && p.anchorResizePolicy!=RagdollAnchorResizePolicy::ScaleWithBody))
+            return std::unexpected(RagdollError{RagdollErrorCode::Geometry,"Gravity Y, drop offset or anchor resize policy is outside the authoring domain"});
+        if(auto rest=ValidateRagdollRest(p);!rest)return rest;
+        const auto defaults=ReferenceRagdollPacket();
+        for(std::size_t i=0;i<p.bodies.size();++i) {
+            const auto& b=p.bodies[i];
+            const auto& base=defaults.bodies[i];
+            const auto& props=b.properties;
+            const auto& mat=props.material;
+            if(!between(props.mass,.5f*base.properties.mass,2.f*base.properties.mass))
+                return std::unexpected(RagdollError{RagdollErrorCode::Motion,"Mass requires 0.5 to 2 times this bone's reference mass",b.key});
+            if(!between(b.center.x,-10,10) || !between(b.center.z,-10,10) ||
+                glm::any(glm::greaterThan(glm::abs(b.colliderCenter),Vec3f(.125f))))
+                return std::unexpected(RagdollError{RagdollErrorCode::Geometry,"Position or box center is outside the authoring domain",b.key});
+            const auto maxExtent=std::max({base.halfExtents.x,base.halfExtents.y,base.halfExtents.z});
+            if((b.shape==ShapeType::Box && (glm::any(glm::lessThan(b.halfExtents,.75f*base.halfExtents)) ||
+                    glm::any(glm::greaterThan(b.halfExtents,1.25f*base.halfExtents)))) ||
+                (b.shape==ShapeType::Sphere && !between(b.radius,.1875,1.25f*maxExtent)) ||
+                (b.shape==ShapeType::Capsule && (!between(b.radius,.1875,.3125) || !between(b.halfLength,.05f,1.25f*maxExtent))))
+                return std::unexpected(RagdollError{RagdollErrorCode::Geometry,"Primitive dimensions are outside this bone's authoring domain",b.key});
+            if(!Finite(b.initialLinearVelocity) || !Finite(b.initialAngularVelocity) ||
+                !std::isfinite(glm::length(b.initialLinearVelocity)) || !(glm::length(b.initialAngularVelocity)<=30.f) ||
+                (props.type==BodyType::Static && (b.initialLinearVelocity!=Vec3f(0) || b.initialAngularVelocity!=Vec3f(0))))
+                return std::unexpected(RagdollError{RagdollErrorCode::Motion,"Velocity exceeds the provider speed cap or requests motion on a Static body",b.key});
+            if(!between(mat.friction,0,1) || !between(mat.restitution,0,1) || mat.spinResistanceLength!=0 || mat.rollingResistanceLength!=0)
+                return std::unexpected(RagdollError{RagdollErrorCode::Material,"Invalid contact material or unsupported ragdoll resistance",b.key});
+            if(!between(props.linearDamping,0,1) || !between(props.angularDamping,0,1) || !between(props.gravityFactor,0,10) ||
+                !between(props.velocityStepsOverride,0,255) || props.velocityStepsOverride==1 || !between(props.positionStepsOverride,0,255) ||
+                !std::isfinite(props.sleep.linearSpeedThreshold) || props.sleep.linearSpeedThreshold<0 ||
+                !std::isfinite(props.sleep.angularSpeedThreshold) || props.sleep.angularSpeedThreshold<0 ||
+                !std::isfinite(props.sleep.inactivitySeconds) || props.sleep.inactivitySeconds<=0)
+                return std::unexpected(RagdollError{RagdollErrorCode::Capability,"Invalid damping, gravity, iteration or sleeping parameter",b.key});
+            if(((backend==PhysicsBackend::Native || props.type!=BodyType::Dynamic) &&
+                    (props.velocityStepsOverride || props.positionStepsOverride || props.linearDamping!=0 || props.angularDamping!=0 || props.gravityFactor!=1)) ||
+                (backend==PhysicsBackend::Native && (!props.continuousCollision || !props.allowSleeping)) ||
+                (backend==PhysicsBackend::Jolt && props.sleep!=RigidBody3D::SleepSettings{}))
+                return std::unexpected(RagdollError{RagdollErrorCode::Capability,"Motion type or backend does not support the authored parameters",b.key});
+        }
+        constexpr float minAngle=Math::Pi/12.f, maxAngle=Math::Pi/4.f;
+        for(const auto& j:p.joints) {
+            if(!j.angular.limitsEnabled)continue;
+            const float first=j.Kind()==JointKind::Hinge?-j.angular.lower:j.angular.halfAngleU;
+            const float second=j.Kind()==JointKind::Hinge?j.angular.upper:j.angular.halfAngleV;
+            if(!between(first,minAngle,maxAngle) || !between(second,minAngle,maxAngle))
+                return std::unexpected(RagdollError{RagdollErrorCode::Geometry,"Enabled angular limits require 15 to 45 degrees on each side",{},j.key});
+        }
+        return {};
     }
 
     void SetAngularBarScale(AngularPacket& p,float scale) noexcept
@@ -242,12 +418,19 @@ namespace Rbs
     defined(GENGINE_RENDER_BASELINE)
         return false;
 #else
-#ifdef GENGINE_PHASE28_QUALIFICATION
+#if defined(GENGINE_PHASE28_QUALIFICATION) && !defined(GENGINE_PHASE29_QUALIFICATION)
         // The same executable also serves ordinary Editor inspection. Only a
         // named physical qualification case opts out of the interactive room.
         if(const char* selected=std::getenv("GENGINE_PHASE28_CASE"))
             if(std::string_view(selected)!="EDITOR_NATIVE" && std::string_view(selected)!="EDITOR_JOLT")
                 return false;
+#endif
+#ifdef GENGINE_PHASE29_QUALIFICATION
+        if(const char* selected=std::getenv("GENGINE_PHASE29_CASE")) {
+            const std::string_view phaseCase(selected);
+            if(phaseCase=="R29_DROP_WAKE_V01" || phaseCase=="R29_TILT_LIMIT_WAKE_V01")
+                return false;
+        }
 #endif
         return environment == RbsEnvironmentPreset::InteractiveSandbox &&
             !restingContactDiagnostic && validation.checks.empty() &&
@@ -272,6 +455,9 @@ namespace Rbs
     { return scene==RbsScenePreset::DistancePendulum || scene==RbsScenePreset::DistanceChain || scene==RbsScenePreset::DistanceChainContact; }
     bool LaunchConfig::ValidSceneConfiguration() const
     {
+        if(scene==RbsScenePreset::PassiveRagdoll)
+            return angularVariant==AngularVariant::Air && startupMesh==StartupMesh::None && !restingContactDiagnostic &&
+                validation.checks.empty() && !validation.asyncPerformance && !validation.materialAlphaFixture && !validation.subscriptionOutput;
         if(IsAngularScene(scene))
             return (angularVariant==AngularVariant::Air ||
                     (angularVariant==AngularVariant::Contact && IsLimited(scene))) &&
@@ -304,6 +490,7 @@ namespace Rbs
         case RbsScenePreset::HingeLimited:return "hinge-limited";
         case RbsScenePreset::CvFree:return "cv-free";
         case RbsScenePreset::CvLimited:return "cv-limited";
+        case RbsScenePreset::PassiveRagdoll:return "passive-ragdoll";
         }
         return "invalid";
     }
@@ -331,7 +518,8 @@ namespace Rbs
                     RbsScenePreset::SphereLattice,RbsScenePreset::BoxStack,RbsScenePreset::SphereBoxStack,
                     RbsScenePreset::DistancePendulum,RbsScenePreset::DistanceChain,RbsScenePreset::DistanceChainContact,
                     RbsScenePreset::BallSocketSwing,RbsScenePreset::BallSocketPair,RbsScenePreset::BallSocketContact,RbsScenePreset::BallSocketContactEnabled,
-                    RbsScenePreset::HingeBasic,RbsScenePreset::HingeQuaternion,RbsScenePreset::HingeLimited,RbsScenePreset::CvFree,RbsScenePreset::CvLimited})
+                    RbsScenePreset::HingeBasic,RbsScenePreset::HingeQuaternion,RbsScenePreset::HingeLimited,RbsScenePreset::CvFree,RbsScenePreset::CvLimited,
+                    RbsScenePreset::PassiveRagdoll})
                     if(value==SceneName(scene)) { launch.scene=scene; found=true; break; }
                 if(!found)return std::unexpected("Unknown or unimplemented scene preset");
             } else if(option=="--mode" && !modeSeen) {

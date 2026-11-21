@@ -1,0 +1,157 @@
+{
+  "schema": 1,
+  "id": "PHASE_29_BACKEND_SCOPE_AMENDMENT_01",
+  "workflow": "pre-editor",
+  "phase": 29,
+  "version": "01",
+  "active": true,
+  "scope": "Unsealed Phase 29 Passive Ragdoll only. The Owner adopted Option B and the additive Game-Oriented Visual Acceptance methodology.",
+  "owner_instruction": "PRE_EDITOR PHASE 29  OWNER ACCEPTS ARCHITECTURE OPTION B",
+  "supersedes_only": [
+    "B29-ENTRY and backend applicability of production-motion qualification for Native Passive Ragdoll",
+    "Dependency on Native production-motion PASS before E-J/E-N",
+    "Adds direct gameplay visual acceptance to the unchanged hard gates"
+  ],
+  "normative_document": {
+    "path": "docs/pre_editor/active/PHASE_29_BACKEND_SCOPE_AMENDMENT_01/AMENDMENT.md",
+    "sha256": "42c33ce8a922beac3b53bd7f1cd26b591546fb1a404805004edf61231f636831"
+  },
+  "accepted_origin": {
+    "path": "docs/pre_editor/proposals/PHASE_29_POST_NATIVE_ARCHITECTURE_REVIEW_01.md",
+    "sha256": "e95cac5e0e9baf56d7441e815695c824c31b231896218dce3781c908e7ddbf65",
+    "accepted_sections": "Option B backend applicability and the five-part additive visual method only. Options, example budgets and proposed production changes remain historical proposals."
+  },
+  "retained_contract_pins": [
+    {
+      "path": "docs/pre_editor/active/MILESTONE_C_ROADMAP_ACTIVATION_01.json",
+      "sha256": "4b04cefc2c00e55973db0785da16c95fe62162f81c61bc8e893d7ded9e8e9447"
+    },
+    {
+      "path": "docs/pre_editor/active/roadmap/MILESTONE_C_01/VALIDATION_CONTRACTS.md",
+      "sha256": "363e8a11a069ab3990acc293b5cf5680249e08a2fbfe92bc6426f04ea51cef30"
+    },
+    {
+      "path": "docs/pre_editor/active/roadmap/MILESTONE_C_01/phases/PHASE_29.md",
+      "sha256": "ca55a0bcf004975a98096156a63926faa1870495a3efc8c32c29b7c2d34ace32"
+    },
+    {
+      "path": "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/ACTIVATION.json",
+      "sha256": "ff24f1d0947e5853ffc6069ba48a8e862914340079e09c194ce269ad2c877b34"
+    },
+    {
+      "path": "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/ACCEPTANCE_GATES.json",
+      "sha256": "2b36d89effdd6905623e49251717c7ee6a2c7ef49c668f2fa602b1ea43d158a5"
+    },
+    {
+      "path": "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/phases/PHASE_29.md",
+      "sha256": "9a1c60499935f0435927bb7a49017e3318822af2da8b9e7974f2556bfad7ac21"
+    },
+    {
+      "path": "docs/pre_editor/active/PHASE_28_32_BOOK_AUTHORING_AMENDMENT_01/ACTIVATION.json",
+      "sha256": "e1da34bbaf2bc26f4d8728eb32756c635632e7e599c697f1f8197711e6ccaa59"
+    },
+    {
+      "path": "docs/pre_editor/active/EDITOR_COMPONENT_AUTHORING_GOVERNANCE.json",
+      "sha256": "89a1669a05780357c0f5042b3cf813d7afc514143190cbb49d6aba97c0c525da"
+    },
+    {
+      "path": "docs/pre_editor/active/PHASE_29_ENTRY_REVIEW_01.md",
+      "sha256": "759c84ada41d888f1f0c45d2cc935534e097040adaeaa05d01828451c3e20579"
+    },
+    {
+      "path": "docs/pre_editor/active/PHASE_29_ADMISSION_REVIEW_01.md",
+      "sha256": "ac15be5c0e1b7522b49b0faf8388017bb98226e43a23a6e3384edac37d479f7a"
+    },
+    {
+      "path": "docs/pre_editor/active/PHASE_29_OWNER_UI_METHOD_REVIEW_01.md",
+      "sha256": "28e59199dab10ad148de05e86fb9dcc17440044cdcee94cf0e5a5430330465f1"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/admission-02/criteria.json",
+      "sha256": "eb848d856ccf4cadf3092b732f1a36afa54fd8e6ddd91ab7c8ad2e83394b8340"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/admission-02/reference-packet.json",
+      "sha256": "7bcfbc06105bfdee83fdb95e6b2b1a3fde49e7f2d962011e308c7e599ad4fffd"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/admission-02/workloads.json",
+      "sha256": "134a6851d0d970a71df7d4ffb0c16ff745dd488606f9c726dbcda58edcca86db"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/admission-02/execution-plan.json",
+      "sha256": "e0fb8432f8d82f9ae7b35e789e7e36bccc13e4f6c51106b2d428deb04ada8bb0"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/admission-02/source-envelope.json",
+      "sha256": "b6c5f6372041f53d0a02019d140603c01a75acd9d848c7c26cbdcaa67db687dc"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/admission-02/arena-proposal.json",
+      "sha256": "8cd3a7371b3fc86cbcfe8bad83679e8060202febac6961e94e9a582545b9c60b"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/resume-01/owner-decisions.json",
+      "sha256": "c650c797fdac104bde7fe7d98536897e0b02da9493455b7e5086d271cf22d9b9"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/resume-01/owner-editor-budget.json",
+      "sha256": "db39b0cf4dbf7313d98b3f31e974b7c481b1925439a65cd1cfcac4014f66332c"
+    }
+  ],
+  "retained_contracts": "Keep the full previous active contract closure, dependencies and thresholds except for the explicit applicability change.",
+  "future_checkpoint": {
+    "contract_files_additions": [
+      "docs/pre_editor/active/PHASE_29_BACKEND_SCOPE_AMENDMENT_01/ACTIVATION.json",
+      "docs/pre_editor/active/PHASE_29_BACKEND_SCOPE_AMENDMENT_01/AMENDMENT.md",
+      "docs/pre_editor/proposals/PHASE_29_POST_NATIVE_ARCHITECTURE_REVIEW_01.md"
+    ],
+    "validation_input_hashes_additions": [
+      "docs/pre_editor/active/PHASE_29_BACKEND_SCOPE_AMENDMENT_01/ACTIVATION.json",
+      "docs/pre_editor/active/PHASE_29_BACKEND_SCOPE_AMENDMENT_01/AMENDMENT.md",
+      "docs/pre_editor/proposals/PHASE_29_POST_NATIVE_ARCHITECTURE_REVIEW_01.md"
+    ],
+    "evidence_roles": "Bind the frozen component inventory, source, build, raw evidence, user decisions and actual observations separately. Include the actual hash of this activation in the future spec."
+  },
+  "backend_scope": {
+    "Jolt": "PRIMARY_PRODUCTION_QUALIFICATION_CANDIDATE",
+    "Native": "EXPERIMENTAL_SELECTABLE_AUTHORABLE",
+    "production_qualified_backends": []
+  },
+  "gate_applicability": {
+    "A_PHYSICS": "Jolt DROP/TILT mandatory. Native production-motion qualification deferred. Both retain assembly, mapping and shared compatibility.",
+    "B_SAFETY": "Jolt hard gates mandatory. Native production-motion numerical closure deferred. Both retain shared and lifecycle safety.",
+    "C_COST": "Jolt complete cost mandatory. Native Phase 29 production-motion cost closure deferred. Preserve resource/lifetime integrity and prior approved workload obligations.",
+    "D_EDITOR": "Both backends mandatory, including effective Native Experimental disclosure.",
+    "E_INTERACTION": "Both backends mandatory. Jolt direct full gameplay-motion inspection mandatory.",
+    "F_OWNER": "Explicit final-candidate Owner acceptance mandatory. Native authoring and interaction observations also required."
+  },
+  "entry_evidence": [
+    {
+      "path": "logs/pre_editor/phase-29/ragdoll-resume-02/component-assessment-05.json",
+      "sha256": "499d2ed4dd74e8e72183aa3560ccda1c4556581e819769cc72f6b8ce7e4fe74c"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/ragdoll-resume-02/component-matrix-05.json",
+      "sha256": "9bd275aaf13ffe68c717f05146cd2396536c772bce29dff01e3b5ccac6ca055c"
+    }
+  ],
+  "rows_required": {
+    "Jolt": 488,
+    "Native": 488,
+    "total": 976
+  },
+  "owner_session_entry": [
+    "Jolt A/B/C complete on final candidate",
+    "Retained Native lifetime/integrity and safe UI prerequisites satisfied",
+    "Complete bound worksheet and approved feasible cumulative meters, candidate and assets",
+    "Both D/E observations and final F_OWNER acceptance remain actual Owner work"
+  ],
+  "new_implementation_authority": false,
+  "new_process_or_tick_authority": false,
+  "new_thresholds": false,
+  "sdk_change_authority": false,
+  "inspection_status": "PENDING",
+  "phase_status": "NOT READY",
+  "authorizes_publication": false
+}

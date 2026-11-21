@@ -6,7 +6,42 @@
 #include "../tests/JoltParameterExperiment.h"
 #include "../tests/JoltFinalAudit.h"
 #include "../tests/BallSocketJointChecks.h"
-#ifdef GENGINE_PHASE28_QUALIFICATION
+#ifdef GENGINE_PHASE29_QUALIFICATION
+#include "../tests/PassiveRagdollChecks.h"
+#if defined(GENGINE_PHASE29_STEP_SAFETY)
+#pragma comment(linker,"/include:g_Phase29StepSafetyFixture")
+extern "C" const std::uint64_t g_Phase29StepSafetyFixture[] = {1,8,sizeof(GEngine::PhysicsWorld),
+    sizeof(GEngine::PhysicsSystem),sizeof(GEngine::_Scene),sizeof(GEngine::PhysicsBodyError),sizeof(GEngine::PhysicsStepFailure)};
+extern "C" bool Phase29ReserveSafetyAttempt() noexcept
+{
+    if (!Rbs::Phase29::safetyArmed || Rbs::Phase29::safetyAttempts>=8) return false;
+    ++Rbs::Phase29::safetyAttempts;
+    return true;
+}
+#endif
+#include <Jolt/Jolt.h>
+#include <Jolt/Physics/IslandBuilder.h>
+#include <Jolt/Physics/PhysicsUpdateContext.h>
+#include <Jolt/Physics/Constraints/ContactConstraintManager.h>
+#pragma comment(linker,"/include:g_Phase29CaptureConfiguration")
+extern "C" const std::uint64_t g_Phase29CaptureConfiguration[] = {
+    sizeof(void*),sizeof(JPH::uint32),JPH_RVECTOR_ALIGNMENT,sizeof(JPH::PhysicsUpdateContext::Step),
+    sizeof(JPH::PhysicsUpdateContext::Step::CCDBody),JPH::ContactConstraintManager::cMaxConstraintSize,
+    sizeof(JPH::BodyPair),sizeof(JPH::BodyID),sizeof(GEngine::PhysicsJoltContactSample),
+#ifdef JPH_VALIDATE_ISLAND_BUILDER
+    1,
+#else
+    0,
+#endif
+#ifdef JPH_TRACK_SIMULATION_STATS
+    1,
+#else
+    0,
+#endif
+    sizeof(GEngine::PhysicsWorld),sizeof(GEngine::PhysicsSystem),sizeof(GEngine::_Scene),
+    sizeof(GEngine::PhysicsBodyError),sizeof(GEngine::PhysicsStepFailure)
+};
+#elif defined(GENGINE_PHASE28_QUALIFICATION)
 #include "../tests/AngularJointChecks.h"
 #endif
 #include "../tests/ImpulseEditorChecks.h"
@@ -57,7 +92,12 @@ namespace Rbs
 #ifdef GENGINE_COLLIDER_EDITOR_SMOKE
     unsigned MeshHighlightStage(); void MeshHighlightDescriptor(::GEngine::FrameSubmission&, ::GEngine::FrameSubmissionDesc&);
 #endif
-#ifdef GENGINE_PHASE28_QUALIFICATION
+#ifdef GENGINE_PHASE29_QUALIFICATION
+    void Phase28AngularWidget(RigidBodySimulationApp&,const char*) {}
+    void Phase28ComponentWidget(const char*) {}
+    bool Phase28AngularOwnsActions() {return false;}
+    float Phase28OutlineViewportScale() {return 1.f;}
+#elif defined(GENGINE_PHASE28_QUALIFICATION)
     void Phase28AngularWidget(RigidBodySimulationApp& app,const char* key)
     { AngularJointChecks::Widget(app,key); }
     void Phase28ComponentWidget(const char* key)
@@ -122,7 +162,32 @@ void RigidBodySimulationApp::Update(Timestep ts)
     Rbs::SandboxChecks::BeforeUpdate(*this, ts);
 #endif
     ProcessSceneRequest();
-#ifdef GENGINE_PHASE28_QUALIFICATION
+#ifdef GENGINE_PHASE29_QUALIFICATION
+#if defined(GENGINE_PHASE29_STEP_SAFETY)
+    const bool stepSafety=Rbs::PassiveRagdollChecks::SafetyRequested();
+    if (stepSafety) {
+        try { Rbs::PassiveRagdollChecks::PrepareSafety(*this); }
+        catch (const std::exception& ex) {
+            FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Physics","StepSafetySetup","prepare","Debug",ex.what()});
+            return;
+        }
+    }
+#endif
+    const bool phase29=Rbs::PassiveRagdollChecks::Requested();
+    if(phase29 && !Rbs::Phase29::initialized) {
+        try {
+            Rbs::PassiveRagdollChecks::Start(*this);
+            if(Rbs::Phase29::debug){
+                if(!Rbs::Phase29::jolt){Rbs::PassiveRagdollChecks::Finish(*this);ShutDown();return;}
+                m_IsPause=true;m_ActiveScene->SetPaused(true);
+            } else {
+                m_EditorMode=EditorMode::Simulation;
+                SetSimulationState(Rbs::SimulationState::Running);
+                m_IsPause=false;m_ActiveScene->SetPaused(false);
+            }
+        } catch(const std::exception& e){Rbs::PassiveRagdollChecks::Finish(*this,e.what());ShutDown();return;}
+    }
+#elif defined(GENGINE_PHASE28_QUALIFICATION)
     Rbs::AngularJointChecks::PreviewBoundary(*this);
     const bool phase28=Rbs::AngularJointChecks::Begin(*this);
     if(phase28){m_SimulationState=Rbs::SimulationState::Running;m_EditorMode=EditorMode::Simulation;
@@ -307,7 +372,7 @@ void RigidBodySimulationApp::Update(Timestep ts)
     const bool phase27=Rbs::BallSocketChecks::Begin(*this);
     if(phase27){m_EditorMode=EditorMode::Simulation;SetSimulationState(Rbs::SimulationState::Running);m_IsPause=false;}
 #endif
-#ifdef GENGINE_JOLT_FINAL_AUDIT
+#if defined(GENGINE_JOLT_FINAL_AUDIT) && !defined(GENGINE_PHASE29_QUALIFICATION)
     const bool finalAudit=Rbs::FinalAudit::Begin(*m_ActiveScene);
     if(finalAudit && !Rbs::FinalAudit::ticks){m_EditorMode=EditorMode::Simulation;SetSimulationState(Rbs::SimulationState::Running);}
 #endif
@@ -329,33 +394,70 @@ void RigidBodySimulationApp::Update(Timestep ts)
 #endif
     if(!m_Launch.joltParameterProfile.empty() && !m_IsPause)simulationTime=Timestep(m_ActiveScene->GetPhysicsStep().count());
     const auto experimentStart=m_Launch.joltParameterProfile.empty()?std::chrono::steady_clock::time_point{}:std::chrono::steady_clock::now();
-#ifdef GENGINE_JOLT_FINAL_AUDIT
+#if defined(GENGINE_JOLT_FINAL_AUDIT) && !defined(GENGINE_PHASE29_QUALIFICATION)
     if(finalAudit){simulationTime=Timestep(m_ActiveScene->GetPhysicsStep().count());JoltAudit::countAllocations=Rbs::FinalAudit::observed;}
 #endif
 #ifdef GENGINE_PHASE27_QUALIFICATION
     if(phase27){simulationTime=Timestep(m_ActiveScene->GetPhysicsStep().count());Rbs::BallSocketChecks::BeforeTick();}
 #endif
-#ifdef GENGINE_PHASE28_QUALIFICATION
+#ifdef GENGINE_PHASE29_QUALIFICATION
+    if(phase29 && !Rbs::Phase29::debug){
+        simulationTime=Timestep(m_ActiveScene->GetPhysicsStep().count());
+        try {Rbs::PassiveRagdollChecks::Before(*this);}
+        catch(const std::exception& e){Rbs::PassiveRagdollChecks::Finish(*this,e.what());ShutDown();return;}
+    }
+#elif defined(GENGINE_PHASE28_QUALIFICATION)
     if(phase28){simulationTime=Timestep(m_ActiveScene->GetPhysicsStep().count());Rbs::AngularJointChecks::BeforeTick();}
     if(!Rbs::AngularJointChecks::BeforeEditorSceneUpdate(*this,simulationTime))return;
 #endif
+#if defined(GENGINE_PHASE29_STEP_SAFETY)
+    if (stepSafety) {
+        m_ActiveScene->SetPaused(false);
+        simulationTime=Timestep(m_ActiveScene->GetPhysicsStep().count());
+    }
+#endif
     { RBS_REVIEW_SCOPE(4); m_ActiveScene->Update(simulationTime); }
-#ifdef GENGINE_PHASE28_QUALIFICATION
+    auto* stepSystem=m_ActiveScene->GetPhysicsSystem();
+    if (stepSystem->GetBackendFailure()) {
+        const auto failure=*stepSystem->GetStepFailure();
+        const auto* world=stepSystem->GetPhysicsWorld();
+        const auto backend=world ? PhysicsBackendName(world->GetBackend()) : std::string_view{"detached"};
+        auto details=std::format("code={} stage={} sdk={} world={} body={}/{} joint={} attempted={} completed={}",
+            unsigned(failure.cause.code),unsigned(failure.stage),failure.sdkMask,world?world->GetWorldDomain():0,
+            failure.cause.body.index,failure.cause.body.generation,failure.jointSlot,stepSystem->GetAttemptedSteps(),stepSystem->GetCompletedSteps());
+        const std::string operation(failure.cause.operation);
+        FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Physics","BackendStep",
+            operation,std::string(backend),details});
+#ifdef GENGINE_PHASE29_QUALIFICATION
+        try {
+            if (phase29) Rbs::PassiveRagdollChecks::Finish(*this,operation.c_str());
+#if defined(GENGINE_PHASE29_STEP_SAFETY)
+            if (stepSafety) Rbs::PassiveRagdollChecks::RecordSafetyFault(*this,failure);
+#endif
+        } catch (const std::exception& ex) {
+            Log::GetCoreLogger()->error("Step failure evidence cleanup: {}",ex.what());
+        }
+#endif
+        return;
+    }
+#ifdef GENGINE_PHASE29_QUALIFICATION
+    if(phase29 && !Rbs::Phase29::debug){
+        try {
+            Rbs::PassiveRagdollChecks::After(*this);
+            if(Rbs::Phase29::tick==Rbs::Phase29::LastTick){Rbs::PassiveRagdollChecks::Finish(*this);ShutDown();return;}
+        } catch(const std::exception& e){Rbs::PassiveRagdollChecks::Finish(*this,e.what());ShutDown();return;}
+    }
+#elif defined(GENGINE_PHASE28_QUALIFICATION)
     Rbs::AngularJointChecks::AfterEditorSceneUpdate(*this);
     if(phase28 && Rbs::AngularJointChecks::AfterTick(*this)){ShutDown();return;}
 #endif
 #ifdef GENGINE_PHASE27_QUALIFICATION
     if(phase27 && Rbs::BallSocketChecks::AfterTick(*this)){ShutDown();return;}
 #endif
-#ifdef GENGINE_JOLT_FINAL_AUDIT
+#if defined(GENGINE_JOLT_FINAL_AUDIT) && !defined(GENGINE_PHASE29_QUALIFICATION)
     if(finalAudit && Rbs::FinalAudit::After(*m_ActiveScene)){ShutDown();return;}
 #endif
     if(!m_Launch.joltParameterProfile.empty() && !m_IsPause)Rbs::JoltParameterExperiment::AfterTick(*this,std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-experimentStart).count());
-    if(const auto& failure=m_ActiveScene->GetPhysicsSystem()->GetBackendFailure();failure)
-    {
-        FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Physics","BackendStep",
-            std::string(failure->operation),"Jolt",std::to_string(unsigned(failure->code))});return;
-    }
     if(m_Launch.m_BackendSmokeTicks)
     {
 #ifdef GENGINE_OWNER_REVIEW_PROBE
@@ -892,6 +994,9 @@ ScheduleResult RigidBodySimulationApp::PrepareCameraFrame(RenderContext& context
 
 void RigidBodySimulationApp::Render()
 {
+#if defined(GENGINE_PHASE29_STEP_SAFETY)
+    if (Rbs::Phase29::safetyArmed) ++Rbs::Phase29::safetyRenders;
+#endif
     if (m_ViewportAltGestureConsumed)
         ImGui::GetCurrentContext()->NavWindowingToggleLayer = false;
     if (m_Launch.AsyncPerformanceEnabled())
@@ -968,7 +1073,7 @@ void RigidBodySimulationApp::Render()
             Rbs::SandboxChecks::ObserveFrame(*static_cast<RigidBodySimulationApp*>(user), frame);
         };
 #endif
-#ifdef GENGINE_PHASE28_QUALIFICATION
+#if defined(GENGINE_PHASE28_QUALIFICATION) && !defined(GENGINE_PHASE29_QUALIFICATION)
         if (Rbs::AngularJointChecks::editorMode && Rbs::AngularJointChecks::ComponentRole(Rbs::AngularJointChecks::editorSession)) {
             input.observationContext = this;
             input.observeFrame = [](void* user, const RenderFrame& frame) noexcept {
@@ -1017,7 +1122,7 @@ void RigidBodySimulationApp::Render()
             if(app.m_EditorSelection.count)
                 p.input.targets.selectedEntities = {app.m_EditorSelection.ids.data(),app.m_EditorSelection.count};
             p.input.targets.hoveredEntity=app.m_OutlineHoverEntity;
-#ifdef GENGINE_PHASE28_QUALIFICATION
+#if defined(GENGINE_PHASE28_QUALIFICATION) && !defined(GENGINE_PHASE29_QUALIFICATION)
             Rbs::AngularJointChecks::PrepareOutlineDescriptor(app,p.input.targets);
 #endif
 #ifdef GENGINE_OWNER_REVIEW_PROBE
@@ -1064,6 +1169,16 @@ void RigidBodySimulationApp::Render()
             return {};
         }};
         auto submitted = FrameScheduler::Render(context, &input);
+#ifdef GENGINE_PHASE29_QUALIFICATION
+        if(submitted&&Rbs::Phase29::initialized&&Rbs::Phase29::debug&&Rbs::Phase29::jolt){
+            static unsigned pausedFrames{};
+            if(++pausedFrames==8){
+                try {Rbs::PassiveRagdollChecks::CaptureThumbnail(*this);Rbs::PassiveRagdollChecks::Finish(*this);}
+                catch(const std::exception& e){Rbs::PassiveRagdollChecks::Finish(*this,e.what());}
+                ShutDown();
+            }
+        }
+#endif
         if(submitted) {
             // Consume the renderer's exact picking-input comparison rather than
             // inventing a second scene/camera/material dirty key in the Editor.
@@ -1073,7 +1188,7 @@ void RigidBodySimulationApp::Render()
 #ifdef GENGINE_PHASE27_QUALIFICATION
         if(submitted)Rbs::BallSocketChecks::PreviewFrame(*this,input.debugLines.size());
 #endif
-#ifdef GENGINE_PHASE28_QUALIFICATION
+#if defined(GENGINE_PHASE28_QUALIFICATION) && !defined(GENGINE_PHASE29_QUALIFICATION)
         if(submitted) {
             Rbs::AngularJointChecks::ObserveOutlineSubmission(*this,submitted->submission);
             Rbs::AngularJointChecks::PreviewFrame(*this);

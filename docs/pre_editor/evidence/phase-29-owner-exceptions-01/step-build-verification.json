@@ -1,0 +1,288 @@
+{
+  "status": "PASS_COMPILE_LINK_AND_IDENTITIES",
+  "products": {
+    "safety": {
+      "profile": "safety",
+      "builds": {
+        "GEngine": {
+          "build": {
+            "path": "logs/pre_editor/phase-29/step-safety-01/builds/safety-GEngine-03/result.json",
+            "sha256": "3445539af434197892995f285c36a1a92fec521dee43cb49e8d31a0a72d72c90"
+          },
+          "product": {
+            "path": "C:\\dev\\GEngine-pre-editor\\bin\\phase29-step-safety-01\\safety\\GEngine\\GEngine.lib",
+            "sha256": "e4d96246ffc439ee39aa15c1dcdbd37b03a4d72e9594fa55b81ab79944278ba2"
+          }
+        },
+        "RigidBodySimulation": {
+          "build": {
+            "path": "logs/pre_editor/phase-29/step-safety-01/builds/safety-RigidBodySimulation-03/result.json",
+            "sha256": "4501ffa3c58b9b7f452e2f9f4a5791a23cd22b7db002a8cfb8cd30ec70760c42"
+          },
+          "product": {
+            "path": "C:\\dev\\GEngine-pre-editor\\bin\\phase29-step-safety-01\\safety\\RigidBodySimulation\\RigidBodySimulation.exe",
+            "sha256": "e8036631dbf0883588bffffaffbd47ad7b662c6f0174eb57cd40daa74dd9e021"
+          }
+        }
+      },
+      "link_map": {
+        "path": "bin/phase29-step-safety-01/safety/RigidBodySimulation/RigidBodySimulation.map",
+        "sha256": "335250b05851b7858fe8c5a2ed5edc8b22e92584b0a5d267f735c2ff235524a9"
+      },
+      "fixture_version_attempt_cap_and_layout": [
+        1,
+        8,
+        488,
+        19224,
+        680,
+        48,
+        64
+      ],
+      "sdk_layout": [
+        8,
+        4,
+        16,
+        7344,
+        160,
+        744,
+        8,
+        4,
+        112,
+        0,
+        0
+      ],
+      "engine_layout_world_system_scene_error_failure": [
+        488,
+        19224,
+        680,
+        48,
+        64
+      ]
+    },
+    "ordinary": {
+      "profile": "ordinary",
+      "builds": {
+        "GEngine": {
+          "build": {
+            "path": "logs/pre_editor/phase-29/step-safety-01/builds/ordinary-GEngine-02/result.json",
+            "sha256": "2c32b258316624a4d9d7f1fa5a70642fe97eb6c9a716005fbc7bb90646bc89f9"
+          },
+          "product": {
+            "path": "C:\\dev\\GEngine-pre-editor\\bin\\phase29-step-safety-01\\ordinary\\GEngine\\GEngine.lib",
+            "sha256": "ae99821087d11556ccab5469e388817e7d157a698a7594bf4ac3e86a606f20a0"
+          }
+        },
+        "RigidBodySimulation": {
+          "build": {
+            "path": "logs/pre_editor/phase-29/step-safety-01/builds/ordinary-RigidBodySimulation-04/result.json",
+            "sha256": "c69e1dcd9fb02c0ab6f73b8224aef386ce0f6c65e67ac26f588044e1c5066550"
+          },
+          "product": {
+            "path": "C:\\dev\\GEngine-pre-editor\\bin\\phase29-step-safety-01\\ordinary\\RigidBodySimulation\\RigidBodySimulation.exe",
+            "sha256": "af181bcade2e943ae16bc79438a7554affaafc00ad45dfa893c3bdf7c858bd20"
+          }
+        }
+      },
+      "link_map": {
+        "path": "bin/phase29-step-safety-01/ordinary/RigidBodySimulation/RigidBodySimulation.map",
+        "sha256": "cb2fb96cb504ca0141d901ca311325e916e89477c518abac0f61a53073d3904e"
+      }
+    },
+    "qualification": {
+      "profile": "qualification",
+      "builds": {
+        "GEngine": {
+          "build": {
+            "path": "logs/pre_editor/phase-29/step-safety-01/builds/qualification-GEngine-01/result.json",
+            "sha256": "d12bbfd7310d5e60178f19c49223d0180a85de6b02917d9c9ca4030d4b70eb86"
+          },
+          "product": {
+            "path": "C:\\dev\\GEngine-pre-editor\\bin\\phase29-step-safety-01\\qualification\\GEngine\\GEngine.lib",
+            "sha256": "f186fae9268e97db1396ab3a94340fbf3a8e51a384113f6b3126ee238b1cc8b4"
+          }
+        },
+        "RigidBodySimulation": {
+          "build": {
+            "path": "logs/pre_editor/phase-29/step-safety-01/builds/qualification-RigidBodySimulation-03/result.json",
+            "sha256": "399d5f1dd532e9d95957fca76c4183aae2138e27ebda8dd0fe5266782e913547"
+          },
+          "product": {
+            "path": "C:\\dev\\GEngine-pre-editor\\bin\\phase29-step-safety-01\\qualification\\RigidBodySimulation\\RigidBodySimulation.exe",
+            "sha256": "24a31ae0ba9a0090b4b9cd9bd4a1719871f7f141b578fc5a2df48e4fe6b833a0"
+          }
+        }
+      },
+      "link_map": {
+        "path": "bin/phase29-step-safety-01/qualification/RigidBodySimulation/RigidBodySimulation.map",
+        "sha256": "81335334241fa14f10bd14b63c69fb36bf48548f2329716e86d025f38d119305"
+      },
+      "sdk_layout": [
+        8,
+        4,
+        16,
+        7344,
+        160,
+        744,
+        8,
+        4,
+        112,
+        0,
+        0
+      ],
+      "engine_layout_world_system_scene_error_failure": [
+        448,
+        19128,
+        616,
+        48,
+        64
+      ]
+    }
+  },
+  "attempts": {
+    "ordinary-GEngine-01": {
+      "status": "PASS",
+      "seconds": 79.64100000000326,
+      "guard": null,
+      "peak_compiler_private_bytes": 2279378944,
+      "minimum_available_bytes": 2178174976,
+      "maximum_consecutive_violations": 0
+    },
+    "ordinary-GEngine-02": {
+      "status": "PASS",
+      "seconds": 5.48499999998603,
+      "guard": null,
+      "peak_compiler_private_bytes": 460054528,
+      "minimum_available_bytes": 4141883392,
+      "maximum_consecutive_violations": 0
+    },
+    "ordinary-RigidBodySimulation-01": {
+      "status": "FAIL",
+      "seconds": 146.68700000003446,
+      "guard": null,
+      "peak_compiler_private_bytes": 2329985024,
+      "minimum_available_bytes": 2085285888,
+      "maximum_consecutive_violations": 1
+    },
+    "ordinary-RigidBodySimulation-02": {
+      "status": "PASS",
+      "seconds": 1.9849999999860302,
+      "guard": null,
+      "peak_compiler_private_bytes": 0,
+      "minimum_available_bytes": 4199911424,
+      "maximum_consecutive_violations": 0
+    },
+    "ordinary-RigidBodySimulation-03": {
+      "status": "PASS",
+      "seconds": 13.811999999976251,
+      "guard": null,
+      "peak_compiler_private_bytes": 717037568,
+      "minimum_available_bytes": 3727765504,
+      "maximum_consecutive_violations": 0
+    },
+    "ordinary-RigidBodySimulation-04": {
+      "status": "PASS",
+      "seconds": 13.71899999998277,
+      "guard": null,
+      "peak_compiler_private_bytes": 717058048,
+      "minimum_available_bytes": 3737464832,
+      "maximum_consecutive_violations": 0
+    },
+    "qualification-GEngine-01": {
+      "status": "PASS",
+      "seconds": 77.0,
+      "guard": null,
+      "peak_compiler_private_bytes": 2298290176,
+      "minimum_available_bytes": 2350653440,
+      "maximum_consecutive_violations": 0
+    },
+    "qualification-RigidBodySimulation-01": {
+      "status": "PASS",
+      "seconds": 152.64100000000326,
+      "guard": null,
+      "peak_compiler_private_bytes": 2409414656,
+      "minimum_available_bytes": 2127187968,
+      "maximum_consecutive_violations": 1
+    },
+    "qualification-RigidBodySimulation-02": {
+      "status": "FAIL",
+      "seconds": 8.89000000001397,
+      "guard": null,
+      "peak_compiler_private_bytes": 2148454400,
+      "minimum_available_bytes": 2288611328,
+      "maximum_consecutive_violations": 0
+    },
+    "qualification-RigidBodySimulation-03": {
+      "status": "PASS",
+      "seconds": 35.51600000000326,
+      "guard": null,
+      "peak_compiler_private_bytes": 2372427776,
+      "minimum_available_bytes": 2263027712,
+      "maximum_consecutive_violations": 0
+    },
+    "safety-GEngine-01": {
+      "status": "FAIL",
+      "seconds": 30.04700000002049,
+      "guard": "memory",
+      "peak_compiler_private_bytes": 2479869952,
+      "minimum_available_bytes": 1829404672,
+      "maximum_consecutive_violations": 3
+    },
+    "safety-GEngine-02": {
+      "status": "PASS",
+      "seconds": 59.56299999996554,
+      "guard": null,
+      "peak_compiler_private_bytes": 2355335168,
+      "minimum_available_bytes": 1963491328,
+      "maximum_consecutive_violations": 2
+    },
+    "safety-GEngine-03": {
+      "status": "PASS",
+      "seconds": 14.594000000040978,
+      "guard": null,
+      "peak_compiler_private_bytes": 736256000,
+      "minimum_available_bytes": 3790856192,
+      "maximum_consecutive_violations": 0
+    },
+    "safety-RigidBodySimulation-01": {
+      "status": "FAIL",
+      "seconds": 18.07800000003772,
+      "guard": "memory",
+      "peak_compiler_private_bytes": 2061737984,
+      "minimum_available_bytes": 2067644416,
+      "maximum_consecutive_violations": 3
+    },
+    "safety-RigidBodySimulation-02": {
+      "status": "PASS",
+      "seconds": 122.45299999997951,
+      "guard": null,
+      "peak_compiler_private_bytes": 2358697984,
+      "minimum_available_bytes": 2183389184,
+      "maximum_consecutive_violations": 0
+    },
+    "safety-RigidBodySimulation-03": {
+      "status": "PASS",
+      "seconds": 32.09400000004098,
+      "guard": null,
+      "peak_compiler_private_bytes": 2412941312,
+      "minimum_available_bytes": 2113798144,
+      "maximum_consecutive_violations": 1
+    }
+  },
+  "total_seconds": {
+    "Release": 535.3759999999893,
+    "Debug": 276.8290000000852
+  },
+  "remaining_seconds": {
+    "Debug": 698.1709999999148,
+    "Release": 141.3750000000107
+  },
+  "sdk": "Jolt pin verified: e77f175595e64cb44218cc9d9d56fc365ad0e36a + gengine-contact-resistance-01 ba5b153f18cbe3d590c6063838f25376793974795628abdc1e02bba97d380ec3",
+  "toolchain": {
+    "C:/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe": "ba9e8c83c25f4ca9ab1f66290be2ce429d8563efb99b9eb699487d0d5aef8db7",
+    "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe": "88c8344236a27a6e727e0a8edc49aaa2690bdc7a9464b9d18cc7abe70a9f1c0d",
+    "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/link.exe": "ca11e6c45debd34bf652dfe984c5360a531a005ed78bf72852330c9c2590cf0d",
+    "vendor/bin/premake/premake5.exe": "6810a9d0c39d6d8361158da6bce9cb146267ba3405cb9eaea98dd0df36e991e0"
+  },
+  "physics_processes_started": 0,
+  "editor_processes_started": 0
+}

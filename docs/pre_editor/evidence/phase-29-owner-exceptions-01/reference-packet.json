@@ -1,0 +1,1432 @@
+{
+  "schema": 1,
+  "phase": "29",
+  "identity": "R29_CH21_REFERENCE_V01",
+  "status": "FROZEN_DESIGN_NOT_QUALIFIED",
+  "sources": [
+    {
+      "path": "logs/pre_editor/phase-28/design-01/reference/GamePhysicsTheRestOfYourLife-v1.08.pdf",
+      "sha256": "6237bcafd5bb648ade5a36563e1ac1599b21d02fa29553b320f7271b66da3c56",
+      "pages": [
+        70,
+        78,
+        82,
+        83,
+        84
+      ],
+      "purpose": "Chapter21 body/joint definitions and inherited Chapter18/20 bounds"
+    },
+    {
+      "path": "logs/pre_editor/phase-29/admission-01/reference/GamePhysicsTheNextWeek-v1.07.pdf",
+      "sha256": "19c0982061636c2a8c6dddd0bde50e5452918b246acee2fb7336be5a74e008c0",
+      "pages": [
+        19,
+        20,
+        21
+      ],
+      "purpose": "Referenced small box and standard sandbox"
+    }
+  ],
+  "conventions": {
+    "units": "metres, kilograms, seconds, radians; right handed",
+    "book_up": "+Z",
+    "engine_up": "+Y",
+    "basis": "R(x,y,z)=(x,z,-y), proper Rx(-pi/2), determinant +1",
+    "quaternions": "stored w,x,y,z; active local-to-world Hamilton rotation",
+    "local_coordinates": "COM-relative body coordinates and shape vertices undergo R. The abstract joint coordinate labels X/U/V are retained, NOT also basis-converted: localFrame_engine=r*localFrame_book; body orientation_engine=r*q_book*inverse(r). Thus world primary/U/V are exactly R times the named book vectors.",
+    "orientation": "q_engine=r*q_book*inverse(r)",
+    "literal_limb_half_turn": 1.5707499980926514,
+    "rounding": "Preserve binary32 book literal 3.1415f/2. JSON derived values binary64; production conversion to binary32 once, normalize quaternions. Transcription parity <=1e-6 per coordinate/quaternion component up to sign.",
+    "frames": "World frame columns [axis,u,v]; u=normalize(+Z cross axis), v=axis cross u in book coordinates. This is the pinned Math::GetOrtho convention for these +/-Y axes. Limits symmetric on equal U/V axes.",
+    "rest_equivalence": "F_A=q_A0^-1*F_world; F_B=q_B0^-1*F_world. Current joint relative rotation is F_A^-1*(q_A^-1*q_B)*F_B. With q0=q_A0^-1*q_B0 and q_A0=identity here, this is F_world^-1*((q_A^-1*q_B)*q0^-1)*F_world. Conjugation preserves dot-product angular constraints; current admitted Hinge/CV providers are reused, never replaced with motors.",
+    "parenting": "Logical mapping only; six physics entities remain world-space roots, not doubly Scene-parented."
+  },
+  "bodies": [
+    {
+      "key": "head",
+      "logical_parent": "torso",
+      "book": {
+        "position": [
+          0,
+          0,
+          5.5
+        ],
+        "orientation_wxyz": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "half_extents": [
+          0.25,
+          0.25,
+          0.25
+        ],
+        "mass_kg": 0.5,
+        "inertia_diagonal": [
+          0.020833333333333332,
+          0.020833333333333332,
+          0.020833333333333332
+        ]
+      },
+      "engine": {
+        "position": [
+          0,
+          5.5,
+          0
+        ],
+        "orientation_wxyz": [
+          1.0000000000000002,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "half_extents": [
+          0.25,
+          0.25,
+          0.25
+        ],
+        "inertia_diagonal": [
+          0.020833333333333332,
+          0.020833333333333332,
+          0.020833333333333332
+        ],
+        "mass_kg": 0.5,
+        "motion": "Dynamic",
+        "linear_velocity": [
+          0,
+          0,
+          0
+        ],
+        "angular_velocity": [
+          0,
+          0,
+          0
+        ],
+        "friction": 1,
+        "restitution": 1,
+        "spin_resistance_length": 0,
+        "rolling_resistance_length": 0,
+        "linear_damping": 0,
+        "angular_damping": 0,
+        "gravity_factor": 1,
+        "continuous_collision": true,
+        "allow_sleeping": true,
+        "velocity_steps_override": 0,
+        "position_steps_override": 0,
+        "collision_layer": 1,
+        "collision_mask": 4294967295,
+        "collider": "Box",
+        "collider_center": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "key": "torso",
+      "logical_parent": null,
+      "book": {
+        "position": [
+          0,
+          0,
+          4
+        ],
+        "orientation_wxyz": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "half_extents": [
+          0.25,
+          0.5,
+          1
+        ],
+        "mass_kg": 2,
+        "inertia_diagonal": [
+          0.8333333333333334,
+          0.7083333333333334,
+          0.20833333333333334
+        ]
+      },
+      "engine": {
+        "position": [
+          0,
+          4,
+          0
+        ],
+        "orientation_wxyz": [
+          1.0000000000000002,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "half_extents": [
+          0.25,
+          1,
+          0.5
+        ],
+        "inertia_diagonal": [
+          0.8333333333333334,
+          0.20833333333333334,
+          0.7083333333333334
+        ],
+        "mass_kg": 2,
+        "motion": "Dynamic",
+        "linear_velocity": [
+          0,
+          0,
+          0
+        ],
+        "angular_velocity": [
+          0,
+          0,
+          0
+        ],
+        "friction": 1,
+        "restitution": 1,
+        "spin_resistance_length": 0,
+        "rolling_resistance_length": 0,
+        "linear_damping": 0,
+        "angular_damping": 0,
+        "gravity_factor": 1,
+        "continuous_collision": true,
+        "allow_sleeping": true,
+        "velocity_steps_override": 0,
+        "position_steps_override": 0,
+        "collision_layer": 1,
+        "collision_mask": 4294967295,
+        "collider": "Box",
+        "collider_center": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "key": "left_arm",
+      "logical_parent": "torso",
+      "book": {
+        "position": [
+          0,
+          2,
+          4.75
+        ],
+        "orientation_wxyz": [
+          0.7071231606665944,
+          -0.0,
+          -0.0,
+          -0.7070904013270762
+        ],
+        "half_extents": [
+          1,
+          0.25,
+          0.25
+        ],
+        "mass_kg": 1,
+        "inertia_diagonal": [
+          0.041666666666666664,
+          0.3541666666666667,
+          0.3541666666666667
+        ]
+      },
+      "engine": {
+        "position": [
+          0,
+          4.75,
+          -2
+        ],
+        "orientation_wxyz": [
+          0.7071231606665945,
+          0.0,
+          -0.7070904013270763,
+          0.0
+        ],
+        "half_extents": [
+          1,
+          0.25,
+          0.25
+        ],
+        "inertia_diagonal": [
+          0.041666666666666664,
+          0.3541666666666667,
+          0.3541666666666667
+        ],
+        "mass_kg": 1,
+        "motion": "Dynamic",
+        "linear_velocity": [
+          0,
+          0,
+          0
+        ],
+        "angular_velocity": [
+          0,
+          0,
+          0
+        ],
+        "friction": 1,
+        "restitution": 1,
+        "spin_resistance_length": 0,
+        "rolling_resistance_length": 0,
+        "linear_damping": 0,
+        "angular_damping": 0,
+        "gravity_factor": 1,
+        "continuous_collision": true,
+        "allow_sleeping": true,
+        "velocity_steps_override": 0,
+        "position_steps_override": 0,
+        "collision_layer": 1,
+        "collision_mask": 4294967295,
+        "collider": "Box",
+        "collider_center": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "key": "right_arm",
+      "logical_parent": "torso",
+      "book": {
+        "position": [
+          0,
+          -2,
+          4.75
+        ],
+        "orientation_wxyz": [
+          0.7071231606665944,
+          0.0,
+          0.0,
+          0.7070904013270762
+        ],
+        "half_extents": [
+          1,
+          0.25,
+          0.25
+        ],
+        "mass_kg": 1,
+        "inertia_diagonal": [
+          0.041666666666666664,
+          0.3541666666666667,
+          0.3541666666666667
+        ]
+      },
+      "engine": {
+        "position": [
+          0,
+          4.75,
+          2
+        ],
+        "orientation_wxyz": [
+          0.7071231606665945,
+          0.0,
+          0.7070904013270763,
+          0.0
+        ],
+        "half_extents": [
+          1,
+          0.25,
+          0.25
+        ],
+        "inertia_diagonal": [
+          0.041666666666666664,
+          0.3541666666666667,
+          0.3541666666666667
+        ],
+        "mass_kg": 1,
+        "motion": "Dynamic",
+        "linear_velocity": [
+          0,
+          0,
+          0
+        ],
+        "angular_velocity": [
+          0,
+          0,
+          0
+        ],
+        "friction": 1,
+        "restitution": 1,
+        "spin_resistance_length": 0,
+        "rolling_resistance_length": 0,
+        "linear_damping": 0,
+        "angular_damping": 0,
+        "gravity_factor": 1,
+        "continuous_collision": true,
+        "allow_sleeping": true,
+        "velocity_steps_override": 0,
+        "position_steps_override": 0,
+        "collision_layer": 1,
+        "collision_mask": 4294967295,
+        "collider": "Box",
+        "collider_center": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "key": "left_leg",
+      "logical_parent": "torso",
+      "book": {
+        "position": [
+          0,
+          1,
+          2.5
+        ],
+        "orientation_wxyz": [
+          0.7071231606665944,
+          0.0,
+          0.7070904013270762,
+          0.0
+        ],
+        "half_extents": [
+          1,
+          0.25,
+          0.25
+        ],
+        "mass_kg": 1,
+        "inertia_diagonal": [
+          0.041666666666666664,
+          0.3541666666666667,
+          0.3541666666666667
+        ]
+      },
+      "engine": {
+        "position": [
+          0,
+          2.5,
+          -1
+        ],
+        "orientation_wxyz": [
+          0.7071231606665945,
+          0.0,
+          0.0,
+          -0.7070904013270763
+        ],
+        "half_extents": [
+          1,
+          0.25,
+          0.25
+        ],
+        "inertia_diagonal": [
+          0.041666666666666664,
+          0.3541666666666667,
+          0.3541666666666667
+        ],
+        "mass_kg": 1,
+        "motion": "Dynamic",
+        "linear_velocity": [
+          0,
+          0,
+          0
+        ],
+        "angular_velocity": [
+          0,
+          0,
+          0
+        ],
+        "friction": 1,
+        "restitution": 1,
+        "spin_resistance_length": 0,
+        "rolling_resistance_length": 0,
+        "linear_damping": 0,
+        "angular_damping": 0,
+        "gravity_factor": 1,
+        "continuous_collision": true,
+        "allow_sleeping": true,
+        "velocity_steps_override": 0,
+        "position_steps_override": 0,
+        "collision_layer": 1,
+        "collision_mask": 4294967295,
+        "collider": "Box",
+        "collider_center": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "key": "right_leg",
+      "logical_parent": "torso",
+      "book": {
+        "position": [
+          0,
+          -1,
+          2.5
+        ],
+        "orientation_wxyz": [
+          0.7071231606665944,
+          0.0,
+          0.7070904013270762,
+          0.0
+        ],
+        "half_extents": [
+          1,
+          0.25,
+          0.25
+        ],
+        "mass_kg": 1,
+        "inertia_diagonal": [
+          0.041666666666666664,
+          0.3541666666666667,
+          0.3541666666666667
+        ]
+      },
+      "engine": {
+        "position": [
+          0,
+          2.5,
+          1
+        ],
+        "orientation_wxyz": [
+          0.7071231606665945,
+          0.0,
+          0.0,
+          -0.7070904013270763
+        ],
+        "half_extents": [
+          1,
+          0.25,
+          0.25
+        ],
+        "inertia_diagonal": [
+          0.041666666666666664,
+          0.3541666666666667,
+          0.3541666666666667
+        ],
+        "mass_kg": 1,
+        "motion": "Dynamic",
+        "linear_velocity": [
+          0,
+          0,
+          0
+        ],
+        "angular_velocity": [
+          0,
+          0,
+          0
+        ],
+        "friction": 1,
+        "restitution": 1,
+        "spin_resistance_length": 0,
+        "rolling_resistance_length": 0,
+        "linear_damping": 0,
+        "angular_damping": 0,
+        "gravity_factor": 1,
+        "continuous_collision": true,
+        "allow_sleeping": true,
+        "velocity_steps_override": 0,
+        "position_steps_override": 0,
+        "collision_layer": 1,
+        "collision_mask": 4294967295,
+        "collider": "Box",
+        "collider_center": [
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  ],
+  "joints": [
+    {
+      "key": "neck",
+      "kind": "Hinge",
+      "body_a": "head",
+      "body_b": "torso",
+      "collide_connected": false,
+      "book": {
+        "pivot": [
+          0,
+          0,
+          5
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "transverse_u": [
+          -1.0,
+          0.0,
+          0.0
+        ],
+        "transverse_v": [
+          0.0,
+          -0.0,
+          1.0
+        ],
+        "local_anchor_a": [
+          0.0,
+          0.0,
+          -0.5
+        ],
+        "local_anchor_b": [
+          0,
+          0,
+          1
+        ],
+        "q0_wxyz": [
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      "engine": {
+        "world_pivot": [
+          0,
+          5,
+          0
+        ],
+        "world_primary_axis": [
+          0,
+          0,
+          -1
+        ],
+        "world_u": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "world_v": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "local_anchor_a": [
+          0.0,
+          -0.5,
+          -0.0
+        ],
+        "local_anchor_b": [
+          0,
+          1,
+          0
+        ],
+        "local_frame_a_wxyz": [
+          0.5000000000000001,
+          -0.5000000000000001,
+          0.5,
+          0.5
+        ],
+        "local_frame_b_wxyz": [
+          0.5000000000000001,
+          -0.5000000000000001,
+          0.5,
+          0.5
+        ],
+        "limits_enabled": true,
+        "lower_radians": -0.7853981633974483,
+        "upper_radians": 0.7853981633974483,
+        "half_angle_u_radians": 0.7853981633974483,
+        "half_angle_v_radians": 0.7853981633974483
+      },
+      "characteristic_length_m": 1.5
+    },
+    {
+      "key": "left_shoulder",
+      "kind": "LimitedConstantVelocity",
+      "body_a": "torso",
+      "body_b": "left_arm",
+      "collide_connected": false,
+      "book": {
+        "pivot": [
+          0,
+          1,
+          4.75
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "transverse_u": [
+          -1.0,
+          0.0,
+          0.0
+        ],
+        "transverse_v": [
+          0.0,
+          -0.0,
+          1.0
+        ],
+        "local_anchor_a": [
+          0.0,
+          1.0,
+          0.75
+        ],
+        "local_anchor_b": [
+          0.9999999989268257,
+          -4.6328702228537466e-05,
+          0.0
+        ],
+        "q0_wxyz": [
+          0.7071231606665944,
+          0.0,
+          0.0,
+          -0.7070904013270762
+        ]
+      },
+      "engine": {
+        "world_pivot": [
+          0,
+          4.75,
+          -1
+        ],
+        "world_primary_axis": [
+          0,
+          0,
+          -1
+        ],
+        "world_u": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "world_v": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "local_anchor_a": [
+          0.0,
+          0.75,
+          -1.0
+        ],
+        "local_anchor_b": [
+          0.9999999989268257,
+          0.0,
+          4.6328702228537466e-05
+        ],
+        "local_frame_a_wxyz": [
+          0.5000000000000001,
+          -0.5000000000000001,
+          0.5,
+          0.5
+        ],
+        "local_frame_b_wxyz": [
+          1.6379669759160343e-05,
+          -1.6379669759160343e-05,
+          0.7071067809968353,
+          0.7071067809968353
+        ],
+        "limits_enabled": true,
+        "lower_radians": -0.7853981633974483,
+        "upper_radians": 0.7853981633974483,
+        "half_angle_u_radians": 0.7853981633974483,
+        "half_angle_v_radians": 0.7853981633974483
+      },
+      "characteristic_length_m": 2.25
+    },
+    {
+      "key": "right_shoulder",
+      "kind": "LimitedConstantVelocity",
+      "body_a": "torso",
+      "body_b": "right_arm",
+      "collide_connected": false,
+      "book": {
+        "pivot": [
+          0,
+          -1,
+          4.75
+        ],
+        "axis": [
+          0,
+          -1,
+          0
+        ],
+        "transverse_u": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "transverse_v": [
+          -0.0,
+          0.0,
+          1.0
+        ],
+        "local_anchor_a": [
+          0.0,
+          -1.0,
+          0.75
+        ],
+        "local_anchor_b": [
+          0.9999999989268257,
+          4.6328702228537466e-05,
+          0.0
+        ],
+        "q0_wxyz": [
+          0.7071231606665944,
+          0.0,
+          0.0,
+          0.7070904013270762
+        ]
+      },
+      "engine": {
+        "world_pivot": [
+          0,
+          4.75,
+          1
+        ],
+        "world_primary_axis": [
+          0,
+          0,
+          1
+        ],
+        "world_u": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "world_v": [
+          -0.0,
+          1.0,
+          -0.0
+        ],
+        "local_anchor_a": [
+          0.0,
+          0.75,
+          1.0
+        ],
+        "local_anchor_b": [
+          0.9999999989268257,
+          0.0,
+          -4.6328702228537466e-05
+        ],
+        "local_frame_a_wxyz": [
+          0.5000000000000001,
+          -0.5000000000000001,
+          -0.5,
+          -0.5
+        ],
+        "local_frame_b_wxyz": [
+          1.6379669759160343e-05,
+          -1.6379669759160343e-05,
+          -0.7071067809968353,
+          -0.7071067809968353
+        ],
+        "limits_enabled": true,
+        "lower_radians": -0.7853981633974483,
+        "upper_radians": 0.7853981633974483,
+        "half_angle_u_radians": 0.7853981633974483,
+        "half_angle_v_radians": 0.7853981633974483
+      },
+      "characteristic_length_m": 2.25
+    },
+    {
+      "key": "left_hip",
+      "kind": "Hinge",
+      "body_a": "torso",
+      "body_b": "left_leg",
+      "collide_connected": false,
+      "book": {
+        "pivot": [
+          0,
+          1,
+          3
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "transverse_u": [
+          -1.0,
+          0.0,
+          0.0
+        ],
+        "transverse_v": [
+          0.0,
+          -0.0,
+          1.0
+        ],
+        "local_anchor_a": [
+          0,
+          1,
+          -1
+        ],
+        "local_anchor_b": [
+          -0.49999999946341284,
+          0.0,
+          2.3164351114268733e-05
+        ],
+        "q0_wxyz": [
+          0.7071231606665944,
+          0.0,
+          0.7070904013270762,
+          0.0
+        ]
+      },
+      "engine": {
+        "world_pivot": [
+          0,
+          3,
+          -1
+        ],
+        "world_primary_axis": [
+          0,
+          0,
+          -1
+        ],
+        "world_u": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "world_v": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "local_anchor_a": [
+          0,
+          -1,
+          -1
+        ],
+        "local_anchor_b": [
+          -0.49999999946341284,
+          2.3164351114268733e-05,
+          -0.0
+        ],
+        "local_frame_a_wxyz": [
+          0.5000000000000001,
+          -0.5000000000000001,
+          0.5,
+          0.5
+        ],
+        "local_frame_b_wxyz": [
+          1.637966975914784e-05,
+          -0.7071067809968354,
+          1.6379669758981308e-05,
+          0.7071067809968353
+        ],
+        "limits_enabled": true,
+        "lower_radians": -0.7853981633974483,
+        "upper_radians": 0.7853981633974483,
+        "half_angle_u_radians": 0.7853981633974483,
+        "half_angle_v_radians": 0.7853981633974483
+      },
+      "characteristic_length_m": 1.9142135623730951
+    },
+    {
+      "key": "right_hip",
+      "kind": "Hinge",
+      "body_a": "torso",
+      "body_b": "right_leg",
+      "collide_connected": false,
+      "book": {
+        "pivot": [
+          0,
+          -1,
+          3
+        ],
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "transverse_u": [
+          -1.0,
+          0.0,
+          0.0
+        ],
+        "transverse_v": [
+          0.0,
+          -0.0,
+          1.0
+        ],
+        "local_anchor_a": [
+          0,
+          -1,
+          -1
+        ],
+        "local_anchor_b": [
+          -0.49999999946341284,
+          0.0,
+          2.3164351114268733e-05
+        ],
+        "q0_wxyz": [
+          0.7071231606665944,
+          0.0,
+          0.7070904013270762,
+          0.0
+        ]
+      },
+      "engine": {
+        "world_pivot": [
+          0,
+          3,
+          1
+        ],
+        "world_primary_axis": [
+          0,
+          0,
+          -1
+        ],
+        "world_u": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "world_v": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "local_anchor_a": [
+          0,
+          -1,
+          1
+        ],
+        "local_anchor_b": [
+          -0.49999999946341284,
+          2.3164351114268733e-05,
+          -0.0
+        ],
+        "local_frame_a_wxyz": [
+          0.5000000000000001,
+          -0.5000000000000001,
+          0.5,
+          0.5
+        ],
+        "local_frame_b_wxyz": [
+          1.637966975914784e-05,
+          -0.7071067809968354,
+          1.6379669758981308e-05,
+          0.7071067809968353
+        ],
+        "limits_enabled": true,
+        "lower_radians": -0.7853981633974483,
+        "upper_radians": 0.7853981633974483,
+        "half_angle_u_radians": 0.7853981633974483,
+        "half_angle_v_radians": 0.7853981633974483
+      },
+      "characteristic_length_m": 1.9142135623730951
+    }
+  ],
+  "total_mass_kg": 6.5,
+  "collisions": {
+    "excluded_adjacent_pairs": [
+      [
+        "head",
+        "torso"
+      ],
+      [
+        "left_arm",
+        "torso"
+      ],
+      [
+        "left_leg",
+        "torso"
+      ],
+      [
+        "right_arm",
+        "torso"
+      ],
+      [
+        "right_leg",
+        "torso"
+      ]
+    ],
+    "enabled_nonadjacent_pairs": [
+      [
+        "head",
+        "left_arm"
+      ],
+      [
+        "head",
+        "right_arm"
+      ],
+      [
+        "head",
+        "left_leg"
+      ],
+      [
+        "head",
+        "right_leg"
+      ],
+      [
+        "left_arm",
+        "right_arm"
+      ],
+      [
+        "left_arm",
+        "left_leg"
+      ],
+      [
+        "left_arm",
+        "right_leg"
+      ],
+      [
+        "right_arm",
+        "left_leg"
+      ],
+      [
+        "right_arm",
+        "right_leg"
+      ],
+      [
+        "left_leg",
+        "right_leg"
+      ]
+    ],
+    "enabled_body_environment_pairs": [
+      [
+        "head",
+        "floor"
+      ],
+      [
+        "head",
+        "wall_plus_x"
+      ],
+      [
+        "head",
+        "wall_minus_x"
+      ],
+      [
+        "head",
+        "wall_minus_z"
+      ],
+      [
+        "head",
+        "wall_plus_z"
+      ],
+      [
+        "torso",
+        "floor"
+      ],
+      [
+        "torso",
+        "wall_plus_x"
+      ],
+      [
+        "torso",
+        "wall_minus_x"
+      ],
+      [
+        "torso",
+        "wall_minus_z"
+      ],
+      [
+        "torso",
+        "wall_plus_z"
+      ],
+      [
+        "left_arm",
+        "floor"
+      ],
+      [
+        "left_arm",
+        "wall_plus_x"
+      ],
+      [
+        "left_arm",
+        "wall_minus_x"
+      ],
+      [
+        "left_arm",
+        "wall_minus_z"
+      ],
+      [
+        "left_arm",
+        "wall_plus_z"
+      ],
+      [
+        "right_arm",
+        "floor"
+      ],
+      [
+        "right_arm",
+        "wall_plus_x"
+      ],
+      [
+        "right_arm",
+        "wall_minus_x"
+      ],
+      [
+        "right_arm",
+        "wall_minus_z"
+      ],
+      [
+        "right_arm",
+        "wall_plus_z"
+      ],
+      [
+        "left_leg",
+        "floor"
+      ],
+      [
+        "left_leg",
+        "wall_plus_x"
+      ],
+      [
+        "left_leg",
+        "wall_minus_x"
+      ],
+      [
+        "left_leg",
+        "wall_minus_z"
+      ],
+      [
+        "left_leg",
+        "wall_plus_z"
+      ],
+      [
+        "right_leg",
+        "floor"
+      ],
+      [
+        "right_leg",
+        "wall_plus_x"
+      ],
+      [
+        "right_leg",
+        "wall_minus_x"
+      ],
+      [
+        "right_leg",
+        "wall_minus_z"
+      ],
+      [
+        "right_leg",
+        "wall_plus_z"
+      ]
+    ],
+    "static_static": "No dynamic response required",
+    "combine": "Native and Jolt product friction/restitution; min spin/rolling lengths; no hidden material override"
+  },
+  "isolated_environment": [
+    {
+      "key": "floor",
+      "position": [
+        0,
+        -0.5,
+        0
+      ],
+      "half_extents": [
+        50,
+        0.5,
+        25
+      ],
+      "friction": 0.5,
+      "restitution": 0.5,
+      "motion": "Static",
+      "mass_kg": 0,
+      "orientation_wxyz": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "linear_velocity": [
+        0,
+        0,
+        0
+      ],
+      "angular_velocity": [
+        0,
+        0,
+        0
+      ],
+      "spin_resistance_length": 0,
+      "rolling_resistance_length": 0,
+      "collision_layer": 1,
+      "collision_mask": 4294967295
+    },
+    {
+      "key": "wall_plus_x",
+      "position": [
+        50,
+        2.5,
+        0
+      ],
+      "half_extents": [
+        1,
+        2.5,
+        25
+      ],
+      "friction": 0,
+      "restitution": 0.5,
+      "motion": "Static",
+      "mass_kg": 0,
+      "orientation_wxyz": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "linear_velocity": [
+        0,
+        0,
+        0
+      ],
+      "angular_velocity": [
+        0,
+        0,
+        0
+      ],
+      "spin_resistance_length": 0,
+      "rolling_resistance_length": 0,
+      "collision_layer": 1,
+      "collision_mask": 4294967295
+    },
+    {
+      "key": "wall_minus_x",
+      "position": [
+        -50,
+        2.5,
+        0
+      ],
+      "half_extents": [
+        1,
+        2.5,
+        25
+      ],
+      "friction": 0,
+      "restitution": 0.5,
+      "motion": "Static",
+      "mass_kg": 0,
+      "orientation_wxyz": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "linear_velocity": [
+        0,
+        0,
+        0
+      ],
+      "angular_velocity": [
+        0,
+        0,
+        0
+      ],
+      "spin_resistance_length": 0,
+      "rolling_resistance_length": 0,
+      "collision_layer": 1,
+      "collision_mask": 4294967295
+    },
+    {
+      "key": "wall_minus_z",
+      "position": [
+        0,
+        2.5,
+        -25
+      ],
+      "half_extents": [
+        50,
+        2.5,
+        1
+      ],
+      "friction": 0,
+      "restitution": 0.5,
+      "motion": "Static",
+      "mass_kg": 0,
+      "orientation_wxyz": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "linear_velocity": [
+        0,
+        0,
+        0
+      ],
+      "angular_velocity": [
+        0,
+        0,
+        0
+      ],
+      "spin_resistance_length": 0,
+      "rolling_resistance_length": 0,
+      "collision_layer": 1,
+      "collision_mask": 4294967295
+    },
+    {
+      "key": "wall_plus_z",
+      "position": [
+        0,
+        2.5,
+        25
+      ],
+      "half_extents": [
+        50,
+        2.5,
+        1
+      ],
+      "friction": 0,
+      "restitution": 0.5,
+      "motion": "Static",
+      "mass_kg": 0,
+      "orientation_wxyz": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "linear_velocity": [
+        0,
+        0,
+        0
+      ],
+      "angular_velocity": [
+        0,
+        0,
+        0
+      ],
+      "spin_resistance_length": 0,
+      "rolling_resistance_length": 0,
+      "collision_layer": 1,
+      "collision_mask": 4294967295
+    }
+  ],
+  "world": {
+    "gravity": [
+      0,
+      -10,
+      0
+    ],
+    "fixed_step_seconds": 0.016666666666666666,
+    "substeps": 1,
+    "native_solver_passes": 1,
+    "jolt_velocity_steps": 10,
+    "jolt_position_steps": 2,
+    "jolt_collision_steps": 1,
+    "native_sleep": {
+      "linear_speed": 0.05,
+      "angular_speed": 0.02,
+      "inactivity_seconds": 0.5
+    },
+    "jolt_sleep": {
+      "point_velocity_threshold": 0.03,
+      "time_before_sleep": 0.5
+    },
+    "initial_sleeping": false,
+    "initial_caches": "empty; no prior impulses, accumulated rows or contacts"
+  },
+  "engine_adaptations": [
+    "Explicit zero initial velocities; no gravity/damping or collision assumptions imported from unspecified book application state.",
+    "Connected pair suppression is an explicit admitted engine topology policy. All ten nonadjacent pairs and all floor pairs remain enabled.",
+    "The isolated qualification room exactly transcribes the referenced sandbox geometry in COM coordinates; no ordinary Editor room injected.",
+    "Ordinary Editor uses the approved shared 160x160 room, one floor with top y=.5 and four walls. Add +.5 world Y to all reference body and joint world positions, retain local frames. No duplicate physical floor.",
+    "Default source selection remains DistanceChain/8 and Jolt engine-default; passive-ragdoll is opt-in."
+  ],
+  "authoring_defaults": {
+    "anchor_resize_policy": "PreserveLocalMeters",
+    "drop_offset": 0,
+    "connected_collision": false,
+    "nonadjacent_collision": true,
+    "direct_editing": true,
+    "book_enhanced_mode": false
+  }
+}

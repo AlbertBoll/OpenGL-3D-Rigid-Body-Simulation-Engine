@@ -2,6 +2,7 @@
 
 #include "Core/BaseApp.h"
 #include "RbsLaunchConfig.h"
+#include "Physics/PassiveRagdoll.h"
 #include "RbsState.h"
 #include "RbsHierarchy.h"
 #include "RbsBulkProperties.h"
@@ -38,6 +39,7 @@ namespace Rbs
     struct DistanceChainImpulseChecks;
     struct BallSocketChecks;
     struct AngularJointChecks;
+    struct PassiveRagdollChecks;
     struct SandboxChecks;
     struct BackendSwitchChecks;
     struct OwnerReviewDriver;
@@ -138,6 +140,7 @@ private:
     friend struct Rbs::DistanceChainImpulseChecks;
     friend struct Rbs::BallSocketChecks;
     friend struct Rbs::AngularJointChecks;
+    friend struct Rbs::PassiveRagdollChecks;
     friend struct Rbs::SandboxChecks;
     friend struct Rbs::BackendSwitchChecks;
     friend struct Rbs::OwnerReviewDriver;
@@ -156,10 +159,16 @@ private:
     bool RequestAngularApply();
     void RevertAngularDraft();
     void RestoreAngularDefaults();
+    bool RequestRagdollApply();
+    void RevertRagdollDraft();
+    void RestoreRagdollDefaults();
+    std::optional<std::size_t> RagdollBoneFor(GEngine::_Entity) const;
+    void DrawRagdollProperties(std::size_t);
+    void DrawRagdollWorldSettings();
     void StageSceneDefaults();
     bool ApplySceneDefaults();
     void RevertSceneDefaults();
-    bool HasPendingObjectProperties() const;
+    bool HasPendingObjectProperties(bool includeRagdoll = true) const;
     bool HasPendingColliderDraft() const;
     void DrawSceneAuthoringActions();
     void DrawAngularProperties();
@@ -250,6 +259,7 @@ private:
     void ArmViewportMarquee(unsigned x,unsigned y,GEngine::EntityRenderId clicked = {});
     void CommitViewportClick();
     enum class TransformTool { Select, Translate, Rotate, Scale };
+    bool StageRagdollTransform(std::size_t,TransformTool,const GEngine::Math::Vec3f&);
     const char* TransformToolDisabled(TransformTool) const;
     bool ActivateTransformTool(TransformTool);
     enum class EditorMode { Edit, Simulation };
@@ -346,6 +356,25 @@ private:
         GEngine::PhysicsJointHandle joint{};
         std::size_t bodyCount{};
     } m_AngularBindings;
+    struct RagdollSession {
+        std::optional<Rbs::RagdollPacket> committed, draft;
+        std::uint64_t revision{}, draftBaseRevision{}, draftGeneration{};
+        bool dirty{};
+        std::string diagnostic;
+        std::string contactDiagnostic;
+        bool debugEnabled{}, showAnchors{true}, showAxes{true}, showLimits{true}, showContacts{}, showErrors{};
+    } m_Ragdoll;
+    struct RagdollCandidate {
+        Rbs::RagdollPacket packet;
+        std::uint64_t expectedGeneration{}, expectedRevision{};
+        bool apply{};
+    };
+    std::optional<RagdollCandidate> m_RagdollRequest;
+    struct RagdollBindings {
+        std::array<entt::entity,6> entities{entt::null,entt::null,entt::null,entt::null,entt::null,entt::null};
+        std::array<entt::entity,5> environmentEntities{entt::null,entt::null,entt::null,entt::null,entt::null};
+        GEngine::PassiveRagdoll mapping;
+    } m_RagdollBindings;
     GEngine::PhysicsBackend m_Backend{GEngine::DefaultPhysicsBackend};
     GEngine::PhysicsBackend m_PendingBackend{GEngine::DefaultPhysicsBackend};
     std::optional<GEngine::PhysicsBackend> m_BackendRequest;
@@ -491,6 +520,7 @@ private:
         // Local to one cold reconstruction. Values only identify entities in its candidate registry.
         mutable std::map<entt::entity,entt::entity> m_Rebound;
         bool m_Ordinary{},m_PacketOwnsJoint{};
+        std::size_t m_PacketBodyCount{};
         entt::entity Rebound(entt::entity) const;
         GEngine::ApplicationInitializationResult RestoreObjects(RigidBodySimulationApp&) const;
         std::vector<Body> m_Bodies;
@@ -505,7 +535,9 @@ private:
         GEngine::ApplicationInitializationResult ApplyAfterStart(GEngine::_Scene&) const;
     };
     GEngine::ApplicationInitializationResult InitializeScene(const BackendAuthoring* = nullptr,
-        const Rbs::AngularPacket* angularCandidate = nullptr);
+        const Rbs::AngularPacket* angularCandidate = nullptr,const Rbs::RagdollPacket* ragdollCandidate = nullptr);
+    GEngine::ApplicationInitializationResult InitializeRagdollScene(
+        const Rbs::RagdollPacket&,const Rbs::SceneAssets&,const BackendAuthoring*);
     GEngine::ApplicationInitializationResult InitializeAngularScene(
         const Rbs::AngularPacket&,const Rbs::SceneAssets&,const BackendAuthoring* = nullptr);
     GEngine::ApplicationInitializationResult VerifyAngularCandidate(const Rbs::AngularPacket&,const BackendAuthoring* = nullptr) const;

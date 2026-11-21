@@ -1,0 +1,132 @@
+{
+  "schema": 1,
+  "phase": "29",
+  "decision": "D29-JOLT-ARENA-01_PROPOSED_NOT_ACCEPTED",
+  "envelope": {
+    "N": 5,
+    "J": 5,
+    "B": 6,
+    "I": 6,
+    "C": 16384,
+    "T": 16384,
+    "S": 1
+  },
+  "alignment": 16,
+  "capacity_bytes": 33554432,
+  "base_sites": {
+    "step_frames": {
+      "requested_max_bytes": 7344,
+      "aligned_max_bytes": 7344
+    },
+    "body_pairs": {
+      "requested_max_bytes": 131072,
+      "aligned_max_bytes": 131072
+    },
+    "active_constraints": {
+      "requested_max_bytes": 40,
+      "aligned_max_bytes": 48
+    },
+    "contact_buffer": {
+      "requested_max_bytes": 12189696,
+      "aligned_max_bytes": 12189696
+    },
+    "contact_offsets": {
+      "requested_max_bytes": 65536,
+      "aligned_max_bytes": 65536
+    },
+    "contact_links": {
+      "requested_max_bytes": 65536,
+      "aligned_max_bytes": 65536
+    },
+    "constraint_links": {
+      "requested_max_bytes": 20,
+      "aligned_max_bytes": 32
+    },
+    "body_islands": {
+      "requested_max_bytes": 24,
+      "aligned_max_bytes": 32
+    },
+    "body_starts": {
+      "requested_max_bytes": 28,
+      "aligned_max_bytes": 32
+    },
+    "constraint_islands": {
+      "requested_max_bytes": 20,
+      "aligned_max_bytes": 32
+    },
+    "constraint_ends": {
+      "requested_max_bytes": 28,
+      "aligned_max_bytes": 32
+    },
+    "contact_islands": {
+      "requested_max_bytes": 65536,
+      "aligned_max_bytes": 65536
+    },
+    "contact_ends": {
+      "requested_max_bytes": 28,
+      "aligned_max_bytes": 32
+    },
+    "sorted_islands": {
+      "requested_max_bytes": 24,
+      "aligned_max_bytes": 32
+    },
+    "sort_counts_transient": {
+      "requested_max_bytes": 24,
+      "aligned_max_bytes": 32
+    },
+    "position_steps": {
+      "requested_max_bytes": 6,
+      "aligned_max_bytes": 16
+    },
+    "ccd_bodies": {
+      "requested_max_bytes": 960,
+      "aligned_max_bytes": 960
+    },
+    "active_ccd_mapping": {
+      "requested_max_bytes": 24,
+      "aligned_max_bytes": 32
+    },
+    "sorted_ccd_transient": {
+      "requested_max_bytes": 48,
+      "aligned_max_bytes": 48
+    }
+  },
+  "base_positive_calls_max": 19,
+  "base_sum_bytes": 12526080,
+  "conditional_sites": {
+    "JPH_VALIDATE_ISLAND_BUILDER": {
+      "expression": "A(C*sizeof(LinkValidation))",
+      "expected_size": 8,
+      "aligned_max_bytes": 131072
+    },
+    "JPH_TRACK_SIMULATION_STATS": {
+      "expression": "A(I*sizeof(IslandStats))",
+      "expected_size": 32,
+      "aligned_max_bytes": 192
+    }
+  },
+  "both_conditionals_calls_max": 21,
+  "both_conditionals_sum_bytes": 12657344,
+  "size_basis": "Existing Phase28 source-derived target sizes: pointer8,uint32/BodyID4,Step7344,BodyPair8,ContactConstraintMax744,CCDBody160. Conditional LinkValidation two uint32=8; IslandStats three atomic<uint64> plus 3 bytes, x64 aligned32. Current compiled sizes and enabled macros MUST be verified before any runtime; source arithmetic is not target proof.",
+  "method": "Conservative sum of all aligned positive sites, including temporaries that do not coexist. I<=6 allows disconnected/degraded assembly. Actual occupancy/calls/releases must still be observed, not inferred from spare capacity.",
+  "obligations": [
+    "Existing 32MiB capacity unchanged; no heap fallback/growth/new allocator.",
+    "Every positive reservation matched by pointer/request size release; correct LIFO and lifetime; end-of-Update usage zero; bounded peak, no leak, double release, stale worker or buffer overflow.",
+    "Record all5 JPH callbacks plus relevant global new/site attribution on every steady tick, including wake and graph/filter work. Zero incremental joint-induced heap calls and bytes; unrelated calls need source and runtime causal proof.",
+    "Bind per-target Debug/Release ABI, flags and sources; additional live body/joint/listener/softbody or allocation site invalidates this bound before qualification.",
+    "Allocator costs stay in inclusive Physics CPU; separate construction capacities/bytes and teardown."
+  ],
+  "observation_reuse": "Reuse existing GENGINE_PHASE28_QUALIFICATION / GENGINE_JOLT_FINAL_AUDIT observation ABI consistently across affected targets. New GENGINE_PHASE29_QUALIFICATION selects only the Phase29 runner; within approved RBS app/Frame paths exclude old auto-run dispatch when that selector is present. Do not modify SDK/PhysicsSystem/JoltBackend or reinterpret old results. Freeze actual target macro/ABI closure and compiled sizes before runtime; reuse matching archives when identities match.",
+  "current_sources": {
+    "GEngine/src/Physics/JoltBackend.cpp": "233bce279ed7c20655c2c125218a944275bdd2b541e170e48ed67c614f184aa5",
+    "external/jolt/Jolt/Core/STLTempAllocator.h": "45f2c849a06d7f71be8d2de87efeb58fcc08f792a1abdc5423f3786a6c4c7b1d",
+    "external/jolt/Jolt/Core/TempAllocator.h": "366bed91849bcde35effcbbbca34a76cf67baed76f0b7b6c829095c6ddc54036",
+    "external/jolt/Jolt/Physics/Constraints/ContactConstraintManager.cpp": "3b75a4131f4ae02ead5e2b7b60856a04f5a19120ccafd9fbdcf5f14c02e9498b",
+    "external/jolt/Jolt/Physics/IslandBuilder.cpp": "9a944d1788f0e14470ec962574b7ad80566799c5046d0d7eb28f2e2ae02449a8",
+    "external/jolt/Jolt/Physics/IslandBuilder.h": "b5de8028f7fb4f9f097f330c28feaa8e4db07f152b8b381e97ea74f14b97d583",
+    "external/jolt/Jolt/Physics/PhysicsSettings.h": "796b390b39e7bee5fb685a8d07dd24baa61996f817058ac6265e527f4fae2f95",
+    "external/jolt/Jolt/Physics/PhysicsSystem.cpp": "32084e2907d00ae0c8c9938e573da9733ac7044c8f0a0ea8b1a687771d8d2709",
+    "external/jolt/Jolt/Physics/PhysicsUpdateContext.h": "c0689258898d707e4997ceb010567b22710b506631c9edbe7d5ce4b8cd56d74e"
+  },
+  "applies_only": "Named six-body/five-joint Phase29 physical workloads and bounded creation/deletion variants; not Native, other scenes, extra ragdolls or later phases."
+}

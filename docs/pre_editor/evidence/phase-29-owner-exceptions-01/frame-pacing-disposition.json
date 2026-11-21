@@ -1,0 +1,46 @@
+{
+  "recorded_utc": "2026-11-20T14:36:10.060212+00:00",
+  "phase": 29,
+  "classification": "INTERMITTENT_FRAME_PACING_ANOMALY / ROOT_CAUSE_UNKNOWN / DEFERRED",
+  "basis": "Owner decision following additional manual observations",
+  "observation": {
+    "launch": "Visual Studio Release | x64, ordinary Editor",
+    "scene": "Default DistanceChain/8",
+    "mode": "Edit/Ready throughout",
+    "physics_simulation_started": false,
+    "camera_view_open": false,
+    "approximate_FPS": [
+      "normal startup near 165",
+      "some launches near 100, followed by decline toward 60",
+      "other launches near 70, followed by recovery to 165 within the same process"
+    ],
+    "restart": "sometimes restores normal performance",
+    "trigger": null,
+    "onset_recovery_durations": null,
+    "matched_frame_capture": null
+  },
+  "dedicated_campaign": {
+    "A1": "Charged; startup failure; no comparable frames",
+    "A1R": "Prior replacement request withdrawn; zero launches",
+    "B_C_A2": "Suspended. No further dedicated performance launches",
+    "approved_11_and_6_ceiling_change": false,
+    "slot_transfer": false
+  },
+  "reopen_if": [
+    "reliable reproduction trigger",
+    "recurrence with useful telemetry",
+    "stronger causal evidence"
+  ],
+  "formal_READY": "Research deferral only. Preserve all mandatory performance gates. Obtain an explicit Owner disposition if unresolved performance evidence blocks formal READY.",
+  "prior_records": "Preserve historical observations, P0 classification at the time, failed A1 and all budget records.",
+  "F_OWNER": "PENDING",
+  "evidence": {
+    "logs/pre_editor/phase-29/runtime-performance-03/decision.json": "b000fed5769a0546c28de95c6aac7510a736b1e41fc39993e9d40caf8c1a2c39",
+    "logs/pre_editor/phase-29/runtime-performance-03/status-after-A1.json": "5ca3c5a872079875a56e66a4f9b2766066b88664076330fd3fde6bd04e86cd84",
+    "logs/pre_editor/phase-29/runtime-performance-03/A1-staging-failure.json": "b4fb9f728e1115b5b97e7bcde2cf42d3f740f48df47cc734fd31ed3969ba28ae",
+    "logs/pre_editor/phase-29/runtime-performance-03/runs/A1/reservation.json": "3f15ea78e857409cde5cde96fc1fd5d68ab60bbc4d68086be7de8581f79e2fbe",
+    "logs/pre_editor/phase-29/runtime-performance-03/runs/A1/result.json": "815185ee5c9d52c56a009a45b6138fe127d041f68409e6ee54c981079b880a9d",
+    "logs/pre_editor/phase-29/runtime-performance-03/a1-startup-binding.json": "da52abe0e358df59d1d6d19b1e15980a25ef88a9365e9cfa5fa50fe04d6b2929",
+    "logs/pre_editor/phase-29/runtime-performance-03/physical-layout-A1R.json": "3f2b7a40b453a0965c9d92076d1e7bd58b6fb45f21a6916e042bbaf8b9df0988"
+  }
+}

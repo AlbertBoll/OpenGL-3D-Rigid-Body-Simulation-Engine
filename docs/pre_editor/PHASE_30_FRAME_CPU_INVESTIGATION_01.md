@@ -1,0 +1,33 @@
+# Phase 30 frame CPU investigation
+
+**Keep the live pacing check.** The CPU gap is measured. Removing the query has no demonstrated whole-frame benefit. Only this report was added. Phase 30 publication remains on hold. [Phase 30 measurements](../../logs/pre_editor/phase-30/final-performance-focused-01/measurements.json)
+
+## Why the getter runs
+
+`BaseApp` binds the main context and reads the effective interval before ticking the frame clock. Only interval `0` with a nonzero manual cap calls `sleep_until`. Nonzero intervals, including adaptive `−1`, leave pacing to presentation. Phase 30 returned `1` throughout with cap `60`. Short-circuiting a zero cap would save no calls here. [Frame loop](../../GEngine/src/Core/BaseApp.cpp#L546) · [Initial VSync request](../../GEngine/src/Windows/SDLWindow.cpp#L148)
+
+`SDLWindow` checks context ownership. SDL 2.0.20’s Windows OpenGL backend calls `wglGetSwapIntervalEXT` when available. `FrameScheduler` presents each scheduled window via `SDL_GL_SwapWindow` and Win32 `SwapBuffers`, then restores the primary binding. WGL maintains VSync without this getter. [Ownership](../../GEngine/include/GEngine/Core/GLContextThread.h#L88) · [Present](../../GEngine/src/Renderer/FrameScheduler.cpp#L250) · [Pinned SDL source](https://github.com/libsdl-org/SDL/blob/release-2.0.20/src/video/windows/SDL_windowsopengl.c#L761-L794) · [WGL specification](https://registry.khronos.org/OpenGL/extensions/EXT/WGL_EXT_swap_control.txt)
+
+## What the measurements establish
+
+- In matched windows starting near 50 and 67 s, both builds averaged **6.06 ms/frame**. The corrected build used **4.860 / 4.910 ms more main-thread CPU per frame**. Its query took **5.119 ms wall** and **5.070 / 5.179 ms CPU**, about **16.8 million thread cycles/frame**. Pre-fix Swap Buffers took **5.221 / 5.222 ms wall** with **0.327 / 0.415 ms CPU**. Most of that swap elapsed off CPU. The current probes cannot separate driver work from active waiting. [Phase 30 call counters](../../logs/pre_editor/phase-30/final-performance-focused-01/measurements.json)
+- Across the pre-fix switch at **28.917 s**, CPU fell **5.859 → 1.715 ms/frame** over adjacent two-second windows of 328 frames each. Interval, viewport, camera and Physics state held steady. Median opaque GPU time was **0.823 → 0.822 ms**. The trigger remains unknown. [Raw frames 3,834–4,161 and 4,164–4,491](../../logs/pre_editor/phase-30/final-performance-01/before/data/frames.csv)
+- Earlier Jolt probes measured **0.0001 ms** median in the ownership guard and **5.021 ms** inside SDL. In a separate Native DistanceChain experiment the first query/skip pair each used **27.891 CPU seconds in 28 seconds**. Skipping raised median submission time **0.315 → 5.352 ms** and **0.302 → 5.338 ms** across two pairs. That was cap zero on NVIDIA 552.44. A cache on Phase 30’s cap 60 and driver 610.88 remains untested. [Split probes](active/RUNTIME_FRAME_SPIKE_ROOT_CAUSE_FOLLOWUP_01.md) · [Query/skip results](active/SDL_SWAP_INTERVAL_CPU_EFFICIENCY_AB_REVIEW_01.md) · [Phase 30 runtime](../../logs/pre_editor/phase-30/final-performance-focused-01/data/capture-meta.txt)
+
+## When a pacing cache would be safe
+
+The smallest engine candidate would reuse an observed interval for **pacing only**, keep public readback live and label cached samples separately. It requires all three safeguards.
+
+| Boundary | Required behavior |
+|---|---|
+| Settings | Track raw SDL writes, overrides and restores. Read actual state after successful or failed sets, respecting first-swap application and SDL’s zero fallback. Refresh stale state when a cap resumes. The existing `1→0` test at cap 2 would miss its required sleep with a stale `1`. [SDL contract](../../external/sdl2/include/sdl2/SDL_video.h#L2033) · [Switch test](../../tools/input_control_probe.cpp#L592) · [Qualification writer](../../RigidBodySimulation/tests/PhysicsCostChecks.h#L456) |
+| GL ownership | Key by native drawable and context lifetime. Retire on loss, recreation or teardown. Revalidate changed bindings on the owning thread. Secondary ImGui windows set independent intervals. [Context lifecycle](../../GEngine/include/GEngine/Core/GLContextThread.h#L140) · [ImGui writer](../../GEngine/include/external/imgui/imgui_impl_sdl.cpp#L777) |
+| Display | Revalidate on monitor migration, fullscreen/mode or refresh changes, hotplug, adapter changes and resume after a possible route change. The dispatcher forwards window `DISPLAY_CHANGED` but omits global `SDL_DISPLAYEVENT`. Fall back to live queries for unmanaged mutations. [Event dispatch](../../GEngine/src/Managers/EventManager.cpp#L230) · [SDL display handling](https://github.com/libsdl-org/SDL/blob/release-2.0.20/src/video/windows/SDL_windowsevents.c#L1211-L1216) |
+
+Changing the ordinary `BaseApp.cpp` pacing branch and SDL window state requires new source authority. The earlier grant covered only the cap-zero diagnostic. [Phase 30 envelope](active/PHASE_30_ENTRY_ACCEPTANCE_01.json) · [Viewport scope](../../logs/pre_editor/phase-30/viewport-input-01/scope.json) · [Diagnostic grant](active/SDL_SWAP_INTERVAL_CPU_AB_ADMISSION_01.json)
+
+## HDMI and minimum verification
+
+The Owner saw about **135 FPS** on some HDMI-connected starts and a return to **165 FPS** after disconnecting. An older inventory recorded 165 Hz on AMD and 59 Hz on NVIDIA. Mixed-refresh composition can change presentation cadence while the interval stays `1`. Phase 30 recorded only the window’s display at startup and exit. The HDMI connection and scanout path during those runs are unknown. [Hardware inventory](../../logs/pre_editor/phase-27/runtime-frame-spike-01/hardware-identity.json) · [Microsoft compositor timing](https://learn.microsoft.com/en-us/windows/win32/directcomp/compositor-clock/compositor-clock)
+
+The smallest proposed change is to record active display paths, adapters, connectors, refresh rates and the window’s monitor at the existing capture boundaries. Hold the binary fixed to test HDMI. After any separately authorized pacing correction, use the existing `--pacing-switch` check and one Release Idle pre/post pair on an identical recorded topology, **up to 75 s per Editor, zero Physics steps, zero retries**. At ages 50 and 67 s require lower whole-frame CPU, preserved mean/p95/p99 frame time and no compensating cost in submission or Present. Check live readback at the affected invalidation boundary. No builds or runtime launches occurred in this investigation. [Windows active display paths](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-querydisplayconfig) · [Existing pacing check](../../tools/input_control_probe.cpp#L626)

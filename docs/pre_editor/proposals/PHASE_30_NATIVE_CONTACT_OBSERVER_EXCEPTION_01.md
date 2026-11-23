@@ -1,0 +1,17 @@
+# Phase 30 Native Contact observer-cost decision 01
+
+**D30-NATIVE-CONTACT-OBSERVER-01 · PROPOSED · Owner decision pending.** The proposed `ACCEPTED_EXCEPTION` covers only the guarded worst sliding-60 incremental-observer timing criterion for Candidate 03 Native Contact. Its recorded `actual_outcome` is `INCOMPLETE`. The retained assessment records `observer_upper_ns.pass=false`. The Owner has separately passed the observed Motors behavior and interactions. [Owner manual review](../active/PHASE_30_OWNER_MANUAL_REVIEW_01.json) · [Cost exception authority](../active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/ACCEPTANCE_GATES.json)
+
+| Exact binding | SHA-256 |
+|---|---|
+| Candidate 03 isolated Release RBS executable | `b2162d063095116d435d895d2a8f4971778cdc85d859adefb587ac83f04ee704` |
+| Frozen workload packet, Native Motor Contact, 60 Hz | `d6f6ba9e195d56269b6d310af2482230b86d30b11b38b9bafa6627e55b721e91` |
+| Native Contact assessment | `63ad31707e1925230b536a709c09d60f94845da48fae895a138ea5384a36089f` |
+| Retained 1,200-tick cost series | `6b6675bd8aeb7b8eeb001c5c6af20061feda9f5f031aa779f509882b938fba70` |
+| Independent offline cost review | `02b74e447a12f29e48870c5c4b5ebbe68ca0ccf413b0bf98c948ea710c775ba9` |
+
+The guarded worst 60-tick upper bound was **0.347140 ms** over ticks **52–111**, against **0.333333 ms**. That leaves at most **13.807 µs** of possible excess in the worst mean. The upper bound includes all solver time. The capture cannot resolve how much of that interval the observer consumed. Guarded observer mean, median and p95 met their limits. Inclusive Update passed with a mean of 0.115457 ms and worst 60-tick mean of 0.345952 ms before its 0.000100 ms guard. Numerical, energy, contact response and heap checks passed. [Historical assessment](../../../logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/native-contact/assessment.json) · [Same-tick cost analysis](../../../logs/pre_editor/phase-30/jolt-contact-exception-01/native-contact-observer.json)
+
+**Proposed decision.** Accept the residual uncertainty in the isolated observer's timing for this capture, retaining the actual result and thresholds. Allow the existing runner to recognize only this exact predecessor for Native Limit after checking the disposition, binary, workload, original assessment and all other passing checks. The Owner holds the residual qualification risk. Reassess if the observer, measured executable, workload, measurement boundary or supporting safety evidence materially changes, or a production-cost regression makes this record relevant. The original Jolt Contact exception remains independent. [Existing Jolt decision](../active/PHASE_30_JOLT_CONTACT_VISUAL_ACCEPTANCE_01.json)
+
+**Execution impact.** The exception itself needs zero builds and zero RBS starts. Native Limit remains mandatory under B30-ENTRY. Its existing reservation is one process, at most 1,200 attempts and 180 seconds, with zero retries. Its own numerical, safety, allocation and observer-cost checks apply in full. At present the campaign has used 9 of 10 supervised starts and reserved 9,720 of 10,920 attempted steps. Native Limit stays on hold until the predecessor receives a valid disposition. [Admission](../active/PHASE_30_ENTRY_ACCEPTANCE_01.json) · [Sequencing](../active/PHASE_30_JOLT_FREE_REPLACEMENT_01.json) · [Campaign ledger](../../../logs/pre_editor/phase-30/jolt-contact-exception-01/status.json)

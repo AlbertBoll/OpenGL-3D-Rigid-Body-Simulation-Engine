@@ -40,6 +40,7 @@ namespace Rbs
     struct BallSocketChecks;
     struct AngularJointChecks;
     struct PassiveRagdollChecks;
+    struct MotorChecks;
     struct SandboxChecks;
     struct BackendSwitchChecks;
     struct OwnerReviewDriver;
@@ -141,6 +142,7 @@ private:
     friend struct Rbs::BallSocketChecks;
     friend struct Rbs::AngularJointChecks;
     friend struct Rbs::PassiveRagdollChecks;
+    friend struct Rbs::MotorChecks;
     friend struct Rbs::SandboxChecks;
     friend struct Rbs::BackendSwitchChecks;
     friend struct Rbs::OwnerReviewDriver;
@@ -341,6 +343,13 @@ private:
         bool dirty{},interactive{};
         std::string diagnostic;
     } m_Angular;
+    struct MotorCommand {
+        GEngine::PhysicsJointHandle joint;
+        GEngine::HingeMotorSettings settings;
+        std::uint64_t generation{}, revision{};
+    };
+    std::optional<MotorCommand> m_PendingMotor;
+    void ApplyPendingMotor();
     struct AngularCandidate {
         Rbs::AngularPacket packet;
         std::uint64_t expectedGeneration{},expectedRevision{};
@@ -407,7 +416,9 @@ private:
     std::vector<GEngine::EntityRenderId> m_VisibleHierarchyRows;
     Rbs::Editor::EntitySelection m_EditorSelection;
     GEngine::EntityRenderId m_HierarchyRevealed{};
-    bool m_HierarchySelectionHandoff{};
+    // Properties/Hierarchy keep the authoring set while the View releases its selection.
+    bool m_ViewportOwnsSelection{};
+    bool m_ViewportAwaitPointer{};
     int m_HierarchyFocusedGroup{int(Rbs::Editor::EntityGroup::PhysicsBodies)};
     bool m_HierarchySphereCohort{};
     struct MarqueeGesture {
@@ -726,8 +737,9 @@ private:
     bool m_ViewportAltGestureConsumed = false;
     bool m_ViewportActive = false, m_ViewportRequestFocus = false;
     bool m_ViewportHighlightPending = false, m_ViewPickRequested = false;
+    std::optional<glm::vec2> m_ViewClickPoint;
     std::uint32_t m_ViewportActivationButtons = 0;
-    unsigned m_ViewportNavWindow = 0;
+    bool PickViewportIcon(float x, float y, bool toggle);
     double m_ViewportHighlightStart = -1.0;
     void SetViewportActive(bool active, bool cancelInput = true);
 #ifdef GENGINE_LIFECYCLE_VALIDATION

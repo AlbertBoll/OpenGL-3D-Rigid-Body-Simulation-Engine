@@ -93,7 +93,7 @@ def main():
     parser.add_argument("--name", default="capture")
     parser.add_argument("--config", default="Release", choices=["Debug", "Release"])
     parser.add_argument("--scene", default="distance-chain")
-    parser.add_argument("--backend", default="native")
+    parser.add_argument("--backend", help="Override the application's startup backend (native or jolt)")
     parser.add_argument("--scale", type=int, choices=[0, 1, 2, 3, 4])
     parser.add_argument("--settings-from", type=Path)
     parser.add_argument("--x", type=int, default=0)
@@ -135,7 +135,9 @@ def main():
         elif args.scale is not None:
             (runtime / "imgui.ini").write_text(f"[RbsEditor][Theme]\nScale={args.scale}\n\n")
         exe = ROOT / f"bin/{args.config}/RigidBodySimulation/RigidBodySimulation.exe"
-        command = [str(exe), "--scene", args.scene, "--backend", args.backend]
+        command = [str(exe), "--scene", args.scene]
+        if args.backend is not None:
+            command.extend(["--backend", args.backend])
         with (folder / "stdout.log").open("w") as stream:
             env=os.environ.copy()
             if args.selection_trace:env["GENGINE_RBS_SELECTION_TRACE"]="1"

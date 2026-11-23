@@ -781,7 +781,7 @@ namespace PreEditorLifecycle
     inline FocusVisualProbe focusVisualProbe;
     bool ObserveViewportFocus(bool active, bool drawable, std::uint64_t activations, double start,
                               float flash, float border, ImDrawList* draw, int firstVertex, int firstIndex,
-                              const ImVec4& image, const ImVec4& clip)
+                              const ImVec4& image, const ImVec4& clip, bool windowHovered)
     {
 #ifdef GENGINE_LIFECYCLE_CASE59_TRACE
         Case59Trace::Record("ui_published");
@@ -792,9 +792,7 @@ namespace PreEditorLifecycle
         const int vertices=draw ? draw->VtxBuffer.Size-firstVertex : 0;
         const int indices=draw ? draw->IdxBuffer.Size-firstIndex : 0;
         const double now=ImGui::GetTime(), age=now-start;
-        // The owner now requires opaque, exact state colors and 1/2/4 physical
-        // pixels at 1x. Keep strict raw bounds/command clipping checks; also
-        // independently check every strip's color, width and index coverage.
+        // Verify the opaque state ring and optional activation flash in physical pixels.
         unsigned failures=0;
         const auto require=[&](bool value, unsigned bit) { if (!value) failures|=bit; };
         require(std::isfinite(flash) && std::isfinite(border), 1u);
@@ -824,13 +822,18 @@ namespace PreEditorLifecycle
                 const float top=origin.y+std::ceil((clip.y-origin.y)*scale.y)/scale.y;
                 const float right=origin.x+std::floor((clip.z-origin.x)*scale.x)/scale.x;
                 const float bottom=origin.y+std::floor((clip.w-origin.y)*scale.y)/scale.y;
+                const auto mouse=ImGui::GetIO().MousePos;
+                const bool overImage=windowHovered && mouse.x>=clip.x && mouse.x<clip.z &&
+                    mouse.y>=clip.y && mouse.y<clip.w;
+                const float stateWidth=active ? 3.f : (overImage ? 2.f : 1.f);
                 for (int ring=0; ring<rings; ++ring)
                 {
-                    const float physical=(std::max)(1.f,std::round((ring ? 4.f : active ? 2.f : 1.f)*window->Viewport->DpiScale));
+                    const float physical=(std::max)(1.f,std::round((ring ? 4.f : stateWidth)*window->Viewport->DpiScale));
                     const float x=(std::min)(physical/scale.x,(right-left)*.5f);
                     const float y=(std::min)(physical/scale.y,(bottom-top)*.5f);
                     const ImU32 color=ring ? IM_COL32(125,211,252,flashAlpha) :
-                        active ? IM_COL32(56,189,248,255) : IM_COL32(71,85,105,255);
+                        active ? IM_COL32(56,189,248,255) :
+                        overImage ? IM_COL32(126,169,216,255) : IM_COL32(71,85,105,255);
                     const ImVec4 strips[]={{left,top,right,top+y},{left,bottom-y,right,bottom},
                         {left,top+y,left+x,bottom-y},{right-x,top+y,right,bottom-y}};
                     for (int strip=0; strip<4; ++strip)

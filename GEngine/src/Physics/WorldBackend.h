@@ -52,6 +52,8 @@ namespace GEngine
         virtual Vec3f JointVectorImpulse(PhysicsJointHandle) const noexcept = 0;
         // Components are accumulated provider angular row impulses (N*m*s).
         // They are not world-space XYZ torque components.
+        virtual JointResult<> SetHingeMotor(PhysicsJointHandle, const HingeMotorSettings&) = 0;
+        virtual HingeMotorSample MotorSample(PhysicsJointHandle) const noexcept = 0;
         virtual Vec3f AngularImpulse(PhysicsJointHandle) const noexcept = 0;
         virtual bool AngularImpulseAvailable(PhysicsJointHandle) const noexcept = 0;
         virtual void DestroyJoint(PhysicsJointHandle) noexcept = 0;

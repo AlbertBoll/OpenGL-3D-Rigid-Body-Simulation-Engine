@@ -1029,7 +1029,7 @@ namespace PreEditorLifecycle
 {
     bool UIActive();
     bool ObserveViewportFocus(bool, bool, std::uint64_t, double, float, float,
-                              ImDrawList*, int, int, const ImVec4&, const ImVec4&);
+                              ImDrawList*, int, int, const ImVec4&, const ImVec4&, bool);
 }
 #endif
 #ifdef GENGINE_LIFECYCLE_PICK_TRACE
@@ -1097,7 +1097,9 @@ void RigidBodySimulationApp::DrawDistanceChainImpulseControls()
     else if(m_ActiveSelection.IsBallSocketScene()) ImGui::TextWrapped("Ball-and-Socket impulse - dynamic body A (S: moving body)");
     else ImGui::TextWrapped("Distance chain impulse - terminal link %u", m_ActiveSelection.scene==Rbs::RbsScenePreset::DistancePendulum?1:m_ActiveSelection.chainLinks);
     if (SandboxEnabled() && m_ActiveSelection.IsAngularScene())
-        ImGui::TextWrapped("The scene applies impulses after ticks 60 and 300. Reset restores the applied settings at Tick 0.");
+        ImGui::TextWrapped("%s", Rbs::IsMotorScene(m_ActiveSelection.scene)
+            ? "Use Apply Impulse to push the Motor Bar. Reset restores the applied settings at Tick 0."
+            : "The scene applies impulses after ticks 60 and 300. Reset restores the applied settings at Tick 0.");
     else if (SandboxEnabled()) ImGui::TextWrapped("Automatic 0.5 Ns impulse after tick 300; manual controls below.");
     const float maximum=m_ActiveSelection.IsAngularScene() && m_Angular.committed?
         (std::min)(Control::MaxMagnitude,3.f*m_Angular.committed->bodies[1].authoredMass):Control::MaxMagnitude;
@@ -1232,7 +1234,12 @@ void RigidBodySimulationApp::PrepareColliderUi()
     m_EditorSelection.Prune(m_ActiveScene->RenderData());
     if(m_HoveredEntity.GetSceneContext() &&
        (m_HoveredEntity.GetSceneContext()!=m_ActiveScene.get() || !m_HoveredEntity))
-        SelectColliderEntity({},true);
+    {
+        if (!m_ActiveScene->RenderData().Resolve(m_EditorSelection.anchor))
+            m_EditorSelection.anchor = {};
+        if (!m_EditorSelection.count) m_ViewportOwnsSelection = false;
+        SynchronizeEditorSelection();
+    }
     Rbs::SyncColliderEditors(*m_ActiveScene, *m_SceneResources, m_ColliderOutlines, m_HoveredEntity, m_IsPause);
     Rbs::HandleColliderUiEscape(*m_ActiveScene, m_IsPause);
 }
@@ -1390,6 +1397,14 @@ void RigidBodySimulationApp::DrawAngularWorldSettings()
     ImGui::EndDisabled();
 }
 
+namespace
+{
+    std::string QuaternionText(const Quat& q)
+    {
+        return std::format("({:.4g}, {:.4g}, {:.4g}, {:.4g})",q.w,q.x,q.y,q.z);
+    }
+}
+
 void RigidBodySimulationApp::DrawAngularProperties()
 {
     namespace E=Rbs::Editor;
@@ -1451,7 +1466,7 @@ void RigidBodySimulationApp::DrawAngularProperties()
     if(!canAuthor)ImGui::TextWrapped("Pause the simulation and enter Edit mode to change properties.");
     {
         const bool bar=endpoint->key==Rbs::AngularBodyKey::Bar;
-        const Vec3f baseHalf=bar?Vec3f{.15f,1.f,.15f}:Vec3f{.25f};
+        const Vec3f baseHalf=bar ? (draft.joint.motor ? Vec3f{3,.25f,.25f} : Vec3f{.15f,1.f,.15f}) : Vec3f{.25f};
         const auto minHalf=.75f*baseHalf,maxHalf=1.25f*baseHalf;
         const auto baseScale=2.f*baseHalf,minScale=2.f*minHalf,maxScale=2.f*maxHalf;
         ImGui::PushID(static_cast<int>(m_SceneGeneration));
@@ -1516,7 +1531,7 @@ void RigidBodySimulationApp::DrawAngularProperties()
                     E::Numeric::Closed(minHalf.x,maxHalf.x),"radius")) {
                     Rbs::SetAngularBodyHalfExtents(draft,endpoint->key,Vec3f{half.x});session.dirty=true;
                 }
-            } else if(axes("Half extents (m)",half,.25f,.005f,bar?
+            } else if(axes("Half extents (m)",half,.25f,.005f,draft.joint.motor?"75% to 125% of each reference half extent.":bar?
                 "X/Z from 0.1125 to 0.1875 m, Y from 0.75 to 1.25 m.":
                 "Each half extent ranges from 0.1875 to 0.3125 m.",
                 E::Numeric::Positive<float>(),"size-x",0,&minHalf,&maxHalf,&baseHalf)) {
@@ -1543,8 +1558,9 @@ void RigidBodySimulationApp::DrawAngularProperties()
             }
             float mass=endpoint->authoredMass;
             if(bar) {
-                if(number("Mass (kg)",mass,.05f,"0.5 to 2 kg. Apply rebuilds inertia and scales the scheduled impulses.",
-                    E::Numeric::Closed(.5f,2.f),"mass")){Rbs::SetAngularBarMass(draft,mass);session.dirty=true;}
+                const float referenceMass = draft.joint.motor ? 100.f : 1.f;
+                if(number("Mass (kg)",mass,.05f,"Apply rebuilds the bar inertia.",
+                    E::Numeric::Closed(.5f*referenceMass,2.f*referenceMass),"mass")){Rbs::SetAngularBarMass(draft,mass);session.dirty=true;}
             } else {
                 E::ReadOnly("Retained mass (kg)",std::format("{:.3f}",mass).c_str(),
                     "The anchor retains 1 kg with zero effective inverse mass.");
@@ -1569,11 +1585,11 @@ void RigidBodySimulationApp::DrawAngularProperties()
         ImGui::PopID();
     }
     if(E::Component("Angular Joint",true)) {
-        const bool hinge=draft.scene==Rbs::RbsScenePreset::HingeBasic ||
+        const bool hinge=draft.joint.motor || draft.scene==Rbs::RbsScenePreset::HingeBasic ||
             draft.scene==Rbs::RbsScenePreset::HingeQuaternion || draft.scene==Rbs::RbsScenePreset::HingeLimited;
         E::ReadOnly("Constraint",hinge?"Hinge":draft.scene==Rbs::RbsScenePreset::CvLimited?"Limited Constant Velocity":"Constant Velocity");
         RBS_PHASE28_WIDGET("angular-kind-readonly");
-        E::ReadOnly("Endpoints","Angular Anchor and Angular Bar");
+        E::ReadOnly("Endpoints",draft.joint.motor?"Motor Base and Motor Bar":"Angular Anchor and Angular Bar");
         ImGui::BeginDisabled(!canAuthor);
         E::ReadOnly("Local anchor A (m)",vectorText(draft.joint.localAnchorA).c_str());
         E::ReadOnly("Local anchor B (m)",vectorText(draft.joint.localAnchorB).c_str());
@@ -1587,7 +1603,7 @@ void RigidBodySimulationApp::DrawAngularProperties()
                 session.dirty=true;
             }
         }
-        if(draft.scene==Rbs::RbsScenePreset::HingeLimited) {
+        if(draft.scene==Rbs::RbsScenePreset::HingeLimited || draft.scene==Rbs::RbsScenePreset::MotorLimit) {
             float lower=glm::degrees(draft.joint.lower),upper=glm::degrees(draft.joint.upper);
             if(number("Lower limit (deg)",lower,1.f,"Lower angular bound, from -45 to 0 degrees.",
                E::Numeric::Closed(-45.f,0.f),"limit-lower")){draft.joint.lower=glm::radians(lower);session.dirty=true;}
@@ -1604,6 +1620,40 @@ void RigidBodySimulationApp::DrawAngularProperties()
             RBS_PHASE28_WIDGET("angular-free-limits-readonly");
         }
         ImGui::EndDisabled();
+    }
+    const auto driven = world && draft.joint.motor ? world->ReadJoint(m_AngularBindings.joint) : ::GEngine::JointResult<::GEngine::JointState>{std::unexpected(::GEngine::JointError{})};
+    if (draft.joint.motor && driven && driven->descriptor.angular.motor &&
+        (selectedHandle==driven->descriptor.bodyA || selectedHandle==driven->descriptor.bodyB) && E::Component("Hinge Motor",true)) {
+        auto& drive = *draft.joint.motor;
+        const auto& applied = *driven->descriptor.angular.motor;
+        ImGui::BeginDisabled(!canAuthor || m_PendingMotor.has_value());
+        session.dirty |= ImGui::Checkbox("Enabled",&drive.enabled);
+        session.dirty |= E::Number("Target (rad/s)",drive.targetVelocity,.02f,"Signed speed about the hinge axis.",E::Numeric::Closed(-2.f,2.f));
+        session.dirty |= E::Number("Maximum torque (N m)",drive.maxTorque,.1f,"Symmetric drive and braking torque.",E::Numeric::Closed(0.f,100.f));
+        ImGui::BeginDisabled(session.dirty);
+        if (ImGui::Button("Reverse applied target")) {
+            drive.targetVelocity = -applied.targetVelocity;
+            session.dirty = true;
+            RequestAngularApply();
+        }
+        ImGui::EndDisabled();
+        ImGui::EndDisabled();
+        const auto& observed = driven->angular;
+        E::ReadOnly("Applied command",std::format("{}  {:.3f} rad/s  {:.3f} N m",
+            applied.enabled?"Velocity":"Off",applied.targetVelocity,applied.maxTorque).c_str());
+        const float stepSeconds = static_cast<float>(session.committed->fixedStepSeconds);
+        const float impulseCap = applied.enabled ? applied.maxTorque * stepSeconds : 0.f;
+        E::ReadOnly("Maximum impulse per step (N m s)",std::format("{:.5f}",impulseCap).c_str());
+        E::ReadOnly("Speed / tracking error (rad/s)",std::format("{:.4f} / {:.4f}",observed.motorSpeed,observed.motorError).c_str());
+        E::ReadOnly("Signed angle / limit side",std::format("{:.4f} rad / {}",observed.signedAngle,observed.motor.limitSide ? observed.motor.limitSide : observed.limitU).c_str());
+        if (observed.motor.valid) {
+            E::ReadOnly("Drive measurement",std::format("Valid at completed step {}",
+                m_ActiveScene->GetPhysicsSystem()->GetCompletedSteps()).c_str());
+            E::ReadOnly("Impulse / effort",std::format("{:.5f} N m s / {:.3f} N m",
+                observed.motor.impulse,observed.motor.impulse/stepSeconds).c_str());
+            E::ReadOnly("Saturated",observed.motorSaturated?"Yes":"No");
+            E::ReadOnly("Signed motor work (J)",std::format("{:.6f}",observed.motor.work).c_str());
+        } else E::ReadOnly("Drive measurement","Pending a completed fixed step");
     }
     DrawContextProperties(ContextSection::View);
     DrawSceneAuthoringActions();
@@ -1626,7 +1676,8 @@ void RigidBodySimulationApp::DrawAngularProperties()
                 const char* role="Environment / other selected body";
                 for(std::size_t i=0;i<m_AngularBindings.bodyCount;++i)
                     if(selectedHandle==m_AngularBindings.bodies[i])
-                    {role=i==0?"Angular Anchor":i==1?"Angular Bar":
+                    {role=draft.joint.motor ? (i==0 ? "Motor Base" : i==1 ? "Motor Bar" : "Contact Sphere") :
+                        i==0?"Angular Anchor":i==1?"Angular Bar":
                         SandboxEnabled()?"Shared Sandbox Floor (Contact ground)":"Contact Floor";break;}
                 E::ReadOnly("Selected body role",role);
                 E::ReadOnly("Selected body handle",std::format("{} / {}",
@@ -1688,6 +1739,19 @@ void RigidBodySimulationApp::DrawAngularProperties()
                 E::ReadOnly("Joint kind",hinge?"Hinge":joint->descriptor.kind==JointKind::ConstantVelocity?
                     "Constant Velocity":"Limited Constant Velocity");
                 E::ReadOnly("Authored joint key","Primary; Anchor -> Bar (stable authored keys)");
+                if (joint->descriptor.angular.motor) {
+                    const auto identity = [](const auto& handle) {
+                        return std::format("{}/{}/{}", handle.registry, handle.index, handle.generation);
+                    };
+                    const auto& desc = joint->descriptor;
+                    E::ReadOnly("Driven joint", identity(joint->handle).c_str(), "World domain / slot / generation.");
+                    E::ReadOnly("Endpoint A / B", std::format("{}   {}", identity(desc.bodyA), identity(desc.bodyB)).c_str(),
+                        "Provider body handles, each in world domain / slot / generation order.");
+                    E::ReadOnly("Applied local anchors (m)", std::format("{} / {}", vectorText(desc.localAnchorA),
+                        vectorText(desc.localAnchorB)).c_str(), "Committed COM-local anchors on A and B.");
+                    E::ReadOnly("Applied frame A (w,x,y,z)", QuaternionText(desc.angular.localFrameA).c_str());
+                    E::ReadOnly("Applied frame B (w,x,y,z)", QuaternionText(desc.angular.localFrameB).c_str());
+                }
                 const auto xA=joint->descriptor.angular.localFrameA*Vec3f{1.f,0.f,0.f};
                 const auto xB=joint->descriptor.angular.localFrameB*Vec3f{1.f,0.f,0.f};
                 E::ReadOnly("Local axis A",std::format("({:.3f}, {:.3f}, {:.3f})",xA.x,xA.y,xA.z).c_str());
@@ -1744,11 +1808,6 @@ namespace
     std::string RagdollVectorText(const Vec3f& v)
     {
         return std::format("({:.4g}, {:.4g}, {:.4g})",v.x,v.y,v.z);
-    }
-
-    std::string RagdollQuaternionText(const Quat& q)
-    {
-        return std::format("({:.4g}, {:.4g}, {:.4g}, {:.4g})",q.w,q.x,q.y,q.z);
     }
 
     bool RagdollRotationField(const char* label,Quat& orientation)
@@ -1842,7 +1901,7 @@ namespace
             desc.kind==JointKind::Hinge?"Hinge":"Constant Velocity",desc.angular.limitsEnabled?" (limited)":"",
             desc.bodyA.index,desc.bodyB.index,desc.collideConnected).c_str());
         E::ReadOnly("COM-local anchors (m)",std::format("{} / {}",RagdollVectorText(desc.localAnchorA),RagdollVectorText(desc.localAnchorB)).c_str());
-        E::ReadOnly("COM-local frames (w,x,y,z)",std::format("{} / {}",RagdollQuaternionText(desc.angular.localFrameA),RagdollQuaternionText(desc.angular.localFrameB)).c_str());
+        E::ReadOnly("COM-local frames (w,x,y,z)",std::format("{} / {}",QuaternionText(desc.angular.localFrameA),QuaternionText(desc.angular.localFrameB)).c_str());
         if(desc.angular.limitsEnabled) {
             const bool hinge=desc.kind==JointKind::Hinge;
             E::ReadOnly(hinge?"Applied bounds (deg)":"Applied U/V half-angles (deg)",
@@ -1851,7 +1910,7 @@ namespace
         }
         E::ReadOnly("World anchors (m)",std::format("{} / {}",RagdollVectorText(state.worldAnchorA),RagdollVectorText(state.worldAnchorB)).c_str());
         E::ReadOnly("Anchor error (m)",std::format("{:.6g}",state.error).c_str());
-        E::ReadOnly("Relative rotation (w,x,y,z)",RagdollQuaternionText(angular.relativeRotation).c_str());
+        E::ReadOnly("Relative rotation (w,x,y,z)",QuaternionText(angular.relativeRotation).c_str());
         const auto a=world.ReadEffectiveBody(desc.bodyA),b=world.ReadEffectiveBody(desc.bodyB);
         if(a && b)E::ReadOnly("Relative angular velocity (rad/s)",RagdollVectorText(b->angularVelocity-a->angularVelocity).c_str());
         if(desc.kind==JointKind::Hinge) {
@@ -2122,7 +2181,7 @@ void RigidBodySimulationApp::DrawRagdollProperties(std::size_t selected)
         E::ReadOnly("Body handle",std::format("{} / {}",handle.index,handle.generation).c_str());
         if(const auto actual=world.ReadEffectiveBody(handle)) {
             E::ReadOnly("Position (m)",RagdollVectorText(actual->position).c_str());
-            E::ReadOnly("Orientation (w,x,y,z)",RagdollQuaternionText(actual->orientation).c_str());
+            E::ReadOnly("Orientation (w,x,y,z)",QuaternionText(actual->orientation).c_str());
             E::ReadOnly("Center of mass (m)",RagdollVectorText(actual->centerOfMass).c_str());
             E::ReadOnly("Effective shape",Rbs::ColliderTypeName(actual->shapeType));
             E::ReadOnly("Local bounds (m)",std::format("{} to {}",RagdollVectorText(actual->localBounds.mins),RagdollVectorText(actual->localBounds.maxs)).c_str());
@@ -2532,6 +2591,24 @@ void RigidBodySimulationApp::DrawEditorProperties()
             if(auto effective=world->ReadEffectiveBody(pose->body)) {
                 E::ReadOnly("Effective position (m)",std::format("({:.4f}, {:.4f}, {:.4f})",
                     effective->position.x,effective->position.y,effective->position.z).c_str());
+                E::ReadOnly("Orientation (w,x,y,z)", QuaternionText(effective->orientation).c_str());
+                E::ReadOnly("Linear velocity (m/s)", std::format("({:.4g}, {:.4g}, {:.4g})",
+                    effective->linearVelocity.x, effective->linearVelocity.y, effective->linearVelocity.z).c_str());
+                E::ReadOnly("Angular velocity (rad/s)", std::format("({:.4g}, {:.4g}, {:.4g})",
+                    effective->angularVelocity.x, effective->angularVelocity.y, effective->angularVelocity.z).c_str());
+                E::ReadOnly("Inverse mass (1/kg)", std::format("{:.6g}", effective->inverseMass).c_str());
+                if (effective->type == BodyType::Dynamic) {
+                    const glm::dmat3 inverseInertia{effective->inverseInertiaBody};
+                    const double determinant = glm::determinant(inverseInertia);
+                    if (std::isfinite(determinant) && determinant > 0.0) {
+                        const auto inertia = glm::inverse(inverseInertia);
+                        E::ReadOnly("Body inertia (kg m^2)", std::format(
+                            "({:.4g}, {:.4g}, {:.4g})\n({:.4g}, {:.4g}, {:.4g})\n({:.4g}, {:.4g}, {:.4g})",
+                            inertia[0][0], inertia[1][0], inertia[2][0], inertia[0][1], inertia[1][1], inertia[2][1],
+                            inertia[0][2], inertia[1][2], inertia[2][2]).c_str(), "Rows of the applied body-local inertia tensor.");
+                    } else E::ReadOnly("Body inertia (kg m^2)", "Finite tensor unavailable");
+                    E::ReadOnly("Sleep state", effective->sleeping ? "Sleeping" : "Awake");
+                } else E::ReadOnly("Sleep state", "Fixed or kinematic");
                 E::ReadOnly("Effective collider",Rbs::ColliderTypeName(effective->shapeType));
                 E::ReadOnly("Effective friction / restitution",std::format("{:.4f} / {:.4f}",
                     effective->material.friction,effective->material.restitution).c_str());
@@ -2655,24 +2732,14 @@ void RigidBodySimulationApp::PublishEditorInputRouting()
     const bool text = io.WantTextInput;
     const bool visible = HasVisibleViewport() && m_ViewportBounds[1].x > m_ViewportBounds[0].x &&
                          m_ViewportBounds[1].y > m_ViewportBounds[0].y;
-    const unsigned navWindow = uiContext.NavWindow ? uiContext.NavWindow->ID : 0;
-    const bool navTransferred = navWindow != m_ViewportNavWindow && navWindow &&
-        viewportWindow && uiContext.NavWindow != viewportWindow;
     // Viewport-owned controls temporarily consume pointer/keyboard input without
     // retiring activation. Closing their popup must not cost the next scene click.
     const bool navInViewport=viewportWindow && uiContext.NavWindow &&
         ImGui::IsWindowChildOf(uiContext.NavWindow,const_cast<ImGuiWindow*>(viewportWindow),true,false);
     const bool overlay = navInViewport && (m_ViewportOverlayInteracting || m_ViewportPopupOpen || m_GizmoUsing);
-    if(visible && overlay && (m_ViewportOverlayInteracting || m_GizmoUsing))
-    {SetViewportActive(true,false);m_ViewportRequestFocus=false;}
-    if (!visible || (!overlay && (active || popup || text || navTransferred)))
+    if (!visible || (!viewGesture && !overlay && !navInViewport && (active || popup || text)))
         SetViewportActive(false);
-    m_ViewportNavWindow = navWindow;
-    // Reuse Hierarchy's one-shot activation+selection handoff after finishing a
-    // numeric edit. Active text, popup, drag/drop and Alt/camera routing still gate
-    // delivery; this does not forward the originating UI gesture into the View.
-    if(SandboxEnabled() && Rbs::Editor::Numeric::TakeSelectionHandoff())
-        m_HierarchySelectionHandoff=true;
+    const bool uiOwnsInput = !viewGesture && (active || popup || text);
     const InputRouting routing{
         GetWindow()->GetWindowID(),
         m_ViewportBounds[0].x - origin.x,
@@ -2681,8 +2748,8 @@ void RigidBodySimulationApp::PublishEditorInputRouting()
         m_ViewportBounds[1].y - origin.y,
         visible,
         m_ViewportActive,
-        active || popup || text,
-        active || popup || text || (io.WantCaptureKeyboard && !m_ViewportActive)};
+        uiOwnsInput,
+        uiOwnsInput || (!viewGesture && io.WantCaptureKeyboard && !m_ViewportActive)};
 #ifdef GENGINE_LIFECYCLE_PICK_TRACE
     const bool tracing = PreEditorLifecycle::PickTraceActive();
     unsigned traceFlags{}, traceMoveId{};
@@ -2738,28 +2805,42 @@ void RigidBodySimulationApp::PublishEditorInputRouting()
             displayOrigin.y + std::floor((clipMax.y - displayOrigin.y) * pixelScale.y) / pixelScale.y};
         const auto ring = [&](float pixelsAt1x, ImU32 color)
         {
-            if (maximum.x <= minimum.x || maximum.y <= minimum.y) return;
+            if ((color & IM_COL32_A_MASK) == 0 || maximum.x <= minimum.x || maximum.y <= minimum.y) return;
             const float pixels = (std::max)(1.f, std::round(pixelsAt1x * dpi));
             const float x = (std::min)(pixels / pixelScale.x, (maximum.x - minimum.x) * .5f);
             const float y = (std::min)(pixels / pixelScale.y, (maximum.y - minimum.y) * .5f);
-            borderDraw->AddRectFilled(minimum, {maximum.x, minimum.y + y}, color);
-            borderDraw->AddRectFilled({minimum.x, maximum.y - y}, maximum, color);
-            borderDraw->AddRectFilled({minimum.x, minimum.y + y}, {minimum.x + x, maximum.y - y}, color);
-            borderDraw->AddRectFilled({maximum.x - x, minimum.y + y}, {maximum.x, maximum.y - y}, color);
+            // Reserve all four filled rectangles together in the current ImGui draw command.
+            borderDraw->PrimReserve(24, 16);
+            borderDraw->PrimRect(minimum, {maximum.x, minimum.y + y}, color);
+            borderDraw->PrimRect({minimum.x, maximum.y - y}, maximum, color);
+            borderDraw->PrimRect({minimum.x, minimum.y + y}, {minimum.x + x, maximum.y - y}, color);
+            borderDraw->PrimRect({maximum.x - x, minimum.y + y}, {maximum.x, maximum.y - y}, color);
         };
         borderDraw->PushClipRect(clipMin, clipMax, false);
         // Opaque state indication is independent of the clock and Style.Alpha.
-        // These are the owner's explicit palette, not the dark HeaderActive.
         borderOpacity = 1.f;
-        ring(m_ViewportActive ? 2.f : 1.f,
-             m_ViewportActive ? IM_COL32(56, 189, 248, 255) : IM_COL32(71, 85, 105, 255));
+        float width = 1.f;
+        ImU32 color = IM_COL32(71, 85, 105, 255);
+        if (m_ViewportActive)
+        {
+            width = 3.f;
+            color = IM_COL32(56, 189, 248, 255);
+        }
+        else if (m_ViewportHovered && ImRect(clipMin, clipMax).Contains(io.MousePos))
+        {
+            width = 2.f;
+            color = Rbs::Editor::ControlAccent;
+        }
+        ring(width, color);
         if (m_ViewportActive && m_ViewportHighlightStart >= 0)
         {
             const float remaining = std::clamp(float(1.0 -
                 (ImGui::GetTime() - m_ViewportHighlightStart) / .25), 0.f, 1.f);
-            flashOpacity = remaining * remaining * (3.f - 2.f * remaining);
-            // Only the extra emphasis fades; the 2px focused ring stays intact.
-            ring(4.f, IM_COL32(125, 211, 252, int(std::round(255.f * flashOpacity))));
+            if (remaining > 0.f)
+            {
+                flashOpacity = remaining * remaining * (3.f - 2.f * remaining);
+                ring(4.f, IM_COL32(125, 211, 252, int(std::round(255.f * flashOpacity))));
+            }
         }
         borderDraw->PopClipRect();
     }
@@ -2769,7 +2850,7 @@ void RigidBodySimulationApp::PublishEditorInputRouting()
             m_ViewportHighlightStart, flashOpacity, borderOpacity, borderDraw,
             firstBorderVertex, firstBorderIndex,
             {imageMin.x, imageMin.y, imageMax.x, imageMax.y},
-            {clipMin.x, clipMin.y, clipMax.x, clipMax.y}))
+            {clipMin.x, clipMin.y, clipMax.x, clipMax.y}, m_ViewportHovered))
         FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Viewport focus border", {},
             "DrawList observation", {}, "Persistent border/activation/clip oracle failed"});
 #endif
@@ -3139,7 +3220,8 @@ void RigidBodySimulationApp::DrawViewport()
         draw->ChannelsSetCurrent(1);DrawViewportOverlay();
         draw->ChannelsSetCurrent(0);
         DrawViewportGizmo();
-        DrawImpulseOverlay();DrawComponentOverlays();DrawViewportMarquee();
+        if(m_ViewportOwnsSelection)DrawImpulseOverlay();
+        DrawComponentOverlays();DrawViewportMarquee();
         draw->ChannelsSetCurrent(1);
         DrawGroupTransformActions();
         draw->ChannelsMerge();

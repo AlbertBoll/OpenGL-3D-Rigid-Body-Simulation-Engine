@@ -1,0 +1,237 @@
+{
+  "schema": 1,
+  "workflow": "pre-editor",
+  "phase": "30",
+  "operation": "Final Owner acceptance and evidence reuse",
+  "predecessor": {
+    "path": "docs/pre_editor/evidence/phase-30-publication-predecessor-01.json",
+    "sha256": "42b8d01b6f9472ee69dd2c488453f8253b6a31ff7023ff8e6255bd464480f789"
+  },
+  "ordinary_release": {
+    "path": "bin/Release/RigidBodySimulation/RigidBodySimulation.exe",
+    "sha256": "78b4f0abc73fa90c3360105bbe9de5a8bda9d08c7c14f6d2a13f8c531b7ab5df"
+  },
+  "tested_timing_release": {
+    "path": "bin/Release/RbsViewportPerf-final-01/RigidBodySimulation.exe",
+    "sha256": "8de57f4c7a29e60a1240c64b992dcf73c45230bc53e20ecdd3951782c0e46aa2"
+  },
+  "gates": {
+    "A_PHYSICS": {
+      "status": "PASS",
+      "scope": "Powered-hinge semantics and typed configuration; source report retains historical Contact numerical FAIL."
+    },
+    "B_SAFETY": {
+      "status": "ACCEPTED_EXCEPTION",
+      "scope": "Only the named geometric depth, recovery and braking trend in the original capture; all other required measured safety criteria passed.",
+      "actual_outcome": "FAIL",
+      "decision": {
+        "path": "docs/pre_editor/evidence/phase-30/jolt-contact-acceptance-01.json",
+        "sha256": "7d1aed5cd057991d76425fd241e9fcf61ce7202ede64f7cdd49cdd44cab9543a"
+      }
+    },
+    "C_COST": {
+      "status": "ACCEPTED_EXCEPTION",
+      "scope": "Separate Native Contact observer and Editor CPU dispositions",
+      "exceptions": [
+        {
+          "decision": {
+            "path": "docs/pre_editor/evidence/phase-30/native-contact-acceptance-01.json",
+            "sha256": "18d1617f3940750dfae83cae0c3b4d44df257669f5f0624c4d2d9bf92860e738"
+          },
+          "actual_outcome": "INCOMPLETE"
+        },
+        {
+          "decision": {
+            "path": "docs/pre_editor/evidence/phase-30/editor-cpu-acceptance-01.json",
+            "sha256": "0933b9f91274805e0ce228bc6c105a0ec88fd8f1a9e2f62c76f37609dd6a322d"
+          },
+          "actual_outcome": "NOT_DEMONSTRATED"
+        }
+      ]
+    },
+    "D_EDITOR": {
+      "status": "PASS",
+      "scope": "Ordinary component exposure, enum, defaults, shared widgets and the two applicable providers. Matrix explicitly identifies unsupported and absent components.",
+      "final": "Retained ordinary authoring, final hover and backend startup evidence."
+    },
+    "E_INTERACTION": {
+      "status": "PASS",
+      "scope": "Scoped authoring and live feedback, reconstruction, selection, Readback and lifecycle by direct observation and named common-path equivalence.",
+      "final": "Final viewport controls accepted by the Owner and Running camera motion captured."
+    },
+    "F_OWNER": {
+      "status": "PASS",
+      "scope": "Owner-inspected Motors and corrected viewport, hover and default Jolt backend",
+      "evidence": {
+        "path": "docs/pre_editor/PHASE_30_FINAL_OWNER_APPROVAL_01.md",
+        "sha256": "b3289f9ee2eb6c9fe9ce3b0fc3c9875551ccf9a876d243edb39c71ceafc8866e"
+      },
+      "personal_executable_hash": null
+    }
+  },
+  "qualification": {
+    "path": "docs/pre_editor/evidence/phase-30/motor-qualification.json",
+    "sha256": "63731367f05566f20422d0d6c8ce6a564b944875004b57800930ce2dbc896ee8"
+  },
+  "handoff": {
+    "path": "docs/pre_editor/evidence/phase-30/editor-handoff.json",
+    "sha256": "35580a96604d1aa730422b1173db7f9b25549760f2c0a7955ad8264c1aba8930"
+  },
+  "component_inventory": {
+    "rows": 1011,
+    "covered": 962,
+    "component_absences": 49,
+    "latest_assessment": {
+      "path": "logs/pre_editor/phase-30/viewport-hover-backend-01/assessment-outline-entry.json",
+      "sha256": "4abd68fc6db1e986006967da07824e3407fe289567eda0d82e4ba0d7dec911ca"
+    },
+    "matrix": {
+      "path": "logs/pre_editor/phase-30/publication-01/component-matrix.json",
+      "sha256": "2f49031e2e77844e7cb53933bcd6307fcc2e5f53612b3a8a065258691334a60f"
+    },
+    "reuse": {
+      "path": "logs/pre_editor/phase-30/publication-01/component-reuse.json",
+      "sha256": "ceafb747d195b8164d2daec9911b09355c8e4ffc1194a02636aedd83fde78292"
+    }
+  },
+  "performance": {
+    "qualification": "NOT_DEMONSTRATED",
+    "risk": "P1",
+    "focused": {
+      "path": "docs/pre_editor/evidence/phase-30/release-focused-measurements.json",
+      "sha256": "630e95f0c1a476458abea540b9e3cd3585792ef0d5c592fc6f66a12bc3837ec9"
+    },
+    "original": {
+      "path": "docs/pre_editor/evidence/phase-30/release-comparison.json",
+      "sha256": "ffcddf0d04a1250e5babc640dc40218c4760bb099309eb9bff970579fce69e80"
+    },
+    "HDMI": "SEPARATELY_UNRESOLVED"
+  },
+  "input_comparison": {
+    "handoff_spec": {
+      "path": "logs/pre_editor/phase-30/editor-readback-01/checkpoint-spec.json",
+      "sha256": "0f3da142bfa01a2fa4de61a07ef9ff6f7910d0aefc06f7ea13cb673d5175c258"
+    },
+    "declared_inputs_compared": 1343,
+    "changed_handoff_hashes": {
+      "GEngine/src/Managers/EventManager.cpp": {
+        "handoff": "28305ad0d63c998fc49dea02f0c1cc37feb05e675f5b2d15d5a7b877dcad6b6c",
+        "current": "89b41bc65e47b0011fdd2d3c279c174f768d3803a46f272a5286d7ff265b0482"
+      },
+      "GEngine/include/external/imgui/imgui_impl_sdl.cpp": {
+        "handoff": "d8a600a8a06b892446794a142825301e9fc1f102bfd10e2de9cf4728ff58d3c0",
+        "current": "3b1bac17fb89ec163a566d8a4a050ebc6160456c675bbc7c262b4c94c7f02e5b"
+      },
+      "GEngine/include/external/imgui/imgui_impl_sdl.h": {
+        "handoff": "bc910e9de67e322f92dca7ab6f7b6ea347d58b28fd5fa6ed743edcd2911abbe3",
+        "current": "4b7874ccaab2dc09d12a76fc302d8c9c2977c29236f4aa328cf4467169317eda"
+      },
+      "RigidBodySimulation/include/RigidBodySimulation.h": {
+        "handoff": "e133fd237f46eab70f79a48553e62dfb9558d63d87d9a048ff1b42477d359ed9",
+        "current": "8b8d992bedd8eec003fadc9413f9245b8ddd7ac802345177fac7a2960d0447d1"
+      },
+      "RigidBodySimulation/src/RigidBodySimulation.cpp": {
+        "handoff": "0ea744968a8baef848054071832f6d314092b57186e09f4897dcd285737fc2be",
+        "current": "1095d48e6cbddbd7fd5169e701a24b8a05d87b338a9ba3ada10604cac12cbf78"
+      },
+      "RigidBodySimulation/src/RbsFrame.cpp": {
+        "handoff": "8d62f040860a5e665aaa671b5188ad599580bc16daa3dd5eb5b1f3fab2cfda1e",
+        "current": "46251df056d11f80151b390e43229071e6e84069879e85b2018a66b888d09405"
+      },
+      "RigidBodySimulation/src/RbsUi.cpp": {
+        "handoff": "30b70475dea1733ddffc847da344dd354a150ccf20d6c4859794bd0cb13751aa",
+        "current": "b5269c017deb3c51ee5e3f36ece6569d3c46eb502fb75d5d3e598683fe03485e"
+      },
+      "RigidBodySimulation/src/RbsViewportToolbar.cpp": {
+        "handoff": "bccc0f1a1eb4dcf864e5b318c5a99e9e8a02080744c4bb86502384c9a15c3757",
+        "current": "77268f87eb0ac940b512643e87fbebd915b9e1075460f76b1888e4c16731f3a4"
+      },
+      "RigidBodySimulation/src/RbsEditorUi.cpp": {
+        "handoff": "32431f16e8d60a9d97bb5e9d66392b2bccc34e5cdfc8ce3a756de5b22be3c195",
+        "current": "e49f87460fe041542293bc9fdba2cfa557f538370e82a2862369a1fc23aec36a"
+      },
+      "RigidBodySimulation/src/RbsEditorViews.cpp": {
+        "handoff": "8d9803a6071e4b6bc28ba91c684d60248edd08bba73fa84fe6f007de63c1eec2",
+        "current": "ab3d7295b017ca5875387db6f77223af9a4eb4f3fefc4a3f5e606e2cf2299fde"
+      },
+      "RigidBodySimulation/include/RbsEditorWidgets.h": {
+        "handoff": "727a776881c4a63e6d3210635f5a16ffdf84bdef01517874e0144797e45d27c8",
+        "current": "21a18ef5630956e217fe2cad24e30b301f423fc071bd89aadf832e23130b869d"
+      },
+      "tools/rbs_editor_capture.py": {
+        "handoff": "b72c6a6ce371690e6829d6e0d27f1221bd2ca9487b93287670fbe5b4fd1653c2",
+        "current": "daf254f7a3704dbf1cd7e07c50e956be276e36a880e040092b2744713244a2fb"
+      }
+    },
+    "subsequent_named_editor_sources_outside_previous_fingerprints": {
+      "RigidBodySimulation/tests/CameraLifecycleChecks.h": "62167db52e719e8dcae88b722305b9cf20a596177b3c3cc61c48fdd36614c894"
+    },
+    "source_and_build_evidence": [
+      {
+        "path": "logs/pre_editor/phase-30/viewport-input-01/source-review.json",
+        "sha256": "7fd8efbbce215c3a15e70166fc75efd8d4a112b675bbda3761daf15d33a2a8e1"
+      },
+      {
+        "path": "logs/pre_editor/phase-30/viewport-focus-01/status.json",
+        "sha256": "d8f885292b256e0f1cc2a878ff1d12f520555624e5877ae9a4567ab1c39cfb24"
+      },
+      {
+        "path": "logs/pre_editor/phase-30/viewport-hover-backend-01/status.json",
+        "sha256": "9da5a235874184b9b7434ecf2c283a496d743cb6147afb5531eb411c0dce54e0"
+      },
+      {
+        "path": "logs/pre_editor/phase-30/final-performance-01/preflight.json",
+        "sha256": "ed926957ab646d0fcf63f87b5e715a1ad3b0c46fe1546ed581844bec445092d8"
+      }
+    ],
+    "canonical_rbs": {
+      "path": "RigidBodySimulation/src/RigidBodySimulation.cpp",
+      "sha256": "1095d48e6cbddbd7fd5169e701a24b8a05d87b338a9ba3ada10604cac12cbf78"
+    },
+    "tracked_modes_matched": 897,
+    "compile_members": {
+      "GEngine": 150,
+      "RigidBodySimulation": 13
+    },
+    "startup_asset_members": 46,
+    "runtime_dll_count": 12,
+    "external_tool_and_library_pins_matched": 20,
+    "result": "Unchanged Physics inputs and the original binary identities carry forward. All 12 differences from the declared handoff inputs match the later reviewed candidate. The local publisher has its own exact-predecessor amendment."
+  },
+  "resources": {
+    "added_builds": 0,
+    "added_RBS_starts": 0,
+    "added_physics_steps": 0,
+    "additional_manual_reviews": 0,
+    "retained_ledger": {
+      "starts_this_verification": 1,
+      "attempted_step_reservation": 240,
+      "cumulative_starts": 16,
+      "cumulative_booked_attempts": 13560,
+      "retries": 0,
+      "actual_completed": 213,
+      "reconciled_attempts": 213,
+      "process_exit": 0,
+      "wall_seconds": 93.953,
+      "basis": "Per-frame completed steps reconcile to the positive completed-counter deltas. No terminal Step failure; normal exit."
+    }
+  },
+  "guard_recovery": {
+    "path": "docs/pre_editor/revisions/PHASE_30_PUBLICATION_GUARD_01/recovery.json",
+    "sha256": "393df1a6468b7191a83b9b06f5023bc4fac2e65cb6cd01072b943c8fdab0160d"
+  },
+  "amendment_manifests": {
+    "PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01": {
+      "path": "docs/pre_editor/active/PHASE_27_32_EDITOR_ACCEPTANCE_AMENDMENT_01/MANIFEST.json",
+      "sha256": "c9043e624d5a96c46714c7a8ddbd7a4f38f69276530e1d66919c172d13ce7551"
+    },
+    "PHASE_28_32_BOOK_AUTHORING_AMENDMENT_01": {
+      "path": "docs/pre_editor/active/PHASE_28_32_BOOK_AUTHORING_AMENDMENT_01/MANIFEST.json",
+      "sha256": "cfd1cc942ee941781494457f067c34adf59ef60c5e4a00fbe6c157024388f491"
+    },
+    "PHASE_28_32_DIRECT_AUTHORING_AMENDMENT_01": {
+      "path": "docs/pre_editor/active/PHASE_28_32_DIRECT_AUTHORING_AMENDMENT_01/MANIFEST.json",
+      "sha256": "6db868b934e5bd8f74414a171025415f3aadce280d5c0b18e9a3fb11f87ca39c"
+    }
+  }
+}

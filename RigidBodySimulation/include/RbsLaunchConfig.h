@@ -2,6 +2,7 @@
 
 #include "Core/LaunchConfig.h"
 #include "Physics/PhysicsBackend.h"
+#include "Physics/Constraints/BallSocketJoint.h"
 #include "Math/Math.h"
 #include <optional>
 #include <expected>
@@ -39,8 +40,15 @@ namespace Rbs
         HingeLimited,
         CvFree,
         CvLimited,
-        PassiveRagdoll
+        PassiveRagdoll,
+        MotorFree, MotorContact, MotorLimit
     };
+
+    constexpr bool IsMotorScene(RbsScenePreset scene) noexcept
+    {
+        return scene == RbsScenePreset::MotorFree || scene == RbsScenePreset::MotorContact ||
+               scene == RbsScenePreset::MotorLimit;
+    }
 
     struct SceneSelection
     {
@@ -60,7 +68,7 @@ namespace Rbs
         {
             return scene == RbsScenePreset::HingeBasic || scene == RbsScenePreset::HingeQuaternion ||
                    scene == RbsScenePreset::HingeLimited || scene == RbsScenePreset::CvFree ||
-                   scene == RbsScenePreset::CvLimited;
+                   scene == RbsScenePreset::CvLimited || IsMotorScene(scene);
         }
         [[nodiscard]] constexpr bool IsRagdollScene() const noexcept
         { return scene==RbsScenePreset::PassiveRagdoll; }
@@ -86,6 +94,9 @@ namespace Rbs
             case RbsScenePreset::HingeQuaternion:
             case RbsScenePreset::HingeLimited:
             case RbsScenePreset::CvFree:
+            case RbsScenePreset::MotorFree:
+            case RbsScenePreset::MotorContact:
+            case RbsScenePreset::MotorLimit:
             case RbsScenePreset::PassiveRagdoll:
             case RbsScenePreset::CvLimited: return true;
             case RbsScenePreset::DistanceChainContact: return chainLinks == 8;
@@ -103,7 +114,7 @@ namespace Rbs
     // Phase 28 authoring is app-owned session data, separate from the V1
     // SceneSelection drag payload and the borrowed immutable LaunchConfig.
     enum class AngularVariant : std::uint8_t { Air, Contact };
-    enum class AngularBodyKey : std::uint8_t { Anchor, Bar, Floor };
+    enum class AngularBodyKey : std::uint8_t { Anchor, Bar, Floor, Load };
     enum class AngularJointKey : std::uint8_t { Primary };
     enum class AngularField : std::uint8_t {
         Case, Variant, Identity, Body, Mass, Scale, Gravity, Frame, Limits,
@@ -131,6 +142,7 @@ namespace Rbs
         float lower{-GEngine::Math::Pi}, upper{GEngine::Math::Pi};
         float halfAngleU{GEngine::Math::Pi/4.f}, halfAngleV{GEngine::Math::Pi/4.f};
         bool limitsEnabled{}, collideConnected{};
+        std::optional<GEngine::HingeMotorSettings> motor;
         friend bool operator==(const AngularJointPacket&, const AngularJointPacket&) = default;
     };
     struct AngularPacket {

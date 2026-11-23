@@ -44,6 +44,9 @@ extern "C" const std::uint64_t g_Phase29CaptureConfiguration[] = {
 #elif defined(GENGINE_PHASE28_QUALIFICATION)
 #include "../tests/AngularJointChecks.h"
 #endif
+#ifdef GENGINE_PHASE30_QUALIFICATION
+#include "../tests/MotorChecks.h"
+#endif
 #include "../tests/ImpulseEditorChecks.h"
 #ifdef GENGINE_PHASE24_VALIDATION
 namespace PreEditorValidation { void ObservePhase24Frame(const ::GEngine::RenderFrame&); }
@@ -416,6 +419,12 @@ void RigidBodySimulationApp::Update(Timestep ts)
         simulationTime=Timestep(m_ActiveScene->GetPhysicsStep().count());
     }
 #endif
+#ifdef GENGINE_PHASE30_QUALIFICATION
+    if (Rbs::MotorChecks::Requested()) {
+        if (Rbs::MotorChecks::Run(*this)) ShutDown();
+        return;
+    }
+#endif
     { RBS_REVIEW_SCOPE(4); m_ActiveScene->Update(simulationTime); }
     auto* stepSystem=m_ActiveScene->GetPhysicsSystem();
     if (stepSystem->GetBackendFailure()) {
@@ -763,9 +772,12 @@ bool RigidBodySimulationApp::BindCameraScene(RefPtr<_Scene> scene)
     if (m_ActiveScene) Rbs::ResetColliderEditor(*m_ActiveScene, m_IsPause);
     m_ColliderOutlines.Clear();
     m_EditorSelection.Clear();
+    m_EditorSelection.anchor={};
     CancelViewportMarquee();
     m_HierarchyRevealed={};
-    m_HierarchySelectionHandoff=false;
+    m_ViewportOwnsSelection=false;
+    m_ViewportAwaitPointer=true;
+    m_VisibleSceneIconCount=0;
     m_OutlineToggleRequested = m_FrameOutlineToggle = false;
     m_ActiveScene = std::move(scene);
     m_EditorViewIdentity = *view;
@@ -787,6 +799,7 @@ void RigidBodySimulationApp::ClearOutlineHover()
 void RigidBodySimulationApp::PrepareOutlineHover()
 {
     m_FrameHoverPixel.reset();
+    if (!m_ViewportActive || m_ViewportAwaitPointer) return;
     if(m_CameraPilot){ClearOutlineHover();return;} // Selection is fixed during the Camera transaction.
     const auto& input=*GetInputManager();
     const auto& physical=input.GetPhysicalState();
@@ -858,6 +871,7 @@ ScheduleResult RigidBodySimulationApp::PrepareCameraFrame(RenderContext& context
                                                           FrameSceneInput& input, FrameCamera& camera)
 {
     const bool requestedPick = std::exchange(m_ViewPickRequested, false);
+    const auto clickPoint = std::exchange(m_ViewClickPoint, std::nullopt);
     m_FrameOutlineToggle = requestedPick && std::exchange(m_OutlineToggleRequested, false);
     m_CameraSnapshot.reset();
     m_FramePickPixel.reset();
@@ -959,7 +973,8 @@ ScheduleResult RigidBodySimulationApp::PrepareCameraFrame(RenderContext& context
         mouse.isButtonPressed(GEngineMouseCode::GENGINE_BUTTON_LEFT))
     {
         const auto localPoint = mouse.GetPosition();
-        const auto point = ScenePointerLogical(*GetWindow(),localPoint.x,localPoint.y);
+        const auto point = ScenePointerLogical(*GetWindow(), clickPoint ? clickPoint->x : localPoint.x,
+                                                             clickPoint ? clickPoint->y : localPoint.y);
         if(!point){ClearOutlineHover();return {};}
 #ifdef GENGINE_LIFECYCLE_PICK_TRACE
         auto pixel = m_CameraSnapshot->ReadbackPixelAt(*point);
@@ -1095,10 +1110,11 @@ void RigidBodySimulationApp::Render()
             Rbs::OwnerReviewDriver::Camera(p.app);
 #endif
             if (auto camera=p.app.PrepareCameraFrame(p.context,p.input,p.camera);!camera) return camera;
+            const bool showSelection = !p.app.SandboxEnabled() || p.app.m_ViewportOwnsSelection;
             if(p.app.m_HoveredEntity) {
                 const auto selected=p.app.m_ActiveScene->RenderData().Identify(p.app.m_HoveredEntity);
-                if(selected) p.input.targets.selectedEntity=*selected;
-                else p.app.m_HoveredEntity={};
+                if(!selected) p.app.m_HoveredEntity={};
+                else if(showSelection) p.input.targets.selectedEntity=*selected;
             } else p.app.m_HoveredEntity={};
             if(p.app.m_CameraSnapshot) {
                 const auto& viewport=p.app.m_CameraSnapshot->Description().viewport;
@@ -1118,9 +1134,11 @@ void RigidBodySimulationApp::Render()
             app.m_ColliderOutlines.Prune(physics);
             app.m_EditorSelection.Prune(app.m_ActiveScene->RenderData());
             static_assert(std::tuple_size_v<decltype(app.m_ColliderOutlines.entities)> == FrameSubmissionDesc::SelectionCapacity);
-            p.input.targets.selectedEntities = {app.m_ColliderOutlines.entities.data(), app.m_ColliderOutlines.count};
-            if(app.m_EditorSelection.count)
+            const auto selectedBodies = showSelection ? app.m_ColliderOutlines.count : 0;
+            if (showSelection && app.m_EditorSelection.count)
                 p.input.targets.selectedEntities = {app.m_EditorSelection.ids.data(),app.m_EditorSelection.count};
+            else
+                p.input.targets.selectedEntities = {app.m_ColliderOutlines.entities.data(),selectedBodies};
             p.input.targets.hoveredEntity=app.m_OutlineHoverEntity;
 #if defined(GENGINE_PHASE28_QUALIFICATION) && !defined(GENGINE_PHASE29_QUALIFICATION)
             Rbs::AngularJointChecks::PrepareOutlineDescriptor(app,p.input.targets);
@@ -1139,11 +1157,11 @@ void RigidBodySimulationApp::Render()
             }
 #endif
             const bool all = app.m_IsShowDebugBoundingBox;
-            const bool selected = app.m_ShowSelectedColliderOutlines && app.m_ColliderOutlines.count;
+            const bool selected = app.m_ShowSelectedColliderOutlines && selectedBodies;
             if (p.context.visible && (all || selected) && app.m_ColliderLayers.Any())
             {
                 const std::size_t capacity = (std::max)(std::size_t(32768),
-                    physics.GetPhysicsWorld()->GetBodyCount() * 512 + app.m_ColliderOutlines.count * 260 + 4096);
+                    physics.GetPhysicsWorld()->GetBodyCount() * 512 + selectedBodies * 260 + 4096);
                 if (app.m_ColliderDebugCapacity < capacity)
                 {
                     std::unique_ptr<FrameDebugLine[]> storage(new(std::nothrow) FrameDebugLine[capacity]);
@@ -1154,13 +1172,13 @@ void RigidBodySimulationApp::Render()
                 }
                 DebugGeometry geometry({app.m_ColliderDebugStorage.get(), app.m_ColliderDebugCapacity});
                 if (!physics.AppendDebugGeometry(geometry, app.m_ColliderLayers,
-                        {app.m_ColliderOutlines.bodies.data(), app.m_ColliderOutlines.count}, all))
+                        {app.m_ColliderOutlines.bodies.data(), selectedBodies}, all))
                     return std::unexpected(ScheduleError{FrameStage::BuildRenderFrame,
                         SubmissionError{"scoped Physics layers", SubmissionCode::InvalidDraw}});
                 // Diagnostic layers stay visible over opaque render meshes.
                 for (std::size_t i = 0; i < geometry.Lines().size(); ++i)
                     app.m_ColliderDebugStorage[i].depth = DebugDepth::Overlay;
-                if (app.m_ColliderLayers.colliders && app.m_ColliderOutlines.count)
+                if (app.m_ColliderLayers.colliders && selectedBodies)
                     if (!Rbs::AppendColliderEditorPreviews(*app.m_ActiveScene, app.m_ColliderOutlines, geometry))
                         return std::unexpected(ScheduleError{FrameStage::BuildRenderFrame,
                             SubmissionError{"selected candidate previews", SubmissionCode::InvalidDraw}});
@@ -1249,8 +1267,10 @@ void RigidBodySimulationApp::Render()
 void RigidBodySimulationApp::ClearColliderSelection()
 {
     ClearOutlineHover();
+    m_ViewportOwnsSelection = false;
     m_ColliderOutlines.Clear();
     m_EditorSelection.Clear();
+    m_EditorSelection.anchor={};
     CancelViewportMarquee();
     m_HoveredEntity = {};
     m_ViewPickRequested = m_OutlineToggleRequested = m_FrameOutlineToggle = false;

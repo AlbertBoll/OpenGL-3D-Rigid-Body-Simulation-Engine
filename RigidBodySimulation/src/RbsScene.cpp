@@ -1739,7 +1739,10 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeAngularScene(
             m_AngularBindings.entities[i]=m_AngularBindings.environmentEntities[0];
             continue; // One physical floor, supplied by the common room.
         }
-        const char* name=body.key==AngularBodyKey::Anchor?"Angular Anchor":
+        const bool dynamic = body.key == AngularBodyKey::Bar || body.key == AngularBodyKey::Load;
+        const char* name=packet.joint.motor ? (body.key==AngularBodyKey::Anchor ? "Motor Base" :
+            body.key==AngularBodyKey::Bar ? "Motor Bar" : "Contact Sphere") :
+            body.key==AngularBodyKey::Anchor?"Angular Anchor":
             body.key==AngularBodyKey::Bar?"Angular Bar":"Angular Contact Floor";
         auto created=CreatePresetEntity(31,name);
         if(!created)return std::unexpected(created.error());
@@ -1749,13 +1752,13 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeAngularScene(
         entity.AddOrReplaceComponent<Transform3DComponent>(body.center,Vec3f(0.f),scale);
         entity.GetComponent<Transform3DComponent>().SetRotation(body.orientation);
         RigidBody3DComponent rigid;
-        rigid.Type=body.key==AngularBodyKey::Bar?BodyType::Dynamic:
+        rigid.Type=dynamic?BodyType::Dynamic:
             body.kinematic?BodyType::Kinematic:BodyType::Static;
         entity.AddOrReplaceComponent<RigidBody3DComponent>(rigid);
         Fixture3DProperty properties;
         properties.m_Position=body.center;
         properties.m_Orientation=body.orientation;
-        properties.m_InvMass=body.key==AngularBodyKey::Bar?1.f/body.authoredMass:0.f;
+        properties.m_InvMass=dynamic?1.f/body.authoredMass:0.f;
         properties.m_Friction=body.friction;
         properties.m_Elasticity=body.restitution;
         properties.m_LinearVelocity=body.initialLinearVelocity;
@@ -1809,6 +1812,7 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeAngularScene(
     joint.angular.halfAngleU=packet.joint.halfAngleU;
     joint.angular.halfAngleV=packet.joint.halfAngleV;
     joint.angular.limitsEnabled=packet.joint.limitsEnabled;
+    joint.angular.motor=packet.joint.motor;
     auto created=world->CreateJoint(joint);
     if(!created)return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"Angular scene","Typed angular joint creation rejected"});
     m_AngularBindings.joint=*created;
@@ -1818,14 +1822,14 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeAngularScene(
     m_ChainImpulse.Bind(m_AngularBindings.bodies[1],true);
     const auto target=m_AngularBindings.bodies[1];
     const auto actions=packet.scheduledImpulses;
-    physics->SetBeforeStep([this,physics,target,actions](PhysicsWorld& w,std::uint64_t tick){
+    physics->SetBeforeStep([this,physics,target,actions,motor=packet.joint.motor.has_value()](PhysicsWorld& w,std::uint64_t tick){
         if(physics->HasJointFailure())
         {FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Physics","AngularJoint","Update","Phase28","Joint numerical failure"});return;}
         bool appOwnsActions=true;
 #ifdef GENGINE_PHASE28_QUALIFICATION
         appOwnsActions=!Rbs::Phase28AngularOwnsActions();
 #endif
-        if(appOwnsActions && ((tick==60 && !w.ApplyLinearImpulse(target,actions[0])) ||
+        if(!motor && appOwnsActions && ((tick==60 && !w.ApplyLinearImpulse(target,actions[0])) ||
            (tick==300 && !w.ApplyLinearImpulse(target,actions[1]))))
         {FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Physics","AngularJoint","Impulse","Phase28","Scheduled impulse rejected"});return;}
         m_ChainImpulse.Consume(w,m_ActiveScene->IsPaused());
@@ -1838,8 +1842,11 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeAngularScene(
     FocusMaterialCamera(m_EditorCamera_,pivot-packet.bodies[1].orientation*Vec3f{0,packet.bodies[1].halfExtents.y,0},.18f,yaw,11.f);
     m_IsShowDebugBoundingBox=false;m_ShowSelectedColliderOutlines=false;
     if(auto handlers=ConnectApplicationEventHandlers();!handlers)return handlers;
+    const char* variant=packet.scene==Rbs::RbsScenePreset::MotorContact ? "contact" :
+        packet.scene==Rbs::RbsScenePreset::MotorLimit ? "limit" : packet.scene==Rbs::RbsScenePreset::MotorFree ? "free" :
+        packet.variant==Rbs::AngularVariant::Contact ? "contact" : "air";
     Log::GetCoreLogger()->info("RBS angular scene={} variant={} backend={} bodies={} joints={} fixedHz=60 environment={}",
-        Rbs::SceneName(packet.scene),packet.variant==Rbs::AngularVariant::Contact?"contact":"air",
+        Rbs::SceneName(packet.scene),variant,
         PhysicsBackendName(m_Backend),world->GetBodyCount(),world->GetJointCount(),
         SandboxEnabled()?"sandbox-v1":"frozen-book-fixture");
     return {};
@@ -1853,7 +1860,8 @@ ApplicationInitializationResult RigidBodySimulationApp::VerifyAngularCandidate(c
     {return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"Angular readback",why});};
     const auto room=Rbs::SandboxEnvironment::Boxes();
     const bool sandbox=SandboxEnabled();
-    const std::size_t expectedBodyCount=sandbox?2+room.size():packet.bodyCount;
+    const std::size_t expectedBodyCount=sandbox ? room.size()+2+
+        (packet.scene==Rbs::RbsScenePreset::MotorContact ? 1 : 0) : packet.bodyCount;
     if(!world || world->GetBackend()!=m_Backend || m_AngularBindings.bodyCount!=packet.bodyCount ||
         world->GetBodyCount()!=expectedBodyCount || world->GetJointCount()!=1 ||
         world->GetGravity()!=packet.gravity || m_ActiveScene->GetPhysicsStep().count()!=packet.fixedStepSeconds)
@@ -1867,6 +1875,13 @@ ApplicationInitializationResult RigidBodySimulationApp::VerifyAngularCandidate(c
             expected=packet.bodies[i];
             if(sandbox && expected.key==Rbs::AngularBodyKey::Floor)continue;
             handle=m_AngularBindings.bodies[i];
+            if (authoring && expected.key==Rbs::AngularBodyKey::Load) {
+                const auto id=m_AngularBindings.entities[i];
+                const auto found=std::find_if(authoring->m_Bodies.begin(),authoring->m_Bodies.end(),
+                    [&](const auto& b){return authoring->Rebound(b.m_FixtureEntity)==id;});
+                if (found==authoring->m_Bodies.end()) return failure("Contact sphere lost its committed body");
+                continue; // ApplyAfterStart verified this independently authored body against the provider.
+            }
         }
         else
         {
@@ -1895,7 +1910,7 @@ ApplicationInitializationResult RigidBodySimulationApp::VerifyAngularCandidate(c
                 continue;
             }
         }
-        const bool dynamic=expected.key==Rbs::AngularBodyKey::Bar;
+        const bool dynamic=expected.key==Rbs::AngularBodyKey::Bar || expected.key==Rbs::AngularBodyKey::Load;
         auto state=world->ReadEffectiveBody(handle);
         auto properties=world->ReadBodyProperties(handle);
         const auto finiteMatrix=[](const Mat3& value){
@@ -1954,6 +1969,7 @@ ApplicationInitializationResult RigidBodySimulationApp::VerifyAngularCandidate(c
         actual->descriptor.angular.upper!=packet.joint.upper ||
         actual->descriptor.angular.halfAngleU!=packet.joint.halfAngleU ||
         actual->descriptor.angular.halfAngleV!=packet.joint.halfAngleV ||
+        actual->descriptor.angular.motor!=packet.joint.motor ||
         actual->descriptor.angular.limitsEnabled!=packet.joint.limitsEnabled)
         return failure("Authoritative angular descriptor readback mismatch");
     return {};

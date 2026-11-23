@@ -1,0 +1,68 @@
+--- a/.codex/tools/rendering_checkpoint.py
++++ b/.codex/tools/rendering_checkpoint.py
+@@ -511,0 +512,46 @@
++PHASE30_ARCHIVE = 'ffa89a2708f34e8c0c194c1201728b565e2ba447'
++PHASE30_AUTHORITY = 'docs/pre_editor/evidence/phase-30-publication-predecessor-01.json'
++PHASE30_AUTHORITY_SHA256 = '42b8d01b6f9472ee69dd2c488453f8253b6a31ff7023ff8e6255bd464480f789'
++
++
++def phase30_archive_gate(repo, baseline, state):
++    # The Phase 29 archive has an Owner milestone tag and no formal checkpoint.
++    raw = repo.path(PHASE30_AUTHORITY).read_bytes()
++    require(digest(raw) == PHASE30_AUTHORITY_SHA256, 'Phase30 publication authority changed')
++    h = json.loads(raw)
++    require(WORKFLOW == h['workflow'] and baseline == PHASE30_ARCHIVE == h['baseline']
++            and h['phase'] == '30', 'Phase30 requires the exact Phase29 archive')
++    require(state['Current approved phase'] == '28' and state['Current approved tag'] == h['previous_tag']
++            and state['Next expected phase'] == '29', 'Phase30 requires the original Phase28/next29 state')
++    require(repo.text('branch', '--show-current') == state['Refactor branch'] == h['branch']
++            and state['Configured remote'] == h['remote']
++            and repo.push_destination(h['remote']) == h['destination'], 'Phase30 archive destination changed')
++    require(repo.text('show', '-s', '--format=%T %P', baseline) == h['tree'] + ' ' + h['sole_parent'],
++            'Phase29 archive tree or sole approved parent changed')
++    for tag, oid, commit in ((h['archive_tag'], h['archive_tag_object'], baseline),
++                             (h['previous_tag'], h['previous_tag_object'], h['sole_parent'])):
++        ref = 'refs/tags/' + tag
++        require(repo.text('cat-file', '-t', ref) == 'tag' and repo.text('rev-parse', ref) == oid
++                and repo.text('rev-parse', ref+'^{commit}') == commit, 'Handoff tag changed: ' + tag)
++    require(repo.git('show-ref', '--verify', '--quiet', 'refs/tags/pre-editor-phase-29-approved',
++                     allow_failure=True).returncode == 1 and not repo.journal('29').exists()
++            and not repo.path('pre-editor-checkpoints/phase-29.json').exists(),
++            'The Phase29 formal checkpoint disposition changed')
++    previous = repo.load('28')
++    tx = previous.get('transaction') or {}
++    require(previous['status'] == 'COMPLETE' and previous['receipt'] == h['previous_receipt']['path']
++            and previous['push_destination'] == h['destination'] and tx.get('commit') == h['sole_parent']
++            and tx.get('branch_pushed') is True and tx.get('tag_pushed') is True,
++            'The approved Phase28 predecessor publication is incomplete')
++    for role in ('previous_receipt', 'archive_owner_decision', 'archive_evidence', 'entry_amendment',
++                 'entry_activation', 'phase_approval', 'cost_authorization'):
++        item = h[role]
++        require(digest(repo.path(item['path']).read_bytes()) == item['sha256'], 'Handoff input changed: ' + role)
++        if 'git_blob' in item:
++            require(repo.text('rev-parse', baseline + ':' + item['path']) == item['git_blob'],
++                    'Archive evidence blob changed: ' + role)
++    return {'authorization': PHASE30_AUTHORITY, 'authorization_sha256': PHASE30_AUTHORITY_SHA256,
++            'archive_commit': baseline, 'archive_tag': h['archive_tag'], 'archive_tag_object': h['archive_tag_object'],
++            'previous_approved_tag': h['previous_tag'], 'phase29_formal_checkpoint': h['phase29_formal_checkpoint']}
++
++
+@@ -517 +563,3 @@
+-    require(state['Next expected phase'] == phase or (frozen22 and state['Next expected phase'] == '21'),
++    archive30 = WORKFLOW == 'pre-editor' and phase == '30' and baseline == PHASE30_ARCHIVE
++    require(state['Next expected phase'] == phase or (frozen22 and state['Next expected phase'] == '21')
++            or (archive30 and state['Next expected phase'] == '29'),
+@@ -524,0 +573,2 @@
++        elif phase == '30':
++            phase30_archive_gate(repo, baseline, state)
+@@ -644,0 +695,3 @@
++    if WORKFLOW == 'pre-editor' and phase == '30':
++        require(PHASE30_AUTHORITY in owned and inputs.get(PHASE30_AUTHORITY, {}).get('sha256') == PHASE30_AUTHORITY_SHA256,
++                'Phase30 predecessor authority must be bound and published with the checkpoint')
+@@ -684,0 +738,2 @@
++    elif WORKFLOW == 'pre-editor' and phase == '30':
++        public['baseline_handoff'] = phase30_archive_gate(repo, spec['baseline'], state)
+@@ -734,0 +790,3 @@
++    if WORKFLOW == 'pre-editor' and m['phase'] == '30':
++        require(public.get('baseline_handoff') == phase30_archive_gate(repo, m['baseline'], m['state']),
++                'Phase30 sealed archive handoff changed')

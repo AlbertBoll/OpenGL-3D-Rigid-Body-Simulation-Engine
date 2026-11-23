@@ -413,7 +413,7 @@ namespace GEngine
         // limit becomes active only after the angle has crossed an authored
         // bound, so one transient SDK angle row catches an impending crossing
         // after the native point/axis velocity solve in the same iteration.
-        class BookHingeConstraint final : public JPH::TwoBodyConstraint
+        class BookHingeConstraint : public JPH::TwoBodyConstraint
         {
         public:
             JPH_OVERRIDE_NEW_DELETE
@@ -435,6 +435,7 @@ namespace GEngine
             bool SolveVelocityConstraint(float dt) override
             {
                 bool changed=mNative.SolveVelocityConstraint(dt);
+                if (!mNative.HasLimits()) return changed;
                 const float angle=mNative.GetCurrentAngle();
                 const float lower=mNative.GetLimitsMin(),upper=mNative.GetLimitsMax();
                 if(angle>lower && angle<upper && mStepDeltaTime>0)
@@ -489,12 +490,85 @@ namespace GEngine
                 return settings;
             }
             const JPH::HingeConstraint& Native() const noexcept {return mNative;}
-        private:
+        protected:
             JPH::HingeConstraint mNative;
+            int DrivenLimitSide() const {
+                if (mSide && mGuard.GetTotalLambda()!=0.f) return mSide;
+                const float lambda=mNative.GetTotalLambdaRotationLimits();
+                return lambda>0.f ? -1 : lambda<0.f ? 1 : 0;
+            }
+        private:
             JPH::AngleConstraintPart mGuard;
             JPH::Vec3 mAxis{};
             float mStepDeltaTime{},mBias{};
             int mSide{};
+        };
+
+        // The pinned hinge applies its motor first in BOTH velocity calls. All
+        // other rows can change speed afterwards, so sample speed on entry.
+        class PoweredHinge final : public BookHingeConstraint
+        {
+        public:
+            JPH_OVERRIDE_NEW_DELETE
+            PoweredHinge(JPH::Body& a, JPH::Body& b, const JPH::HingeConstraintSettings& hinge,
+                         const HingeMotorSettings& drive) : BookHingeConstraint(a, b, hinge) { Configure(drive); }
+
+            void Configure(const HingeMotorSettings& drive) {
+                ResetWarmStart();
+                mNative.GetMotorSettings().SetTorqueLimit(drive.maxTorque);
+                mNative.SetTargetAngularVelocity(drive.targetVelocity);
+                mNative.SetMotorState(drive.enabled ? JPH::EMotorState::Velocity : JPH::EMotorState::Off);
+            }
+            void ResetWarmStart() override {
+                BookHingeConstraint::ResetWarmStart();
+                pending = completed = {};
+            }
+            void SetupVelocityConstraint(float dt) override {
+                BookHingeConstraint::SetupVelocityConstraint(dt);
+                axis = mBody1->GetRotation() * mNative.GetLocalSpaceHingeAxis1();
+                auto response = [&](const JPH::Body& body) {
+                    return body.IsDynamic() ? body.GetMotionProperties()->MultiplyWorldSpaceInverseInertiaByVector(
+                        body.GetRotation(), axis) : JPH::Vec3::sZero();
+                };
+                inverseInertia = axis.Dot(response(*mBody1) + response(*mBody2));
+            }
+            void WarmStartVelocityConstraint(float ratio) override {
+                const float speed = Speed();
+                BookHingeConstraint::WarmStartVelocityConstraint(ratio);
+                Record(speed, 0.f);
+            }
+            bool SolveVelocityConstraint(float dt) override {
+                const float speed = Speed(), previous = mNative.GetTotalLambdaMotor();
+                const bool changed = BookHingeConstraint::SolveVelocityConstraint(dt);
+                Record(speed, previous);
+                pending.limitSide=DrivenLimitSide();
+                return changed;
+            }
+            bool ValidStep(float dt) const noexcept {
+                const float cap=mNative.GetMotorState()==JPH::EMotorState::Velocity ? dt*mNative.GetMotorSettings().mMaxTorqueLimit : 0.f;
+                return std::isfinite(pending.work) && std::isfinite(pending.impulse) && std::isfinite(pending.peakAccumulated) &&
+                       pending.peakAccumulated<=cap;
+            }
+            void Complete(float dt) noexcept {
+                completed = pending;
+                completed.impulseCap = mNative.GetMotorState() == JPH::EMotorState::Velocity
+                    ? dt * mNative.GetMotorSettings().mMaxTorqueLimit : 0.f;
+                completed.valid = true;
+                pending = {};
+            }
+            const HingeMotorSample& Sample() const noexcept { return completed; }
+        private:
+            float Speed() const { return axis.Dot(mBody2->GetAngularVelocity() - mBody1->GetAngularVelocity()); }
+            void Record(float speed, float previous) {
+                const float total = mNative.GetTotalLambdaMotor();
+                const double j = double(total) - previous;
+                pending.impulse = total;
+                pending.peakAccumulated = std::max(pending.peakAccumulated, std::abs(total));
+                pending.work += j * (speed + .5 * j * inverseInertia);
+            }
+            JPH::Vec3 axis = JPH::Vec3::sZero();
+            float inverseInertia{};
+            HingeMotorSample pending{}, completed{};
         };
 
         const JPH::HingeConstraint* NativeHinge(const JPH::TwoBodyConstraint* constraint) noexcept
@@ -909,6 +983,7 @@ namespace GEngine
             JointKind m_Kind{JointKind::Distance};
             JPH::Ref<JPH::TwoBodyConstraint> m_Constraint;
             bool m_AngularImpulseValid{};
+            PoweredHinge* m_Motor{}; // Borrowed from m_Constraint until joint retirement.
         };
 
         class JoltWorld final : public WorldBackend
@@ -919,6 +994,7 @@ namespace GEngine
             std::array<BodyRecord,BodyCapacity> m_Bodies{};
             std::array<std::bitset<BodyCapacity>,BodyCapacity> m_Suppressed{};
             std::array<JointRecord,PhysicsWorld::MaxDistanceJoints> m_Joints{};
+            std::size_t m_PoweredJointCount{};
             struct Synchronization {
                 BodyRecord* record{};
                 PreparedBackendMass mass{};
@@ -1501,6 +1577,10 @@ namespace GEngine
                 if (mask & static_cast<std::uint32_t>(JPH::EPhysicsUpdateError::ContactResistanceInvalid))
                     return sdkFault(PhysicsBodyErrorCode::NonFiniteResult,"Jolt authored contact resistance failed");
                 if (mask) return sdkFault(PhysicsBodyErrorCode::Capacity,"Jolt collision capacity exceeded");
+                if (m_PoweredJointCount) for (const auto& joint : m_Joints)
+                    if (joint.m_Motor && !joint.m_Motor->ValidStep(dt))
+                        return std::unexpected(PhysicsStepFailure{{PhysicsBodyErrorCode::JointSolveFailed,{},
+                            "Jolt hinge motor impulse or work"},PhysicsStepStage::Publication,0,joint.m_Handle.index});
                 const double observedMs = m_Diagnostic ?
                     std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-timingStart).count() : 0.0;
                 std::size_t liveCount = 0;
@@ -1543,10 +1623,12 @@ namespace GEngine
                 // Row lambdas are a provider measurement only after a completed
                 // active update. Creation, reset, retirement, and sleeping do not
                 // advertise stale or fabricated impulse samples.
-                for(auto& joint:m_Joints)if(joint.m_Constraint &&
-                    (joint.m_Kind==JointKind::ConstantVelocity ||
-                     joint.m_Kind==JointKind::LimitedConstantVelocity))
-                    joint.m_AngularImpulseValid=joint.m_Constraint->IsActive();
+                for (auto& joint : m_Joints) {
+                    if (joint.m_Motor) joint.m_Motor->Complete(dt);
+                    else if (joint.m_Constraint && (joint.m_Kind == JointKind::ConstantVelocity ||
+                             joint.m_Kind == JointKind::LimitedConstantVelocity))
+                        joint.m_AngularImpulseValid = joint.m_Constraint->IsActive();
+                }
 #ifdef GENGINE_JOLT_FINAL_AUDIT
                 JoltAudit::ns[4]+=JoltAudit::Now()-auditPublish;
                 JoltAudit::bodyVisits+=m_Bodies.size()*2+liveCount;
@@ -1639,7 +1721,11 @@ namespace GEngine
                     settings.mHingeAxis2=frameB.RotateAxisX();settings.mNormalAxis2=frameB.RotateAxisY();
                     if(desc.angular.limitsEnabled)
                     {settings.mLimitsMin=desc.angular.lower;settings.mLimitsMax=desc.angular.upper;}
-                    joint.m_Constraint=desc.angular.limitsEnabled?
+                    if (desc.angular.motor) {
+                        joint.m_Motor = new PoweredHinge(*a.m_Body, *b.m_Body, settings, *desc.angular.motor);
+                        joint.m_Constraint = joint.m_Motor;
+                        ++m_PoweredJointCount;
+                    } else joint.m_Constraint=desc.angular.limitsEnabled?
                         static_cast<JPH::TwoBodyConstraint*>(new BookHingeConstraint(*a.m_Body,*b.m_Body,settings)):
                         static_cast<JPH::TwoBodyConstraint*>(new JPH::HingeConstraint(*a.m_Body,*b.m_Body,settings));
                 }
@@ -1687,6 +1773,9 @@ namespace GEngine
                     result.angular.lower=hinge->GetLimitsMin();
                     result.angular.upper=hinge->GetLimitsMax();
                     result.angular.limitsEnabled=hinge->HasLimits();
+                    if (joint.m_Motor) result.angular.motor = HingeMotorSettings{
+                        hinge->GetMotorState() == JPH::EMotorState::Velocity, hinge->GetTargetAngularVelocity(),
+                        hinge->GetMotorSettings().mMaxTorqueLimit};
                 }
                 else
                 {
@@ -1702,6 +1791,22 @@ namespace GEngine
                 if(!AngularJoint::Valid(result))
                     return std::unexpected(JointError{JointErrorCode::NonFinite,handle,"Jolt angular provider readback"});
                 return result;
+            }
+            JointResult<> SetHingeMotor(PhysicsJointHandle h, const HingeMotorSettings& drive) override
+            {
+                if (h.index >= m_Joints.size() || m_Joints[h.index].m_Handle != h)
+                    return std::unexpected(JointError{JointErrorCode::StaleHandle,h,"Jolt SetHingeMotor"});
+                auto& joint = m_Joints[h.index];
+                if (!joint.m_Motor || !drive.Valid())
+                    return std::unexpected(JointError{JointErrorCode::InvalidGeometry,h,"Jolt SetHingeMotor"});
+                joint.m_Motor->Configure(drive);
+                return {};
+            }
+            HingeMotorSample MotorSample(PhysicsJointHandle h) const noexcept override
+            {
+                if (h.index >= m_Joints.size()) return {};
+                const auto& joint = m_Joints[h.index];
+                return joint.m_Handle == h && joint.m_Motor ? joint.m_Motor->Sample() : HingeMotorSample{};
             }
             Vec3f JointVectorImpulse(PhysicsJointHandle handle) const noexcept override
             {
@@ -1746,6 +1851,7 @@ namespace GEngine
             {
                 if(handle.index>=m_Joints.size())return;
                 auto& joint=m_Joints[handle.index];if(joint.m_Handle!=handle || !joint.m_Constraint)return;
+                if (joint.m_Motor) --m_PoweredJointCount;
                 auto desc=joint.m_Desc;m_Physics.RemoveConstraint(joint.m_Constraint);joint={};if (!m_Retiring) RefreshPair(desc);
             }
             void ResetJoint(PhysicsJointHandle handle) noexcept override

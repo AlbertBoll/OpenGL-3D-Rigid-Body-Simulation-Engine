@@ -49,7 +49,8 @@ namespace
         {Rbs::RbsScenePreset::HingeLimited,"Limited Hinge"},
         {Rbs::RbsScenePreset::CvFree,"Constant Velocity"},
         {Rbs::RbsScenePreset::CvLimited,"Limited Constant Velocity"},
-        {Rbs::RbsScenePreset::PassiveRagdoll,"Passive Ragdoll"}
+        {Rbs::RbsScenePreset::PassiveRagdoll,"Passive Ragdoll"},
+        {Rbs::RbsScenePreset::MotorFree,"Motors"}
     };
     const char* AngularPresetWidgetKey(Rbs::RbsScenePreset preset)
     {
@@ -229,6 +230,13 @@ void RigidBodySimulationApp::DrawSceneSelectionControls()
         if(ImGui::Combo("Links",&index,"4\0" "8\0" "16\0"))m_PendingSelection.chainLinks=std::array{4u,8u,16u}[index];
         ImGui::EndDisabled();
     }
+    if (Rbs::IsMotorScene(m_PendingSelection.scene)) {
+        const std::array cases{Rbs::RbsScenePreset::MotorFree,Rbs::RbsScenePreset::MotorContact,Rbs::RbsScenePreset::MotorLimit};
+        int index = int(std::find(cases.begin(),cases.end(),m_PendingSelection.scene) - cases.begin());
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(Rbs::Editor::Px(90));
+        if (ImGui::Combo("Motor case",&index,"Free\0Contact\0Limit\0")) m_PendingSelection.scene=cases[index];
+    }
     if(m_PendingSelection.scene==Rbs::RbsScenePreset::HingeLimited ||
        m_PendingSelection.scene==Rbs::RbsScenePreset::CvLimited)
     {
@@ -314,7 +322,7 @@ bool RigidBodySimulationApp::ExecuteSelectionCommand(Rbs::Editor::SelectionComma
             m_PropertyDiagnostic="Selection rejected: stale identity, allocation failure or 4096-entity renderer budget. Previous selection retained.";return false;
         }
         SynchronizeEditorSelection();m_HierarchyRevealed=m_ActiveScene->RenderData().Identify(m_HoveredEntity).value_or(EntityRenderId{});
-        m_HierarchySelectionHandoff=true;return true;
+        return true;
     } catch(const std::bad_alloc&) {m_PropertyDiagnostic="Selection allocation failed; previous selection retained.";return false;}
 }
 
@@ -474,9 +482,6 @@ void RigidBodySimulationApp::DrawHierarchyRegion()
             if(ImGui::IsItemClicked() && onName && m_RenameTarget!=n.identity && !ImGui::IsItemToggledOpen())
             {
                 clicked=n.identity;m_HierarchyFocusedGroup=int(n.group);m_HierarchySphereCohort=sphere(entity);
-                // Keep keyboard focus in Hierarchy; the next routed View click can
-                // activate AND select. No UI click is forwarded to the camera.
-                m_HierarchySelectionHandoff=true;
             }
             if(ImGui::IsItemHovered() && ImGui::GetMousePos().x>ImGui::GetItemRectMax().x-E::Px(20))
                 ImGui::SetTooltip("%s",n.name.data());
@@ -643,8 +648,11 @@ void RigidBodySimulationApp::DrawContentBrowser()
     if(m_ActiveSelection.IsAngularScene() && m_Angular.committed)
     {
         ImGui::SameLine();
-        ImGui::TextDisabled("%s | revision %llu",
-            m_Angular.committed->variant==Rbs::AngularVariant::Contact?"Contact":"Air",
+        const auto scene=m_Angular.committed->scene;
+        const char* variant=scene==Rbs::RbsScenePreset::MotorFree ? "Free" :
+            scene==Rbs::RbsScenePreset::MotorContact ? "Contact" : scene==Rbs::RbsScenePreset::MotorLimit ? "Limit" :
+            m_Angular.committed->variant==Rbs::AngularVariant::Contact ? "Contact" : "Air";
+        ImGui::TextDisabled("%s | revision %llu",variant,
             static_cast<unsigned long long>(m_Angular.revision));
         if(m_Angular.dirty)ImGui::TextWrapped("Apply or Revert pending edits before changing the scene, variant or backend.");
     }
@@ -688,13 +696,15 @@ void RigidBodySimulationApp::DrawContentBrowser()
             ImGui::TableNextColumn();
             ImGui::PushID(static_cast<int>(card.preset));
             const auto start = ImGui::GetCursorPos();
-            const bool selected = m_PendingSelection.scene == card.preset;
+            const auto scene = Rbs::IsMotorScene(card.preset) && Rbs::IsMotorScene(m_PendingSelection.scene)
+                ? m_PendingSelection.scene : card.preset;
+            const bool selected = m_PendingSelection.scene == scene;
             const bool chosen=ImGui::Selectable("##Preset", selected, ImGuiSelectableFlags_AllowDoubleClick,
                 {cell - E::Px(8), cardHeight});
             if(const char* key=AngularPresetWidgetKey(card.preset))RBS_PHASE28_WIDGET(key);
             if(chosen)
             {
-                m_PendingSelection.scene = card.preset;
+                m_PendingSelection.scene = scene;
                 if (card.preset == Rbs::RbsScenePreset::DistanceChainContact) m_PendingSelection.chainLinks = 8;
                 if(card.preset!=Rbs::RbsScenePreset::HingeLimited && card.preset!=Rbs::RbsScenePreset::CvLimited)
                     m_PendingAngularVariant=Rbs::AngularVariant::Air;
@@ -708,7 +718,7 @@ void RigidBodySimulationApp::DrawContentBrowser()
             }
             if(ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
             {
-                const Rbs::ScenePresetPayload payload{1,{card.preset,card.preset==Rbs::RbsScenePreset::DistanceChainContact?8u:m_PendingSelection.chainLinks}};
+                const Rbs::ScenePresetPayload payload{1,{scene,scene==Rbs::RbsScenePreset::DistanceChainContact?8u:m_PendingSelection.chainLinks}};
                 ImGui::SetDragDropPayload(Rbs::ScenePresetPayloadType,&payload,sizeof(payload));
                 ImGui::Text("Load %s",card.title);ImGui::EndDragDropSource();
             }

@@ -2,6 +2,7 @@
 #include "RbsEditorWidgets.h"
 #include "RbsEditorState.h"
 #include "RbsLoadingScreen.h"
+#include <imgui/imgui_impl_sdl.h>
 #include "Core/Log.h"
 #include "Core/Window.h"
 #include "Core/RuntimeAssets.h"
@@ -377,11 +378,12 @@ bool RigidBodySimulationApp::ResetSceneInteraction()
     m_ViewportActive = m_ViewportRequestFocus = m_ViewportHighlightPending = false;
     m_ViewportFocused = m_ViewportHovered = false;
     m_ViewportForcused = false;
-    m_ViewportNavWindow = 0;
     m_ViewportAltGestureConsumed = false;
     m_ViewportActivationButtons = 0;
     m_ViewportHighlightStart = -1;
-    m_HierarchySelectionHandoff=false;
+    m_ViewportOwnsSelection=false;
+    m_ViewportAwaitPointer=true;
+    m_VisibleSceneIconCount=0;
     m_HierarchyRevealed={};
     m_ColliderDebugStorage.reset();
     m_ColliderDebugCapacity = 0;
@@ -488,6 +490,16 @@ bool RigidBodySimulationApp::RequestAngularApply()
     {m_Angular.diagnostic="Apply rejected: enter Edit/Ready, retain the current generation and resolve pending requests.";return false;}
     if(auto valid=Rbs::ValidateAngularPacket(*m_Angular.draft,m_Backend);!valid)
     {m_Angular.diagnostic=std::string(valid.error().message);return false;}
+    if (m_Angular.draft->joint.motor && !m_SceneDefaultsPending) {
+        auto structural = *m_Angular.draft;
+        structural.joint.motor = m_Angular.committed->joint.motor;
+        if (structural == *m_Angular.committed) {
+            m_PendingMotor = MotorCommand{m_AngularBindings.joint,*m_Angular.draft->joint.motor,
+                                         m_SceneGeneration,m_Angular.revision};
+            m_Angular.diagnostic="Drive queued for the next simulation boundary.";
+            return true;
+        }
+    }
     m_AngularRequest=AngularCandidate{*m_Angular.draft,m_SceneGeneration,m_Angular.revision,true};
     m_SceneRequest=m_ActiveSelection;
     m_Angular.diagnostic="Apply queued; the full candidate will rebuild at Tick 0.";
@@ -498,6 +510,7 @@ void RigidBodySimulationApp::RevertAngularDraft()
 {
     if(!m_Angular.committed || m_SceneRequest)return;
     m_SceneDefaultsPending=false;
+    m_PendingMotor.reset();
     m_Angular.draft=m_Angular.committed;
     m_Angular.draftBaseRevision=m_Angular.revision;
     m_Angular.draftGeneration=m_SceneGeneration;
@@ -930,8 +943,36 @@ bool RigidBodySimulationApp::RequestBackend(PhysicsBackend backend)
     return true;
 }
 
+void RigidBodySimulationApp::ApplyPendingMotor()
+{
+    const auto command = *std::exchange(m_PendingMotor,std::nullopt);
+    if (!m_ActiveScene || m_SceneRequest || !m_Angular.committed || !m_Angular.draft ||
+        command.generation != m_SceneGeneration || command.revision != m_Angular.revision ||
+        command.joint != m_AngularBindings.joint) {
+        m_Angular.diagnostic="Drive request expired when the scene or joint changed.";
+        return;
+    }
+    auto* system = m_ActiveScene->GetPhysicsSystem();
+    auto* world = system ? system->GetPhysicsWorld() : nullptr;
+    if (!world || !world->SetHingeMotor(command.joint,command.settings)) {
+        m_Angular.diagnostic="The physics provider rejected the drive command.";
+        return;
+    }
+    const auto state = world->ReadJoint(command.joint);
+    if (!state || state->descriptor.angular.motor != command.settings) {
+        FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Physics","HingeMotor","Apply",
+                     "ReadJoint","Provider drive readback disagrees with the applied command"});
+        return;
+    }
+    m_Angular.committed->joint.motor = state->descriptor.angular.motor;
+    m_Angular.draftBaseRevision = ++m_Angular.revision;
+    m_Angular.dirty = *m_Angular.draft != *m_Angular.committed;
+    m_Angular.diagnostic="Drive applied and verified on the current hinge.";
+}
+
 void RigidBodySimulationApp::ProcessSceneRequest()
 {
+    if (m_PendingMotor) ApplyPendingMotor();
     if (!SandboxEnabled() || !m_SceneRequest) return;
     const auto requested = *std::exchange(m_SceneRequest, std::nullopt);
     const auto angularCandidate=std::exchange(m_AngularRequest,std::nullopt);
@@ -1247,8 +1288,8 @@ RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProperties>
             // Loading presentation may have opened imgui.ini before RBS registered its handler.
             if (const char* ini = ImGui::GetIO().IniFilename; ini && *ini)
                 ImGui::LoadIniSettingsFromDisk(ini);
-            if (!m_Launch.m_BackendExplicit && Rbs::Editor::SavedBackend)
-                m_Backend = m_PendingBackend = *Rbs::Editor::SavedBackend;
+            if (!m_Launch.m_BackendExplicit && Rbs::Editor::StartupBackend)
+                m_Backend = m_PendingBackend = *Rbs::Editor::StartupBackend;
             if (!PhysicsBackendAvailable(m_Backend))
                 return std::unexpected(PlatformError{PlatformErrorCode::Initialization,
                     "Physics backend", "Requested backend unavailable"});
@@ -1317,6 +1358,7 @@ void RigidBodySimulationApp::SetViewportActive(bool active, bool cancelInput)
     m_ViewportActive = active;
     if (active)
     {
+        m_ViewportAwaitPointer = true;
         m_ViewportRequestFocus = m_ViewportHighlightPending = true;
 #ifdef GENGINE_LIFECYCLE_VALIDATION
         ++m_ViewportActivations;
@@ -1326,7 +1368,14 @@ void RigidBodySimulationApp::SetViewportActive(bool active, bool cancelInput)
     m_ViewportRequestFocus = m_ViewportHighlightPending = false;
     m_ViewportHighlightStart = -1;
     m_ViewportActivationButtons = 0;
-    m_ViewPickRequested = false;
+    m_ViewportOwnsSelection = false;
+    m_ViewportAwaitPointer = true;
+    m_ViewPickRequested = m_OutlineToggleRequested = m_FrameOutlineToggle = false;
+    m_FramePickPixel.reset();
+    ClearOutlineHover();
+    if (m_Marquee.armed || m_Marquee.waiting) CancelViewportMarquee();
+    if (m_GizmoUsing) CancelGroupTransform();
+    m_GizmoHovered = m_GizmoUsing = false;
     if (cancelInput)
         if (auto cancelled = GetInputManager()->CancelInput(InputCancelReason::Transfer, InputLayer::View);
             !cancelled)
@@ -1371,14 +1420,14 @@ ApplicationInitializationResult RigidBodySimulationApp::ConnectApplicationEventH
                                             FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,
                                                 "Editor Camera input", "", "owned View gesture", "", result.error().message});
                                         }
+                                        if (event.kind != InputKind::Motion && event.kind != InputKind::Wheel)
+                                            ImGui_ImplSDL2_SetViewNavigation(GetInputManager()->PointerCapture() == InputLayer::View);
                                     };
                                     if (event.cleanup)
                                     {
                                         const bool activation = m_ViewportActivationButtons != 0;
                                         if (event.kind == InputKind::Cancel)
                                         {
-                                            if(event.cancellation==InputCancelReason::FocusLoss || event.cancellation==InputCancelReason::Hidden)
-                                                m_HierarchySelectionHandoff=false;
                                             if (const auto* error = GetInputManager()->NativePollFailure())
                                                 FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,
                                                     "Native input transition", "", error->operation, "", error->message});
@@ -1386,8 +1435,7 @@ ApplicationInitializationResult RigidBodySimulationApp::ConnectApplicationEventH
                                             CancelViewportMarquee();
                                             m_ViewportActivationButtons = 0;
                                             if (event.cancellation == InputCancelReason::FocusLoss ||
-                                                event.cancellation == InputCancelReason::Hidden ||
-                                                event.cancellation == InputCancelReason::Transfer)
+                                                event.cancellation == InputCancelReason::Hidden)
                                                 SetViewportActive(false, false);
                                         }
                                         else if (event.kind == InputKind::ButtonUp)
@@ -1401,23 +1449,36 @@ ApplicationInitializationResult RigidBodySimulationApp::ConnectApplicationEventH
                                     {
                                         const bool fresh = event.kind == InputKind::ButtonDown &&
                                             !GetInputManager()->GetViewState().m_Mouse.isButtonHeld(event.button);
+                                        const bool wasActive = m_ViewportActive;
+                                        const bool captured = GetInputManager()->PointerCapture() == InputLayer::View;
                                         delivery.Handle();
-                                        if (fresh && inside && !m_ViewportActive)
+                                        if (fresh && inside && !wasActive)
                                         {
                                             SetViewportActive(true);
-                                            if(!m_HierarchySelectionHandoff || event.button!=GENGINE_BUTTON_LEFT || (event.modifiers & LeftAlt))
-                                                m_ViewportActivationButtons |= GENGINE_BUTTON(event.button);
+                                            m_ViewportActivationButtons |= GENGINE_BUTTON(event.button);
+                                            if (event.button == GENGINE_BUTTON_LEFT)
+                                                ImGui_ImplSDL2_ConsumeViewActivationClick();
                                         }
                                         else if (fresh && m_ViewportActivationButtons)
                                             m_ViewportActivationButtons |= GENGINE_BUTTON(event.button);
-                                        if(fresh)m_HierarchySelectionHandoff=false;
-                                        const bool eligible = m_ViewportActive && !m_ViewportActivationButtons &&
-                                            (inside || (!fresh && GetInputManager()->PointerCapture() == InputLayer::View));
-                                        if (eligible && fresh && event.button == GENGINE_BUTTON_LEFT && !m_CameraPilot)
+                                        const bool eligible = wasActive && !m_ViewportActivationButtons && (inside || captured);
+                                        if (eligible && !captured && event.kind == InputKind::Motion && (event.dx || event.dy))
+                                            m_ViewportAwaitPointer = false;
+                                        if (eligible && !captured && fresh && event.button == GENGINE_BUTTON_LEFT && !m_CameraPilot &&
+                                            !(event.modifiers & (LeftAlt | RightAlt)) &&
+                                            !GetInputManager()->GetViewState().m_Mouse.isButtonHeld(GENGINE_BUTTON_RIGHT))
                                         {
-                                            m_ViewPickRequested = (event.modifiers & LeftAlt) == 0;
-                                            m_ViewSelectionAdd=(event.modifiers & (LeftShift|RightShift))!=0;
-                                            m_OutlineToggleRequested = (event.modifiers & (LeftControl | RightControl)) != 0;
+                                            m_ViewportAwaitPointer = false;
+                                            m_ViewSelectionAdd = m_ViewportOwnsSelection && (event.modifiers & (LeftShift | RightShift));
+                                            m_OutlineToggleRequested = m_ViewportOwnsSelection && (event.modifiers & (LeftControl | RightControl));
+                                            m_ViewPickRequested = !PickViewportIcon(event.x, event.y, m_OutlineToggleRequested);
+                                            if (m_ViewPickRequested) m_ViewClickPoint = glm::vec2{event.x, event.y};
+                                        }
+                                        if (fresh && event.button == GENGINE_BUTTON_RIGHT)
+                                        {
+                                            m_ViewPickRequested = false;
+                                            ClearOutlineHover();
+                                            if (m_Marquee.armed || m_Marquee.waiting) CancelViewportMarquee();
                                         }
                                         if ((event.modifiers & LeftAlt) &&
                                             GetInputManager()->GetViewState().m_Mouse.m_CurrentButtons)
@@ -1425,13 +1486,26 @@ ApplicationInitializationResult RigidBodySimulationApp::ConnectApplicationEventH
                                             m_ViewportAltGestureConsumed = true;
                                             m_ViewPickRequested = false;
                                         }
-                                        cameraInput(eligible);
+                                        // A second button cannot extend an already-owned camera gesture.
+                                        cameraInput(eligible && !(captured && fresh));
                                         if (eligible && event.kind == InputKind::Wheel && (m_CameraView == CameraView::Editor || m_CameraPilot))
                                             NavigationCamera().OnMouseScroll(event.wheelY);
                                         return;
                                     }
                                     if (event.kind != InputKind::KeyDown)
                                         return;
+                                    if (GetInputManager()->PointerCapture() == InputLayer::View)
+                                    {
+                                        delivery.Handle();
+                                        if (event.key == GENGINE_KEY_ESCAPE && !event.repeated)
+                                        {
+                                            if (!CancelCameraGesture())
+                                                FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure, "Viewport input", "",
+                                                    "cancel camera navigation", "", m_CameraDiagnostic});
+                                        }
+                                        else cameraInput(true);
+                                        return;
+                                    }
                                     if(HandleTransformToolShortcut(event,route,
                                         GetInputManager()->GetPhysicalState().m_Mouse.m_CurrentButtons,
                                         GetInputManager()->PointerCapture()!=InputLayer::None))
@@ -1544,8 +1618,18 @@ ApplicationInitializationResult RigidBodySimulationApp::ConnectApplicationEventH
         if (!event.cleanup && event.kind == InputKind::ButtonDown &&
             event.destination != InputLayer::View)
         {
-            m_HierarchySelectionHandoff=false;
-            SetViewportActive(false);
+            const auto& route = GetInputManager()->Routing();
+            // View-owned toolbar and Gizmo controls use UI delivery inside the image.
+            if (!route.visible || event.x < route.left || event.x >= route.right ||
+                event.y < route.top || event.y >= route.bottom || !m_ViewportHovered)
+                SetViewportActive(false);
+            else if (!m_ViewportActive && event.button == GENGINE_BUTTON_LEFT &&
+                     !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel))
+            {
+                // The image toolbar also gets an activation-only first press.
+                SetViewportActive(true);
+                ImGui_ImplSDL2_ConsumeViewActivationClick();
+            }
         }
     });
     if (!view || !game || !focus)

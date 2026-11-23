@@ -25,7 +25,9 @@ namespace Rbs::Editor
     inline std::array<ImFont*, 4> Regular{}, Bold{};
     inline float Scale = 1.f, AppliedScale = -1.f;
     inline bool Active = false;
-    inline std::optional<GEngine::PhysicsBackend> SavedBackend;
+    inline std::optional<GEngine::PhysicsBackend> SavedBackend; // Last successful Editor switch.
+    inline std::optional<GEngine::PhysicsBackend> StartupBackend; // Explicit project-local startup preference.
+    inline constexpr ImU32 ControlAccent = IM_COL32(126, 169, 216, 255);
     inline int ScaleChoice = 0; // Auto, then the four supported raster sizes.
     inline int LayoutVersion = 0;
     // Persisted presentation only; never changes camera, light or shadow state.
@@ -73,7 +75,7 @@ namespace Rbs::Editor
 
     inline void Initialize()
     {
-        Numeric::Reset();SelectThrough=false;TransformPivot=TransformOrientation=0;Snap={};SavedBackend.reset();InstallEntityPreferences();SceneIconPercent=100;SpotArtwork=1;
+        Numeric::Reset();SelectThrough=false;TransformPivot=TransformOrientation=0;Snap={};SavedBackend.reset();StartupBackend.reset();InstallEntityPreferences();SceneIconPercent=100;SpotArtwork=1;
         AppliedScale = -1.f;
         ScaleChoice = 0; LayoutVersion = 0; CameraFrustums=LightGizmos=1; SceneIcons=SpotInner=SpotOuter=SpotRange=true;
         auto regular = GEngine::RuntimeAssets::TryFile("Fonts/OpenSans-Regular.ttf");
@@ -88,14 +90,24 @@ namespace Rbs::Editor
         ImGuiSettingsHandler settings;
         settings.TypeName = "RbsEditor";
         settings.TypeHash = ImHashStr(settings.TypeName);
-        settings.ReadOpenFn = [](ImGuiContext*, ImGuiSettingsHandler*, const char*) -> void*
-        { return &ScaleChoice; };
-        settings.ReadLineFn = [](ImGuiContext*, ImGuiSettingsHandler*, void*, const char* line)
+        settings.ReadOpenFn = [](ImGuiContext*, ImGuiSettingsHandler*, const char* name) -> void*
+        {
+            const std::string_view section(name);
+            if (section == "Startup") return &StartupBackend;
+            if (section == "Backend") return &SavedBackend;
+            return &ScaleChoice;
+        };
+        settings.ReadLineFn = [](ImGuiContext*, ImGuiSettingsHandler*, void* entry, const char* line)
         {
             int choice = 0;
             const std::string_view text(line);
-            if(text=="Backend=native"){SavedBackend=GEngine::PhysicsBackend::Native;return;}
-            if(text=="Backend=jolt"){SavedBackend=GEngine::PhysicsBackend::Jolt;return;}
+            if (text == "Backend=native" || text == "Backend=jolt")
+            {
+                const auto backend = text == "Backend=native" ? GEngine::PhysicsBackend::Native : GEngine::PhysicsBackend::Jolt;
+                if (entry == &StartupBackend) StartupBackend = backend;
+                else if (entry == &SavedBackend) SavedBackend = backend;
+                return;
+            }
             for(const auto& pref:std::array<std::pair<std::string_view,bool*>,5>{{{"GridVisible=",&Snap.visible},{"GridSnap=",&Snap.grid},{"SurfaceSnap=",&Snap.surface},{"AlignSurface=",&Snap.align},{"ResolvePenetration=",&Snap.resolve}}})
                 if(text.starts_with(pref.first)) {
                     const auto parsed=std::from_chars(text.data()+pref.first.size(),text.data()+text.size(),choice);
@@ -159,7 +171,9 @@ namespace Rbs::Editor
           output->appendf("SelectThrough=%d\nTransformPivot=%d\nTransformOrientation=%d\n\n",SelectThrough,TransformPivot,TransformOrientation);
           output->appendf("[RbsEditor][Snap]\nGridVisible=%d\nGridSnap=%d\nSurfaceSnap=%d\nAlignSurface=%d\nResolvePenetration=%d\nSnapIncrement=%.9g\nSurfaceOffset=%.9g\nSnapDistance=%.9g\n\n",Snap.visible,Snap.grid,Snap.surface,Snap.align,Snap.resolve,Snap.increment,Snap.offset,Snap.distance);
           if(SavedBackend)output->appendf("[RbsEditor][Backend]\nBackend=%s\n\n",
-              *SavedBackend==GEngine::PhysicsBackend::Jolt?"jolt":"native"); };
+              *SavedBackend==GEngine::PhysicsBackend::Jolt?"jolt":"native");
+          if(StartupBackend)output->appendf("[RbsEditor][Startup]\nBackend=%s\n\n",
+              *StartupBackend==GEngine::PhysicsBackend::Jolt?"jolt":"native"); };
         ImGui::AddSettingsHandler(&settings);
     }
 
@@ -217,7 +231,7 @@ namespace Rbs::Editor
             c[ImGuiCol_TitleBg] = c[ImGuiCol_TitleBgActive] = Color(0x15171C);
             c[ImGuiCol_MenuBarBg] = Color(0x15171C);
             c[ImGuiCol_Separator] = Color(0x353B46);
-            c[ImGuiCol_CheckMark] = c[ImGuiCol_SliderGrab] = Color(0x7EA9D8);
+            c[ImGuiCol_CheckMark] = c[ImGuiCol_SliderGrab] = ImGui::ColorConvertU32ToFloat4(ControlAccent);
             c[ImGuiCol_DockingPreview] = Color(0x345D87, .7f);
             style.ScaleAllSizes(Scale);
             ImGui::GetStyle() = style;

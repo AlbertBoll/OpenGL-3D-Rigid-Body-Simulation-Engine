@@ -1,0 +1,179 @@
+{
+  "schema": 1,
+  "phase": "30",
+  "as_of_utc": "2026-11-22T07:57:46.901333+00:00",
+  "status": "READY FOR OWNER RBS ACCEPTANCE",
+  "milestone": "UNSEALED",
+  "owner_manual": "PASS for observed behavior and interactions",
+  "formal_phase_approval": false,
+  "publication": false,
+  "baseline": "ffa89a2708f34e8c0c194c1201728b565e2ba447",
+  "report": {
+    "path": "docs/pre_editor/PHASE_30_REVIEW.md",
+    "sha256": "c9ef1b5cb6a4a5afbcd3470687281c3bf512cf9af760912bbc48362b2bf23573"
+  },
+  "supersedes": {
+    "path": "logs/pre_editor/phase-30/native-contact-exception-01/status.json",
+    "sha256": "b7b8d4d7d4745d2ef8c6fc811ff270ce4a683df7c1746f1029a0e1a06815f913"
+  },
+  "checkpoint_spec": {
+    "path": "logs/pre_editor/phase-30/editor-readback-01/checkpoint-spec.json",
+    "sha256": "0f3da142bfa01a2fa4de61a07ef9ff6f7910d0aefc06f7ea13cb673d5175c258"
+  },
+  "candidate_inputs": {
+    "path": "logs/pre_editor/phase-30/editor-readback-01/candidate-inputs.json",
+    "sha256": "09fa27e02504d306b7165fe7fd714da4e0111f95a9c9e5b9ea650b1517e92e10"
+  },
+  "gates": {
+    "A_PHYSICS": {
+      "result": "PASS",
+      "scope": "Powered-hinge semantics and typed configuration; source report retains historical Contact numerical FAIL."
+    },
+    "B_SAFETY": {
+      "result": "ACCEPTED_EXCEPTION",
+      "actual_outcome": "FAIL",
+      "role": "jolt-contact",
+      "decision": {
+        "path": "docs/pre_editor/active/PHASE_30_JOLT_CONTACT_VISUAL_ACCEPTANCE_01.json",
+        "sha256": "7d1aed5cd057991d76425fd241e9fcf61ce7202ede64f7cdd49cdd44cab9543a"
+      },
+      "scope": "Only the named geometric depth, recovery and braking trend in the original capture; all other required measured safety criteria passed."
+    },
+    "C_COST": {
+      "result": "ACCEPTED_EXCEPTION",
+      "actual_outcome": "INCOMPLETE",
+      "role": "native-contact",
+      "decision": {
+        "path": "docs/pre_editor/active/PHASE_30_NATIVE_CONTACT_OBSERVER_ACCEPTANCE_01.json",
+        "sha256": "18d1617f3940750dfae83cae0c3b4d44df257669f5f0624c4d2d9bf92860e738"
+      },
+      "scope": "Only the incremental observer upper bound, with the original false check retained."
+    },
+    "D_EDITOR": {
+      "result": "PASS",
+      "scope": "Ordinary component exposure, enum, defaults, shared widgets and the two applicable providers. Matrix explicitly identifies unsupported and absent components."
+    },
+    "E_INTERACTION": {
+      "result": "PASS",
+      "scope": "Scoped authoring and live feedback, reconstruction, selection, Readback and lifecycle by direct observation and named common-path equivalence."
+    },
+    "F_OWNER": {
+      "result": "PASS",
+      "human_source": "ACTUAL_OWNER_REPORT",
+      "scope": "Owner-inspected behavior and interactions",
+      "decision": {
+        "path": "docs/pre_editor/active/PHASE_30_OWNER_MANUAL_REVIEW_01.json",
+        "sha256": "072b99bf8af1e3476c6a029031721b695eab86c7e7f1071822053c2d85eb6b74"
+      }
+    }
+  },
+  "component_verifier": {
+    "path": "logs/pre_editor/phase-30/editor-readback-01/component-ready.json",
+    "sha256": "f54fd463c41ae35cd49f053859251bb56562792ce5ed90555efca6ddf4f1151e"
+  },
+  "publication_preflight": {
+    "path": "logs/pre_editor/phase-30/editor-readback-01/publication-preflight.json",
+    "sha256": "8a4bd2cb7fda8cccf21914024befae674c5e49a3edab4edda947349ac12831fd"
+  },
+  "published_after_this_review": false,
+  "qualification": {
+    "path": "logs/pre_editor/phase-30/native-contact-exception-01/qualification.json",
+    "sha256": "63731367f05566f20422d0d6c8ce6a564b944875004b57800930ce2dbc896ee8"
+  },
+  "native_limit": {
+    "outcome": "PASS",
+    "assessment": {
+      "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/native-limit/assessment.json",
+      "sha256": "5b110a89743290573c6f9f4183786a088c02d11ed60010c12d6ba1fced56570d"
+    },
+    "process": {
+      "pid": 19732,
+      "exit_code": 0,
+      "seconds": 24.79700000002049,
+      "timeout": false
+    },
+    "steps": {
+      "requests": 1200,
+      "physics_attempted": 1200,
+      "physics_completed": 1200
+    },
+    "passed_checks": 11
+  },
+  "exceptions": [
+    {
+      "subject": "Candidate 03 Jolt Contact",
+      "disposition": "ACCEPTED_EXCEPTION",
+      "actual_outcome": "FAIL",
+      "owner": {
+        "path": "docs/pre_editor/active/PHASE_30_JOLT_CONTACT_VISUAL_ACCEPTANCE_01.json",
+        "sha256": "7d1aed5cd057991d76425fd241e9fcf61ce7202ede64f7cdd49cdd44cab9543a"
+      },
+      "assessment": {
+        "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/jolt-contact/assessment.json",
+        "sha256": "1f301f809c4b2fe501373fbc6bbcef9d62d3dfc8a351eaaf83113100883b34f8"
+      }
+    },
+    {
+      "subject": "Candidate 03 Native Contact observer bound",
+      "disposition": "ACCEPTED_EXCEPTION",
+      "actual_outcome": "INCOMPLETE",
+      "original_observer_upper_ns_pass": false,
+      "conservative_ms": 0.34714,
+      "limit_ms": 0.3333333333333333,
+      "owner": {
+        "path": "docs/pre_editor/active/PHASE_30_NATIVE_CONTACT_OBSERVER_ACCEPTANCE_01.json",
+        "sha256": "18d1617f3940750dfae83cae0c3b4d44df257669f5f0624c4d2d9bf92860e738"
+      },
+      "assessment": {
+        "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/native-contact/assessment.json",
+        "sha256": "63ad31707e1925230b536a709c09d60f94845da48fae895a138ea5384a36089f"
+      }
+    }
+  ],
+  "editor": {
+    "frozen_rows": 1011,
+    "matrix_outcomes": {
+      "PASS": 962,
+      "NOT_APPLICABLE": 49
+    },
+    "historical_property_contexts_including_absences": 663,
+    "additional_shared_mesh_contexts": 70,
+    "current_or_source_impact_contexts": 244,
+    "additional_source_classified_absences": 34,
+    "equivalence": "The original property/event mapping, explicit shared widget dispatch, per-provider physical evidence and direct ordinary sessions retain their scope. This count is not the number of separate current interactions.",
+    "release": {
+      "path": "bin/Release/RigidBodySimulation/RigidBodySimulation.exe",
+      "sha256": "f6079072536104fb841197c999b2aa46624d902346627014f0fb8b3fad4c60bb"
+    },
+    "build": {
+      "path": "logs/pre_editor/phase-30/editor-readback-01/ordinary-Release/result.json",
+      "sha256": "2bf327c00fb87468c3ee767c5d2974232831102430ad2c2b27982807ea9af496"
+    },
+    "new_technical_session": {
+      "path": "logs/pre_editor/phase-30/editor-readback-01/exit-reconciliation.json",
+      "sha256": "062ad93b254eb7d81e01655e64292882b39ee436e2350d4c53425a52ca630b32"
+    },
+    "method": "Physical client screenshots in ordinary RBS, both backends in one process at Tick 0.",
+    "owner_manual": {
+      "path": "docs/pre_editor/active/PHASE_30_OWNER_MANUAL_REVIEW_01.json",
+      "sha256": "072b99bf8af1e3476c6a029031721b695eab86c7e7f1071822053c2d85eb6b74"
+    }
+  },
+  "resources": {
+    "supervised_starts": 11,
+    "start_ceiling": 11,
+    "reserved_attempts": 10920,
+    "reservation_ceiling": 10920,
+    "known_completed": 7917,
+    "fixture_attempts_direct_excluding_failed_candidate02_free": 7271,
+    "ordinary_completed": 645,
+    "ordinary_attempts_inferred": 645,
+    "actual_original_failed_free_attempted": null,
+    "this_editor_steps_completed": 0,
+    "this_editor_attempts_inferred": 0,
+    "retries": 0,
+    "owner_manual_metering": "Separate and unmetered."
+  },
+  "unresolved_technical_gates_without_disposition": [],
+  "publication_prerequisite": "Future Phase 30 publication requires explicit Owner approval and the separate exact-predecessor publisher amendment already identified in the Phase 30 entry record."
+}

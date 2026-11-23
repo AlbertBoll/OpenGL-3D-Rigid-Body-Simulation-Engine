@@ -17,11 +17,16 @@ namespace GEngine
             return glm::normalize(glm::conjugate(a*d.angular.localFrameA)*(b*d.angular.localFrameB));
         }
     }
+    bool HingeMotorSettings::Valid() const noexcept {
+        return std::isfinite(targetVelocity) && std::abs(targetVelocity) <= 2.f &&
+               std::isfinite(maxTorque) && maxTorque >= 0.f && maxTorque <= 100.f;
+    }
     bool AngularJoint::IsKind(JointKind k) noexcept {
         return k==JointKind::Hinge || k==JointKind::ConstantVelocity || k==JointKind::LimitedConstantVelocity;
     }
     bool AngularJoint::Valid(const AngularJointDesc& d) noexcept {
         const auto& p=d.angular;
+        if(p.motor && (d.kind != JointKind::Hinge || !p.motor->Valid())) return false;
         if(!IsKind(d.kind)||!Math::IsFinite(d.localAnchorA)||!Math::IsFinite(d.localAnchorB)||
             !Unit(p.localFrameA)||!Unit(p.localFrameB)||!std::isfinite(p.lower)||!std::isfinite(p.upper)||
             !std::isfinite(p.halfAngleU)||!std::isfinite(p.halfAngleV))return false;
@@ -55,9 +60,21 @@ namespace GEngine
     }
     void AngularJointRow::Reset() noexcept {
         for(auto& r:rows)r={};
+        motor = {};
         response={};a=b=nullptr;count=0;previousDt=0;
         previousRelative=Quat(1,0,0,0);impulse=angularImpulse=Vec3f(0);
         previousLimitU=previousLimitV=0;active=impulseAvailable=false;
+    }
+    void AngularJointRow::ApplyMotor(float total) {
+        const float delta = total - motor.impulse;
+        if (delta != 0.f) {
+            const float speed = glm::dot(motorAxis, b->GetAngularVelocity() - a->GetAngularVelocity());
+            motor.work += double(delta) * (speed + .5 * double(delta) * motorInverseInertia);
+            if (a->GetInverseMass() > 0) a->m_AngularVelocity -= (inverseA * motorAxis) * delta;
+            if (b->GetInverseMass() > 0) b->m_AngularVelocity += (inverseB * motorAxis) * delta;
+        }
+        motor.impulse = total;
+        motor.peakAccumulated = std::max(motor.peakAccumulated, std::abs(total));
     }
     void AngularJointRow::Apply(std::size_t i,double value) {
         const auto& r=rows[i];const float lambda=static_cast<float>(value);
@@ -135,6 +152,17 @@ namespace GEngine
             response[i][j]=double(a->GetInverseMass()+b->GetInverseMass())*glm::dot(rows[i].linear,rows[j].linear)+
                 glm::dot(rows[i].angularA,inverseA*rows[j].angularA)+glm::dot(rows[i].angularB,inverseB*rows[j].angularB);
             if(!std::isfinite(response[i][j]))return false;
+        }
+        if (desc.angular.motor) {
+            const float cached = reset ? 0.f : motor.impulse;
+            motor = {};
+            motor.valid = true;
+            const auto& drive = *desc.angular.motor;
+            motor.impulseCap = drive.enabled ? drive.maxTorque * dt : 0.f;
+            motorAxis = frame * Vec3f(1,0,0);
+            motorInverseInertia = glm::dot(motorAxis, (inverseA + inverseB) * motorAxis);
+            if (!(motorInverseInertia > 0.f) || !std::isfinite(motorInverseInertia)) return false;
+            if (active) ApplyMotor(std::clamp(cached, -motor.impulseCap, motor.impulseCap));
         }
         if(active)for(std::size_t i=0;i<count;++i)Apply(i,rows[i].lambda);
         return a->HasFiniteState()&&b->HasFiniteState();
@@ -263,6 +291,13 @@ namespace GEngine
     }
     bool AngularJointRow::Solve() {
         if(!active)return true;
+        if (desc.angular.motor && motor.impulseCap > 0.f) {
+            const float speed = glm::dot(motorAxis, b->GetAngularVelocity() - a->GetAngularVelocity());
+            const float delta = (desc.angular.motor->targetVelocity - speed) / motorInverseInertia;
+            if (!std::isfinite(delta)) return false;
+            ApplyMotor(std::clamp(motor.impulse + delta, -motor.impulseCap, motor.impulseCap));
+            if (!std::isfinite(motor.work)) return false;
+        }
         if(!RefreshLimitedRows())return false;
         std::array<double,6> base{},solution{};
         std::array<std::size_t,2> unilateral{};std::size_t unilateralCount=0;
@@ -317,6 +352,7 @@ namespace GEngine
         impulse=Vec3f(float(rows[0].lambda),float(rows[1].lambda),float(rows[2].lambda));
         angularImpulse=desc.kind==JointKind::Hinge?Vec3f(count>5?float(rows[5].lambda):0,float(rows[3].lambda),float(rows[4].lambda)):
             Vec3f(float(rows[3].lambda),count>4?float(rows[4].lambda):0,count>5?float(rows[5].lambda):0);
+        if (desc.angular.motor) motor.limitSide = count>5 && rows[5].lambda!=0 ? previousLimitU : 0;
         impulseAvailable=true;
         return a->HasFiniteState()&&b->HasFiniteState();
     }

@@ -1,5 +1,6 @@
 #pragma once
 #include "DistanceJoint.h"
+#include <optional>
 
 namespace GEngine
 {
@@ -22,6 +23,23 @@ namespace GEngine
         bool collideConnected{false};
     };
 
+    struct HingeMotorSettings
+    {
+        bool enabled{};
+        float targetVelocity{}; // Signed rad/s about frame A's X axis.
+        float maxTorque{};      // N*m, symmetric in either direction.
+        bool Valid() const noexcept;
+        friend bool operator==(const HingeMotorSettings&, const HingeMotorSettings&) = default;
+    };
+
+    struct HingeMotorSample
+    {
+        float impulse{}, peakAccumulated{}, impulseCap{}; // N*m*s in the last fixed step.
+        double work{}; // Signed joules, including the warm start.
+        bool valid{};
+        int limitSide{}; // Signed stop carrying a velocity impulse this step.
+    };
+
     // Body-local, right-handed frames: X is the hinge/CV axis; Y/Z are U/V.
     // The frames retain the authored zero relation. No per-read recalibration.
     struct AngularJointParameters
@@ -30,6 +48,7 @@ namespace GEngine
         float lower{-3.14159265358979323846f}, upper{3.14159265358979323846f};
         float halfAngleU{.78539816339744830962f}, halfAngleV{.78539816339744830962f};
         bool limitsEnabled{};
+        std::optional<HingeMotorSettings> motor;
         friend bool operator==(const AngularJointParameters&, const AngularJointParameters&) = default;
     };
     struct AngularJointDesc
@@ -50,6 +69,9 @@ namespace GEngine
         float violationU{}, violationV{};
         int limitU{}, limitV{}; // -1 lower, 0 free, +1 upper.
         bool impulseAvailable{};
+        HingeMotorSample motor{};
+        float motorSpeed{}, motorError{};
+        bool motorSaturated{};
     };
 
     // Kind-tagged semantic readback for shared inspection and reconstruction.

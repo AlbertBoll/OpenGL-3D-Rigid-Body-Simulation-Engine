@@ -1,0 +1,93 @@
+{
+  "schema": 1,
+  "workflow": "pre-editor",
+  "phase": "30",
+  "version": "01",
+  "id": "D30-EDITOR-FRAME-CPU-01",
+  "status": "ACTIVE_OWNER_AUTHORIZED",
+  "gate": "C_COST",
+  "result": "ACCEPTED_EXCEPTION",
+  "actual_outcome": "NOT_DEMONSTRATED",
+  "owner_acceptance": "OWNER DECISION: APPROVE D30-EDITOR-FRAME-CPU-01. Accept the documented P1 performance risk for the exact Phase 30 Editor candidate and evidence identified in the proposal.",
+  "proposal": {
+    "path": "docs/pre_editor/proposals/PHASE_30_EDITOR_CPU_RISK_DISPOSITION_01.md",
+    "sha256": "4275c6374ebe170fd5c77ec0b83fc0f6b1c71a3e429894f2d1a978dd90741f3e"
+  },
+  "criterion": "Zero reproducible performance regression from the Scene Viewport corrections.",
+  "scope": "Only the documented whole-Editor main-thread CPU discrepancy in the named Release comparison.",
+  "candidate": {
+    "ordinary_before": {
+      "path": "logs/pre_editor/phase-30/viewport-input-01/before/bin/Release/RigidBodySimulation/RigidBodySimulation.exe",
+      "sha256": "f6079072536104fb841197c999b2aa46624d902346627014f0fb8b3fad4c60bb"
+    },
+    "ordinary_final": {
+      "path": "bin/Release/RigidBodySimulation/RigidBodySimulation.exe",
+      "sha256": "78b4f0abc73fa90c3360105bbe9de5a8bda9d08c7c14f6d2a13f8c531b7ab5df"
+    },
+    "instrumented": {
+      "before": {
+        "path": "bin/Release/RbsViewportPerf-before/RigidBodySimulation.exe",
+        "sha256": "29f612538193e234bcf68c08fdade40d87ea0c48c8fd90de78a2268fbf55ec88"
+      },
+      "final": {
+        "path": "bin/Release/RbsViewportPerf-final-01/RigidBodySimulation.exe",
+        "sha256": "8de57f4c7a29e60a1240c64b992dcf73c45230bc53e20ecdd3951782c0e46aa2"
+      }
+    },
+    "scene": [
+      "--scene",
+      "motors",
+      "--motor-case",
+      "contact",
+      "--backend",
+      "jolt"
+    ]
+  },
+  "evidence": [
+    {
+      "path": "logs/pre_editor/phase-30/final-performance-01/preflight.json",
+      "sha256": "ed926957ab646d0fcf63f87b5e715a1ad3b0c46fe1546ed581844bec445092d8"
+    },
+    {
+      "path": "logs/pre_editor/phase-30/final-performance-focused-01/measurements.json",
+      "sha256": "630e95f0c1a476458abea540b9e3cd3585792ef0d5c592fc6f66a12bc3837ec9"
+    },
+    {
+      "path": "logs/pre_editor/phase-30/final-performance-focused-01/status.json",
+      "sha256": "f9be6d5cdf004c520c1eb21e7084e2b9d44cbacb39bc984cd30c10398e372e92"
+    },
+    {
+      "path": "docs/pre_editor/PHASE_30_FRAME_CPU_INVESTIGATION_01.md",
+      "sha256": "c051661b9fdd1390ae7216339fa9340abca2e37e3c4ae16d17287f3f5e853301"
+    }
+  ],
+  "matched_idle_cpu_excess_ms_per_frame": [
+    4.860174,
+    4.910328
+  ],
+  "mean_frame_ms_approximately": 6.06,
+  "original_AB": "INCONCLUSIVE",
+  "pacing": "Keep the existing live SDL_GL_GetSwapInterval query, VSync, frame cap and FrameScheduler.",
+  "residual": {
+    "severity": "P1",
+    "owner": "Owner",
+    "source_attribution": "UNKNOWN",
+    "power_impact": "UNKNOWN",
+    "recurrence_frequency": "UNKNOWN",
+    "recovery_trigger": "UNKNOWN"
+  },
+  "revisit": [
+    "A reproducible source-specific trigger",
+    "Worsening frame pacing",
+    "Increased input latency",
+    "Relevant display-topology evidence",
+    "Material change to the candidate or comparison conditions"
+  ],
+  "mixed_refresh_HDMI": "SEPARATELY_UNRESOLVED",
+  "resources": {
+    "builds": 0,
+    "RBS_starts": 0,
+    "physics_steps": 0,
+    "manual_reviews": 0
+  }
+}

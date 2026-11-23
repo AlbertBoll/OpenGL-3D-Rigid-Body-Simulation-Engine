@@ -133,7 +133,7 @@ bool RigidBodySimulationApp::DrawEntityRename(EntityRenderId id,float width)
             batch.kind=Rbs::Editor::TransformBatch::Kind::Rename;batch.target=id;batch.generation=m_SceneGeneration;
             batch.beforeName=_Entity{*e,m_ActiveScene.get()}.Name();batch.afterName=m_RenameText;
             m_GroupTransform.dirty=true;m_GroupTransform.pending=Rbs::Editor::TransformSession::Action::Apply;
-            m_RenameTarget={};m_HierarchySelectionHandoff=true;
+            m_RenameTarget={};
         } else {m_RenameTarget={};m_PropertyDiagnostic="Rename rejected: entity retired.";}
     }
     if(!m_RenameError.empty() && ImGui::IsItemHovered())ImGui::SetTooltip("%s",m_RenameError.c_str());

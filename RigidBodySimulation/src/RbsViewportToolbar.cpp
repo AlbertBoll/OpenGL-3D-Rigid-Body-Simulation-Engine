@@ -160,7 +160,10 @@ const char* RigidBodySimulationApp::TransformToolDisabled(TransformTool tool) co
 bool RigidBodySimulationApp::ActivateTransformTool(TransformTool tool)
 {
     if(const auto* reason=TransformToolDisabled(tool)) {m_PropertyDiagnostic=reason;return false;}
-    CancelGroupTransform();m_TransformTool=tool;m_ShowGizmo=true;return true;
+    CancelGroupTransform();m_TransformTool=tool;m_ShowGizmo=true;
+    if (tool != TransformTool::Select && m_ViewportActive)
+        m_ViewportOwnsSelection = m_EditorSelection.count != 0;
+    return true;
 }
 
 bool RigidBodySimulationApp::HandleTransformToolShortcut(const InputEvent& event,
@@ -439,7 +442,7 @@ void RigidBodySimulationApp::DrawGroupTransformActions()
     const auto origin=ImGui::GetMainViewport()->Pos;
     (void)GetInputManager()->AddUIRegion({p.x-origin.x,p.y-origin.y,p.x+width-origin.x,p.y+height-origin.y});
     if(ImGui::IsMouseHoveringRect(p,{p.x+width,p.y+height}))
-    {m_ViewportOverlayInteracting=true;m_ViewPickRequested=false;SetViewportActive(true,false);}
+    {m_ViewportOverlayInteracting=true;m_ViewPickRequested=false;}
     ImGui::SetCursorScreenPos(saved);
 }
 
@@ -806,7 +809,7 @@ void RigidBodySimulationApp::DrawViewportGizmo()
         if(ImGui::IsMouseDown(0))return;
         m_GizmoCancelled=false;
     }
-    if(m_Marquee.armed || m_Marquee.waiting || !m_ShowGizmo || m_TransformTool==TransformTool::Select || !m_CameraSnapshot || TransformToolDisabled(m_TransformTool))
+    if(!m_ViewportOwnsSelection || m_ViewportActivationButtons || m_Marquee.armed || m_Marquee.waiting || !m_ShowGizmo || m_TransformTool==TransformTool::Select || !m_CameraSnapshot || TransformToolDisabled(m_TransformTool))
     {ImGuizmo::Enable(false);return;}
     if(m_GroupTransform.released)return;
     const auto ragdollBone=RagdollBoneFor(m_HoveredEntity);
@@ -971,6 +974,9 @@ void RigidBodySimulationApp::DrawComponentOverlays()
         draw->AddCircle(center,radius,IM_COL32(12,15,20,selected?180:90),48,width+1.5f);
         draw->AddCircle(center,radius,ImGui::GetColorU32(ImVec4{1.f,.72f,.08f,selected?1.f:.5f}),48,width);
     };
+    const bool allowHover = m_ViewportActive && !m_ViewportAwaitPointer && !m_ViewportActivationButtons &&
+        GetInputManager()->PointerCapture() != InputLayer::View && !m_Marquee.armed && !m_Marquee.waiting &&
+        !m_GizmoHovered && !m_GizmoUsing && !ImGui::GetIO().KeyAlt && !ImGui::GetCurrentContext()->DragDropActive;
     const auto render=[&](auto tag)
     {
         using T=decltype(tag);
@@ -980,7 +986,7 @@ void RigidBodySimulationApp::DrawComponentOverlays()
             if(!identity || !EditorEntityVisible(*identity))continue;
             const auto world=GizmoWorldMatrix(*m_ActiveScene,entity);if(!world)continue;
             const auto pos=Vec3f((*world)[3]);const auto screen=project(pos);
-            const bool selected=m_EditorSelection.Contains(*identity);
+            const bool selected=m_ViewportOwnsSelection && m_EditorSelection.Contains(*identity);
             const auto color=selected?IM_COL32(116,183,244,230):IM_COL32(173,187,204,200);
             const int mode=std::same_as<T,RenderCameraComponent>?E::CameraFrustums:E::LightGizmos;
             if(mode==2 || (mode==1 && selected))
@@ -1053,27 +1059,53 @@ void RigidBodySimulationApp::DrawComponentOverlays()
             E::DrawIcon(icon,m_ComponentIconAtlases[atlas],E::BillboardPixels[atlas],p,hit,
                 std::same_as<T,RenderCameraComponent>?E::Color(0xD7E2EF):E::Color(0xE6C477));
             if(m_VisibleSceneIconCount<m_VisibleSceneIcons.size())m_VisibleSceneIcons[m_VisibleSceneIconCount++]={*identity,{std::max(p.x,lo.x),std::max(p.y,lo.y)},{std::min(p.x+hit,hi.x),std::min(p.y+hit,hi.y)}};
-            if(m_Marquee.armed || m_Marquee.waiting || m_GizmoHovered || m_GizmoUsing || ImGui::GetIO().KeyAlt || ImGui::GetCurrentContext()->DragDropActive)continue;
-            const auto origin=ImGui::GetMainViewport()->Pos;
+            if(!allowHover)continue;
             const ImVec2 hitLo{std::max(p.x,lo.x),std::max(p.y,lo.y)},hitHi{std::min(p.x+hit,hi.x),std::min(p.y+hit,hi.y)};
-            (void)GetInputManager()->AddUIRegion({hitLo.x-origin.x,hitLo.y-origin.y,hitHi.x-origin.x,hitHi.y-origin.y});
             if(ImGui::IsMouseHoveringRect(hitLo,hitHi) && hitCount<hits.size())hits[hitCount++]={*identity,hitLo,hitHi,*screen,hit*.56f};
         }
     };
     render(RenderCameraComponent{});render(RenderLightComponent{});
     if(hitCount) {
         std::size_t pick=hitCount-1;
-        if(hitCount>1)for(std::size_t i=0;i<hitCount;++i)if(m_EditorSelection.count && m_EditorSelection.ids[m_EditorSelection.count-1]==hits[i].id){pick=(i+1)%hitCount;break;}
+        if(hitCount>1 && m_ViewportOwnsSelection)for(std::size_t i=0;i<hitCount;++i)if(m_EditorSelection.count && m_EditorSelection.ids[m_EditorSelection.count-1]==hits[i].id){pick=(i+1)%hitCount;break;}
         if(auto e=m_ActiveScene->RenderData().Resolve(hits[pick].id)) {
             _Entity entity{*e,m_ActiveScene.get()};ImGui::SetTooltip("%s | Scene icon%s",entity.Name().c_str(),hitCount>1?" | click to cycle overlapping icons":"");
             if(!m_ViewportOverlayInteracting && ImGui::IsWindowHovered() && !ImGui::GetCurrentContext()->OpenPopupStack.Size) {
                 m_OutlineHoverIcon=hits[pick].id;
-                if(!m_EditorSelection.Contains(hits[pick].id))outline(hits[pick].center,hits[pick].radius,false);
+                if(!m_ViewportOwnsSelection || !m_EditorSelection.Contains(hits[pick].id))outline(hits[pick].center,hits[pick].radius,false);
             }
-            if(ImGui::IsMouseClicked(0)) {SelectColliderEntity(entity,ImGui::GetIO().KeyCtrl);m_ViewPickRequested=false;m_ViewportOverlayInteracting=true;SetViewportActive(true,false);m_ViewportRequestFocus=false;}
         }
     }
     ImGui::SetCursorScreenPos(saved);draw->PopClipRect();
+}
+
+bool RigidBodySimulationApp::PickViewportIcon(float x, float y, bool toggle)
+{
+    if (!m_VisibleSceneIconCount || !m_ActiveScene) return false;
+    const auto origin = ImGui::GetMainViewport()->Pos;
+    x += origin.x;
+    y += origin.y;
+    const auto primary = m_ViewportOwnsSelection && m_EditorSelection.count ?
+        m_EditorSelection.ids.back() : EntityRenderId{};
+    EntityRenderId first{}, last{}, next{};
+    bool foundPrimary = false;
+    for (std::size_t i = 0; i < m_VisibleSceneIconCount; ++i) {
+        const auto& icon = m_VisibleSceneIcons[i];
+        if (x < icon.lo.x || x >= icon.hi.x || y < icon.lo.y || y >= icon.hi.y) continue;
+        if (!first) first = icon.id;
+        if (foundPrimary && !next) next = icon.id;
+        if (icon.id == primary) foundPrimary = true;
+        last = icon.id;
+    }
+    if (!first) return false;
+    const auto hit = foundPrimary ? (next ? next : first) : last;
+    if (auto entity = m_ActiveScene->RenderData().Resolve(hit)) {
+        if (!HasPendingObjectProperties()) {
+            SelectColliderEntity(_Entity{*entity,m_ActiveScene.get()}, toggle);
+            m_ViewportOwnsSelection = m_EditorSelection.count != 0;
+        }
+    }
+    return true;
 }
 
 // UI owns the gesture; immutable frame submission owns raster queries. Neither
@@ -1102,7 +1134,7 @@ void RigidBodySimulationApp::CommitViewportClick()
     const auto generation=m_Marquee.generation;
     const bool add=m_Marquee.add,toggle=m_Marquee.toggle;
     CancelViewportMarquee();
-    if(generation!=m_SceneGeneration || !m_ActiveScene)return;
+    if(!m_ViewportActive || generation!=m_SceneGeneration || !m_ActiveScene)return;
     if(HasPendingObjectProperties()) {
         m_PropertyDiagnostic="Apply or Revert the selected object's pending changes before changing selection.";
         return;
@@ -1114,9 +1146,11 @@ void RigidBodySimulationApp::CommitViewportClick()
         if(m_EditorSelection.SelectSet(render,std::span(&clicked,1),toggle?Operation::Toggle:add?Operation::Add:Operation::Replace)) {
             m_EditorSelection.anchor=clicked;
             SynchronizeEditorSelection();
+            m_ViewportOwnsSelection = m_EditorSelection.count != 0;
         }
     } else if(!add && !toggle) {
-        m_EditorSelection.Clear();SynchronizeEditorSelection();m_HierarchyRevealed={};
+        m_EditorSelection.Clear();m_EditorSelection.anchor={};SynchronizeEditorSelection();m_HierarchyRevealed={};
+        m_ViewportOwnsSelection = false;
     }
 }
 void RigidBodySimulationApp::DrawViewportMarquee()
@@ -1146,6 +1180,7 @@ void RigidBodySimulationApp::DrawViewportMarquee()
             const auto draws=(*result)->draws;
             if(m_EditorSelection.SelectSet(m_ActiveScene->RenderData(),ids,operation)) {
                 SynchronizeEditorSelection();m_HierarchyRevealed=m_ActiveScene->RenderData().Identify(m_HoveredEntity).value_or(EntityRenderId{});
+                m_ViewportOwnsSelection = m_EditorSelection.count != 0;
                 m_PropertyDiagnostic="Marquee: "+std::to_string(m_EditorSelection.count)+" selected; "+std::to_string(ids.size())+" intersecting entities.";
                 Log::GetCoreLogger()->info("MARQUEE_RESULT selected={} hits={} query_draws={} physics_tick={}",m_EditorSelection.count,ids.size(),draws,m_ActiveScene->GetPhysicsSystem()->GetCompletedSteps());
             } else m_PropertyDiagnostic="Marquee exceeds 4096 selections or contains stale entities; selection retained.";

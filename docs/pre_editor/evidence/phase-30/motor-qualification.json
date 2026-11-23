@@ -1,0 +1,392 @@
+{
+  "schema": 1,
+  "phase": 30,
+  "candidate": "03",
+  "recorded_utc": "2026-11-22T07:26:45.405511+00:00",
+  "milestone": "NATIVE_LIMIT_COMPLETED",
+  "base_commit": "ffa89a2708f34e8c0c194c1201728b565e2ba447",
+  "prior_ledger": {
+    "path": "logs/pre_editor/phase-30/jolt-contact-exception-01/status.json",
+    "sha256": "0155c28f43e29811a6654b035aed9f8c6864aa2bf3d1ba5ca9c364a33be7e8f2"
+  },
+  "native_contact_decision": {
+    "path": "docs/pre_editor/active/PHASE_30_NATIVE_CONTACT_OBSERVER_ACCEPTANCE_01.json",
+    "sha256": "18d1617f3940750dfae83cae0c3b4d44df257669f5f0624c4d2d9bf92860e738"
+  },
+  "native_contact_original": {
+    "actual_outcome": "INCOMPLETE",
+    "observer_upper_ns_pass": false,
+    "guarded_upper_ns": 347140,
+    "limit_ns": 333333.3333333333
+  },
+  "jolt_contact_decision": {
+    "path": "docs/pre_editor/active/PHASE_30_JOLT_CONTACT_VISUAL_ACCEPTANCE_01.json",
+    "sha256": "7d1aed5cd057991d76425fd241e9fcf61ce7202ede64f7cdd49cdd44cab9543a"
+  },
+  "preflight": {
+    "path": "logs/pre_editor/phase-30/native-contact-exception-01/preflight.json",
+    "sha256": "5f9cafd409340710e5cb060bd57992ca4f9c5274dcee3a41bc90f0a66f056858"
+  },
+  "runner_reuse": {
+    "path": "logs/pre_editor/phase-30/native-contact-exception-01/runner-reuse.json",
+    "sha256": "7fd3cb12a685c961739879bfdbd99835ad98bd89c3aaa53f902aa6493fab9198"
+  },
+  "supervisor": {
+    "path": "tools/pre_editor_phase30_qualification.py",
+    "sha256": "f9e150c7556c033d0365e394f53efe16e5ffa571c08d0c042c985ecb81a787b5"
+  },
+  "isolated_binary": {
+    "path": "bin/phase30-qualification/candidate-03/Release/RigidBodySimulation/RigidBodySimulation.exe",
+    "sha256": "b2162d063095116d435d895d2a8f4971778cdc85d859adefb587ac83f04ee704"
+  },
+  "workload": {
+    "path": "logs/pre_editor/phase-30/c-motor-01/admission.json",
+    "sha256": "d6f6ba9e195d56269b6d310af2482230b86d30b11b38b9bafa6627e55b721e91"
+  },
+  "fixture_history": [
+    {
+      "role": "debug",
+      "candidate": "02",
+      "assessment": {
+        "path": "logs/pre_editor/phase-30/candidate-02/runs/debug/assessment.json",
+        "sha256": "5accd650796dd25c55f7500c3dc81536b81e376af1f542f30420ee537af3d299"
+      },
+      "actual_outcome": "PASS",
+      "completed": 71,
+      "attempted": 71,
+      "ceiling": 120
+    },
+    {
+      "role": "jolt-free",
+      "candidate": "02",
+      "assessment": {
+        "path": "logs/pre_editor/phase-30/candidate-02/runs/jolt-free/assessment.json",
+        "sha256": "acb3f9287f48b58ecfff79a51a19b8aff5ce06815c57fc8be42c266644da852a"
+      },
+      "actual_outcome": "FAIL",
+      "completed": 1,
+      "attempted": null,
+      "ceiling": 1200
+    },
+    {
+      "role": "jolt-free",
+      "candidate": "03",
+      "assessment": {
+        "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/jolt-free/assessment.json",
+        "sha256": "b0282680eb1a942ecb8da2e98a26b6c19c0653a0978196135878c5ded2ca3ec0"
+      },
+      "actual_outcome": "PASS",
+      "completed": 1200,
+      "attempted": 1200,
+      "ceiling": 1200,
+      "failed_checks": [],
+      "mean_inclusive_ns": 119919.58333333333,
+      "arena_peak_bytes": 12459488,
+      "joint_heap_pass": true,
+      "arena_pass": true,
+      "unclassified_heap_site_pairs": 0,
+      "world_job_pool_teardown": "MATCHED"
+    },
+    {
+      "role": "jolt-contact",
+      "candidate": "03",
+      "assessment": {
+        "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/jolt-contact/assessment.json",
+        "sha256": "1f301f809c4b2fe501373fbc6bbcef9d62d3dfc8a351eaaf83113100883b34f8"
+      },
+      "actual_outcome": "FAIL",
+      "completed": 1200,
+      "attempted": 1200,
+      "ceiling": 1200,
+      "failed_checks": [
+        "frozen_numerical_envelope"
+      ],
+      "mean_inclusive_ns": 149917.83333333334,
+      "arena_peak_bytes": 12459680,
+      "joint_heap_pass": true,
+      "arena_pass": true,
+      "unclassified_heap_site_pairs": 0,
+      "world_job_pool_teardown": "MATCHED",
+      "disposition": "ACCEPTED_EXCEPTION",
+      "decision": {
+        "path": "docs/pre_editor/active/PHASE_30_JOLT_CONTACT_VISUAL_ACCEPTANCE_01.json",
+        "sha256": "7d1aed5cd057991d76425fd241e9fcf61ce7202ede64f7cdd49cdd44cab9543a"
+      }
+    },
+    {
+      "role": "jolt-limit",
+      "candidate": "03",
+      "assessment": {
+        "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/jolt-limit/assessment.json",
+        "sha256": "726adf76616a04fef4a5c979a5e26c6c618361d5456ed8212487eb28d96be314"
+      },
+      "actual_outcome": "PASS",
+      "completed": 1200,
+      "attempted": 1200,
+      "ceiling": 1200,
+      "failed_checks": [],
+      "mean_inclusive_ns": 97831.08333333333,
+      "arena_peak_bytes": 12459488,
+      "joint_heap_pass": true,
+      "arena_pass": true,
+      "unclassified_heap_site_pairs": 0,
+      "world_job_pool_teardown": "MATCHED"
+    },
+    {
+      "role": "native-free",
+      "candidate": "03",
+      "assessment": {
+        "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/native-free/assessment.json",
+        "sha256": "df8022ac027d564390196e66e95ef5aa1861b14f4abf2bae6c674ad32d6f19c0"
+      },
+      "actual_outcome": "PASS",
+      "completed": 1200,
+      "attempted": 1200,
+      "ceiling": 1200,
+      "failed_checks": [],
+      "mean_inclusive_ns": 36368.5,
+      "arena_peak_bytes": 0,
+      "joint_heap_pass": true,
+      "arena_pass": true,
+      "unclassified_heap_site_pairs": 0,
+      "world_job_pool_teardown": null
+    },
+    {
+      "role": "native-contact",
+      "candidate": "03",
+      "assessment": {
+        "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/native-contact/assessment.json",
+        "sha256": "63ad31707e1925230b536a709c09d60f94845da48fae895a138ea5384a36089f"
+      },
+      "actual_outcome": "INCOMPLETE",
+      "completed": 1200,
+      "attempted": 1200,
+      "ceiling": 1200,
+      "failed_checks": [
+        "observer_upper_ns"
+      ],
+      "mean_inclusive_ns": 115457.0,
+      "arena_peak_bytes": 0,
+      "joint_heap_pass": true,
+      "arena_pass": true,
+      "unclassified_heap_site_pairs": 0,
+      "world_job_pool_teardown": null,
+      "disposition": "ACCEPTED_EXCEPTION",
+      "decision": {
+        "path": "docs/pre_editor/active/PHASE_30_NATIVE_CONTACT_OBSERVER_ACCEPTANCE_01.json",
+        "sha256": "18d1617f3940750dfae83cae0c3b4d44df257669f5f0624c4d2d9bf92860e738"
+      }
+    },
+    {
+      "role": "native-limit",
+      "candidate": "03",
+      "assessment": {
+        "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/native-limit/assessment.json",
+        "sha256": "5b110a89743290573c6f9f4183786a088c02d11ed60010c12d6ba1fced56570d"
+      },
+      "actual_outcome": "PASS",
+      "completed": 1200,
+      "attempted": 1200,
+      "ceiling": 1200,
+      "failed_checks": [],
+      "mean_inclusive_ns": 30522.166666666668,
+      "arena_peak_bytes": 0,
+      "joint_heap_pass": true,
+      "arena_pass": true,
+      "unclassified_heap_site_pairs": 0,
+      "world_job_pool_teardown": null
+    }
+  ],
+  "native_limit": {
+    "reservation": {
+      "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/native-limit/reservation.json",
+      "sha256": "df29dd1df898b6d34bb7305453eace3731f82724b84ee867f0aa259ee9e1eced"
+    },
+    "exit_record": {
+      "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/native-limit/exit.json",
+      "sha256": "b228ad56f35f662b38ae4784343b71eb27fbeb273bee2f39515fd897765731e0"
+    },
+    "exit": {
+      "pid": 19732,
+      "exit_code": 0,
+      "seconds": 24.79700000002049,
+      "timeout": false
+    },
+    "steps": {
+      "requests": 1200,
+      "physics_attempted": 1200,
+      "physics_completed": 1200
+    },
+    "checks": {
+      "process_exit": true,
+      "tick_account": true,
+      "driver_requests": true,
+      "full_workload": true,
+      "both_stops_and_release": true,
+      "frozen_numerical_envelope": true,
+      "inclusive_ns": true,
+      "observer_upper_ns": true,
+      "job_and_heap_sites": true,
+      "joint_heap": true,
+      "arena_sites": true
+    },
+    "stops_dwell_releases": [
+      [
+        true,
+        true,
+        true
+      ],
+      [
+        229,
+        175,
+        175
+      ],
+      [
+        true,
+        true
+      ]
+    ],
+    "maximum_stop_penetration_rad": 8.146033980693801e-08,
+    "maximum_cap_excess": 0.0,
+    "timing_quantum_ns": 100,
+    "inclusive_ns_unguarded": {
+      "mean": 30522.166666666668,
+      "median": 31600.0,
+      "p95": 48600,
+      "p99": 56200,
+      "maximum": 70200,
+      "max_sliding60": 41153.333333333336
+    },
+    "observer_ns_unguarded": {
+      "mean": 31476.166666666668,
+      "median": 32500.0,
+      "p95": 49700,
+      "p99": 57200,
+      "maximum": 71100,
+      "max_sliding60": 42146.666666666664
+    },
+    "guarded_worst_60_observer_ns": 42346.666666666664,
+    "guarded_p95_observer_ns": 49900,
+    "raw_data": [
+      {
+        "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/native-limit/data/address.txt",
+        "sha256": "9dcabd0b98ea8ef9b49c575fda7764836908457a1926ade0dd905ace783570c0"
+      },
+      {
+        "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/native-limit/data/allocations.csv",
+        "sha256": "26618586eb218deca5c80dfdad9da8fd445b4d77fae64c816a4ca0794a9ef2f6"
+      },
+      {
+        "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/native-limit/data/bodies.csv",
+        "sha256": "d4303d16f39ae985068b5c2a1b7c14b166d5ab19d5930fb2023d0978e17610bc"
+      },
+      {
+        "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/native-limit/data/contacts.csv",
+        "sha256": "61adf41f9da484b77b963394c77cc7e85e9fcf78c5dcfb7b72876d64588b50a8"
+      },
+      {
+        "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/native-limit/data/cost.csv",
+        "sha256": "3eb89b85d466144c72ce6aac02f74ea6510eccf96a86797563c9888ad38b70b6"
+      },
+      {
+        "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/native-limit/data/load.csv",
+        "sha256": "3deb54c154373bfd42922d84a98464ddad222c810727c3941e2a313b68cde286"
+      },
+      {
+        "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/native-limit/data/motor.csv",
+        "sha256": "51222e0f128d16e437ee81641bd827e83dae6bb87f12c2b3358148ac22e92eac"
+      },
+      {
+        "path": "logs/pre_editor/phase-30/candidate-03/arena-review-01/runs/native-limit/data/outcome.txt",
+        "sha256": "821a8b6e1a144d676b8357b736eed908caccc4165408de5eb6ce141282ff2080"
+      }
+    ],
+    "arena_applicability": "Native does not use the Jolt Arena",
+    "incremental_joint_heap_calls": 0,
+    "incremental_joint_heap_bytes": 0
+  },
+  "resources": {
+    "starts": 10,
+    "starts_ceiling": 10,
+    "booked_attempts": 10920,
+    "booked_attempt_ceiling": 10920,
+    "completed_observed": 7917,
+    "fixture_attempts_direct_excluding_failed_candidate02_free": 7271,
+    "ordinary_editor_completed": 645,
+    "ordinary_editor_attempts_inferred": 645,
+    "original_free_attempts": null,
+    "this_directive_processes": 1,
+    "automatic_retries": 0,
+    "ordinary_processes_this_directive": 0,
+    "owner_history": "The unmetered Owner manual review was recorded separately."
+  },
+  "ordinary_release": {
+    "ordinary_release": {
+      "path": "bin/Release/RigidBodySimulation/RigidBodySimulation.exe",
+      "sha256": "9a170429bff719fb12edd8345a0a7026ee87ee9b604d0065b9f407c9ef8f1951"
+    },
+    "original_ordinary_release": {
+      "path": "logs/pre_editor/phase-30/native-contact-exception-01/ordinary-Release/reviewed-RBS-before-help.bin",
+      "sha256": "b1b21e44373bd2b12cb9583f1910144a350626fc69d3043695dc83250593b2b3"
+    },
+    "build": {
+      "path": "logs/pre_editor/phase-30/native-contact-exception-01/ordinary-Release/result.json",
+      "sha256": "38d78a4d2f1bf12e904abe1d1fa82721367601127fdb99a6e93f740a7371617d"
+    },
+    "command": {
+      "path": "logs/pre_editor/phase-30/native-contact-exception-01/ordinary-Release/command.json",
+      "sha256": "f5d818ce1bcff00af714a5ef238e95229612c4e57f8958adb1ce45fa52524eff"
+    },
+    "log": {
+      "path": "logs/pre_editor/phase-30/native-contact-exception-01/ordinary-Release/process.log",
+      "sha256": "ad91aaa67215d5987f01a80d49d7c9afe125985426aecb8e82a57730e559572b"
+    },
+    "exit_code": 0,
+    "warnings": 0,
+    "errors": 0,
+    "prior_ordinary_source_inputs": {
+      "path": "logs/pre_editor/phase-30/candidate-02/ordinary-Release/source-inputs.json",
+      "sha256": "27ed46d6a2351a182cd299fc47adbd2ad6f36fddb7d395f90aa686bb3055d532"
+    },
+    "qualified_source_inputs": {
+      "path": "logs/pre_editor/phase-30/candidate-03/isolated-Release/source-inputs.json",
+      "sha256": "d44ff50dbbbdeda721310c75144511d6513654c532f28d8e8b05c9bc688683b2"
+    },
+    "current_ui": {
+      "path": "RigidBodySimulation/src/RbsUi.cpp",
+      "sha256": "a334f1ce93a101cb403a62809e662c005aaf3423ae6607e42c6a9ea8d3060379"
+    },
+    "previous_ui": {
+      "path": "logs/pre_editor/phase-30/native-contact-exception-01/RbsUi.cpp.before",
+      "sha256": "b021894dd459188a2aa3fa436f1824662f49b67053392119dc0a5b1d2c209ac9"
+    },
+    "binary_contains_new_and_legacy_help": true,
+    "isolated_capture_marker_in_ordinary": false,
+    "source_delta": "One display expression in DrawDistanceChainImpulseControls. The other 14 admitted production C++ inputs match the ordinary build. The inspected executable is archived under its historical SHA-256.",
+    "startup": {
+      "path": "bin/Release/assets/startup/RigidBodySimulation.txt",
+      "sha256": "69cd9a3582870ca65a9fb9b9fd9be37dc5f7f51903c6a4f060922525375e45ce"
+    },
+    "verified_startup_members": 46,
+    "verified_runtime_dlls": 12,
+    "staged_thumbnail": {
+      "path": "bin/Release/assets/Images/Editor/Scenes/motors.png",
+      "sha256": "f07a69426391fe247f15ad36b24fd5d5f2b1a1d3a7322eb38546ff89ba0c02d0"
+    },
+    "working_directory": "runtime/RigidBodySimulation/Release",
+    "successful_prior_debug_profile": {
+      "path": "logs/pre_editor/phase-30/candidate-02/isolated-Debug/result.json",
+      "sha256": "dcffc0895a86f27c131f4c82336513c19764b268b6073611620152eb5f0649a1"
+    },
+    "historical_ordinary_debug_build": {
+      "path": "logs/pre_editor/phase-30/candidate-01/ordinary-Debug/result.json",
+      "sha256": "f78137121a7909d5b8d8cbd80bccc8aeca36ad8b24cf6b121fd950ca1ec9d597"
+    },
+    "observed_post_help_in_running_ordinary_editor": false
+  },
+  "owner_manual_pass": {
+    "path": "docs/pre_editor/active/PHASE_30_OWNER_MANUAL_REVIEW_01.json",
+    "sha256": "072b99bf8af1e3476c6a029031721b695eab86c7e7f1071822053c2d85eb6b74"
+  },
+  "formal_phase_approval": false
+}

@@ -1,0 +1,14 @@
+# Phase 30 final focused Release verification
+
+**Publication remains on hold.** The corrected Editor used about 4.9 ms more main-thread CPU per idle frame than the pre-fix reference in both matched windows. The Running camera gesture was demonstrated. Owner approval, the Jolt Contact exception and the Native Contact observer exception retain their recorded scope. [Owner decision](PHASE_30_FINAL_OWNER_APPROVAL_01.md) · [Measurements](../../logs/pre_editor/phase-30/final-performance-focused-01/measurements.json)
+
+| Process age | Main-thread CPU, pre-fix / corrected | Increase | Mean frame time, pre-fix / corrected |
+|---|---:|---:|---:|
+| 49.90–53.10 s | 1.188 / 6.048 ms | +4.860 ms | 6.061 / 6.061 ms |
+| 67.26–70.47 s | 1.097 / 6.007 ms | +4.910 ms | 6.060 / 6.061 ms |
+
+The two captures matched on Jolt Motor Contact, stationary camera, paused Physics, 1,061 × 800 viewport, 165 Hz display, swap interval 1 and AC power profile. The corrected query averaged 5.119 ms in both windows. Swap Buffers averaged 0.020 ms. The pre-fix process shifted its time to Swap Buffers at 28.917 s. The corrected process kept the query as the longer call from frame 2 through the last rendered frame at 93.467 s. Frame-time p95 and p99 were lower in the corrected Idle samples. The trigger for the different synchronization behavior remains unknown. [Timing and trace identities](../../logs/pre_editor/phase-30/final-performance-focused-01/measurements.json)
+
+After Play, the driver clicked empty viewport space, released and let the input settle. Both sampled edges showed the active viewport color before RMB. During the 3.218 s gesture, the rendered view matrix changed on **498 of 530 frames**, including **181 frames that completed Physics steps**. The pre-fix moving gesture changed the view on 494 of 524 frames. Both showed rotation with unchanged reported camera position. The Win32 sample confirmed RMB down. It reported a visible cursor and no native capture handle, so SDL's internal capture owner remains unverified. [Input witness](../../logs/pre_editor/phase-30/final-performance-focused-01/input-witness.json) · [Camera measurements](../../logs/pre_editor/phase-30/final-performance-focused-01/measurements.json)
+
+The retained timing executable was `8de57f4c7a29e60a1240c64b992dcf73c45230bc53e20ecdd3951782c0e46aa2`. PID 8940 exited normally with code 0 in **93.953 s**. One process, one Running gesture, **213 completed steps**, zero retries. The successful exit, completed-counter deltas and terminal failure handling reconcile to 213 attempted steps. The full 240-step reservation brings the Phase 30 ledger to 16 starts and 13,560 booked attempts. [Reservation](../../logs/pre_editor/phase-30/final-performance-focused-01/reservation.json) · [Exit record](../../logs/pre_editor/phase-30/final-performance-focused-01/outcome.json)

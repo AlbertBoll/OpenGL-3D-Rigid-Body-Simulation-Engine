@@ -835,8 +835,44 @@ namespace GEngine
         else {a->WakeUp();b->WakeUp();}
         return handle;
     }
+    JointResult<> PhysicsWorld::SetHingeMotor(PhysicsJointHandle h, const HingeMotorSettings& drive)
+    {
+        constexpr auto op = "SetHingeMotor";
+        auto index = ResolveJoint(h, op, true);
+        if (!index) return std::unexpected(index.error());
+        auto& slot = m_Joints[*index];
+        auto& settings = slot.angular.desc.angular.motor;
+        if (slot.kind != JointKind::Hinge || !settings)
+            return std::unexpected(JointError{JointErrorCode::WrongKind, h, op});
+        if (!drive.Valid()) return std::unexpected(JointError{JointErrorCode::InvalidGeometry, h, op});
+        if (*settings == drive) return {};
+        auto* a = ResolveJointBody(slot.row.desc.bodyA);
+        auto* b = ResolveJointBody(slot.row.desc.bodyB);
+        if (!a || !b) return std::unexpected(JointError{JointErrorCode::InvalidEndpoint, h, op});
+        if (m_Backend) {
+            ImpulseActivationPlan activation;
+            for (auto endpoint : {slot.row.desc.bodyA, slot.row.desc.bodyB}) {
+                if (ResolveJointBody(endpoint)->Type == BodyType::Dynamic && !SeedImpulseActivation(activation,endpoint))
+                    return std::unexpected(JointError{JointErrorCode::InvalidEndpoint,h,op});
+            }
+            if (!PrepareImpulseActivation(activation))
+                return std::unexpected(JointError{JointErrorCode::InvalidEndpoint,h,op});
+            auto result = m_Backend->SetHingeMotor(h, drive);
+            if (!result) return result;
+            CommitImpulseActivation(activation);
+        }
+        settings = drive;
+        slot.angular.motor = {};
+        // Velocity commands leave the topology and existing contact manifolds intact.
+        // Native propagates endpoint activation in its normal connected-island pass.
+        if (a->Type == BodyType::Dynamic) a->WakeUp();
+        if (b->Type == BodyType::Dynamic) b->WakeUp();
+        return {};
+    }
     JointResult<PhysicsJointHandle> PhysicsWorld::CreateJoint(const JointDescriptor& d)
     {
+        if (d.angular.motor && d.kind != JointKind::Hinge)
+            return std::unexpected(JointError{JointErrorCode::WrongKind,{},"CreateJoint motor"});
         switch(d.kind) {
         case JointKind::Distance: return CreateDistanceJoint({d.bodyA,d.bodyB,d.localAnchorA,d.localAnchorB,d.targetDistance,d.collideConnected});
         case JointKind::BallSocket: return CreateBallSocketJoint({d.bodyA,d.bodyB,d.localAnchorA,d.localAnchorB,d.collideConnected});
@@ -885,6 +921,19 @@ namespace GEngine
             state.worldAnchorB=b->BodySpaceToWorldSpace(effective.localAnchorB);
             state.residual=state.worldAnchorB-state.worldAnchorA;state.error=glm::length(state.residual);
             state.angular=AngularJoint::Observe(effective,a->m_Orientation,b->m_Orientation);
+            if (effective.angular.motor) {
+                auto& s = state.angular;
+                s.motor = m_Backend ? m_Backend->MotorSample(h) : slot.angular.motor;
+                const Vec3f axis = glm::normalize(a->m_Orientation * effective.angular.localFrameA) * Vec3f(1,0,0);
+                s.motorSpeed = glm::dot(axis, b->GetAngularVelocity() - a->GetAngularVelocity());
+                s.motorError = effective.angular.motor->targetVelocity - s.motorSpeed;
+                s.motorSaturated = s.motor.valid && s.motor.impulseCap > 0 &&
+                                   std::abs(s.motor.impulse) >= s.motor.impulseCap;
+                if (!std::isfinite(s.motorSpeed) || !std::isfinite(s.motorError) || !std::isfinite(s.motor.work) ||
+                    !std::isfinite(s.motor.impulse) || !std::isfinite(s.motor.peakAccumulated) ||
+                    !std::isfinite(s.motor.impulseCap))
+                    return std::unexpected(JointError{JointErrorCode::NonFinite,h,"ReadJoint motor"});
+            }
             state.angular.angularImpulse=m_Backend?m_Backend->AngularImpulse(h):slot.angular.angularImpulse;
             state.angular.impulseAvailable=m_Backend?m_Backend->AngularImpulseAvailable(h):slot.angular.impulseAvailable;
             if(!Math::IsFinite(state.worldAnchorA)||!Math::IsFinite(state.worldAnchorB)||!std::isfinite(state.error)||

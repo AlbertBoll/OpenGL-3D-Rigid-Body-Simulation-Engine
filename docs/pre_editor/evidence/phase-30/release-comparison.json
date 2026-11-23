@@ -1,0 +1,423 @@
+{
+  "pooled_samples_by_scenario": {
+    "before": {
+      "idle_ready": {
+        "n": 1054,
+        "raw_ms": {
+          "mean": 6.060632068311196,
+          "p95": 6.391689999999999,
+          "p99": 6.503747
+        },
+        "thread_cpu_ms": {
+          "mean": 1.1414848197343455,
+          "p95": 15.625,
+          "p99": 15.625
+        },
+        "editor_ui_ms": {
+          "mean": 0.40973301707779886,
+          "p95": 0.4989249999999999,
+          "p99": 0.5462960000000002
+        },
+        "present_ms": {
+          "mean": 5.225792599620493,
+          "p95": 5.536039999999998,
+          "p99": 5.755279000000001
+        },
+        "swap_query_ms": {
+          "mean": 0.0017404174573055029,
+          "p95": 0.003134999999999991,
+          "p99": 0.004647000000000003
+        }
+      },
+      "object_picking": {
+        "n": 1067,
+        "raw_ms": {
+          "mean": 6.061039456419869,
+          "p95": 6.326529999999998,
+          "p99": 6.525779999999999
+        },
+        "thread_cpu_ms": {
+          "mean": 1.4058106841611997,
+          "p95": 15.625,
+          "p99": 15.625
+        },
+        "editor_ui_ms": {
+          "mean": 0.47467853795688847,
+          "p95": 0.61517,
+          "p99": 0.7025139999999991
+        },
+        "present_ms": {
+          "mean": 5.079764948453608,
+          "p95": 5.40017,
+          "p99": 5.687101999999999
+        },
+        "swap_query_ms": {
+          "mean": 0.0018214620431115276,
+          "p95": 0.0035,
+          "p99": 0.004733999999999992
+        }
+      },
+      "hierarchy_inspector": {
+        "n": 1140,
+        "raw_ms": {
+          "mean": 6.060914649122807,
+          "p95": 6.33336,
+          "p99": 6.511715
+        },
+        "thread_cpu_ms": {
+          "mean": 1.480263157894737,
+          "p95": 15.625,
+          "p99": 15.625
+        },
+        "editor_ui_ms": {
+          "mean": 0.5328288596491229,
+          "p95": 0.64681,
+          "p99": 0.712304999999999
+        },
+        "present_ms": {
+          "mean": 4.974755701754386,
+          "p95": 5.2871,
+          "p99": 5.552152999999999
+        },
+        "swap_query_ms": {
+          "mean": 0.001890701754385965,
+          "p95": 0.0033,
+          "p99": 0.00506099999999999
+        }
+      },
+      "rmb_navigation": {
+        "n": 1049,
+        "raw_ms": {
+          "mean": 6.060920305052431,
+          "p95": 6.35354,
+          "p99": 6.529968
+        },
+        "thread_cpu_ms": {
+          "mean": 1.4895138226882745,
+          "p95": 15.625,
+          "p99": 15.625
+        },
+        "editor_ui_ms": {
+          "mean": 0.41740467111534796,
+          "p95": 0.53896,
+          "p99": 0.6425839999999999
+        },
+        "present_ms": {
+          "mean": 5.023133555767398,
+          "p95": 5.388459999999999,
+          "p99": 5.737332
+        },
+        "swap_query_ms": {
+          "mean": 0.002305529075309819,
+          "p95": 0.0049,
+          "p99": 0.006551999999999998
+        }
+      },
+      "physics_running": {
+        "n": 1048,
+        "raw_ms": {
+          "mean": 6.060452958015267,
+          "p95": 6.376589999999998,
+          "p99": 6.535943
+        },
+        "thread_cpu_ms": {
+          "mean": 1.416388358778626,
+          "p95": 15.625,
+          "p99": 15.625
+        },
+        "editor_ui_ms": {
+          "mean": 0.3985359732824427,
+          "p95": 0.483155,
+          "p99": 0.544659
+        },
+        "present_ms": {
+          "mean": 5.043177290076336,
+          "p95": 5.42096,
+          "p99": 5.685955
+        },
+        "swap_query_ms": {
+          "mean": 0.0018739503816793894,
+          "p95": 0.0039,
+          "p99": 0.0053
+        }
+      },
+      "idle_bookend": {
+        "n": 445,
+        "raw_ms": {
+          "mean": 6.0610975280898876,
+          "p95": 6.385079999999999,
+          "p99": 6.563744
+        },
+        "thread_cpu_ms": {
+          "mean": 1.1938202247191012,
+          "p95": 15.625,
+          "p99": 15.625
+        },
+        "editor_ui_ms": {
+          "mean": 0.41183820224719103,
+          "p95": 0.50712,
+          "p99": 0.545384
+        },
+        "present_ms": {
+          "mean": 5.216653483146067,
+          "p95": 5.492380000000001,
+          "p99": 5.8114680000000005
+        },
+        "swap_query_ms": {
+          "mean": 0.001712808988764045,
+          "p95": 0.003,
+          "p99": 0.0042
+        }
+      }
+    },
+    "final": {
+      "idle_ready": {
+        "n": 1056,
+        "raw_ms": {
+          "mean": 6.060386268939394,
+          "p95": 6.324075000000001,
+          "p99": 6.480615
+        },
+        "thread_cpu_ms": {
+          "mean": 6.036931818181818,
+          "p95": 15.625,
+          "p99": 15.625
+        },
+        "editor_ui_ms": {
+          "mean": 0.4495523674242424,
+          "p95": 0.5461,
+          "p99": 0.636345
+        },
+        "present_ms": {
+          "mean": 0.039315625,
+          "p95": 0.0483,
+          "p99": 0.08673500000000038
+        },
+        "swap_query_ms": {
+          "mean": 5.096782765151515,
+          "p95": 5.395025,
+          "p99": 5.59868
+        }
+      },
+      "object_picking": {
+        "n": 1078,
+        "raw_ms": {
+          "mean": 6.060542949907235,
+          "p95": 6.333475,
+          "p99": 6.488775
+        },
+        "thread_cpu_ms": {
+          "mean": 6.058673469387755,
+          "p95": 15.625,
+          "p99": 15.625
+        },
+        "editor_ui_ms": {
+          "mean": 0.49550324675324675,
+          "p95": 0.612895,
+          "p99": 0.7035330000000001
+        },
+        "present_ms": {
+          "mean": 0.0398012987012987,
+          "p95": 0.0478,
+          "p99": 0.1139610000000002
+        },
+        "swap_query_ms": {
+          "mean": 4.974302040816326,
+          "p95": 5.328865,
+          "p99": 5.562904
+        }
+      },
+      "hierarchy_inspector": {
+        "n": 1160,
+        "raw_ms": {
+          "mean": 6.060429396551724,
+          "p95": 6.324179999999999,
+          "p99": 6.517266
+        },
+        "thread_cpu_ms": {
+          "mean": 6.021012931034483,
+          "p95": 15.625,
+          "p99": 15.625
+        },
+        "editor_ui_ms": {
+          "mean": 0.5517818103448275,
+          "p95": 0.664835,
+          "p99": 0.753746
+        },
+        "present_ms": {
+          "mean": 0.0392626724137931,
+          "p95": 0.0454,
+          "p99": 0.07922500000000021
+        },
+        "swap_query_ms": {
+          "mean": 4.9720745689655175,
+          "p95": 5.28149,
+          "p99": 5.541874
+        }
+      },
+      "rmb_navigation": {
+        "n": 1058,
+        "raw_ms": {
+          "mean": 6.062093383742911,
+          "p95": 6.345525,
+          "p99": 6.516786000000001
+        },
+        "thread_cpu_ms": {
+          "mean": 6.0698251417769375,
+          "p95": 15.625,
+          "p99": 15.625
+        },
+        "editor_ui_ms": {
+          "mean": 0.4350610586011342,
+          "p95": 0.5165,
+          "p99": 0.5678730000000001
+        },
+        "present_ms": {
+          "mean": 0.04076616257088847,
+          "p95": 0.047015,
+          "p99": 0.08839000000000147
+        },
+        "swap_query_ms": {
+          "mean": 4.980794234404537,
+          "p95": 5.341559999999999,
+          "p99": 5.593306
+        }
+      },
+      "physics_running": {
+        "n": 1063,
+        "raw_ms": {
+          "mean": 6.060980338664158,
+          "p95": 6.33393,
+          "p99": 6.503673999999999
+        },
+        "thread_cpu_ms": {
+          "mean": 6.026575729068673,
+          "p95": 15.625,
+          "p99": 15.625
+        },
+        "editor_ui_ms": {
+          "mean": 0.4461285983066792,
+          "p95": 0.5431,
+          "p99": 0.6101779999999997
+        },
+        "present_ms": {
+          "mean": 0.040344496707431794,
+          "p95": 0.046479999999999994,
+          "p99": 0.09650799999999922
+        },
+        "swap_query_ms": {
+          "mean": 4.929009125117592,
+          "p95": 5.28368,
+          "p99": 5.4864939999999995
+        }
+      },
+      "idle_bookend": {
+        "n": 447,
+        "raw_ms": {
+          "mean": 6.060842953020134,
+          "p95": 6.376009999999999,
+          "p99": 6.532204
+        },
+        "thread_cpu_ms": {
+          "mean": 6.047259507829978,
+          "p95": 15.625,
+          "p99": 15.625
+        },
+        "editor_ui_ms": {
+          "mean": 0.4537684563758389,
+          "p95": 0.5496,
+          "p99": 0.6377620000000002
+        },
+        "present_ms": {
+          "mean": 0.04019463087248322,
+          "p95": 0.051039999999999995,
+          "p99": 0.09378600000000012
+        },
+        "swap_query_ms": {
+          "mean": 5.075208501118568,
+          "p95": 5.37238,
+          "p99": 5.628644000000001
+        }
+      }
+    }
+  },
+  "attribution": {
+    "before": {
+      "seconds_to_first_measured_idle": 46.399,
+      "early_3_to_6_seconds": {
+        "thread_cpu_ms": 6.060606,
+        "raw_ms": 6.060765,
+        "swap_query_ms": 5.107155,
+        "present_ms": 0.038162,
+        "swap_interval_query_million_thread_cycles": 16.756783,
+        "swap_call_wall_ms": 0.021386,
+        "n": 495
+      },
+      "pooled_measured_idle": {
+        "thread_cpu_ms": 1.141485,
+        "raw_ms": 6.060632,
+        "swap_query_ms": 0.00174,
+        "present_ms": 5.225793,
+        "swap_interval_query_million_thread_cycles": 0.004612,
+        "swap_call_wall_ms": 5.221288,
+        "n": 1054
+      },
+      "paused_tick_counter_at_end_of_each_running_exercise": [
+        212,
+        212
+      ],
+      "running_interval_camera_changed_frames": [
+        0,
+        494
+      ],
+      "all_unpaused_unique_camera_matrices": 473,
+      "pick_candidates": {
+        "None": 29,
+        "Motor Bar": 10,
+        "Motor Base": 2
+      }
+    },
+    "final": {
+      "seconds_to_first_measured_idle": 13.516,
+      "early_3_to_6_seconds": {
+        "thread_cpu_ms": 6.078157,
+        "raw_ms": 6.109609,
+        "swap_query_ms": 5.027635,
+        "present_ms": 0.03837,
+        "swap_interval_query_million_thread_cycles": 16.52399,
+        "swap_call_wall_ms": 0.02185,
+        "n": 491
+      },
+      "pooled_measured_idle": {
+        "thread_cpu_ms": 6.036932,
+        "raw_ms": 6.060386,
+        "swap_query_ms": 5.096783,
+        "present_ms": 0.039316,
+        "swap_interval_query_million_thread_cycles": 16.751722,
+        "swap_call_wall_ms": 0.022362,
+        "n": 1056
+      },
+      "paused_tick_counter_at_end_of_each_running_exercise": [
+        215,
+        214
+      ],
+      "running_interval_camera_changed_frames": [
+        0,
+        0
+      ],
+      "all_unpaused_unique_camera_matrices": 2,
+      "pick_candidates": {
+        "None": 30,
+        "Motor Bar": 10,
+        "Motor Base": 1
+      }
+    }
+  },
+  "per_repetition": {
+    "path": "logs/pre_editor/phase-30/final-performance-01/measurements.json",
+    "sha256": "ea9ab2adc617ae5ab040ed34a1d33775e2ace3b830aef6160e23862c0053c625"
+  },
+  "frame_time_clock": "raw_ms between application frame-clock ticks. Both boundary frames must belong to the marked interval.",
+  "thread_cost": "GetThreadTimes is quantized to 15.625 ms in individual frames. Report aggregated means and corroborate using QueryThreadCycleTime around the unmodified GetSwapInterval call.",
+  "gpu_attribution": "Wall time and thread cycles establish an API boundary. They do not identify the source of driver scheduling or a causal link to Editor changes."
+}

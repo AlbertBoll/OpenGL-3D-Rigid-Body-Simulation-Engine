@@ -25,6 +25,10 @@ namespace GEngine
         Quat previousRelative{1,0,0,0};
         Vec3f impulse{}, angularImpulse{};
         float previousDt{};
+        Vec3f motorAxis{};
+        float motorInverseInertia{};
+        HingeMotorSample motor{};
+        void ApplyMotor(float total);
         std::size_t count{};
         int previousLimitU{}, previousLimitV{};
         bool active{}, impulseAvailable{};

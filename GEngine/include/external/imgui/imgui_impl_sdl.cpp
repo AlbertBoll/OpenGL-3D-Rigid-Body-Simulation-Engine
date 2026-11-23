@@ -102,6 +102,10 @@ struct ImGui_ImplSDL2_Data
     char*           ClipboardTextData;
     bool            MouseCanUseGlobalState;
     bool            UseVulkan;
+    bool            ViewNavigation;
+    bool            ConsumeViewActivationClick;
+    ImGuiConfigFlags SavedNavigationFlags;
+    bool            ViewKeys[SDL_NUM_SCANCODES];
 
     ImGui_ImplSDL2_Data()   { memset((void*)this, 0, sizeof(*this)); }
 };
@@ -113,6 +117,35 @@ struct ImGui_ImplSDL2_Data
 static ImGui_ImplSDL2_Data* ImGui_ImplSDL2_GetBackendData()
 {
     return ImGui::GetCurrentContext() ? (ImGui_ImplSDL2_Data*)ImGui::GetIO().BackendPlatformUserData : NULL;
+}
+
+static void ImGui_ImplSDL2_UpdateKeyModifiers(SDL_Keymod sdl_key_mods);
+
+void ImGui_ImplSDL2_ConsumeViewActivationClick()
+{
+    if (ImGui_ImplSDL2_Data* bd = ImGui_ImplSDL2_GetBackendData())
+        bd->ConsumeViewActivationClick = true;
+}
+
+void ImGui_ImplSDL2_SetViewNavigation(bool captured)
+{
+    ImGui_ImplSDL2_Data* bd = ImGui_ImplSDL2_GetBackendData();
+    if (!bd || bd->ViewNavigation == captured)
+        return;
+    bd->ViewNavigation = captured;
+    ImGuiIO& io = ImGui::GetIO();
+    const ImGuiConfigFlags mask = ImGuiConfigFlags_NoMouse | ImGuiConfigFlags_NavEnableKeyboard;
+    if (captured)
+    {
+        bd->SavedNavigationFlags = io.ConfigFlags & mask;
+        io.ConfigFlags = (io.ConfigFlags & ~mask) | ImGuiConfigFlags_NoMouse;
+        io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+    }
+    else
+    {
+        io.ConfigFlags = (io.ConfigFlags & ~mask) | bd->SavedNavigationFlags;
+        ImGui_ImplSDL2_UpdateKeyModifiers(SDL_GetModState());
+    }
 }
 
 // Forward Declarations
@@ -271,6 +304,7 @@ bool ImGui_ImplSDL2_ProcessEvent(const SDL_Event* event)
     {
         case SDL_MOUSEMOTION:
         {
+            if (bd->ViewNavigation) return false;
             ImVec2 mouse_pos((float)event->motion.x, (float)event->motion.y);
             if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
             {
@@ -286,6 +320,7 @@ bool ImGui_ImplSDL2_ProcessEvent(const SDL_Event* event)
         }
         case SDL_MOUSEWHEEL:
         {
+            if (bd->ViewNavigation) return false;
             float wheel_x = (event->wheel.x > 0) ? 1.0f : (event->wheel.x < 0) ? -1.0f : 0.0f;
             float wheel_y = (event->wheel.y > 0) ? 1.0f : (event->wheel.y < 0) ? -1.0f : 0.0f;
             io.AddMouseWheelEvent(wheel_x, wheel_y);
@@ -294,6 +329,12 @@ bool ImGui_ImplSDL2_ProcessEvent(const SDL_Event* event)
         case SDL_MOUSEBUTTONDOWN:
         case SDL_MOUSEBUTTONUP:
         {
+            if (event->button.button == SDL_BUTTON_LEFT && bd->ConsumeViewActivationClick)
+            {
+                bd->ConsumeViewActivationClick = false;
+                if (event->type == SDL_MOUSEBUTTONDOWN) return false;
+            }
+            if (bd->ViewNavigation && event->type == SDL_MOUSEBUTTONDOWN) return false;
             int mouse_button = -1;
             if (event->button.button == SDL_BUTTON_LEFT) { mouse_button = 0; }
             if (event->button.button == SDL_BUTTON_RIGHT) { mouse_button = 1; }
@@ -308,13 +349,27 @@ bool ImGui_ImplSDL2_ProcessEvent(const SDL_Event* event)
         }
         case SDL_TEXTINPUT:
         {
+            if (bd->ViewNavigation) return false;
             io.AddInputCharactersUTF8(event->text.text);
             return true;
         }
         case SDL_KEYDOWN:
         case SDL_KEYUP:
         {
-            ImGui_ImplSDL2_UpdateKeyModifiers((SDL_Keymod)event->key.keysym.mod);
+            const unsigned scancode = (unsigned)event->key.keysym.scancode;
+            if (scancode < SDL_NUM_SCANCODES)
+            {
+                bool& owned = bd->ViewKeys[scancode];
+                if (event->type == SDL_KEYDOWN)
+                {
+                    if (!event->key.repeat) owned = bd->ViewNavigation;
+                    if (owned || bd->ViewNavigation) return false;
+                }
+                else
+                    owned = false;
+            }
+            if (!bd->ViewNavigation)
+                ImGui_ImplSDL2_UpdateKeyModifiers((SDL_Keymod)event->key.keysym.mod);
             ImGuiKey key = ImGui_ImplSDL2_KeycodeToImGuiKey(event->key.keysym.sym);
             io.AddKeyEvent(key, (event->type == SDL_KEYDOWN));
             io.SetKeyEventNativeData(key, event->key.keysym.sym, event->key.keysym.scancode, event->key.keysym.scancode); // To support legacy indexing (<1.87 user code). Legacy backend uses SDLK_*** as indices to IsKeyXXX() functions.
@@ -682,8 +737,11 @@ void ImGui_ImplSDL2_NewFrame()
         io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
     }
 
-    ImGui_ImplSDL2_UpdateMouseData();
-    ImGui_ImplSDL2_UpdateMouseCursor();
+    if (!bd->ViewNavigation)
+    {
+        ImGui_ImplSDL2_UpdateMouseData();
+        ImGui_ImplSDL2_UpdateMouseCursor();
+    }
 
     // Update game controllers (if enabled and available)
     ImGui_ImplSDL2_UpdateGamepads();

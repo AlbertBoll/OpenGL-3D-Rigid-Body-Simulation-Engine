@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "workflow": "pre-editor",
+  "phase": "30",
+  "operation": "Exact Phase 30 checkpoint seal and finish only",
+  "owner_authorization": "Complete the legitimate exact-predecessor publisher amendment binding the Phase 29 archive commit ffa89a2708f34e8c0c194c1201728b565e2ba447. Then execute the existing guarded Phase 30 publication workflow.",
+  "phase_approval": {
+    "path": "docs/pre_editor/PHASE_30_FINAL_OWNER_APPROVAL_01.md",
+    "sha256": "b3289f9ee2eb6c9fe9ce3b0fc3c9875551ccf9a876d243edb39c71ceafc8866e"
+  },
+  "cost_authorization": {
+    "path": "docs/pre_editor/evidence/phase-30/editor-cpu-acceptance-01.json",
+    "sha256": "0933b9f91274805e0ce228bc6c105a0ec88fd8f1a9e2f62c76f37609dd6a322d"
+  },
+  "branch": "pre-editor/refactor",
+  "remote": "origin",
+  "destination": "https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine.git",
+  "baseline": "ffa89a2708f34e8c0c194c1201728b565e2ba447",
+  "tree": "a145e744564c1ce7600ef2f902c94af05cf5a11a",
+  "sole_parent": "a983eac5e9f2c7993a17d90ef054ce216315c5d6",
+  "last_formally_approved_phase": "28",
+  "previous_tag": "pre-editor-phase-28-approved",
+  "previous_tag_object": "cc0d456d1eec388e03a4f0c65de15dfdc478d21b",
+  "previous_receipt": {
+    "path": "pre-editor-checkpoints/phase-28.json",
+    "sha256": "f5e8ea456219ad2cf463b6f6649d766cff061656017a22f61ada1c14ffe0c47b"
+  },
+  "archive_tag": "pre-editor-phase-29-owner-accepted",
+  "archive_tag_object": "b6234d63eec824649a31070fb7cad1973006fac8",
+  "entry_amendment": {
+    "path": "docs/pre_editor/PHASE_30_ENTRY_EXCEPTION_01.md",
+    "sha256": "458d4597ce341bca063ec3de7c7afac0b831910913c2c3beb14c2c91210eed2b"
+  },
+  "entry_activation": {
+    "path": "docs/pre_editor/active/PHASE_30_ENTRY_EXCEPTION_ACTIVATION_01.json",
+    "sha256": "3c1122f7cc1199e453a3828fc5d5ec8f738b63bdfbf8cd6bf328fb16926839b8"
+  },
+  "archive_owner_decision": {
+    "path": "docs/pre_editor/PHASE_29_OWNER_APPROVAL_WITH_DOCUMENTED_EXCEPTIONS_01.md",
+    "sha256": "33b37ede65ec61a9ccf3386e54f34c37065081ed2158a0d5f245e1a31424e66e",
+    "git_blob": "1a3e3053ea01c8803037467ebad3fbf90694b040"
+  },
+  "archive_evidence": {
+    "path": "docs/pre_editor/evidence/phase-29-owner-approval-exceptions-01.json",
+    "sha256": "6a7316aa6c543e0c191835f5c9f870cf55332f6b01e56805054ec46c2af2ef74",
+    "git_blob": "fd11a3e72462921f391a5607690dd38ee8378ac9"
+  },
+  "phase29_progression": "OWNER_ACCEPTED_FOR_PROGRESSION",
+  "phase29_formal_checkpoint": "INCOMPLETE",
+  "phase29_production_qualification": "INCOMPLETE",
+  "guards": "All other phase, publication and integrity guards remain in force. The Phase 29 approved tag, journal and receipt stay absent."
+}

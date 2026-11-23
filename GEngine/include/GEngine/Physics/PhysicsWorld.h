@@ -235,6 +235,7 @@ namespace GEngine
         [[nodiscard]] JointResult<PhysicsJointHandle> CreateBallSocketJoint(const BallSocketJointDesc&);
         [[nodiscard]] JointResult<BallSocketJointState> ReadBallSocketJoint(PhysicsJointHandle) const;
         [[nodiscard]] JointResult<PhysicsJointHandle> CreateAngularJoint(const AngularJointDesc&);
+        [[nodiscard]] JointResult<> SetHingeMotor(PhysicsJointHandle, const HingeMotorSettings&);
         [[nodiscard]] JointResult<JointState> ReadJoint(PhysicsJointHandle) const;
         [[nodiscard]] JointResult<PhysicsJointHandle> CreateJoint(const JointDescriptor&);
         [[nodiscard]] JointResult<> DestroyJoint(PhysicsJointHandle);

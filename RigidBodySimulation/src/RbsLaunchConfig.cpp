@@ -223,6 +223,7 @@ namespace Rbs
     void SetAngularBarMass(AngularPacket& p,float mass) noexcept
     {
         p.bodies[1].authoredMass=mass;
+        if (IsMotorScene(p.scene)) return;
         p.scheduledImpulses[0]={3.f*mass,0.f,0.f};
         p.scheduledImpulses[1]=IsHinge(p.scene)?Vec3f{-3.f*mass,0.f,0.f}:Vec3f{0.f,0.f,3.f*mass};
     }
@@ -257,7 +258,7 @@ namespace Rbs
         auto& localPin=anchor?p.joint.localAnchorA:p.joint.localAnchorB;
         const Vec3f worldPin=b.center+b.orientation*localPin;
         b.halfExtents=halfExtents;
-        localPin={0.f,(anchor?-1.f:1.f)*halfExtents.y,0.f};
+        if (!IsMotorScene(p.scene)) localPin={0.f,(anchor?-1.f:1.f)*halfExtents.y,0.f};
         b.center=worldPin-b.orientation*localPin;
     }
 
@@ -284,6 +285,31 @@ namespace Rbs
             return std::unexpected(PacketError(AngularField::Variant,"Contact is admitted for limited hinge/CV only"));
         AngularPacket p;
         p.scene=scene;p.variant=variant;
+        if (IsMotorScene(scene)) {
+            p.fixtureSha256 = "d6f6ba9e195d56269b6d310af2482230b86d30b11b38b9bafa6627e55b721e91";
+            auto& base = p.bodies[0];
+            base.center = {5,2.5f,0}; base.restitution = .9f;
+            auto& bar = p.bodies[1];
+            bar.key = AngularBodyKey::Bar;
+            bar.center = {5,1.5f,0}; bar.halfExtents = {3,.25f,.25f};
+            bar.restitution = 1.f; bar.authoredMass = 100.f;
+            if (scene == RbsScenePreset::MotorContact) {
+                p.bodyCount = 3;
+                auto& load = p.bodies[2];
+                load.key = AngularBodyKey::Load; load.sphere = true;
+                load.center = {7,4.5f,0}; load.halfExtents = Vec3f(1);
+                load.friction = .9f; load.restitution = .1f;
+            }
+            p.joint.localAnchorA = Vec3f(0);
+            p.joint.localAnchorB = {0,1,0};
+            p.joint.localFrameA = p.joint.localFrameB = glm::angleAxis(GEngine::Math::Pi/2.f,Vec3f(0,0,1));
+            p.joint.motor = GEngine::HingeMotorSettings{true,2.f,100.f};
+            if (scene == RbsScenePreset::MotorLimit) {
+                p.joint.limitsEnabled = true;
+                p.joint.lower = -GEngine::Math::Pi / 4.f; p.joint.upper = -p.joint.lower;
+            }
+            return p;
+        }
         p.bodyCount=variant==AngularVariant::Contact?3:2;
         p.bodies[0].key=AngularBodyKey::Anchor;
         p.bodies[0].halfExtents={.25f,.25f,.25f};
@@ -319,10 +345,12 @@ namespace Rbs
         if(p.bodyCount!=r.bodyCount || p.joint.bodyA!=AngularBodyKey::Anchor || p.joint.bodyB!=AngularBodyKey::Bar ||
             p.joint.key!=AngularJointKey::Primary)
             return std::unexpected(PacketError(AngularField::Body,"Fixed two-body joint topology changed"));
-        const float scale=p.bodies[1].halfExtents.y,mass=p.bodies[1].authoredMass;
+        if (p.joint.motor.has_value() != r.joint.motor.has_value() || (p.joint.motor && !p.joint.motor->Valid()))
+            return std::unexpected(PacketError(AngularField::Action,"Motor target must be -2 to 2 rad/s and torque 0 to 100 N m"));
+        const float scale=p.bodies[1].halfExtents.y/r.bodies[1].halfExtents.y,mass=p.bodies[1].authoredMass;
         if(!std::isfinite(scale)||scale<.75f||scale>1.25f)return std::unexpected(PacketError(AngularField::Scale,"Bar scale must be .75..1.25"));
-        if(!std::isfinite(mass)||mass<.5f||mass>2.f||!std::isfinite(1.f/mass))
-            return std::unexpected(PacketError(AngularField::Mass,"Dynamic mass must be .5..2 kg with finite inverse"));
+        if(!std::isfinite(mass)||mass<.5f*r.bodies[1].authoredMass||mass>2.f*r.bodies[1].authoredMass||!std::isfinite(1.f/mass))
+            return std::unexpected(PacketError(AngularField::Mass,"Mass must be within half to twice the reference mass with finite inverse"));
         AngularPacket expected=r;
         SetAngularBarMass(expected,mass);
         if(p.bodyCount==3 && p.bodies[2]!=r.bodies[2])
@@ -364,7 +392,9 @@ namespace Rbs
         if(p.fixedStepSeconds!=r.fixedStepSeconds)return std::unexpected(PacketError(AngularField::Identity,"Fixed-step policy changed"));
         const auto& a=p.bodies[0];
         const auto& b=p.bodies[1];
-        if(!Close(p.joint.localAnchorA,{0,-a.halfExtents.y,0}) || !Close(p.joint.localAnchorB,{0,b.halfExtents.y,0}) ||
+        const auto anchorA = r.joint.motor ? r.joint.localAnchorA : Vec3f(0,-a.halfExtents.y,0);
+        const auto anchorB = r.joint.motor ? r.joint.localAnchorB : Vec3f(0,b.halfExtents.y,0);
+        if(!Close(p.joint.localAnchorA,anchorA) || !Close(p.joint.localAnchorB,anchorB) ||
             !Close(a.center+a.orientation*p.joint.localAnchorA,b.center+b.orientation*p.joint.localAnchorB) ||
             !SameFrame(p.joint.localFrameA,p.joint.localFrameA) || !SameFrame(p.joint.localFrameB,p.joint.localFrameB) ||
             !SameFrame(a.orientation*p.joint.localFrameA,b.orientation*p.joint.localFrameB) ||
@@ -372,7 +402,7 @@ namespace Rbs
             return std::unexpected(PacketError(AngularField::Frame,"The two tip anchors and normalized zero-angle frames must coincide; connected collision is disabled"));
         if(p.joint.limitsEnabled!=r.joint.limitsEnabled)
             return std::unexpected(PacketError(AngularField::Limits,"Case limit mode is fixed"));
-        if(p.scene==RbsScenePreset::HingeLimited) {
+        if(p.scene==RbsScenePreset::HingeLimited || p.scene==RbsScenePreset::MotorLimit) {
             if(!std::isfinite(p.joint.lower)||!std::isfinite(p.joint.upper)||
                 p.joint.lower < -GEngine::Math::Pi/4.f || p.joint.lower>0 ||
                 p.joint.upper<0 || p.joint.upper>GEngine::Math::Pi/4.f || p.joint.lower>=p.joint.upper)
@@ -490,6 +520,9 @@ namespace Rbs
         case RbsScenePreset::HingeLimited:return "hinge-limited";
         case RbsScenePreset::CvFree:return "cv-free";
         case RbsScenePreset::CvLimited:return "cv-limited";
+        case RbsScenePreset::MotorFree: return "motors";
+        case RbsScenePreset::MotorContact: return "motor-contact";
+        case RbsScenePreset::MotorLimit: return "motor-limit";
         case RbsScenePreset::PassiveRagdoll:return "passive-ragdoll";
         }
         return "invalid";
@@ -509,6 +542,7 @@ namespace Rbs
             return std::unexpected("Dedicated contact diagnostic does not admit scene overrides");
         bool sceneSeen=false, linksSeen=false, backendSeen=false, smokeSeen=false, switchChecksSeen=false;
         bool modeSeen=false,variantSeen=false;
+        std::optional<RbsScenePreset> motorCase;
         for(std::size_t i=0;i<args.size();i+=2) {
             if(i+1==args.size()) return std::unexpected("Missing value for startup option");
             const auto option=args[i], value=args[i+1];
@@ -519,9 +553,14 @@ namespace Rbs
                     RbsScenePreset::DistancePendulum,RbsScenePreset::DistanceChain,RbsScenePreset::DistanceChainContact,
                     RbsScenePreset::BallSocketSwing,RbsScenePreset::BallSocketPair,RbsScenePreset::BallSocketContact,RbsScenePreset::BallSocketContactEnabled,
                     RbsScenePreset::HingeBasic,RbsScenePreset::HingeQuaternion,RbsScenePreset::HingeLimited,RbsScenePreset::CvFree,RbsScenePreset::CvLimited,
-                    RbsScenePreset::PassiveRagdoll})
+                    RbsScenePreset::PassiveRagdoll,RbsScenePreset::MotorFree})
                     if(value==SceneName(scene)) { launch.scene=scene; found=true; break; }
                 if(!found)return std::unexpected("Unknown or unimplemented scene preset");
+            } else if (option=="--motor-case" && !motorCase) {
+                if (value=="free") motorCase=RbsScenePreset::MotorFree;
+                else if (value=="contact") motorCase=RbsScenePreset::MotorContact;
+                else if (value=="limit") motorCase=RbsScenePreset::MotorLimit;
+                else return std::unexpected("Motor case must be free, contact or limit");
             } else if(option=="--mode" && !modeSeen) {
                 modeSeen=true;
                 // Older launch commands supplied this option. Both spellings now
@@ -572,7 +611,11 @@ namespace Rbs
             !GEngine::PhysicsBackendAvailable(GEngine::PhysicsBackend::Jolt) ||
             launch.m_Backend!=GEngine::PhysicsBackend::Native || launch.m_BackendSmokeTicks!=120))
             return std::unexpected("Backend switch checks require Native startup, Jolt available, Sandbox and exactly 120 smoke ticks");
-        if(((modeSeen||variantSeen) && !IsAngularScene(launch.scene)) ||
+        if (motorCase) {
+            if (!IsMotorScene(launch.scene)) return std::unexpected("--motor-case requires --scene motors");
+            launch.scene = *motorCase;
+        }
+        if((variantSeen && IsMotorScene(launch.scene)) || ((modeSeen||variantSeen) && !IsAngularScene(launch.scene)) ||
             (linksSeen && (!launch.IsDistanceScene() || launch.scene==RbsScenePreset::DistancePendulum)) ||
             !SceneSelection{launch.scene, launch.chainLinks}.IsValid() ||
             !launch.ValidSceneConfiguration() || !launch.ValidRestingContactDiagnostic())

@@ -69,8 +69,13 @@ namespace GEngine::Manager
         SDL_Event native{};
         while (SDL_PollEvent(&native))
         {
-            if (window && window->GetImGuiWindow())
-                window->GetImGuiWindow()->HandleSDLEvent(native);
+            auto* ui = window ? window->GetImGuiWindow() : nullptr;
+            // A fresh press can acquire relative camera input inside Route().
+            // During an existing gesture, classify the press before Escape can end it.
+            const bool routePressFirst = input && input->Routing().visible &&
+                (native.type == SDL_MOUSEBUTTONDOWN || native.type == SDL_KEYDOWN) &&
+                input->PointerCapture() != InputLayer::View;
+            if (ui && !routePressFirst) ui->HandleSDLEvent(native);
             InputEvent value;
             bool isInput = true;
             InputResult translated{};
@@ -211,6 +216,7 @@ namespace GEngine::Manager
                     }
                 }
             }
+            if (ui && routePressFirst) ui->HandleSDLEvent(native);
             const auto& e = native;
             switch (native.type)
             {

@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "workflow": "pre-editor",
+  "phase": "30",
+  "scope": "Exact Phase 29 archive predecessor for Phase 30 seal and finish",
+  "authorization": {
+    "path": "docs/pre_editor/evidence/phase-30-publication-predecessor-01.json",
+    "sha256": "42b8d01b6f9472ee69dd2c488453f8253b6a31ff7023ff8e6255bd464480f789"
+  },
+  "target": ".codex/tools/rendering_checkpoint.py",
+  "before_sha256": "f01404daf131ea140f82f867863c8e0a8ce7d71fa7137a64b706917bf72add46",
+  "after_sha256": "a9aa8d9b76261517910924df6af6be02730f2cbacde8113b10646b4342332753",
+  "patch": {
+    "path": "docs/pre_editor/revisions/PHASE_30_PUBLICATION_GUARD_01/publisher.patch",
+    "sha256": "d83b65947c4cf9e3237db323ca65edd99238bcaf964b94699e3d529aa9934a55"
+  },
+  "recovery": "From the documented original LF helper, git -c core.autocrlf=false apply --unidiff-zero -- docs/pre_editor/revisions/PHASE_30_PUBLICATION_GUARD_01/publisher.patch. Verify both target hashes. Recovery is unnecessary when the after hash matches."
+}

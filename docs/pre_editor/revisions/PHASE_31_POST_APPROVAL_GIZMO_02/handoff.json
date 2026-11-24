@@ -1,0 +1,182 @@
+{
+  "operation": "PHASE_31_POST_APPROVAL_GIZMO_02",
+  "state": "READY_FOR_FOCUSED_OWNER_INSPECTION",
+  "recorded_utc": "2026-11-24T14:32:42.147761+00:00",
+  "review": "docs/pre_editor/revisions/PHASE_31_POST_APPROVAL_GIZMO_02.md",
+  "previous_owner_verdict": "FAIL",
+  "prior_reviewed_source": {
+    "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/reviewed-RbsViewportToolbar.cpp",
+    "sha256": "03e80176c7d683bba2d1895f10cb8cbd323cb1d339358546adbc93c8a259a273"
+  },
+  "prior_reviewed_exe": {
+    "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/reviewed-RigidBodySimulation.exe",
+    "sha256": "d4aea32c3ef1183442aaf0094cc50e0958ff56710ed02d6fa318e73fa0826c4f"
+  },
+  "historical_actual_trace": {
+    "input": "single physical 5 after T X",
+    "field_already_active": "0x578faeb3",
+    "scancode_hex": "22",
+    "SDL_text": "\u56fe\u65b0",
+    "widget_queue_before": 2,
+    "widget_buffer_after": "",
+    "preview_calls_for_this_gesture": 0,
+    "pid": 23880,
+    "wall_seconds": 87.6965876,
+    "exit": 0,
+    "attempted": 0,
+    "completed": 0,
+    "physics_retirement_samples": 9,
+    "processes_in_job": 1,
+    "retries": 0,
+    "backend": "Jolt",
+    "scene": "Movers"
+  },
+  "corrected_source": {
+    "path": "RigidBodySimulation/src/RbsViewportToolbar.cpp",
+    "sha256": "f1f0627b99d6830dd8936069eb266994cebea4e11643018701de7695847974c3"
+  },
+  "corrected_release": {
+    "path": "bin/Release/RigidBodySimulation/RigidBodySimulation.exe",
+    "sha256": "ae4a2157a4daeca911f966acfd7a6c67a89edded2dde18f04ca6e90cc59c54cd"
+  },
+  "startup_manifest": {
+    "path": "bin/Release/assets/startup/RigidBodySimulation.txt",
+    "sha256": "69cd9a3582870ca65a9fb9b9fd9be37dc5f7f51903c6a4f060922525375e45ce"
+  },
+  "native_regression": {
+    "result": "PASS",
+    "assertions": 29,
+    "failed": 0,
+    "reviewed_control": "Captured missing first 5 reproduced",
+    "corrected_control": "5 visible on first key update and retained after Unicode commit",
+    "field_samples": "Production old and new InputTextEx blocks, production routing and mouse activation predicate; actual linked SDL, ImGui and ImGuizmo code",
+    "coverage": "Six strings using separate frames and one busy event poll, parse and widget confirmation/cancel, invalid-Enter refocus, real ImGuizmo handle acquisition, delayed ASCII and independent Unicode Properties field",
+    "scope": "Native widget component. End-to-end corrected ordinary Editor pose, undo and redo require Owner review."
+  },
+  "release_build": {
+    "profile": "Release|x64",
+    "translation_units": [
+      "RigidBodySimulation/src/RbsViewportToolbar.cpp"
+    ],
+    "link_count": 1,
+    "warnings_or_errors": 0,
+    "roles": {
+      "native-field": {
+        "exit_code": 0,
+        "guard": null,
+        "seconds": 0.7810000000754371,
+        "peak_compiler_private_bytes": 46215168,
+        "minimum_available_bytes": 5156691968
+      },
+      "input-replay": {
+        "exit_code": 0,
+        "guard": null,
+        "seconds": 1.547000000020489,
+        "peak_compiler_private_bytes": 86958080,
+        "minimum_available_bytes": 4984958976
+      },
+      "Release-toolbar": {
+        "exit_code": 0,
+        "guard": null,
+        "seconds": 12.203000000095926,
+        "peak_compiler_private_bytes": 681426944,
+        "minimum_available_bytes": 4381003776
+      },
+      "Release-link": {
+        "exit_code": 0,
+        "guard": null,
+        "seconds": 2.76500000001397,
+        "peak_compiler_private_bytes": 0,
+        "minimum_available_bytes": 4826484736
+      }
+    },
+    "guarded_limit_seconds": 40,
+    "guarded_total_seconds": 17.296,
+    "compile_and_link_seconds": 14.968
+  },
+  "checkpoint": {
+    "commit": "244e2c1aa4f97a87e5e1cffdc3660a7ecfc38100",
+    "tag": "pre-editor-phase-31-approved",
+    "tag_object": "3e39cb5b81ca58b43d5564f86bc55034e6773c6a",
+    "complete_journal_sha256": "4d36ef40f49b7f2603a62c5b5c52d2016a3870ff66f0f7144981e324219d8921",
+    "receipt_sha256": "50e01927d5c37f7744bb0e2bf9c31432919ef5e00cce398aeaa777a07a109af3",
+    "index_empty": true,
+    "unrelated_worktree_sources_match_prior_bindings": true
+  },
+  "evidence": {
+    "owner-finding.json": {
+      "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/owner-finding.json",
+      "sha256": "ecd1a109cc531fa5cb68dd1b6547b8fb559ead97a46140e03ac938e4449c652b"
+    },
+    "authority.json": {
+      "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/authority.json",
+      "sha256": "bff200b0521442b26ebefcc74af94ad7b3a23a271877610d576b4f82dfcfb8d9"
+    },
+    "reservation.json": {
+      "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/reservation.json",
+      "sha256": "93e82a4e17983f6668ba7c67b8276717537e5092bd22b581bbfe1295312799b1"
+    },
+    "exit.json": {
+      "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/exit.json",
+      "sha256": "038f8880779b19280ab9ca9725233a6bf84b8b188a516bf46b02d7a33cc75c48"
+    },
+    "single-session.cdb": {
+      "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/single-session.cdb",
+      "sha256": "66b964972da2a02ea1ca91140671c35c2cdb9cd06e01a3c6a501d78ea2732494"
+    },
+    "trace-sites.json": {
+      "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/trace-sites.json",
+      "sha256": "d0fd335b434217a83049fb3f17b1297d05991b9f079b85a0fa225aa3e0b29563"
+    },
+    "trace-session.py": {
+      "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/trace-session.py",
+      "sha256": "c400c1658ea17e77c894bfa2929cf5810a879a201f1ada437ced3fa0d923406a"
+    },
+    "debug.log": {
+      "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/debug.log",
+      "sha256": "3a1ce26301b7adfecb63917a546c6ad9322353de5569ffef2c06286c8a88c542"
+    },
+    "reviewed-field.inc": {
+      "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/reviewed-field.inc",
+      "sha256": "08326f5c4778439a969f58a345b9b2efb5f9953510c7dd5c00c1f7c995995b3e"
+    },
+    "current-handoff.inc": {
+      "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/current-handoff.inc",
+      "sha256": "7473dbf1b33478d3631dd2c706840749782e71c64d555ae12f56d5c8f1716dce"
+    },
+    "current-field.inc": {
+      "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/current-field.inc",
+      "sha256": "2333797007b2d7d6942e6a60620507865da2811950c6e178d8ac6cec833db513"
+    },
+    "current-mouse.inc": {
+      "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/current-mouse.inc",
+      "sha256": "ec0a3f3a81b3556159ca398f2bcb4a169382113422c3ac57118e938d2fcce1a3"
+    },
+    "input-replay.cpp": {
+      "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/input-replay.cpp",
+      "sha256": "f54f9e550016364e32d76eed959fd0f0e1ee8aa6b4fb082b8c82a4fbdee79c60"
+    },
+    "input-replay.exe": {
+      "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/input-replay.exe",
+      "sha256": "8f7fe912b9da50eb5c4aca5b3198b587040f6dd80392e45004d9af678db67f36"
+    },
+    "input-replay.log": {
+      "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/input-replay.log",
+      "sha256": "c705e687f9b71a8af187efff85b8d03cfad1448981dee08e2eaa6fa478dba0c4"
+    },
+    "release-inputs.json": {
+      "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/release-inputs.json",
+      "sha256": "d06d8090d0803cd66c8d375df634a4148f1d61b61337706d7909e697ce953a02"
+    },
+    "build-Release-toolbar/process.log": {
+      "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/build-Release-toolbar/process.log",
+      "sha256": "7748c9c8709968f6b938d170644782f4df2c7f864976cc059267a2539515b562"
+    },
+    "build-Release-link/process.log": {
+      "path": "logs/pre_editor/phase-31/post-approval-gizmo-02/build-Release-link/process.log",
+      "sha256": "dcb75ce7dba2219fcd494468f05d360adb374fc07eeae71416fff635c607eb74"
+    }
+  },
+  "owner_review": "PENDING",
+  "phase32_started": false
+}

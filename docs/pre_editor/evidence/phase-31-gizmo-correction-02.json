@@ -1,0 +1,70 @@
+{
+  "schema": 1,
+  "workflow": "pre-editor",
+  "kind": "independent_post_approval_correction",
+  "id": "PHASE_31_POST_APPROVAL_GIZMO_02",
+  "owner_manual_acceptance": "PASS",
+  "owner_statement": "I have manually verified the corrected Phase 31 Post-Approval Gizmo Correction 02 and accept the current implementation.",
+  "owner_publication_direction": "Finalize the independent correction record and complete the required checkpoint integration and publication under the existing workflow.",
+  "recorded_utc": "2026-11-24T15:23:50.077358+00:00",
+  "scope": "Current corrected numeric Gizmo input and retained overlay. The Owner reported acceptance for the correction as a whole.",
+  "candidate": {
+    "source": {
+      "path": "RigidBodySimulation/src/RbsViewportToolbar.cpp",
+      "sha256": "f1f0627b99d6830dd8936069eb266994cebea4e11643018701de7695847974c3",
+      "git_blob": "b0ffd59c3ba2476ea388185990d44fdb747b0536",
+      "git_mode": "100644",
+      "git_lf_sha256": "a92ff0283a10f11ec0ad4b2ad065ff0e7c01297d293f8c6e8bb90d83018c8d70"
+    },
+    "ordinary_release_x64": {
+      "path": "bin/Release/RigidBodySimulation/RigidBodySimulation.exe",
+      "sha256": "ae4a2157a4daeca911f966acfd7a6c67a89edded2dde18f04ca6e90cc59c54cd"
+    },
+    "startup_manifest": {
+      "path": "bin/Release/assets/startup/RigidBodySimulation.txt",
+      "sha256": "69cd9a3582870ca65a9fb9b9fd9be37dc5f7f51903c6a4f060922525375e45ce"
+    },
+    "binding": "Retained Release and current source verified against the reviewed handoff. The Owner did not provide a separate process hash or itemized results."
+  },
+  "technical_evidence": {
+    "handoff": {
+      "path": "docs/pre_editor/revisions/PHASE_31_POST_APPROVAL_GIZMO_02/handoff.json",
+      "sha256": "ce7a485eca7c5a6a62477d708787b55b5880e8decb607cfb2008f2cb8a99ebe1",
+      "original_path": "logs/pre_editor/phase-31/post-approval-gizmo-02/status.json"
+    },
+    "native_input_replay": {
+      "path": "docs/pre_editor/revisions/PHASE_31_POST_APPROVAL_GIZMO_02/input-replay.txt",
+      "sha256_lf": "d9b943a313bd857ba3f22d44eaac7669b553ae67bcb2b2ab9c4272550172aeb5",
+      "original_sha256": "c705e687f9b71a8af187efff85b8d03cfad1448981dee08e2eaa6fa478dba0c4",
+      "assertions": 29,
+      "failed": 0
+    },
+    "release_build": "PASS",
+    "earlier_correction_01_owner_review": "FAIL",
+    "historical_correction_02_review_sha256_at_handoff": "0a330e7d74dc476df04d0290adc8d1d81f8f657c606135776195ba0baa315a77",
+    "finalization_only": {
+      "builds": 0,
+      "editor_processes": 0,
+      "physics_steps": 0
+    }
+  },
+  "phase31_published_checkpoint": {
+    "commit": "244e2c1aa4f97a87e5e1cffdc3660a7ecfc38100",
+    "annotated_tag": "pre-editor-phase-31-approved",
+    "tag_object": "3e39cb5b81ca58b43d5564f86bc55034e6773c6a",
+    "private_journal_status": "COMPLETE",
+    "private_journal_sha256": "4d36ef40f49b7f2603a62c5b5c52d2016a3870ff66f0f7144981e324219d8921",
+    "receipt_path": "pre-editor-checkpoints/phase-31.json",
+    "receipt_sha256": "50e01927d5c37f7744bb0e2bf9c31432919ef5e00cce398aeaa777a07a109af3"
+  },
+  "integration": {
+    "sole_parent": "244e2c1aa4f97a87e5e1cffdc3660a7ecfc38100",
+    "branch": "pre-editor/refactor",
+    "remote": "origin",
+    "push_url": "https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine.git",
+    "annotated_correction_tag": "pre-editor-phase-31-gizmo-correction-02-owner-accepted",
+    "commit_locator": "Peel the independent annotated correction tag.",
+    "next_expected_phase": "32",
+    "phase32_started": false
+  }
+}

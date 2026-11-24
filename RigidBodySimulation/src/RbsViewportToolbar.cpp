@@ -27,6 +27,50 @@ namespace
         return (c >= '0' && c <= '9') || c == '+' || c == '-' || c == '.';
     }
 
+    char GizmoNumberKey(const ImGuiInputEvent& event, const ImGuiIO& io)
+    {
+        if (event.Type != ImGuiInputEventType_Key || !event.Key.Down ||
+            io.KeyCtrl || io.KeyAlt || io.KeySuper) return 0;
+        const auto key = event.Key.Key;
+        if (key >= ImGuiKey_Keypad0 && key <= ImGuiKey_Keypad9)
+            return static_cast<char>('0' + key - ImGuiKey_Keypad0);
+        if (key == ImGuiKey_KeypadAdd || (io.KeyShift && key == ImGuiKey_Equal)) return '+';
+        if (key == ImGuiKey_KeypadSubtract) return '-';
+        if (key == ImGuiKey_KeypadDecimal) return '.';
+        if (io.KeyShift) return 0;
+        if (key >= ImGuiKey_0 && key <= ImGuiKey_9)
+            return static_cast<char>('0' + key - ImGuiKey_0);
+        if (key == ImGuiKey_Minus) return '-';
+        if (key == ImGuiKey_Period) return '.';
+        return 0;
+    }
+
+    void RouteGizmoNumberText(ImGuiContext& context, bool newGesture)
+    {
+        // Only the active Gizmo field owns these keystrokes. An IME can use a digit
+        // to select a candidate and commit a word instead of the digit.
+        // SDL text can arrive in a later ImGui frame. Match each ASCII echo once,
+        // without guessing which key produced an unrelated composition result.
+        static std::array<unsigned char, 128> pendingEchoes{};
+        if (newGesture) pendingEchoes.fill(0);
+        auto& chars = context.IO.InputQueueCharacters;
+        const bool hasText = !chars.empty();
+        chars.resize(0);
+        for (const auto& event : context.InputEventsTrail) {
+            if (const char key = GizmoNumberKey(event, context.IO)) {
+                chars.push_back(static_cast<ImWchar>(key));
+                auto& pending = pendingEchoes[static_cast<unsigned char>(key)];
+                if (pending < 128) ++pending; // The editable value holds at most 127 characters.
+            } else if (hasText && event.Type == ImGuiInputEventType_Text) {
+                const auto c = event.Text.Char;
+                if (c < pendingEchoes.size() && pendingEchoes[c] != 0)
+                    --pendingEchoes[c];
+                else if (c <= IM_UNICODE_CODEPOINT_MAX)
+                    chars.push_back(static_cast<ImWchar>(c));
+            }
+        }
+    }
+
     std::optional<Mat4> GizmoWorldMatrix(_Scene& scene, _Entity entity)
     {
         auto local=scene.GetRenderTransform(entity);
@@ -935,66 +979,112 @@ void RigidBodySimulationApp::DrawGizmoNumber()
             number.staged.reset(); // Re-evaluate the same text against the original pose.
         }
     }
-    const float padding=E::Px(7);
-    const float width=std::min(E::Px(260),m_ViewportBounds[1].x-m_ViewportBounds[0].x-4*padding);
-    if(width<ImGui::GetFrameHeight()){CancelGroupTransform();return;}
-
+    if(number.axis<0 || number.axis>UniformScaleAxis){CancelGroupTransform();return;}
     const char* detail=number.error ? number.error : session.invalid ? m_PropertyDiagnostic.c_str() : nullptr;
-    const float innerWidth=width-2*padding;
-    const float detailHeight=detail ? ImGui::CalcTextSize(detail,nullptr,false,innerWidth).y+ImGui::GetStyle().ItemSpacing.y : 0.f;
-    const float height=2*padding+ImGui::GetTextLineHeightWithSpacing()+ImGui::GetFrameHeight()+detailHeight;
-    const ImVec2 pos{m_ViewportBounds[0].x+padding,m_ViewportBounds[1].y-height-padding};
+    const auto lo=m_ViewportBounds[0],hi=m_ViewportBounds[1];
+    const float viewWidth=hi.x-lo.x,viewHeight=hi.y-lo.y;
+    const float margin=std::min({E::Px(8),viewWidth*.04f,viewHeight*.04f});
+    const float width=std::min(E::Px(344),viewWidth-2*margin),available=viewHeight-2*margin;
+    const float padding=std::min({E::Px(10),width*.05f,available*.06f});
+    const float innerWidth=width-2*padding,innerHeight=available-2*padding;
+    if(innerWidth<1.f || innerHeight<1.f){CancelGroupTransform();return;}
+
+    const float line=ImGui::GetTextLineHeight(),gap=E::Px(5);
+    const float valueFontSize=line*1.25f;
+    const float fieldHeight=std::min(valueFontSize+E::Px(12),innerHeight);
+    const bool showTitle=innerHeight>=fieldHeight+gap+line;
+    const float header=showTitle ? line+gap : 0.f;
+    const float roomForFooter=innerHeight-header-fieldHeight-gap;
+    const float footer=roomForFooter>=line ? std::min(roomForFooter,
+        detail ? ImGui::CalcTextSize(detail,nullptr,false,innerWidth).y : line) : 0.f;
+    const float height=2*padding+header+fieldHeight+(footer>0 ? gap+footer : 0.f);
+    ImVec2 pos{lo.x+margin,hi.y-margin-height};
+    // Anchor against the starting pivot so preview motion cannot move the field under the pointer.
+    if(m_CameraSnapshot) {
+        const auto clip=m_CameraSnapshot->Projection()*(m_CameraSnapshot->View()*session.dragOrigin[3]);
+        if(clip.w>0.f) {
+            const auto x=lo.x+(.5f+.5f*clip.x/clip.w)*viewWidth;
+            const auto y=lo.y+(.5f-.5f*clip.y/clip.w)*viewHeight;
+            if(x<lo.x+viewWidth*.5f)pos.x=hi.x-margin-width;
+            const float clearance=E::Px(40);
+            const float top=std::min(pos.y,lo.y+margin+E::Px(E::IconHitPixels+18));
+            if(x>=pos.x-clearance && x<=pos.x+width+clearance && y>=pos.y-clearance &&
+               top+height+clearance<y)pos.y=top;
+        }
+    }
     const ImVec2 end{pos.x+width,pos.y+height};
     const auto origin=ImGui::GetMainViewport()->Pos;
     (void)GetInputManager()->AddUIRegion({pos.x-origin.x,pos.y-origin.y,end.x-origin.x,end.y-origin.y});
     const auto restore=ImGui::GetCursorScreenPos();
-    ImGui::GetWindowDrawList()->AddRectFilled(pos,end,ImGui::GetColorU32(E::Color(0x181D25,.96f)),E::Px(5));
-    ImGui::SetCursorScreenPos({pos.x+padding,pos.y+padding});
-    if(scale && number.axis==UniformScaleAxis)ImGui::TextUnformatted("Uniform scale factor");
-    else if(scale)ImGui::Text("Scale %c (factor)",'X'+number.axis);
-    else ImGui::Text("%s %c (%s)",m_TransformTool==TransformTool::Translate?"Move":"Rotate",'X'+number.axis,
-                     m_TransformTool==TransformTool::Translate?"m":"deg");
-    ImGui::SetCursorScreenPos({pos.x+padding,pos.y+padding+ImGui::GetTextLineHeightWithSpacing()});
-    ImGui::SetNextItemWidth(innerWidth);
-    const bool focusing=std::exchange(number.focus,false);
-    // SDL starts text input at input-manager initialization. ImGui discards queued text on
-    // programmatic focus, so transfer this frame once, skipping tool/axis letters queued before it.
-    if(focusing && !number.text[0] && !number.error && !io.KeyCtrl && !io.KeyAlt && !io.KeySuper) {
-        const auto& chars=io.InputQueueCharacters;
-        int first=0;
-        while(first<chars.Size && !GizmoNumberPrefix(chars[first]))++first;
-        const auto count=static_cast<std::size_t>(chars.Size-first);
-        if(count>=number.text.size())number.error="The number is too long.";
-        else {
-            for(std::size_t i=0;i<count;++i) {
-                const auto c=chars[first+static_cast<int>(i)];
-                number.text[i]=c<128?static_cast<char>(c):'?';
-            }
-            number.text[count]=0;
-        }
+    auto* draw=ImGui::GetWindowDrawList();
+    constexpr ImU32 accents[]{IM_COL32(182,69,75,255),IM_COL32(67,134,83,255),IM_COL32(61,112,173,255),E::ControlAccent};
+    constexpr const char* axes[]{"X","Y","Z","Uniform"};
+    const ImU32 accent=accents[number.axis];
+    draw->AddRectFilled(pos,end,ImGui::GetColorU32(E::Color(0x181D25,.97f)),E::Px(6));
+    draw->AddRect(pos,end,ImGui::GetColorU32(ImGuiCol_Border),E::Px(6));
+    ImGui::PushClipRect(pos,end,true);
+    if(showTitle) {
+        const bool move=m_TransformTool==TransformTool::Translate;
+        draw->AddRectFilled({pos.x+padding,pos.y+padding},{pos.x+padding+E::Px(3),pos.y+padding+line},accent);
+        ImGui::SetCursorScreenPos({pos.x+padding+E::Px(9),pos.y+padding});
+        ImGui::Text("%s %s  (%s)",scale?"Scale":move?"Move":"Rotate",axes[number.axis],scale?"factor":move?"m":"deg");
     }
-    number.fieldId=ImGui::GetID("##GizmoRelativeValue");
-    if(focusing)ImGui::GetCurrentContext()->NavActivateInputId=number.fieldId;
-    const bool escape=ImGui::IsKeyPressed(ImGuiKey_Escape,false);
-    const bool submitted=ImGui::InputTextWithHint("##GizmoRelativeValue",scale?"1.00":"0.00",number.text.data(),number.text.size(),
-        ImGuiInputTextFlags_CharsScientific|ImGuiInputTextFlags_EnterReturnsTrue);
-    // ImGui defers Enter on the activation frame. A quick complete key sequence also owns that Enter.
-    const bool enter=submitted || (focusing && !io.KeyCtrl && !io.KeyAlt && !io.KeySuper &&
-        (ImGui::IsKeyPressed(ImGuiKey_Enter,false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter,false)));
-    if(focusing && !number.staged && number.text[0] && !number.error) {
-        // When typing takes over a drag, keep its first characters and append the next keystroke.
-        // A stationary click begins with an empty field, so no default text needs replacing.
-        if(auto* state=ImGui::GetInputTextState(number.fieldId)) {
-            state->Stb.cursor=state->CurLenW;state->ClearSelection();
+    const ImVec2 fieldPos{pos.x+padding,pos.y+padding+header};
+    const ImRect field(fieldPos,{fieldPos.x+innerWidth,fieldPos.y+fieldHeight});
+    ImGui::SetCursorScreenPos(field.Min);
+    // Use the nearest larger baked font for the value, including a local scale at the top DPI tier.
+    const auto tier=std::lower_bound(E::Scales.begin(),E::Scales.end()-1,E::Scale*1.25f);
+    auto* font=E::Regular[static_cast<std::size_t>(tier-E::Scales.begin())];
+    const float windowScale=ImGui::GetCurrentWindow()->FontWindowScale;
+    ImGui::PushFont(font?font:ImGui::GetFont());
+    ImGui::SetWindowFontScale(windowScale*std::min(valueFontSize,fieldHeight)/ImGui::GetFontSize());
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,{std::min(E::Px(9),innerWidth*.08f),
+        std::max(0.f,(fieldHeight-ImGui::GetFontSize())*.5f)});
+    const bool focusing=std::exchange(number.focus,false);
+    constexpr char label[]="##GizmoRelativeValue";
+    const bool newGesture=number.fieldId==0;
+    number.fieldId=ImGui::GetID(label);
+    bool submitted=false;
+    if(ImGui::ItemAdd(field,number.fieldId,&field,ImGuiItemFlags_Inputable)) {
+        auto& context=*ImGui::GetCurrentContext();
+        if(focusing) {
+            // In pinned ImGui, navigation activation consumes and skips the frame's text.
+            context.LastItemData.StatusFlags|=ImGuiItemStatusFlags_FocusedByTabbing;
+            if(context.NavActivateInputId==number.fieldId)context.NavActivateInputId=0;
+            if(context.NavActivateId==number.fieldId)context.NavActivateId=0;
         }
+        if (focusing || (context.ActiveId == number.fieldId &&
+            !(ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !field.Contains(context.IO.MousePos))))
+            RouteGizmoNumberText(context, newGesture);
+        submitted=ImGui::InputTextEx(label,scale?"1.00":"0.00",number.text.data(),
+            static_cast<int>(number.text.size()),field.GetSize(),ImGuiInputTextFlags_MergedItem|
+            ImGuiInputTextFlags_CharsScientific|ImGuiInputTextFlags_EnterReturnsTrue);
     }
     const bool active=ImGui::IsItemActive();
-    E::Tooltip("Enter commits one Transform. Escape cancels. Surface Snap and Auto Resolve apply when enabled.");
-    if(detail) {
-        ImGui::SetCursorScreenPos({pos.x+padding,pos.y+padding+ImGui::GetTextLineHeightWithSpacing()+
-            ImGui::GetFrameHeight()+ImGui::GetStyle().ItemSpacing.y});
-        ImGui::PushTextWrapPos(ImGui::GetCursorPosX()+innerWidth);
-        ImGui::TextColored(E::Color(0xF08A8A),"%s",detail);ImGui::PopTextWrapPos();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(windowScale);
+    ImGui::PopFont();
+    if(active)draw->AddRect(field.Min,field.Max,accent,ImGui::GetStyle().FrameRounding,0,E::Px(2));
+    const bool escape=ImGui::IsKeyPressed(ImGuiKey_Escape,false);
+    // InputText defers Enter on initial focus, even after it has accepted the current text.
+    const bool enter=submitted || (focusing && !io.KeyCtrl && !io.KeyAlt && !io.KeySuper &&
+        (ImGui::IsKeyPressed(ImGuiKey_Enter,false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter,false)));
+    if(footer>0.f) {
+        ImGui::SetCursorScreenPos({field.Min.x,field.Max.y+gap});
+        if(detail) {
+            ImGui::PushTextWrapPos(ImGui::GetCursorPosX()+innerWidth);
+            ImGui::TextColored(E::Color(0xF08A8A),"%s",detail);
+            ImGui::PopTextWrapPos();
+        } else {
+            constexpr char hints[]="Enter  Confirm     Esc  Cancel";
+            ImGui::TextDisabled("%s",ImGui::CalcTextSize(hints).x<=innerWidth ? hints : "Enter / Esc");
+        }
+    }
+    ImGui::PopClipRect();
+    if(ImGui::IsMouseHoveringRect(pos,end)) {
+        m_ViewportOverlayInteracting=true;
+        m_ViewPickRequested=false;
+        if(detail || !showTitle || footer==0.f)ImGui::SetTooltip("%s",detail?detail:"Enter confirms. Escape cancels.");
     }
     ImGui::SetCursorScreenPos(restore);
     number.lastDrawFrame=ImGui::GetFrameCount();
@@ -1104,8 +1194,10 @@ void RigidBodySimulationApp::DrawViewportGizmo()
         const bool click=wasUsing && !m_GizmoUsing && io.MouseReleased[0] && io.MouseDragMaxDistanceSqr[0]==0.f &&
             io.MousePos.x==io.MouseClickedPos[0].x && io.MousePos.y==io.MouseClickedPos[0].y;
         const auto& chars=io.InputQueueCharacters;
-        const auto first=chars.empty()?0:chars[0];
-        const bool typing=!io.KeyCtrl && !io.KeyAlt && !io.KeySuper && GizmoNumberPrefix(first);
+        const auto& events=ImGui::GetCurrentContext()->InputEventsTrail;
+        const bool typing=!io.KeyCtrl && !io.KeyAlt && !io.KeySuper &&
+            (std::any_of(chars.begin(),chars.end(),GizmoNumberPrefix) ||
+             std::any_of(events.begin(),events.end(),[&io](const auto& event){return GizmoNumberKey(event,io)!=0;}));
         if(click || typing) {
             number.editing=number.focus=true;
             number.lastDrawFrame=ImGui::GetFrameCount();

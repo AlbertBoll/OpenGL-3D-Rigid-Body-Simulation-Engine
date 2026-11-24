@@ -1,0 +1,44 @@
+reviewed physical=5 first='' after_composition=''
+PASS reviewed: reproduced lost 5
+candidate physical=5 first='5' after_composition='5'
+PASS corrected: immediate 5 survives composed word
+PASS tx5
+keys=tx5 cadence=separate preview='5' closed=1
+PASS tx5
+PASS ry90
+keys=ry90 cadence=separate preview='90' closed=1
+PASS ry90
+PASS rz-45
+keys=rz-45 cadence=separate preview='-45' closed=1
+PASS rz-45
+PASS tz0.25
+keys=tz0.25 cadence=separate preview='0.25' closed=1
+PASS tz0.25
+PASS tx-0.25
+keys=tx-0.25 cadence=separate preview='-0.25' closed=1
+PASS tx-0.25
+PASS s2
+keys=s2 cadence=separate preview='2' closed=1
+PASS s2
+keys=tx5 cadence=single-poll preview='5' closed=1
+PASS tx5
+keys=ry90 cadence=single-poll preview='90' closed=1
+PASS ry90
+keys=rz-45 cadence=single-poll preview='-45' closed=1
+PASS rz-45
+keys=tz0.25 cadence=single-poll preview='0.25' closed=1
+PASS tz0.25
+keys=tx-0.25 cadence=single-poll preview='-0.25' closed=1
+PASS tx-0.25
+keys=s2 cadence=single-poll preview='2' closed=1
+PASS s2
+PASS invalid Enter reacquires the same field
+PASS refocus, keypad, late echoes and intervening composition
+PASS keypad Enter commits once
+PASS identical rapid strokes, delayed ASCII and standalone SDL text
+PASS actual ImGuizmo X handle selected
+PASS held mouse handle acquires numeric field from key alone
+PASS mouse numeric commit
+PASS Properties receives no Gizmo fallback
+PASS Properties preserves committed Unicode and ordinary text
+ASSERTIONS 29 FAILURES 0

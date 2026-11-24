@@ -68,6 +68,7 @@
     "Images/Editor/Scenes/ball-socket-p.png": "GEngine/include/GEngine/Assets/Images/Editor/Scenes/ball-socket-p.png",
     "Images/Editor/Scenes/ball-socket-g.png": "GEngine/include/GEngine/Assets/Images/Editor/Scenes/ball-socket-g.png",
     "Images/Editor/Scenes/ball-socket-g-contact.png": "GEngine/include/GEngine/Assets/Images/Editor/Scenes/ball-socket-g-contact.png",
+    "Images/Editor/Scenes/book-conformance.png": "RigidBodySimulation/assets/Images/Editor/Scenes/book-conformance.png",
     "Images/Editor/Scenes/box-stack.png": "GEngine/include/GEngine/Assets/Images/Editor/Scenes/box-stack.png",
     "Images/Editor/Scenes/distance-chain-contact.png": "GEngine/include/GEngine/Assets/Images/Editor/Scenes/distance-chain-contact.png",
     "Images/Editor/Scenes/distance-chain.png": "GEngine/include/GEngine/Assets/Images/Editor/Scenes/distance-chain.png",

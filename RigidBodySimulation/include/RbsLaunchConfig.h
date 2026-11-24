@@ -42,7 +42,7 @@ namespace Rbs
         CvFree,
         CvLimited,
         PassiveRagdoll,
-        MotorFree, MotorContact, MotorLimit, Movers
+        MotorFree, MotorContact, MotorLimit, Movers, BookConformance, Invalid
     };
 
     constexpr bool IsMotorScene(RbsScenePreset scene) noexcept
@@ -51,10 +51,60 @@ namespace Rbs
                scene == RbsScenePreset::MotorLimit;
     }
 
+    struct BookCase
+    {
+        const char* key;
+        RbsScenePreset provider;
+        unsigned chainLinks;
+    };
+
+    inline constexpr std::array BookCases{
+        BookCase{"sphere-box-stack", RbsScenePreset::SphereBoxStack, 8},
+        BookCase{"distance-pendulum", RbsScenePreset::DistancePendulum, 8},
+        BookCase{"distance-chain-4", RbsScenePreset::DistanceChain, 4},
+        BookCase{"distance-chain-8", RbsScenePreset::DistanceChain, 8},
+        BookCase{"distance-chain-16", RbsScenePreset::DistanceChain, 16},
+        BookCase{"distance-chain-contact-8", RbsScenePreset::DistanceChainContact, 8},
+        BookCase{"ball-socket-s", RbsScenePreset::BallSocketSwing, 8},
+        BookCase{"ball-socket-p", RbsScenePreset::BallSocketPair, 8},
+        BookCase{"ball-socket-g", RbsScenePreset::BallSocketContact, 8},
+        BookCase{"ball-socket-g-contact", RbsScenePreset::BallSocketContactEnabled, 8},
+        BookCase{"hinge-basic", RbsScenePreset::HingeBasic, 8},
+        BookCase{"hinge-quaternion", RbsScenePreset::HingeQuaternion, 8},
+        BookCase{"hinge-limited", RbsScenePreset::HingeLimited, 8},
+        BookCase{"cv-free", RbsScenePreset::CvFree, 8},
+        BookCase{"cv-limited", RbsScenePreset::CvLimited, 8},
+        BookCase{"passive-ragdoll", RbsScenePreset::PassiveRagdoll, 8},
+        BookCase{"motor-free", RbsScenePreset::MotorFree, 8},
+        BookCase{"motor-contact", RbsScenePreset::MotorContact, 8},
+        BookCase{"motor-limit", RbsScenePreset::MotorLimit, 8},
+        BookCase{"movers", RbsScenePreset::Movers, 8},
+    };
+
+    constexpr const BookCase* FindBookCase(RbsScenePreset provider, unsigned links) noexcept
+    {
+        for (const auto& entry : BookCases)
+            if (entry.provider == provider && entry.chainLinks == links) return &entry;
+        return nullptr;
+    }
+
     struct SceneSelection
     {
-        RbsScenePreset scene = RbsScenePreset::SphereBoxStack;
-        unsigned chainLinks = 8;
+        // Ordinary V1 drag payloads retain their two 32-bit words. The high
+        // bit of the preset word records an explicitly resolved book request.
+        RbsScenePreset scene : 31;
+        unsigned fromBook : 1;
+        unsigned chainLinks;
+
+        constexpr SceneSelection(RbsScenePreset preset = RbsScenePreset::SphereBoxStack,
+                                 unsigned links = 8, bool book = false) noexcept
+            : scene(preset >= RbsScenePreset::GeometryGallery && preset <= RbsScenePreset::BookConformance
+                  ? preset : RbsScenePreset::Invalid), fromBook(book), chainLinks(links) {}
+
+        [[nodiscard]] constexpr const BookCase* RequestedCase() const noexcept
+        {
+            return fromBook ? FindBookCase(scene, chainLinks) : nullptr;
+        }
 
         [[nodiscard]] constexpr bool IsDistanceScene() const noexcept
         {
@@ -78,8 +128,10 @@ namespace Rbs
         [[nodiscard]] constexpr bool IsValid() const noexcept
         {
             if (chainLinks != 4 && chainLinks != 8 && chainLinks != 16) return false;
+            if (fromBook && !RequestedCase()) return false;
             switch (scene)
             {
+            case RbsScenePreset::BookConformance: return !fromBook && chainLinks==8;
             case RbsScenePreset::GeometryGallery:
             case RbsScenePreset::SphereDiamond:
             case RbsScenePreset::SphereLattice:
@@ -102,10 +154,12 @@ namespace Rbs
             case RbsScenePreset::PassiveRagdoll:
             case RbsScenePreset::CvLimited: return true;
             case RbsScenePreset::DistanceChainContact: return chainLinks == 8;
+            case RbsScenePreset::Invalid: return false;
             }
             return false;
         }
     };
+    static_assert(sizeof(SceneSelection) == 2 * sizeof(std::uint32_t));
 
     // Owner-editable ordinary startup default. DistanceChain admits 4/8/16 links;
     // DistanceChainContact admits 8. Valid --scene/--links fields override these
@@ -306,6 +360,7 @@ namespace Rbs
         unsigned joltParameterTicks{1800};
         bool joltParameterCapture{};
         RbsScenePreset scene = RbsScenePreset::GeometryGallery;
+        bool fromBook{};
         AngularVariant angularVariant{AngularVariant::Air};
         StartupMesh startupMesh = StartupMesh::None;
         unsigned chainLinks = 8;

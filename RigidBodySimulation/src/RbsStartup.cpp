@@ -1,5 +1,6 @@
 #include "RbsStartup.h"
 #include "RigidBodySimulation.h"
+#include "RbsLoadingScreen.h"
 #include "Core/RuntimeAssets.h"
 #include "../tests/BackendChecks.h"
 #include "../tests/EditorCorrectionChecks.h"
@@ -111,6 +112,11 @@ namespace Rbs
         if (launch.InteractiveSandboxEnabled())
             SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 #endif
+        std::optional<Editor::LoadingScreen> startup;
+        if (launch.InteractiveSandboxEnabled()) {
+            startup.emplace(Editor::LoadingScreen::Operation::Startup, SceneName(launch.scene), launch.scene);
+            InitializationProgress::Report(InitializationProgress::Stage::Renderer, "Checking runtime assets");
+        }
         if (auto assets = RuntimeAssets::Initialize(std::filesystem::path(executablePath).stem().string(), launch.engine); !assets)
         {
             // Asset initialization precedes the logger; output failure does not
@@ -148,6 +154,10 @@ namespace Rbs
                 }
             }
             return 1;
+        }
+        if (startup) {
+            startup->Finish();
+            startup.reset();
         }
         if (auto running = app->Run(); !running)
         {

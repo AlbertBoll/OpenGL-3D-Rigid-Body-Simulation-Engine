@@ -1,0 +1,514 @@
+{
+  "phase": "32",
+  "baseline": "92c82961f42930022b9918d9d0e47d9ed2535c92",
+  "reference": {
+    "path": "logs/pre_editor/phase-28/design-01/reference/GamePhysicsTheRestOfYourLife-v1.08.pdf",
+    "sha256": "6237bcafd5bb648ade5a36563e1ac1599b21d02fa29553b320f7271b66da3c56"
+  },
+  "comparison": "Whole-file raw hashes and LF-normalized comparison, or the explicitly named C++ definition. Historical campaign metrics retain their tested executable, workload and scope. A changed range is disclosed and receives no byte-identity credit.",
+  "chapter_19_20": {
+    "source": "GEngine/src/Physics/JoltBackend.cpp",
+    "range": "BookCvConstraint forward declaration through BookCvConstraintSettings::RestoreBinaryState, before FrameFromAxes",
+    "normalization": "CRLF to LF for range comparison",
+    "phase28_sha256": "babc234656145bcaf9c3b6038fcf4025671dd95edc9d2c0e7008b5191e2e8281",
+    "worktree_sha256": "babc234656145bcaf9c3b6038fcf4025671dd95edc9d2c0e7008b5191e2e8281",
+    "range_byte_equal": true,
+    "fixture": "RigidBodySimulation/tests/AngularJointChecks.h",
+    "phase28_fixture_sha256": "45a04a01c14d912e866dc17b2d97e36b7e2b3f7c3e1205fc07fa7b5e29b7c75c",
+    "current_fixture_sha256": "45a04a01c14d912e866dc17b2d97e36b7e2b3f7c3e1205fc07fa7b5e29b7c75c",
+    "gate_coverage": "logs/pre_editor/phase-28/approval-02/gate-coverage-final.json",
+    "gate_coverage_sha256": "8d2ce391ac51ee485330ad28385565ee1d41abb47d09102ea5e699e85c623305",
+    "predecessor_evidence": {
+      "path": "logs/pre_editor/phase-28/selection-highlight-04/automated-gates-final-01.json",
+      "sha256": "e571f8caaecb7864497c42b8b48319a362419b08ae85789e6882618455a22027"
+    },
+    "scope": "Historical angular evidence and identified provider code only. Shared backend, phase-specific composition, selector and current product require their own impact assessment."
+  },
+  "providers": {
+    "18": {
+      "evidence": [
+        {
+          "path": "docs/pre_editor/active/PHASE_18_REVIEW.md",
+          "sha256": "3511312d2734ea1d26011aff0432a05e981d07313e6dfe98db068059e2e8bed4"
+        }
+      ],
+      "commit": "40a3eb6f3d2d02d56cb9b0a8b5ac9e752d4bc7a3",
+      "kind": "PUBLISHED_PROVIDER",
+      "inputs": [
+        {
+          "path": "GEngine/include/GEngine/Math/Math.h",
+          "archive_file_sha256": "6542b374b060fa5ff258c9040c030ac5f8b79b32d664af7ef8fecbfe3f7df638",
+          "current_file_sha256": "a6cdf47e83745759f7c980a41663d890f24a7f026f69f2ed89e568120a50cf90",
+          "archive_compared_sha256": "6542b374b060fa5ff258c9040c030ac5f8b79b32d664af7ef8fecbfe3f7df638",
+          "current_compared_sha256": "6542b374b060fa5ff258c9040c030ac5f8b79b32d664af7ef8fecbfe3f7df638",
+          "matches": true
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/ShapeConvex.cpp",
+          "archive_file_sha256": "afdffb3dad8b5e00212075dce7177e2eed3257917a72239101c0ae21cb4118b9",
+          "current_file_sha256": "646579d3cb0ed63cf6c28e6d81e2858492851e1a0a5594a9177e934993cbc178",
+          "matches": false,
+          "archive_compared_sha256": "afdffb3dad8b5e00212075dce7177e2eed3257917a72239101c0ae21cb4118b9",
+          "current_compared_sha256": "471c5ad4a20a5f760f065733b00cc9c2005c662def2eb5209a52672880c05faa"
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/ShapeConvex.h",
+          "archive_file_sha256": "ea547c0fe71893c4664c96544f20e5a93612694a299a06cc5e1e534f1bbddb76",
+          "current_file_sha256": "179118c008f4c069ee15693b17d1dcb0c9035bcf499530aabdf292ba408d44d8",
+          "matches": false,
+          "archive_compared_sha256": "ea547c0fe71893c4664c96544f20e5a93612694a299a06cc5e1e534f1bbddb76",
+          "current_compared_sha256": "328c2db77c6ddf6160c1ccf9a762532e86f95a6de02892cd5cfc4941ddf8debf"
+        },
+        {
+          "path": "GEngine/include/GEngine/Renderer/DebugGeometry.h",
+          "archive_file_sha256": "89b9f3a23cfad018d75f49b9b8109f09fc4ccb79a3575620b126826bf027ec75",
+          "current_file_sha256": "89b9f3a23cfad018d75f49b9b8109f09fc4ccb79a3575620b126826bf027ec75",
+          "matches": true,
+          "archive_compared_sha256": "89b9f3a23cfad018d75f49b9b8109f09fc4ccb79a3575620b126826bf027ec75",
+          "current_compared_sha256": "89b9f3a23cfad018d75f49b9b8109f09fc4ccb79a3575620b126826bf027ec75"
+        }
+      ],
+      "applicability": "Use the approved convex hull geometry and its focused edge extraction. Later UI changes have their own owners."
+    },
+    "21": {
+      "evidence": [
+        {
+          "path": "docs/pre_editor/evidence/phase-21-freeze.json",
+          "sha256": "79cb382c21e937d0af7be5b1e36da5c2730ad1cffdacfe4acdbf0ec5e3d9844a"
+        },
+        {
+          "path": "docs/pre_editor/active/PHASE_26_ENTRY_ACCEPTANCE_01.json",
+          "sha256": "80cbefabc97af54c9d041962c2186c3c3f3b70d4fb39991e8c6edb33c0236467"
+        }
+      ],
+      "disposition": "FROZEN_UNAPPROVED"
+    },
+    "22": {
+      "evidence": [
+        {
+          "path": "docs/pre_editor/active/PHASE_22_APPROVAL_REVIEW_01.md",
+          "sha256": "9e2bd44564f07bb57f77383d93f21a01c3f3202d4625ede66fbfa808df199036"
+        }
+      ],
+      "commit": "928a9364c72e2244ec53cd4f85afb4264f9c16cd",
+      "kind": "PUBLISHED_PROVIDER",
+      "inputs": [
+        {
+          "path": "GEngine/include/GEngine/Physics/PhysicsWorld.cpp",
+          "archive_file_sha256": "e9d6c93a6b5374a8c15d7e1e8e8cc2d6826a4243d769d5cab4cf32d311fd80c2",
+          "current_file_sha256": "4788d1f6e7504300c26747d62205a8da2a122529deedb628a0add793f8f92479",
+          "definition": "PhysicsWorld::DestroyBody(",
+          "archive_compared_sha256": "af9e0258bd9fe851164ff59e248144dd7df4143b43d3dd13a71d338e14b3d268",
+          "current_compared_sha256": "af9e0258bd9fe851164ff59e248144dd7df4143b43d3dd13a71d338e14b3d268",
+          "matches": true
+        }
+      ]
+    },
+    "23": {
+      "evidence": [
+        {
+          "path": "docs/pre_editor/active/PHASE_23_APPROVAL_REVIEW_01.md",
+          "sha256": "12c29a5366a4207b8b294ae3bfddcfef8281120e7ec9aa8b3f33a6ddb1a7bbc1"
+        }
+      ],
+      "commit": "6ad32049ca95fbb81c29a2738602450d7cd1557a",
+      "kind": "PUBLISHED_PROVIDER",
+      "inputs": [
+        {
+          "path": "RigidBodySimulation/tests/CollisionShapeChecks.h",
+          "archive_file_sha256": "ab190b889a3c2dbdd7dd42be480bd0e765445be30126042a436001b649610564",
+          "current_file_sha256": "ab190b889a3c2dbdd7dd42be480bd0e765445be30126042a436001b649610564",
+          "archive_compared_sha256": "ab190b889a3c2dbdd7dd42be480bd0e765445be30126042a436001b649610564",
+          "current_compared_sha256": "ab190b889a3c2dbdd7dd42be480bd0e765445be30126042a436001b649610564",
+          "matches": true
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/ShapeCapsule.cpp",
+          "archive_file_sha256": "a074140d8458191aa0193a462cbd39cdbf143a0d58051cc62fcc7cd44489dbc9",
+          "current_file_sha256": "a074140d8458191aa0193a462cbd39cdbf143a0d58051cc62fcc7cd44489dbc9",
+          "matches": true,
+          "archive_compared_sha256": "a074140d8458191aa0193a462cbd39cdbf143a0d58051cc62fcc7cd44489dbc9",
+          "current_compared_sha256": "a074140d8458191aa0193a462cbd39cdbf143a0d58051cc62fcc7cd44489dbc9"
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/ShapeCapsule.h",
+          "archive_file_sha256": "1cad3cd49223e897ee74f1451af5f1f0d5566266f2ba231b7bce05083dd8b76a",
+          "current_file_sha256": "9cea6634becbfb5dcad0aa99ee0b63ad69ea1c6c73c3e3353c9ca75ac5a6b5d1",
+          "matches": false,
+          "archive_compared_sha256": "1cad3cd49223e897ee74f1451af5f1f0d5566266f2ba231b7bce05083dd8b76a",
+          "current_compared_sha256": "c20be83e6615ae33988f9aa64a1377a95ae2d2cbcf5184f71a1069eaa1fe79d1"
+        }
+      ],
+      "applicability": "Analytic capsule shape and fixture identity cover the supported shape semantics."
+    },
+    "24": {
+      "evidence": [
+        {
+          "path": "docs/pre_editor/evidence/phase-24-approval-02.json",
+          "sha256": "367f8f1ded11f7d8cd5ecd263776c9c7624df13795cebced125bbcb8e801e8fb"
+        }
+      ],
+      "commit": "118e4e1e544ef2e26ec5930cd9c7f56a8cf6b0d3",
+      "kind": "PUBLISHED_PROVIDER",
+      "inputs": [
+        {
+          "path": "GEngine/include/GEngine/Math/Math.h",
+          "archive_file_sha256": "6542b374b060fa5ff258c9040c030ac5f8b79b32d664af7ef8fecbfe3f7df638",
+          "current_file_sha256": "a6cdf47e83745759f7c980a41663d890f24a7f026f69f2ed89e568120a50cf90",
+          "archive_compared_sha256": "6542b374b060fa5ff258c9040c030ac5f8b79b32d664af7ef8fecbfe3f7df638",
+          "current_compared_sha256": "6542b374b060fa5ff258c9040c030ac5f8b79b32d664af7ef8fecbfe3f7df638",
+          "matches": true
+        },
+        {
+          "path": "GEngine/src/Scene/_Scene.cpp",
+          "archive_file_sha256": "c26d5ca61a746d8e28f2ca059ebe1cfeddfbe28efe56234715d5cb2c918003cf",
+          "current_file_sha256": "74f6b929ea05a6550b4cee3c923d512ac76782c4bec57ed08e57008e026d7408",
+          "definition": "void ResetPhysicsHistory(",
+          "matches": true,
+          "archive_compared_sha256": "5f834b25f9e9ccd737d5b5f12e9ed916f1ec951334ead25c14049ba4d2aeda1c",
+          "current_compared_sha256": "5f834b25f9e9ccd737d5b5f12e9ed916f1ec951334ead25c14049ba4d2aeda1c"
+        },
+        {
+          "path": "GEngine/src/Scene/_Scene.cpp",
+          "archive_file_sha256": "c26d5ca61a746d8e28f2ca059ebe1cfeddfbe28efe56234715d5cb2c918003cf",
+          "current_file_sha256": "74f6b929ea05a6550b4cee3c923d512ac76782c4bec57ed08e57008e026d7408",
+          "definition": "void PublishPhysicsPose(",
+          "matches": true,
+          "archive_compared_sha256": "9922f7848860e1e16e82a4b36890598ab262232ef465c4d71fc41f9599ace726",
+          "current_compared_sha256": "9922f7848860e1e16e82a4b36890598ab262232ef465c4d71fc41f9599ace726"
+        }
+      ],
+      "applicability": "Use the original successful Transform source/pose measurements and final Owner review. Keep both timing dispositions open at their documented scope."
+    },
+    "25": {
+      "evidence": [
+        {
+          "path": "docs/pre_editor/active/PHASE_25_APPROVAL_REVIEW_01.md",
+          "sha256": "9f1138821fcb866e74a006d0d04a3a67af2331f4b2b6c0c442233cd02378aec7"
+        }
+      ],
+      "commit": "1a2adf61c1571d9f4604f2ca185fea3f95682b4c",
+      "kind": "PUBLISHED_PROVIDER",
+      "inputs": [
+        {
+          "path": "GEngine/include/GEngine/Physics/Manifold.cpp",
+          "archive_file_sha256": "4f46b265548e7755421c122f981da5f62d8037e34afe6e00937a22ea2e05d040",
+          "current_file_sha256": "f6c0fe13a11fce568e1d5b58bcaa8014e7cb00c157f4a3b000285f51d5bb42f6",
+          "archive_compared_sha256": "4f46b265548e7755421c122f981da5f62d8037e34afe6e00937a22ea2e05d040",
+          "current_compared_sha256": "4f46b265548e7755421c122f981da5f62d8037e34afe6e00937a22ea2e05d040",
+          "matches": true
+        }
+      ]
+    },
+    "26": {
+      "evidence": [
+        {
+          "path": "docs/pre_editor/active/PHASE_26_CANDIDATE_02_READY_REVIEW_01.md",
+          "sha256": "7c47552b35857c08e956ab65938f4fdce29914ea5c97ebb79f015168896b0135"
+        },
+        {
+          "path": "logs/pre_editor/phase-26/solver-correction-01/candidate-02-ready-01/evidence-ledger.json",
+          "sha256": "cd6178882cded563d5f27931ef34461e908dbf9165698728adb3ce9d867d9229"
+        },
+        {
+          "path": "docs/pre_editor/active/PHASE_26_STARTUP_ENERGY_ACCEPTANCE_01.json",
+          "sha256": "443374615f480570388c836ec08d32598530f1c42ca7b1f6f7a2b3d6fc2032ae"
+        }
+      ],
+      "commit": "f0d6b2557995d5476c676260f7626429f587075a",
+      "kind": "PUBLISHED_PROVIDER",
+      "inputs": [
+        {
+          "path": "GEngine/include/GEngine/Math/Math.h",
+          "archive_file_sha256": "6542b374b060fa5ff258c9040c030ac5f8b79b32d664af7ef8fecbfe3f7df638",
+          "current_file_sha256": "a6cdf47e83745759f7c980a41663d890f24a7f026f69f2ed89e568120a50cf90",
+          "archive_compared_sha256": "6542b374b060fa5ff258c9040c030ac5f8b79b32d664af7ef8fecbfe3f7df638",
+          "current_compared_sha256": "6542b374b060fa5ff258c9040c030ac5f8b79b32d664af7ef8fecbfe3f7df638",
+          "matches": true
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Constraints/DistanceJoint.cpp",
+          "archive_file_sha256": "0f93c11962bb28f0a3a6255304cb970f6590cd5e3d799f113d74e1a387e66185",
+          "current_file_sha256": "0f93c11962bb28f0a3a6255304cb970f6590cd5e3d799f113d74e1a387e66185",
+          "archive_compared_sha256": "0f93c11962bb28f0a3a6255304cb970f6590cd5e3d799f113d74e1a387e66185",
+          "current_compared_sha256": "0f93c11962bb28f0a3a6255304cb970f6590cd5e3d799f113d74e1a387e66185",
+          "matches": true
+        },
+        {
+          "path": "RigidBodySimulation/tests/DistanceJointChecks.h",
+          "archive_file_sha256": "4867fd1b737c6fc720f405a5fc3aeaa5010a3d79e3aea1e4b4757936c6b91525",
+          "current_file_sha256": "6a6df85e44e2fd335d9bf71b65e4d67324b780fc204b40cef4202f19b1631623",
+          "archive_compared_sha256": "4867fd1b737c6fc720f405a5fc3aeaa5010a3d79e3aea1e4b4757936c6b91525",
+          "current_compared_sha256": "4867fd1b737c6fc720f405a5fc3aeaa5010a3d79e3aea1e4b4757936c6b91525",
+          "matches": true
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/PhysicsWorld.cpp",
+          "archive_file_sha256": "bc5466c7e69f2c8e022aeb1460695281055dba0626be5b4ef0e0b924d06e9a53",
+          "current_file_sha256": "4788d1f6e7504300c26747d62205a8da2a122529deedb628a0add793f8f92479",
+          "definition": "PhysicsWorld::CreateDistanceJoint(",
+          "archive_compared_sha256": "fcd84bde76c8cfb493ffe9598e9fb657bd2524ca8b0eaf1ff9faa18fa6196ada",
+          "current_compared_sha256": "05ca6f15417ef80d1407770001471f8b0f57fceda333cf0f5b2a1a1077fa56fb",
+          "matches": false
+        }
+      ],
+      "applicability": "The only change in the complete function is slot.point.Reset() and an explicit Distance kind when committing a shared slot. Admission and retained DistanceJointRow are otherwise identical."
+    },
+    "27": {
+      "evidence": [
+        {
+          "path": "logs/pre_editor/phase-27/final-approval-01/gate-coverage.json",
+          "sha256": "27ba2d657a4d060bfa3eb2d60b46512070e53af76e6e7e1eded3e0f28ebe66b0"
+        },
+        {
+          "path": "docs/pre_editor/active/PHASE_27_FINAL_APPROVAL_REVIEW_01.md",
+          "sha256": "1e0ee016ebeef578a9d7de86f52fdf54647a029b68834a0a6ccd729802921175"
+        }
+      ],
+      "commit": "4d5d8a5d43490166d04a67983c870c76272cb9e4",
+      "kind": "PUBLISHED_PROVIDER",
+      "inputs": [
+        {
+          "path": "GEngine/include/GEngine/Physics/Constraints/BallSocketJoint.cpp",
+          "archive_file_sha256": "ec71b1da9c4f12405c0fbebd5fd50ef5bc13fa9c2cd0cd7c85571ab96936cac0",
+          "current_file_sha256": "ec71b1da9c4f12405c0fbebd5fd50ef5bc13fa9c2cd0cd7c85571ab96936cac0",
+          "archive_compared_sha256": "ec71b1da9c4f12405c0fbebd5fd50ef5bc13fa9c2cd0cd7c85571ab96936cac0",
+          "current_compared_sha256": "ec71b1da9c4f12405c0fbebd5fd50ef5bc13fa9c2cd0cd7c85571ab96936cac0",
+          "matches": true
+        },
+        {
+          "path": "RigidBodySimulation/tests/BallSocketJointChecks.h",
+          "archive_file_sha256": "007ca396091944f2d968ed113ec88695d759dfac1e36062d578c19f0668453c2",
+          "current_file_sha256": "007ca396091944f2d968ed113ec88695d759dfac1e36062d578c19f0668453c2",
+          "archive_compared_sha256": "007ca396091944f2d968ed113ec88695d759dfac1e36062d578c19f0668453c2",
+          "current_compared_sha256": "007ca396091944f2d968ed113ec88695d759dfac1e36062d578c19f0668453c2",
+          "matches": true
+        },
+        {
+          "path": "GEngine/src/Physics/JoltBackend.cpp",
+          "archive_file_sha256": "cbdaf383183e953dc8b5a04f9d8a6ddbbbbab01c7fa40fbf5b412f5c6bfd8d4d",
+          "current_file_sha256": "7f119740cb798372ab641901e04eebd5102b967b87e926c8eb41a3ee58e652b0",
+          "definition": "CreateJoint(PhysicsJointHandle handle,const BallSocketJointDesc& desc)",
+          "archive_compared_sha256": "efce2f2d617cab4d9e3add752e5465ba6546b1d60128546bd1187954c8566645",
+          "current_compared_sha256": "efce2f2d617cab4d9e3add752e5465ba6546b1d60128546bd1187954c8566645",
+          "matches": true
+        }
+      ]
+    },
+    "28": {
+      "evidence": [
+        {
+          "path": "logs/pre_editor/phase-28/approval-02/gate-coverage-final.json",
+          "sha256": "8d2ce391ac51ee485330ad28385565ee1d41abb47d09102ea5e699e85c623305"
+        },
+        {
+          "path": "logs/pre_editor/phase-28/selection-highlight-04/automated-gates-final-01.json",
+          "sha256": "e571f8caaecb7864497c42b8b48319a362419b08ae85789e6882618455a22027"
+        },
+        {
+          "path": "docs/pre_editor/active/PHASE_28_FINAL_APPROVAL_REVIEW_01.md",
+          "sha256": "2eacbf76208bdf8e63506fc204726807233ad5c27da1c6b34f1046d688786586"
+        }
+      ],
+      "commit": "a983eac5e9f2c7993a17d90ef054ce216315c5d6",
+      "kind": "PUBLISHED_PROVIDER",
+      "inputs": [
+        {
+          "path": "RigidBodySimulation/tests/AngularJointChecks.h",
+          "archive_file_sha256": "17db0f439e3b1c6a241df6bea0f893504c2440959d885ce810c734fac8aa8326",
+          "current_file_sha256": "45a04a01c14d912e866dc17b2d97e36b7e2b3f7c3e1205fc07fa7b5e29b7c75c",
+          "archive_compared_sha256": "17db0f439e3b1c6a241df6bea0f893504c2440959d885ce810c734fac8aa8326",
+          "current_compared_sha256": "17db0f439e3b1c6a241df6bea0f893504c2440959d885ce810c734fac8aa8326",
+          "matches": true
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Constraints/AngularJoint.cpp",
+          "archive_file_sha256": "8ed46232cd0314e223b4bffc8cc74489f22db8cbcbb49d2683d65b7ce8954c93",
+          "current_file_sha256": "2b56fdb5640b4df664e721ba83370c22926e38033bd4d9fe048c54c9de53d881",
+          "definition": "AngularJoint::Observe(",
+          "archive_compared_sha256": "94ea9637b39848b6a53c9a7c0b5a3803b68fdd0551f81e1591d356986dc9621d",
+          "current_compared_sha256": "94ea9637b39848b6a53c9a7c0b5a3803b68fdd0551f81e1591d356986dc9621d",
+          "matches": true
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Constraints/AngularJoint.cpp",
+          "archive_file_sha256": "8ed46232cd0314e223b4bffc8cc74489f22db8cbcbb49d2683d65b7ce8954c93",
+          "current_file_sha256": "2b56fdb5640b4df664e721ba83370c22926e38033bd4d9fe048c54c9de53d881",
+          "definition": "AngularJointRow::Prepare(",
+          "matches": false,
+          "archive_compared_sha256": "41989afd5282f951c56ef1ffabfca41a68eaac1cf2c6962d5638d99e7398db3d",
+          "current_compared_sha256": "f3cbf48b6c13ff3a0a9c5eb1090da719163dad729312d5f09906bd2edc0b1d95"
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Constraints/AngularJoint.cpp",
+          "archive_file_sha256": "8ed46232cd0314e223b4bffc8cc74489f22db8cbcbb49d2683d65b7ce8954c93",
+          "current_file_sha256": "2b56fdb5640b4df664e721ba83370c22926e38033bd4d9fe048c54c9de53d881",
+          "definition": "AngularJointRow::Solve(",
+          "matches": false,
+          "archive_compared_sha256": "af77ac70b28306786474e2afc2fc5965e5f769b6d8e5b519f7a3721d190846e6",
+          "current_compared_sha256": "4ec19f5321282a420faf7d7a9461ba58b6fec29117c39695bc1258e31f802543"
+        }
+      ],
+      "applicability": "New Native drive code is gated on desc.angular.motor, permitted only for Hinge. Phase 28 free and limited CV packets carry no motor. The unpowered constraint equations, observation and dedicated Jolt CV range retain the original evidence."
+    },
+    "29": {
+      "evidence": [
+        {
+          "path": "docs/pre_editor/evidence/phase-29-owner-approval-exceptions-01.json",
+          "sha256": "6a7316aa6c543e0c191835f5c9f870cf55332f6b01e56805054ec46c2af2ef74"
+        },
+        {
+          "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/criteria.json",
+          "sha256": "eb848d856ccf4cadf3092b732f1a36afa54fd8e6ddd91ab7c8ad2e83394b8340"
+        }
+      ],
+      "commit": "ffa89a2708f34e8c0c194c1201728b565e2ba447",
+      "kind": "OWNER_ACCEPTED_ARCHIVE",
+      "inputs": [
+        {
+          "path": "GEngine/src/Physics/PassiveRagdoll.cpp",
+          "archive_file_sha256": "502f6591b3b6ec467310f63579b5f2bb6908bbe2562752ffcaa8b49464aee3bd",
+          "current_file_sha256": "502f6591b3b6ec467310f63579b5f2bb6908bbe2562752ffcaa8b49464aee3bd",
+          "archive_compared_sha256": "502f6591b3b6ec467310f63579b5f2bb6908bbe2562752ffcaa8b49464aee3bd",
+          "current_compared_sha256": "502f6591b3b6ec467310f63579b5f2bb6908bbe2562752ffcaa8b49464aee3bd",
+          "matches": true
+        },
+        {
+          "path": "RigidBodySimulation/tests/PassiveRagdollChecks.h",
+          "archive_file_sha256": "ab7f23b13458a7e126f10d640c7ba575e9998fcbe239988c29bdeb6fbe030cb3",
+          "current_file_sha256": "ab7f23b13458a7e126f10d640c7ba575e9998fcbe239988c29bdeb6fbe030cb3",
+          "archive_compared_sha256": "ab7f23b13458a7e126f10d640c7ba575e9998fcbe239988c29bdeb6fbe030cb3",
+          "current_compared_sha256": "ab7f23b13458a7e126f10d640c7ba575e9998fcbe239988c29bdeb6fbe030cb3",
+          "matches": true
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/PassiveRagdoll.h",
+          "archive_file_sha256": "3b7c11ecac7a5cdaec2ee43f55e312cff7077a667b47d68eb025562daf7e0f25",
+          "current_file_sha256": "3b7c11ecac7a5cdaec2ee43f55e312cff7077a667b47d68eb025562daf7e0f25",
+          "archive_compared_sha256": "3b7c11ecac7a5cdaec2ee43f55e312cff7077a667b47d68eb025562daf7e0f25",
+          "current_compared_sha256": "3b7c11ecac7a5cdaec2ee43f55e312cff7077a667b47d68eb025562daf7e0f25",
+          "matches": true
+        }
+      ]
+    },
+    "30": {
+      "evidence": [
+        {
+          "path": "docs/pre_editor/evidence/phase-30/motor-qualification.json",
+          "sha256": "63731367f05566f20422d0d6c8ce6a564b944875004b57800930ce2dbc896ee8"
+        },
+        {
+          "path": "docs/pre_editor/PHASE_30_PUBLICATION_REVIEW_01.md",
+          "sha256": "29089613280f58f69b8b3e705c28130b622159d473388a6ce401c0a197d3b7c6"
+        }
+      ],
+      "commit": "6f83ca3f8589bdbcbc9bc892c6fac22453eeb38c",
+      "kind": "PUBLISHED_PROVIDER",
+      "inputs": [
+        {
+          "path": "GEngine/src/Physics/JoltBackend.cpp",
+          "archive_file_sha256": "021ce26748c1a62a0e5d52f0aab05f2a7192ad8523d356a77c890043b88a3a0d",
+          "current_file_sha256": "7f119740cb798372ab641901e04eebd5102b967b87e926c8eb41a3ee58e652b0",
+          "definition": "class PoweredHinge final",
+          "archive_compared_sha256": "0727f44d688ab07835ec4446d5afe9414c8849d34103b37aa7721d7d1559c02f",
+          "current_compared_sha256": "0727f44d688ab07835ec4446d5afe9414c8849d34103b37aa7721d7d1559c02f",
+          "matches": true
+        },
+        {
+          "path": "GEngine/include/GEngine/Physics/Constraints/AngularJoint.cpp",
+          "archive_file_sha256": "2b56fdb5640b4df664e721ba83370c22926e38033bd4d9fe048c54c9de53d881",
+          "current_file_sha256": "2b56fdb5640b4df664e721ba83370c22926e38033bd4d9fe048c54c9de53d881",
+          "definition": "AngularJointRow::Solve()",
+          "archive_compared_sha256": "4ec19f5321282a420faf7d7a9461ba58b6fec29117c39695bc1258e31f802543",
+          "current_compared_sha256": "4ec19f5321282a420faf7d7a9461ba58b6fec29117c39695bc1258e31f802543",
+          "matches": true
+        },
+        {
+          "path": "RigidBodySimulation/tests/MotorChecks.h",
+          "archive_file_sha256": "1811030578733e1dbe2c7c565593973e41b8a9d204039270b7a94c918bd09c0c",
+          "current_file_sha256": "1811030578733e1dbe2c7c565593973e41b8a9d204039270b7a94c918bd09c0c",
+          "archive_compared_sha256": "1811030578733e1dbe2c7c565593973e41b8a9d204039270b7a94c918bd09c0c",
+          "current_compared_sha256": "1811030578733e1dbe2c7c565593973e41b8a9d204039270b7a94c918bd09c0c",
+          "matches": true
+        }
+      ]
+    },
+    "31": {
+      "evidence": [
+        {
+          "path": "logs/pre_editor/phase-31/entry-01/admission.json",
+          "sha256": "43821614b5b6353997c74a47babe126c0ff23e7cc3b8408c88ac0851a244deb4"
+        },
+        {
+          "path": "logs/pre_editor/phase-31/closure-01/status.json",
+          "sha256": "e50ba145ddc3f119a135411fcd0625e8c6de107abd8ef160cce5acff06cbbfb6"
+        },
+        {
+          "path": "docs/pre_editor/PHASE_31_PUBLICATION_REVIEW_01.md",
+          "sha256": "785b13413f81bc6f3d3c93692ae7dde6e11144e70f7796ba074dd4bb3b1ac914"
+        }
+      ],
+      "commit": "244e2c1aa4f97a87e5e1cffdc3660a7ecfc38100",
+      "kind": "PUBLISHED_PROVIDER",
+      "inputs": [
+        {
+          "path": "GEngine/include/GEngine/Physics/PhysicsWorld.cpp",
+          "archive_file_sha256": "65ae496b7357e9852dd5b50c3ffb3428aa44bc01278710e0a7a7105bae9d06a7",
+          "current_file_sha256": "4788d1f6e7504300c26747d62205a8da2a122529deedb628a0add793f8f92479",
+          "archive_compared_sha256": "65ae496b7357e9852dd5b50c3ffb3428aa44bc01278710e0a7a7105bae9d06a7",
+          "current_compared_sha256": "65ae496b7357e9852dd5b50c3ffb3428aa44bc01278710e0a7a7105bae9d06a7",
+          "matches": true
+        },
+        {
+          "path": "GEngine/src/Physics/JoltBackend.cpp",
+          "archive_file_sha256": "8abb53beabc74a4d9e6d59185309aaacb416d977be6d69ffaabbb56bd1405228",
+          "current_file_sha256": "7f119740cb798372ab641901e04eebd5102b967b87e926c8eb41a3ee58e652b0",
+          "archive_compared_sha256": "8abb53beabc74a4d9e6d59185309aaacb416d977be6d69ffaabbb56bd1405228",
+          "current_compared_sha256": "8abb53beabc74a4d9e6d59185309aaacb416d977be6d69ffaabbb56bd1405228",
+          "matches": true
+        },
+        {
+          "path": "RigidBodySimulation/tests/MoverChecks.h",
+          "archive_file_sha256": "ca5b994fbc805f367dacbc63d6c45875d9a62a0131445998fa34f92956fae896",
+          "current_file_sha256": "6ade17d353f9914a350c7d89c4901cf576609f1d2d25fecd382f2da053ace520",
+          "archive_compared_sha256": "ca5b994fbc805f367dacbc63d6c45875d9a62a0131445998fa34f92956fae896",
+          "current_compared_sha256": "ca5b994fbc805f367dacbc63d6c45875d9a62a0131445998fa34f92956fae896",
+          "matches": true
+        },
+        {
+          "path": "RigidBodySimulation/src/RbsScene.cpp",
+          "archive_file_sha256": "bdb3b67d18a7547a3824fd15d86ea24eb8cb0a0c37624b9acd55f84b2446d141",
+          "current_file_sha256": "9bc3b4d745149a161e4991ee11a858a0e7a4c77f4c50960b939500f1f34415b3",
+          "archive_compared_sha256": "bdb3b67d18a7547a3824fd15d86ea24eb8cb0a0c37624b9acd55f84b2446d141",
+          "current_compared_sha256": "bdb3b67d18a7547a3824fd15d86ea24eb8cb0a0c37624b9acd55f84b2446d141",
+          "matches": true
+        },
+        {
+          "path": "RigidBodySimulation/src/RbsEditorViews.cpp",
+          "archive_file_sha256": "e36a6c28f63a11652c06eb5be3515c8c81cb2b580987ee6a75019b5363ee07ec",
+          "current_file_sha256": "d1c3934d68e8019f9190974e65669414b5a3b8adc6e4248313a018beab0ab98d",
+          "matches": true,
+          "archive_compared_sha256": "e36a6c28f63a11652c06eb5be3515c8c81cb2b580987ee6a75019b5363ee07ec",
+          "current_compared_sha256": "e36a6c28f63a11652c06eb5be3515c8c81cb2b580987ee6a75019b5363ee07ec"
+        },
+        {
+          "path": "RigidBodySimulation/tests/BackendSwitchChecks.h",
+          "archive_file_sha256": "77c5f7117baa66532dba353cecda4ceea0038fd3421928d22de46eb6df20e60a",
+          "current_file_sha256": "47fcb238400381fde16b2ad8a609fcc8e93b9553a58dc2de1affbf51662147dd",
+          "matches": true,
+          "archive_compared_sha256": "77c5f7117baa66532dba353cecda4ceea0038fd3421928d22de46eb6df20e60a",
+          "current_compared_sha256": "77c5f7117baa66532dba353cecda4ceea0038fd3421928d22de46eb6df20e60a"
+        }
+      ],
+      "applicability": "The separate Gizmo correction changes the ordinary visual interaction. Use its Owner-accepted scope. New Phase 32 selector interaction remains pending.",
+      "correction": {
+        "path": "docs/pre_editor/evidence/phase-31-gizmo-correction-02.json",
+        "sha256": "69c006c13e948767c9c4bc6d1e044b17af5043a75c0cfe74c6ed8706a2f3b673"
+      }
+    }
+  },
+  "prior_scope_index": {
+    "path": "logs/pre_editor/phase-32/selector-01/provider-reuse.json",
+    "sha256": "1f020002ca0c902a25fb59796c1ea84756049a35b134552127e0e0d130a3941b"
+  }
+}

@@ -1,0 +1,462 @@
+{
+  "schema": 1,
+  "phase": "32",
+  "decision": "BLOCKED_CHAPTER_21",
+  "owner_authority": {
+    "path": "docs/pre_editor/evidence/phase-32-entry-01.json",
+    "sha256": "04704b19ec86e588743bd57788db86c6897cd71465e7709162210b8ada48fbe0"
+  },
+  "tested_baseline": "92c82961f42930022b9918d9d0e47d9ed2535c92",
+  "build": {
+    "path": "logs/pre_editor/phase-32/baseline-01/build-02-RigidBodySimulation/result.json",
+    "sha256": "221561d10be51ba01d3385805be975e3384969bbcd060f6d15f8d9aeda090bb8"
+  },
+  "inputs": {
+    "path": "logs/pre_editor/phase-32/baseline-01/capture-inputs.json",
+    "sha256": "1f4771cd88263f3ffa675323f74004890bd81392fcaa2cf3a9818c979dd83dd0"
+  },
+  "reference": {
+    "path": "docs/pre_editor/evidence/phase-29-owner-exceptions-01/criteria.json",
+    "sha256": "eb848d856ccf4cadf3092b732f1a36afa54fd8e6ddd91ab7c8ad2e83394b8340"
+  },
+  "provider_applicability": {
+    "path": "logs/pre_editor/phase-32/selector-01/provider-reuse.json",
+    "sha256": "1f020002ca0c902a25fb59796c1ea84756049a35b134552127e0e0d130a3941b"
+  },
+  "raw_policy": "Phase 32 Release, existing fixture, six bones, five joints, 60 Hz, one reserved process and 1200 attempted/completed steps per case, 180 s cap. Raw input and tested executable identities refer to the pre-selector baseline plus the retained local build prerequisites.",
+  "cases": {
+    "R29_DROP_WAKE_V01": {
+      "status": "FAIL",
+      "process": {
+        "path": "logs/pre_editor/phase-32/baseline-01/R29_DROP_WAKE_V01/job-process.json",
+        "sha256": "5d35e688ee929624a060609541c4b3dbdd82abc828ab70213c2b6e6d96964b7b"
+      },
+      "raw_process": {
+        "path": "logs/pre_editor/phase-32/baseline-01/R29_DROP_WAKE_V01/process.json",
+        "sha256": "9a13acbb59bc37bf82577a7bca572c9b7f26adade20dafea929c2303dfc04b7e"
+      },
+      "assessed_process": {
+        "path": "logs/pre_editor/phase-32/baseline-01/offline-review-01/R29_DROP_WAKE_V01/process.json",
+        "sha256": "a0dce7813dd40d669985a6206b55e4817381b94aa8c5cb1c0412de257ee41ed8"
+      },
+      "case_inputs": {
+        "path": "logs/pre_editor/phase-32/baseline-01/R29_DROP_WAKE_V01/reservation.json",
+        "sha256": "61950aefcd7d392b688326c9129a03b3b7d11140771cd0f4893ff99461e622b9"
+      },
+      "assessment": {
+        "path": "logs/pre_editor/phase-32/baseline-01/offline-review-01/R29_DROP_WAKE_V01/assessment.json",
+        "sha256": "88efd99a967b8cd15737639c9c8dc76a9daa01a8b49aad873207dd6a6346dcca"
+      },
+      "findings": {
+        "path": "logs/pre_editor/phase-32/baseline-01/offline-review-01/R29_DROP_WAKE_V01/findings.json",
+        "sha256": "f3a55f29cf57fd1eca3cc75d145c292ffe8681def2ea180c5d37d3f6d97b5cbe"
+      },
+      "tested_binary": {
+        "path": "bin/phase32-qualification/Release/RigidBodySimulation/RigidBodySimulation.exe",
+        "sha256": "c48cf22afe39140dbd6fccb9d115efb490087af9c9e92ba5dce3420c4fa5833a"
+      },
+      "wall_seconds_cap": 180,
+      "attempted": 1200,
+      "completed": 1200,
+      "exit": 0,
+      "failed": [
+        "angular_residual_limit",
+        "individual_anchor_bound",
+        "maximum_penetration",
+        "loaded_joint_high_frequency"
+      ],
+      "incomplete": [],
+      "extrema": {
+        "individual_anchor_m": {
+          "value": 0.016052802346565146,
+          "limit": 0.015,
+          "tick": 168,
+          "member": "neck",
+          "ratio": 1.0701868231043432
+        },
+        "neck_m": {
+          "value": 0.016052802346565146,
+          "limit": 0.015,
+          "tick": 168,
+          "member": "neck",
+          "ratio": 1.0701868231043432
+        },
+        "cv_relation_rad": {
+          "value": 0.025167747991478615,
+          "limit": 0.01,
+          "tick": 146,
+          "member": "left_shoulder",
+          "ratio": 2.5167747991478615
+        },
+        "floor_m": {
+          "value": 0.06272403435388318,
+          "limit": 0.01,
+          "tick": 172,
+          "member": "left_leg",
+          "ratio": 6.272403435388318
+        },
+        "loaded_residual_m": {
+          "value": 0.01639332962711452,
+          "limit": 0.0022500000000000003,
+          "tick": 145,
+          "member": "right_shoulder",
+          "ratio": 7.285924278717564
+        },
+        "loaded_shoulder_m": {
+          "value": 0.01639332962711452,
+          "limit": 0.0022500000000000003,
+          "tick": 145,
+          "member": "right_shoulder",
+          "ratio": 7.285924278717564
+        }
+      },
+      "floor_plane_vs_sat_max_difference_m": 1.1102230246251565e-16,
+      "limit_coverage": [],
+      "raw_hashes": {
+        "actions.csv": "306d652fa046fadd273bfd110efbbdcc069fffb737a533b9dae3b0823f47b663",
+        "allocations.csv": "be9bcfba4a2f04f202245364fd66510a1161bc422391612a5183cbe2bdfeb633",
+        "bodies.csv": "96f23517c2fa0509a0d250a5a32363670e8f7d231b60587abae784c5df68d5b9",
+        "contacts.csv": "00af108db60a5701626d0da766463afaceff26c8129a50aa23cfa2929e5d626e",
+        "cost.csv": "97d46185b0be020e140795ae8ec8be1f2ae5d615df7985c38938f21b10bf321a",
+        "joints.csv": "0f41a1628e830dbff685524982d80ad258e77718a9aa45f6c7ebe7960ae4ec1c",
+        "listener-construction.txt": "52b8dfcab7c718bbe005fae8babe281273872362a6bf5afc1b80550a6d720f93",
+        "native-stages.csv": "f50c4764a53652adfd4a5fe91ddb3c218848bf015fc3dd89a266cdee0f2b7b15",
+        "result.txt": "c2e3d8dfbf207b0e04c41300c9d0ee4d20af07ab3266fffebfea2fcd222da568",
+        "teardown-heap.csv": "e853ba2268f012f2e808f040712f2621d17dd75d2239e6ccfbae0ae1634f4b76"
+      },
+      "cost": {
+        "status": "PASS",
+        "clock_quantum_ns": 100,
+        "inclusive_ns": {
+          "mean": 81532.25,
+          "median": 49350.0,
+          "p95": 192900,
+          "p99": 272000,
+          "maximum": 352600,
+          "max_sliding60": 187835.0
+        },
+        "observer_upper_ns": {
+          "mean": 83147.58333333333,
+          "median": 51000.0,
+          "p95": 194600,
+          "p99": 273700,
+          "maximum": 355000,
+          "max_sliding60": 189716.66666666666
+        },
+        "arena_peak_bytes": 12460448,
+        "arena_site_sum_bound_bytes": 12526080,
+        "arena_capacity_bytes": 33554432,
+        "new_joint_and_graph_calls": 0,
+        "new_joint_and_graph_bytes": 0,
+        "cpp_heap_calls": 0,
+        "cpp_heap_bytes": 0,
+        "unclassified_heap_site_pairs": [],
+        "job_pool_page_bytes": 229376,
+        "job_pool_teardown": {
+          "status": "MATCHED",
+          "pointer": 1597718710144,
+          "free_symbol": "??1?$FixedSizeFreeList@VJob@JobSystem@JPH@@@JPH@@QEAA@XZ",
+          "event_count": 56
+        }
+      },
+      "passed_checks": [
+        "physical_filter_and_no_wall",
+        "actual_shape",
+        "normalized_orientation",
+        "body_render_translation",
+        "body_render_quaternion",
+        "reference_pose",
+        "initial_velocities",
+        "effective_mass",
+        "effective_inertia",
+        "central_domain",
+        "energy_work",
+        "joint_frame_readback",
+        "angular_provider_parity",
+        "summed_anchor_bound",
+        "penetration_recovery",
+        "closed_contact_episodes",
+        "actual_floor_response_and_recovery",
+        "initial_sleep_by_900",
+        "connected_wake_961",
+        "returned_sleep_1080",
+        "settled_windows",
+        "settled_energy",
+        "settled_pose_jitter",
+        "settled_high_frequency",
+        "energy_trend",
+        "inclusive_cpu",
+        "job_pool_shutdown_free",
+        "joint_allocation",
+        "cpp_heap_cost"
+      ]
+    },
+    "R29_TILT_LIMIT_WAKE_V01": {
+      "status": "FAIL",
+      "process": {
+        "path": "logs/pre_editor/phase-32/baseline-01/R29_TILT_LIMIT_WAKE_V01/job-process.json",
+        "sha256": "bda756caa4fad978a1e32044e42aa629f3efbacc49e5d99ef646e252b30d4efc"
+      },
+      "raw_process": {
+        "path": "logs/pre_editor/phase-32/baseline-01/R29_TILT_LIMIT_WAKE_V01/process.json",
+        "sha256": "a0dce7813dd40d669985a6206b55e4817381b94aa8c5cb1c0412de257ee41ed8"
+      },
+      "assessed_process": {
+        "path": "logs/pre_editor/phase-32/baseline-01/R29_TILT_LIMIT_WAKE_V01/process.json",
+        "sha256": "a0dce7813dd40d669985a6206b55e4817381b94aa8c5cb1c0412de257ee41ed8"
+      },
+      "case_inputs": {
+        "path": "logs/pre_editor/phase-32/baseline-01/R29_TILT_LIMIT_WAKE_V01/reservation.json",
+        "sha256": "2033d744edc1c386efc8f2fcbe6bdac9d01de9001d7df30c5034bfc78dca5a95"
+      },
+      "assessment": {
+        "path": "logs/pre_editor/phase-32/baseline-01/R29_TILT_LIMIT_WAKE_V01/assessment.json",
+        "sha256": "0436de1bb9d08e7634ff18c89043d800aa43463f8e1b82c769d4ba772b2acd28"
+      },
+      "findings": {
+        "path": "logs/pre_editor/phase-32/baseline-01/R29_TILT_LIMIT_WAKE_V01/findings.json",
+        "sha256": "79de6a0059358c5bf4d7fb7d66a2cb6c7f8c19a0e55a33f53c0b22affe485fee"
+      },
+      "tested_binary": {
+        "path": "bin/phase32-qualification/Release/RigidBodySimulation/RigidBodySimulation.exe",
+        "sha256": "c48cf22afe39140dbd6fccb9d115efb490087af9c9e92ba5dce3420c4fa5833a"
+      },
+      "wall_seconds_cap": 180,
+      "attempted": 1200,
+      "completed": 1200,
+      "exit": 0,
+      "failed": [
+        "angular_residual_limit",
+        "individual_anchor_bound",
+        "maximum_penetration",
+        "penetration_recovery",
+        "loaded_joint_high_frequency",
+        "dynamic_bound_visit_and_exit"
+      ],
+      "incomplete": [],
+      "extrema": {
+        "individual_anchor_m": {
+          "value": 0.028630595438135998,
+          "limit": 0.015,
+          "tick": 86,
+          "member": "neck",
+          "ratio": 1.9087063625424
+        },
+        "neck_m": {
+          "value": 0.028630595438135998,
+          "limit": 0.015,
+          "tick": 86,
+          "member": "neck",
+          "ratio": 1.9087063625424
+        },
+        "cv_relation_rad": {
+          "value": 0.021830911140231713,
+          "limit": 0.01,
+          "tick": 128,
+          "member": "right_shoulder",
+          "ratio": 2.1830911140231715
+        },
+        "floor_m": {
+          "value": 0.057533361206949074,
+          "limit": 0.01,
+          "tick": 40,
+          "member": "right_leg",
+          "ratio": 5.753336120694907
+        },
+        "loaded_residual_m": {
+          "value": 0.023608760354059746,
+          "limit": 0.0019142135623730953,
+          "tick": 41,
+          "member": "right_hip",
+          "ratio": 12.333399375141514
+        },
+        "loaded_shoulder_m": {
+          "value": 0.019370275156979862,
+          "limit": 0.0022500000000000003,
+          "tick": 86,
+          "member": "left_shoulder",
+          "ratio": 8.609011180879937
+        }
+      },
+      "floor_plane_vs_sat_max_difference_m": 5.551115123125783e-17,
+      "limit_coverage": [
+        {
+          "joint": "neck",
+          "coordinate": "angle",
+          "side": -1,
+          "first_visit": null,
+          "first_exit": null
+        },
+        {
+          "joint": "neck",
+          "coordinate": "angle",
+          "side": 1,
+          "first_visit": 58,
+          "first_exit": 101
+        },
+        {
+          "joint": "left_shoulder",
+          "coordinate": "u",
+          "side": -1,
+          "first_visit": null,
+          "first_exit": null
+        },
+        {
+          "joint": "left_shoulder",
+          "coordinate": "u",
+          "side": 1,
+          "first_visit": 48,
+          "first_exit": 63
+        },
+        {
+          "joint": "left_shoulder",
+          "coordinate": "v",
+          "side": -1,
+          "first_visit": null,
+          "first_exit": null
+        },
+        {
+          "joint": "left_shoulder",
+          "coordinate": "v",
+          "side": 1,
+          "first_visit": 73,
+          "first_exit": 91
+        },
+        {
+          "joint": "right_shoulder",
+          "coordinate": "u",
+          "side": -1,
+          "first_visit": null,
+          "first_exit": null
+        },
+        {
+          "joint": "right_shoulder",
+          "coordinate": "u",
+          "side": 1,
+          "first_visit": 50,
+          "first_exit": 118
+        },
+        {
+          "joint": "right_shoulder",
+          "coordinate": "v",
+          "side": -1,
+          "first_visit": 59,
+          "first_exit": 108
+        },
+        {
+          "joint": "right_shoulder",
+          "coordinate": "v",
+          "side": 1,
+          "first_visit": null,
+          "first_exit": null
+        },
+        {
+          "joint": "left_hip",
+          "coordinate": "angle",
+          "side": -1,
+          "first_visit": null,
+          "first_exit": null
+        },
+        {
+          "joint": "left_hip",
+          "coordinate": "angle",
+          "side": 1,
+          "first_visit": 54,
+          "first_exit": 66
+        },
+        {
+          "joint": "right_hip",
+          "coordinate": "angle",
+          "side": -1,
+          "first_visit": null,
+          "first_exit": null
+        },
+        {
+          "joint": "right_hip",
+          "coordinate": "angle",
+          "side": 1,
+          "first_visit": 55,
+          "first_exit": 89
+        }
+      ],
+      "raw_hashes": {
+        "actions.csv": "263f6ae83c8d406f7c3c4f6f50d725d8084d35a54364b123f5bb5b09e429057d",
+        "allocations.csv": "15914a14ba344660e6f252f7d57734fca0d297a12cef8c9b375dc7e18b24e401",
+        "bodies.csv": "a633ac0fb1e7a88926dc696944a2e8d678ad66f6eb4d7f76718cd1492dbbe784",
+        "contacts.csv": "2b31c39b35bda4e498983aac8240ac7ebf9d6f0808c9777b5cbb1b2ec5582fb5",
+        "cost.csv": "5098a889de533ddfd2284be6c488155a566e3226bb02f68f7086864f6dd71017",
+        "joints.csv": "05afe126244a6f7f4a5ba4743da228c620c36046a5ffaacf1767944ea72cf12c",
+        "listener-construction.txt": "52b8dfcab7c718bbe005fae8babe281273872362a6bf5afc1b80550a6d720f93",
+        "native-stages.csv": "f50c4764a53652adfd4a5fe91ddb3c218848bf015fc3dd89a266cdee0f2b7b15",
+        "result.txt": "c2e3d8dfbf207b0e04c41300c9d0ee4d20af07ab3266fffebfea2fcd222da568",
+        "teardown-heap.csv": "0195e02f735fd9b96789f36f04a05325da51f96258e039521d04375b0752b0bf"
+      },
+      "cost": {
+        "status": "PASS",
+        "clock_quantum_ns": 100,
+        "inclusive_ns": {
+          "mean": 116932.0,
+          "median": 85050.0,
+          "p95": 263200,
+          "p99": 329700,
+          "maximum": 472400,
+          "max_sliding60": 243646.66666666666
+        },
+        "observer_upper_ns": {
+          "mean": 118734.58333333333,
+          "median": 86950.0,
+          "p95": 265900,
+          "p99": 331700,
+          "maximum": 476700,
+          "max_sliding60": 247135.0
+        },
+        "arena_peak_bytes": 12460448,
+        "arena_site_sum_bound_bytes": 12526080,
+        "arena_capacity_bytes": 33554432,
+        "new_joint_and_graph_calls": 0,
+        "new_joint_and_graph_bytes": 0,
+        "cpp_heap_calls": 0,
+        "cpp_heap_bytes": 0,
+        "unclassified_heap_site_pairs": [],
+        "job_pool_page_bytes": 229376,
+        "job_pool_teardown": {
+          "status": "MATCHED",
+          "pointer": 2679820191424,
+          "free_symbol": "??1?$FixedSizeFreeList@VJob@JobSystem@JPH@@@JPH@@QEAA@XZ",
+          "event_count": 56
+        }
+      },
+      "passed_checks": [
+        "physical_filter_and_no_wall",
+        "actual_shape",
+        "normalized_orientation",
+        "body_render_translation",
+        "body_render_quaternion",
+        "reference_pose",
+        "initial_velocities",
+        "effective_mass",
+        "effective_inertia",
+        "central_domain",
+        "energy_work",
+        "joint_frame_readback",
+        "angular_provider_parity",
+        "summed_anchor_bound",
+        "closed_contact_episodes",
+        "actual_floor_response_and_recovery",
+        "initial_sleep_by_900",
+        "connected_wake_961",
+        "returned_sleep_1080",
+        "settled_windows",
+        "settled_energy",
+        "settled_pose_jitter",
+        "settled_high_frequency",
+        "energy_trend",
+        "inclusive_cpu",
+        "job_pool_shutdown_free",
+        "joint_allocation",
+        "cpp_heap_cost"
+      ]
+    }
+  },
+  "F_OWNER": "PENDING"
+}

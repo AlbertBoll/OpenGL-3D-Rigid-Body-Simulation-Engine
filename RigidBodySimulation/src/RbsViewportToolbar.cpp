@@ -103,6 +103,7 @@ std::optional<std::size_t> RigidBodySimulationApp::RagdollBoneFor(_Entity entity
 
 bool RigidBodySimulationApp::IsAngularEndpoint(_Entity entity) const
 {
+    if(IntegratedBook())return BookAngularFor(entity).has_value();
     if(!m_ActiveSelection.IsAngularScene() || !m_ActiveScene ||
        entity.GetSceneContext()!=m_ActiveScene.get() || !entity)return false;
     const auto binding=m_ActiveScene->GetBodyBinding(entity);
@@ -114,7 +115,7 @@ bool RigidBodySimulationApp::IsAngularEndpoint(_Entity entity) const
 
 bool RigidBodySimulationApp::ProtectsAngularTransform(_Entity entity) const
 {
-    if(RagdollBoneFor(entity))return true;
+    if(RagdollBoneFor(entity) || (IntegratedBook() && BookAngularFor(entity)))return true;
     if(!m_ActiveSelection.IsAngularScene() || !m_ActiveScene ||
        entity.GetSceneContext()!=m_ActiveScene.get() || !entity)return false;
     if(IsAngularEndpoint(entity))return true;

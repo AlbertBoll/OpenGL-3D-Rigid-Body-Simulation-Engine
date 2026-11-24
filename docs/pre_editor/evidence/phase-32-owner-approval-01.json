@@ -1,0 +1,219 @@
+{
+  "schema": 1,
+  "workflow": "pre-editor",
+  "phase": "32",
+  "candidate": "unified-loading-01",
+  "recorded_utc": "2026-11-24T22:36:21.669673+00:00",
+  "owner_command": "APPROVE PRE_EDITOR PHASE 32",
+  "final_owner_result": "PASS",
+  "owner_report": "OWNER FINAL MANUAL ACCEPTANCE: PASS. The Owner accepts the current Integrated Book Conformance Sandbox and unified startup/scene-loading progress implementation. Proceed with formal approval, sealing and publication.",
+  "accepted_canonical_rbs": {
+    "path": "RigidBodySimulation/src/RigidBodySimulation.cpp",
+    "raw": {
+      "path": "logs/pre_editor/phase-32/unified-loading-01/canonical-worktree.cpp",
+      "sha256": "b016555355f737ebded8d135140cb38b2271e999cfcc54c92ef5b2ec8b1d433d"
+    },
+    "index": {
+      "path": "logs/pre_editor/phase-32/integrated-01/canonical-index.cpp",
+      "sha256": "31fe543a26c17ff8d6fecd20789e3e94ea0f2623256a16c67193492679e9003c"
+    },
+    "index_mode_and_blob": "100644 aef7fd7bfb42e50ba06140afb93b4903a79a7580 0\tRigidBodySimulation/src/RigidBodySimulation.cpp",
+    "worktree_git_blob": "125c6215c3e18f7babf7689e70937d873eaf1d37"
+  },
+  "owner_reported_binary_sha256": null,
+  "ready": {
+    "path": "logs/pre_editor/phase-32/unified-loading-01/ready.json",
+    "sha256": "c3bd5a807551df5b4a28c319ac6c02899f72dbb4db12357e603ae0875a179b42"
+  },
+  "ready_spec": {
+    "path": "logs/pre_editor/phase-32/unified-loading-01/checkpoint-spec.json",
+    "sha256": "e05eb15cd9cb4ea0bd865ad13cc7b32a8bc12262f47eb2bf75673d5a02b053a4"
+  },
+  "component_governance": {
+    "path": "logs/pre_editor/phase-32/unified-loading-01/component-ready.json",
+    "sha256": "599875aa25383918b7dc9bf4694a61b8c2682c0ebf49cb5e5e20b675510c7a3b"
+  },
+  "ordinary_coverage": {
+    "path": "logs/pre_editor/phase-32/unified-loading-01/component-matrix.json",
+    "sha256": "b34bc65c981ebdf5c59da61249d775af74d9de7a3b155cb440a64870b77771ee"
+  },
+  "technical_gates_at_ready": {
+    "path": "logs/pre_editor/phase-32/unified-loading-01/gates.json",
+    "sha256": "86aed05948e5fec5262e2eb63aa6490eccb8d6e854f9a59024a317aecec6557e"
+  },
+  "outcomes": {
+    "A_PHYSICS": "PASS",
+    "B_SAFETY": "ACCEPTED_EXCEPTION",
+    "C_COST": "PASS",
+    "D_EDITOR": "PASS",
+    "E_INTERACTION": "PASS",
+    "F_OWNER": "PASS"
+  },
+  "comparison": {
+    "result": "MATCH",
+    "at": "2026-11-24T22:34:23.418575+00:00",
+    "candidate": "unified-loading-01",
+    "ready_sha256": "c3bd5a807551df5b4a28c319ac6c02899f72dbb4db12357e603ae0875a179b42",
+    "compared_behavior_source_files": 609,
+    "tracked_modes": 600,
+    "scoped_sources_and_headers": {
+      "Debug": 475,
+      "Release": 475
+    },
+    "project_membership": {
+      "RigidBodySimulation": 13,
+      "GEngine": 150
+    },
+    "asset_entries": 69,
+    "installed_asset_mirrors": [
+      "Debug",
+      "Release"
+    ],
+    "toolchain_and_sdk_files": 19,
+    "external_link_inputs": 13,
+    "distinct_content_comparisons": 865,
+    "unchanged_prepared_contracts": 54,
+    "publication_members": 27,
+    "historical_validation_bindings_retained": 863,
+    "index_empty": true,
+    "unmerged": false,
+    "unknown_changed_paths": [],
+    "owner_canonical_sha256": "b016555355f737ebded8d135140cb38b2271e999cfcc54c92ef5b2ec8b1d433d",
+    "index_canonical_sha256": "31fe543a26c17ff8d6fecd20789e3e94ea0f2623256a16c67193492679e9003c",
+    "head": "92c82961f42930022b9918d9d0e47d9ed2535c92",
+    "branch": "pre-editor/refactor",
+    "origin": "https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine.git",
+    "protected_changed_names": 3833,
+    "remaining_risks": {
+      "phase21": "FROZEN_UNAPPROVED",
+      "phase29": "Owner-accepted archive only",
+      "phase30": "Specific Jolt Contact and scoped incomplete Native/ordinary Editor evidence retained",
+      "phase31": "Jolt qualified; Native contact/recovery/incremental heap exceptions retained"
+    },
+    "medians": {
+      "before": {
+        "startup_ms": 3417.936,
+        "first_window_to_ready_ms": 2871.03,
+        "fresh_book_ms": 1420.374
+      },
+      "after": {
+        "startup_ms": 3377.688,
+        "first_window_to_ready_ms": 2826.215,
+        "fresh_book_ms": 1418.134
+      }
+    }
+  },
+  "decision": "Reuse all applicable READY evidence for the matching candidate. The original tested binary identities and run records remain bound to their original observations. Final Owner manual acceptance applies to the current candidate.",
+  "original_tested_release": {
+    "path": "bin/Release/RigidBodySimulation/RigidBodySimulation.exe",
+    "sha256": "117e8fff5faa0eb446ab285b9865c005bd7fadbbdbaeddb9dd435822a7cbb656"
+  },
+  "original_debug_build": {
+    "path": "bin/Debug/RigidBodySimulation/RigidBodySimulation.exe",
+    "sha256": "e5dbba66d931a79f4c4e2a1f4f9da54a39297599f8e91a0d4fb5d940672f3344"
+  },
+  "performance": {
+    "result": "PASS",
+    "criteria": {
+      "path": "logs/pre_editor/phase-32/unified-loading-01/measurement-plan.json",
+      "sha256": "1dd7f36486c7ef3a1a610287b6f9ebcc6c84dc61898fe303d754fb497b265a92"
+    },
+    "evidence": {
+      "path": "logs/pre_editor/phase-32/unified-loading-01/cost.json",
+      "sha256": "a1b3abf403e6e7c838fb95baf545ce376d1efb27154f8d1f130bd434caab16f3"
+    },
+    "matched_draws_and_query_coverage": true,
+    "metrics": {
+      "active_pass_cpu_ms": {
+        "median_of_run_medians_ms": [
+          0.63315,
+          0.6462499999999999
+        ],
+        "percent_change": 2.069019979467712,
+        "separated_above_all_controls": false
+      },
+      "editor_ui_cpu_ms": {
+        "median_of_run_medians_ms": [
+          0.3387,
+          0.33785
+        ],
+        "percent_change": -0.2509595512252827,
+        "separated_above_all_controls": false
+      },
+      "timed_gpu_ms": {
+        "median_of_run_medians_ms": [
+          0.6256640000000001,
+          0.631808
+        ],
+        "percent_change": 0.9819967266775587,
+        "separated_above_all_controls": false
+      },
+      "process_cpu_ms_per_frame": {
+        "median_of_run_medians_ms": [
+          6.784228441754917,
+          6.796047655068079
+        ],
+        "percent_change": 0.17421602787457413,
+        "separated_above_all_controls": false
+      }
+    },
+    "times_ms": {
+      "before": {
+        "startup_ms": 3417.936,
+        "first_window_to_ready_ms": 2871.03,
+        "fresh_book_ms": 1420.374
+      },
+      "after": {
+        "startup_ms": 3377.688,
+        "first_window_to_ready_ms": 2826.215,
+        "fresh_book_ms": 1418.134
+      }
+    }
+  },
+  "scope": {
+    "primary_backend": "Jolt",
+    "phase_rbs_production_files": 12,
+    "physics_production_files": [],
+    "sandbox": "Integrated Chapter 24 scene with previously accepted materials, textures, controls and CLI compatibility.",
+    "passive_ragdoll": "Experimental for visual and development use only on Jolt and Native. Six bodies, five joints.",
+    "gate_B": {
+      "result": "ACCEPTED_EXCEPTION",
+      "actual_outcome": "Jolt DROP and TILT numerical FAIL. TILT signed limit visitation and timely penetration recovery are incomplete/failed as documented. Earlier Native results retain their exact scope.",
+      "criterion": "Original penetration, per-joint anchor/loaded residual, CV, TILT recovery and dynamic-bound coverage",
+      "specific_owner_acceptance": "Explicit FINAL INTEGRATED PHYSICS SANDBOX revision, section 6. The Owner accepts the current six-body, five-joint passive ragdoll for experimental visual/development use on Jolt and Native.",
+      "residual_owner": "Owner / future Character Physics, Physical Animation and Character Animation",
+      "revisit_trigger": "Before character integration, production promotion or provider/solver changes affecting the assembly."
+    },
+    "chapter21_production": "OPEN",
+    "provider_evidence": {
+      "path": "docs/pre_editor/evidence/phase-32-provider-applicability-01.json",
+      "sha256": "00bdccef9b4b39830509937f9d2c27d471845745ab96ee3e9bd1c26bb8173843"
+    },
+    "numerical_evidence": {
+      "path": "docs/pre_editor/evidence/phase-32-ragdoll-verification-01.json",
+      "sha256": "3181a0608d36194e693a8d048c2353a0b2da4568b67b868af343c7c28caa5311"
+    }
+  },
+  "publication_preflight": {
+    "result": "CLEAR",
+    "ready_preflight": {
+      "path": "logs/pre_editor/phase-32/unified-loading-01/publication-preflight.json",
+      "sha256": "ef2c613d62babf0663aaa35220d767373ce8d1e2bfd61c8ed82250e57ac8148a"
+    },
+    "remote": "origin",
+    "branch": "pre-editor/refactor",
+    "destination": "https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine.git",
+    "remote_branch_before_seal": "92c82961f42930022b9918d9d0e47d9ed2535c92",
+    "phase31_annotated_tag_object": "3e39cb5b81ca58b43d5564f86bc55034e6773c6a",
+    "phase32_tag_before_seal": "ABSENT",
+    "local_phase32_receipt_and_journal_before_seal": "ABSENT",
+    "staged_or_unmerged_paths": [],
+    "unknown_conflicts": [],
+    "phase_records_added": [
+      "docs/pre_editor/evidence/phase-32-owner-approval-01.json",
+      "docs/pre_editor/PHASE_32_PUBLICATION_REVIEW_01.md"
+    ],
+    "local_final_spec": "logs/pre_editor/phase-32/approval-01/checkpoint-spec.json"
+  },
+  "next_expected_phase_after_publication": "33"
+}

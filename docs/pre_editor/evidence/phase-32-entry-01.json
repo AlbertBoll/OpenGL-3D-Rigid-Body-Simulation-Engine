@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "workflow": "pre-editor",
+  "phase": "32",
+  "status": "ACTIVE_OWNER_AUTHORIZED",
+  "owner_directive": "PRE_EDITOR PHASE 32 OWNER ENTRY DECISIONS AND BOUNDED CONFORMANCE CLOSURE",
+  "recorded_utc": "2026-11-24T15:46:44.374746+00:00",
+  "branch": "pre-editor/refactor",
+  "remote": "origin",
+  "destination": "https://github.com/AlbertBoll/OpenGL-3D-Rigid-Body-Simulation-Engine.git",
+  "baseline": "92c82961f42930022b9918d9d0e47d9ed2535c92",
+  "tree": "87648737cb65efd441d73d000d0572a516130f23",
+  "approved_parent": "244e2c1aa4f97a87e5e1cffdc3660a7ecfc38100",
+  "previous_tag": "pre-editor-phase-31-approved",
+  "previous_tag_object": "3e39cb5b81ca58b43d5564f86bc55034e6773c6a",
+  "correction_tag": "pre-editor-phase-31-gizmo-correction-02-owner-accepted",
+  "correction_tag_object": "744e8f8354ab1edf66346dc4c8015ee56a5a168e",
+  "previous_receipt": {
+    "path": "pre-editor-checkpoints/phase-31.json",
+    "sha256": "50e01927d5c37f7744bb0e2bf9c31432919ef5e00cce398aeaa777a07a109af3"
+  },
+  "previous_journal_sha256": "4d36ef40f49b7f2603a62c5b5c52d2016a3870ff66f0f7144981e324219d8921",
+  "correction_acceptance": {
+    "path": "docs/pre_editor/evidence/phase-31-gizmo-correction-02.json",
+    "sha256": "69c006c13e948767c9c4bc6d1e044b17af5043a75c0cfe74c6ed8706a2f3b673"
+  },
+  "phase29": {
+    "commit": "ffa89a2708f34e8c0c194c1201728b565e2ba447",
+    "archive_tag": "pre-editor-phase-29-owner-accepted",
+    "tag_object": "b6234d63eec824649a31070fb7cad1973006fac8",
+    "evidence": {
+      "path": "docs/pre_editor/evidence/phase-29-owner-approval-exceptions-01.json",
+      "sha256": "6a7316aa6c543e0c191835f5c9f870cf55332f6b01e56805054ec46c2af2ef74"
+    },
+    "source_admission": "Phase 32 historical provider only. Preserve the Phase 29 progression decision, exceptions, failures and incomplete evidence. Formal checkpoint absent.",
+    "original_transition": {
+      "path": "docs/pre_editor/active/PHASE_30_ENTRY_EXCEPTION_ACTIVATION_01.json",
+      "sha256": "3c1122f7cc1199e453a3828fc5d5ec8f738b63bdfbf8cd6bf328fb16926839b8"
+    }
+  },
+  "workloads": {
+    "baseline": "92c82961f42930022b9918d9d0e47d9ed2535c92",
+    "backend": "Jolt",
+    "configuration": "Release",
+    "cases": [
+      "R29_DROP_WAKE_V01",
+      "R29_TILT_LIMIT_WAKE_V01"
+    ],
+    "starts_per_case": 1,
+    "fixed_steps_per_case": 1200,
+    "wall_seconds_per_process": 180,
+    "automatic_retries": 0,
+    "evidence": "Use accepted Phase 29 criteria, fixtures, workload scripts, same-run cost, actual teardown and bounded supervision. Charge both named verifications to Phase 32 and preserve the historical Phase 29 ledger."
+  },
+  "ui_evidence": "Owner manual inspection is the primary ordinary UI and presentation method for Phase 32. Preserve actual observations and technical safety coverage. Do not replay 518 or 976 property contexts. Final Owner result PENDING.",
+  "physics_production_files": 0,
+  "publication": "Only a later explicit APPROVE PRE_EDITOR PHASE 32 activates guarded publication. This directive authorizes the exact handoff mechanism."
+}

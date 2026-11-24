@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "phase": "32",
+  "candidate": "integrated-01",
+  "status": "ACTIVE_OWNER_AUTHORIZED",
+  "authority": "REVISE PRE_EDITOR PHASE 32 FINAL INTEGRATED PHYSICS SANDBOX AND MILESTONE C CLOSURE",
+  "admissions": {
+    "path": "docs/pre_editor/evidence/phase-32-entry-01.json",
+    "sha256": "04704b19ec86e588743bd57788db86c6897cd71465e7709162210b8ada48fbe0"
+  },
+  "integrated_scope": {
+    "path": "logs/pre_editor/phase-32/integrated-01/scope.json",
+    "sha256": "881b657a3ce082f349bb973aeee752784adc709f293ecb6a5a79f5adcae84491"
+  },
+  "selector": "Existing twenty named CLI dispatches retained; one directly selectable integrated ordinary Sandbox",
+  "classification": "EXPERIMENTAL — VISUAL / DEVELOPMENT USE ONLY",
+  "backends": [
+    "Jolt",
+    "Native"
+  ],
+  "assembly": "Existing six-body five-joint Passive Ragdoll",
+  "criterion_disposition": "DROP and TILT remain technical FAIL. The Owner accepts progression within the experimental visual/development scope. Full Chapter 21 production conformance remains OPEN.",
+  "failed_criteria": [
+    "maximum floor penetration",
+    "individual joint anchor bounds",
+    "constant-velocity relation",
+    "loaded joint residuals",
+    "TILT penetration recovery",
+    "TILT dynamic signed bound visitation and exit coverage"
+  ],
+  "numerical_record": {
+    "path": "docs/pre_editor/evidence/phase-32-ragdoll-verification-01.json",
+    "sha256": "3181a0608d36194e693a8d048c2353a0b2da4568b67b868af343c7c28caa5311"
+  },
+  "unchanged_limits": "All original numerical thresholds and raw measured values retain their evidence identity.",
+  "successes": "Measured Jolt Release cost, Arena, heap accounting, finite motion, wake, settling and teardown retain original results and scope.",
+  "residual_owner": "Owner / future Character Animation, Physical Animation and Character Physics development",
+  "revisit": "Requalify before production promotion, character integration or any change affecting the ragdoll/contact/constraint provider. Escalate any crash, nonfinite state, corrupt ownership or new critical exposure immediately.",
+  "standalone_CV": "Chapters 19 and 20 retain their independently qualified scopes.",
+  "phase21": "FROZEN_UNAPPROVED",
+  "F_OWNER": "PENDING"
+}

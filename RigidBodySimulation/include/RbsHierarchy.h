@@ -9,8 +9,11 @@
 
 namespace Rbs::Editor
 {
-    enum class EntityGroup { Cameras, Lighting, Environment, PhysicsBodies, Other, Count };
-    inline constexpr const char* GroupNames[]{"Cameras", "Lighting", "Environment", "Physics Bodies", "Entities"};
+    enum class EntityGroup { Cameras, Lighting, Environment, PhysicsBodies, Other, Contacts, Distance, Point, Hinges, CV, Ragdoll, Motors, Movers, Count };
+    inline constexpr const char* GroupNames[]{"Cameras", "Lighting", "Environment", "Physics Bodies", "Entities",
+        "Rigid Body Contacts", "Distance Constraints", "Ball-and-Socket", "Hinge Constraints",
+        "Constant Velocity", "Passive Ragdoll", "Motors", "Movers"};
+    struct SandboxGroup { EntityGroup value; };
     inline unsigned char Fold(unsigned char c) { return c >= 'A' && c <= 'Z' ? c + ('a'-'A') : c; }
     inline bool NameContains(std::string_view name, std::string_view text)
     {
@@ -47,6 +50,7 @@ namespace Rbs::Editor
     inline EntityGroup Classify(const GEngine::_Entity& e)
     {
         using namespace GEngine::Component;
+        if(e.HasAllComponents<SandboxGroup>())return e.GetComponent<SandboxGroup>().value;
         if(e.HasAnyComponents<RenderCameraComponent,CameraComponent>())return EntityGroup::Cameras;
         if(e.HasAnyComponents<RenderLightComponent,LightComponent,LightComponents,DirectionalLightComponent,PointLightComponent,SpotLightComponent>())return EntityGroup::Lighting;
         if(e.HasAllComponents<RigidBody3DComponent>())return EntityGroup::PhysicsBodies;

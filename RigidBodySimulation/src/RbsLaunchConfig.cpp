@@ -485,6 +485,14 @@ namespace Rbs
     { return scene==RbsScenePreset::DistancePendulum || scene==RbsScenePreset::DistanceChain || scene==RbsScenePreset::DistanceChainContact; }
     bool LaunchConfig::ValidSceneConfiguration() const
     {
+        if (scene == RbsScenePreset::BookConformance)
+            return !fromBook && chainLinks==8 && angularVariant==AngularVariant::Air &&
+                startupMesh==StartupMesh::None && !restingContactDiagnostic && validation.checks.empty() &&
+                !validation.asyncPerformance && !validation.materialAlphaFixture && !validation.subscriptionOutput;
+        if (fromBook && (!FindBookCase(scene, chainLinks) || angularVariant != AngularVariant::Air ||
+            startupMesh != StartupMesh::None || restingContactDiagnostic || !validation.checks.empty() ||
+            validation.asyncPerformance || validation.materialAlphaFixture || validation.subscriptionOutput))
+            return false;
         if(scene==RbsScenePreset::PassiveRagdoll)
             return angularVariant==AngularVariant::Air && startupMesh==StartupMesh::None && !restingContactDiagnostic &&
                 validation.checks.empty() && !validation.asyncPerformance && !validation.materialAlphaFixture && !validation.subscriptionOutput;
@@ -525,6 +533,7 @@ namespace Rbs
         case RbsScenePreset::MotorContact: return "motor-contact";
         case RbsScenePreset::MotorLimit: return "motor-limit";
         case RbsScenePreset::PassiveRagdoll:return "passive-ragdoll";
+        case RbsScenePreset::BookConformance:return "book-conformance";
         }
         return "invalid";
     }
@@ -596,6 +605,7 @@ namespace Rbs
         LaunchConfig launch;
         launch.scene = selected.scene;
         launch.chainLinks = selected.chainLinks;
+        launch.fromBook = selected.fromBook;
         return launch;
     }
 
@@ -607,6 +617,7 @@ namespace Rbs
         bool sceneSeen=false, linksSeen=false, backendSeen=false, smokeSeen=false, switchChecksSeen=false;
         bool modeSeen=false,variantSeen=false;
         std::optional<RbsScenePreset> motorCase;
+        const BookCase* bookCase = nullptr;
         for(std::size_t i=0;i<args.size();i+=2) {
             if(i+1==args.size()) return std::unexpected("Missing value for startup option");
             const auto option=args[i], value=args[i+1];
@@ -617,9 +628,13 @@ namespace Rbs
                     RbsScenePreset::DistancePendulum,RbsScenePreset::DistanceChain,RbsScenePreset::DistanceChainContact,
                     RbsScenePreset::BallSocketSwing,RbsScenePreset::BallSocketPair,RbsScenePreset::BallSocketContact,RbsScenePreset::BallSocketContactEnabled,
                     RbsScenePreset::HingeBasic,RbsScenePreset::HingeQuaternion,RbsScenePreset::HingeLimited,RbsScenePreset::CvFree,RbsScenePreset::CvLimited,
-                    RbsScenePreset::PassiveRagdoll,RbsScenePreset::MotorFree,RbsScenePreset::Movers})
-                    if(value==SceneName(scene)) { launch.scene=scene; found=true; break; }
+                    RbsScenePreset::PassiveRagdoll,RbsScenePreset::MotorFree,RbsScenePreset::Movers,RbsScenePreset::BookConformance})
+                    if(value==SceneName(scene)) { launch.scene=scene; launch.fromBook=false; found=true; break; }
                 if(!found)return std::unexpected("Unknown or unimplemented scene preset");
+            } else if (option=="--case" && !bookCase) {
+                for (const auto& entry : BookCases)
+                    if (value == entry.key) { bookCase = &entry; break; }
+                if (!bookCase) return std::unexpected("Unknown Book Conformance case");
             } else if (option=="--motor-case" && !motorCase) {
                 if (value=="free") motorCase=RbsScenePreset::MotorFree;
                 else if (value=="contact") motorCase=RbsScenePreset::MotorContact;
@@ -667,6 +682,20 @@ namespace Rbs
                 if(parsed.ec!=std::errc{} || parsed.ptr!=value.data()+value.size() || launch.joltParameterTicks<1 || launch.joltParameterTicks>3600)return std::unexpected("Experimental budget requires 1..3600 ticks");
             } else if(option=="--jolt-parameter-capture" && value=="true") {launch.joltParameterCapture=true;
             } else return std::unexpected("Unknown or duplicate startup option");
+        }
+        if (launch.scene == RbsScenePreset::BookConformance || bookCase) {
+            if (!sceneSeen || launch.scene != RbsScenePreset::BookConformance)
+                return std::unexpected("--case requires --scene book-conformance");
+            if (linksSeen || variantSeen || motorCase)
+                return std::unexpected("The selected book case fixes its links, variant and motor configuration");
+            if (bookCase) {
+                launch.scene = bookCase->provider;
+                launch.chainLinks = bookCase->chainLinks;
+                launch.fromBook = true;
+            } else {
+                launch.chainLinks = 8;
+            }
+            launch.angularVariant = AngularVariant::Air;
         }
         if(!launch.joltParameterProfile.empty() && (!launch.InteractiveSandboxEnabled() || launch.m_Backend!=GEngine::PhysicsBackend::Jolt || launch.scene!=RbsScenePreset::SphereLattice || launch.joltParameterOutput.empty() || launch.m_BackendSmokeTicks || launch.m_BackendSwitchChecks))
             return std::unexpected("Jolt experiment requires isolated interactive SphereLattice/Jolt and an output directory");

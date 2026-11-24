@@ -82,6 +82,7 @@ namespace PreEditorValidation::ColliderReplacement { void ObserveColliderRuntime
 #include "Managers/AssetsManager.h"
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
+#include "../tests/BookSandboxChecks.h"
 #include <sdl2/SDL.h>
 #include <cmath>
 #include <print>
@@ -223,7 +224,7 @@ Rbs::Editor::TransformSession::Action RigidBodySimulationApp::ProcessMoverGestur
     }
     if (!ValidateTransformPlacement(*command, {})) return Action::None;
     if (edit.before == edit.after) return followup;
-    if (m_SceneDefaultsPending || HasPendingObjectProperties(true, false)) {
+    if (m_SceneDefaultsPending || (IntegratedBook() && m_Angular.dirty) || HasPendingObjectProperties(true, false)) {
         m_PropertyDiagnostic = "Finish the pending structural or component edit before moving this body.";
         return Action::None;
     }
@@ -256,11 +257,34 @@ Rbs::Editor::TransformSession::Action RigidBodySimulationApp::ProcessMoverGestur
     if (body.orientation != original.orientation) draftBody.orientation = body.orientation;
     if (translated) (*role == 0 ? draft.path.center : draft.riderPosition) = position;
     const bool structuralDraft = m_Mover.dirty;
-    const auto generation = m_SceneGeneration;
-    m_MoverApply = candidate;
-    m_SceneRequest = m_ActiveSelection;
-    ProcessSceneRequest(command.get());
-    if (generation == m_SceneGeneration) { m_PropertyDiagnostic = m_SceneDiagnostic; return Action::None; }
+    if(IntegratedBook()) {
+        // The common Scene transaction can move an already registered rider/platform and
+        // rebase its path atomically. Keep every other assembly and renderer handle alive.
+        if(!ApplyWorkingTransformBatch(command->Span()))return Action::None;
+        const auto actual=m_ActiveScene->ReadEditorTransform(edit.entity);
+        auto* world=m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
+        const auto effective=world->ReadEffectiveBody(edit.body);
+        const auto moving=world->ReadMover(m_MoverBindings.bodies[0]);
+        if(!actual || !effective || !moving || glm::distance(actual->translation,edit.after.translation)>1.e-5f ||
+           glm::distance(effective->position,actual->translation)>1.e-5f ||
+           glm::distance(effective->localBounds.maxs-effective->localBounds.mins,edit.after.scale)>1.e-5f ||
+           std::abs(glm::dot(actual->rotation,edit.after.rotation))<1.f-1.e-5f ||
+           std::abs(glm::dot(effective->orientation,actual->rotation))<1.f-1.e-5f ||
+           glm::distance(moving->path.center,candidate.path.center)>1.e-5f) {
+            FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Physics","Book Conformance","Direct Transform",
+                         "Provider readback","Integrated mover pose or trajectory differs from the committed gesture"});
+            return Action::None;
+        }
+        edit.after=*actual;
+        candidate.path=moving->path;
+        m_Book.mover=m_Mover.committed=m_Mover.draft=candidate;
+    } else {
+        const auto generation=m_SceneGeneration;
+        m_MoverApply=candidate;
+        m_SceneRequest=m_ActiveSelection;
+        ProcessSceneRequest(command.get());
+        if(generation==m_SceneGeneration){m_PropertyDiagnostic=m_SceneDiagnostic;return Action::None;}
+    }
     if (structuralDraft) { m_Mover.draft = draft; m_Mover.dirty = true; }
     if (!replay) session.Store(std::move(command));
     else if (queued == Action::Undo) (*session.history)[--session.cursor]->edits[0].before = edit.after;
@@ -333,7 +357,7 @@ void RigidBodySimulationApp::Update(Timestep ts)
             CancelGroupTransform();
             m_PropertyDiagnostic = "Edit state changed before the transform could commit.";
         }
-        const auto followup = m_ActiveSelection.scene == Rbs::RbsScenePreset::Movers ?
+        const auto followup = HasMoverAssembly() ?
             ProcessMoverGesture() : Rbs::Editor::TransformSession::Action::None;
         ProcessTransformEdit();
         if (followup != Rbs::Editor::TransformSession::Action::None) m_GroupTransform.pending = followup;
@@ -352,7 +376,10 @@ void RigidBodySimulationApp::Update(Timestep ts)
     if(!m_Launch.joltParameterProfile.empty() && !Rbs::JoltParameterExperiment::Boundary(*this))return;
     if(m_Launch.m_BackendSwitchChecks && !Rbs::BackendSwitchChecks::Boundary(*this))return;
     Rbs::ImpulseEditorChecks::PresetBoundary(*this);
-    if(m_Launch.m_BackendSmokeTicks && m_SimulationState==Rbs::SimulationState::Ready)
+    const bool bookCheck=m_Launch.m_BackendSmokeTicks && Rbs::BookSandboxChecks::Requested(*this);
+    if(bookCheck && Rbs::BookSandboxChecks::resetRequested) {Rbs::BookSandboxChecks::Finish(*this);return;}
+    if(m_Launch.m_BackendSmokeTicks && m_SimulationState==Rbs::SimulationState::Ready &&
+       (!bookCheck || Rbs::BookSandboxChecks::captured))
         SetSimulationState(Rbs::SimulationState::Running);
     if (!m_Running) return;
     if (SandboxEnabled())
@@ -570,7 +597,9 @@ void RigidBodySimulationApp::Update(Timestep ts)
         return;
     }
 #endif
+    const auto bookStart=bookCheck?std::chrono::steady_clock::now():std::chrono::steady_clock::time_point{};
     { RBS_REVIEW_SCOPE(4); m_ActiveScene->Update(simulationTime); }
+    const auto bookMs=bookCheck?std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-bookStart).count():0.;
     auto* stepSystem=m_ActiveScene->GetPhysicsSystem();
     if (stepSystem->GetBackendFailure()) {
         const auto failure=*stepSystem->GetStepFailure();
@@ -632,13 +661,15 @@ void RigidBodySimulationApp::Update(Timestep ts)
             if(!joint){FailRuntime({ApplicationRuntimeErrorCode::SubsystemFailure,"Physics","Joint","Backend smoke","","Invalid joint state"});return;}
             m_BackendSmokeMaxJointError=(std::max)(m_BackendSmokeMaxJointError,std::abs(joint->error));
         }
+        if(bookCheck && !Rbs::BookSandboxChecks::Sample(*this,bookMs))return;
         if(m_Launch.m_BackendSwitchChecks && !Rbs::BackendSwitchChecks::AfterTick(*this))return;
         if(system->GetCompletedSteps()>=m_Launch.m_BackendSmokeTicks)
         {
             Log::GetCoreLogger()->info("BACKEND_SMOKE_PASS backend={} scene={} ticks={} bodies={} joints={} max_joint_error={}",
                 PhysicsBackendName(m_Backend),Rbs::SceneName(m_ActiveSelection.scene),system->GetCompletedSteps(),
                 world->GetBodyCount(),world->GetJointCount(),m_BackendSmokeMaxJointError);
-            ShutDown();return;
+            if(bookCheck)Rbs::BookSandboxChecks::Reset(*this);else ShutDown();
+            return;
         }
     }
 #ifdef GENGINE_PHASE26_SANDBOX_CHECKS
@@ -1305,7 +1336,7 @@ void RigidBodySimulationApp::Render()
             const bool selected = app.m_ShowSelectedColliderOutlines && selectedBodies;
             const bool colliders=(all || selected) && app.m_ColliderLayers.Any();
             const auto& mover=app.m_Mover;
-            const bool moverLayers=app.m_ActiveSelection.scene==Rbs::RbsScenePreset::Movers &&
+            const bool moverLayers=app.HasMoverAssembly() &&
                 (mover.showPath || mover.showVelocity || mover.showContact || mover.showError);
             if (p.context.visible && (colliders || moverLayers))
             {
@@ -1351,6 +1382,8 @@ void RigidBodySimulationApp::Render()
             return {};
         }};
         auto submitted = FrameScheduler::Render(context, &input);
+        if(submitted && m_Launch.m_BackendSmokeTicks && Rbs::BookSandboxChecks::Requested(*this))
+            Rbs::BookSandboxChecks::Capture(*this);
 #ifdef GENGINE_PHASE29_QUALIFICATION
         if(submitted&&Rbs::Phase29::initialized&&Rbs::Phase29::debug&&Rbs::Phase29::jolt){
             static unsigned pausedFrames{};

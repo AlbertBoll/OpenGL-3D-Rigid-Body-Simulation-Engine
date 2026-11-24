@@ -1,0 +1,88 @@
+--- a/.codex/tools/rendering_checkpoint.py
++++ b/.codex/tools/rendering_checkpoint.py
+@@ -555,6 +555,46 @@
+             'previous_approved_tag': h['previous_tag'], 'phase29_formal_checkpoint': h['phase29_formal_checkpoint']}
+
+
++PHASE32_AUTHORITY = 'docs/pre_editor/evidence/phase-32-entry-01.json'
++PHASE32_AUTHORITY_SHA256 = '04704b19ec86e588743bd57788db86c6897cd71465e7709162210b8ada48fbe0'
++
++
++def phase32_correction_gate(repo, baseline, state):
++    raw = repo.path(PHASE32_AUTHORITY).read_bytes()
++    require(digest(raw) == PHASE32_AUTHORITY_SHA256, 'Phase32 Owner handoff authority changed')
++    h = json.loads(raw)
++    require(WORKFLOW == h['workflow'] == 'pre-editor' and h['phase'] == '32'
++            and baseline == h['baseline'], 'Phase32 requires the exact accepted Gizmo correction')
++    require(state['Current approved phase'] == '31' and state['Current approved tag'] == h['previous_tag']
++            and state['Next expected phase'] == '32', 'Phase32 predecessor state changed')
++    require(repo.text('branch', '--show-current') == state['Refactor branch'] == h['branch']
++            and state['Configured remote'] == h['remote'] and repo.push_destination(h['remote']) == h['destination'],
++            'Phase32 handoff branch or push destination changed')
++    require(repo.text('show', '-s', '--format=%T %P', baseline) == h['tree'] + ' ' + h['approved_parent'],
++            'Phase32 correction tree or sole approved parent changed')
++    archive = h['phase29']
++    for name, tag_object, commit in ((h['previous_tag'], h['previous_tag_object'], h['approved_parent']),
++                                     (h['correction_tag'], h['correction_tag_object'], baseline),
++                                     (archive['archive_tag'], archive['tag_object'], archive['commit'])):
++        ref = 'refs/tags/' + name
++        require(repo.text('cat-file', '-t', ref) == 'tag' and repo.text('rev-parse', ref) == tag_object
++                and repo.text('rev-parse', ref + '^{commit}') == commit, 'Phase32 handoff tag changed: ' + name)
++    for item in (h['previous_receipt'], h['correction_acceptance'], archive['evidence'], archive['original_transition']):
++        require(digest(repo.path(item['path']).read_bytes()) == item['sha256'],
++                'Phase32 handoff evidence changed: ' + item['path'])
++    require(digest(repo.journal('31').read_bytes()) == h['previous_journal_sha256'], 'Phase31 journal changed')
++    previous = repo.load('31')
++    tx = previous.get('transaction') or {}
++    require(previous['status'] == 'COMPLETE' and previous['receipt'] == h['previous_receipt']['path']
++            and previous['push_destination'] == h['destination'] and tx.get('commit') == h['approved_parent']
++            and tx.get('branch_pushed') is True and tx.get('tag_pushed') is True, 'Phase31 publication incomplete')
++    require(repo.git('show-ref', '--verify', '--quiet', 'refs/tags/pre-editor-phase-29-approved',
++                     allow_failure=True).returncode == 1 and not repo.journal('29').exists()
++            and not repo.path('pre-editor-checkpoints/phase-29.json').exists(), 'Phase29 archive disposition changed')
++    return {'authority': PHASE32_AUTHORITY, 'sha256': PHASE32_AUTHORITY_SHA256,
++            'baseline': baseline, 'phase31_approved_parent': h['approved_parent'], 'phase29_archive': archive['commit']}
++
++
+ def baseline_gate(repo, phase, baseline, state):
+     require(repo.text('rev-parse', 'HEAD') == baseline, 'HEAD differs from validated baseline')
+     require(repo.text('branch', '--show-current') == state['Refactor branch'], 'Branch differs from workflow state')
+@@ -570,6 +610,8 @@
+         require(repo.root == Path(activation['destination_worktree']).resolve(), 'PRE_EDITOR worktree mismatch')
+         if frozen22:
+             phase22_frozen_predecessor_gate(repo, baseline, state)
++        elif phase == '32':
++            phase32_correction_gate(repo, baseline, state)
+         elif phase == '30':
+             phase30_archive_gate(repo, baseline, state)
+         elif phase == '25':
+@@ -695,6 +737,10 @@
+     if WORKFLOW == 'pre-editor' and phase == '30':
+         require(PHASE30_AUTHORITY in owned and inputs.get(PHASE30_AUTHORITY, {}).get('sha256') == PHASE30_AUTHORITY_SHA256,
+                 'Phase30 predecessor authority must be bound and published with the checkpoint')
++    if WORKFLOW == 'pre-editor' and phase == '32':
++        require(PHASE32_AUTHORITY in owned and PHASE32_AUTHORITY in sets['contract_files']
++                and inputs.get(PHASE32_AUTHORITY, {}).get('sha256') == PHASE32_AUTHORITY_SHA256,
++                'Phase32 handoff authority must be bound and published with the checkpoint')
+     for p in inputs:
+         repo.path(p)
+     declarations = inherited_mutable(phase, spec.get('owner_mutable_after_seal', {}))
+@@ -737,6 +783,8 @@
+         public['governance_handoff'] = _roadmap('phase26_gate', repo, spec['baseline'], state)
+     elif WORKFLOW == 'pre-editor' and phase == '30':
+         public['baseline_handoff'] = phase30_archive_gate(repo, spec['baseline'], state)
++    elif WORKFLOW == 'pre-editor' and phase == '32':
++        public['baseline_handoff'] = phase32_correction_gate(repo, spec['baseline'], state)
+     if records:
+         public['owner_mutable_after_seal'] = records
+     validate_mutable_receipt(public)
+@@ -790,6 +838,9 @@
+     if WORKFLOW == 'pre-editor' and m['phase'] == '30':
+         require(public.get('baseline_handoff') == phase30_archive_gate(repo, m['baseline'], m['state']),
+                 'Phase30 sealed archive handoff changed')
++    if WORKFLOW == 'pre-editor' and m['phase'] == '32':
++        require(public.get('baseline_handoff') == phase32_correction_gate(repo, m['baseline'], m['state']),
++                'Phase32 sealed handoff changed')
+     validate_mutable_receipt(public)
+     require(public.get('eligible') is True and public['phase'] == m['phase'] and public['baseline'] == m['baseline'], 'Receipt identity/eligibility mismatch')
+     require(public.get('owner_mutable_after_seal', {}) == m.get('owner_mutable_after_seal', {}), 'Owner-mutable receipt/journal mismatch')

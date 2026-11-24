@@ -223,9 +223,23 @@ RigidBodySimulationApp::InitializeRestingContactScene(Rbs::SceneAssets& assets)
     return ConnectApplicationEventHandlers();
 }
 
+namespace
+{
+    void LogBookSelection(Rbs::SceneSelection selection, const PhysicsWorld* world)
+    {
+        const auto* entry = selection.RequestedCase();
+        if (!entry || !world) return;
+        Log::GetCoreLogger()->info("Book Conformance case={} resolved={} backend={}", entry->key,
+            Rbs::SceneName(selection.scene), PhysicsBackendName(world->GetBackend()));
+        if (selection.scene == Rbs::RbsScenePreset::DistanceChain ||
+            selection.scene == Rbs::RbsScenePreset::DistanceChainContact)
+            Log::GetCoreLogger()->info("Book Conformance chain links={}", unsigned(selection.chainLinks));
+    }
+}
+
 RigidBodySimulationApp::RigidBodySimulationApp(const Rbs::LaunchConfig& launch)
     : BaseApp(launch.engine), m_Launch(launch),
-      m_ActiveSelection{launch.scene, launch.chainLinks}, m_PendingSelection(m_ActiveSelection), m_Backend(launch.m_Backend), m_PendingBackend(m_Backend)
+      m_ActiveSelection{launch.scene, launch.chainLinks, launch.fromBook}, m_PendingSelection(m_ActiveSelection), m_Backend(launch.m_Backend), m_PendingBackend(m_Backend)
 {
     if (launch.scene == Rbs::RbsScenePreset::PassiveRagdoll)
     {
@@ -279,6 +293,7 @@ struct RigidBodySimulationApp::SceneStateStorage
     AngularBindings m_AngularBindings;
     RagdollBindings m_RagdollBindings;
     MoverBindings m_MoverBindings;
+    BookAssemblies m_Book;
 
     // A direct Movers edit replaces the stopped world. Its renderer, material
     // registry and pending texture publication continue to belong to the app.
@@ -353,6 +368,7 @@ void RigidBodySimulationApp::SwapSceneState(SceneStateStorage& state) noexcept
 {
     using std::swap;
     state.SwapSceneBindings(*this);
+    swap(m_Book,state.m_Book);
     swap(m_SceneResources, state.m_Resources);
     swap(m_FrameSubmission, state.m_Submission);
     swap(m_PhysicsShapes, state.m_Shapes);
@@ -448,6 +464,11 @@ bool RigidBodySimulationApp::RequestScene(Rbs::SceneSelection selection)
         m_SceneDiagnostic="Apply or Revert pending edits before resetting or changing the scene or backend.";
         return false;
     }
+    if ((selection.fromBook || m_ActiveSelection.fromBook || IntegratedBook() || selection.scene==Rbs::RbsScenePreset::BookConformance) && selection != m_ActiveSelection &&
+        m_SimulationState == Rbs::SimulationState::Running) {
+        m_SceneDiagnostic = "Pause before loading a different scene.";
+        return false;
+    }
     // Reset queues reconstruction of the committed packet at the next safe
     // Update boundary, including when the current world is still running.
     const bool resetCommittedAngular=selection==m_ActiveSelection &&
@@ -472,8 +493,8 @@ bool RigidBodySimulationApp::RequestScene(Rbs::SceneSelection selection)
             angular=AngularCandidate{*m_Angular.committed,m_SceneGeneration,m_Angular.revision,false};
         else
         {
-            const auto variant=m_PendingAngularVariant==Rbs::AngularVariant::Contact &&
-                selection.scene!=Rbs::RbsScenePreset::HingeLimited && selection.scene!=Rbs::RbsScenePreset::CvLimited
+            const auto variant=selection.fromBook || (m_PendingAngularVariant==Rbs::AngularVariant::Contact &&
+                selection.scene!=Rbs::RbsScenePreset::HingeLimited && selection.scene!=Rbs::RbsScenePreset::CvLimited)
                 ?Rbs::AngularVariant::Air:m_PendingAngularVariant;
             auto reference=Rbs::ReferenceAngularPacket(selection.scene,variant);
             if(!reference){m_SceneDiagnostic=std::string(reference.error().message);return false;}
@@ -492,7 +513,7 @@ bool RigidBodySimulationApp::RequestScene(Rbs::SceneSelection selection)
 
 bool RigidBodySimulationApp::RequestAngularVariant(Rbs::AngularVariant variant)
 {
-    if(!m_ActiveSelection.IsAngularScene() || !m_Angular.committed || m_Angular.dirty ||
+    if(m_ActiveSelection.fromBook || !m_ActiveSelection.IsAngularScene() || !m_Angular.committed || m_Angular.dirty ||
         m_SceneDefaultsPending || HasPendingObjectProperties() ||
         m_SceneRequest || m_SimulationState==Rbs::SimulationState::Running ||
         m_SimulationState==Rbs::SimulationState::Switching || m_EditorMode!=EditorMode::Edit)
@@ -508,7 +529,7 @@ bool RigidBodySimulationApp::RequestAngularVariant(Rbs::AngularVariant variant)
 
 bool RigidBodySimulationApp::RequestAngularApply()
 {
-    if(!m_ActiveScene || !m_ActiveSelection.IsAngularScene() ||
+    if(!m_ActiveScene || (!m_ActiveSelection.IsAngularScene() && !(IntegratedBook() && m_Book.selectedAngular)) ||
         !m_Angular.draft || !m_Angular.committed || (!m_Angular.dirty && !m_SceneDefaultsPending) ||
         HasPendingObjectProperties() || m_SceneRequest ||
         m_SimulationState==Rbs::SimulationState::Running ||
@@ -552,8 +573,13 @@ void RigidBodySimulationApp::RestoreAngularDefaults()
     if(!m_Angular.committed || m_SceneRequest || HasPendingObjectProperties() ||
        m_EditorMode!=EditorMode::Edit || (m_SimulationState!=Rbs::SimulationState::Ready &&
        m_SimulationState!=Rbs::SimulationState::Paused))return;
-    auto reference=Rbs::ReferenceAngularPacket(m_ActiveSelection.scene,m_Angular.committed->variant);
+    auto reference=Rbs::ReferenceAngularPacket(m_Angular.committed->scene,m_Angular.committed->variant);
     if(!reference){m_Angular.diagnostic=std::string(reference.error().message);return;}
+    if(IntegratedBook()) {
+        auto built=Rbs::ReferenceAngularPacket(reference->scene,reference->variant);
+        const auto offset=m_Angular.committed->bodies[0].center-built->bodies[0].center;
+        for(std::size_t i=0;i<reference->bodyCount;++i)reference->bodies[i].center+=offset;
+    }
     m_Angular.draft=*reference;
     m_SceneDefaultsPending=true;
     m_Angular.draftGeneration=m_SceneGeneration;
@@ -565,7 +591,7 @@ void RigidBodySimulationApp::RestoreAngularDefaults()
 
 bool RigidBodySimulationApp::RequestRagdollApply()
 {
-    if(!m_ActiveScene || !m_Ragdoll.draft || !m_Ragdoll.committed ||
+    if(!m_ActiveScene || !m_Ragdoll.draft || !m_Ragdoll.committed || (IntegratedBook() && m_Angular.dirty) ||
        (!m_Ragdoll.dirty && !m_SceneDefaultsPending) || m_SceneRequest ||
        HasPendingObjectProperties(false) || m_EditorMode!=EditorMode::Edit ||
        (m_SimulationState!=Rbs::SimulationState::Ready && m_SimulationState!=Rbs::SimulationState::Paused) ||
@@ -605,12 +631,50 @@ void RigidBodySimulationApp::RestoreRagdollDefaults()
 
 std::optional<std::size_t> RigidBodySimulationApp::MoverBodyFor(_Entity entity) const
 {
-    if (m_ActiveSelection.scene != Rbs::RbsScenePreset::Movers || !m_ActiveScene ||
+    if (!HasMoverAssembly() || !m_ActiveScene ||
         entity.GetSceneContext()!=m_ActiveScene.get() || !entity) return {};
     for (std::size_t i=0;i<m_MoverBindings.entities.size();++i)
         if (static_cast<entt::entity>(entity)==m_MoverBindings.entities[i] &&
             m_ActiveScene->GetBodyBinding(entity)==m_MoverBindings.bodies[i]) return i;
     return {};
+}
+
+void RigidBodySimulationApp::ActivateBookAuthoring()
+{
+    m_Angular={};
+    m_AngularBindings={};
+    m_Book.selectedAngular.reset();
+    m_Ragdoll.committed=m_Ragdoll.draft=m_Book.ragdoll;
+    m_Ragdoll.dirty=false;
+    m_Ragdoll.draftGeneration=m_SceneGeneration;
+    m_Ragdoll.draftBaseRevision=m_Ragdoll.revision;
+    m_Mover.committed=m_Mover.draft=m_Book.mover;
+    m_Mover.dirty=false;
+}
+
+std::optional<std::size_t> RigidBodySimulationApp::BookAngularFor(_Entity entity) const
+{
+    if(!IntegratedBook() || !m_ActiveScene || entity.GetSceneContext()!=m_ActiveScene.get() || !entity)return {};
+    const auto body=m_ActiveScene->GetBodyBinding(entity);
+    if(!body)return {};
+    for(std::size_t i=0;i<m_Book.angular.size();++i) {
+        const auto& b=m_Book.angular[i].bindings;
+        for(std::size_t j=0;j<b.bodyCount;++j)
+            if(b.entities[j]==static_cast<entt::entity>(entity) && b.bodies[j]==*body)return i;
+    }
+    return {};
+}
+
+void RigidBodySimulationApp::SelectBookAngular(_Entity entity)
+{
+    const auto slot=BookAngularFor(entity);
+    if(!slot || slot==m_Book.selectedAngular || m_Angular.dirty || m_PendingMotor || m_SceneRequest)return;
+    m_Book.selectedAngular=slot;
+    const auto& assembly=m_Book.angular[*slot];
+    m_Angular={};
+    m_Angular.committed=m_Angular.draft=assembly.packet;
+    m_Angular.draftGeneration=m_SceneGeneration;
+    m_AngularBindings=assembly.bindings;
 }
 
 bool RigidBodySimulationApp::HasWorkingSimulationPose() const
@@ -704,7 +768,7 @@ void RigidBodySimulationApp::KeepSimulationChanges()
     }
     auto* world=m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
     if (!world) {m_SceneDiagnostic="Physics world is unavailable.";return;}
-    if (m_ActiveSelection.scene==Rbs::RbsScenePreset::Movers) {
+    if (HasMoverAssembly() && (!IntegratedBook() || MoverBodyFor(m_HoveredEntity))) {
         const auto sample=world->ReadMover(m_MoverBindings.bodies[0]);
         if (!sample || sample->rider!=m_MoverBindings.bodies[1]) {m_SceneDiagnostic="Mover binding has retired.";return;}
         auto candidate=m_Mover.committed;
@@ -726,6 +790,7 @@ void RigidBodySimulationApp::KeepSimulationChanges()
         }
         if (const auto valid=Rbs::ValidateMoverPacket(candidate);!valid) {m_SceneDiagnostic=valid.error();return;}
         m_Mover.committed=m_Mover.draft=candidate;
+        if(IntegratedBook())m_Book.mover=candidate;
         m_SceneDiagnostic="Current Movers poses kept as the session's authored start.";
         return;
     }
@@ -753,7 +818,7 @@ void RigidBodySimulationApp::KeepSimulationChanges()
 
 bool RigidBodySimulationApp::RequestMoverApply()
 {
-    if (m_ActiveSelection.scene!=Rbs::RbsScenePreset::Movers || !m_Mover.dirty ||
+    if (!HasMoverAssembly() || !m_Mover.dirty || (IntegratedBook() && m_Angular.dirty) ||
         m_EditorMode!=EditorMode::Edit || m_SimulationState==Rbs::SimulationState::Running ||
         m_SceneRequest || m_BackendRequest || HasPendingObjectProperties(true,false)) return false;
     if (auto valid=Rbs::ValidateMoverPacket(m_Mover.draft);!valid)
@@ -779,13 +844,14 @@ bool RigidBodySimulationApp::HasPendingObjectProperties(bool includeRagdoll, boo
 
 void RigidBodySimulationApp::StageSceneDefaults()
 {
-    if(m_ActiveSelection.scene==Rbs::RbsScenePreset::Movers) {
+    if(m_ActiveSelection.scene==Rbs::RbsScenePreset::Movers || (IntegratedBook() && MoverBodyFor(m_HoveredEntity))) {
         if (m_EditorMode!=EditorMode::Edit || m_SimulationState==Rbs::SimulationState::Running ||
             m_SceneRequest || HasPendingObjectProperties(true,false)) return;
         m_Mover.draft=Rbs::ReferenceMoverPacket();
+        if(IntegratedBook()){m_Mover.draft.path.center.x+=13; m_Mover.draft.riderPosition.x+=13;}
         m_Mover.dirty=m_SceneDefaultsPending=true;return;
     }
-    if(m_Ragdoll.committed){RestoreRagdollDefaults();return;}
+    if(m_Ragdoll.committed && (!IntegratedBook() || RagdollBoneFor(m_HoveredEntity))){RestoreRagdollDefaults();return;}
     if(!SandboxEnabled() || !m_ActiveScene || m_SceneRequest || HasPendingObjectProperties() ||
        m_EditorMode!=EditorMode::Edit || (m_SimulationState!=Rbs::SimulationState::Ready &&
        m_SimulationState!=Rbs::SimulationState::Paused))return;
@@ -797,7 +863,7 @@ void RigidBodySimulationApp::StageSceneDefaults()
 bool RigidBodySimulationApp::ApplySceneDefaults()
 {
     if(m_ActiveSelection.scene==Rbs::RbsScenePreset::Movers)return RequestMoverApply();
-    if(m_Ragdoll.committed)return RequestRagdollApply();
+    if(m_Ragdoll.committed && (!IntegratedBook() || m_Ragdoll.dirty))return RequestRagdollApply();
     if(!m_SceneDefaultsPending || !m_ActiveScene || m_SceneRequest || HasPendingObjectProperties() ||
        m_EditorMode!=EditorMode::Edit || (m_SimulationState!=Rbs::SimulationState::Ready &&
        m_SimulationState!=Rbs::SimulationState::Paused))return false;
@@ -809,10 +875,10 @@ bool RigidBodySimulationApp::ApplySceneDefaults()
 
 void RigidBodySimulationApp::RevertSceneDefaults()
 {
-    if(m_ActiveSelection.scene==Rbs::RbsScenePreset::Movers && !m_SceneRequest) {
+    if(HasMoverAssembly() && (!IntegratedBook() || m_Mover.dirty) && !m_SceneRequest) {
         m_Mover.draft=m_Mover.committed;m_Mover.dirty=m_SceneDefaultsPending=false;return;
     }
-    if(m_Ragdoll.committed){RevertRagdollDraft();return;}
+    if(m_Ragdoll.committed && (!IntegratedBook() || m_Ragdoll.dirty)){RevertRagdollDraft();return;}
     if(m_SceneRequest)return;
     if(m_ActiveSelection.IsAngularScene()){RevertAngularDraft();return;}
     m_SceneDefaultsPending=false;
@@ -889,10 +955,18 @@ RigidBodySimulationApp::BackendAuthoring::Capture(_Scene& source,RigidBodySimula
     result.m_Ordinary=app!=nullptr;
     result.m_PacketOwnsJoint=app && app->m_ActiveSelection.IsAngularScene();
     const bool ragdoll=app && app->m_ActiveSelection.scene==Rbs::RbsScenePreset::PassiveRagdoll;
+    const bool book=app && app->IntegratedBook();
     const bool movers=app && app->m_ActiveSelection.scene==Rbs::RbsScenePreset::Movers;
-    result.m_PacketBodyCount=ragdoll?6u:(result.m_PacketOwnsJoint || movers)?2u:0u;
+    result.m_PacketBodyCount=book?18u:ragdoll?6u:(result.m_PacketOwnsJoint || movers)?2u:0u;
     result.m_PacketOwnsJoint=result.m_PacketBodyCount!=0;
     const auto packetEndpoint=[&](entt::entity id){
+        if(book) {
+            if(std::ranges::find(app->m_MoverBindings.entities,id)!=app->m_MoverBindings.entities.end() ||
+               std::ranges::find(app->m_RagdollBindings.entities,id)!=app->m_RagdollBindings.entities.end())return true;
+            for(const auto& assembly:app->m_Book.angular)
+                if(assembly.bindings.entities[0]==id || assembly.bindings.entities[1]==id)return true;
+            return false;
+        }
         if(movers)return std::ranges::find(app->m_MoverBindings.entities,id)!=app->m_MoverBindings.entities.end();
         if(ragdoll)return std::ranges::find(app->m_RagdollBindings.entities,id)!=app->m_RagdollBindings.entities.end();
         return result.m_PacketOwnsJoint && (id==app->m_AngularBindings.entities[0] || id==app->m_AngularBindings.entities[1]);
@@ -1094,6 +1168,10 @@ ApplicationInitializationResult RigidBodySimulationApp::BackendAuthoring::ApplyA
         else if(*m_WorldSleep!=PhysicsWorldSleepSettings{})
             return BackendAuthoringFailure("Native cannot represent Jolt world sleep overrides. Apply Jolt sleep Defaults before switching.");
     }
+    using Screen = Rbs::Editor::LoadingScreen;
+    std::size_t restoredBodies = 0;
+    Screen::Stage(Screen::Work::RestoreBodies, InitializationProgress::Stage::Scene,
+                  "Restoring authored body state", 0, m_Bodies.size());
     for(const auto& body:m_Bodies)
     {
         _Entity entity{Rebound(body.m_FixtureEntity),&target};auto handle=target.GetBodyBinding(entity);
@@ -1115,6 +1193,8 @@ ApplicationInitializationResult RigidBodySimulationApp::BackendAuthoring::ApplyA
                *properties!=body.m_Properties)
                 return BackendAuthoringFailure("Committed body pose, shape or properties differ on provider readback");
         }
+        Screen::Stage(Screen::Work::RestoreBodies, InitializationProgress::Stage::Scene,
+                      "Restoring authored body state", ++restoredBodies, m_Bodies.size());
     }
     if(m_PacketOwnsJoint)return {};
     while(world->GetJointCount())
@@ -1236,6 +1316,7 @@ void RigidBodySimulationApp::ApplyPendingMotor()
         return;
     }
     m_Angular.committed->joint.motor = state->descriptor.angular.motor;
+    if(IntegratedBook() && m_Book.selectedAngular)m_Book.angular[*m_Book.selectedAngular].packet=*m_Angular.committed;
     m_Angular.draftBaseRevision = ++m_Angular.revision;
     m_Angular.dirty = *m_Angular.draft != *m_Angular.committed;
     m_Angular.diagnostic="Drive applied and verified on the current hinge.";
@@ -1245,12 +1326,19 @@ void RigidBodySimulationApp::ProcessSceneRequest(Rbs::Editor::TransformBatch* di
 {
     if (m_PendingMotor) ApplyPendingMotor();
     if (!SandboxEnabled() || !m_SceneRequest) return;
+    // Keep the transaction and its loading presentation off the ordinary frame stack.
+    ConstructRequestedScene(directTransform);
+}
+
+void RigidBodySimulationApp::ConstructRequestedScene(Rbs::Editor::TransformBatch* directTransform)
+{
     const auto requested = *std::exchange(m_SceneRequest, std::nullopt);
+    const char* loadingTitle = std::exchange(m_RequestedSceneTitle, nullptr);
     const auto angularCandidate=std::exchange(m_AngularRequest,std::nullopt);
     const auto ragdollCandidate=std::exchange(m_RagdollRequest,std::nullopt);
     const auto moverApply=std::exchange(m_MoverApply,std::nullopt);
     std::optional<Rbs::MoverPacket> moverCandidate;
-    if (requested.scene==Rbs::RbsScenePreset::Movers) {
+    if (requested.scene==Rbs::RbsScenePreset::Movers || (requested.scene==Rbs::RbsScenePreset::BookConformance && moverApply)) {
         moverCandidate=moverApply.value_or(m_ActiveSelection==requested ? m_Mover.committed : Rbs::ReferenceMoverPacket());
         if(auto valid=Rbs::ValidateMoverPacket(*moverCandidate);!valid){m_SceneDiagnostic=valid.error();m_BackendRequest.reset();return;}
         moverCandidate->path=*moverCandidate->path.Normalized();
@@ -1265,7 +1353,7 @@ void RigidBodySimulationApp::ProcessSceneRequest(Rbs::Editor::TransformBatch* di
     const bool resetToAuthored=resetCurrent && HasWorkingSimulationPose();
     if(HasPendingObjectProperties(!(ragdollCandidate && ragdollCandidate->apply),!moverApply))
     {m_SceneDiagnostic="Apply or Revert pending object edits before reconstructing the current scene.";return;}
-    if(requested.scene==Rbs::RbsScenePreset::PassiveRagdoll)
+    if(requested.scene==Rbs::RbsScenePreset::PassiveRagdoll || (IntegratedBook() && requested==m_ActiveSelection && ragdollCandidate))
     {
         if(!ragdollCandidate || ragdollCandidate->expectedGeneration!=m_SceneGeneration ||
            ragdollCandidate->expectedRevision!=m_Ragdoll.revision)
@@ -1273,18 +1361,19 @@ void RigidBodySimulationApp::ProcessSceneRequest(Rbs::Editor::TransformBatch* di
         if(auto checked=Rbs::ValidateRagdollPacket(ragdollCandidate->packet,requestedBackend);!checked)
         {m_SceneDiagnostic=checked.error().message;m_Ragdoll.diagnostic=m_SceneDiagnostic;return;}
     }
-    if(requested.IsAngularScene())
+    if(requested.IsAngularScene() || (IntegratedBook() && requested==m_ActiveSelection && angularCandidate))
     {
         if(!angularCandidate || angularCandidate->expectedGeneration!=m_SceneGeneration ||
             angularCandidate->expectedRevision!=m_Angular.revision ||
-            angularCandidate->packet.scene!=requested.scene)
+            angularCandidate->packet.scene!=(IntegratedBook() && requested==m_ActiveSelection && m_Angular.committed ? m_Angular.committed->scene : requested.scene))
         {m_SceneDiagnostic="Angular request is stale or incomplete; previous scene retained.";return;}
         if(auto valid=Rbs::ValidateAngularPacket(angularCandidate->packet,requestedBackend,!SandboxEnabled());!valid)
         {m_SceneDiagnostic=std::string(valid.error().message);m_Angular.diagnostic=m_SceneDiagnostic;return;}
     }
     const bool keepViewportActive=m_ViewportActive;
     const bool keepEditingContext = directTransform || resetToAuthored;
-    const bool reuseMoverBindings = directTransform || (resetToAuthored && moverCandidate.has_value());
+    const bool bookEdit=requested.scene==Rbs::RbsScenePreset::BookConformance && requested==oldSelection;
+    const bool reuseMoverBindings = !bookEdit && (directTransform || (resetToAuthored && moverCandidate.has_value()));
     const bool keepViewportSelection = keepEditingContext && m_ViewportOwnsSelection;
     const auto oldView = m_CameraView;
     const auto oldReturnView = m_PreviewReturnView;
@@ -1297,12 +1386,12 @@ void RigidBodySimulationApp::ProcessSceneRequest(Rbs::Editor::TransformBatch* di
         {
             _Entity entity{*e,m_ActiveScene.get()};
             if(entity.HasAllComponents<Rbs::Editor::PresetIdentity>())
-                selection.push_back({entity.GetComponent<Rbs::Editor::PresetIdentity>(),IsAngularEndpoint(entity) || RagdollBoneFor(entity).has_value() || (reuseMoverBindings && MoverBodyFor(entity))});
+                selection.push_back({entity.GetComponent<Rbs::Editor::PresetIdentity>(),IsAngularEndpoint(entity) || RagdollBoneFor(entity).has_value() || ((reuseMoverBindings || bookEdit) && MoverBodyFor(entity))});
         }
     // An authored pose is part of the preset signature. Carry preferences across
     // a verified edit of the same bound role, using both its old key and signature.
     const bool preserveEndpointPreferences = oldSelection == requested && (requested.IsAngularScene() ||
-        reuseMoverBindings);
+        reuseMoverBindings || (bookEdit && moverApply));
     const auto endpointEntity = [&](std::size_t i) {
         const auto id = requested.IsAngularScene() ? m_AngularBindings.entities[i] : m_MoverBindings.entities[i];
         return _Entity{id, m_ActiveScene.get()};
@@ -1327,7 +1416,7 @@ void RigidBodySimulationApp::ProcessSceneRequest(Rbs::Editor::TransformBatch* di
             if(found==current.end())continue;
             _Entity entity{found->second,m_ActiveScene.get()};
             if(entity.GetComponent<Rbs::Editor::PresetIdentity>().signature!=selected.identity.signature &&
-               !(selected.endpoint && (IsAngularEndpoint(entity) || RagdollBoneFor(entity) || (reuseMoverBindings && MoverBodyFor(entity)))))continue;
+               !(selected.endpoint && (IsAngularEndpoint(entity) || RagdollBoneFor(entity) || ((reuseMoverBindings || bookEdit) && MoverBodyFor(entity)))))continue;
             if(auto id=m_ActiveScene->RenderData().Identify(entity))resolved.push_back(*id);
         }
         if(!resolved.empty() && m_EditorSelection.SelectSet(m_ActiveScene->RenderData(),resolved,Rbs::Editor::EntitySelection::SetOperation::Replace))
@@ -1376,6 +1465,14 @@ void RigidBodySimulationApp::ProcessSceneRequest(Rbs::Editor::TransformBatch* di
         batch.generation = m_SceneGeneration + 1;
         return true;
     };
+    using Screen = Rbs::Editor::LoadingScreen;
+    const bool restoreAuthored = requested == oldSelection &&
+        (!m_SceneDefaultsPending || (bookEdit && (moverApply || angularCandidate || ragdollCandidate)));
+    const auto operation = loadingTitle ? (restoreAuthored ? Screen::Operation::Reload : Screen::Operation::Load) :
+        (resetCurrent ? Screen::Operation::Reset : Screen::Operation::Reconstruct);
+    Screen loading(operation, loadingTitle ? loadingTitle : Rbs::SceneName(requested.scene),
+                   requested.scene, restoreAuthored, reuseMoverBindings);
+    InitializationProgress::state.window = GetWindow();
     bool parked = false;
     bool built = false;
     m_SceneDiagnostic.clear();
@@ -1383,9 +1480,11 @@ void RigidBodySimulationApp::ProcessSceneRequest(Rbs::Editor::TransformBatch* di
     {
         const auto construct = [&]() -> ApplicationInitializationResult
         {
+            Screen::Stage(Screen::Work::Prepare, InitializationProgress::Stage::Renderer, "Preparing scene resources");
             std::optional<BackendAuthoring> authoring;
-            if(requested==oldSelection && !m_SceneDefaultsPending)
+            if (restoreAuthored)
             {
+                Screen::Stage(Screen::Work::Prepare, InitializationProgress::Stage::Scene, "Preserving authored changes");
                 auto captured=BackendAuthoring::Capture(*m_ActiveScene,this);
                 if(!captured){m_SceneDiagnostic=std::string(captured.error().message);return std::unexpected(captured.error());}
                 authoring=std::move(*captured);
@@ -1437,11 +1536,12 @@ void RigidBodySimulationApp::ProcessSceneRequest(Rbs::Editor::TransformBatch* di
                 m_LoadBarrel = m_Launch.startupMesh == Rbs::StartupMesh::Barrel;
                 auto initialized = InitializeScene(authoring?&*authoring:nullptr,
                     angularCandidate?&angularCandidate->packet:nullptr,ragdollCandidate?&ragdollCandidate->packet:nullptr,
-                    moverCandidate?&*moverCandidate:nullptr);
+                    moverCandidate?&*moverCandidate:nullptr,bookEdit && (!m_SceneDefaultsPending || angularCandidate || ragdollCandidate || moverApply)?&previous.m_Book:nullptr);
                 if (!initialized) return initialized;
                 if(authoring) {
-                    if(!angularCandidate && !ragdollCandidate && !moverCandidate)
+                    if(!IntegratedBook() && !angularCandidate && !ragdollCandidate && !moverCandidate)
                         if(auto restored=authoring->ApplyAfterStart(*m_ActiveScene);!restored)return restored;
+                    Screen::Stage(Screen::Work::RestoreObjects, InitializationProgress::Stage::Scene, "Restoring authored objects");
                     if(auto restored=authoring->RestoreObjects(*this);!restored)return restored;
                     if (resetToAuthored) transformIdentities=std::move(authoring->m_Rebound);
                 }
@@ -1473,6 +1573,8 @@ void RigidBodySimulationApp::ProcessSceneRequest(Rbs::Editor::TransformBatch* di
             return {};
         };
         auto initialized = construct();
+        if (initialized)
+            Screen::Stage(Screen::Work::Publish, InitializationProgress::Stage::Editor, "Publishing the scene");
         built = bool(initialized);
         if (!initialized)
         {
@@ -1484,6 +1586,12 @@ void RigidBodySimulationApp::ProcessSceneRequest(Rbs::Editor::TransformBatch* di
                 },initialized.error());
             m_SceneDiagnostic += directTransform ? "; previous edit pose retained." : "; previous scene/backend retained and paused.";
         }
+    }
+    catch (const InitializationProgress::Cancelled&)
+    {
+        m_SceneDiagnostic = loading.cancelled
+            ? "Scene load cancelled. Previous scene retained."
+            : "Loading presentation failed. Previous scene retained and paused.";
     }
     catch (const std::exception& error)
     {
@@ -1516,6 +1624,7 @@ void RigidBodySimulationApp::ProcessSceneRequest(Rbs::Editor::TransformBatch* di
         m_SkipSimulationElapsed = true;
         if(angularCandidate)m_Angular.diagnostic=m_SceneDiagnostic;
         if(ragdollCandidate)m_Ragdoll.diagnostic=m_SceneDiagnostic;
+        loading.Finish(false);
         return;
     }
     if (resetToAuthored && !reuseMoverBindings) previous.SwapEditorSettings(*this);
@@ -1573,7 +1682,7 @@ void RigidBodySimulationApp::ProcessSceneRequest(Rbs::Editor::TransformBatch* di
         m_Angular.diagnostic="Applied packet verified by body, joint and world readback.";
         m_PendingAngularVariant=angularCandidate->packet.variant;
     }
-    else if(oldSelection.IsAngularScene())m_Angular={};
+    else if(oldSelection.IsAngularScene() || oldSelection.scene==Rbs::RbsScenePreset::BookConformance)m_Angular={};
     if(ragdollCandidate)
     {
         if(requested!=oldSelection)m_Ragdoll.revision=0;
@@ -1590,7 +1699,8 @@ void RigidBodySimulationApp::ProcessSceneRequest(Rbs::Editor::TransformBatch* di
     if (moverCandidate) {
         m_Mover.committed=m_Mover.draft=*moverCandidate;
         m_Mover.dirty=false;
-    } else if (oldSelection.scene==Rbs::RbsScenePreset::Movers) m_Mover={};
+    } else if (oldSelection.scene==Rbs::RbsScenePreset::Movers || oldSelection.scene==Rbs::RbsScenePreset::BookConformance) m_Mover={};
+    if(IntegratedBook())ActivateBookAuthoring();
     if(oldSelection==requested)restoreSelection();
     Rbs::Editor::Numeric::Reset();
     if(backendRequest)
@@ -1605,9 +1715,11 @@ void RigidBodySimulationApp::ProcessSceneRequest(Rbs::Editor::TransformBatch* di
     }
     else if (resetToAuthored) m_SceneDiagnostic=m_PropertyDiagnostic="Reset to authored starting poses.";
     else m_SceneDiagnostic = "Scene loaded; press Start.";
+    LogBookSelection(m_ActiveSelection, m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld());
     m_SkipSimulationElapsed = true;
     m_EditorMode=modeAfterReset;
     SetSimulationState(directTransform ? stoppedState : Rbs::SimulationState::Ready);
+    loading.Finish();
     // Reset cancels captures and stale world identities, but a Viewport-owned
     // action must not turn the next object click into an activation-only click.
     if(keepViewportActive){SetViewportActive(true,false);m_ViewportRequestFocus=false;}
@@ -1690,13 +1802,17 @@ RigidBodySimulationApp::~RigidBodySimulationApp()
 ApplicationInitializationResult
 RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProperties>& properties)
 {
-    Rbs::Editor::LoadingScreen loading;
-    InitializationProgress::Scope progress(&loading,&Rbs::Editor::LoadingScreen::Observe,SandboxEnabled());
+    using Screen = Rbs::Editor::LoadingScreen;
+    std::optional<Screen> localStartup;
+    if (SandboxEnabled() && !Screen::Current())
+        localStartup.emplace(Screen::Operation::Startup, Rbs::SceneName(m_Launch.scene), m_Launch.scene);
+    auto* loading = Screen::Current();
     try
     {
+        InitializationProgress::Report(InitializationProgress::Stage::Renderer, "Initializing engine and window");
         if (auto initialized = InitializeValidationPlatform(properties); !initialized)return initialized;
         if (m_Launch.AsyncPerformanceEnabled())return {};
-        if (SandboxEnabled() && !loading.fontsInitialized)Rbs::Editor::Initialize();
+        if (SandboxEnabled() && (!loading || !loading->fontsInitialized))Rbs::Editor::Initialize();
         if (SandboxEnabled())
         {
             // Loading presentation may have opened imgui.ini before RBS registered its handler.
@@ -1717,21 +1833,24 @@ RigidBodySimulationApp::Initialize(const std::initializer_list<WindowProperties>
         if (auto resources = InitializeResources(); !resources)return resources;
         InitializationProgress::Complete(InitializationProgress::Stage::Renderer);
         auto scene=InitializeScene();
+        if(scene && IntegratedBook())ActivateBookAuthoring();
         if(scene && SandboxEnabled())
         {
+            LogBookSelection(m_ActiveSelection, m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld());
             InitializationProgress::Complete(InitializationProgress::Stage::Physics);
             InitializationProgress::Complete(InitializationProgress::Stage::Scene);
-            InitializationProgress::Report(InitializationProgress::Stage::Editor,"Preparing the initial Editor view");
+            Screen::Stage(Screen::Work::Publish, InitializationProgress::Stage::Editor, "Preparing the initial Editor view");
             m_IsShowDebugBoundingBox=false;m_ShowSelectedColliderOutlines=false;
             SetSimulationState(Rbs::SimulationState::Ready);
-            InitializationProgress::Complete(InitializationProgress::Stage::Editor);loading.Finish();
+            InitializationProgress::Complete(InitializationProgress::Stage::Editor);
+            if (localStartup) localStartup->Finish();
         }
         return scene;
     }
     catch(const InitializationProgress::Cancelled&)
     {
         return std::unexpected(PlatformError{PlatformErrorCode::Initialization,
-            loading.cancelled?"startup cancelled":"loading presentation","Editor initialization stopped before completion"});
+            loading && loading->cancelled ? "startup cancelled":"loading presentation","Editor initialization stopped before completion"});
     }
 }
 

@@ -2053,8 +2053,8 @@ void RigidBodySimulationApp::DrawRagdollWorldSettings()
     auto* physics=m_ActiveScene->GetPhysicsSystem();
     const auto* world=physics?physics->GetPhysicsWorld():nullptr;
     if(!world){E::ReadOnly("Physics world","Unavailable");return;}
-    if (m_ActiveSelection.IsRagdollScene() && world->GetBackend()==PhysicsBackend::Native)
-        ImGui::TextWrapped("Native Passive Ragdoll is experimental. Its motion has not passed production qualification.");
+    if (m_ActiveSelection.IsRagdollScene() || IntegratedBook())
+        ImGui::TextWrapped("Passive Ragdoll is experimental. Its motion has not passed production qualification.");
     E::ReadOnly("Applied gravity (m/s^2)",E::DecimalVector(world->GetGravity()).c_str());
     E::ReadOnly("Fixed step (s)",std::format("{:.9g}",m_ActiveScene->GetPhysicsStep().count()).c_str());
     if(world->GetBackend()==PhysicsBackend::Native)
@@ -2716,9 +2716,9 @@ void RigidBodySimulationApp::DrawMoverProperties(std::size_t index)
 void RigidBodySimulationApp::DrawSceneAuthoringActions()
 {
     namespace E=Rbs::Editor;
-    const bool angular=m_ActiveSelection.IsAngularScene();
-    const bool ragdoll=m_Ragdoll.draft.has_value();
-    const bool movers=m_ActiveSelection.scene==Rbs::RbsScenePreset::Movers;
+    const bool angular=m_ActiveSelection.IsAngularScene() || (IntegratedBook() && (m_Angular.dirty || BookAngularFor(m_HoveredEntity)));
+    const bool ragdoll=m_Ragdoll.draft && (!IntegratedBook() || m_Ragdoll.dirty || RagdollBoneFor(m_HoveredEntity));
+    const bool movers=HasMoverAssembly() && (!IntegratedBook() || m_Mover.dirty || MoverBodyFor(m_HoveredEntity));
     const bool pending=m_SceneDefaultsPending || (angular && m_Angular.dirty) || (ragdoll && m_Ragdoll.dirty) || (movers && m_Mover.dirty);
     const bool switching=m_SceneRequest.has_value() || m_BackendRequest.has_value();
     const bool canAuthor=!switching && m_EditorMode==EditorMode::Edit &&
@@ -2729,14 +2729,14 @@ void RigidBodySimulationApp::DrawSceneAuthoringActions()
     if(angular || ragdoll || movers || pending) {
         ImGui::BeginDisabled(!canAuthor || !pending || pendingComponent || E::Numeric::HasError());
         if(ImGui::Button("Apply##scene")) {
-            if(ragdoll)RequestRagdollApply();else if(angular)RequestAngularApply();else ApplySceneDefaults();
+            if(m_Ragdoll.dirty)RequestRagdollApply();else if(m_Angular.dirty)RequestAngularApply();else if(m_Mover.dirty)RequestMoverApply();else ApplySceneDefaults();
         }
         RBS_PHASE28_WIDGET("apply");
         ImGui::EndDisabled();
         ImGui::SameLine();
         ImGui::BeginDisabled(switching || (!pending && !E::Numeric::HasError()));
         if(ImGui::Button("Revert##scene")) {
-            if(ragdoll)RevertRagdollDraft();else if(angular)RevertAngularDraft();else RevertSceneDefaults();
+            if(m_Ragdoll.dirty)RevertRagdollDraft();else if(m_Angular.dirty)RevertAngularDraft();else RevertSceneDefaults();
         }
         RBS_PHASE28_WIDGET("revert");
         ImGui::EndDisabled();
@@ -2780,9 +2780,15 @@ void RigidBodySimulationApp::DrawEditorProperties()
     if(m_Mover.dirty || m_Ragdoll.dirty || m_Angular.dirty || m_SceneDefaultsPending)
         ImGui::TextWrapped("Pending scene changes. Apply or revert in World Settings.");
     const bool multiple=m_EditorSelection.count>1;
+    if(IntegratedBook() && !multiple)SelectBookAngular(m_HoveredEntity);
     if(!multiple)if(const auto mover=MoverBodyFor(m_HoveredEntity)){DrawMoverProperties(*mover);return;}
     if(!multiple)if(const auto bone=RagdollBoneFor(m_HoveredEntity)){DrawRagdollProperties(*bone);return;}
-    if(!multiple && IsAngularEndpoint(m_HoveredEntity)){DrawAngularProperties();return;}
+    if(!multiple && IsAngularEndpoint(m_HoveredEntity)){
+        if(IntegratedBook() && BookAngularFor(m_HoveredEntity)!=m_Book.selectedAngular)
+            ImGui::TextWrapped("Apply or revert the pending assembly edit in World Settings.");
+        else DrawAngularProperties();
+        return;
+    }
     ImGui::TextWrapped("%s", m_HoveredEntity.GetName().c_str());
     const bool protectedTransform=SelectionProtectsAngularTransform();
     if(multiple && protectedTransform) {
@@ -3605,7 +3611,7 @@ void RigidBodySimulationApp::DrawViewport()
                 if(const auto* payload=ImGui::AcceptDragDropPayload(Rbs::ScenePresetPayloadType))
                 {
                     if(const auto selection=Rbs::DecodeScenePreset(payload->Data,std::size_t(payload->DataSize)))
-                        (void)RequestScene(*selection); // Only queues; Update owns transactional rebuild.
+                        (void)RequestEditorScene(*selection); // Only queues; Update owns transactional rebuild.
                     else m_SceneDiagnostic="Invalid preset drop rejected; scene retained.";
                 }
                 ImGui::EndDragDropTarget();

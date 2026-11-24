@@ -42,6 +42,7 @@ namespace Rbs
     struct PassiveRagdollChecks;
     struct MotorChecks;
     struct MoverChecks;
+    struct BookSandboxChecks;
     struct SandboxChecks;
     struct BackendSwitchChecks;
     struct OwnerReviewDriver;
@@ -145,6 +146,7 @@ private:
     friend struct Rbs::PassiveRagdollChecks;
     friend struct Rbs::MotorChecks;
     friend struct Rbs::MoverChecks;
+    friend struct Rbs::BookSandboxChecks;
     friend struct Rbs::SandboxChecks;
     friend struct Rbs::BackendSwitchChecks;
     friend struct Rbs::OwnerReviewDriver;
@@ -159,6 +161,7 @@ private:
     friend struct Rbs::JoltParameterExperiment;
     bool SandboxEnabled() const { return m_Launch.InteractiveSandboxEnabled(); }
     bool RequestScene(Rbs::SceneSelection);
+    bool RequestEditorScene(Rbs::SceneSelection, bool usePendingVariant = false);
     bool RequestAngularVariant(Rbs::AngularVariant);
     bool RequestAngularApply();
     void RevertAngularDraft();
@@ -178,6 +181,7 @@ private:
     void DrawAngularProperties();
     void DrawAngularWorldSettings();
     void ProcessSceneRequest(Rbs::Editor::TransformBatch* directTransform = nullptr);
+    void ConstructRequestedScene(Rbs::Editor::TransformBatch* directTransform);
     void ProcessBodyPropertyCommand();
     void ProcessWorldSleepCommand();
     void DrawWorldSleepSettings();
@@ -369,6 +373,7 @@ private:
     const Rbs::LaunchConfig& m_Launch;
     Rbs::SceneSelection m_ActiveSelection, m_PendingSelection;
     std::optional<Rbs::SceneSelection> m_SceneRequest;
+    const char* m_RequestedSceneTitle{}; // Static preset title, consumed with its queued Editor request.
     bool m_SceneDefaultsPending{};
     struct MoverSession {
         Rbs::MoverPacket committed = Rbs::ReferenceMoverPacket(), draft = committed;
@@ -413,6 +418,21 @@ private:
         GEngine::PhysicsJointHandle joint{};
         std::size_t bodyCount{};
     } m_AngularBindings;
+    struct BookAngular {
+        Rbs::AngularPacket packet;
+        AngularBindings bindings;
+    };
+    struct BookAssemblies {
+        std::array<BookAngular,5> angular{};
+        Rbs::RagdollPacket ragdoll;
+        Rbs::MoverPacket mover;
+        std::optional<std::size_t> selectedAngular;
+    } m_Book;
+    bool IntegratedBook() const { return m_ActiveSelection.scene==Rbs::RbsScenePreset::BookConformance; }
+    bool HasMoverAssembly() const { return IntegratedBook() || m_ActiveSelection.scene==Rbs::RbsScenePreset::Movers; }
+    std::optional<std::size_t> BookAngularFor(GEngine::_Entity) const;
+    void SelectBookAngular(GEngine::_Entity);
+    void ActivateBookAuthoring();
     struct RagdollSession {
         std::optional<Rbs::RagdollPacket> committed, draft;
         std::uint64_t revision{}, draftBaseRevision{}, draftGeneration{};
@@ -595,7 +615,22 @@ private:
     };
     GEngine::ApplicationInitializationResult InitializeScene(const BackendAuthoring* = nullptr,
         const Rbs::AngularPacket* angularCandidate = nullptr,const Rbs::RagdollPacket* ragdollCandidate = nullptr,
-        const Rbs::MoverPacket* moverCandidate = nullptr);
+        const Rbs::MoverPacket* moverCandidate = nullptr,const BookAssemblies* bookSource = nullptr);
+    using PointEntities = std::array<GEngine::_Entity,2>;
+    using ChainEntities = std::array<GEngine::_Entity,18>;
+    GEngine::ApplicationInitializationResult CreatePointBodies(Rbs::SceneSelection,const Rbs::SceneAssets&,PointEntities&,GEngine::Vec3f offset={});
+    GEngine::ApplicationInitializationResult BindPointBodies(Rbs::SceneSelection,const PointEntities&,GEngine::PhysicsBodyHandle&);
+    GEngine::ApplicationInitializationResult CreateChainBodies(Rbs::SceneSelection,const Rbs::SceneAssets&,ChainEntities&,GEngine::Vec3f offset={});
+    GEngine::ApplicationInitializationResult BindChainBodies(Rbs::SceneSelection,const ChainEntities&,GEngine::PhysicsBodyHandle&);
+    GEngine::ApplicationInitializationResult CreateAngularBodies(const Rbs::AngularPacket&,const Rbs::SceneAssets&,AngularBindings&);
+    GEngine::ApplicationInitializationResult BindAngularBodies(const Rbs::AngularPacket&,AngularBindings&);
+    GEngine::ApplicationInitializationResult CreateRagdollBodies(const Rbs::RagdollPacket&,const Rbs::SceneAssets&);
+    GEngine::ApplicationInitializationResult BindRagdollBodies(const Rbs::RagdollPacket&);
+    GEngine::ApplicationInitializationResult CreateMoverBodies(const Rbs::MoverPacket&,const Rbs::SceneAssets&,bool rebind);
+    GEngine::ApplicationInitializationResult BindMoverBodies(const Rbs::MoverPacket&);
+    GEngine::ApplicationInitializationResult InitializeBookScene(Rbs::SceneAssets&,const BackendAuthoring*,const BookAssemblies*,
+        const Rbs::AngularPacket*,const Rbs::RagdollPacket*,const Rbs::MoverPacket*);
+    GEngine::ApplicationInitializationResult VerifyAngularBindings(const Rbs::AngularPacket&,const AngularBindings&,const BackendAuthoring*) const;
     GEngine::ApplicationInitializationResult InitializeMoverScene(
         const Rbs::MoverPacket&,const Rbs::SceneAssets&,const BackendAuthoring*);
     GEngine::ApplicationInitializationResult InitializeRagdollScene(
@@ -637,7 +672,7 @@ private:
     GEngine::ApplicationInitializationResult LoadSurfaceTextures(Rbs::SceneAssets&);
     GEngine::ApplicationInitializationResult CreateSceneMaterials(Rbs::SceneAssets&);
     GEngine::ApplicationInitializationResult CreateSceneLights(Rbs::SceneAssets&);
-    GEngine::ApplicationInitializationResult CreatePhysicsScene(Rbs::SceneAssets&);
+    GEngine::ApplicationInitializationResult CreatePhysicsScene(Rbs::SceneAssets&,Rbs::RbsScenePreset);
 #ifdef GENGINE_RBS_SCENE_VALIDATION
     GEngine::ApplicationInitializationResult ValidatePhysicsScene(const Rbs::SceneAssets&);
     GEngine::ApplicationInitializationResult ValidateSceneMembership();

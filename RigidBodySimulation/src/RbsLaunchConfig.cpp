@@ -520,6 +520,7 @@ namespace Rbs
         case RbsScenePreset::HingeLimited:return "hinge-limited";
         case RbsScenePreset::CvFree:return "cv-free";
         case RbsScenePreset::CvLimited:return "cv-limited";
+        case RbsScenePreset::Movers: return "movers";
         case RbsScenePreset::MotorFree: return "motors";
         case RbsScenePreset::MotorContact: return "motor-contact";
         case RbsScenePreset::MotorLimit: return "motor-limit";
@@ -527,6 +528,69 @@ namespace Rbs
         }
         return "invalid";
     }
+    MoverPacket ReferenceMoverPacket()
+    {
+        MoverPacket p;
+        p.platform.halfExtents = {3,.25f,3};
+        p.platform.properties.type = GEngine::Component::BodyType::Kinematic;
+        p.rider.properties.type = GEngine::Component::BodyType::Dynamic;
+        p.platform.properties.material = p.rider.properties.material = {.9f,.1f};
+        return p;
+    }
+
+    bool MoverBoxFitsSandbox(const MoverBodyPacket& body, GEngine::Vec3f center, GEngine::Vec3f sweep)
+    {
+        const auto axes = glm::mat3_cast(body.orientation);
+        const auto half = glm::abs(axes[0])*body.halfExtents.x + glm::abs(axes[1])*body.halfExtents.y
+                        + glm::abs(axes[2])*body.halfExtents.z + sweep;
+        return Finite(center) && Finite(half) &&
+            std::abs(center.x)+half.x < SandboxEnvironment::Width*.5f-SandboxEnvironment::WallThickness &&
+            std::abs(center.z)+half.z < SandboxEnvironment::Depth*.5f-SandboxEnvironment::WallThickness &&
+            center.y-half.y > SandboxEnvironment::FloorTop;
+    }
+
+    std::expected<void,std::string_view> ValidateMoverPacket(const MoverPacket& packet)
+    {
+        using namespace GEngine;
+        auto path = packet.path.Normalized();
+        if (!path) return std::unexpected(path.error().operation);
+        if (!Finite(packet.riderPosition) || !Finite(packet.gravity) ||
+            packet.platform.properties.type != Component::BodyType::Kinematic ||
+            packet.rider.properties.type != Component::BodyType::Dynamic ||
+            packet.platform.linearVelocity != Vec3f(0) || packet.platform.angularVelocity != Vec3f(0))
+            return std::unexpected("Invalid mover roles, start velocity, gravity or rider position");
+        for (const auto* body : {&packet.platform,&packet.rider})
+        {
+            const auto& p = body->properties;
+            if (!Finite(body->halfExtents) || glm::any(glm::lessThanEqual(body->halfExtents,Vec3f(0))) ||
+                !Finite(body->orientation) || std::abs(glm::length(body->orientation)-1.f)>1.e-5f ||
+                !Finite(body->linearVelocity) || !Finite(body->angularVelocity) ||
+                !std::isfinite(p.mass) || p.mass <= 0 || !std::isfinite(1.f/p.mass) ||
+                !std::isfinite(p.material.friction) || p.material.friction<0 ||
+                !std::isfinite(p.material.restitution) || p.material.restitution<0 || p.material.restitution>1)
+                return std::unexpected("Invalid box dimensions, mass, orientation, velocity or surface material");
+            const bool platform = body == &packet.platform;
+            const Vec3f center = platform ? path->center : packet.riderPosition;
+            const auto sweep = platform ? glm::abs(path->direction)*static_cast<float>(path->amplitude) : Vec3f(0);
+            if (!MoverBoxFitsSandbox(*body,center,sweep))
+                return std::unexpected("Body or full platform sweep would leave the Sandbox or hit its floor");
+        }
+        const auto a = glm::mat3_cast(packet.platform.orientation), b = glm::mat3_cast(packet.rider.orientation);
+        const Vec3f delta = packet.riderPosition-path->PositionAt(0);
+        const auto separated = [&](Vec3f axis) {
+            if (glm::dot(axis,axis)==0) return false;
+            const float radii = glm::dot(glm::abs(glm::transpose(a)*axis),packet.platform.halfExtents) +
+                                glm::dot(glm::abs(glm::transpose(b)*axis),packet.rider.halfExtents);
+            return std::abs(glm::dot(delta,axis)) >= radii;
+        };
+        for (int i=0;i<3;++i)
+        {
+            if (separated(a[i]) || separated(b[i])) return {};
+            for (int j=0;j<3;++j) if (separated(glm::cross(a[i],b[j]))) return {};
+        }
+        return std::unexpected("Rider and platform overlap at the initial pose");
+    }
+
     LaunchConfig SelectedLaunchConfig(SceneSelection selected)
     {
         LaunchConfig launch;
@@ -553,7 +617,7 @@ namespace Rbs
                     RbsScenePreset::DistancePendulum,RbsScenePreset::DistanceChain,RbsScenePreset::DistanceChainContact,
                     RbsScenePreset::BallSocketSwing,RbsScenePreset::BallSocketPair,RbsScenePreset::BallSocketContact,RbsScenePreset::BallSocketContactEnabled,
                     RbsScenePreset::HingeBasic,RbsScenePreset::HingeQuaternion,RbsScenePreset::HingeLimited,RbsScenePreset::CvFree,RbsScenePreset::CvLimited,
-                    RbsScenePreset::PassiveRagdoll,RbsScenePreset::MotorFree})
+                    RbsScenePreset::PassiveRagdoll,RbsScenePreset::MotorFree,RbsScenePreset::Movers})
                     if(value==SceneName(scene)) { launch.scene=scene; found=true; break; }
                 if(!found)return std::unexpected("Unknown or unimplemented scene preset");
             } else if (option=="--motor-case" && !motorCase) {

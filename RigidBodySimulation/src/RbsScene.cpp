@@ -1276,7 +1276,8 @@ RigidBodySimulationApp::CreateAsyncExamples(const Rbs::SceneAssets& assets)
 }
 
 ApplicationInitializationResult RigidBodySimulationApp::InitializeScene(
-    const BackendAuthoring* authoring,const Rbs::AngularPacket* angularCandidate,const Rbs::RagdollPacket* ragdollCandidate)
+    const BackendAuthoring* authoring,const Rbs::AngularPacket* angularCandidate,const Rbs::RagdollPacket* ragdollCandidate,
+    const Rbs::MoverPacket* moverCandidate)
 {
     m_BuildingPreset=SandboxEnabled();m_PresetOrdinals={};
     struct EndPreset {bool& flag;~EndPreset(){flag=false;}} endPreset{m_BuildingPreset};
@@ -1295,6 +1296,8 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeScene(
         return result;
     if (auto result = CreateSceneLights(assets); !result)
         return result;
+    if(m_ActiveSelection.scene==Rbs::RbsScenePreset::Movers)
+        return InitializeMoverScene(moverCandidate ? *moverCandidate : m_Mover.committed,assets,authoring);
     if(m_ActiveSelection.IsRagdollScene())
     {
         const auto* packet=ragdollCandidate?ragdollCandidate:(m_Ragdoll.committed?&*m_Ragdoll.committed:nullptr);
@@ -1557,6 +1560,84 @@ ApplicationInitializationResult RigidBodySimulationApp::InitializeScene(
         FocusMaterialCamera(m_EditorCamera_, focal, .28f, -.2f, distance);
     }
     return {};
+}
+
+ApplicationInitializationResult RigidBodySimulationApp::InitializeMoverScene(
+    const Rbs::MoverPacket& packet,const Rbs::SceneAssets& assets,const BackendAuthoring* authoring)
+{
+    const auto reject=[](std::string_view why)->ApplicationInitializationResult {
+        return std::unexpected(SceneError{SceneErrorCode::InvalidScene,"Movers",std::string(why)});
+    };
+    if(auto valid=Rbs::ValidateMoverPacket(packet);!valid)return reject(valid.error());
+    const auto path=packet.path.Normalized();
+    if(!path)return reject(path.error().operation);
+    const bool rebind = m_MoverBindings.entities[0] != entt::null;
+    MaterialHandle platformMaterial{};
+    if (!rebind) {
+        if (auto room = CreateGroundAndWalls(assets); !room) return room;
+        auto material = m_SceneResources->CloneMaterial(assets.floorMaterial);
+        if (!material) return SceneFailure(material.error());
+        platformMaterial = *material;
+    }
+
+    for(std::size_t i=0;i<2;++i) {
+        const auto& body=i==0?packet.platform:packet.rider;
+        const auto position=i==0?path->PositionAt(0):packet.riderPosition;
+        _Entity entity{m_MoverBindings.entities[i],m_ActiveScene.get()};
+        if (!rebind) {
+            auto created = CreatePresetEntity(33,i==0?"Moving Platform":"Platform Rider");
+            if (!created) return std::unexpected(created.error());
+            entity = *created;
+            m_MoverBindings.entities[i] = static_cast<entt::entity>(entity);
+        }
+        entity.AddOrReplaceComponent<Transform3DComponent>(position,Vec3f(0),2.f*body.halfExtents);
+        entity.Transform().SetRotation(body.orientation);
+        RigidBody3DComponent rigid;
+        rigid.Type=body.properties.type;
+        entity.AddOrReplaceComponent<RigidBody3DComponent>(rigid);
+        BoxFixture3DComponent box;
+        box.Shape.halfExtents=Vec3f(.5f);
+        box.Property.m_Position=position;
+        box.Property.m_Orientation=body.orientation;
+        box.Property.m_InvMass=i==0?0.f:1.f/body.properties.mass;
+        box.Property.m_Friction=body.properties.material.friction;
+        box.Property.m_Elasticity=body.properties.material.restitution;
+        box.Property.m_LinearVelocity=body.linearVelocity;
+        box.Property.m_AngularVelocity=body.angularVelocity;
+        entity.AddOrReplaceComponent<BoxFixture3DComponent>(box);
+        if (!rebind) {
+            // The original Rider handle remains the destination of async Wood publication.
+            const auto material = i == 0 ? platformMaterial : assets.boxMaterial;
+            if (auto render = CreateRenderable(entity, assets.boxMesh, material, "Box"); !render) return render;
+        }
+    }
+    if (!rebind) {
+        if (auto helpers = CreateEnvironmentHelpers(); !helpers) return helpers;
+        m_AxisEntity.AddOrReplaceComponent<VisibilityComponent>(VisibilityComponent{false});
+    }
+    if(auto started=StartSceneRuntime(authoring);!started)return started;
+    auto& world=*m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
+    if(authoring)if(auto r=authoring->ApplyAfterStart(*m_ActiveScene);!r)return r;
+    world.SetGravity(packet.gravity);
+    for(std::size_t i=0;i<2;++i) {
+        auto h=m_ActiveScene->GetBodyBinding(_Entity{m_MoverBindings.entities[i],m_ActiveScene.get()});
+        if(!h)return reject("Missing body binding");
+        m_MoverBindings.bodies[i]=*h;
+        const auto& body=i==0?packet.platform:packet.rider;
+        auto applied=world.UpdateBodyProperties(*h,body.properties);
+        if(!applied)return reject(applied.error().operation);
+        auto effective=world.ReadEffectiveBody(*h);
+        if(!effective)return reject(effective.error().operation);
+        if(effective->type!=body.properties.type || effective->shapeType!=ShapeType::Box ||
+            effective->material!=body.properties.material)return reject("Provider body or material readback mismatch");
+    }
+    auto binding=world.RegisterMover(m_MoverBindings.bodies[0],m_MoverBindings.bodies[1],
+        packet.path,m_ActiveScene->GetPhysicsStep().count());
+    if(!binding)return reject(binding.error().operation);
+    if (rebind) return {};
+    FocusMaterialCamera(m_EditorCamera_,path->center+Vec3f(0,1,0),.22f,1.15f,27.f);
+    m_IsShowDebugBoundingBox=false;m_ShowSelectedColliderOutlines=false;
+    return ConnectApplicationEventHandlers();
 }
 
 ApplicationInitializationResult RigidBodySimulationApp::InitializeRagdollScene(

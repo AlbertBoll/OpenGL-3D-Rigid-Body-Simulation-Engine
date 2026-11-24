@@ -35,7 +35,7 @@ namespace GEngine
         virtual void PrepareTerminalRetirement() noexcept = 0;
         virtual PhysicsBodyResult<> CreateBody(PhysicsBodyHandle, RigidBody3D&) = 0;
         virtual void DestroyBody(PhysicsBodyHandle) noexcept = 0;
-        virtual BackendStepResult Step(float, const Vec3f&, bool sleeping) = 0;
+        virtual BackendStepResult Step(float, const Vec3f&, bool sleeping, PreparedMoverStep* mover) = 0;
 #if defined(GENGINE_PHASE29_STEP_SAFETY)
 #ifndef GENGINE_CONFIG_DEBUG
 #error The Phase 29 safety fixture requires an isolated Debug target

@@ -50,7 +50,8 @@ namespace
         {Rbs::RbsScenePreset::CvFree,"Constant Velocity"},
         {Rbs::RbsScenePreset::CvLimited,"Limited Constant Velocity"},
         {Rbs::RbsScenePreset::PassiveRagdoll,"Passive Ragdoll"},
-        {Rbs::RbsScenePreset::MotorFree,"Motors"}
+        {Rbs::RbsScenePreset::MotorFree,"Motors"},
+        {Rbs::RbsScenePreset::Movers,"Movers"}
     };
     const char* AngularPresetWidgetKey(Rbs::RbsScenePreset preset)
     {
@@ -184,13 +185,15 @@ void RigidBodySimulationApp::DrawEditorToolbar()
         ImGui::EndMenu();
     }
     ImGui::Separator();
-    DrawSceneSelectionControls();
+    ImGui::TextUnformatted(Rbs::SceneName(m_ActiveSelection.scene));
     ImGui::Separator();
     ImGui::Text("%s | Tick %llu",SimulationLabel(m_SimulationState),
         static_cast<unsigned long long>(m_ActiveScene->GetPhysicsSystem()->GetCompletedSteps()));
     const auto* world=m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
     if (m_ActiveSelection.IsRagdollScene() && world && world->GetBackend()==PhysicsBackend::Native)
         ImGui::TextUnformatted("Passive Ragdoll \xC2\xB7 Native (Experimental)");
+    if (m_ActiveSelection.scene==Rbs::RbsScenePreset::Movers && world && world->GetBackend()==PhysicsBackend::Native)
+        ImGui::TextUnformatted("Movers  Native (Experimental)");
     if(m_Launch.m_BackendSwitchChecks)Rbs::BackendSwitchChecks::PanelDrawn();
 #ifdef GENGINE_PHASE26_SANDBOX_CHECKS
     Rbs::SandboxChecks::PanelDrawn();
@@ -200,7 +203,8 @@ void RigidBodySimulationApp::DrawEditorToolbar()
 void RigidBodySimulationApp::DrawSceneSelectionControls()
 {
     ImGui::BeginDisabled(m_SceneRequest.has_value() || m_SimulationState==Rbs::SimulationState::Switching);
-    ImGui::SetNextItemWidth(Rbs::Editor::Px(175));
+    const bool inlineControls=ImGui::GetContentRegionAvail().x>=Rbs::Editor::Px(390);
+    ImGui::SetNextItemWidth(std::min(ImGui::GetContentRegionAvail().x,Rbs::Editor::Px(175)));
     const bool sceneComboOpen=ImGui::BeginCombo("##ScenePreset",Rbs::SceneName(m_PendingSelection.scene));
     RBS_PHASE28_WIDGET("scene-combo");
     if(sceneComboOpen)
@@ -224,7 +228,7 @@ void RigidBodySimulationApp::DrawSceneSelectionControls()
     if(ImGui::IsItemHovered())ImGui::SetTooltip("Scene preset; Load applies the pending choice");
     if(m_PendingSelection.IsDistanceScene() && m_PendingSelection.scene!=Rbs::RbsScenePreset::DistancePendulum)
     {
-        ImGui::SameLine();ImGui::SetNextItemWidth(Rbs::Editor::Px(48));
+        if(inlineControls)ImGui::SameLine();ImGui::SetNextItemWidth(Rbs::Editor::Px(48));
         ImGui::BeginDisabled(m_PendingSelection.scene==Rbs::RbsScenePreset::DistanceChainContact);
         int index=m_PendingSelection.chainLinks==4?0:m_PendingSelection.chainLinks==8?1:2;
         if(ImGui::Combo("Links",&index,"4\0" "8\0" "16\0"))m_PendingSelection.chainLinks=std::array{4u,8u,16u}[index];
@@ -233,14 +237,14 @@ void RigidBodySimulationApp::DrawSceneSelectionControls()
     if (Rbs::IsMotorScene(m_PendingSelection.scene)) {
         const std::array cases{Rbs::RbsScenePreset::MotorFree,Rbs::RbsScenePreset::MotorContact,Rbs::RbsScenePreset::MotorLimit};
         int index = int(std::find(cases.begin(),cases.end(),m_PendingSelection.scene) - cases.begin());
-        ImGui::SameLine();
+        if(inlineControls)ImGui::SameLine();
         ImGui::SetNextItemWidth(Rbs::Editor::Px(90));
         if (ImGui::Combo("Motor case",&index,"Free\0Contact\0Limit\0")) m_PendingSelection.scene=cases[index];
     }
     if(m_PendingSelection.scene==Rbs::RbsScenePreset::HingeLimited ||
        m_PendingSelection.scene==Rbs::RbsScenePreset::CvLimited)
     {
-        ImGui::SameLine();ImGui::SetNextItemWidth(Rbs::Editor::Px(85));
+        if(inlineControls)ImGui::SameLine();ImGui::SetNextItemWidth(Rbs::Editor::Px(85));
         int variant=m_PendingAngularVariant==Rbs::AngularVariant::Contact?1:0;
         const bool changed=ImGui::Combo("##AngularVariant",&variant,"Air\0Contact\0");
         RBS_PHASE28_WIDGET("variant");
@@ -248,7 +252,7 @@ void RigidBodySimulationApp::DrawSceneSelectionControls()
             m_PendingAngularVariant=variant?Rbs::AngularVariant::Contact:Rbs::AngularVariant::Air;
         if(ImGui::IsItemHovered())ImGui::SetTooltip("Contact uses the admitted finite floor and the same joint provider");
     }
-    ImGui::SameLine();
+    if(inlineControls)ImGui::SameLine();
     const bool load=ImGui::Button("Load");
     RBS_PHASE28_WIDGET("scene-load");
     if(load)
@@ -329,12 +333,13 @@ bool RigidBodySimulationApp::ExecuteSelectionCommand(Rbs::Editor::SelectionComma
 void RigidBodySimulationApp::DrawHierarchyRegion()
 {
     namespace E=Rbs::Editor;
+    const bool authoring=TransformEditingAllowed();
     if(ImGui::Begin("Hierarchy",nullptr,ImGuiWindowFlags_NoScrollWithMouse))
     {
         PublishPanelInputRegion();
         const auto active=m_ActiveScene->RenderData().Identify(m_HoveredEntity).value_or(EntityRenderId{});
         EditorHistoryShortcuts();
-        if(active && !ImGui::IsAnyItemActive() && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImGui::IsKeyPressed(ImGuiKey_F2,false))BeginEntityRename(active);
+        if(authoring && active && !ImGui::IsAnyItemActive() && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImGui::IsKeyPressed(ImGuiKey_F2,false))BeginEntityRename(active);
         const auto previousRegistry=m_Hierarchy.nodes.empty()?0:m_Hierarchy.nodes.front().identity.registry;
         m_Hierarchy.Build(*m_ActiveScene,m_HierarchyFilter.data(),active);
         const bool sceneChanged=!m_Hierarchy.nodes.empty() && previousRegistry!=m_Hierarchy.nodes.front().identity.registry;
@@ -372,7 +377,7 @@ void RigidBodySimulationApp::DrawHierarchyRegion()
             item("Invert Selection (full scene)",E::SelectionCommand::Invert);item("Deselect All",E::SelectionCommand::Clear);
         };
         if(ImGui::BeginPopup("HierarchySelection")){selectionMenu(active);ImGui::EndPopup();}
-        ImGui::TextDisabled("Ctrl+A: filtered %s",m_HierarchySphereCohort?"SphereLattice spheres":E::GroupNames[m_HierarchyFocusedGroup]);
+        E::Tooltip("Ctrl+A selects the filtered group.");
         ImGui::SetNextItemWidth(-1.f);
         const bool searchChanged=ImGui::InputTextWithHint("##EntityFilter","Find entity",m_HierarchyFilter.data(),m_HierarchyFilter.size());
         if(searchChanged)m_Hierarchy.Build(*m_ActiveScene,m_HierarchyFilter.data(),active);
@@ -469,14 +474,14 @@ void RigidBodySimulationApp::DrawHierarchyRegion()
             if(entity==m_HoveredEntity)RBS_PHASE28_WIDGET("hierarchy.selected");
 #endif
             const bool onName=ImGui::GetMousePos().x<eyeX;
-            if(ImGui::IsItemHovered() && onName && ImGui::IsMouseDoubleClicked(0) && !ImGui::IsItemToggledOpen())BeginEntityRename(n.identity);
+            if(authoring && ImGui::IsItemHovered() && onName && ImGui::IsMouseDoubleClicked(0) && !ImGui::IsItemToggledOpen())BeginEntityRename(n.identity);
             if(ImGui::BeginPopupContextItem("EntityMenu")) {
-                if(ImGui::MenuItem("Rename","F2"))BeginEntityRename(n.identity);
+                if(ImGui::MenuItem("Rename","F2",false,authoring))BeginEntityRename(n.identity);
                 selectionMenu(n.identity);
                 if(m_ActiveSelection.scene==Rbs::RbsScenePreset::SphereLattice && ImGui::MenuItem("Select All Spheres"))selectSpheres=true;
                 if(entity.HasAllComponents<RenderCameraComponent>() && ImGui::MenuItem("Open Camera View"))OpenCameraPanel(n.identity);
                 const bool visible=EditorEntityVisible(n.identity);
-                if(ImGui::MenuItem("Scene Visible",nullptr,visible))QueueEntityVisibility(n.identity,!visible);
+                if(ImGui::MenuItem("Scene Visible",nullptr,visible,authoring))QueueEntityVisibility(n.identity,!visible);
                 ImGui::EndPopup();
             }
             if(ImGui::IsItemClicked() && onName && m_RenameTarget!=n.identity && !ImGui::IsItemToggledOpen())
@@ -494,6 +499,7 @@ void RigidBodySimulationApp::DrawHierarchyRegion()
             ImGui::SetCursorScreenPos({eyeX,rowStart.y});
             const bool visible=EditorEntityVisible(n.identity);
             ImGui::PushStyleColor(ImGuiCol_Button,E::Color(0x202329));
+            ImGui::BeginDisabled(!authoring);
             if(ImGui::Button("##SceneVisible",{E::Px(24),E::Px(22)}))QueueEntityVisibility(n.identity,!visible);
 #ifdef GENGINE_PHASE28_QUALIFICATION
             if(probeName=="point_light")RBS_PHASE28_WIDGET("hierarchy.point-eye");
@@ -501,7 +507,7 @@ void RigidBodySimulationApp::DrawHierarchyRegion()
 #endif
             E::DrawIcon(visible?E::Icon::Eye:E::Icon::EyeOff,m_ViewportIconAtlases[atlas],E::AtlasPixels[atlas],{eyeX+E::Px(2),rowStart.y+E::Px(1)},E::Px(20),visible?E::Color(0xA6B3C3):E::Color(0x718093));
             E::Tooltip("Scene Visible: editor mesh/icon/picking only. Camera output, illumination, shadows and Physics are unchanged.");
-            ImGui::PopStyleColor();ImGui::SetCursorScreenPos(nextRow);
+            ImGui::EndDisabled();ImGui::PopStyleColor();ImGui::SetCursorScreenPos(nextRow);
             if(reveal && entity==m_HoveredEntity)ImGui::SetScrollHereY(.5f);
             if(open && !leaf)
             {
@@ -597,16 +603,57 @@ void RigidBodySimulationApp::DrawInspectorRegion()
 
 void RigidBodySimulationApp::DrawWorldProperties()
 {
-    ImGui::TextWrapped("Scene: %s",Rbs::SceneName(m_ActiveSelection.scene));
-    ImGui::TextUnformatted("Interactive Sandbox");
+    namespace E=Rbs::Editor;
+    auto* physics=m_ActiveScene->GetPhysicsSystem();
+    auto* world=physics && !physics->GetBackendFailure()?physics->GetPhysicsWorld():nullptr;
+    const bool movers=m_ActiveSelection.scene==Rbs::RbsScenePreset::Movers;
+    if(movers && world && world->GetBackend()==PhysicsBackend::Native)
+        ImGui::TextWrapped("Native rider contact can exceed the penetration and recovery limits. Incremental mover heap cost is unverified.");
+    if(m_ActiveSelection.IsRagdollScene() && world && world->GetBackend()==PhysicsBackend::Native)
+        ImGui::TextWrapped("Native Passive Ragdoll is experimental. Its motion has not passed production qualification.");
+    if(!m_SceneDiagnostic.empty())ImGui::TextWrapped("%s",m_SceneDiagnostic.c_str());
+    if(m_EditorMode==EditorMode::Simulation) {
+        E::ReadOnly("Backend",world?PhysicsBackendName(world->GetBackend()).data():"Unavailable");
+        ImGui::Text("Fixed step   %.2f ms",1000.0*m_ActiveScene->GetPhysicsStep().count());
+        if(world) {
+            const auto g=world->GetGravity();
+            ImGui::Text("Gravity (m/s^2)   %.2f, %.2f, %.2f",E::Numeric::DisplayValue(g.x),E::Numeric::DisplayValue(g.y),E::Numeric::DisplayValue(g.z));
+            if(movers && E::Component("Platform controls"))DrawMoverControls();
+            if(m_ChainImpulse.Enabled() && ImGui::TreeNode("Preset actions")) {
+                DrawDistanceChainImpulseControls();
+                ImGui::TreePop();
+            }
+        }
+        return;
+    }
+    ImGui::BeginDisabled(!TransformEditingAllowed());
+    DrawSceneSelectionControls();
     if(m_ActiveSelection.IsAngularScene())DrawAngularWorldSettings();
     if(m_ActiveSelection.IsRagdollScene())DrawRagdollWorldSettings();
+    if(m_ActiveSelection.scene==Rbs::RbsScenePreset::Movers && Rbs::Editor::Component("Mover world",true)){
+        ImGui::PushID("Mover world");
+        ImGui::BeginDisabled(m_EditorMode!=EditorMode::Edit || m_SimulationState==Rbs::SimulationState::Running || m_SceneRequest || m_BackendRequest);
+        m_Mover.dirty|=Rbs::Editor::XYZ("Draft gravity (m/s^2)",&m_Mover.draft.gravity.x,0.f,.1f);
+        ImGui::EndDisabled();
+        if(world)DrawMoverControls();
+        ImGui::PopID();
+    }
     const bool physicsOpen=Rbs::Editor::Component("Physics");
     RBS_PHASE28_WIDGET("world-physics-section");
-    if(physicsOpen)DrawPhysicsSettings();
+    if(physicsOpen) {
+        ImGui::Text("Fixed step   %.2f ms",1000.0*m_ActiveScene->GetPhysicsStep().count());
+        if(world && !movers && !m_ActiveSelection.IsAngularScene() && !m_ActiveSelection.IsRagdollScene()) {
+            const auto g=world->GetGravity();
+            ImGui::Text("Gravity (m/s^2)   %.2f, %.2f, %.2f",E::Numeric::DisplayValue(g.x),E::Numeric::DisplayValue(g.y),E::Numeric::DisplayValue(g.z));
+        }
+        DrawPhysicsSettings();
+        DrawPresentationSettings();
+    }
     if(Rbs::Editor::Component("Environment",false))DrawEnvironmentProperties();
-    if(Rbs::Editor::Component("Materials", false))DrawMaterialSection();
+    if(m_MaterialGallery.uvMaterial && E::Component("Material gallery", false))DrawMaterialSection();
     if(Rbs::Editor::Component("Custom shaders", false))DrawShaderSection();
+    DrawSceneAuthoringActions();
+    ImGui::EndDisabled();
 }
 
 void RigidBodySimulationApp::DrawDiagnosticsRegion()
@@ -629,7 +676,7 @@ void RigidBodySimulationApp::DrawDiagnosticsRegion()
             { DrawPerformanceSection();ImGui::EndTabItem(); }
             if(ImGui::BeginTabItem("Physics Debug",nullptr,m_DiagnosticsTabRequest==2?ImGuiTabItemFlags_SetSelected:0))
             {
-                DrawPhysicsDebugSection();DrawPresentationSettings();
+                DrawPhysicsDebugSection();
                 ImGui::TextWrapped("%s",m_SceneDiagnostic.c_str());
                 ImGui::EndTabItem();
             }
@@ -664,18 +711,18 @@ void RigidBodySimulationApp::DrawContentBrowser()
     ImGui::SetNextItemWidth(std::min(E::Px(160),ImGui::GetContentRegionAvail().x));
     if(E::Numeric::Scalar("##ThumbnailWidth",E::ThumbnailWidth,1.f,E::Numeric::Closed(96,320),E::Numeric::Accept{},true,"%d px"))ImGui::MarkIniSettingsDirty();
     if(browserWidth>=E::Px(360)){ImGui::SameLine();ImGui::TextUnformatted("Thumbnail size");}
-    if(browserWidth>E::Px(1150))ImGui::SameLine();
-    ImGui::TextWrapped("Drag a preset into Viewport | Double-click or select and Load");
     ImGui::Separator();
     if (!m_PresetThumbnailsLoaded)
     {
         m_PresetThumbnailsLoaded = true;
         // Optional preview resources, owned by the existing asset registry.
+        // Viewport PNGs contain display-encoded RGB. ImGui presents those codes directly.
+        const Asset::TextureDesc previewDesc{.colorSpace = Asset::TextureColorSpace::Linear};
         for (const auto& card:PresetCards)
         {
             const std::string path = std::string("Editor/Scenes/") + Rbs::SceneName(card.preset);
             if (!RuntimeAssets::TryFile("Images/" + path + ".png")) continue;
-            auto texture = LoadSceneTexture(path);
+            auto texture = LoadSceneTexture(path, "u_texture", ".png", previewDesc);
             if (texture) m_PresetThumbnails.emplace(card.preset,*texture);
         }
     }
@@ -688,6 +735,7 @@ void RigidBodySimulationApp::DrawContentBrowser()
     for(const auto& card:PresetCards)labelHeight=std::max(labelHeight,ImGui::CalcTextSize(card.title,nullptr,false,imageWidth).y);
     const float cardHeight=imageHeight+labelHeight+ImGui::GetTextLineHeight()+E::Px(22);
     ImGui::BeginDisabled(m_SceneRequest.has_value() || m_SimulationState == Rbs::SimulationState::Switching);
+    const bool authoring=TransformEditingAllowed();
     if (ImGui::BeginTable("Presets", columns, ImGuiTableFlags_SizingFixedFit))
     {
         for (const auto& card:PresetCards)
@@ -702,7 +750,7 @@ void RigidBodySimulationApp::DrawContentBrowser()
             const bool chosen=ImGui::Selectable("##Preset", selected, ImGuiSelectableFlags_AllowDoubleClick,
                 {cell - E::Px(8), cardHeight});
             if(const char* key=AngularPresetWidgetKey(card.preset))RBS_PHASE28_WIDGET(key);
-            if(chosen)
+            if(authoring && chosen)
             {
                 m_PendingSelection.scene = scene;
                 if (card.preset == Rbs::RbsScenePreset::DistanceChainContact) m_PendingSelection.chainLinks = 8;
@@ -716,13 +764,13 @@ void RigidBodySimulationApp::DrawContentBrowser()
                     else RequestScene(m_PendingSelection);
                 }
             }
-            if(ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
+            if(authoring && ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
             {
                 const Rbs::ScenePresetPayload payload{1,{scene,scene==Rbs::RbsScenePreset::DistanceChainContact?8u:m_PendingSelection.chainLinks}};
                 ImGui::SetDragDropPayload(Rbs::ScenePresetPayloadType,&payload,sizeof(payload));
                 ImGui::Text("Load %s",card.title);ImGui::EndDragDropSource();
             }
-            E::Tooltip(Rbs::SceneName(card.preset));
+            E::Tooltip(authoring?"Double-click or drag into the Viewport to load.":Rbs::SceneName(card.preset));
             const auto end = ImGui::GetCursorPos();
             ImGui::SetCursorPos({start.x + E::Px(4), start.y + E::Px(4)});
             const auto preview=m_PresetThumbnails.find(card.preset);
@@ -733,7 +781,6 @@ void RigidBodySimulationApp::DrawContentBrowser()
                 draw->AddRectFilled(pos,{pos.x+imageWidth,pos.y+imageHeight},IM_COL32(35,43,55,255),E::Px(4));
                 draw->AddRect(pos,{pos.x+imageWidth,pos.y+imageHeight},IM_COL32(90,110,130,255),E::Px(4));
                 draw->PushClipRect(pos,{pos.x+imageWidth,pos.y+imageHeight},true);
-                draw->AddText({pos.x+E::Px(8),pos.y+E::Px(8)},IM_COL32(220,225,235,255),"SCENE PRESET");
                 draw->AddText({pos.x+E::Px(8),pos.y+imageHeight*.55f},IM_COL32(170,185,200,255),"Preview unavailable");
                 draw->PopClipRect();
                 ImGui::Dummy({imageWidth,imageHeight});
@@ -741,7 +788,7 @@ void RigidBodySimulationApp::DrawContentBrowser()
             ImGui::SetCursorPosX(start.x + E::Px(4));
             ImGui::PushTextWrapPos(start.x + cell - E::Px(12));
             ImGui::TextUnformatted(card.title);
-            ImGui::TextDisabled("%s", m_ActiveSelection.scene == card.preset ? "ACTIVE SCENE" : "SCENE PRESET");
+            if(m_ActiveSelection.scene==card.preset)ImGui::TextDisabled("Active");
             ImGui::PopTextWrapPos();
             ImGui::SetCursorPos(end);
             ImGui::PopID();
@@ -782,7 +829,7 @@ void RigidBodySimulationApp::DrawPerformanceSection()
 {
     auto* physics=m_ActiveScene->GetPhysicsSystem();auto* world=physics->GetPhysicsWorld();
     const float fps=ImGui::GetIO().Framerate;
-    ImGui::Text("Frame average: %.2f ms | %.1f FPS",fps>0?1000.f/fps:0.f,fps);
+    ImGui::Text("Frame average: %.2f ms | %.2f FPS",fps>0?1000.f/fps:0.f,fps);
     if(ImGui::IsItemHovered())ImGui::SetTooltip("Rolling 120-frame wall-time average, including present pacing.\nCamera changes affect visible work; this is not GPU busy time or Physics Step time.");
     ImGui::Text("Bodies: %zu | Joints: %zu | Tick: %llu",world->GetBodyCount(),world->GetJointCount(),
         static_cast<unsigned long long>(physics->GetCompletedSteps()));
@@ -836,7 +883,7 @@ void RigidBodySimulationApp::DrawWorldSleepSettings()
     if(actual && !edit.dirty && !edit.queued)edit.draft=*actual;
     ImGui::BeginDisabled(!actual || edit.queued || !SandboxEnabled() || m_SceneRequest.has_value());
     edit.dirty|=E::Number("Point speed (m/s)",edit.draft.pointVelocityThreshold,.001f,
-        "Jolt world three-point sleep test. Finite, positive velocity; not a per-body linear threshold.",E::Numeric::Positive<float>(),[&](float v)->const char*{const float product=v*edit.draft.timeBeforeSleep;return std::isfinite(product)&&product>0?nullptr:"Sleep speed/time product must remain finite and positive.";});
+        "Jolt world three-point sleep test. Finite, positive velocity; not a per-body linear threshold.",E::Numeric::Positive<float>(),[&](float v)->const char*{const float product=v*edit.draft.timeBeforeSleep;return std::isfinite(product)&&product>0?nullptr:"Sleep speed/time product must remain finite and positive.";},E::Numeric::PreciseFormat);
     edit.dirty|=E::Number("Time before sleep (s)",edit.draft.timeBeforeSleep,.01f,"Finite positive dwell time. Apply wakes bodies and restarts their sleep tests.",E::Numeric::Positive<float>(),[&](float v)->const char*{const float product=v*edit.draft.pointVelocityThreshold;return std::isfinite(product)&&product>0?nullptr:"Sleep speed/time product must remain finite and positive.";});
     ImGui::BeginDisabled(!edit.dirty || E::Numeric::HasError());
     if(ImGui::Button("Apply Sleeping"))edit.queued=true;
@@ -848,7 +895,7 @@ void RigidBodySimulationApp::DrawWorldSleepSettings()
     if(!actual)ImGui::TextWrapped("Native has per-body sleep thresholds in Properties > Rigidbody. Jolt world settings are unavailable here.");
     else
     {
-        ImGui::TextWrapped("Active: %.4g m/s / %.4g s",actual->pointVelocityThreshold,actual->timeBeforeSleep);
+        ImGui::TextWrapped("Active: %.4g m/s / %.2f s",actual->pointVelocityThreshold,actual->timeBeforeSleep);
         ImGui::TextWrapped("Interactive world override. Reset/scene load restores defaults. Apply Defaults before switching to Native. Per-body Allow sleeping remains separate.");
     }
     if(!edit.diagnostic.empty())ImGui::TextWrapped("%s",edit.diagnostic.c_str());
@@ -1037,7 +1084,7 @@ void RigidBodySimulationApp::DrawContextProperties(ContextSection section)
     }
     if(section==ContextSection::Surface && E::Component("Visibility",true))
     {
-        if(edit.visibility)
+        if(edit.visibility && m_HoveredEntity!=m_SkyBoxEntity)
         {
             ImGui::PushID("RuntimeVisibility");
             edit.visibilityDirty|=ImGui::Checkbox("Render enabled",&edit.visibility->enabled);
@@ -1049,14 +1096,12 @@ void RigidBodySimulationApp::DrawContextProperties(ContextSection section)
         }
         DrawEntityPresentationProperties();
     }
-    if(section==ContextSection::View && m_HoveredEntity==m_SkyBoxEntity && E::Component("Environment"))DrawEnvironmentProperties();
     if(section==ContextSection::View && edit.camera && E::Component("Camera"))
     {
         ImGui::PushID("SceneCamera");auto& camera=*edit.camera;
         if(!m_CameraPilot && ImGui::Button("Pilot Camera"))(void)BeginCameraPilot(*id);
         E::Tooltip("Navigate through this actual Scene Camera in the main Viewport. Commit creates one undoable pose; Cancel restores it. Editor view is preserved.");
         const auto cameraCheck=[&](auto member){return [&,member](float v){auto candidate=camera;candidate.*member=v;return E::ValidateCamera(candidate);};};
-        ImGui::TextWrapped("Position and Rotation are in Transform above. T/R and the gizmo edit the selected Camera in Edit mode.");
         if(ImGui::Button("Edit Transform"))(void)EditSceneCamera(*id);
         RBS_PHASE28_WIDGET("camera-edit-transform");
         ImGui::SameLine();
@@ -1075,7 +1120,7 @@ void RigidBodySimulationApp::DrawContextProperties(ContextSection section)
         RBS_PHASE28_WIDGET("camera-open-view");
         ImGui::SameLine();if(ImGui::Button("Make active"))(void)SelectSceneCamera(*id);
         RBS_PHASE28_WIDGET("camera-active");
-        ImGui::TextWrapped("Make Active selects the Scene's runtime camera. Preview only looks through it. Open Camera View creates a separate output monitor.");
+        E::Tooltip("Use this camera for the runtime Scene view.");
         {E::PropertyRow row("Projection");int projection=int(camera.projection);
             if(ImGui::Combo("##projection",&projection,"Perspective\0Orthographic\0")){camera.projection=Component::CameraProjection(projection);edit.cameraDirty=true;}
             RBS_PHASE28_WIDGET("camera-projection");}
@@ -1137,7 +1182,7 @@ void RigidBodySimulationApp::DrawContextProperties(ContextSection section)
             ImGui::BeginDisabled(!light.castShadows);
             edit.lightDirty|=E::Number("Shadow resolution",light.spotShadow.resolution,64.f,"1 to 8192 pixels; GPU allocation is validated before Apply.",E::Numeric::Closed(1,8192));
             RBS_PHASE28_WIDGET("light-shadow-resolution");
-            edit.lightDirty|=E::Number("Shadow bias",light.spotShadow.bias,.0001f,"Normalized projected depth, 0 to 1.",E::Numeric::Closed(0.f,1.f));
+            edit.lightDirty|=E::Number("Shadow bias",light.spotShadow.bias,.0001f,"Normalized projected depth, 0 to 1.",E::Numeric::Closed(0.f,1.f),E::Numeric::Accept{},E::Numeric::PreciseFormat);
             RBS_PHASE28_WIDGET("light-shadow-bias");
             {E::PropertyRow row("Filtering");edit.lightDirty|=ImGui::Combo("##PCF",&light.spotShadow.pcfRadius,"Hard\0PCF 3 x 3\0PCF 5 x 5\0");RBS_PHASE28_WIDGET("light-shadow-filter");}
             ImGui::EndDisabled();
@@ -1156,14 +1201,12 @@ void RigidBodySimulationApp::DrawEnvironmentProperties()
         bool visible=m_SkyVisibilityEdit.value_or(!m_SkyBoxEntity.HasAllComponents<VisibilityComponent>() || m_SkyBoxEntity.GetComponent<VisibilityComponent>().enabled);
         if(ImGui::Checkbox("Sky visibility",&visible)){m_ContextEditor.generation=m_SceneGeneration;m_SkyVisibilityEdit=visible;}
 #ifdef GENGINE_PHASE28_QUALIFICATION
-        if(std::string_view(ImGui::GetCurrentWindow()->Name)=="Properties")RBS_PHASE28_WIDGET("sky-visible");
+        RBS_PHASE28_WIDGET("sky-visible");
 #endif
     }
     else ImGui::TextDisabled("No sky entity in this scene");
     ImGui::BeginDisabled();float ambient=.05f;Rbs::Editor::Number("Ambient factor",ambient);ImGui::EndDisabled();
-    ImGui::TextWrapped("The current sky pipeline fixes the ambient factor and animates sky rotation. Sky tint and exposure are unavailable.");
-    if(m_HoveredEntity!=m_SkyBoxEntity)
-        ImGui::TextWrapped("Select the Sandbox Floor or a wall in Hierarchy for Transform, Surface Material and Rigidbody settings. Select a Light entity for lighting controls.");
+    Rbs::Editor::Tooltip("Ambient intensity is fixed. Sky rotation is animated.");
 }
 
 #include "RbsJoltParameterUi.inl"

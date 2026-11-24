@@ -87,6 +87,7 @@ bool RigidBodySimulationApp::EditorEntityVisible(EntityRenderId id) const
 
 void RigidBodySimulationApp::QueueEntityVisibility(EntityRenderId id,bool visible)
 {
+    if(!TransformEditingAllowed())return;
     if(m_CameraPilot){m_PropertyDiagnostic="Commit or Cancel Pilot before other authoring.";return;}
     if(!m_ActiveScene->RenderData().Resolve(id))return;
     if(m_GroupTransform.released){m_PropertyDiagnostic="Transform commit pending; retry visibility after this frame.";return;}
@@ -98,6 +99,7 @@ void RigidBodySimulationApp::QueueEntityVisibility(EntityRenderId id,bool visibl
 
 void RigidBodySimulationApp::BeginEntityRename(EntityRenderId id)
 {
+    if(!TransformEditingAllowed())return;
     if(m_CameraPilot){m_PropertyDiagnostic="Commit or Cancel Pilot before renaming.";return;}
     auto resolved=m_ActiveScene->RenderData().Resolve(id);if(!resolved)return;
     _Entity entity{*resolved,m_ActiveScene.get()};if(!entity.HasAllComponents<TagComponent>())return;
@@ -179,6 +181,7 @@ void RigidBodySimulationApp::OpenCameraPanel(EntityRenderId id)
 
 bool RigidBodySimulationApp::EditSceneCamera(EntityRenderId id,bool matchEditorPose)
 {
+    if(!TransformEditingAllowed()){m_CameraDiagnostic="Enter Edit to change a scene camera.";return false;}
     auto resolved=m_ActiveScene->RenderData().Resolve(id);
     if(!resolved || m_SceneRequest || m_BackendRequest || HasPendingObjectProperties()) {
         m_PropertyDiagnostic="Apply or Revert pending changes before editing a Camera.";return false;
@@ -225,6 +228,7 @@ namespace
 
 bool RigidBodySimulationApp::BeginCameraPilot(EntityRenderId id)
 {
+    if(!TransformEditingAllowed()){m_CameraDiagnostic="Enter Edit to pilot a scene camera.";return false;}
     if(m_CameraPilot || !m_ActiveScene || m_SceneRequest || m_BackendRequest ||
        HasPendingObjectProperties() || Rbs::Editor::Numeric::HasError() || m_Angular.dirty || m_SceneDefaultsPending || m_GroupTransform.dirty) {
         m_CameraDiagnostic="Commit/Cancel Pilot or Apply/Revert pending edits first.";return false;
@@ -368,7 +372,7 @@ void RigidBodySimulationApp::DrawCameraPilotControls(float availableWidth)
 
 void RigidBodySimulationApp::EditorHistoryShortcuts()
 {
-    if(m_CameraPilot)return;
+    if(!TransformEditingAllowed() || m_GroupTransform.number.editing)return;
     if(!ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) || ImGui::GetIO().WantTextInput || ImGui::IsAnyItemActive())return;
     if(ImGui::GetIO().KeyCtrl) {
         if(ImGui::IsKeyPressed(ImGuiKey_Z,false))m_GroupTransform.pending=Rbs::Editor::TransformSession::Action::Undo;
@@ -422,15 +426,15 @@ void RigidBodySimulationApp::DrawCameraPanels()
             if(ImGui::Button("Camera..."))ImGui::OpenPopup("CameraViewActions");
             if(ImGui::BeginPopup("CameraViewActions")) {
                 if(m_CameraPilot)DrawCameraPilotControls();
-                else if(ImGui::MenuItem("Pilot Camera"))(void)BeginCameraPilot(panel.entity);
-                if(ImGui::MenuItem("Edit Transform"))(void)EditSceneCamera(panel.entity);
+                else if(ImGui::MenuItem("Pilot Camera",nullptr,false,TransformEditingAllowed()))(void)BeginCameraPilot(panel.entity);
+                if(ImGui::MenuItem("Edit Transform",nullptr,false,TransformEditingAllowed()))(void)EditSceneCamera(panel.entity);
                 E::Tooltip("Select this Camera in the shared Properties panel, pause physics and return to Editor navigation. Use T/R or numeric Position/Rotation.");
                 const bool root=!_Entity{*e,m_ActiveScene.get()}.GetParent();
-                if(ImGui::MenuItem("Match Editor View",nullptr,false,root))(void)EditSceneCamera(panel.entity,true);
+                if(ImGui::MenuItem("Match Editor View",nullptr,false,root && TransformEditingAllowed()))(void)EditSceneCamera(panel.entity,true);
                 E::Tooltip(root?"Copy Editor Camera position and rotation through the atomic Transform/Undo path. Projection is preserved.":"Parented Cameras use local Transform editing.");
                 ImGui::Separator();
                 if(ImGui::MenuItem("Preview in main Viewport"))(void)SetCameraView(CameraView::Preview,panel.entity);
-                if(ImGui::MenuItem("Make Active"))(void)SelectSceneCamera(panel.entity);
+                if(ImGui::MenuItem("Make Active",nullptr,false,TransformEditingAllowed()))(void)SelectSceneCamera(panel.entity);
                 if(ImGui::MenuItem("Return main Viewport to Editor Camera"))(void)SetCameraView(CameraView::Editor);
                 ImGui::Separator();ImGui::TextDisabled("Camera View monitors output. Pilot navigates this Camera in the main Viewport.");
                 ImGui::EndPopup();

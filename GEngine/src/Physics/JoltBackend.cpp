@@ -1457,7 +1457,7 @@ namespace GEngine
                 return hash;
             }
 #endif
-            BackendStepResult Step(float dt,const Vec3f& gravity,bool sleeping) override
+            BackendStepResult Step(float dt,const Vec3f& gravity,bool sleeping,PreparedMoverStep* mover) override
             {
 #ifdef GENGINE_JOLT_FINAL_AUDIT
                 const auto auditStart=JoltAudit::Now();
@@ -1473,12 +1473,27 @@ namespace GEngine
                     if(!prepared)return std::unexpected(PhysicsStepFailure{prepared.error(),PhysicsStepStage::Preparation});
                     if(prepared->changed)m_Synchronization[synchronizeCount++]=*prepared;
                 }
+                JPH::BodyID platformId, riderId;
+                if (mover)
+                {
+                    const auto platform = FindMassRecord(mover->platform);
+                    if (!platform) return std::unexpected(PhysicsStepFailure{platform.error(),PhysicsStepStage::Preparation});
+                    const auto rider = FindMassRecord(mover->rider);
+                    if (!rider) return std::unexpected(PhysicsStepFailure{rider.error(),PhysicsStepStage::Preparation});
+                    if (!(*platform)->m_Body->IsKinematic() || !(*rider)->m_Body->IsDynamic())
+                        return std::unexpected(PhysicsStepFailure{{PhysicsBodyErrorCode::WrongBodyType,mover->platform,
+                            "Jolt mover body type"},PhysicsStepStage::Preparation});
+                    platformId = (*platform)->m_Body->GetID();
+                    riderId = (*rider)->m_Body->GetID();
+                }
                 m_Physics.SetGravity(V(gravity));
                 sleeping=sleeping && m_UserAllowSleeping; // Existing master sleep gate remains authoritative.
                 if(sleeping!=m_AllowSleeping)
                 { auto settings=m_Physics.GetPhysicsSettings();settings.mAllowSleeping=sleeping;m_Physics.SetPhysicsSettings(settings);
                   if(!sleeping)for(const auto& record:m_Bodies)if(record.m_Body)Wake(record.m_Handle);m_AllowSleeping=sleeping; }
                 for(std::size_t i=0;i<synchronizeCount;++i)CommitSynchronization(m_Synchronization[i]);
+                if (mover)
+                    m_Physics.GetBodyInterface().MoveKinematic(platformId,V(mover->target),Q(mover->orientation),dt);
                 // Contact material is immutable throughout Update; diagnostics remain optional.
                 m_ContactIdentityFailure.store(false,std::memory_order_relaxed);
                 if(m_Diagnostic)m_Diagnostic->count.store(0);
@@ -1619,6 +1634,7 @@ namespace GEngine
                     PublishSleep(native,!body.IsStatic() && !body.IsActive(),dt);
                     record.Remember();
                 }
+                if (mover) mover->pairInContact = m_Physics.WereBodiesInContact(platformId,riderId);
                 if (m_Diagnostic) m_Diagnostic->Finish(observedMs);
                 // Row lambdas are a provider measurement only after a completed
                 // active update. Creation, reset, retirement, and sleeping do not

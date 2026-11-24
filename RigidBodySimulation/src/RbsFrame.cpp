@@ -47,6 +47,9 @@ extern "C" const std::uint64_t g_Phase29CaptureConfiguration[] = {
 #ifdef GENGINE_PHASE30_QUALIFICATION
 #include "../tests/MotorChecks.h"
 #endif
+#ifdef GENGINE_PHASE31_QUALIFICATION
+#include "../tests/MoverChecks.h"
+#endif
 #include "../tests/ImpulseEditorChecks.h"
 #ifdef GENGINE_PHASE24_VALIDATION
 namespace PreEditorValidation { void ObservePhase24Frame(const ::GEngine::RenderFrame&); }
@@ -159,6 +162,113 @@ namespace
     }
 }
 
+Rbs::Editor::TransformSession::Action RigidBodySimulationApp::ProcessMoverGesture()
+{
+    using Session = Rbs::Editor::TransformSession;
+    using Batch = Rbs::Editor::TransformBatch;
+    using Action = Session::Action;
+    auto& session = m_GroupTransform;
+    const auto queued = session.pending;
+    const bool replay = !session.released && (queued == Action::Undo || queued == Action::Redo);
+    const Batch* batch = session.queryPending ? &session.proposal : &session.preview;
+    if (replay) {
+        if (!session.history || (queued == Action::Undo ? !session.cursor : session.cursor == session.size))
+            return Action::None;
+        batch = (*session.history)[queued == Action::Undo ? session.cursor - 1 : session.cursor].get();
+    } else if (!session.queryPending && !session.released && queued != Action::Apply) {
+        return Action::None;
+    }
+    if (!batch || batch->kind != Batch::Kind::Transform || batch->generation != m_SceneGeneration)
+        return Action::None;
+    const auto isMover = [&](const EditorTransformEdit& edit) {
+        return std::ranges::find(m_MoverBindings.bodies, edit.body) != m_MoverBindings.bodies.end();
+    };
+    if (std::ranges::none_of(batch->Span(), isMover)) return Action::None;
+    // A paused working world uses the ordinary in-place pose transaction and its undo history.
+    if (HasWorkingSimulationPose()) return Action::None;
+    const auto cancel = [&] { session.released = false; CancelGroupTransform(); };
+    if (queued == Action::Cancel) { cancel(); m_PropertyDiagnostic = "Transform cancelled."; return Action::None; }
+    const auto* physics = m_ActiveScene->GetPhysicsSystem();
+    if (batch->count != 1 || m_EditorMode != EditorMode::Edit ||
+        (m_SimulationState != Rbs::SimulationState::Ready && m_SimulationState != Rbs::SimulationState::Paused) ||
+        m_SceneRequest || m_BackendRequest || !physics || physics->GetBackendFailure() || physics->GetAttemptedSteps() != 0) {
+        cancel();
+        m_PropertyDiagnostic = "Select one live Movers body in stopped Edit.";
+        return Action::None;
+    }
+    if (!replay) {
+        // Query actual colliders and install the render-only preview used by ordinary transforms.
+        ProcessTransformPreview();
+        if (!session.released && queued != Action::Apply) return Action::None;
+        if (session.invalid || !session.dirty || !session.preview.count) { cancel(); return Action::None; }
+        batch = &session.preview;
+    }
+    const auto followup = session.released && (queued == Action::Undo || queued == Action::Redo) ? queued : Action::None;
+    std::unique_ptr<Batch> command;
+    try {
+        if (!session.history)
+            session.history = std::make_unique<std::array<std::unique_ptr<Batch>, Session::HistoryCapacity>>();
+        command = std::make_unique<Batch>(*batch);
+    } catch (const std::bad_alloc&) {
+        cancel(); m_PropertyDiagnostic = "Transform history allocation failed. Previous pose retained."; return Action::None;
+    }
+    cancel(); // Consume this release before the generic handler or a scene reconstruction can see it.
+    auto& edit = command->edits[0];
+    if (replay && queued == Action::Undo) std::swap(edit.before, edit.after);
+    const auto resolved = m_ActiveScene->RenderData().Resolve(edit.entity);
+    const auto role = resolved ? MoverBodyFor(_Entity{*resolved, m_ActiveScene.get()}) : std::nullopt;
+    if (!role || m_MoverBindings.bodies[*role] != edit.body) {
+        m_PropertyDiagnostic = "The selected mover identity has retired.";
+        return Action::None;
+    }
+    if (!ValidateTransformPlacement(*command, {})) return Action::None;
+    if (edit.before == edit.after) return followup;
+    if (m_SceneDefaultsPending || HasPendingObjectProperties(true, false)) {
+        m_PropertyDiagnostic = "Finish the pending structural or component edit before moving this body.";
+        return Action::None;
+    }
+    auto candidate = m_Mover.committed;
+    auto& body = *role == 0 ? candidate.platform : candidate.rider;
+    auto& position = *role == 0 ? candidate.path.center : candidate.riderPosition;
+    const bool translated = edit.after.translation != edit.before.translation;
+    if (translated && *role == 0) {
+        // The Inspector edits the box at t=0, including a nonzero authored phase.
+        const auto displacement = glm::dvec3(candidate.path.direction) *
+            (candidate.path.amplitude * std::sin(candidate.path.phase));
+        position = Vec3f(glm::dvec3(edit.after.translation) - displacement);
+    } else if (translated) position = edit.after.translation;
+    body.orientation = edit.after.rotation;
+    body.halfExtents = .5f * edit.after.scale;
+    if (const auto valid = Rbs::ValidateMoverPacket(candidate); !valid) {
+        m_PropertyDiagnostic = valid.error(); return Action::None;
+    }
+    // Keep independent structural drafts. Conflicting edits to the same dimensions must be resolved first.
+    auto draft = m_Mover.draft;
+    const auto& original = *role == 0 ? m_Mover.committed.platform : m_Mover.committed.rider;
+    auto& draftBody = *role == 0 ? draft.platform : draft.rider;
+    if (body.halfExtents != original.halfExtents && draftBody.halfExtents != original.halfExtents) {
+        m_PropertyDiagnostic = "Finish the pending collider size edit before scaling this body."; return Action::None;
+    }
+    if (body.halfExtents != original.halfExtents) draftBody.halfExtents = body.halfExtents;
+    if (translated && *role == 0 && draft.path.center != m_Mover.committed.path.center) {
+        m_PropertyDiagnostic = "Finish the pending path center edit before translating the platform."; return Action::None;
+    }
+    if (body.orientation != original.orientation) draftBody.orientation = body.orientation;
+    if (translated) (*role == 0 ? draft.path.center : draft.riderPosition) = position;
+    const bool structuralDraft = m_Mover.dirty;
+    const auto generation = m_SceneGeneration;
+    m_MoverApply = candidate;
+    m_SceneRequest = m_ActiveSelection;
+    ProcessSceneRequest(command.get());
+    if (generation == m_SceneGeneration) { m_PropertyDiagnostic = m_SceneDiagnostic; return Action::None; }
+    if (structuralDraft) { m_Mover.draft = draft; m_Mover.dirty = true; }
+    if (!replay) session.Store(std::move(command));
+    else if (queued == Action::Undo) (*session.history)[--session.cursor]->edits[0].before = edit.after;
+    else (*session.history)[session.cursor++]->edits[0].after = edit.after;
+    m_PropertyDiagnostic = "Transform committed at tick zero. Ctrl+Z undoes it and Ctrl+Y redoes it.";
+    return followup;
+}
+
 void RigidBodySimulationApp::Update(Timestep ts)
 {
 #ifdef GENGINE_PHASE26_SANDBOX_CHECKS
@@ -203,12 +313,41 @@ void RigidBodySimulationApp::Update(Timestep ts)
 #ifdef GENGINE_OWNER_REVIEW_PROBE
     if(!Rbs::OwnerReviewDriver::Begin(*this))return;
 #endif
-    if(SandboxEnabled()) { Rbs::ProcessColliderEditorCommands(*m_ActiveScene,m_HoveredEntity,m_IsPause); ProcessBodyPropertyCommand(); ProcessBulkBodyProperties(); ProcessWorldSleepCommand(); ProcessJoltSettingsCommand(); ProcessTransformEdit(); ProcessContextProperties(); ProcessImpulseCommand(); }
+    if (SandboxEnabled() && m_EditorMode==EditorMode::Edit) {
+        Rbs::ProcessColliderEditorCommands(*m_ActiveScene,m_HoveredEntity,m_IsPause);
+        ProcessBodyPropertyCommand();
+        ProcessBulkBodyProperties();
+        ProcessWorldSleepCommand();
+        ProcessJoltSettingsCommand();
+        if (m_GroupTransform.number.editing && (!m_ViewportActive || !TransformEditingAllowed() ||
+            ImGui::GetFrameCount()-m_GroupTransform.number.lastDrawFrame>1))
+            CancelGroupTransform();
+        if (m_NumericTransform && (m_EditorMode != EditorMode::Edit ||
+            ImGui::GetFrameCount() - m_NumericTransform->lastDrawFrame > 1)) {
+            CancelGroupTransform();
+            m_NumericTransform.reset();
+        }
+        if (std::exchange(m_DirectTransformReleased, false) && (m_EditorMode != EditorMode::Edit ||
+            (m_SimulationState != Rbs::SimulationState::Ready && m_SimulationState != Rbs::SimulationState::Paused))) {
+            m_GroupTransform.released = false;
+            CancelGroupTransform();
+            m_PropertyDiagnostic = "Edit state changed before the transform could commit.";
+        }
+        const auto followup = m_ActiveSelection.scene == Rbs::RbsScenePreset::Movers ?
+            ProcessMoverGesture() : Rbs::Editor::TransformSession::Action::None;
+        ProcessTransformEdit();
+        if (followup != Rbs::Editor::TransformSession::Action::None) m_GroupTransform.pending = followup;
+        ProcessContextProperties();
+    }
+    if (m_Impulse.pending) ProcessImpulseCommand();
     if(SandboxEnabled() && m_ActiveSelection.IsAngularScene() && m_ChainImpulse.Pending())
     {
         const auto before=m_ChainImpulse.AppliedCount();
         m_ChainImpulse.Consume(*m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld(),false);
-        if(m_ChainImpulse.AppliedCount()!=before)m_Angular.interactive=true;
+        if(m_ChainImpulse.AppliedCount()!=before) {
+            m_Angular.interactive=true;
+            if(m_EditorMode==EditorMode::Simulation)m_RuntimePoseChanged=true;
+        }
     }
     if(!m_Launch.joltParameterProfile.empty() && !Rbs::JoltParameterExperiment::Boundary(*this))return;
     if(m_Launch.m_BackendSwitchChecks && !Rbs::BackendSwitchChecks::Boundary(*this))return;
@@ -422,6 +561,12 @@ void RigidBodySimulationApp::Update(Timestep ts)
 #ifdef GENGINE_PHASE30_QUALIFICATION
     if (Rbs::MotorChecks::Requested()) {
         if (Rbs::MotorChecks::Run(*this)) ShutDown();
+        return;
+    }
+#endif
+#ifdef GENGINE_PHASE31_QUALIFICATION
+    if(Rbs::MoverChecks::Requested()){
+        if(Rbs::MoverChecks::Run(*this))ShutDown();
         return;
     }
 #endif
@@ -1158,7 +1303,11 @@ void RigidBodySimulationApp::Render()
 #endif
             const bool all = app.m_IsShowDebugBoundingBox;
             const bool selected = app.m_ShowSelectedColliderOutlines && selectedBodies;
-            if (p.context.visible && (all || selected) && app.m_ColliderLayers.Any())
+            const bool colliders=(all || selected) && app.m_ColliderLayers.Any();
+            const auto& mover=app.m_Mover;
+            const bool moverLayers=app.m_ActiveSelection.scene==Rbs::RbsScenePreset::Movers &&
+                (mover.showPath || mover.showVelocity || mover.showContact || mover.showError);
+            if (p.context.visible && (colliders || moverLayers))
             {
                 const std::size_t capacity = (std::max)(std::size_t(32768),
                     physics.GetPhysicsWorld()->GetBodyCount() * 512 + selectedBodies * 260 + 4096);
@@ -1171,7 +1320,7 @@ void RigidBodySimulationApp::Render()
                     app.m_ColliderDebugCapacity = capacity;
                 }
                 DebugGeometry geometry({app.m_ColliderDebugStorage.get(), app.m_ColliderDebugCapacity});
-                if (!physics.AppendDebugGeometry(geometry, app.m_ColliderLayers,
+                if (colliders && !physics.AppendDebugGeometry(geometry, app.m_ColliderLayers,
                         {app.m_ColliderOutlines.bodies.data(), selectedBodies}, all))
                     return std::unexpected(ScheduleError{FrameStage::BuildRenderFrame,
                         SubmissionError{"scoped Physics layers", SubmissionCode::InvalidDraw}});
@@ -1182,6 +1331,21 @@ void RigidBodySimulationApp::Render()
                     if (!Rbs::AppendColliderEditorPreviews(*app.m_ActiveScene, app.m_ColliderOutlines, geometry))
                         return std::unexpected(ScheduleError{FrameStage::BuildRenderFrame,
                             SubmissionError{"selected candidate previews", SubmissionCode::InvalidDraw}});
+                if(moverLayers){
+                    auto& world=*physics.GetPhysicsWorld();
+                    if(const auto s=world.ReadMover(app.m_MoverBindings.bodies[0])){
+                        const auto end=s->path.direction*static_cast<float>(s->path.amplitude);
+                        bool ok=true;
+                        if(mover.showPath)ok&=bool(geometry.Line(s->path.center-end,s->path.center+end,{.25f,.72f,1,1},DebugDepth::Overlay));
+                        if(mover.showVelocity)ok&=bool(geometry.Line(s->position,s->position+s->velocity,{.2f,1,.45f,1},DebugDepth::Overlay));
+                        if(mover.showError)ok&=bool(geometry.Line(s->position,s->target,{1,.35f,.2f,1},DebugDepth::Overlay));
+                        if(mover.showContact && s->pairInContact)
+                            if(const auto rider=world.ReadBody(s->rider))
+                                ok&=bool(geometry.Line(s->position,rider->centerOfMass,{1,.8f,.2f,1},DebugDepth::Overlay));
+                        if(!ok)return std::unexpected(ScheduleError{FrameStage::BuildRenderFrame,
+                            SubmissionError{"mover debug lines",SubmissionCode::InvalidDraw}});
+                    }
+                }
                 p.input.debugLines = geometry.Lines();
             }
             return {};
@@ -1303,6 +1467,7 @@ void RigidBodySimulationApp::SelectColliderEntity(_Entity entity, bool toggle)
 void RigidBodySimulationApp::SynchronizeEditorSelection()
 {
     Rbs::Editor::Numeric::Reset();
+    m_NumericTransform.reset();
     CancelViewportMarquee();
     ++m_SelectionRevision;
     CancelGroupTransform();

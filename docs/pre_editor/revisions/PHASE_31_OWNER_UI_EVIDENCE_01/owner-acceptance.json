@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "workflow": "pre-editor",
+  "phase": "31",
+  "record_kind": "ACTUAL_OWNER_FINAL_MANUAL_ACCEPTANCE",
+  "recorded_utc": "2026-11-24T06:13:52.818669+00:00",
+  "command": "APPROVE PRE_EDITOR PHASE 31",
+  "decision": "APPROVE PHASE 31",
+  "reported_result": "OWNER FINAL MANUAL ACCEPTANCE: PASS.",
+  "owner_report": "The Owner has completed the manual inspection of the current Phase 31 candidate and accepts the result.",
+  "F_OWNER": "PASS",
+  "source": "Explicit Owner message identifying the current Phase 31 candidate following the numeric Gizmo handoff.",
+  "candidate_binding": {
+    "path": "logs/pre_editor/phase-31/approval-01/candidate-identity.json",
+    "sha256": "3e4d6c5468745596cbd87ec48085444e7f4da7010e9c6ee945df9c8b0fc9bf7d"
+  },
+  "last_handoff_executable": {
+    "path": "bin/Release/RigidBodySimulation/RigidBodySimulation.exe",
+    "sha256": "9d5d56a6657cdf0bd96faf8d6854d139fc4f099443e5c67a78676253ca1b1e53"
+  },
+  "owner_process_executable_sha256": null,
+  "owner_process_count": null,
+  "owner_attempted_physics_steps": null,
+  "binding_note": "The Owner identified the current candidate. The Release identity is verified locally against the handoff. The Owner did not separately report a process hash, counters or individual component observations.",
+  "accepted_scope_from_directive": [
+    "Edit and Simulation mode behavior",
+    "Explicit Start, Pause, Resume, Stop and Reset",
+    "Live read-only Simulation Transform inspection",
+    "Linear, angular and combined impulse interaction",
+    "Mouse and keyboard numeric Gizmo manipulation",
+    "Two-decimal UI presentation, accepted Highlight and UI cleanup"
+  ],
+  "preservation": {
+    "Jolt": "Prior Movers qualification for C31_SINELINE_RIDER_01 retained",
+    "Native": "Experimental for Movers only",
+    "Native_contact_actual": "FAIL",
+    "Native_incremental_heap_actual": "INCOMPLETE"
+  },
+  "approval_authorization": "Existing guarded publication after applicable mandatory technical gates pass.",
+  "row_level_SDL_observation_supplied": false,
+  "owner_reinspection_required": false
+}

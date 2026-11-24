@@ -18,6 +18,15 @@ using namespace ::GEngine::Manager;
 
 namespace
 {
+    // A tool shortcut arms the next numeric gesture without taking input from a mouse drag.
+    constexpr int AwaitKeyboardAxis = -2;
+    constexpr int UniformScaleAxis = static_cast<int>(ImGuizmo::AxisHandle::Uniform);
+
+    bool GizmoNumberPrefix(unsigned c)
+    {
+        return (c >= '0' && c <= '9') || c == '+' || c == '-' || c == '.';
+    }
+
     std::optional<Mat4> GizmoWorldMatrix(_Scene& scene, _Entity entity)
     {
         auto local=scene.GetRenderTransform(entity);
@@ -85,18 +94,46 @@ bool RigidBodySimulationApp::SelectionProtectsAngularTransform() const
 
 bool RigidBodySimulationApp::TransformEditingAllowed() const
 {
-    return !m_CameraPilot && (m_EditorMode==EditorMode::Edit || m_LiveEdit);
+    using State=Rbs::SimulationState;
+    return m_EditorMode==EditorMode::Edit && !m_CameraPilot && !m_SceneRequest && !m_BackendRequest &&
+        (m_SimulationState==State::Ready || m_SimulationState==State::Paused);
 }
 
 void RigidBodySimulationApp::SetEditorMode(EditorMode mode)
 {
     if(m_CameraPilot){m_CameraDiagnostic="Commit or Cancel Pilot before changing Editor mode.";return;}
     if(m_EditorMode==mode)return;
+    if(mode==EditorMode::Simulation &&
+       (m_SimulationState==Rbs::SimulationState::Switching || m_SimulationState==Rbs::SimulationState::Failed))return;
+    if (mode==EditorMode::Simulation && (m_SceneRequest || m_BackendRequest || m_RenameTarget || m_NumericTransform || m_GroupTransform.number.editing ||
+        m_GroupTransform.dirty || m_Angular.dirty || m_SceneDefaultsPending || m_PendingMotor ||
+        (m_JoltSettingsEditor.generation==m_SceneGeneration && (m_JoltSettingsEditor.dirty || m_JoltSettingsEditor.queued)) ||
+        (m_WorldSleepEditor.generation==m_SceneGeneration && (m_WorldSleepEditor.dirty || m_WorldSleepEditor.queued)) ||
+        m_PendingSelection!=m_ActiveSelection || m_PendingBackend!=m_Backend ||
+        (m_Angular.committed && m_PendingAngularVariant!=m_Angular.committed->variant) ||
+        m_GroupTransform.released || m_GroupTransform.pending!=Rbs::Editor::TransformSession::Action::None ||
+        HasPendingObjectProperties() || Rbs::Editor::Numeric::HasError())) {
+        m_SceneDiagnostic=m_PropertyDiagnostic="Finish or revert pending edits before simulating.";
+        return;
+    }
+    if (mode==EditorMode::Edit) {
+        auto* physics=m_ActiveScene?m_ActiveScene->GetPhysicsSystem():nullptr;
+        if (!physics || !physics->GetPhysicsWorld() || physics->GetBackendFailure() ||
+            m_SceneRequest || m_BackendRequest || m_SimulationState==Rbs::SimulationState::Failed ||
+            m_SimulationState==Rbs::SimulationState::Switching || m_Impulse.pending || m_ChainImpulse.Pending()) {
+            m_SceneDiagnostic="Finish the pending operation or recover the world before entering Edit.";
+            return;
+        }
+        // SetPaused collapses presentation history to the last completed live pose.
+        if(m_SimulationState==Rbs::SimulationState::Running) SetSimulationState(Rbs::SimulationState::Paused);
+        Rbs::Editor::Numeric::Reset();
+        m_SceneDiagnostic="Edit mode. The current world is stopped.";
+    } else {
+        m_SceneDiagnostic.clear();
+    }
     // Preserve a released gesture queued for Update; cancel only an active drag.
     CancelGroupTransform();m_EditorMode=mode;
-    if(mode==EditorMode::Edit && m_SimulationState==Rbs::SimulationState::Running)
-        SetSimulationState(Rbs::SimulationState::Paused);
-    m_PropertyDiagnostic="Editor mode changed; completed gestures are retained.";
+    m_PropertyDiagnostic.clear();
 }
 
 void RigidBodySimulationApp::FinishTransformGesture()
@@ -113,7 +150,7 @@ const char* RigidBodySimulationApp::TransformToolDisabled(TransformTool tool) co
     if(m_SceneRequest || m_BackendRequest || m_SimulationState==Rbs::SimulationState::Switching)
         return "Wait for the scene transaction to complete.";
     if(!m_EditorSelection.count)return "Select objects with Transforms.";
-    if(!TransformEditingAllowed())return "Enable Live Edit in Simulation mode, or switch to Edit mode.";
+    if(!TransformEditingAllowed())return "Switch to Edit to transform objects.";
     if(m_EditorSelection.count>::GEngine::EditorTransformBudget::Roots)
         return "Transform exceeds the 4096-root staging budget. Full selection retained; no objects modified.";
     for(std::size_t i=0;i<m_EditorSelection.count;++i)
@@ -129,7 +166,7 @@ const char* RigidBodySimulationApp::TransformToolDisabled(TransformTool tool) co
                 return "Pause and enter Edit mode to stage a ragdoll transform.";
         }
         else if(ProtectsAngularTransform(entity))return "Select one joint endpoint and use Transform in Properties to move the connected pair.";
-        if(entity==m_SkyBoxEntity)return "The sky follows the camera. Its visibility is available in Properties.";
+        if(entity==m_SkyBoxEntity)return "The sky follows the camera. Change its visibility in World Settings.";
         if(entity.HasAllComponents<RenderCameraComponent>() && tool==TransformTool::Scale)
             return "Camera supports Translate and Rotate; use projection properties for size.";
         if(entity.HasAllComponents<RenderLightComponent>()) {
@@ -171,8 +208,17 @@ bool RigidBodySimulationApp::HandleTransformToolShortcut(const InputEvent& event
 {
     // View routing owns admission. Never borrow a hover identity, a text/widget
     // gesture, another window's focus, or an RMB fly/Alt camera gesture.
-    constexpr auto commandModifiers=LeftShift|RightShift|LeftControl|RightControl|
-        LeftAlt|RightAlt|LeftSuper|RightSuper;
+    auto& session=m_GroupTransform;
+    auto& number=session.number;
+    if(number.editing && event.kind==InputKind::KeyDown && event.window==route.window)
+        return true; // The ImGui text field owns Enter, Escape, navigation and text undo.
+    const auto key=event.key;
+    const bool uniformPrefix=number.axis==AwaitKeyboardAxis && m_TransformTool==TransformTool::Scale &&
+        ((key>=GENGINE_KEY_1 && key<=GENGINE_KEY_0) || (key>=GENGINE_KEY_KP_1 && key<=GENGINE_KEY_KP_0) ||
+         key==GENGINE_KEY_MINUS || key==GENGINE_KEY_PERIOD || key==GENGINE_KEY_EQUALS ||
+         key==GENGINE_KEY_KP_PLUS || key==GENGINE_KEY_KP_MINUS || key==GENGINE_KEY_KP_PERIOD);
+    constexpr auto chordModifiers=LeftControl|RightControl|LeftAlt|RightAlt|LeftSuper|RightSuper;
+    const auto commandModifiers=uniformPrefix ? chordModifiers : chordModifiers|LeftShift|RightShift;
     if(!SandboxEnabled() || !m_ActiveScene ||
        event.kind!=InputKind::KeyDown || event.cleanup || event.repeated ||
        (event.modifiers&commandModifiers) || event.window!=route.window ||
@@ -190,7 +236,27 @@ bool RigidBodySimulationApp::HandleTransformToolShortcut(const InputEvent& event
     }
     const auto tool=event.key==GENGINE_KEY_T?TransformTool::Translate:
         event.key==GENGINE_KEY_R?TransformTool::Rotate:event.key==GENGINE_KEY_S?TransformTool::Scale:TransformTool::Select;
-    if(tool!=TransformTool::Select && m_EditorSelection.count)(void)ActivateTransformTool(tool);
+    if(number.axis==AwaitKeyboardAxis) {
+        const int axis=key==GENGINE_KEY_X?0:key==GENGINE_KEY_Y?1:key==GENGINE_KEY_Z?2:-1;
+        const bool armed=ImGui::GetFrameCount()-number.lastDrawFrame<=1;
+        number={};
+        if(key==GENGINE_KEY_ESCAPE)return true;
+        if(armed && (axis>=0 || uniformPrefix) && m_ViewportOwnsSelection && !m_NumericTransform &&
+           !session.released && TransformEditingAllowed() && !TransformToolDisabled(m_TransformTool) &&
+           !RagdollBoneFor(m_HoveredEntity) && session.preview.count && session.preview.generation==m_SceneGeneration) {
+            number.axis=axis>=0?axis:UniformScaleAxis;
+            number.editing=number.focus=true;
+            number.lastDrawFrame=ImGui::GetFrameCount();
+            session.dragOrigin=session.origin;
+            m_ViewPickRequested=m_OutlineToggleRequested=false;
+            return true;
+        }
+    }
+    if(tool!=TransformTool::Select && m_EditorSelection.count && !session.released && !m_NumericTransform &&
+       ActivateTransformTool(tool) && !RagdollBoneFor(m_HoveredEntity) && BeginGroupTransform()) {
+        number.axis=AwaitKeyboardAxis;
+        number.lastDrawFrame=ImGui::GetFrameCount();
+    }
     // Edit keys never fall through to simulation, including with no selection.
     return tool!=TransformTool::Select || event.key==GENGINE_KEY_P;
 }
@@ -199,6 +265,10 @@ void RigidBodySimulationApp::CancelGroupTransform()
 {
     if(m_GroupTransform.released)return; // A completed gesture belongs to the next safe Update.
     if(m_GizmoUsing)m_GizmoCancelled=true;
+    auto& number=m_GroupTransform.number;
+    if(auto* context=ImGui::GetCurrentContext();context && number.fieldId && context->ActiveId==number.fieldId)
+        ImGui::ClearActiveID();
+    number={};
     if(m_ActiveScene)(void)m_ActiveScene->PreviewEditorTransforms({});
     m_GroupTransform.preview.Clear();m_GroupTransform.proposal.Clear();m_GroupTransform.queryPending=false;
     m_GroupTransform.invalid=false;m_GroupTransform.resumeAfterApply=false;m_GroupTransform.live=false;m_GroupTransform.dirty=false;
@@ -295,14 +365,14 @@ void RigidBodySimulationApp::ProcessTransformPreview()
 {
     auto& s=m_GroupTransform;if(!std::exchange(s.queryPending,false))return;
     s.dirty=true;
-    if(s.proposal.generation!=m_SceneGeneration || (!TransformEditingAllowed() && !s.released) || m_SceneRequest || m_BackendRequest) {
+    if(s.proposal.generation!=m_SceneGeneration || !TransformEditingAllowed()) {
         CancelGroupTransform();m_PropertyDiagnostic="Scene/simulation changed; candidate cancelled.";return;
     }
     auto& proposal=s.proposal;auto pivot=s.proposedPivot;
     if(proposal.count==1 && RagdollBoneFor(m_HoveredEntity) &&
        m_ActiveScene->RenderData().Identify(m_HoveredEntity)==proposal.edits[0].entity) {
         s.preview=proposal;s.pivot=pivot;s.invalid=false;
-        m_PropertyDiagnostic="Ragdoll draft preview. Release to stage at Tick 0, then Apply in Properties.";
+        m_PropertyDiagnostic="Release to stage the ragdoll pose. Apply the assembly in World Settings.";
         return;
     }
     if(!ValidateTransformPlacement(proposal,s.placement,&pivot)){s.invalid=true;return;}
@@ -310,7 +380,7 @@ void RigidBodySimulationApp::ProcessTransformPreview()
         s.invalid=true;m_PropertyDiagnostic="Preview identity changed; candidate rejected.";return;
     }
     s.preview=proposal;s.pivot=pivot;s.invalid=false;
-    m_PropertyDiagnostic="Candidate validated. Release commits one gesture; Esc cancels this gesture only.";
+    m_PropertyDiagnostic.clear();
 }
 
 void RigidBodySimulationApp::ProcessGroupTransform()
@@ -319,6 +389,13 @@ void RigidBodySimulationApp::ProcessGroupTransform()
     using Action=Rbs::Editor::TransformSession::Action;
     auto& session=m_GroupTransform;
     if(session.generation!=m_SceneGeneration){CancelGroupTransform();session.Reset(m_SceneGeneration);return;}
+    if (!TransformEditingAllowed()) {
+        if (session.dirty || session.released || session.pending!=Action::None) {
+            session.released=false;
+            CancelGroupTransform();
+        }
+        return;
+    }
     const auto followup=session.released && (session.pending==Action::Undo || session.pending==Action::Redo)?session.pending:Action::None;
     if(followup!=Action::None)session.pending=Action::Apply;
     struct Followup {Rbs::Editor::TransformSession& session;Action action;~Followup(){if(action!=Action::None)session.pending=action;}} follow{session,followup};
@@ -372,8 +449,6 @@ void RigidBodySimulationApp::ProcessGroupTransform()
         } else if(action==Action::Undo)--session.cursor;else ++session.cursor;
         CancelGroupTransform();return;
     }
-    if((m_SimulationState==Rbs::SimulationState::Running && (action!=Action::Apply || !m_LiveEdit)) || m_SceneRequest || m_BackendRequest)
-    {CancelGroupTransform();m_PropertyDiagnostic="Pause to replay physical history; running commits require Live Edit.";return;}
     for(std::size_t i=0;i<batch.count;++i)
     {
         const auto& edit=batch.edits[i];
@@ -384,9 +459,7 @@ void RigidBodySimulationApp::ProcessGroupTransform()
         {m_PropertyDiagnostic="Parent transform changed; atomic group command rejected.";return;}
     }
     if(!ValidateTransformPlacement(batch,{})){if(released)CancelGroupTransform();return;} // Exact final poses; never re-snap Undo/Redo.
-    auto result=m_ActiveScene->ApplyEditorTransforms(batch.Span());
-    if(!result)
-    {m_PropertyDiagnostic="Atomic transform rejected (code "+std::to_string(int(result.error().code))+"); previous gestures retained.";if(released)CancelGroupTransform();return;}
+    if(!ApplyWorkingTransformBatch(batch.Span())) {if(released)CancelGroupTransform();return;}
     for(std::size_t i=0;i<batch.count;++i)
     {
         const auto actual=m_ActiveScene->ReadEditorTransform(batch.edits[i].entity);
@@ -400,9 +473,8 @@ void RigidBodySimulationApp::ProcessGroupTransform()
     }
     else if(action==Action::Undo)--session.cursor;
     else ++session.cursor;
-    const bool resume=action==Action::Apply && session.resumeAfterApply;
-    CancelGroupTransform();if(resume)SetSimulationState(Rbs::SimulationState::Running);
-    m_PropertyDiagnostic="Atomic group transform applied; authoritative readback refreshed. Ctrl+Z undo / Ctrl+Y redo.";
+    CancelGroupTransform();
+    m_PropertyDiagnostic.clear();
 }
 
 void RigidBodySimulationApp::DrawGroupTransformActions()
@@ -428,6 +500,7 @@ void RigidBodySimulationApp::DrawGroupTransformActions()
         if(ImGui::IsMouseHoveringRect(p,end)){m_ViewportOverlayInteracting=true;m_ViewPickRequested=false;}
         ImGui::SetCursorScreenPos(saved);return;
     }
+    if(session.number.editing){DrawGizmoNumber();return;}
     if(!session.dirty || session.preview.kind!=E::TransformBatch::Kind::Transform)return;
     const auto saved=ImGui::GetCursorScreenPos();const float width=std::min(E::Px(480),m_ViewportBounds[1].x-m_ViewportBounds[0].x-E::Px(28));
     if(width<E::Px(80))return;
@@ -435,7 +508,8 @@ void RigidBodySimulationApp::DrawGroupTransformActions()
     const ImVec2 p{(m_ViewportBounds[0].x+m_ViewportBounds[1].x-width)*.5f,m_ViewportBounds[1].y-height-E::Px(14)};
     ImGui::GetWindowDrawList()->AddRectFilled(p,{p.x+width,p.y+height},IM_COL32(24,29,37,245),E::Px(6));
     ImGui::SetCursorScreenPos({p.x+E::Px(10),p.y+E::Px(7)});
-    ImGui::Text("%zu roots | Release to commit | Esc cancels",session.preview.count);
+    ImGui::Text("%zu roots | %s | Esc cancels",session.preview.count,
+        session.number.axis>=0 && !RagdollBoneFor(m_HoveredEntity) ? "Type a value or release to commit" : "Release to commit");
     ImGui::SetCursorScreenPos({p.x+E::Px(10),p.y+E::Px(32)});ImGui::PushTextWrapPos(ImGui::GetCursorPosX()+width-E::Px(20));
     if(session.invalid)ImGui::PushStyleColor(ImGuiCol_Text,E::Color(0xF08A8A));
     ImGui::TextWrapped("%s",m_PropertyDiagnostic.c_str());if(session.invalid)ImGui::PopStyleColor();ImGui::PopTextWrapPos();
@@ -452,7 +526,7 @@ void RigidBodySimulationApp::QueueTransformEdit(TransformTool tool, const Math::
     if(ProtectsAngularTransform(m_HoveredEntity) || m_HoveredEntity==m_SkyBoxEntity)
     {m_PropertyDiagnostic="Use the selected object's supported Properties controls.";return;}
     if(!TransformEditingAllowed() || m_SimulationState==Rbs::SimulationState::Running) {
-        m_PropertyDiagnostic="Use a Live Edit gizmo while running; pause for numeric Transform fields.";return;
+        m_PropertyDiagnostic="Return to Edit to author transforms.";return;
     }
     const auto binding=m_ActiveScene->GetBodyBinding(m_HoveredEntity);
     m_TransformEdit=TransformEdit{tool,m_HoveredEntity,binding?*binding:PhysicsBodyHandle{},value,m_SceneGeneration};
@@ -566,7 +640,7 @@ void RigidBodySimulationApp::DrawViewportOverlay()
     const auto restore=ImGui::GetCursorScreenPos();
     const auto min=m_ViewportBounds[0],max=m_ViewportBounds[1];
     const float pad=E::Px(4),gap=E::Px(2),hit=E::Px(E::IconHitPixels),margin=E::Px(10);
-    const float fullLeft=pad*2+9.3f*hit+6*gap,fullCenter=pad*2+3*hit+4*gap+E::Px(174),rightWidth=pad*2+hit;
+    const float fullLeft=pad*2+9.3f*hit+6*gap,fullCenter=pad*2+3*hit+3*gap+E::Px(92),rightWidth=pad*2+hit;
     const float height=pad*2+hit;
     const float availableWidth=max.x-min.x;
     const bool compact=availableWidth<fullLeft+fullCenter+rightWidth+4*margin;
@@ -605,8 +679,10 @@ void RigidBodySimulationApp::DrawViewportOverlay()
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,{gap,gap});
     group(min.x+margin,rowY,leftWidth);
     constexpr const char* names[]{"Select","Translate","Rotate","Scale"};
-    constexpr const char* tips[]{"Select objects | Ctrl+click toggles selection", "Translate selected objects (T) | shared/individual pivot; World/Local axes",
-        "Rotate selected objects (R) | shared/individual pivot; World/Local axes", "Uniformly scale selected objects (S) | shared/individual pivot; World/Local axes"};
+    constexpr const char* tips[]{"Select objects | Ctrl+click toggles selection",
+        "Translate: T, then X/Y/Z and metres. You can also click or drag an arrow.",
+        "Rotate: R, then X/Y/Z and degrees. You can also click or drag a ring.",
+        "Scale: S and a factor for uniform scale, or S, X/Y/Z and a factor for one axis. Drag for uniform scale."};
     for(int i=0;!toolMenu && i<4;++i)
     {
         if(i)ImGui::SameLine();
@@ -627,11 +703,12 @@ void RigidBodySimulationApp::DrawViewportOverlay()
             ImGui::EndPopup();
         }
     }
-    const bool connectedSelection=SelectionProtectsAngularTransform();
+    const bool editing=TransformEditingAllowed();
+    const bool connectedSelection=editing && SelectionProtectsAngularTransform();
     const char* pivotNames[]{"Center","Pivot","Individual Origins"};
     if(!compact) {
     ImGui::SameLine();
-    ImGui::BeginDisabled(connectedSelection);
+    ImGui::BeginDisabled(!editing || connectedSelection);
     if(E::Snap.grid || E::Snap.surface || E::Snap.resolve)ImGui::PushStyleColor(ImGuiCol_Button,E::Color(0x284B70));
     if(ImGui::Button("Snap",{hit*1.5f,hit})) {ImGui::OpenPopup("ViewportSnapOptions");SetViewportActive(true,false);m_ViewportOverlayInteracting=true;}
     if(E::Snap.grid || E::Snap.surface || E::Snap.resolve)ImGui::PopStyleColor();
@@ -647,45 +724,40 @@ void RigidBodySimulationApp::DrawViewportOverlay()
     group(centerX,rowY,centerWidth);
     const bool available=!m_CameraPilot && !m_SceneRequest && !m_BackendRequest && m_SimulationState!=State::Switching;
     const bool editMode=m_EditorMode==EditorMode::Edit;
+    const auto switchMode=[&] {
+        SetEditorMode(editMode?EditorMode::Simulation:EditorMode::Edit);
+    };
     if(!modeInMenu) {
-    const bool modeClicked=ImGui::Button(editMode?"Edit":compact?"Sim":"Simulation",{modeWidth,hit});
+        ImGui::BeginDisabled(!available);
+        const bool modeClicked=ImGui::Button(editMode?"Edit":compact?"Sim":"Simulation",{modeWidth,hit});
 #ifdef GENGINE_PHASE28_QUALIFICATION
-    Rbs::Phase28AngularWidget(*this,"mode-toggle");
+        Rbs::Phase28AngularWidget(*this,"mode-toggle");
 #endif
-    if(modeClicked) {
-        SetEditorMode(editMode?EditorMode::Simulation:EditorMode::Edit);SetViewportActive(true,false);m_ViewportRequestFocus=false;m_ViewportOverlayInteracting=true;
-    }
-    if(ImGui::IsItemHovered())ImGui::SetTooltip("Mode: Edit pauses physics; T/R/S select tools. Simulation: S Start, P Pause, R Resume; select tools with the toolbar.");
-    ImGui::SameLine();
-    }
-    if(!compact) {
-    ImGui::BeginDisabled(editMode || connectedSelection);
-    if(ImGui::Button(m_LiveEdit?"Live ON":"Live OFF",{E::Px(78),hit})) {CancelGroupTransform();m_LiveEdit=!m_LiveEdit;SetViewportActive(true,false);m_ViewportRequestFocus=false;m_ViewportOverlayInteracting=true;}
-    ImGui::EndDisabled();ImGui::SameLine();
-    }
-    if(!compact) {
-    if(button("Play",E::Icon::Play,m_SimulationState==State::Running,available&&!editMode&&m_SimulationState==State::Ready,
-        "Start simulation (S in Simulation mode)"))SetSimulationState(State::Running);
-    ImGui::SameLine();
-    const bool paused=m_SimulationState==State::Paused;
-    if(button("PauseResume",paused?E::Icon::Play:E::Icon::Pause,paused,available&&!editMode&&(paused||m_SimulationState==State::Running),
-        paused?"Resume simulation (R in Simulation mode)":"Pause simulation (P in Simulation mode)"))SetSimulationState(paused?State::Running:State::Paused);
-    } else {
-        const bool running=m_SimulationState==State::Running;
-        if(button("StartPauseResume",running?E::Icon::Pause:E::Icon::Play,running,
-            available && (m_SimulationState==State::Ready || m_SimulationState==State::Paused || running),
-            running?"Pause simulation":"Start / Resume simulation; enters Simulation mode")) {
-            if(!running)SetEditorMode(EditorMode::Simulation);
-            SetSimulationState(running?State::Paused:State::Running);
+        if(modeClicked) {
+            switchMode();SetViewportActive(true,false);m_ViewportRequestFocus=false;m_ViewportOverlayInteracting=true;
         }
+        if(ImGui::IsItemHovered())ImGui::SetTooltip("%s",editMode?"Inspect in Simulation mode. Playback stays stopped.":"Return to Edit at the current pose.");
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+    }
+    const bool running=m_SimulationState==State::Running;
+    const bool paused=m_SimulationState==State::Paused;
+    const bool canPlay=available && !editMode && (running || paused || m_SimulationState==State::Ready);
+    const bool canStop=available && !editMode && (running || paused);
+    if(button("StartPauseResume",running?E::Icon::Pause:E::Icon::Play,running,canPlay,
+        editMode?"Switch to Simulation mode to play":running?"Pause simulation (P)":paused?"Resume from the current pose (R)":"Start simulation (S)"))
+        SetSimulationState(running?State::Paused:State::Running);
+    if(!compact) {
+        ImGui::SameLine();
+        if(button("Stop",E::Icon::Stop,false,canStop,"Stop playback at the current pose"))SetSimulationState(State::Ready);
     }
     ImGui::SameLine();
-    if(button("Reset",E::Icon::Reset,false,available,"Reset current scene to authored state at Tick 0"))RequestScene(m_ActiveSelection);
+    if(button("Reset",E::Icon::Reset,false,available,"Reset to the authored starting state"))RequestScene(m_ActiveSelection);
 #ifdef GENGINE_PHASE28_QUALIFICATION
     Rbs::Phase28AngularWidget(*this,"general-reset");
 #endif
     group(rightX,rowY,rightWidth);
-    if(button("DisplayOptions",E::Icon::Options,ImGui::IsPopupOpen("ViewportDisplayOptions"),true,compact?"More: mode, snapping, pivot, axes, Live Edit, cameras and display":"Viewport display options"))ImGui::OpenPopup("ViewportDisplayOptions");
+    if(button("DisplayOptions",E::Icon::Options,ImGui::IsPopupOpen("ViewportDisplayOptions"),true,"Viewport options"))ImGui::OpenPopup("ViewportDisplayOptions");
     ImGui::PopStyleVar(); // Icon gaps must not compress menu labels/shortcuts.
     const bool wasPopup=m_ViewportPopupOpen;
     bool openSnap=false;
@@ -693,23 +765,23 @@ void RigidBodySimulationApp::DrawViewportOverlay()
     if(m_ViewportPopupOpen)
     {
         if(compact) {
-            if(ImGui::MenuItem(editMode?"Switch to Simulation mode":"Switch to Edit mode"))SetEditorMode(editMode?EditorMode::Simulation:EditorMode::Edit);
-            ImGui::BeginDisabled(connectedSelection);
+            if(modeInMenu && ImGui::MenuItem(editMode?"Switch to Simulation mode":"Return to Edit",nullptr,false,available))switchMode();
+            if(ImGui::MenuItem("Stop playback",nullptr,false,canStop))SetSimulationState(State::Ready);
+            ImGui::BeginDisabled(!editing || connectedSelection);
             if(ImGui::MenuItem("Snap settings...")){openSnap=true;ImGui::CloseCurrentPopup();}
             if(ImGui::BeginMenu("Transform pivot")){for(int i=0;i<3;++i)if(ImGui::MenuItem(pivotNames[i],nullptr,E::TransformPivot==i)){CancelGroupTransform();E::TransformPivot=i;ImGui::MarkIniSettingsDirty();}ImGui::EndMenu();}
             if(ImGui::MenuItem(E::TransformOrientation?"Use World axes":"Use Local axes")){CancelGroupTransform();E::TransformOrientation=1-E::TransformOrientation;ImGui::MarkIniSettingsDirty();}
-            if(ImGui::MenuItem("Live Edit",nullptr,m_LiveEdit,!editMode)){CancelGroupTransform();m_LiveEdit=!m_LiveEdit;}
             ImGui::EndDisabled();ImGui::Separator();
         }
         if(ImGui::MenuItem("Select Through",nullptr,&E::SelectThrough))ImGui::MarkIniSettingsDirty();
         E::Tooltip("Marquee: select occluded geometry too. Default OFF uses visible raster coverage. Drag over objects or empty space; Shift adds, Ctrl toggles, Esc cancels.");
         bool grid=m_GridVisibilityEdit.value_or(m_GridEntity && m_GridEntity.GetComponent<VisibilityComponent>().enabled);
-        if(ImGui::MenuItem("Grid",nullptr,&grid)){m_GridVisibilityEdit=grid;E::Snap.visible=grid;ImGui::MarkIniSettingsDirty();}
+        if(ImGui::MenuItem("Grid",nullptr,&grid,editing)){m_GridVisibilityEdit=grid;E::Snap.visible=grid;ImGui::MarkIniSettingsDirty();}
         ImGui::MenuItem("Selected collider outlines",nullptr,&m_ShowSelectedColliderOutlines);
         ImGui::MenuItem("Physics debug (all bodies)","Space",&m_IsShowDebugBoundingBox);
-        ImGui::MenuItem("Gizmo",nullptr,&m_ShowGizmo,!connectedSelection);
+        ImGui::MenuItem("Gizmo",nullptr,&m_ShowGizmo,editing && !connectedSelection);
         if(connectedSelection)E::Tooltip("Use Properties to transform the joint endpoints together.");
-        ImGui::MenuItem("Impulse direction arrows",nullptr,&m_Impulse.showArrows);
+        if(!editMode)ImGui::MenuItem("Impulse direction arrows",nullptr,&m_Impulse.showArrows);
         bool changed=ImGui::MenuItem("Scene icons",nullptr,&E::SceneIcons);
         ImGui::SetNextItemWidth(E::Px(220));
         changed|=E::Numeric::Scalar("Scene Icon Size",E::SceneIconPercent,1.f,E::Numeric::Bounds<int>{75,200},E::Numeric::Accept{},true,"%d%%");
@@ -738,6 +810,7 @@ void RigidBodySimulationApp::DrawViewportOverlay()
     if(openSnap)ImGui::OpenPopup("ViewportSnapOptions");
     const bool snapPopup=ImGui::BeginPopup("ViewportSnapOptions");
     if(snapPopup) {
+        ImGui::BeginDisabled(!editing);
         bool grid=m_GridVisibilityEdit.value_or(m_GridEntity && m_GridEntity.GetComponent<VisibilityComponent>().enabled);
         if(ImGui::MenuItem("Grid visible",nullptr,&grid)){m_GridVisibilityEdit=grid;E::Snap.visible=grid;ImGui::MarkIniSettingsDirty();}
         bool changed=ImGui::Checkbox("Grid Snap",&E::Snap.grid);
@@ -751,12 +824,11 @@ void RigidBodySimulationApp::DrawViewportOverlay()
         ImGui::BeginDisabled(!jolt && !E::Snap.resolve);changed|=ImGui::Checkbox("Auto Resolve Penetration",&E::Snap.resolve);ImGui::EndDisabled();
         ImGui::SetNextItemWidth(E::Px(160));changed|=E::Numeric::Scalar("Maximum correction (m)",E::Snap.distance,.1f,E::Numeric::Positive<float>());
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX()+E::Px(300));
-        ImGui::TextWrapped("Changing these settings cancels an uncommitted preview. Drag the gizmo toward a collider. Surface contact overrides the grid along its normal. Local +Y aligns only when enabled. Mouse release rechecks and commits the complete group.");
-        if(!jolt)ImGui::TextWrapped("Native: Grid and pose editing use actual collider clearance. Saved Surface/Auto Resolve preferences are inactive on Native; surface casts and automatic correction are unavailable.");
+        E::Tooltip("Surface contact overrides grid snapping along the normal. Changing a setting cancels the preview.");
+        if(!jolt)ImGui::TextWrapped("Native supports grid snapping and clearance checks. Surface Snap and Auto Resolve are unavailable.");
         ImGui::PopTextWrapPos();
-        if(m_SimulationState==State::Running && ImGui::Button("Pause for safe editing"))SetSimulationState(State::Paused);
         if(changed){CancelGroupTransform();ImGui::MarkIniSettingsDirty();}
-        ImGui::EndPopup();
+        ImGui::EndDisabled();ImGui::EndPopup();
     }
     const bool pivotPopup=ImGui::BeginPopup("TransformPivotOptions");
     if(pivotPopup) {for(int i=0;i<3;++i)if(ImGui::MenuItem(pivotNames[i],nullptr,E::TransformPivot==i)) {
@@ -771,12 +843,18 @@ bool RigidBodySimulationApp::StageGroupTransform(const Mat4& matrix,float unifor
 {
     auto& session=m_GroupTransform;
     const auto delta=matrix*glm::inverse(session.origin);
+    const int axis=session.number.axis;
+    const bool axisScale=m_TransformTool==TransformTool::Scale && session.number.editing && axis>=0 && axis<3;
+    const bool individualLocal=Rbs::Editor::TransformPivot==2 && Rbs::Editor::TransformOrientation==1;
     auto& proposal=session.proposal;proposal=session.preview;
     for(std::size_t i=0;i<proposal.count;++i)
     {
         Mat4 world=delta*session.world[i];
         if(Rbs::Editor::TransformPivot==2 && m_TransformTool!=TransformTool::Translate) {
-            if(m_TransformTool==TransformTool::Rotate && Rbs::Editor::TransformOrientation) {
+            if(axisScale && individualLocal) {
+                world=session.world[i];
+                world[axis]*=uniformFactor;
+            } else if(m_TransformTool==TransformTool::Rotate && Rbs::Editor::TransformOrientation) {
                 // Individual Local axes rotate each root about its own orientation.
                 const glm::mat3 localRotation=glm::mat3(glm::inverse(session.origin)*matrix);
                 const auto& w=session.world[i];const Vec3f lengths{glm::length(Vec3f(w[0])),glm::length(Vec3f(w[1])),glm::length(Vec3f(w[2]))};
@@ -788,16 +866,163 @@ bool RigidBodySimulationApp::StageGroupTransform(const Mat4& matrix,float unifor
         const auto local=glm::inverse(session.parentWorld[i])*world;
         auto& v=proposal.edits[i].after;v.translation=Vec3f(local[3]);
         v.scale={glm::length(Vec3f(local[0])),glm::length(Vec3f(local[1])),glm::length(Vec3f(local[2]))};
-        if(v.scale.x<=0 || v.scale.y<=0 || v.scale.z<=0){session.invalid=true;return false;}
+        if(!Math::IsFinite(v.translation) || !Math::IsFinite(v.scale) || glm::any(glm::lessThanEqual(v.scale,Vec3f(0)))) {
+            session.invalid=true;m_PropertyDiagnostic="The Transform exceeds the supported range or has singular scale.";return false;
+        }
         const glm::mat3 basis{Vec3f(local[0])/v.scale.x,Vec3f(local[1])/v.scale.y,Vec3f(local[2])/v.scale.z};
         if(std::abs(glm::dot(basis[0],basis[1]))>1e-4f || std::abs(glm::dot(basis[0],basis[2]))>1e-4f || std::abs(glm::dot(basis[1],basis[2]))>1e-4f)
         {m_PropertyDiagnostic="Transform would introduce shear; previous preview retained.";session.invalid=true;return false;}
         v.rotation=glm::normalize(glm::quat_cast(basis));
-        // Translation/rotation must not round-trip unchanged collider scale.
-        v.scale=proposal.edits[i].before.scale*(m_TransformTool==TransformTool::Scale?uniformFactor:1.f);
-        if(m_TransformTool==TransformTool::Translate)v.rotation=proposal.edits[i].before.rotation;
+        // A world-axis resize can change a different local dimension on a rotated root.
+        // The decomposed scale above is usable only after the shear check.
+        const auto& before=proposal.edits[i].before;
+        if(!axisScale)
+            v.scale=before.scale*(m_TransformTool==TransformTool::Scale?uniformFactor:1.f);
+        else if(individualLocal || (proposal.count==1 && Rbs::Editor::TransformOrientation==1 &&
+                                     m_EditorSelection.count==1)) {
+            v.scale=before.scale;
+            v.scale[axis]*=uniformFactor;
+        }
+        if(m_TransformTool==TransformTool::Translate || axisScale)v.rotation=before.rotation;
+        if(!Math::IsFinite(v.rotation) || !Math::IsFinite(v.scale) || glm::any(glm::lessThanEqual(v.scale,Vec3f(0)))) {
+            session.invalid=true;m_PropertyDiagnostic="The resulting rotation or scale cannot be represented.";return false;
+        }
     }
     session.proposedPivot=matrix;session.queryPending=true;session.dirty=true;return true;
+}
+
+bool RigidBodySimulationApp::StageGizmoNumber(float value)
+{
+    auto& session=m_GroupTransform;
+    auto matrix=session.dragOrigin;
+    const int axis=session.number.axis;
+    const bool scale=m_TransformTool==TransformTool::Scale;
+    if(scale) {
+        if(axis==UniformScaleAxis)for(int i=0;i<3;++i)matrix[i]*=value;
+        else if(axis>=0 && axis<3)matrix[axis]*=value;
+        else return false;
+    } else {
+        if(axis<0 || axis>2)return false;
+        const auto direction=glm::normalize(Vec3f(session.dragOrigin[axis]));
+        if(m_TransformTool==TransformTool::Translate)matrix[3]+=glm::vec4(direction*value,0);
+        else {
+            const auto rotation=glm::angleAxis(glm::radians(std::remainder(value,360.f)),direction);
+            for(int i=0;i<3;++i)matrix[i]=glm::vec4(rotation*Vec3f(session.dragOrigin[i]),0);
+        }
+    }
+    for(int i=0;i<4;++i)if(!Math::IsFinite(matrix[i])) {
+        m_PropertyDiagnostic="The requested Transform is outside the representable range.";
+        return false;
+    }
+    // StageGroupTransform applies the original root/parent matrices and the existing pivot policy.
+    // Exact typed deltas bypass grid quantization. Explicit collision placement uses the usual query.
+    return StageGroupTransform(matrix,scale?value:1.f) && SetNumericPlacement(m_TransformTool,Vec3f(matrix[3]));
+}
+
+void RigidBodySimulationApp::DrawGizmoNumber()
+{
+    namespace E=Rbs::Editor;
+    auto& session=m_GroupTransform;
+    auto& number=session.number;
+    const bool scale=m_TransformTool==TransformTool::Scale;
+    const auto& io=ImGui::GetIO();
+    if(!number.focus && ImGui::GetCurrentContext()->ActiveId==number.fieldId &&
+       !io.KeyCtrl && !io.KeyAlt && !io.KeySuper && !io.KeyShift) {
+        const int axis=ImGui::IsKeyPressed(ImGuiKey_X,false)?0:ImGui::IsKeyPressed(ImGuiKey_Y,false)?1:
+                       ImGui::IsKeyPressed(ImGuiKey_Z,false)?2:-1;
+        if(axis>=0 && axis!=number.axis) {
+            number.axis=axis;
+            number.staged.reset(); // Re-evaluate the same text against the original pose.
+        }
+    }
+    const float padding=E::Px(7);
+    const float width=std::min(E::Px(260),m_ViewportBounds[1].x-m_ViewportBounds[0].x-4*padding);
+    if(width<ImGui::GetFrameHeight()){CancelGroupTransform();return;}
+
+    const char* detail=number.error ? number.error : session.invalid ? m_PropertyDiagnostic.c_str() : nullptr;
+    const float innerWidth=width-2*padding;
+    const float detailHeight=detail ? ImGui::CalcTextSize(detail,nullptr,false,innerWidth).y+ImGui::GetStyle().ItemSpacing.y : 0.f;
+    const float height=2*padding+ImGui::GetTextLineHeightWithSpacing()+ImGui::GetFrameHeight()+detailHeight;
+    const ImVec2 pos{m_ViewportBounds[0].x+padding,m_ViewportBounds[1].y-height-padding};
+    const ImVec2 end{pos.x+width,pos.y+height};
+    const auto origin=ImGui::GetMainViewport()->Pos;
+    (void)GetInputManager()->AddUIRegion({pos.x-origin.x,pos.y-origin.y,end.x-origin.x,end.y-origin.y});
+    const auto restore=ImGui::GetCursorScreenPos();
+    ImGui::GetWindowDrawList()->AddRectFilled(pos,end,ImGui::GetColorU32(E::Color(0x181D25,.96f)),E::Px(5));
+    ImGui::SetCursorScreenPos({pos.x+padding,pos.y+padding});
+    if(scale && number.axis==UniformScaleAxis)ImGui::TextUnformatted("Uniform scale factor");
+    else if(scale)ImGui::Text("Scale %c (factor)",'X'+number.axis);
+    else ImGui::Text("%s %c (%s)",m_TransformTool==TransformTool::Translate?"Move":"Rotate",'X'+number.axis,
+                     m_TransformTool==TransformTool::Translate?"m":"deg");
+    ImGui::SetCursorScreenPos({pos.x+padding,pos.y+padding+ImGui::GetTextLineHeightWithSpacing()});
+    ImGui::SetNextItemWidth(innerWidth);
+    const bool focusing=std::exchange(number.focus,false);
+    // SDL starts text input at input-manager initialization. ImGui discards queued text on
+    // programmatic focus, so transfer this frame once, skipping tool/axis letters queued before it.
+    if(focusing && !number.text[0] && !number.error && !io.KeyCtrl && !io.KeyAlt && !io.KeySuper) {
+        const auto& chars=io.InputQueueCharacters;
+        int first=0;
+        while(first<chars.Size && !GizmoNumberPrefix(chars[first]))++first;
+        const auto count=static_cast<std::size_t>(chars.Size-first);
+        if(count>=number.text.size())number.error="The number is too long.";
+        else {
+            for(std::size_t i=0;i<count;++i) {
+                const auto c=chars[first+static_cast<int>(i)];
+                number.text[i]=c<128?static_cast<char>(c):'?';
+            }
+            number.text[count]=0;
+        }
+    }
+    number.fieldId=ImGui::GetID("##GizmoRelativeValue");
+    if(focusing)ImGui::GetCurrentContext()->NavActivateInputId=number.fieldId;
+    const bool escape=ImGui::IsKeyPressed(ImGuiKey_Escape,false);
+    const bool submitted=ImGui::InputTextWithHint("##GizmoRelativeValue",scale?"1.00":"0.00",number.text.data(),number.text.size(),
+        ImGuiInputTextFlags_CharsScientific|ImGuiInputTextFlags_EnterReturnsTrue);
+    // ImGui defers Enter on the activation frame. A quick complete key sequence also owns that Enter.
+    const bool enter=submitted || (focusing && !io.KeyCtrl && !io.KeyAlt && !io.KeySuper &&
+        (ImGui::IsKeyPressed(ImGuiKey_Enter,false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter,false)));
+    if(focusing && !number.staged && number.text[0] && !number.error) {
+        // When typing takes over a drag, keep its first characters and append the next keystroke.
+        // A stationary click begins with an empty field, so no default text needs replacing.
+        if(auto* state=ImGui::GetInputTextState(number.fieldId)) {
+            state->Stb.cursor=state->CurLenW;state->ClearSelection();
+        }
+    }
+    const bool active=ImGui::IsItemActive();
+    E::Tooltip("Enter commits one Transform. Escape cancels. Surface Snap and Auto Resolve apply when enabled.");
+    if(detail) {
+        ImGui::SetCursorScreenPos({pos.x+padding,pos.y+padding+ImGui::GetTextLineHeightWithSpacing()+
+            ImGui::GetFrameHeight()+ImGui::GetStyle().ItemSpacing.y});
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX()+innerWidth);
+        ImGui::TextColored(E::Color(0xF08A8A),"%s",detail);ImGui::PopTextWrapPos();
+    }
+    ImGui::SetCursorScreenPos(restore);
+    number.lastDrawFrame=ImGui::GetFrameCount();
+    if(escape || (!active && !enter)) {CancelGroupTransform();return;}
+
+    float value{};
+    const char* error=E::Numeric::Parse(std::string_view(number.text.data()),value,
+        scale ? E::Numeric::Positive<float>() : E::Numeric::Bounds<float>{});
+    if(error) {
+        if(enter){number.error=error;number.focus=true;}
+        return;
+    }
+    number.error=nullptr;
+    const bool neutral=value==(scale?1.f:0.f);
+    if(number.staged!=value) {
+        number.staged=value;
+        if((!neutral || session.dirty) && !StageGizmoNumber(value)) {
+            session.queryPending=false;session.invalid=true;
+        }
+    }
+    if(!enter)return;
+    if(neutral){CancelGroupTransform();return;}
+    if(session.invalid && !session.queryPending){number.focus=true;return;}
+    if(ImGui::GetCurrentContext()->ActiveId==number.fieldId)ImGui::ClearActiveID();
+    number={};
+    m_GizmoCancelled=ImGui::IsMouseDown(0);
+    m_DirectTransformReleased=true;
+    FinishTransformGesture();
 }
 
 void RigidBodySimulationApp::DrawViewportGizmo()
@@ -809,8 +1034,20 @@ void RigidBodySimulationApp::DrawViewportGizmo()
         if(ImGui::IsMouseDown(0))return;
         m_GizmoCancelled=false;
     }
+    auto& number=m_GroupTransform.number;
+    if(number.axis==AwaitKeyboardAxis) {
+        const auto& io=ImGui::GetIO();
+        if(!m_ViewportOwnsSelection || !m_ViewportActive || !m_ViewportForcused || m_ViewportPopupOpen ||
+           io.AppFocusLost || io.WantTextInput || ImGui::GetCurrentContext()->ActiveId || ImGui::IsAnyMouseDown() ||
+           GetInputManager()->PointerCapture()!=InputLayer::None || ImGui::GetFrameCount()-number.lastDrawFrame>1)
+            number={};
+        else number.lastDrawFrame=ImGui::GetFrameCount();
+    }
     if(!m_ViewportOwnsSelection || m_ViewportActivationButtons || m_Marquee.armed || m_Marquee.waiting || !m_ShowGizmo || m_TransformTool==TransformTool::Select || !m_CameraSnapshot || TransformToolDisabled(m_TransformTool))
-    {ImGuizmo::Enable(false);return;}
+    {
+        if(m_GroupTransform.number.editing)CancelGroupTransform();
+        ImGuizmo::Enable(false);return;
+    }
     if(m_GroupTransform.released)return;
     const auto ragdollBone=RagdollBoneFor(m_HoveredEntity);
     if(ragdollBone && !m_GroupTransform.dirty && !ImGuizmo::IsUsing() && m_GroupTransform.preview.count) {
@@ -822,7 +1059,7 @@ void RigidBodySimulationApp::DrawViewportGizmo()
     if(!m_GroupTransform.dirty && !ImGuizmo::IsUsing() && m_GroupTransform.previewTick!=m_ActiveScene->GetPhysicsSystem()->GetCompletedSteps())CancelGroupTransform();
     if(!BeginGroupTransform())return;
     auto& session=m_GroupTransform;
-    auto matrix=session.gizmo;
+    auto matrix=number.editing?session.pivot:session.gizmo;
     ImGuizmo::SetDrawlist(ImGui::GetWindowDrawList()); // Existing Viewport; no helper window.
     ImGuizmo::SetID(int(static_cast<entt::entity>(m_HoveredEntity)));
     ImGuizmo::SetRect(m_ViewportBounds[0].x,m_ViewportBounds[0].y,
@@ -831,7 +1068,11 @@ void RigidBodySimulationApp::DrawViewportGizmo()
     // Scale the screen-space gizmo to the selected UI scale, not the camera distance.
     ImGuizmo::SetGizmoSizeClipSpace(.12f*Rbs::Editor::Scale);
     const auto& io=ImGui::GetIO();
-    const bool enabled=!io.KeyAlt && !ImGui::GetCurrentContext()->DragDropActive && !m_ViewportPopupOpen &&
+    if(number.editing && (!m_ViewportForcused || io.AppFocusLost || m_ViewportPopupOpen ||
+        GetInputManager()->PointerCapture()==InputLayer::View)) {
+        CancelGroupTransform();ImGuizmo::Enable(false);return;
+    }
+    const bool enabled=!number.editing && !m_NumericTransform && !io.KeyAlt && !ImGui::GetCurrentContext()->DragDropActive && !m_ViewportPopupOpen &&
         GetInputManager()->PointerCapture()!=InputLayer::View && (ImGuizmo::IsUsing() || !m_ViewportOverlayInteracting);
     ImGuizmo::Enable(enabled);
     const auto operation=m_TransformTool==TransformTool::Translate?ImGuizmo::TRANSLATE:
@@ -840,7 +1081,14 @@ void RigidBodySimulationApp::DrawViewportGizmo()
     const bool changed=ImGuizmo::Manipulate(glm::value_ptr(m_CameraSnapshot->View()),
         glm::value_ptr(m_CameraSnapshot->Projection()),operation,Rbs::Editor::TransformOrientation?ImGuizmo::LOCAL:ImGuizmo::WORLD,glm::value_ptr(matrix));
     m_GizmoHovered=enabled&&ImGuizmo::IsOver();m_GizmoUsing=enabled&&ImGuizmo::IsUsing();
-    if(m_GizmoUsing && !wasUsing){session.dragOrigin=session.pivot;session.live=m_SimulationState==Rbs::SimulationState::Running;}
+    if(number.editing) {
+        m_GizmoUsing=true;m_ViewPickRequested=false;
+        return; // The passive gizmo is drawn at the last validated preview.
+    }
+    if(m_GizmoUsing && !wasUsing) {
+        session.dragOrigin=session.pivot;
+        number.axis=static_cast<int>(ImGuizmo::GetActiveAxis());
+    }
     if(m_GizmoUsing){SetViewportActive(true,false);m_ViewportRequestFocus=false;}
     if(m_GizmoHovered || m_GizmoUsing)
     {
@@ -851,6 +1099,20 @@ void RigidBodySimulationApp::DrawViewportGizmo()
         if(auto result=GetInputManager()->AddUIRegion({x-4,y-4,x+4,y+4});!result)
             Log::GetCoreLogger()->error("Gizmo input region rejected: {}",int(result.error()));
         m_ViewPickRequested=false;
+    }
+    if(enabled && !ragdollBone && number.axis>=0 && (m_GizmoUsing || wasUsing)) {
+        const bool click=wasUsing && !m_GizmoUsing && io.MouseReleased[0] && io.MouseDragMaxDistanceSqr[0]==0.f &&
+            io.MousePos.x==io.MouseClickedPos[0].x && io.MousePos.y==io.MouseClickedPos[0].y;
+        const auto& chars=io.InputQueueCharacters;
+        const auto first=chars.empty()?0:chars[0];
+        const bool typing=!io.KeyCtrl && !io.KeyAlt && !io.KeySuper && GizmoNumberPrefix(first);
+        if(click || typing) {
+            number.editing=number.focus=true;
+            number.lastDrawFrame=ImGui::GetFrameCount();
+            ImGuizmo::Enable(false);
+            m_GizmoUsing=true;m_ViewPickRequested=m_OutlineToggleRequested=false;
+            return; // The mouse release can no longer submit this gesture.
+        }
     }
     if(wasUsing && !m_GizmoUsing)FinishTransformGesture();
     if(!changed){if(!m_GizmoUsing)session.gizmo=session.pivot;return;}
@@ -952,7 +1214,7 @@ void RigidBodySimulationApp::DrawComponentOverlays()
             if(m_Ragdoll.showLimits && pixel) {
                 const bool hinge=d.kind==JointKind::Hinge;
                 const auto label=!d.angular.limitsEnabled?std::string("Free"):
-                    std::format("{} {:.3g} / {:.3g} deg",hinge?"Hinge":"CV U/V",
+                    E::DecimalText("{} {:.2f} / {:.2f} deg",hinge?"Hinge":"CV U/V",
                         glm::degrees(hinge?d.angular.lower:d.angular.halfAngleU),
                         glm::degrees(hinge?d.angular.upper:d.angular.halfAngleV));
                 draw->AddText({pixel->x+E::Px(8),pixel->y+ImGui::GetTextLineHeight()},IM_COL32(255,199,100,255),label.c_str());

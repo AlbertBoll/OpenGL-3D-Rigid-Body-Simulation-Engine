@@ -4,7 +4,7 @@
 
 namespace Rbs::Editor
 {
-    enum class Icon { Select, Translate, Rotate, Scale, Play, Pause, Reset, Options,
+    enum class Icon { Stop = -1, Select = 0, Translate, Rotate, Scale, Play, Pause, Reset, Options,
                       Camera, Light, Rigidbody, Environment, Entity, Sun, Spot, Eye, EyeOff, SpotA, SpotC, Count };
     inline constexpr float IconPixels = 20.f, IconHitPixels = 32.f;
     inline constexpr int AtlasPixels[]{20,25,30,40};
@@ -15,6 +15,12 @@ namespace Rbs::Editor
     inline void DrawIcon(Icon icon,GEngine::Asset::Texture* atlas,int pixels,ImVec2 position,
                          float size,ImVec4 tint)
     {
+        if(icon==Icon::Stop) {
+            const float inset=std::round(size*.21f);
+            ImGui::GetWindowDrawList()->AddRectFilled({position.x+inset,position.y+inset},
+                {position.x+size-inset,position.y+size-inset},ImGui::GetColorU32(tint));
+            return;
+        }
         const float cell=float(pixels+4),width=cell*int(Icon::Count),x=int(icon)*cell+2;
         GEngine::UI::DrawImage(atlas,position,{position.x+size,position.y+size},
             {x/width,1.f-2.f/cell},{(x+pixels)/width,2.f/cell},tint);

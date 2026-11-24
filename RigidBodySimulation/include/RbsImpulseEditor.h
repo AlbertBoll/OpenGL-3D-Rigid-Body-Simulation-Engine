@@ -16,7 +16,7 @@ namespace Rbs::Editor {
         const char* Validate() const {
             using namespace GEngine;
             if(!Math::IsFinite(magnitude)||magnitude<0)return "Magnitude must be finite and nonnegative.";
-            if(!Math::IsFinite(direction)||glm::length(glm::dvec3(direction))==0)return "Direction must be finite and nonzero.";
+            if(!Math::IsFinite(direction) || (magnitude>0 && direction==Vec3f(0)))return "A linear impulse needs a finite, nonzero direction.";
             if(!Math::IsFinite(pointOffset)||!Math::IsFinite(angular))return "Point and angular vector must be finite.";
             if(mode!=PhysicsImpulseMode::Impulse && mode!=PhysicsImpulseMode::VelocityChange)return "Unknown impulse mode.";
             if(magnitude==0 && (!angularEnabled || angular==Vec3f(0)))return "Choose a nonzero linear or angular action.";
@@ -24,9 +24,9 @@ namespace Rbs::Editor {
         }
         GEngine::PhysicsImpulseCommand Command(GEngine::PhysicsBodyHandle body,const GEngine::PhysicsImpulseMotion& motion) const {
             using namespace GEngine;
-            const Vec3f unit=Vec3f(glm::normalize(glm::dvec3(direction)));
             const auto rotate=[&](const Vec3f& v){return local?motion.orientation*v:v;};
-            PhysicsImpulseCommand c;c.body=body;c.mode=mode;c.linear=rotate(unit)*magnitude;
+            PhysicsImpulseCommand c;c.body=body;c.mode=mode;
+            if(magnitude>0)c.linear=rotate(Vec3f(glm::normalize(glm::dvec3(direction))))*magnitude;
             if(angularEnabled)c.angular=rotate(angular);
             if(customPoint)c.point=motion.center+rotate(pointOffset);
             return c;

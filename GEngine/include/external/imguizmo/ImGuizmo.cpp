@@ -881,6 +881,20 @@ namespace ImGuizmo
       return gContext.mbUsing || gContext.mbUsingBounds;
    }
 
+   AxisHandle GetActiveAxis()
+   {
+      if (!gContext.mbUsing || gContext.mEditingID != gContext.mActualID)
+         return AxisHandle::None;
+      switch (gContext.mCurrentOperation)
+      {
+      case MOVE_X: case ROTATE_X: case SCALE_X: return AxisHandle::X;
+      case MOVE_Y: case ROTATE_Y: case SCALE_Y: return AxisHandle::Y;
+      case MOVE_Z: case ROTATE_Z: case SCALE_Z: return AxisHandle::Z;
+      case SCALE_XYZ: return AxisHandle::Uniform;
+      default: return AxisHandle::None;
+      }
+   }
+
    bool IsOver()
    {
       return (gContext.mOperation == TRANSLATE && GetMoveType(NULL) != NONE) ||

@@ -10,6 +10,7 @@
 #include <array>
 #include <cmath>
 #include <charconv>
+#include <format>
 #include <string_view>
 #include <limits>
 #include <optional>
@@ -293,13 +294,25 @@ namespace Rbs::Editor
         }
     };
 
+    // Compound readbacks keep counts and strings in their original formats.
+    template<class... T>
+    std::string DecimalText(std::format_string<T...> format,T... values)
+    {
+        return std::format(format,Numeric::DisplayValue(values)...);
+    }
+
+    inline std::string DecimalVector(const glm::vec3& v)
+    {
+        return DecimalText("({:.2f}, {:.2f}, {:.2f})",v.x,v.y,v.z);
+    }
+
     template<class T,class Validator=Numeric::Accept>
     bool Number(const char* label, T& value, float speed = .01f,
                 const char* tip = "Drag to edit; Ctrl+click to type. Enter validates; Esc cancels.",
-                Numeric::Bounds<T> bounds={},Validator validate={})
+                Numeric::Bounds<T> bounds={},Validator validate={},const char* format=nullptr)
     {
         PropertyRow row(label, tip);
-        return Numeric::Scalar("##value",value,speed,bounds,validate);
+        return Numeric::Scalar("##value",value,speed,bounds,validate,false,format);
     }
 
     template<class Validator=Numeric::Accept,class AxisObserver=std::nullptr_t>
@@ -345,7 +358,7 @@ namespace Rbs::Editor
                 else {changed|=values[axis]!=axisReset;values[axis]=axisReset;Numeric::ClearError();}
             }
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-                ImGui::SetTooltip("Reset %s to %.3g (only this axis)", axes[axis], double(axisReset));
+                ImGui::SetTooltip("Reset %s to %.2f (only this axis)", axes[axis], Numeric::DisplayValue(axisReset));
             ImGui::PopStyleColor(3);
             ImGui::SameLine(0, 0);
             ImGui::SetNextItemWidth(std::max(Px(38), cell - button));

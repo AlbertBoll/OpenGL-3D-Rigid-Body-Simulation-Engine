@@ -595,11 +595,11 @@ namespace Rbs
     {
         if (!shape.editable) return;
         if (const auto* sphere = std::get_if<SphereShapeDesc>(&shape.dimensions))
-            ImGui::TextWrapped("Radius %.6g", double(sphere->radius));
+            ImGui::TextWrapped("Radius %.2f", double(sphere->radius));
         else if (const auto* capsule = std::get_if<CapsuleShapeDesc>(&shape.dimensions))
-            ImGui::TextWrapped("Radius %.6g / Half Length %.6g", double(capsule->radius), double(capsule->halfLength));
+            ImGui::TextWrapped("Radius %.2f / Half Length %.2f", double(capsule->radius), double(capsule->halfLength));
         else if (const auto* box = std::get_if<BoxShapeDesc>(&shape.dimensions))
-            ImGui::TextWrapped("Half extents %.6g, %.6g, %.6g", double(box->halfExtents.x),
+            ImGui::TextWrapped("Half extents %.2f, %.2f, %.2f", double(box->halfExtents.x),
                 double(box->halfExtents.y), double(box->halfExtents.z));
     }
 
@@ -1119,7 +1119,8 @@ void RigidBodySimulationApp::DrawDistanceChainImpulseControls()
         Rbs::Editor::Numeric::Scalar("Impulse (Ns)",m_ChainImpulseMagnitude,.01f,Rbs::Editor::Numeric::Closed(Control::MinMagnitude,maximum),Rbs::Editor::Numeric::Accept{},true);
         ImGui::Combo("Horizontal direction", &m_ChainImpulseDirection, "+X\0-X\0+Z\0-Z\0");
     }
-    ImGui::BeginDisabled(Rbs::Editor::Numeric::HasError() || !m_ChainImpulse.Enabled() || m_ChainImpulse.Pending() || m_SceneRequest.has_value());
+    ImGui::BeginDisabled((SandboxEnabled() && !m_ActiveSelection.IsAngularScene() && m_SimulationState!=Rbs::SimulationState::Running) ||
+        Rbs::Editor::Numeric::HasError() || !m_ChainImpulse.Enabled() || m_ChainImpulse.Pending() || m_SceneRequest.has_value());
     const bool impulse=ImGui::Button("Apply Impulse");
     RBS_PHASE28_WIDGET("impulse");
     if(impulse) RequestDistanceChainImpulse();
@@ -1142,7 +1143,8 @@ void RigidBodySimulationApp::DrawDistanceChainImpulseControls()
     if (m_ChainImpulse.AppliedCount())
     {
         const auto last = m_ChainImpulse.LastApplied();
-        ImGui::Text("Last applied: (%.2f, %.2f, %.2f) Ns", last.x, last.y, last.z);
+        ImGui::Text("Last applied: (%.2f, %.2f, %.2f) Ns", Rbs::Editor::Numeric::DisplayValue(last.x),
+            Rbs::Editor::Numeric::DisplayValue(last.y), Rbs::Editor::Numeric::DisplayValue(last.z));
     }
     else ImGui::TextUnformatted("Last applied: none");
     ImGui::Separator();
@@ -1190,10 +1192,10 @@ void RigidBodySimulationApp::DrawPhysicsSettings()
         }
         ImGui::EndDisabled();
         if(!PhysicsBackendAvailable(PhysicsBackend::Jolt))ImGui::TextWrapped("Jolt 5.6.0 is not enabled in this build.");
-        ImGui::TextWrapped("Apply stops and rebuilds this authored scene at Tick 0. Failure retains the previous world.");
+
     if(m_ActiveSelection.IsAngularScene() || m_Ragdoll.draft)
     {
-        ImGui::TextWrapped("These scenes use a fixed solver profile. Reset restores the applied scene settings.");
+        if(ImGui::TreeNode("Provider diagnostics")) {
         if(world && world->GetBackend()==PhysicsBackend::Jolt)
         {
             if(const auto actual=world->ReadJoltSettings())
@@ -1211,10 +1213,10 @@ void RigidBodySimulationApp::DrawPhysicsSettings()
             else ImGui::TextWrapped("Effective Jolt settings readback unavailable.");
         }
         else if(world)ImGui::Text("Native solver iterations: %d",physics->GetSolverIterations());
+        ImGui::TreePop();
+        }
     }
     else DrawJoltSettings();
-    DrawDistanceChainImpulseControls();
-    ImGui::TextWrapped("%s",m_SceneDiagnostic.c_str());
 }
 
 
@@ -1312,6 +1314,12 @@ void RigidBodySimulationApp::DrawPhysicsDebugSection()
             if(m_Backend==PhysicsBackend::Jolt)ImGui::TextWrapped("Native contact diagnostic overlays are unavailable for Jolt.");
             ImGui::TreePop();
         }
+        if(m_ActiveSelection.scene==Rbs::RbsScenePreset::Movers){
+            ImGui::Checkbox("Mover path",&m_Mover.showPath);
+            ImGui::Checkbox("Platform velocity",&m_Mover.showVelocity);
+            ImGui::Checkbox("Rider contact",&m_Mover.showContact);
+            ImGui::Checkbox("Target error",&m_Mover.showError);
+        }
         if(m_Ragdoll.draft) {
             ImGui::Checkbox("Ragdoll diagnostics",&m_Ragdoll.debugEnabled);
             if(m_Ragdoll.debugEnabled) {
@@ -1379,7 +1387,7 @@ void RigidBodySimulationApp::DrawAngularWorldSettings()
     const auto* world=m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
     if(world) {
         const auto actual=world->GetGravity();
-        E::ReadOnly("Applied gravity (m/s^2)",std::format("({:.3f}, {:.3f}, {:.3f})",actual.x,actual.y,actual.z).c_str());
+        E::ReadOnly("Applied gravity (m/s^2)",E::DecimalVector(actual).c_str());
     }
     else E::ReadOnly("Applied gravity","World unavailable");
     E::ReadOnly("Fixed step (s)",std::format("{:.9f}",m_Angular.committed->fixedStepSeconds).c_str());
@@ -1401,7 +1409,7 @@ namespace
 {
     std::string QuaternionText(const Quat& q)
     {
-        return std::format("({:.4g}, {:.4g}, {:.4g}, {:.4g})",q.w,q.x,q.y,q.z);
+        return Rbs::Editor::DecimalText("({:.2f}, {:.2f}, {:.2f}, {:.2f})",q.w,q.x,q.y,q.z);
     }
 }
 
@@ -1431,7 +1439,6 @@ void RigidBodySimulationApp::DrawAngularProperties()
                selectedHandle==m_AngularBindings.bodies[i])endpoint=&draft.bodies[i];
         }
     }
-    const auto vectorText=[](const Vec3f& v){return std::format("({:.4f}, {:.4f}, {:.4f})",v.x,v.y,v.z);};
     const auto motionName=[](BodyType type){return type==BodyType::Static?"Static":type==BodyType::Dynamic?"Dynamic":"Kinematic";};
     const auto number=[&](const char* label,float& value,float speed,const char* tip,
                           E::Numeric::Bounds<float> bounds,const char* key) {
@@ -1562,7 +1569,7 @@ void RigidBodySimulationApp::DrawAngularProperties()
                 if(number("Mass (kg)",mass,.05f,"Apply rebuilds the bar inertia.",
                     E::Numeric::Closed(.5f*referenceMass,2.f*referenceMass),"mass")){Rbs::SetAngularBarMass(draft,mass);session.dirty=true;}
             } else {
-                E::ReadOnly("Retained mass (kg)",std::format("{:.3f}",mass).c_str(),
+                E::ReadOnly("Retained mass (kg)",E::DecimalText("{:.2f}",mass).c_str(),
                     "The anchor retains 1 kg with zero effective inverse mass.");
                 RBS_PHASE28_WIDGET("angular-mass-readonly");
             }
@@ -1591,8 +1598,8 @@ void RigidBodySimulationApp::DrawAngularProperties()
         RBS_PHASE28_WIDGET("angular-kind-readonly");
         E::ReadOnly("Endpoints",draft.joint.motor?"Motor Base and Motor Bar":"Angular Anchor and Angular Bar");
         ImGui::BeginDisabled(!canAuthor);
-        E::ReadOnly("Local anchor A (m)",vectorText(draft.joint.localAnchorA).c_str());
-        E::ReadOnly("Local anchor B (m)",vectorText(draft.joint.localAnchorB).c_str());
+        E::ReadOnly("Local anchor A (m)",E::DecimalVector(draft.joint.localAnchorA).c_str());
+        E::ReadOnly("Local anchor B (m)",E::DecimalVector(draft.joint.localAnchorB).c_str());
         if(const auto reference=Rbs::ReferenceAngularPacket(draft.scene,draft.variant)) {
             const auto base=reference->joint.localFrameA;
             auto offset=glm::degrees(glm::eulerAngles(draft.joint.localFrameA*glm::inverse(base)));
@@ -1639,13 +1646,13 @@ void RigidBodySimulationApp::DrawAngularProperties()
         ImGui::EndDisabled();
         ImGui::EndDisabled();
         const auto& observed = driven->angular;
-        E::ReadOnly("Applied command",std::format("{}  {:.3f} rad/s  {:.3f} N m",
+        E::ReadOnly("Applied command",E::DecimalText("{}  {:.2f} rad/s  {:.2f} N m",
             applied.enabled?"Velocity":"Off",applied.targetVelocity,applied.maxTorque).c_str());
         const float stepSeconds = static_cast<float>(session.committed->fixedStepSeconds);
         const float impulseCap = applied.enabled ? applied.maxTorque * stepSeconds : 0.f;
         E::ReadOnly("Maximum impulse per step (N m s)",std::format("{:.5f}",impulseCap).c_str());
-        E::ReadOnly("Speed / tracking error (rad/s)",std::format("{:.4f} / {:.4f}",observed.motorSpeed,observed.motorError).c_str());
-        E::ReadOnly("Signed angle / limit side",std::format("{:.4f} rad / {}",observed.signedAngle,observed.motor.limitSide ? observed.motor.limitSide : observed.limitU).c_str());
+        E::ReadOnly("Speed / tracking error (rad/s)",std::format("{:.2f} / {:.4f}",E::Numeric::DisplayValue(observed.motorSpeed),observed.motorError).c_str());
+        E::ReadOnly("Signed angle / limit side",E::DecimalText("{:.2f} rad / {}",observed.signedAngle,observed.motor.limitSide ? observed.motor.limitSide : observed.limitU).c_str());
         if (observed.motor.valid) {
             E::ReadOnly("Drive measurement",std::format("Valid at completed step {}",
                 m_ActiveScene->GetPhysicsSystem()->GetCompletedSteps()).c_str());
@@ -1656,7 +1663,6 @@ void RigidBodySimulationApp::DrawAngularProperties()
         } else E::ReadOnly("Drive measurement","Pending a completed fixed step");
     }
     DrawContextProperties(ContextSection::View);
-    DrawSceneAuthoringActions();
     if(!session.diagnostic.empty())ImGui::TextWrapped("%s",session.diagnostic.c_str());
     const bool advancedOpen=E::Component("Advanced / Backend Readback",false);
     RBS_PHASE28_WIDGET("advanced");
@@ -1667,8 +1673,7 @@ void RigidBodySimulationApp::DrawAngularProperties()
         {
             E::ReadOnly("World backend",world->GetBackend()==PhysicsBackend::Jolt?"Jolt 5.6.0":"Native");
             E::ReadOnly("Scene generation",std::format("{}",m_SceneGeneration).c_str());
-            E::ReadOnly("Applied gravity (m/s^2)",std::format("({:.4f}, {:.4f}, {:.4f})",
-                world->GetGravity().x,world->GetGravity().y,world->GetGravity().z).c_str());
+            E::ReadOnly("Applied gravity (m/s^2)",E::DecimalVector(world->GetGravity()).c_str());
             E::ReadOnly("Completed fixed steps",std::format("{}",physics->GetCompletedSteps()).c_str());
             E::ReadOnly("Actual bodies / joints",std::format("{} / {}",world->GetBodyCount(),world->GetJointCount()).c_str());
             if(selectedHasBody)
@@ -1688,33 +1693,30 @@ void RigidBodySimulationApp::DrawAngularProperties()
             else if(auto body=world->ReadEffectiveBody(selectedHandle))
             {
                 const auto& transform=m_HoveredEntity.Transform();
-                E::ReadOnly("Render scale",vectorText(transform.Scale).c_str());
+                E::ReadOnly("Render scale",E::DecimalVector(transform.Scale).c_str());
                 E::ReadOnly("Collider shape",Rbs::ColliderTypeName(body->shapeType));
-                E::ReadOnly("Local bounds half extents (m)",vectorText(.5f*(body->localBounds.maxs-body->localBounds.mins)).c_str());
-                E::ReadOnly("Local bounds center (m)",vectorText(.5f*(body->localBounds.maxs+body->localBounds.mins)).c_str());
+                E::ReadOnly("Local bounds half extents (m)",E::DecimalVector(.5f*(body->localBounds.maxs-body->localBounds.mins)).c_str());
+                E::ReadOnly("Local bounds center (m)",E::DecimalVector(.5f*(body->localBounds.maxs+body->localBounds.mins)).c_str());
                 E::ReadOnly("Motion",motionName(body->type));
-                E::ReadOnly("Friction / restitution",std::format("{:.4f} / {:.4f}",body->material.friction,body->material.restitution).c_str());
+                E::ReadOnly("Friction / restitution",E::DecimalText("{:.2f} / {:.2f}",body->material.friction,body->material.restitution).c_str());
                 RBS_PHASE28_WIDGET("effective-material");
                 if(auto p=world->ReadBodyProperties(selectedHandle)) {
-                    E::ReadOnly("Retained mass (kg)",std::format("{:.4f}",p->mass).c_str());
+                    E::ReadOnly("Retained mass (kg)",E::DecimalText("{:.2f}",p->mass).c_str());
                     RBS_PHASE28_WIDGET("effective-mass");
-                    E::ReadOnly("Linear / angular damping",std::format("{:.4f} / {:.4f}",p->linearDamping,p->angularDamping).c_str());
+                    E::ReadOnly("Linear / angular damping",E::DecimalText("{:.2f} / {:.2f}",p->linearDamping,p->angularDamping).c_str());
                     RBS_PHASE28_WIDGET("effective-damping");
                 } else E::ReadOnly("RigidBody properties","Provider readback unavailable");
                 E::ReadOnly("Inverse mass (1/kg)",std::format("{:.4f}",body->inverseMass).c_str());
                 RBS_PHASE28_WIDGET("effective-inverse-mass");
-                E::ReadOnly("Linear velocity (m/s)",vectorText(body->linearVelocity).c_str());
+                E::ReadOnly("Linear velocity (m/s)",E::DecimalVector(body->linearVelocity).c_str());
                 RBS_PHASE28_WIDGET("effective-linear-velocity");
-                E::ReadOnly("Angular velocity (rad/s)",vectorText(body->angularVelocity).c_str());
+                E::ReadOnly("Angular velocity (rad/s)",E::DecimalVector(body->angularVelocity).c_str());
                 RBS_PHASE28_WIDGET("effective-angular-velocity");
-                E::ReadOnly("Actual position (m)",std::format("({:.4f}, {:.4f}, {:.4f})",
-                    body->position.x,body->position.y,body->position.z).c_str());
+                E::ReadOnly("Actual position (m)",E::DecimalVector(body->position).c_str());
                 RBS_PHASE28_WIDGET("effective-position");
-                E::ReadOnly("Actual orientation (w,x,y,z)",std::format("({:.4f}, {:.4f}, {:.4f}, {:.4f})",
-                    body->orientation.w,body->orientation.x,body->orientation.y,body->orientation.z).c_str());
+                E::ReadOnly("Actual orientation (w,x,y,z)",QuaternionText(body->orientation).c_str());
                 RBS_PHASE28_WIDGET("effective-orientation");
-                E::ReadOnly("Actual center of mass (m)",std::format("({:.4f}, {:.4f}, {:.4f})",
-                    body->centerOfMass.x,body->centerOfMass.y,body->centerOfMass.z).c_str());
+                E::ReadOnly("Actual center of mass (m)",E::DecimalVector(body->centerOfMass).c_str());
                 RBS_PHASE28_WIDGET("effective-com");
                 E::ReadOnly("Body inverse inertia diagonal (1/kg m^2)",std::format("({:.6g}, {:.6g}, {:.6g})",
                     body->inverseInertiaBody[0][0],body->inverseInertiaBody[1][1],body->inverseInertiaBody[2][2]).c_str());
@@ -1747,25 +1749,25 @@ void RigidBodySimulationApp::DrawAngularProperties()
                     E::ReadOnly("Driven joint", identity(joint->handle).c_str(), "World domain / slot / generation.");
                     E::ReadOnly("Endpoint A / B", std::format("{}   {}", identity(desc.bodyA), identity(desc.bodyB)).c_str(),
                         "Provider body handles, each in world domain / slot / generation order.");
-                    E::ReadOnly("Applied local anchors (m)", std::format("{} / {}", vectorText(desc.localAnchorA),
-                        vectorText(desc.localAnchorB)).c_str(), "Committed COM-local anchors on A and B.");
+                    E::ReadOnly("Applied local anchors (m)", std::format("{} / {}", E::DecimalVector(desc.localAnchorA),
+                        E::DecimalVector(desc.localAnchorB)).c_str(), "Committed COM-local anchors on A and B.");
                     E::ReadOnly("Applied frame A (w,x,y,z)", QuaternionText(desc.angular.localFrameA).c_str());
                     E::ReadOnly("Applied frame B (w,x,y,z)", QuaternionText(desc.angular.localFrameB).c_str());
                 }
                 const auto xA=joint->descriptor.angular.localFrameA*Vec3f{1.f,0.f,0.f};
                 const auto xB=joint->descriptor.angular.localFrameB*Vec3f{1.f,0.f,0.f};
-                E::ReadOnly("Local axis A",std::format("({:.3f}, {:.3f}, {:.3f})",xA.x,xA.y,xA.z).c_str());
-                E::ReadOnly("Local axis B",std::format("({:.3f}, {:.3f}, {:.3f})",xB.x,xB.y,xB.z).c_str());
-                E::ReadOnly("Anchor A world (m)",std::format("({:.4f}, {:.4f}, {:.4f})",joint->worldAnchorA.x,joint->worldAnchorA.y,joint->worldAnchorA.z).c_str());
-                E::ReadOnly("Anchor B world (m)",std::format("({:.4f}, {:.4f}, {:.4f})",joint->worldAnchorB.x,joint->worldAnchorB.y,joint->worldAnchorB.z).c_str());
+                E::ReadOnly("Local axis A",E::DecimalVector(xA).c_str());
+                E::ReadOnly("Local axis B",E::DecimalVector(xB).c_str());
+                E::ReadOnly("Anchor A world (m)",E::DecimalVector(joint->worldAnchorA).c_str());
+                E::ReadOnly("Anchor B world (m)",E::DecimalVector(joint->worldAnchorB).c_str());
                 E::ReadOnly("Anchor residual (m)",std::format("{:.6f}",joint->error).c_str());
                 RBS_PHASE28_WIDGET("effective-anchor-residual");
                 if(hinge)
                 {
-                    E::ReadOnly("Signed principal angle (deg)",std::format("{:.3f}",glm::degrees(joint->angular.signedAngle)).c_str());
+                    E::ReadOnly("Signed principal angle (deg)",E::DecimalText("{:.2f}",glm::degrees(joint->angular.signedAngle)).c_str());
                     E::ReadOnly("Axis error (deg)",std::format("{:.4f}",glm::degrees(joint->angular.axisError)).c_str());
                     E::ReadOnly("Limits (deg)",joint->descriptor.angular.limitsEnabled?
-                        std::format("{:.2f} .. {:.2f}",glm::degrees(joint->descriptor.angular.lower),glm::degrees(joint->descriptor.angular.upper)).c_str():"Free");
+                        E::DecimalText("{:.2f} .. {:.2f}",glm::degrees(joint->descriptor.angular.lower),glm::degrees(joint->descriptor.angular.upper)).c_str():"Free");
                     E::ReadOnly("Limit state",joint->angular.limitU<0?"Lower":joint->angular.limitU>0?"Upper":"Free");
                 }
                 else
@@ -1773,12 +1775,12 @@ void RigidBodySimulationApp::DrawAngularProperties()
                     E::ReadOnly("CV relation error (deg)",std::format("{:.4f}",glm::degrees(joint->angular.cvError)).c_str());
                     const bool limited=joint->descriptor.kind==JointKind::LimitedConstantVelocity;
                     E::ReadOnly("Effective U limits (deg)",limited?
-                        std::format("{:.2f} .. {:.2f}",-glm::degrees(joint->descriptor.angular.halfAngleU),
+                        E::DecimalText("{:.2f} .. {:.2f}",-glm::degrees(joint->descriptor.angular.halfAngleU),
                             glm::degrees(joint->descriptor.angular.halfAngleU)).c_str():"Free");
                     E::ReadOnly("Effective V limits (deg)",limited?
-                        std::format("{:.2f} .. {:.2f}",-glm::degrees(joint->descriptor.angular.halfAngleV),
+                        E::DecimalText("{:.2f} .. {:.2f}",-glm::degrees(joint->descriptor.angular.halfAngleV),
                             glm::degrees(joint->descriptor.angular.halfAngleV)).c_str():"Free");
-                    E::ReadOnly("U / V angles (deg)",std::format("{:.3f} / {:.3f}",glm::degrees(joint->angular.angleU),glm::degrees(joint->angular.angleV)).c_str());
+                    E::ReadOnly("U / V angles (deg)",E::DecimalText("{:.2f} / {:.2f}",glm::degrees(joint->angular.angleU),glm::degrees(joint->angular.angleV)).c_str());
                     E::ReadOnly("U / V limit state",std::format("{} / {}",joint->angular.limitU,joint->angular.limitV).c_str());
                     E::ReadOnly("U / V violation (deg)",std::format("{:.4f} / {:.4f}",glm::degrees(joint->angular.violationU),glm::degrees(joint->angular.violationV)).c_str());
                 }
@@ -1805,9 +1807,24 @@ void RigidBodySimulationApp::DrawAngularProperties()
 
 namespace
 {
-    std::string RagdollVectorText(const Vec3f& v)
+    std::string DiagnosticVectorText(const Vec3f& v)
     {
         return std::format("({:.4g}, {:.4g}, {:.4g})",v.x,v.y,v.z);
+    }
+
+    void DrawDynamicBodyInertia(const Mat3& inverseInertiaBody)
+    {
+        const glm::dmat3 inverseInertia{inverseInertiaBody};
+        const double determinant = glm::determinant(inverseInertia);
+        if (!std::isfinite(determinant) || determinant <= 0.0) {
+            Rbs::Editor::ReadOnly("Body inertia (kg m^2)", "Finite tensor unavailable");
+            return;
+        }
+        const auto inertia = glm::inverse(inverseInertia);
+        Rbs::Editor::ReadOnly("Body inertia (kg m^2)", std::format(
+            "({:.4g}, {:.4g}, {:.4g})\n({:.4g}, {:.4g}, {:.4g})\n({:.4g}, {:.4g}, {:.4g})",
+            inertia[0][0], inertia[1][0], inertia[2][0], inertia[0][1], inertia[1][1], inertia[2][1],
+            inertia[0][2], inertia[1][2], inertia[2][2]).c_str(), "Rows of the applied body-local inertia tensor.");
     }
 
     bool RagdollRotationField(const char* label,Quat& orientation)
@@ -1816,6 +1833,35 @@ namespace
         if(!Rbs::Editor::XYZ(label,&angles.x,0.f,.25f,"COM-local right-handed frame, in degrees."))return false;
         orientation=glm::normalize(glm::quat(glm::radians(angles)));
         return true;
+    }
+
+    bool DrawProviderBodyFields(PhysicsBodyProperties& p,PhysicsBackend backend)
+    {
+        namespace E=Rbs::Editor;
+        bool changed=false;
+        if(backend==PhysicsBackend::Jolt) {
+            ImGui::BeginDisabled(p.type!=BodyType::Dynamic);
+            changed|=E::Number("Linear damping",p.linearDamping,.01f,"Dynamic Jolt body.",E::Numeric::Closed(0.f,1.f));
+            changed|=E::Number("Angular damping",p.angularDamping,.01f,"Dynamic Jolt body.",E::Numeric::Closed(0.f,1.f));
+            changed|=E::Number("Gravity factor",p.gravityFactor,.05f,"Dynamic Jolt body.",E::Numeric::Closed(0.f,10.f));
+            changed|=E::Number("Velocity override",p.velocityStepsOverride,1.f,"0 inherits world, 2 to 255 overrides island iterations.",
+                E::Numeric::Closed(0,255),[](int n)->const char*{return n==1?"Use 0 or at least 2 velocity steps.":nullptr;});
+            changed|=E::Number("Position override",p.positionStepsOverride,1.f,"0 inherits world.",E::Numeric::Closed(0,255));
+            ImGui::EndDisabled();
+            ImGui::BeginDisabled(p.type==BodyType::Static);
+            changed|=ImGui::Checkbox("Continuous collision",&p.continuousCollision);
+            changed|=ImGui::Checkbox("Allow sleeping",&p.allowSleeping);
+            ImGui::EndDisabled();
+            E::ReadOnly("Per-body sleep thresholds","Unavailable on Jolt (world three-point test)");
+        } else {
+            E::ReadOnly("Damping / gravity factor",E::DecimalText("{:.2f} / {:.2f} / {:.2f}",p.linearDamping,p.angularDamping,p.gravityFactor).c_str());
+            E::ReadOnly("CCD / allow sleeping",std::format("{} / {} (Native policy)",p.continuousCollision,p.allowSleeping).c_str());
+            E::ReadOnly("Velocity / position override",std::format("{} / {} (Native policy)",p.velocityStepsOverride,p.positionStepsOverride).c_str());
+            changed|=E::Number("Sleep linear speed (m/s)",p.sleep.linearSpeedThreshold,.01f,"Native body threshold.",E::Numeric::Nonnegative<float>(),E::Numeric::Accept{},E::Numeric::PreciseFormat);
+            changed|=E::Number("Sleep angular speed (rad/s)",p.sleep.angularSpeedThreshold,.01f,"Native body threshold.",E::Numeric::Nonnegative<float>(),E::Numeric::Accept{},E::Numeric::PreciseFormat);
+            changed|=E::Number("Sleep dwell (s)",p.sleep.inactivitySeconds,.01f,"Minimum continuous inactive time.",E::Numeric::Positive<double>());
+        }
+        return changed;
     }
 
     bool DrawRagdollBodyFields(RagdollBodyDesc& body,PhysicsBackend backend)
@@ -1835,29 +1881,8 @@ namespace
         changed|=E::XYZ("Initial velocity (m/s)",&body.initialLinearVelocity.x,0.f,.05f);
         changed|=E::XYZ("Initial angular velocity (rad/s)",&body.initialAngularVelocity.x,0.f,.02f);
         ImGui::EndDisabled();
-        if(backend==PhysicsBackend::Jolt) {
-            ImGui::BeginDisabled(p.type!=BodyType::Dynamic);
-            changed|=E::Number("Linear damping",p.linearDamping,.01f,"Dynamic Jolt body.",E::Numeric::Closed(0.f,1.f));
-            changed|=E::Number("Angular damping",p.angularDamping,.01f,"Dynamic Jolt body.",E::Numeric::Closed(0.f,1.f));
-            changed|=E::Number("Gravity factor",p.gravityFactor,.05f,"Dynamic Jolt body.",E::Numeric::Closed(0.f,10.f));
-            changed|=E::Number("Velocity override",p.velocityStepsOverride,1.f,"0 inherits world, 2 to 255 overrides island iterations.",
-                E::Numeric::Closed(0,255),[](int n)->const char*{return n==1?"Use 0 or at least 2 velocity steps.":nullptr;});
-            changed|=E::Number("Position override",p.positionStepsOverride,1.f,"0 inherits world.",E::Numeric::Closed(0,255));
-            ImGui::EndDisabled();
-            ImGui::BeginDisabled(p.type==BodyType::Static);
-            changed|=ImGui::Checkbox("Continuous collision",&p.continuousCollision);
-            changed|=ImGui::Checkbox("Allow sleeping",&p.allowSleeping);
-            ImGui::EndDisabled();
-            E::ReadOnly("Per-body sleep thresholds","Unavailable on Jolt (world three-point test)");
-        } else {
-            E::ReadOnly("Damping / gravity factor",std::format("{} / {} / {}",p.linearDamping,p.angularDamping,p.gravityFactor).c_str());
-            E::ReadOnly("CCD / allow sleeping",std::format("{} / {} (Native policy)",p.continuousCollision,p.allowSleeping).c_str());
-            E::ReadOnly("Velocity / position override",std::format("{} / {} (Native policy)",p.velocityStepsOverride,p.positionStepsOverride).c_str());
-            changed|=E::Number("Sleep linear speed (m/s)",p.sleep.linearSpeedThreshold,.01f,"Native body threshold.",E::Numeric::Nonnegative<float>());
-            changed|=E::Number("Sleep angular speed (rad/s)",p.sleep.angularSpeedThreshold,.01f,"Native body threshold.",E::Numeric::Nonnegative<float>());
-            changed|=E::Number("Sleep dwell (s)",p.sleep.inactivitySeconds,.01f,"Minimum continuous inactive time.",E::Numeric::Positive<double>());
-        }
-        E::ReadOnly("Spin / rolling length (m)",std::format("{} / {}",p.material.spinResistanceLength,p.material.rollingResistanceLength).c_str(),
+        changed|=DrawProviderBodyFields(p,backend);
+        E::ReadOnly("Spin / rolling length (mm)",E::DecimalText("{:.2f} / {:.2f}",1000.0*p.material.spinResistanceLength,1000.0*p.material.rollingResistanceLength).c_str(),
             "The passive ragdoll keeps the reference resistance values.");
         return changed;
     }
@@ -1900,33 +1925,33 @@ namespace
         E::ReadOnly("Descriptor",std::format("{}{}; {} to {}; connected collision {}",
             desc.kind==JointKind::Hinge?"Hinge":"Constant Velocity",desc.angular.limitsEnabled?" (limited)":"",
             desc.bodyA.index,desc.bodyB.index,desc.collideConnected).c_str());
-        E::ReadOnly("COM-local anchors (m)",std::format("{} / {}",RagdollVectorText(desc.localAnchorA),RagdollVectorText(desc.localAnchorB)).c_str());
+        E::ReadOnly("COM-local anchors (m)",std::format("{} / {}",E::DecimalVector(desc.localAnchorA),E::DecimalVector(desc.localAnchorB)).c_str());
         E::ReadOnly("COM-local frames (w,x,y,z)",std::format("{} / {}",QuaternionText(desc.angular.localFrameA),QuaternionText(desc.angular.localFrameB)).c_str());
         if(desc.angular.limitsEnabled) {
             const bool hinge=desc.kind==JointKind::Hinge;
             E::ReadOnly(hinge?"Applied bounds (deg)":"Applied U/V half-angles (deg)",
-                std::format("{:.4g} / {:.4g}",glm::degrees(hinge?desc.angular.lower:desc.angular.halfAngleU),
+                E::DecimalText("{:.2f} / {:.2f}",glm::degrees(hinge?desc.angular.lower:desc.angular.halfAngleU),
                     glm::degrees(hinge?desc.angular.upper:desc.angular.halfAngleV)).c_str());
         }
-        E::ReadOnly("World anchors (m)",std::format("{} / {}",RagdollVectorText(state.worldAnchorA),RagdollVectorText(state.worldAnchorB)).c_str());
+        E::ReadOnly("World anchors (m)",std::format("{} / {}",E::DecimalVector(state.worldAnchorA),E::DecimalVector(state.worldAnchorB)).c_str());
         E::ReadOnly("Anchor error (m)",std::format("{:.6g}",state.error).c_str());
         E::ReadOnly("Relative rotation (w,x,y,z)",QuaternionText(angular.relativeRotation).c_str());
         const auto a=world.ReadEffectiveBody(desc.bodyA),b=world.ReadEffectiveBody(desc.bodyB);
-        if(a && b)E::ReadOnly("Relative angular velocity (rad/s)",RagdollVectorText(b->angularVelocity-a->angularVelocity).c_str());
+        if(a && b)E::ReadOnly("Relative angular velocity (rad/s)",E::DecimalVector(b->angularVelocity-a->angularVelocity).c_str());
         if(desc.kind==JointKind::Hinge) {
-            E::ReadOnly("Signed angle / axis error (deg)",std::format("{:.4g} / {:.4g}",
-                glm::degrees(angular.signedAngle),glm::degrees(angular.axisError)).c_str());
+            E::ReadOnly("Signed angle / axis error (deg)",std::format("{:.2f} / {:.4g}",
+                E::Numeric::DisplayValue(glm::degrees(angular.signedAngle)),glm::degrees(angular.axisError)).c_str());
         } else {
-            E::ReadOnly("U / V / CV error (deg)",std::format("{:.4g} / {:.4g} / {:.4g}",
-                glm::degrees(angular.angleU),glm::degrees(angular.angleV),glm::degrees(angular.cvError)).c_str());
+            E::ReadOnly("U / V / CV error (deg)",std::format("{:.2f} / {:.2f} / {:.4g}",
+                E::Numeric::DisplayValue(glm::degrees(angular.angleU)),E::Numeric::DisplayValue(glm::degrees(angular.angleV)),glm::degrees(angular.cvError)).c_str());
         }
         E::ReadOnly("Limit state U / V",std::format("{} / {}",angular.limitU,angular.limitV).c_str());
         E::ReadOnly("Limit violation U / V (deg)",std::format("{:.5g} / {:.5g}",
             glm::degrees(angular.violationU),glm::degrees(angular.violationV)).c_str());
         E::ReadOnly("Constraint active",state.active?"Yes":"No");
-        E::ReadOnly("Point impulse (N s)",tick?RagdollVectorText(state.impulse).c_str():"Awaiting first tick");
+        E::ReadOnly("Point impulse (N s)",tick?DiagnosticVectorText(state.impulse).c_str():"Awaiting first tick");
         E::ReadOnly("Angular row impulse (N m s)",tick && angular.impulseAvailable?
-            RagdollVectorText(angular.angularImpulse).c_str():"Unavailable for this provider or tick");
+            DiagnosticVectorText(angular.angularImpulse).c_str():"Unavailable for this provider or tick");
     }
 
     // Minimum separating-axis translation for two oriented boxes. A negative
@@ -2030,7 +2055,7 @@ void RigidBodySimulationApp::DrawRagdollWorldSettings()
     if(!world){E::ReadOnly("Physics world","Unavailable");return;}
     if (m_ActiveSelection.IsRagdollScene() && world->GetBackend()==PhysicsBackend::Native)
         ImGui::TextWrapped("Native Passive Ragdoll is experimental. Its motion has not passed production qualification.");
-    E::ReadOnly("Applied gravity (m/s^2)",RagdollVectorText(world->GetGravity()).c_str());
+    E::ReadOnly("Applied gravity (m/s^2)",E::DecimalVector(world->GetGravity()).c_str());
     E::ReadOnly("Fixed step (s)",std::format("{:.9g}",m_ActiveScene->GetPhysicsStep().count()).c_str());
     if(world->GetBackend()==PhysicsBackend::Native)
         E::ReadOnly("Native solver iterations",std::to_string(physics->GetSolverIterations()).c_str());
@@ -2143,8 +2168,8 @@ void RigidBodySimulationApp::DrawRagdollProperties(std::size_t selected)
                     return placement+endpoint.center+endpoint.orientation*(endpoint.colliderCenter+anchor);
                 };
                 E::ReadOnly("Staged pivot A / B (world m)",std::format("{} / {}",
-                    RagdollVectorText(pivot(joint.bodyA,joint.localAnchorA)),
-                    RagdollVectorText(pivot(joint.bodyB,joint.localAnchorB))).c_str());
+                    E::DecimalVector(pivot(joint.bodyA,joint.localAnchorA)),
+                    E::DecimalVector(pivot(joint.bodyB,joint.localAnchorB))).c_str());
                 ImGui::TreePop();
             }
             ImGui::PopID();
@@ -2170,9 +2195,8 @@ void RigidBodySimulationApp::DrawRagdollProperties(std::size_t selected)
         E::ReadOnly("Nonadjacent pairs","10 pairs retain ordinary body collision filtering");
     }
     ImGui::EndDisabled();
-    DrawImpulseProperties();
+
     DrawContextProperties(ContextSection::View);
-    DrawSceneAuthoringActions();
     if(!m_Ragdoll.diagnostic.empty())ImGui::TextWrapped("%s",m_Ragdoll.diagnostic.c_str());
     if(!m_SceneDiagnostic.empty())ImGui::TextWrapped("%s",m_SceneDiagnostic.c_str());
     if(E::Component("Advanced / Backend Readback",false)) {
@@ -2180,26 +2204,26 @@ void RigidBodySimulationApp::DrawRagdollProperties(std::size_t selected)
         E::ReadOnly("Completed fixed steps",std::to_string(physics.GetCompletedSteps()).c_str());
         E::ReadOnly("Body handle",std::format("{} / {}",handle.index,handle.generation).c_str());
         if(const auto actual=world.ReadEffectiveBody(handle)) {
-            E::ReadOnly("Position (m)",RagdollVectorText(actual->position).c_str());
+            E::ReadOnly("Position (m)",E::DecimalVector(actual->position).c_str());
             E::ReadOnly("Orientation (w,x,y,z)",QuaternionText(actual->orientation).c_str());
-            E::ReadOnly("Center of mass (m)",RagdollVectorText(actual->centerOfMass).c_str());
+            E::ReadOnly("Center of mass (m)",E::DecimalVector(actual->centerOfMass).c_str());
             E::ReadOnly("Effective shape",Rbs::ColliderTypeName(actual->shapeType));
-            E::ReadOnly("Local bounds (m)",std::format("{} to {}",RagdollVectorText(actual->localBounds.mins),RagdollVectorText(actual->localBounds.maxs)).c_str());
+            E::ReadOnly("Local bounds (m)",std::format("{} to {}",E::DecimalVector(actual->localBounds.mins),E::DecimalVector(actual->localBounds.maxs)).c_str());
             E::ReadOnly("Inverse mass",std::format("{:.6g}",actual->inverseMass).c_str());
             const auto inertia=[](const Mat3& matrix){return std::format("{} / {} / {}",
-                RagdollVectorText(matrix[0]),RagdollVectorText(matrix[1]),RagdollVectorText(matrix[2]));};
+                DiagnosticVectorText(matrix[0]),DiagnosticVectorText(matrix[1]),DiagnosticVectorText(matrix[2]));};
             E::ReadOnly("Body inverse inertia (columns)",inertia(actual->inverseInertiaBody).c_str());
             E::ReadOnly("World inverse inertia (columns)",inertia(actual->inverseInertiaWorld).c_str());
-            E::ReadOnly("Linear velocity (m/s)",RagdollVectorText(actual->linearVelocity).c_str());
-            E::ReadOnly("Angular velocity (rad/s)",RagdollVectorText(actual->angularVelocity).c_str());
+            E::ReadOnly("Linear velocity (m/s)",E::DecimalVector(actual->linearVelocity).c_str());
+            E::ReadOnly("Angular velocity (rad/s)",E::DecimalVector(actual->angularVelocity).c_str());
             E::ReadOnly("Sleep state",actual->type!=BodyType::Dynamic?"Fixed or kinematic":actual->sleeping?"Sleeping":"Awake");
         } else E::ReadOnly("Body readback","Unavailable");
         if(const auto actual=world.ReadBodyProperties(handle)) {
-            E::ReadOnly("Motion / authored mass (kg)",std::format("{} / {:.5g}",
+            E::ReadOnly("Motion / authored mass (kg)",E::DecimalText("{} / {:.2f}",
                 actual->type==BodyType::Dynamic?"Dynamic":actual->type==BodyType::Static?"Static":"Kinematic",actual->mass).c_str());
-            E::ReadOnly("Friction / restitution",std::format("{} / {}",actual->material.friction,actual->material.restitution).c_str());
-            E::ReadOnly("Damping (linear / angular)",std::format("{} / {}",actual->linearDamping,actual->angularDamping).c_str());
-            E::ReadOnly("Gravity / CCD / sleeping",std::format("{} / {} / {}",actual->gravityFactor,actual->continuousCollision,actual->allowSleeping).c_str());
+            E::ReadOnly("Friction / restitution",E::DecimalText("{:.2f} / {:.2f}",actual->material.friction,actual->material.restitution).c_str());
+            E::ReadOnly("Damping (linear / angular)",E::DecimalText("{:.2f} / {:.2f}",actual->linearDamping,actual->angularDamping).c_str());
+            E::ReadOnly("Gravity / CCD / sleeping",E::DecimalText("{:.2f} / {} / {}",actual->gravityFactor,actual->continuousCollision,actual->allowSleeping).c_str());
             E::ReadOnly("Iteration overrides",std::format("{} / {}",actual->velocityStepsOverride,actual->positionStepsOverride).c_str());
             if(world.GetBackend()==PhysicsBackend::Native)
                 E::ReadOnly("Sleep thresholds (m/s, rad/s, s)",std::format("{} / {} / {}",actual->sleep.linearSpeedThreshold,
@@ -2261,19 +2285,448 @@ void RigidBodySimulationApp::DrawRagdollProperties(std::size_t selected)
     ImGui::PopID();ImGui::PopID();
 }
 
+void RigidBodySimulationApp::DrawMoverControls()
+{
+    namespace E=Rbs::Editor;
+    auto& world=*m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
+    const auto platform=m_MoverBindings.bodies[0];
+    const auto sample=world.ReadMover(platform);
+    if(!sample){E::ReadOnly("Mover","Unavailable");return;}
+    E::ReadOnly("Drive",sample->enabled?(sample->reversed?"Reverse":"Forward"):"Stopped");
+    ImGui::BeginDisabled(m_Mover.dirty || m_SceneRequest || m_BackendRequest);
+    auto button=[&](const char* label,MoverCommand command){
+        if(ImGui::Button(label)) {
+            if(auto result=world.QueueMoverCommand(platform,command);!result)m_SceneDiagnostic=result.error().operation;
+            else if(m_EditorMode==EditorMode::Simulation)m_RuntimePoseChanged=true;
+        }
+    };
+    button("Start mover",MoverCommand::Start); ImGui::SameLine();
+    button("Stop mover",MoverCommand::Stop); ImGui::SameLine();
+    button("Reverse",MoverCommand::Reverse);
+    ImGui::EndDisabled();
+    if(!ImGui::TreeNode("Mover diagnostics"))return;
+    char value[160];
+    ImFormatString(value, IM_ARRAYSIZE(value), "%.7g", sample->path.frequencyHz);
+    E::ReadOnly("Registered frequency (Hz)", value);
+    const auto gravity=world.GetGravity();
+    ImFormatString(value, IM_ARRAYSIZE(value), "(%.2f, %.2f, %.2f)", E::Numeric::DisplayValue(gravity.x),
+        E::Numeric::DisplayValue(gravity.y), E::Numeric::DisplayValue(gravity.z));
+    E::ReadOnly("Applied gravity (m/s^2)", value);
+    E::ReadOnly("Phase direction",sample->reversed?"-1":"+1");
+    E::ReadOnly("Command",sample->commandPending?"Queued for next fixed step":"Applied");
+    E::ReadOnly("Completed tick / signed phase tick",std::format("{} / {}",sample->tick,sample->phaseTick).c_str());
+    E::ReadOnly("Phase time (s)",E::DecimalText("{:.2f}",sample->phaseTime).c_str());
+    E::ReadOnly("Current target (m)",E::DecimalVector(sample->target).c_str());
+    E::ReadOnly("Actual position (m)",E::DecimalVector(sample->position).c_str());
+    E::ReadOnly("Achieved velocity (m/s)",E::DecimalVector(sample->velocity).c_str());
+    E::ReadOnly("Path error (m)",std::format("{:.6g}",sample->targetError).c_str());
+    E::ReadOnly("Platform/rider contact pairs",sample->tick==0?"Awaiting first step":sample->pairInContact?"1":"0");
+    E::ReadOnly("Rider slip since first support (m)",sample->slipValid?std::format("{:.6g}",sample->riderSlip).c_str():"Awaiting first support");
+    E::ReadOnly("Relative COM velocity (m/s)",E::DecimalVector(sample->riderRelativeVelocity).c_str());
+    if(ImGui::TreeNode("World and body bindings")){
+        E::ReadOnly("Reference revision","C31_SINELINE_RIDER_01");
+        E::ReadOnly("Fixed step (s)",std::format("{:.9g}",m_ActiveScene->GetPhysicsStep().count()).c_str());
+        if(world.GetBackend()==PhysicsBackend::Native)
+            E::ReadOnly("Native solver iterations",std::to_string(m_ActiveScene->GetPhysicsSystem()->GetSolverIterations()).c_str());
+        else if(const auto settings=world.ReadJoltSettings())
+            E::ReadOnly("Jolt velocity / position / collision steps",
+                std::format("{} / {} / {}",settings->velocitySteps,settings->positionSteps,settings->collisionSteps).c_str());
+        const auto identity=[](PhysicsBodyHandle body){return std::format("{} / {} / {}",body.registry,body.index,body.generation);};
+        E::ReadOnly("Platform (world / slot / generation)",identity(sample->platform).c_str());
+        E::ReadOnly("Rider (world / slot / generation)",identity(sample->rider).c_str());
+        ImGui::TreePop();
+    }
+    ImGui::TreePop();
+}
+
+namespace
+{
+    const char* StoppedTransformBlock(bool editMode, Rbs::SimulationState state, PhysicsSystem* physics)
+    {
+        using State = Rbs::SimulationState;
+        if (state == State::Switching) return "Wait for the scene transaction to complete.";
+        if (state == State::Failed || !physics || !physics->GetPhysicsWorld() || physics->GetBackendFailure())
+            return "Recover the scene before editing its Transform.";
+        if (!editMode || (state != State::Ready && state != State::Paused))
+            return "Stop simulation and enter Edit mode to edit this Transform.";
+        return nullptr;
+    }
+}
+
+bool RigidBodySimulationApp::BeginDirectTransform(TransformTool tool)
+{
+    if (!m_ActiveScene || m_GroupTransform.released || m_GroupTransform.pending != Rbs::Editor::TransformSession::Action::None)
+        return false;
+    if (const auto* reason = StoppedTransformBlock(m_EditorMode == EditorMode::Edit, m_SimulationState,
+        m_ActiveScene->GetPhysicsSystem())) {
+        m_PropertyDiagnostic = reason;
+        return false;
+    }
+    if (const auto* reason = TransformToolDisabled(tool)) { m_PropertyDiagnostic = reason; return false; }
+    if (SelectionProtectsAngularTransform()) {
+        m_PropertyDiagnostic = "Use the connected body's Transform controls in Properties."; return false;
+    }
+    if (m_GroupTransform.generation != m_SceneGeneration) m_GroupTransform.Reset(m_SceneGeneration);
+    // BeginGroupTransform uses the tool to check the existing scale/parent/light restrictions.
+    const auto previous = std::exchange(m_TransformTool, tool);
+    const bool begun = BeginGroupTransform();
+    m_TransformTool = previous;
+    return begun;
+}
+
+namespace
+{
+    PhysicsPlacementSettings DownwardPlacement(Vec3f pivot, bool surface, bool resolve)
+    {
+        const auto& snap = Rbs::Editor::Snap;
+        PhysicsPlacementSettings options;
+        options.pivot = pivot;
+        options.surface = surface;
+        options.alignNormal = surface && snap.align;
+        options.resolve = resolve;
+        options.offset = snap.offset;
+        options.maxCorrection = snap.distance;
+        options.rayOrigin = pivot;
+        options.rayDelta = {0, -snap.distance, 0};
+        return options;
+    }
+}
+
+void RigidBodySimulationApp::DropSelectionToSurface()
+{
+    if (m_GroupTransform.dirty || m_NumericTransform) return;
+    if (const auto* reason = StoppedTransformBlock(m_EditorMode == EditorMode::Edit, m_SimulationState,
+        m_ActiveScene ? m_ActiveScene->GetPhysicsSystem() : nullptr)) {
+        m_PropertyDiagnostic = reason;
+        return;
+    }
+    if (m_Backend != PhysicsBackend::Jolt) {
+        m_PropertyDiagnostic = "Drop to Surface requires a provider with collider shape casts. Native supports verified clear poses.";
+        return;
+    }
+    if (!BeginDirectTransform(TransformTool::Translate)) return;
+    auto& session = m_GroupTransform;
+    session.proposal = session.preview;
+    session.proposedPivot = session.pivot;
+    session.placement = DownwardPlacement(Vec3f(session.pivot[3]), true, Rbs::Editor::Snap.resolve);
+    // Start at the selected pivot. Include the collider's downward extent when
+    // finding the surface. The provider still caps actual travel and tests shape contact.
+    float reach = session.placement.maxCorrection;
+    auto& world = *m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
+    for (const auto& edit : session.proposal.Span()) {
+        if (!edit.body) { m_PropertyDiagnostic = "Drop to Surface requires a collider on every selected root."; return; }
+        const auto body = world.ReadBody(edit.body);
+        if (!body) { m_PropertyDiagnostic = "Drop target is no longer available."; return; }
+        reach = std::max(reach, session.placement.maxCorrection + session.placement.pivot.y - body->worldBounds.mins.y);
+    }
+    session.placement.rayDelta.y = -reach;
+    m_DirectTransformReleased = true;
+    session.queryPending = session.dirty = true;
+    FinishTransformGesture();
+}
+
+bool RigidBodySimulationApp::PreviewNumericTransform(TransformTool tool, const Vec3f& input)
+{
+    auto& session = m_GroupTransform;
+    if (!Math::IsFinite(input) || !BeginDirectTransform(tool) || session.preview.count != 1) return false;
+    session.proposal = session.preview;
+    auto& edit = session.proposal.edits.front();
+    edit.after = edit.before;
+    const auto& snap = Rbs::Editor::Snap;
+    auto& after = edit.after;
+    if (tool == TransformTool::Translate) {
+        after.translation = input;
+        if (snap.grid) {
+            const auto grid = Rbs::Editor::SnapGrid(Vec3f(session.parentWorld[0] * glm::vec4(input,1)), snap.increment);
+            if (!grid) { m_PropertyDiagnostic = "Grid position cannot be represented."; return false; }
+            after.translation = Vec3f(glm::inverse(session.parentWorld[0]) * glm::vec4(*grid,1));
+        }
+    } else if (tool == TransformTool::Rotate) {
+        after.rotation = glm::normalize(glm::quat(glm::radians(input)));
+    } else {
+        if (glm::any(glm::lessThanEqual(input,Vec3f(0)))) { m_PropertyDiagnostic = "Scale must be positive."; return false; }
+        after.scale = input;
+    }
+    const auto position = Vec3f(session.parentWorld[0] * glm::vec4(after.translation,1));
+    session.proposedPivot = session.origin;
+    session.proposedPivot[3] = glm::vec4(position,1);
+    if (tool == TransformTool::Rotate && Rbs::Editor::TransformOrientation) {
+        const auto axes = glm::mat3(session.parentWorld[0]) * glm::mat3_cast(after.rotation);
+        for (int i=0; i<3; ++i) session.proposedPivot[i] = glm::vec4(glm::normalize(axes[i]),0);
+    }
+    if (!SetNumericPlacement(tool,position)) return false;
+    session.queryPending = session.dirty = true;
+    return true;
+}
+
+bool RigidBodySimulationApp::SetNumericPlacement(TransformTool tool, const Vec3f& pivot)
+{
+    auto& session=m_GroupTransform;
+    const auto roots=session.proposal.Span();
+    const auto& snap=Rbs::Editor::Snap;
+    const bool casts=m_Backend==PhysicsBackend::Jolt && (snap.resolve || (snap.surface && tool==TransformTool::Translate)) &&
+        std::ranges::any_of(roots,[](const auto& edit){return bool(edit.body);});
+    session.placement=DownwardPlacement(pivot,casts && snap.surface && tool==TransformTool::Translate,casts && snap.resolve);
+    if(session.placement.surface) {
+        auto* world=m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
+        float extent=0.f;
+        for(const auto& edit:roots) {
+            if(!edit.body) continue; // The shared placement check rejects a mixed surface group.
+            const auto body=world->ReadBody(edit.body);
+            if(!body){m_PropertyDiagnostic="Placement body is unavailable.";return false;}
+            extent=std::max(extent,edit.before.translation.y-body->worldBounds.mins.y);
+        }
+        session.placement.rayDelta.y-=extent;
+    }
+    return true;
+}
+
+void RigidBodySimulationApp::DrawDirectTransformFields(bool roundCollider, const EditorTransformValue* presented)
+{
+    namespace E = Rbs::Editor;
+    const auto rows=[](const EditorTransformValue& pose, auto&& draw) {
+        draw(TransformTool::Translate,"Position (m)",pose.translation);
+        draw(TransformTool::Rotate,"Rotation (deg)",glm::degrees(glm::eulerAngles(pose.rotation)));
+        draw(TransformTool::Scale,"Scale",pose.scale);
+    };
+    if(m_EditorMode==EditorMode::Simulation) {
+        if(!presented)return;
+        ImGui::TextDisabled("Read-only");
+        rows(*presented,[](TransformTool, const char* label, Vec3f value) {
+            E::PropertyRow row(label);
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextWrapped("X %.2f   Y %.2f   Z %.2f",E::Numeric::DisplayValue(value.x),
+                E::Numeric::DisplayValue(value.y),E::Numeric::DisplayValue(value.z));
+            if(ImGui::BeginPopupContextItem("Copy value")){
+                if(ImGui::MenuItem("Copy XYZ")){
+                    char text[96];
+                    ImFormatString(text,IM_ARRAYSIZE(text),"X %.9g   Y %.9g   Z %.9g",value.x,value.y,value.z);
+                    ImGui::SetClipboardText(text);
+                }
+                ImGui::EndPopup();
+            }
+        });
+        return;
+    }
+    auto& session = m_GroupTransform;
+    const auto id = m_ActiveScene->RenderData().Identify(m_HoveredEntity);
+    if (!id) return;
+    const auto committed = m_ActiveScene->ReadEditorTransform(*id);
+    if (!committed) return;
+    const bool previews = session.generation == m_SceneGeneration && session.dirty &&
+        !session.invalid && session.preview.count == 1 && session.preview.edits[0].entity == *id;
+    const auto& pose = previews ? session.preview.edits[0].after : *committed;
+    const auto* light = m_HoveredEntity.HasAllComponents<RenderLightComponent>() ?
+        &m_HoveredEntity.GetComponent<RenderLightComponent>() : nullptr;
+    if (m_NumericTransform && m_NumericTransform->target != *id) m_NumericTransform.reset();
+    const char* blocked = StoppedTransformBlock(m_EditorMode == EditorMode::Edit, m_SimulationState,
+        m_ActiveScene->GetPhysicsSystem());
+    if (!blocked && (m_EditorSelection.count != 1 || m_EditorSelection.ids[0] != *id))
+        blocked = "Select this object alone to edit its numeric Transform.";
+    if (!blocked && session.number.editing)
+        blocked = "Finish or cancel the numeric Gizmo edit.";
+    if (!blocked && SelectionProtectsAngularTransform())
+        blocked = "Use the connected body's Transform controls in Properties.";
+    if (!blocked && (m_SceneRequest || m_BackendRequest)) blocked = "Wait for the scene transaction to complete.";
+    if (!blocked && m_CameraPilot) blocked = "Commit or Cancel Pilot before editing this Transform.";
+    const bool editable = !blocked && !m_GizmoUsing;
+    const auto field = [&](TransformTool tool, const char* label, Vec3f value) {
+        const bool enabled=tool==TransformTool::Scale ? !light && !m_HoveredEntity.HasAllComponents<RenderCameraComponent>() :
+            !light || (tool==TransformTool::Translate ? light->kind!=RenderLightKind::Directional : light->kind!=RenderLightKind::Point);
+        const bool ours = m_NumericTransform && m_NumericTransform->tool == tool && m_NumericTransform->target == *id;
+        if (ours) { m_NumericTransform->lastDrawFrame = ImGui::GetFrameCount(); value = m_NumericTransform->input; }
+        const Vec3f prior = value;
+        if (ours && E::Numeric::state.editing == m_NumericTransform->field)
+            value[m_NumericTransform->axis] = m_NumericTransform->original[m_NumericTransform->axis];
+        const bool scale = tool == TransformTool::Scale;
+        const bool scalar = scale && roundCollider;
+        ImGui::BeginDisabled(!enabled || !editable || session.released);
+        int activeAxis = -1;
+        unsigned fieldId = 0;
+        bool typing = false, validText = false, invalid = false, ended = false;
+        float textValue = 0;
+        const auto observe = [&](int axis) {
+            const auto item = ImGui::GetItemID();
+            const bool text = E::Numeric::state.editing == item;
+            if (ImGui::IsItemActive() || text) {
+                activeAxis = axis; fieldId = item; typing = text;
+                if (text) validText = !E::Numeric::Parse(std::string_view(E::Numeric::state.text.data()), textValue,
+                    scale ? E::Numeric::Positive<float>() : E::Numeric::Bounds<float>{});
+            }
+            if (ours && item == m_NumericTransform->field) {
+                ended |= !text && !ImGui::IsItemActive();
+                invalid |= E::Numeric::Error(item) != nullptr;
+            }
+#ifdef GENGINE_PHASE28_QUALIFICATION
+            const char* keys[][3]={{"generic-position-x","generic-position-y","generic-position-z"},
+                {"generic-rotation-x","generic-rotation-y","generic-rotation-z"},{"generic-scale-x","generic-scale-y","generic-scale-z"}};
+            RBS_PHASE28_WIDGET(keys[tool==TransformTool::Translate?0:tool==TransformTool::Rotate?1:2][axis]);
+            if(tool==TransformTool::Translate && axis==0)RBS_PHASE28_WIDGET("reference-position-x");
+#endif
+        };
+        bool changed;
+        if (scalar) {
+            E::PropertyRow row("Uniform scale","One positive scale applies to the mesh and its round collider.");
+            const auto field = ImGui::GetID("##value");
+            changed = E::Numeric::Scalar("##value",value.x,.02f,E::Numeric::Positive<float>(),E::Numeric::Accept{},false,nullptr,false);
+            observe(0);
+            E::Numeric::Feedback(E::Numeric::Error(field));
+        } else {
+            changed = E::XYZ(label,&value.x,scale ? 1.f : 0.f,
+                scale ? .02f : tool == TransformTool::Rotate ? .25f : .05f,
+                tool == TransformTool::Translate ?
+                    "Drag or Ctrl+click to type metres. End drops a Jolt collider from the active viewport. Surface Snap uses the surface below typed coordinates." :
+                    "Drag or Ctrl+click to type. Release or Enter commits one transform. Escape cancels.",
+                scale ? E::Numeric::Positive<float>() : E::Numeric::Bounds<float>{}, E::Numeric::Accept{}, nullptr, observe);
+        }
+        ImGui::EndDisabled();
+        if (!editable || !enabled) return;
+        const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape,false);
+        if (ours && (escape || invalid)) {
+            CancelGroupTransform(); m_NumericTransform.reset();
+            if (escape) ImGui::ClearActiveID();
+            m_PropertyDiagnostic = escape ? "Transform cancelled." : "Invalid Transform. The committed pose was retained.";
+            return;
+        }
+        if (activeAxis >= 0 && !ours && !session.released && !session.dirty)
+            m_NumericTransform = NumericTransformGesture{*id,tool,activeAxis,fieldId,prior,prior,ImGui::GetFrameCount()};
+        if (typing && validText) value[activeAxis] = textValue;
+        if (scalar) value = Vec3f(value.x);
+        const bool previewChanged = ours && m_NumericTransform->input != value;
+        if (changed || ((ended || (typing && validText)) && previewChanged)) {
+            if (m_NumericTransform) m_NumericTransform->input = value;
+            if (!PreviewNumericTransform(tool,value)) { CancelGroupTransform(); m_NumericTransform.reset(); return; }
+        }
+        if (ended || (changed && activeAxis < 0)) {
+            if (session.dirty) {
+                if (ours && value == m_NumericTransform->original) CancelGroupTransform();
+                else { m_DirectTransformReleased = true; FinishTransformGesture(); }
+            }
+            m_NumericTransform.reset();
+        }
+    };
+    if(HasWorkingSimulationPose() && m_ActiveScene->GetBodyBinding(m_HoveredEntity))
+        ImGui::TextDisabled("Live working pose");
+    rows(pose,field);
+    if (blocked && !m_GizmoUsing) ImGui::TextDisabled("%s", blocked);
+}
+
+void RigidBodySimulationApp::DrawMoverProperties(std::size_t index)
+{
+    namespace E=Rbs::Editor;
+    const bool platform=index==0;
+    auto& draft=m_Mover.draft;
+    auto& body=platform?draft.platform:draft.rider;
+    auto& world=*m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
+    const auto handle=m_MoverBindings.bodies[index];
+    auto& dirty=m_Mover.dirty;
+    const bool editing=m_EditorMode==EditorMode::Edit && !m_SceneRequest && !m_BackendRequest &&
+        (m_SimulationState==Rbs::SimulationState::Ready || m_SimulationState==Rbs::SimulationState::Paused);
+    ImGui::PushID(static_cast<int>(index));
+    ImGui::TextUnformatted(m_HoveredEntity.GetName().c_str());
+    if(dirty)ImGui::TextWrapped("Apply the pending changes to reconstruct the scene at its initial pose.");
+    ImGui::BeginDisabled(!editing);
+    if (E::Component("Transform",true)) DrawDirectTransformFields();
+    if (!m_PropertyDiagnostic.empty()) ImGui::TextWrapped("%s",m_PropertyDiagnostic.c_str());
+    ImGui::EndDisabled();
+    DrawContextProperties(ContextSection::Surface);
+    ImGui::BeginDisabled(!editing);
+    if(E::Component("Box collider",true)){
+        dirty|=E::XYZ("Half extents (m)",&body.halfExtents.x,.5f,.01f,"Dimensions from the center to each face.",E::Numeric::Positive<float>());
+        E::ReadOnly("Local center","(0.00, 0.00, 0.00)");
+        if(ImGui::Button("Fit to current mesh")){
+            const auto fitted=Rbs::PrepareMeshColliderAdmission(*m_ActiveScene,*m_SceneResources,m_HoveredEntity,ShapeType::Box);
+            if(!fitted)m_SceneDiagnostic=fitted.error().reason;
+            else if(const auto* box=std::get_if<BoxShapeDesc>(&*fitted);box && box->center==Vec3f(0)){
+                dirty|=body.halfExtents!=box->halfExtents;
+                body.halfExtents=box->halfExtents;
+                m_SceneDiagnostic.clear();
+            }else m_SceneDiagnostic="This mover requires a centered box mesh.";
+        }
+    }
+    if(E::Component("RigidBody",true)){
+        E::ReadOnly("Motion type",platform?"Kinematic":"Dynamic");
+        if(platform){
+            E::ReadOnly("Inverse mass","0.00");
+            E::ReadOnly("Initial linear / angular velocity","(0.00, 0.00, 0.00) / (0.00, 0.00, 0.00)");
+        }
+        else{
+            dirty|=E::Number("Mass (kg)",body.properties.mass,.05f,"Recomputes box inertia.",E::Numeric::Positive<float>());
+            dirty|=E::XYZ("Initial velocity (m/s)",&body.linearVelocity.x,0.f,.05f);
+            dirty|=E::XYZ("Initial angular velocity (rad/s)",&body.angularVelocity.x,0.f,.05f);
+        }
+        auto& material=body.properties.material;
+        dirty|=E::Number("Friction",material.friction,.01f,"Contact friction.",E::Numeric::Closed(0.f,1.f));
+        dirty|=E::Number("Restitution",material.restitution,.01f,"Contact restitution.",E::Numeric::Closed(0.f,1.f));
+        E::ReadOnly("Spin / rolling length (mm)",E::DecimalText("{:.2f} / {:.2f}",1000.0*material.spinResistanceLength,1000.0*material.rollingResistanceLength).c_str());
+        ImGui::BeginDisabled(platform);
+        dirty|=DrawProviderBodyFields(body.properties,world.GetBackend());
+        ImGui::EndDisabled();
+    }
+    if(platform && E::Component("Mover trajectory",true)){
+        E::ReadOnly("Path","SineLine (horizontal)");
+        // This scene has one eligible kinematic body. Apply registers its fresh
+        // handle at tick zero using the same stopped transaction as path edits.
+        if(ImGui::Button("Rebind moving platform on Apply"))dirty=true;
+        dirty|=E::XYZ("Path center (m)",&draft.path.center.x,0.f,.05f,
+            "Center of the entire prescribed trajectory. Apply rebuilds the path at tick zero.");
+        dirty|=E::XYZ("Path direction",&draft.path.direction.x,0.f,.01f,"A nonzero horizontal direction; normalized when applied.");
+        dirty|=E::Number("Amplitude (m)",draft.path.amplitude,.05f,"Distance each side of center.",E::Numeric::Closed(0.,16.));
+        dirty|=E::Number("Frequency (Hz)",draft.path.frequencyHz,.0001f,"Cycles per second. Ctrl-click for precise entry. Applied frequency is shown in Mover diagnostics.",E::Numeric::Positive<double>());
+        dirty|=E::Number("Initial phase (rad)",draft.path.phase,.01f,"Normalized to one revolution on Apply.");
+        if(const auto path=draft.path.Normalized()){
+            E::ReadOnly("Normalized draft direction",E::DecimalVector(path->direction).c_str());
+            E::ReadOnly("Normalized draft phase (rad)",E::DecimalText("{:.2f}",path->phase).c_str());
+        }
+        E::ReadOnly("Applied peak speed (m/s)",E::DecimalText("{:.2f}",glm::two_pi<double>()*m_Mover.committed.path.frequencyHz*m_Mover.committed.path.amplitude).c_str());
+    }
+    ImGui::EndDisabled();
+
+    DrawContextProperties(ContextSection::View);
+
+    if(E::Component("Effective body",false)){
+        E::ReadOnly("Generation / body handle",std::format("{} / {}:{}",m_SceneGeneration,handle.index,handle.generation).c_str());
+        if(const auto state=world.ReadEffectiveBody(handle)){
+            E::ReadOnly("Position (m)",E::DecimalVector(state->position).c_str());
+            E::ReadOnly("Orientation (w,x,y,z)",QuaternionText(state->orientation).c_str());
+            E::ReadOnly("Center of mass (m)",E::DecimalVector(state->centerOfMass).c_str());
+            E::ReadOnly("Velocity (m/s)",E::DecimalVector(state->linearVelocity).c_str());
+            E::ReadOnly("Angular velocity (rad/s)",E::DecimalVector(state->angularVelocity).c_str());
+            E::ReadOnly("Inverse mass",std::format("{:.7g}",state->inverseMass).c_str());
+            const auto inertia=[](const Mat3& matrix){return std::format("{} / {} / {}",
+                DiagnosticVectorText(matrix[0]),DiagnosticVectorText(matrix[1]),DiagnosticVectorText(matrix[2]));};
+            E::ReadOnly("Body inverse inertia (columns)",inertia(state->inverseInertiaBody).c_str());
+            E::ReadOnly("World inverse inertia (columns)",inertia(state->inverseInertiaWorld).c_str());
+            if (state->type == BodyType::Dynamic)
+                DrawDynamicBodyInertia(state->inverseInertiaBody);
+            else
+                E::ReadOnly("Body inertia (kg m^2)", "Kinematic (no finite dynamic response)");
+            E::ReadOnly("Sleep state",platform?"Kinematic":state->sleeping?"Sleeping":"Awake");
+            E::ReadOnly("Local bounds (m)",std::format("{} to {}",E::DecimalVector(state->localBounds.mins),E::DecimalVector(state->localBounds.maxs)).c_str());
+            E::ReadOnly("World bounds (m)",std::format("{} to {}",E::DecimalVector(state->worldBounds.mins),E::DecimalVector(state->worldBounds.maxs)).c_str());
+            if(const auto properties=world.ReadBodyProperties(handle))
+                E::ReadOnly("Authored mass (kg)",E::DecimalText("{:.2f}",properties->mass).c_str());
+            E::ReadOnly("Applied friction / restitution",E::DecimalText("{:.2f} / {:.2f}",state->material.friction,state->material.restitution).c_str());
+        }
+    }
+    if(!m_SceneDiagnostic.empty())ImGui::TextWrapped("%s",m_SceneDiagnostic.c_str());
+    ImGui::PopID();
+}
+
 void RigidBodySimulationApp::DrawSceneAuthoringActions()
 {
     namespace E=Rbs::Editor;
     const bool angular=m_ActiveSelection.IsAngularScene();
     const bool ragdoll=m_Ragdoll.draft.has_value();
-    const bool pending=m_SceneDefaultsPending || (angular && m_Angular.dirty) || (ragdoll && m_Ragdoll.dirty);
+    const bool movers=m_ActiveSelection.scene==Rbs::RbsScenePreset::Movers;
+    const bool pending=m_SceneDefaultsPending || (angular && m_Angular.dirty) || (ragdoll && m_Ragdoll.dirty) || (movers && m_Mover.dirty);
     const bool switching=m_SceneRequest.has_value() || m_BackendRequest.has_value();
     const bool canAuthor=!switching && m_EditorMode==EditorMode::Edit &&
         (m_SimulationState==Rbs::SimulationState::Ready || m_SimulationState==Rbs::SimulationState::Paused);
-    const bool pendingComponent=HasPendingObjectProperties(!ragdoll);
+    const bool pendingComponent=HasPendingObjectProperties(!ragdoll,!movers);
     if(pendingComponent)ImGui::TextWrapped("Apply or Revert the selected component before resetting or restoring the scene.");
     if(m_SceneDefaultsPending)ImGui::TextWrapped("Scene defaults are staged. Apply to restore them, or Revert to keep the current scene.");
-    if(angular || ragdoll || pending) {
+    if(angular || ragdoll || movers || pending) {
         ImGui::BeginDisabled(!canAuthor || !pending || pendingComponent || E::Numeric::HasError());
         if(ImGui::Button("Apply##scene")) {
             if(ragdoll)RequestRagdollApply();else if(angular)RequestAngularApply();else ApplySceneDefaults();
@@ -2294,9 +2747,17 @@ void RigidBodySimulationApp::DrawSceneAuthoringActions()
     }
     RBS_PHASE28_WIDGET("restore-defaults");
     ImGui::EndDisabled();
-    if(angular || ragdoll) {
+    if(canAuthor && HasWorkingSimulationPose()) {
+        ImGui::TextDisabled("Working world. Reset restores the authored starting poses.");
+        ImGui::BeginDisabled(pending || pendingComponent || E::Numeric::HasError());
+        if(ImGui::Button("Keep Simulation Changes"))KeepSimulationChanges();
+        E::Tooltip(movers?"Keep both Movers poses and sizes as the scene reset baseline. Initial velocities stay authored.":
+            "Keep the selected free body's pose and size as its reset baseline.");
+        ImGui::EndDisabled();
+    }
+    if(angular || ragdoll || movers || HasWorkingSimulationPose()) {
         ImGui::BeginDisabled(switching || pending || pendingComponent);
-        if(ImGui::Button("Reset Simulation"))RequestScene(m_ActiveSelection);
+        if(ImGui::Button("Reset to Authored"))RequestScene(m_ActiveSelection);
         RBS_PHASE28_WIDGET("reset");
         ImGui::EndDisabled();
     }
@@ -2305,6 +2766,7 @@ void RigidBodySimulationApp::DrawSceneAuthoringActions()
 void RigidBodySimulationApp::DrawEditorProperties()
 {
     namespace E = Rbs::Editor;
+    if(m_EditorMode==EditorMode::Simulation){DrawImpulseProperties();return;}
     DrawCameraPilotControls();
     if(m_CameraPilot)ImGui::TextWrapped("Navigation authors this Camera pose. Commit or Cancel Pilot before other property edits.");
     ImGui::BeginDisabled(m_CameraPilot.has_value());
@@ -2312,14 +2774,13 @@ void RigidBodySimulationApp::DrawEditorProperties()
     if (m_HoveredEntity.GetSceneContext()!=m_ActiveScene.get() || !m_HoveredEntity)
     {
         ImGui::TextUnformatted("No entity selected");
-        ImGui::TextWrapped("Select an entity in Hierarchy or click an object in the Viewport.");
-        ImGui::PushStyleColor(ImGuiCol_Text,ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-        ImGui::TextWrapped("Ctrl+click adds to selection. Esc clears.");
-        ImGui::PopStyleColor();
-        DrawSceneAuthoringActions();
+        E::Tooltip("Click in the Hierarchy or Viewport. Ctrl+click extends the selection.");
         return;
     }
+    if(m_Mover.dirty || m_Ragdoll.dirty || m_Angular.dirty || m_SceneDefaultsPending)
+        ImGui::TextWrapped("Pending scene changes. Apply or revert in World Settings.");
     const bool multiple=m_EditorSelection.count>1;
+    if(!multiple)if(const auto mover=MoverBodyFor(m_HoveredEntity)){DrawMoverProperties(*mover);return;}
     if(!multiple)if(const auto bone=RagdollBoneFor(m_HoveredEntity)){DrawRagdollProperties(*bone);return;}
     if(!multiple && IsAngularEndpoint(m_HoveredEntity)){DrawAngularProperties();return;}
     ImGui::TextWrapped("%s", m_HoveredEntity.GetName().c_str());
@@ -2327,7 +2788,6 @@ void RigidBodySimulationApp::DrawEditorProperties()
     if(multiple && protectedTransform) {
         ImGui::TextWrapped("This selection includes a connected joint endpoint or its parent. Select one endpoint for joint authoring, or select the other objects separately for a group edit.");
         if(E::Component("Visibility",true))DrawEntityPresentationProperties();
-        DrawSceneAuthoringActions();
         return;
     }
     const bool hasMesh=m_HoveredEntity.HasAllComponents<MeshRendererComponent>();
@@ -2336,7 +2796,7 @@ void RigidBodySimulationApp::DrawEditorProperties()
     ImGui::TextDisabled("%s | %zu selected",type,m_EditorSelection.count);
     if (m_ColliderOutlines.capacityReached) ImGui::TextWrapped("Selection limit reached (4096).");
     if(!m_PropertyDiagnostic.empty())ImGui::TextWrapped("%s",m_PropertyDiagnostic.c_str());
-    if(m_EditorSelection.count>1)ImGui::TextWrapped("Group Transform: one atomic gesture. History: up to 32 commands / 8 MiB. Unsupported batches retain the full selection.");
+    if(m_EditorSelection.count>1)E::Tooltip("Use the Gizmo to transform the selected roots together.");
     const auto pose=m_ActiveScene->ReadBodyTransform(m_HoveredEntity);
     auto* world=m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
     const auto body=pose?world->ReadBody(pose->body):PhysicsBodyResult<PhysicsBodyState>{
@@ -2346,59 +2806,12 @@ void RigidBodySimulationApp::DrawEditorProperties()
         m_SimulationState==Rbs::SimulationState::Switching;
     ImGui::BeginDisabled(switching);
     if (m_HoveredEntity==m_SkyBoxEntity)
-        ImGui::TextWrapped("The sky follows the camera. Use sky visibility to control the background.");
+        ImGui::TextWrapped("Sky controls are in World Settings.");
     else if (m_HoveredEntity.HasAllComponents<Transform3DComponent>() && E::Component("Transform"))
     {
         if(protectedTransform)ImGui::TextWrapped("Moving this parent would move a joint endpoint. Select the endpoint to edit the connected transforms.");
-        const bool numericPose=TransformEditingAllowed() && m_SimulationState!=Rbs::SimulationState::Running;
-        if(!numericPose)ImGui::TextWrapped("Pause and enter Edit mode for numeric transforms.");
-        ImGui::BeginDisabled(multiple || protectedTransform || !numericPose);
-        auto position = m_HoveredEntity.Transform().Translation;
-        const bool componentPose=m_HoveredEntity.HasAnyComponents<RenderCameraComponent,RenderLightComponent>();
-        const auto* light=m_HoveredEntity.HasAllComponents<RenderLightComponent>()?
-            &m_HoveredEntity.GetComponent<RenderLightComponent>():nullptr;
-        const bool directional=light && light->kind==RenderLightKind::Directional;
-        const bool point=light && light->kind==RenderLightKind::Point;
-        // Authored lights may set the quaternion directly. Display the actual
-        // local orientation used by RenderState, not a stale Euler convenience field.
-        auto rotation = glm::degrees(componentPose?glm::eulerAngles(m_HoveredEntity.Transform().QuatRotation):m_HoveredEntity.Transform().EulerRotation);
-        auto scale = m_HoveredEntity.Transform().Scale;
-        ImGui::BeginDisabled(directional);
-        if (E::XYZ("Translation (m)", &position.x, 0.f, .05f,
-            directional?"Directional lighting uses rotation.":"Drag or Ctrl+click to edit position. Click an axis to reset it.",
-            {},E::Numeric::Accept{},nullptr,[&](int axis){
-                if(axis==0){RBS_PHASE28_WIDGET("reference-position-x");RBS_PHASE28_WIDGET("generic-position-x");}
-                if(axis==1)RBS_PHASE28_WIDGET("generic-position-y");
-                if(axis==2)RBS_PHASE28_WIDGET("generic-position-z");
-            }))
-            QueueTransformEdit(TransformTool::Translate, position);
-        ImGui::EndDisabled();
-        ImGui::BeginDisabled(point);
-        if (E::XYZ("Rotation (deg)", &rotation.x, 0.f, .25f,
-            point?"A point light radiates equally in every direction.":"Drag or Ctrl+click to edit the selected object's local rotation.",
-            {},E::Numeric::Accept{},nullptr,[&](int axis){
-                if(axis==0)RBS_PHASE28_WIDGET("generic-rotation-x");
-                if(axis==1)RBS_PHASE28_WIDGET("generic-rotation-y");
-                if(axis==2)RBS_PHASE28_WIDGET("generic-rotation-z");}))
-            QueueTransformEdit(TransformTool::Rotate, glm::radians(rotation));
-        ImGui::EndDisabled();
-        ImGui::BeginDisabled(componentPose);
-        if(body && (body->shapeType==ShapeType::Sphere || body->shapeType==ShapeType::Capsule)) {
-            E::PropertyRow row("Uniform scale","Apply one positive scale to all axes of the mesh and its collider.");
-            if(E::Numeric::Scalar("##value",scale.x,.02f,E::Numeric::Positive<float>()))
-                QueueTransformEdit(TransformTool::Scale,Vec3f{scale.x});
-            RBS_PHASE28_WIDGET("generic-scale-x");
-        }
-        else if (E::XYZ("Scale", &scale.x, 1.f, .02f, componentPose ?
-            "Edit the camera projection or the light's applicable range and cone settings." :
-            "Scale changes the selected mesh and its bound collider.",
-            {},E::Numeric::Accept{},nullptr,[&](int axis){if(axis==0)RBS_PHASE28_WIDGET("generic-scale-x");}))
-            QueueTransformEdit(TransformTool::Scale, scale);
-        ImGui::EndDisabled();
-        ImGui::EndDisabled();
-        if(directional)ImGui::TextWrapped("Rotate this directional light to change the direction of illumination.");
-        if(point)ImGui::TextWrapped("Translate this point light to move its center of illumination.");
-        if(m_EditorSelection.count>1)ImGui::TextWrapped("Numeric Transform fields describe the active object. Use the toolbar gizmo for an atomic group gesture (up to 4096 roots; collider/query budgets apply).");
+        DrawDirectTransformFields(body && (body->shapeType==ShapeType::Sphere || body->shapeType==ShapeType::Capsule));
+        if(m_EditorSelection.count>1)ImGui::TextDisabled("Numeric fields show the active object.");
     }
     // Context editing remains single-object; no fabricated common material values.
     if(!multiple) {
@@ -2487,9 +2900,9 @@ void RigidBodySimulationApp::DrawEditorProperties()
         if(sleepOpen)
         {
             ImGui::BeginDisabled(jolt);
-            edit.dirty |= E::Number("Linear (m/s)",p.sleep.linearSpeedThreshold,.01f,"Finite, nonnegative Native threshold.",E::Numeric::Nonnegative<float>());
+            edit.dirty |= E::Number("Linear (m/s)",p.sleep.linearSpeedThreshold,.01f,"Finite, nonnegative Native threshold.",E::Numeric::Nonnegative<float>(),E::Numeric::Accept{},E::Numeric::PreciseFormat);
             RBS_PHASE28_WIDGET("generic-sleep-linear");
-            edit.dirty |= E::Number("Angular (rad/s)",p.sleep.angularSpeedThreshold,.01f,"Finite, nonnegative Native threshold.",E::Numeric::Nonnegative<float>());
+            edit.dirty |= E::Number("Angular (rad/s)",p.sleep.angularSpeedThreshold,.01f,"Finite, nonnegative Native threshold.",E::Numeric::Nonnegative<float>(),E::Numeric::Accept{},E::Numeric::PreciseFormat);
             RBS_PHASE28_WIDGET("generic-sleep-angular");
             edit.dirty |= E::Number("Dwell (s)",p.sleep.inactivitySeconds,.01f,"Finite, positive Native dwell time.",E::Numeric::Positive<double>());
             RBS_PHASE28_WIDGET("generic-sleep-dwell");
@@ -2517,9 +2930,9 @@ void RigidBodySimulationApp::DrawEditorProperties()
         RBS_PHASE28_WIDGET("generic-resistance");
         if (resistanceOpen)
         {
-            E::ReadOnly("Spin length (m)", std::format("{:.3f}", body->material.spinResistanceLength).c_str());
+            E::ReadOnly("Spin length (mm)", E::DecimalText("{:.2f}", 1000.0*body->material.spinResistanceLength).c_str());
             RBS_PHASE28_WIDGET("generic-spin-readback");
-            E::ReadOnly("Rolling length (m)", std::format("{:.3f}", body->material.rollingResistanceLength).c_str());
+            E::ReadOnly("Rolling length (mm)", E::DecimalText("{:.2f}", 1000.0*body->material.rollingResistanceLength).c_str());
             RBS_PHASE28_WIDGET("generic-rolling-readback");
             ImGui::TreePop();
         }
@@ -2540,7 +2953,7 @@ void RigidBodySimulationApp::DrawEditorProperties()
             {
                 const auto& desc = joint->descriptor;
                 E::ReadOnly("Endpoints", std::format("Body {} / Body {}", desc.bodyA.index, desc.bodyB.index).c_str());
-                if(desc.kind==JointKind::Distance) E::ReadOnly("Length (m)", std::format("{:.3f}", desc.targetDistance).c_str());
+                if(desc.kind==JointKind::Distance) E::ReadOnly("Length (m)", E::DecimalText("{:.2f}", desc.targetDistance).c_str());
                 else E::ReadOnly("Rotation", "Free on all three axes");
                 auto a = desc.localAnchorA, b = desc.localAnchorB;
                 ImGui::BeginDisabled();
@@ -2552,8 +2965,8 @@ void RigidBodySimulationApp::DrawEditorProperties()
                 if(desc.kind==JointKind::BallSocket) {
                     ImGui::TextColored({.1f,.85f,1.f,1.f},"A: cyan ring / COM helper / collider");
                     ImGui::TextColored({1.f,.55f,.1f,1.f},"B: orange cross / COM helper / collider");
-                    E::ReadOnly("Anchor A world (m)",std::format("{:.5f}, {:.5f}, {:.5f}",joint->worldAnchorA.x,joint->worldAnchorA.y,joint->worldAnchorA.z).c_str());
-                    E::ReadOnly("Anchor B world (m)",std::format("{:.5f}, {:.5f}, {:.5f}",joint->worldAnchorB.x,joint->worldAnchorB.y,joint->worldAnchorB.z).c_str());
+                    E::ReadOnly("Anchor A world (m)",E::DecimalText("{:.2f}, {:.2f}, {:.2f}",joint->worldAnchorA.x,joint->worldAnchorA.y,joint->worldAnchorA.z).c_str());
+                    E::ReadOnly("Anchor B world (m)",E::DecimalText("{:.2f}, {:.2f}, {:.2f}",joint->worldAnchorB.x,joint->worldAnchorB.y,joint->worldAnchorB.z).c_str());
                     ImGui::TextWrapped("Pink segment: anchor error. Viewport helpers use current Physics poses.");
                     if(m_ActiveSelection.scene==Rbs::RbsScenePreset::BallSocketContact ||
                        m_ActiveSelection.scene==Rbs::RbsScenePreset::BallSocketContactEnabled) {
@@ -2565,8 +2978,8 @@ void RigidBodySimulationApp::DrawEditorProperties()
                         if(bodyA && bodyB && sphereA && sphereB) {
                             const auto distance=glm::length(bodyB->position-bodyA->position);
                             const auto radii=sphereA->radius+sphereB->radius;
-                            E::ReadOnly("Center distance (m)",std::format("{:.5f}",distance).c_str());
-                            E::ReadOnly("Sum of sphere radii (m)",std::format("{:.5f}",radii).c_str());
+                            E::ReadOnly("Center distance (m)",E::DecimalText("{:.2f}",distance).c_str());
+                            E::ReadOnly("Sum of sphere radii (m)",E::DecimalText("{:.2f}",radii).c_str());
                             E::ReadOnly("Sphere overlap (m)",std::format("{:.5f}",(std::max)(0.f,radii-distance)).c_str());
                         } else E::ReadOnly("Sphere overlap", "Unavailable: requires two live sphere colliders");
                     }
@@ -2576,9 +2989,8 @@ void RigidBodySimulationApp::DrawEditorProperties()
             ImGui::PopID();
         }
     }
-    if(body || multiple)DrawImpulseProperties();
+
     if(!multiple)DrawContextProperties(ContextSection::View);
-    DrawSceneAuthoringActions();
     if(E::Component("Advanced / Diagnostics",false))
     {
         if(multiple)ImGui::TextWrapped("Identifiers below describe the active object, not a common value.");
@@ -2589,34 +3001,23 @@ void RigidBodySimulationApp::DrawEditorProperties()
         if(body && !multiple)
         {
             if(auto effective=world->ReadEffectiveBody(pose->body)) {
-                E::ReadOnly("Effective position (m)",std::format("({:.4f}, {:.4f}, {:.4f})",
-                    effective->position.x,effective->position.y,effective->position.z).c_str());
+                E::ReadOnly("Effective position (m)",E::DecimalVector(effective->position).c_str());
                 E::ReadOnly("Orientation (w,x,y,z)", QuaternionText(effective->orientation).c_str());
-                E::ReadOnly("Linear velocity (m/s)", std::format("({:.4g}, {:.4g}, {:.4g})",
-                    effective->linearVelocity.x, effective->linearVelocity.y, effective->linearVelocity.z).c_str());
-                E::ReadOnly("Angular velocity (rad/s)", std::format("({:.4g}, {:.4g}, {:.4g})",
-                    effective->angularVelocity.x, effective->angularVelocity.y, effective->angularVelocity.z).c_str());
+                E::ReadOnly("Linear velocity (m/s)", E::DecimalVector(effective->linearVelocity).c_str());
+                E::ReadOnly("Angular velocity (rad/s)", E::DecimalVector(effective->angularVelocity).c_str());
                 E::ReadOnly("Inverse mass (1/kg)", std::format("{:.6g}", effective->inverseMass).c_str());
                 if (effective->type == BodyType::Dynamic) {
-                    const glm::dmat3 inverseInertia{effective->inverseInertiaBody};
-                    const double determinant = glm::determinant(inverseInertia);
-                    if (std::isfinite(determinant) && determinant > 0.0) {
-                        const auto inertia = glm::inverse(inverseInertia);
-                        E::ReadOnly("Body inertia (kg m^2)", std::format(
-                            "({:.4g}, {:.4g}, {:.4g})\n({:.4g}, {:.4g}, {:.4g})\n({:.4g}, {:.4g}, {:.4g})",
-                            inertia[0][0], inertia[1][0], inertia[2][0], inertia[0][1], inertia[1][1], inertia[2][1],
-                            inertia[0][2], inertia[1][2], inertia[2][2]).c_str(), "Rows of the applied body-local inertia tensor.");
-                    } else E::ReadOnly("Body inertia (kg m^2)", "Finite tensor unavailable");
+                    DrawDynamicBodyInertia(effective->inverseInertiaBody);
                     E::ReadOnly("Sleep state", effective->sleeping ? "Sleeping" : "Awake");
                 } else E::ReadOnly("Sleep state", "Fixed or kinematic");
                 E::ReadOnly("Effective collider",Rbs::ColliderTypeName(effective->shapeType));
-                E::ReadOnly("Effective friction / restitution",std::format("{:.4f} / {:.4f}",
+                E::ReadOnly("Effective friction / restitution",E::DecimalText("{:.2f} / {:.2f}",
                     effective->material.friction,effective->material.restitution).c_str());
             } else E::ReadOnly("Effective body","Backend readback unavailable");
             const bool jolt=m_Backend==PhysicsBackend::Jolt;
             const auto actual=world->ReadBodyProperties(pose->body);
             if(jolt && ImGui::TreeNode("Effective / SDK body defaults")) {
-                if(actual)ImGui::TextWrapped("Friction %.6g / .2 | Restitution %.6g / 0 | Damping %.6g, %.6g / .05, .05 | Gravity %.6g / 1 | CCD %s / Discrete | Sleep %s / ON",actual->material.friction,actual->material.restitution,actual->linearDamping,actual->angularDamping,actual->gravityFactor,actual->continuousCollision?"LinearCast":"Discrete",actual->allowSleeping?"ON":"OFF");
+                if(actual)ImGui::TextWrapped("Friction %.2f / 0.20 | Restitution %.2f / 0.00 | Damping %.2f, %.2f / 0.05, 0.05 | Gravity %.2f / 1.00 | CCD %s / Discrete | Sleep %s / ON",actual->material.friction,actual->material.restitution,actual->linearDamping,actual->angularDamping,actual->gravityFactor,actual->continuousCollision?"LinearCast":"Discrete",actual->allowSleeping?"ON":"OFF");
                 ImGui::TextWrapped("SDK defaults are reference values, not GEngine's preserved authored baseline. GEngine uses product material combination.");ImGui::TreePop();
             }
             if(jolt && ImGui::TreeNode("Contact coefficients")) {
@@ -3002,7 +3403,7 @@ void RigidBodySimulationApp::DrawMenus()
 #endif
         if (fileOpen)
         {
-            DrawAsyncMenu();
+            if(!SandboxEnabled() || TransformEditingAllowed())DrawAsyncMenu();
             // Disabling fullscreen would allow the window to be moved to the front of other windows,
             // which we can't undo at the moment without finer window depth/z control.
             if (ImGui::MenuItem("Exit"))
@@ -3016,7 +3417,7 @@ void RigidBodySimulationApp::DrawMenus()
 #if (defined(GENGINE_INPUT_VALIDATION) || defined(GENGINE_LIFECYCLE_VALIDATION)) && !defined(GENGINE_INPUT_CONTROL)
         const auto shadowPoint = ImGui::GetCursorScreenPos();
 #endif
-        const bool shadowsOpen = ImGui::BeginMenu("Shadows");
+        const bool shadowsOpen = ImGui::BeginMenu("Shadows",!SandboxEnabled() || TransformEditingAllowed());
 #if (defined(GENGINE_INPUT_VALIDATION) || defined(GENGINE_LIFECYCLE_VALIDATION)) && !defined(GENGINE_INPUT_CONTROL)
         PreEditorInput::NoteUIMenu(0, shadowsOpen, shadowPoint.x, shadowPoint.y,
                                    ImGui::CalcTextSize("Shadows").x +
@@ -3061,7 +3462,7 @@ void RigidBodySimulationApp::DrawMenus()
             const auto& current = GetShadowQuality();
             ImGui::Text("Active: %s (%u x %u)", ShadowQualityLabel(current.effective).data(),
                         current.resolution, current.resolution);
-            ImGui::Text("Estimated / allocated depth: %.1f / %.1f MiB",
+            ImGui::Text("Estimated / allocated depth: %.2f / %.2f MiB",
                         double(current.memory.estimatedBytes) / (1024 * 1024),
                         double(current.memory.allocatedDepthBytes) / (1024 * 1024));
             ImGui::TextDisabled("Driver overhead is not included.");
@@ -3083,6 +3484,7 @@ void RigidBodySimulationApp::DrawMenus()
 void RigidBodySimulationApp::DrawCameraMenu()
 {
     if (!ImGui::BeginMenu("Cameras")) return;
+    const bool authoring=TransformEditingAllowed();
     if(m_CameraPilot){DrawCameraPilotControls();ImGui::EndMenu();return;}
     if (ImGui::MenuItem("Editor view", nullptr, m_CameraView == CameraView::Editor))
         (void)SetCameraView(CameraView::Editor);
@@ -3099,21 +3501,21 @@ void RigidBodySimulationApp::DrawCameraMenu()
         const bool live = bool(entity);
         const auto label = std::format("{}###SceneCamera{}",live ? _Entity{*entity,m_ActiveScene.get()}.Name() : "Missing Scene Camera",slot);
         if (!ImGui::BeginMenu(label.c_str())) continue;
-        if(ImGui::MenuItem("Pilot Camera",nullptr,false,live && !m_CameraPilot))(void)BeginCameraPilot(id);
-        if (ImGui::MenuItem("Edit Transform", nullptr, false, live))
+        if(ImGui::MenuItem("Pilot Camera",nullptr,false,live && authoring && !m_CameraPilot))(void)BeginCameraPilot(id);
+        if (ImGui::MenuItem("Edit Transform", nullptr, false, live && authoring))
             (void)EditSceneCamera(id);
         if (ImGui::MenuItem("Open Camera View", nullptr, false, live))
             OpenCameraPanel(id);
-        if (ImGui::MenuItem("Make Active", nullptr, active && *active && **active == id, live))
+        if (ImGui::MenuItem("Make Active", nullptr, active && *active && **active == id, live && authoring))
             (void)SelectSceneCamera(id);
         if (ImGui::MenuItem("Preview", nullptr,
                             m_CameraView == CameraView::Preview && m_PreviewCamera == id, live))
             (void)SetCameraView(CameraView::Preview, id);
-        if (ImGui::MenuItem("Replace with fresh identity", nullptr, false, live))
+        if (ImGui::MenuItem("Replace with fresh identity", nullptr, false, live && authoring))
             (void)RetireSceneCamera(slot, true);
-        if (ImGui::MenuItem("Delete", nullptr, false, live))
+        if (ImGui::MenuItem("Delete", nullptr, false, live && authoring))
             (void)RetireSceneCamera(slot, false);
-        if (ImGui::MenuItem("Create from Editor pose", nullptr, false, !live))
+        if (ImGui::MenuItem("Create from Editor pose", nullptr, false, !live && authoring))
             if (auto created = CreateSceneCamera(slot); !created)
                 m_CameraDiagnostic = "Camera creation failed";
         ImGui::EndMenu();
@@ -3155,7 +3557,7 @@ void RigidBodySimulationApp::DrawViewport()
 
     m_ViewportForcused = ImGui::IsWindowFocused();
     m_ViewportHovered = ImGui::IsWindowHovered();
-    if(SandboxEnabled() && ImGui::IsWindowFocused() && !ImGui::IsAnyItemActive() && ImGui::IsKeyPressed(ImGuiKey_F2,false))
+    if(SandboxEnabled() && !m_GroupTransform.number.editing && ImGui::IsWindowFocused() && !ImGui::IsAnyItemActive() && ImGui::IsKeyPressed(ImGuiKey_F2,false))
         if(auto id=m_ActiveScene->RenderData().Identify(m_HoveredEntity))BeginEntityRename(*id);
 
     //GENGINE_INFO("Focused: {}", ImGui::IsWindowFocused());
@@ -3198,7 +3600,7 @@ void RigidBodySimulationApp::DrawViewport()
             ReportFramebufferError("viewport image", image.error());
         else
         {
-            if(SandboxEnabled() && ImGui::BeginDragDropTarget())
+            if(SandboxEnabled() && TransformEditingAllowed() && ImGui::BeginDragDropTarget())
             {
                 if(const auto* payload=ImGui::AcceptDragDropPayload(Rbs::ScenePresetPayloadType))
                 {

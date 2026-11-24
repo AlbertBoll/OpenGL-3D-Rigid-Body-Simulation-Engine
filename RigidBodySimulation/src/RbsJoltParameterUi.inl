@@ -39,13 +39,13 @@ void RigidBodySimulationApp::DrawJoltSettings() {
         e.dirty|=E::Number("Restitution min (m/s)",p.minRestitutionVelocity,.05f,"World threshold, not body restitution. Native Jolt default 1 m/s. Strictly positive.",E::Numeric::Positive<float>());
         e.dirty|=E::Number("Baumgarte",p.baumgarte,.01f,"Position error correction fraction. Jolt default .2. Experimental, not material stiffness.",E::Numeric::Closed(0.f,1.f));
         const auto square=[](float v)->const char*{return std::isfinite(v*v)?nullptr:"Squared distance must remain finite.";};
-        e.dirty|=E::Number("Penetration slop (m)",p.penetrationSlop,.001f,"Jolt default .02 m. Allowed solver penetration, not editor placement tolerance.",E::Numeric::Nonnegative<float>(),square);
-        e.dirty|=E::Number("Speculative dist (m)",p.speculativeDistance,.001f,"Jolt default .02 m. Large distances can create ghost contacts.",E::Numeric::Nonnegative<float>(),square);ImGui::TreePop();
+        e.dirty|=E::Number("Penetration slop (m)",p.penetrationSlop,.001f,"Jolt default .02 m. Allowed solver penetration, not editor placement tolerance.",E::Numeric::Nonnegative<float>(),square,E::Numeric::PreciseFormat);
+        e.dirty|=E::Number("Speculative dist (m)",p.speculativeDistance,.001f,"Jolt default .02 m. Large distances can create ghost contacts.",E::Numeric::Nonnegative<float>(),square,E::Numeric::PreciseFormat);ImGui::TreePop();
     }
     if(ImGui::TreeNode("Sleeping")) {
         check("Allow sleeping",p.allowSleeping,"World gate; per-body Sleeping Enabled remains independent. Existing scheduler master gate still applies.");
         e.dirty|=E::Number("Time before sleep (s)",p.timeBeforeSleep,.01f,"Native Jolt default .5 s; positive.",E::Numeric::Positive<float>());
-        e.dirty|=E::Number("Point speed (m/s)",p.pointVelocitySleepThreshold,.001f,"Three-point sleep test; native Jolt default .03 m/s, not a per-body threshold.",E::Numeric::Positive<float>());ImGui::TreePop();
+        e.dirty|=E::Number("Point speed (m/s)",p.pointVelocitySleepThreshold,.001f,"Three-point sleep test; native Jolt default .03 m/s, not a per-body threshold.",E::Numeric::Positive<float>(),E::Numeric::Accept{},E::Numeric::PreciseFormat);ImGui::TreePop();
     }
     if(ImGui::TreeNode("Advanced Diagnostics")) {
         ImGui::TextWrapped("Jolt DEBUG controls. Changing these can reduce stability or increase CPU cost.");
@@ -68,9 +68,9 @@ void RigidBodySimulationApp::DrawJoltSettings() {
     if(actual && defaults && ImGui::TreeNode("Effective / Jolt native defaults")) {
         const auto& a=*actual;const auto& d=*defaults;
         ImGui::TextWrapped("Velocity: %d / %d | Position: %d / %d | Collision substeps: %d / baseline 1",a.velocitySteps,d.velocitySteps,a.positionSteps,d.positionSteps,a.collisionSteps);
-        ImGui::TextWrapped("Restitution minimum: %.6g / %.6g m/s | Baumgarte: %.6g / %.6g",a.minRestitutionVelocity,d.minRestitutionVelocity,a.baumgarte,d.baumgarte);
+        ImGui::TextWrapped("Restitution minimum: %.2f / %.2f m/s | Baumgarte: %.2f / %.2f",a.minRestitutionVelocity,d.minRestitutionVelocity,a.baumgarte,d.baumgarte);
         ImGui::TextWrapped("Slop: %.6g / %.6g m | Speculative: %.6g / %.6g m",a.penetrationSlop,d.penetrationSlop,a.speculativeDistance,d.speculativeDistance);
-        ImGui::TextWrapped("Sleeping: %s / ON | Dwell: %.6g / %.6g s | Point speed: %.6g / %.6g m/s",a.allowSleeping?"ON":"OFF",a.timeBeforeSleep,d.timeBeforeSleep,a.pointVelocitySleepThreshold,d.pointVelocitySleepThreshold);
+        ImGui::TextWrapped("Sleeping: %s / ON | Dwell: %.2f / %.2f s | Point speed: %.6g / %.6g m/s",a.allowSleeping?"ON":"OFF",a.timeBeforeSleep,d.timeBeforeSleep,a.pointVelocitySleepThreshold,d.pointVelocitySleepThreshold);
         ImGui::TextWrapped("Warm start: %s / ON | Pair cache: %s / ON | Reduction: %s / ON",a.warmStarting?"ON":"OFF",a.bodyPairCache?"ON":"OFF",a.manifoldReduction?"ON":"OFF");ImGui::TreePop();
     }
     ImGui::TextWrapped("%s",e.queued?"Queued at safe boundary":e.dirty?"Unapplied experimental draft":"Effective values; preserved baseline unchanged");

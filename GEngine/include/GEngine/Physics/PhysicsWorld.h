@@ -51,6 +51,37 @@ namespace GEngine
     };
     using BackendStepResult = std::expected<void, PhysicsStepFailure>;
 
+    // One prescribed, horizontal SineLine in simulation time. The rider remains a dynamic body.
+    struct PhysicsMoverPath
+    {
+        static constexpr double MaxFrequencyHz = 0.25 / 6.2831853071795864769;
+        Vec3f center{10.f,5.5f,0.f}, direction{0.f,0.f,-1.f};
+        double amplitude{16}, frequencyHz{MaxFrequencyHz}, phase{};
+        [[nodiscard]] PhysicsBodyResult<PhysicsMoverPath> Normalized() const;
+        [[nodiscard]] Vec3f PositionAt(double seconds) const;
+        friend bool operator==(const PhysicsMoverPath&,const PhysicsMoverPath&) = default;
+    };
+    struct PhysicsMoverSample
+    {
+        PhysicsBodyHandle platform{}, rider{};
+        PhysicsMoverPath path{};
+        std::uint64_t tick{};
+        std::int64_t phaseTick{};
+        double phaseTime{};
+        Vec3f target{}, position{}, velocity{}, riderRelativeVelocity{};
+        float targetError{}, riderSlip{};
+        bool pairInContact{}, slipValid{}, enabled{true}, reversed{}, commandPending{};
+    };
+    enum class MoverCommand { Start, Stop, Reverse };
+    struct PreparedMoverStep
+    {
+        PhysicsBodyHandle platform{}, rider{};
+        Vec3f target{}, velocity{};
+        Quat orientation{1,0,0,0};
+        std::int64_t phaseTick{};
+        double phaseTime{};
+        bool enabled{}, reversed{}, pairInContact{};
+    };
     struct PhysicsMaterial
     {
         float friction{.5f}, restitution{.5f};
@@ -185,6 +216,10 @@ namespace GEngine
         // Transfers shape only on success; rejection preserves the caller's owner.
         [[nodiscard]] PhysicsBodyResult<PhysicsBodyHandle> CreateBody(
             const PhysicsBodyDesc&, std::unique_ptr<PhysicalShape>& shape);
+        [[nodiscard]] PhysicsBodyResult<> RegisterMover(PhysicsBodyHandle platform, PhysicsBodyHandle rider,
+            const PhysicsMoverPath&, double fixedSeconds);
+        [[nodiscard]] PhysicsBodyResult<> QueueMoverCommand(PhysicsBodyHandle platform, MoverCommand);
+        [[nodiscard]] PhysicsBodyResult<PhysicsMoverSample> ReadMover(PhysicsBodyHandle platform) const;
         [[nodiscard]] PhysicsBodyResult<> DestroyBody(PhysicsBodyHandle);
         [[nodiscard]] PhysicsBodyResult<> Close();
         [[nodiscard]] PhysicsBodyResult<PhysicsBodyState> ReadBody(PhysicsBodyHandle) const;
@@ -255,6 +290,16 @@ namespace GEngine
         auto GetGravity() const { return m_Gravity; }
         void ConstructWorld() {} // Retained no-op configuration hook.
     private:
+        struct MoverRegistration
+        {
+            PhysicsMoverSample sample;
+            double fixedSeconds{};
+            Vec3f firstSupportOffset{};
+            bool requestedEnabled{true}, requestedReverse{};
+        };
+        std::optional<MoverRegistration> m_Mover;
+        PhysicsBodyResult<PreparedMoverStep> PrepareMoverStep(double duration) const;
+        void CommitMoverStep(const PreparedMoverStep&, std::uint64_t completedTick);
         struct UnconfiguredTag {};
         explicit PhysicsWorld(UnconfiguredTag);
         // Command-local scratch: at most two incident endpoints per managed joint.

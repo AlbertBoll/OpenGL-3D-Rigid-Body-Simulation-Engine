@@ -41,6 +41,7 @@ namespace Rbs
     struct AngularJointChecks;
     struct PassiveRagdollChecks;
     struct MotorChecks;
+    struct MoverChecks;
     struct SandboxChecks;
     struct BackendSwitchChecks;
     struct OwnerReviewDriver;
@@ -143,6 +144,7 @@ private:
     friend struct Rbs::AngularJointChecks;
     friend struct Rbs::PassiveRagdollChecks;
     friend struct Rbs::MotorChecks;
+    friend struct Rbs::MoverChecks;
     friend struct Rbs::SandboxChecks;
     friend struct Rbs::BackendSwitchChecks;
     friend struct Rbs::OwnerReviewDriver;
@@ -170,12 +172,12 @@ private:
     void StageSceneDefaults();
     bool ApplySceneDefaults();
     void RevertSceneDefaults();
-    bool HasPendingObjectProperties(bool includeRagdoll = true) const;
+    bool HasPendingObjectProperties(bool includeRagdoll = true, bool includeMover = true) const;
     bool HasPendingColliderDraft() const;
     void DrawSceneAuthoringActions();
     void DrawAngularProperties();
     void DrawAngularWorldSettings();
-    void ProcessSceneRequest();
+    void ProcessSceneRequest(Rbs::Editor::TransformBatch* directTransform = nullptr);
     void ProcessBodyPropertyCommand();
     void ProcessWorldSleepCommand();
     void DrawWorldSleepSettings();
@@ -256,17 +258,49 @@ private:
     void DrawEntityPresentationProperties();
     void EditorHistoryShortcuts();
     void DrawViewportGizmo();
+    void DrawGizmoNumber();
+    bool StageGizmoNumber(float value);
     void DrawViewportMarquee();
     void CancelViewportMarquee();
     void ArmViewportMarquee(unsigned x,unsigned y,GEngine::EntityRenderId clicked = {});
     void CommitViewportClick();
     enum class TransformTool { Select, Translate, Rotate, Scale };
+    struct NumericTransformGesture {
+        GEngine::EntityRenderId target{};
+        TransformTool tool{};
+        int axis{};
+        unsigned field{};
+        GEngine::Math::Vec3f original{}, input{};
+        int lastDrawFrame{};
+    };
+    std::optional<NumericTransformGesture> m_NumericTransform;
+    bool m_DirectTransformReleased{};
+    void DrawDirectTransformFields(bool roundCollider = false, const GEngine::EditorTransformValue* presented = nullptr);
+    bool HasWorkingSimulationPose() const;
+    void KeepSimulationChanges();
+    bool ApplyWorkingTransformBatch(std::span<const GEngine::EditorTransformEdit>);
+    // Session-only provenance for ordinary bodies edited after simulation. Reset consumes
+    // the authored shape and pose. Physics handles only validate this world's lookup.
+    struct BodyResetTransform {
+        GEngine::PhysicsBodyHandle body;
+        GEngine::SceneBodyPose pose;
+        GEngine::Vec3f scale, localMin, localMax;
+        GEngine::ShapeType shape;
+        GEngine::CollisionShapeDesc collider;
+    };
+    std::optional<BodyResetTransform> ReadResetTransform(const GEngine::_Entity&, bool useCurrent) const;
+    std::map<std::size_t, BodyResetTransform> m_BodyResetTransforms;
+    bool BeginDirectTransform(TransformTool);
+    bool PreviewNumericTransform(TransformTool, const GEngine::Math::Vec3f&);
+    bool SetNumericPlacement(TransformTool, const GEngine::Math::Vec3f& pivot);
+    void DropSelectionToSurface();
     bool StageRagdollTransform(std::size_t,TransformTool,const GEngine::Math::Vec3f&);
     const char* TransformToolDisabled(TransformTool) const;
     bool ActivateTransformTool(TransformTool);
     enum class EditorMode { Edit, Simulation };
     EditorMode m_EditorMode=EditorMode::Edit;
-    bool m_LiveEdit=false;
+    bool m_LiveEdit=false; // Historical fixture input. Ordinary editing is exclusively Edit-mode.
+    bool m_RuntimePoseChanged{}; // An interaction can change the world even before its first step.
     bool m_GizmoCancelled=false;
     void SetEditorMode(EditorMode);
     bool TransformEditingAllowed() const;
@@ -336,6 +370,20 @@ private:
     Rbs::SceneSelection m_ActiveSelection, m_PendingSelection;
     std::optional<Rbs::SceneSelection> m_SceneRequest;
     bool m_SceneDefaultsPending{};
+    struct MoverSession {
+        Rbs::MoverPacket committed = Rbs::ReferenceMoverPacket(), draft = committed;
+        bool dirty{}, showPath{}, showVelocity{}, showContact{}, showError{};
+    } m_Mover;
+    struct MoverBindings {
+        std::array<entt::entity,2> entities{entt::null,entt::null};
+        std::array<GEngine::PhysicsBodyHandle,2> bodies{};
+    } m_MoverBindings;
+    std::optional<Rbs::MoverPacket> m_MoverApply;
+    std::optional<std::size_t> MoverBodyFor(GEngine::_Entity) const;
+    void DrawMoverProperties(std::size_t);
+    void DrawMoverControls();
+    Rbs::Editor::TransformSession::Action ProcessMoverGesture();
+    bool RequestMoverApply();
     struct AngularSession {
         std::optional<Rbs::AngularPacket> committed,draft;
         std::uint64_t revision{},draftBaseRevision{},draftGeneration{};
@@ -546,7 +594,10 @@ private:
         GEngine::ApplicationInitializationResult ApplyAfterStart(GEngine::_Scene&) const;
     };
     GEngine::ApplicationInitializationResult InitializeScene(const BackendAuthoring* = nullptr,
-        const Rbs::AngularPacket* angularCandidate = nullptr,const Rbs::RagdollPacket* ragdollCandidate = nullptr);
+        const Rbs::AngularPacket* angularCandidate = nullptr,const Rbs::RagdollPacket* ragdollCandidate = nullptr,
+        const Rbs::MoverPacket* moverCandidate = nullptr);
+    GEngine::ApplicationInitializationResult InitializeMoverScene(
+        const Rbs::MoverPacket&,const Rbs::SceneAssets&,const BackendAuthoring*);
     GEngine::ApplicationInitializationResult InitializeRagdollScene(
         const Rbs::RagdollPacket&,const Rbs::SceneAssets&,const BackendAuthoring*);
     GEngine::ApplicationInitializationResult InitializeAngularScene(

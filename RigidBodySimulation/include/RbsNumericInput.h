@@ -47,9 +47,20 @@ namespace Rbs::Editor::Numeric
         else if constexpr(std::is_same_v<T,int>)return ImGuiDataType_S32;
         else {static_assert(std::is_same_v<T,std::uint64_t>);return ImGuiDataType_U64;}
     }
+    inline constexpr char PreciseFormat[]="%.6g";
+
+    // Use only for a two-decimal label. Keyboard entry and drag arithmetic use the original value.
+    template<class T> constexpr T DisplayValue(T value)
+    {
+        if constexpr(std::is_floating_point_v<T>) {
+            if(value<=0 && static_cast<double>(value)>-0.005) return T(0);
+        }
+        return value;
+    }
+
     template<class T> const char* Format()
     {
-        if constexpr(std::is_floating_point_v<T>)return "%.6g";
+        if constexpr(std::is_floating_point_v<T>)return "%.2f";
         else if constexpr(std::is_same_v<T,int>)return "%d";
         else return "%llu";
     }
@@ -106,9 +117,23 @@ namespace Rbs::Editor::Numeric
             constexpr auto flags=ImGuiSliderFlags_AlwaysClamp|ImGuiSliderFlags_NoInput|ImGuiSliderFlags_NoRoundToFormat;
             const bool keyboardInput=g.NavActivateInputId==id;
             ImGui::PushItemFlag(ImGuiItemFlags_Inputable,true);
-            const bool edited=slider?ImGui::SliderScalar(label,Type<T>(),&proposed,&low,&high,format?format:Format<T>(),flags):
-                ImGui::DragScalar(label,Type<T>(),&proposed,speed,bounds.minimum?&low:nullptr,bounds.maximum?&high:nullptr,format?format:Format<T>(),flags);
+            const char* widgetFormat=format?format:Format<T>();
+            const bool decimalLabel=std::is_floating_point_v<T> && !format;
+            // ImGui uses its format for keyboard increments as well as text. Keep the old
+            // six-digit navigation precision on the focused item; ## hides its built-in label.
+            if(decimalLabel) widgetFormat=(g.NavId==id || g.ActiveId==id) ? "##%.6g" : "";
+            const bool edited=slider?ImGui::SliderScalar(label,Type<T>(),&proposed,&low,&high,widgetFormat,flags):
+                ImGui::DragScalar(label,Type<T>(),&proposed,speed,bounds.minimum?&low:nullptr,bounds.maximum?&high:nullptr,widgetFormat,flags);
             ImGui::PopItemFlag();
+            if constexpr(std::is_floating_point_v<T>) {
+                if(decimalLabel && !g.CurrentWindow->SkipItems && g.LastItemData.ID==id && ImGui::IsItemVisible()) {
+                    // Draw the post-drag value inside the native control's frame, including on a zero crossing.
+                    char text[std::numeric_limits<T>::max_exponent10+8];
+                    const int length=ImFormatString(text,IM_ARRAYSIZE(text),Format<T>(),DisplayValue(proposed));
+                    const auto& frame=g.LastItemData.NavRect;
+                    ImGui::RenderTextClipped(frame.Min,frame.Max,text,text+length,nullptr,{.5f,.5f});
+                }
+            }
             const bool textRequested=!disabled && (keyboardInput ||
                 (g.LastItemData.StatusFlags&ImGuiItemStatusFlags_FocusedByTabbing) ||
                 (ImGui::IsItemHovered() && ((ImGui::IsMouseClicked(0)&&g.IO.KeyCtrl)||ImGui::IsMouseDoubleClicked(0))));

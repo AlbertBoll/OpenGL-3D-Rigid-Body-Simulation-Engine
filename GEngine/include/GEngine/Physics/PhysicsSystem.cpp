@@ -660,17 +660,25 @@ namespace GEngine
         }
         if (!Math::IsFinite(world->GetGravity()))
             return fail({{PhysicsBodyErrorCode::InvalidDuration,{},"Physics Step gravity"},PhysicsStepStage::Preparation});
+        std::optional<PreparedMoverStep> mover;
+        if (world->m_Mover && duration > 0)
+        {
+            auto prepared = world->PrepareMoverStep(ts.GetSecondsPrecise());
+            if (!prepared) return fail({prepared.error(),PhysicsStepStage::Preparation});
+            mover = *prepared;
+        }
         if(m_PhysicsWorld && m_PhysicsWorld->m_Backend)
         {
             ++m_ColliderContextRevision;
             m_InclusiveNs=m_ContactSolveNs=m_JointSolveNs=0;
             m_SleepTimings={};
             for(auto* body:m_PhysicsWorld->m_RigidBodies)body->m_InPhysicsStep=true;
-            auto result=m_PhysicsWorld->m_Backend->Step(float(ts),m_PhysicsWorld->GetGravity(),m_SleepingEnabled);
+            auto result=m_PhysicsWorld->m_Backend->Step(duration,world->GetGravity(),m_SleepingEnabled,mover ? &*mover : nullptr);
             for(auto* body:m_PhysicsWorld->m_RigidBodies)body->m_InPhysicsStep=false;
             if (!result) return fail(result.error());
             if (duration == 0) return StepDisposition::NoStep;
             ++m_CompletedSteps;
+            if (mover) world->CommitMoverStep(*mover,m_CompletedSteps);
             return StepDisposition::Completed;
         }
         m_JointSolveNs=0;
@@ -689,6 +697,13 @@ namespace GEngine
             sink->boundary(sink->context,stage,*m_PhysicsWorld,m_Manifolds,
                            m_ContactIslands,bytes,m_SolverIterations);
         };
+        if (mover)
+        {
+            auto& body = *world->m_BodyIdentitySlots[mover->platform.index].body;
+            if (body.m_LinearVelocity != mover->velocity) body.WakeUp();
+            body.m_LinearVelocity = mover->velocity;
+            body.m_AngularVelocity = Vec3f(0);
+        }
         observe(PhysicsDiagnostic::Stage::Begin);
         m_InclusiveNs=0; m_ContactSolveNs=0;
 		m_SleepTimings = {};
@@ -1405,6 +1420,16 @@ namespace GEngine
 
 		}
         if(m_PhysicsWorld && dtSeconds>0) ++m_CompletedSteps;
+        if (mover)
+        {
+            const auto platform = world->m_BodyIdentitySlots[mover->platform.index].body->GetIdentity();
+            const auto rider = world->m_BodyIdentitySlots[mover->rider.index].body->GetIdentity();
+            for (auto& manifold : m_Manifolds.m_Manifolds)
+                if (manifold.GetNumContacts() && ((manifold.GetBodyAIdentity()==platform && manifold.GetBodyBIdentity()==rider) ||
+                    (manifold.GetBodyAIdentity()==rider && manifold.GetBodyBIdentity()==platform)))
+                { mover->pairInContact = true; break; }
+            world->CommitMoverStep(*mover,m_CompletedSteps);
+        }
         observe(PhysicsDiagnostic::Stage::End);
         return duration > 0 ? StepDisposition::Completed : StepDisposition::NoStep;
 	}
@@ -1588,6 +1613,10 @@ namespace GEngine
             for(const auto& edit:edits)identities.push_back(edit.body.index);
             std::sort(identities.begin(),identities.end());
             if(std::adjacent_find(identities.begin(),identities.end())!=identities.end())return TransformBodyFailure(PhysicsBodyErrorCode::InvalidHandle,{},op);
+            auto& mover=m_PhysicsWorld->m_Mover;
+            RigidBody3D* platform=nullptr;
+            RigidBody3D* rider=nullptr;
+            std::optional<Vec3f> rebasedCenter;
             std::size_t points{};
             for(std::size_t i=0;i<edits.size();++i)
             {
@@ -1599,6 +1628,26 @@ namespace GEngine
                 if(!Math::IsFinite(edit.position)||!Math::IsFinite(edit.rotation)||!std::isfinite(length)||length<=Math::NumericalEpsilonSquared)
                     return TransformBodyFailure(PhysicsBodyErrorCode::InvalidPose,edit.body,op);
                 staged[i].body=*body;staged[i].rotation=std::abs(length-1.f)<=4*std::numeric_limits<float>::epsilon()?edit.rotation:edit.rotation/std::sqrt(length);
+                if (mover && (edit.body==mover->sample.platform || edit.body==mover->sample.rider)) {
+                    const auto& sample=mover->sample;
+                    if (!platform) {
+                        auto p=m_PhysicsWorld->Resolve(sample.platform,op);
+                        if (!p) return std::unexpected(p.error());
+                        auto r=m_PhysicsWorld->Resolve(sample.rider,op);
+                        if (!r) return std::unexpected(r.error());
+                        platform=*p;
+                        rider=*r;
+                    }
+                    if (edit.body==sample.platform && edit.position!=platform->m_Position) {
+                        auto offset=sample.path;
+                        offset.center=Vec3f(0);
+                        rebasedCenter=edit.position-offset.PositionAt(sample.phaseTime);
+                        auto path=sample.path;
+                        path.center=*rebasedCenter;
+                        if (!Math::IsFinite(path.center) || !Math::IsFinite(path.PositionAt(sample.phaseTime)))
+                            return TransformBodyFailure(PhysicsBodyErrorCode::NonFiniteResult,edit.body,op);
+                    }
+                }
                 if(edit.scale)
                 {
                     if(!(*body)->m_Shape)return TransformBodyFailure(PhysicsBodyErrorCode::InvalidShape,edit.body,op);
@@ -1661,6 +1710,19 @@ namespace GEngine
                 body->m_Position=edits[i].position;body->m_Orientation=staged[i].rotation;
                 if(staged[i].backend)staged[i].backend->Commit();
                 if(m_PhysicsWorld->m_Backend)m_PhysicsWorld->m_Backend->CommitPose(edits[i].body,*body);
+            }
+            if (platform) {
+                // Only publish after every body has committed. Keep the controller clock and queued commands.
+                auto& sample=mover->sample;
+                if (rebasedCenter) sample.path.center=*rebasedCenter;
+                sample.position=platform->m_Position;
+                sample.target=sample.enabled ? sample.path.PositionAt(sample.phaseTime) : sample.position;
+                sample.targetError=glm::distance(sample.position,sample.target);
+                sample.velocity=platform->GetLinearVelocity();
+                sample.riderRelativeVelocity=rider->GetLinearVelocity()-sample.velocity;
+                sample.pairInContact=sample.slipValid=false;
+                sample.riderSlip=0;
+                mover->firstSupportOffset=Vec3f(0);
             }
             if(!edits.empty())
             {

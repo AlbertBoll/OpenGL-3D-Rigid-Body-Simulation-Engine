@@ -2,7 +2,8 @@
 bool RigidBodySimulationApp::ResolveImpulseTargets(bool saved,std::vector<Rbs::Editor::ImpulseTarget>& out)
 {
     namespace E=Rbs::Editor;
-    if(!m_ActiveScene || m_SceneRequest || m_BackendRequest){m_Impulse.diagnostic="Wait for the scene/backend transaction.";return false;}
+    if(!m_ActiveScene || !m_ActiveScene->GetPhysicsSystem() || !m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld() ||
+       m_ActiveScene->GetPhysicsSystem()->GetBackendFailure() || m_SceneRequest || m_BackendRequest){m_Impulse.diagnostic="Wait for the scene/backend transaction.";return false;}
     if(saved && (m_Impulse.savedTargets.empty() || m_Impulse.savedPreset!=EditorPresetKey())) {
         m_Impulse.diagnostic="Saved targets belong to a different scene configuration. Select current bodies and save a new experiment.";return false;
     }
@@ -55,12 +56,16 @@ bool RigidBodySimulationApp::SaveImpulseExperiment()
         if(!ResolveImpulseTargets(false,targets))return false;
         m_Impulse.savedTargets=std::move(targets);m_Impulse.savedParameters=m_Impulse.parameters;
         m_Impulse.savedGeneration=m_SceneGeneration;m_Impulse.savedPreset=EditorPresetKey();
-        m_Impulse.diagnostic="Experiment saved for this session. Reset does not replay it; Apply Saved Once resolves targets again.";return true;
+        m_Impulse.diagnostic="Experiment saved for this session.";return true;
     } catch(const std::bad_alloc&){m_Impulse.diagnostic="Saving experiment failed to allocate; no physics action.";return false;}
 }
 
 bool RigidBodySimulationApp::QueueImpulse(bool saved)
 {
+    using State=Rbs::SimulationState;
+    if(m_EditorMode!=EditorMode::Simulation || (m_SimulationState!=State::Running && m_SimulationState!=State::Paused && m_SimulationState!=State::Ready)) {
+        m_Impulse.diagnostic="Impulses require an available Simulation world.";return false;
+    }
     if(!SandboxEnabled() || m_Impulse.pending || m_GroupTransform.dirty || m_GroupTransform.released) {
         m_Impulse.diagnostic="Finish the current action/Transform gesture before applying an impulse.";return false;
     }
@@ -75,14 +80,16 @@ bool RigidBodySimulationApp::QueueImpulse(bool saved)
         if(m_Impulse.nextSerial==UINT64_MAX){m_Impulse.diagnostic="Impulse sequence exhausted; restart editor.";return false;}
         action->serial=m_Impulse.nextSerial++;
         m_Impulse.pendingSelectionRevision=m_SelectionRevision;m_Impulse.pendingUsesSaved=saved;m_Impulse.pending=std::move(action);
-        m_Impulse.diagnostic="Queued once for the next safe Update boundary.";return true;
+        m_Impulse.diagnostic="Impulse queued.";return true;
     } catch(const std::bad_alloc&){m_Impulse.diagnostic="Impulse command allocation failed; no physics action.";return false;}
 }
 
 void RigidBodySimulationApp::ProcessImpulseCommand()
 {
     auto action=std::move(m_Impulse.pending);if(!action)return; // Consume, including rejection; never retry each frame.
-    if(!m_ActiveScene || m_SceneRequest || m_BackendRequest || action->generation!=m_SceneGeneration ||
+    if(m_EditorMode!=EditorMode::Simulation || !m_ActiveScene || !m_ActiveScene->GetPhysicsSystem() ||
+        !m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld() || m_ActiveScene->GetPhysicsSystem()->GetBackendFailure() ||
+        m_SceneRequest || m_BackendRequest || action->generation!=m_SceneGeneration ||
         action->backend!=m_Backend || (!m_Impulse.pendingUsesSaved && m_Impulse.pendingSelectionRevision!=m_SelectionRevision)) {
         m_Impulse.diagnostic="Scene/backend/selection changed; queued impulse cancelled without execution.";return;
     }
@@ -101,13 +108,14 @@ void RigidBodySimulationApp::ProcessImpulseCommand()
             const auto settings=world.ReadJoltSettings();if(!settings){m_Impulse.diagnostic="Jolt settings readback unavailable; experiment cancelled.";return;}action->settings=*settings;
         }
         action->tick=scene.GetPhysicsSystem()->GetCompletedSteps();
-        std::string success="Applied once (#"+std::to_string(action->serial)+") to "+std::to_string(commands.size())+" / "+std::to_string(commands.size())+" bodies; authoritative velocity readback verified. No physics step added.";
+        std::string success="Applied impulse #"+std::to_string(action->serial)+" to "+std::to_string(commands.size())+" target(s).";
         auto result=world.ApplyImpulseBatch(commands);
         if(!result) {
             m_Impulse.diagnostic=std::string(result.error().operation);
             if(result.error().code==PhysicsBodyErrorCode::NonFiniteResult)SetSimulationState(Rbs::SimulationState::Paused);
             return;
         }
+        m_RuntimePoseChanged=true;
         action->results.swap((*result)->bodies);
         m_Impulse.Store(std::move(action));
         m_Impulse.diagnostic=std::move(success);
@@ -117,63 +125,111 @@ void RigidBodySimulationApp::ProcessImpulseCommand()
 void RigidBodySimulationApp::DrawImpulseProperties()
 {
     namespace E=Rbs::Editor;auto& editor=m_Impulse;auto& p=editor.parameters;
-    if(!E::Component("Physics Actions",false,"Physics / Apply Impulse"))return;
-    ImGui::TextUnformatted("Apply Impulse");
-    std::size_t dynamic=0,fixed=0,nonBodies=0;
-    auto& world=*m_ActiveScene->GetPhysicsSystem()->GetPhysicsWorld();
-    for(auto id:m_EditorSelection.ids) {
-        const auto resolved=m_ActiveScene->RenderData().Resolve(id);
-        if(!resolved){++nonBodies;continue;}
-        const auto handle=m_ActiveScene->GetBodyBinding(_Entity{*resolved,m_ActiveScene.get()});
-        if(!handle){++nonBodies;continue;}
-        const auto props=world.ReadBodyProperties(*handle);
-        if(!props)++nonBodies;else if(props->type==BodyType::Dynamic)++dynamic;else ++fixed;
-    }
-    ImGui::TextWrapped("Selected %zu | Dynamic %zu | Static/Kinematic %zu | Unavailable/non-physics %zu",m_EditorSelection.count,dynamic,fixed,nonBodies);
-    ImGui::TextWrapped("Apply to each selected body. Mixed unsupported targets reject the entire action. Joint-connected Dynamic bodies are supported.");
+    auto* physics=m_ActiveScene?m_ActiveScene->GetPhysicsSystem():nullptr;
+    auto* world=physics && !physics->GetBackendFailure()?physics->GetPhysicsWorld():nullptr;
+    bool dynamic=false;
+    if(m_ActiveScene && !m_EditorSelection.ids.empty()) {
+        const auto id=m_ActiveScene->RenderData().Resolve(m_EditorSelection.ids.back());
+        if(id) {
+            const _Entity entity{*id,m_ActiveScene.get()};
+            ImGui::TextUnformatted(entity.Name().c_str());
+            if(entity.HasAllComponents<Transform3DComponent>()) {
+                const auto& transform=entity.GetComponent<Transform3DComponent>();
+                EditorTransformValue display{transform.Translation,transform.QuatRotation,transform.Scale};
+                std::optional<PhysicsBodyHandle> handle;
+                const bool expanded=E::Component("Transform",true);
+                bool valid=true;
+                if(entity.HasAllComponents<RigidBody3DComponent>()) {
+                    valid=false;
+                    if(world && expanded) {
+                        if(const auto pose=m_ActiveScene->ReadBodyTransform(entity)) {
+                            handle=pose->body;
+                            display.translation=pose->presentation.translation;
+                            display.rotation=pose->presentation.rotation;
+                            valid=true;
+                        }
+                    } else if(world) {
+                        if(const auto binding=m_ActiveScene->GetBodyBinding(entity)) {
+                            handle=*binding;
+                            valid=true;
+                        }
+                    }
+                }
+                if(expanded) {
+                    if(valid)DrawDirectTransformFields(false,&display);
+                    else ImGui::TextUnformatted("Live body transform unavailable.");
+                }
+                if(handle) {
+                    ImGui::Separator();
+                    ImGui::TextUnformatted("Physics Interaction");
+                    if(const auto body=world->ReadEffectiveBody(*handle)) {
+                        dynamic=body->type==BodyType::Dynamic;
+                        ImGui::TextDisabled("%s",dynamic?"Dynamic":body->type==BodyType::Kinematic?"Kinematic":"Static");
+                        const auto velocity=[](const char* label,Vec3f v){
+                            ImGui::Text("%s   %.2f, %.2f, %.2f",label,E::Numeric::DisplayValue(v.x),
+                                E::Numeric::DisplayValue(v.y),E::Numeric::DisplayValue(v.z));
+                        };
+                        velocity("Linear velocity (m/s)",body->linearVelocity);
+                        velocity("Angular velocity (rad/s)",body->angularVelocity);
+                        if(!dynamic)ImGui::TextDisabled("Impulses require a Dynamic body.");
+                    } else ImGui::TextUnformatted("Velocity readback unavailable.");
+                } else if(valid)ImGui::TextDisabled("No Rigidbody.");
+            }
+        } else ImGui::TextUnformatted("Selection is stale.");
+    } else ImGui::TextDisabled("%s",world?"Select an entity.":"Physics world unavailable.");
+    if(m_EditorSelection.count>1)ImGui::TextDisabled("%zu selected",m_EditorSelection.count);
+    if(!editor.diagnostic.empty())ImGui::TextWrapped("%s",editor.diagnostic.c_str());
+    if(!world)return;
+    ImGui::Separator();
     ImGui::BeginDisabled(bool(editor.pending));
-    {E::PropertyRow row("Mode");int mode=int(p.mode);if(ImGui::Combo("##ImpulseMode",&mode,"Impulse\0Velocity Change\0"))p.mode=PhysicsImpulseMode(mode);}
-    E::Number(p.mode==PhysicsImpulseMode::Impulse?"Magnitude (Ns)":"Velocity delta (m/s)",p.magnitude,.1f,"Direction is normalized. Physical impulse depends on mass; Velocity Change converts through authoritative mass.",E::Numeric::Nonnegative<float>());
-    {E::PropertyRow row("Fixed direction");if(ImGui::Button("+X"))p.direction={1,0,0};ImGui::SameLine();if(ImGui::Button("+Y"))p.direction={0,1,0};ImGui::SameLine();if(ImGui::Button("+Z"))p.direction={0,0,1};}
-    E::XYZ("Custom direction",&p.direction.x,0,.05f,"Finite nonzero vector; normalized at Apply. World direction is independent of body and Editor Camera rotation.");
+    E::Number(p.mode==PhysicsImpulseMode::Impulse?"Linear impulse (N s)":"Linear delta (m/s)",p.magnitude,.1f,
+        "Set to zero for an angular-only action.",E::Numeric::Nonnegative<float>());
+    if(p.magnitude>0)E::XYZ("Direction",&p.direction.x,0,.05f,"Normalized in the selected coordinate space.");
+    Vec3f angular=p.angularEnabled?p.angular:Vec3f(0);
+    if(E::XYZ(p.mode==PhysicsImpulseMode::Impulse?"Angular impulse (N m s)":"Angular delta (rad/s)",&angular.x,0,.05f)) {
+        p.angular=angular;p.angularEnabled=angular!=Vec3f(0);
+    }
     {E::PropertyRow row("Space");int local=p.local;if(ImGui::Combo("##ImpulseSpace",&local,"World\0Local\0"))p.local=local!=0;}
-    {E::PropertyRow row("Application point");int point=p.customPoint;if(ImGui::Combo("##ImpulsePoint",&point,"Center of Mass\0Custom offset from COM\0"))p.customPoint=point!=0;}
-    if(p.customPoint)E::XYZ("COM offset (m)",&p.pointOffset.x,0,.05f,"Offset from each body's actual COM in the selected World/Local axes. No Transform scale multiplier.");
-    ImGui::Checkbox("Optional angular action",&p.angularEnabled);
-    if(p.angularEnabled)E::XYZ(p.mode==PhysicsImpulseMode::Impulse?"Angular impulse (Nms)":"Angular delta (rad/s)",&p.angular.x,0,.05f,"Independent angular action in the chosen axes; off-center linear impulse also adds torque. Backend speed limits remain enforced.");
-    ImGui::Checkbox("Show impulse arrows",&editor.showArrows);
-    if(const auto* why=p.Validate())ImGui::TextWrapped("%s",why);
-    ImGui::BeginDisabled(!dynamic || fixed || nonBodies || p.Validate() || E::Numeric::HasError() || m_GroupTransform.dirty);
-    if(ImGui::Button("Apply Once to Selection"))QueueImpulse();
-    if(ImGui::Button("Save Temporary Experiment"))SaveImpulseExperiment();
+    const char* invalid=p.Validate();
+    if(invalid)ImGui::TextWrapped("%s",invalid);
+    ImGui::BeginDisabled(!dynamic || invalid || E::Numeric::HasError());
+    if(ImGui::Button("Apply Impulse"))QueueImpulse();
     ImGui::EndDisabled();
-    if(ImGui::TreeNode("Repeat experiment")) {
-        ImGui::TextWrapped("Saved targets: %zu. Session-only; reset never replays. Transient/new entities cannot be resolved after replacement.",editor.savedTargets.size());
-        ImGui::BeginDisabled(editor.savedTargets.empty());
-        if(ImGui::Button("Load Saved Parameters")){p=editor.savedParameters;E::Numeric::Reset();}
-        if(ImGui::Button("Restore Saved Selection")) {
-            try {std::vector<E::ImpulseTarget> targets;if(ResolveImpulseTargets(true,targets)) {
-                std::vector<EntityRenderId> ids;ids.reserve(targets.size());for(const auto& t:targets)ids.push_back(t.entity);
-                if(m_EditorSelection.SelectSet(m_ActiveScene->RenderData(),ids,E::EntitySelection::SetOperation::Replace)){SynchronizeEditorSelection();m_HierarchyRevealed=m_ActiveScene->RenderData().Identify(m_HoveredEntity).value_or(EntityRenderId{});}
-            }} catch(const std::bad_alloc&){editor.diagnostic="Selection allocation failed.";}
+    ImGui::EndDisabled();
+    if(!ImGui::TreeNode("Advanced"))return;
+    if(ImGui::TreeNode("Provider diagnostics")) {
+        E::ReadOnly("Backend",PhysicsBackendName(world->GetBackend()).data());
+        ImGui::Text("Completed steps   %llu",static_cast<unsigned long long>(physics->GetCompletedSteps()));
+        if(m_HoveredEntity && IsAngularEndpoint(m_HoveredEntity) && m_AngularBindings.joint) {
+            if(auto joint=world->ReadJoint(m_AngularBindings.joint)) {
+                ImGui::Text("Joint angle   %.2f rad",E::Numeric::DisplayValue(joint->angular.signedAngle));
+                if(m_Angular.committed && m_Angular.committed->joint.motor) {
+                    ImGui::Text("Motor speed   %.2f rad/s",E::Numeric::DisplayValue(joint->angular.motorSpeed));
+                    if(joint->angular.motor.valid)ImGui::Text("Motor work   %.4g J",joint->angular.motor.work);
+                }
+            } else ImGui::TextUnformatted("Joint readback unavailable.");
         }
-        if(ImGui::Button("Apply Saved Once"))QueueImpulse(true);
-        ImGui::EndDisabled();
-        if(ImGui::Button("Reset Scene (no replay)"))RequestScene(m_ActiveSelection);
         ImGui::TreePop();
     }
+    ImGui::BeginDisabled(bool(editor.pending));
+    {E::PropertyRow row("Mode");int mode=int(p.mode);if(ImGui::Combo("##ImpulseMode",&mode,"Impulse\0Velocity Change\0"))p.mode=PhysicsImpulseMode(mode);}
+    {E::PropertyRow row("Application point");int point=p.customPoint;if(ImGui::Combo("##ImpulsePoint",&point,"Center of Mass\0Custom offset from COM\0"))p.customPoint=point!=0;}
+    if(p.customPoint)E::XYZ("COM offset (m)",&p.pointOffset.x,0,.05f,"Relative to each body's center of mass.");
+    ImGui::Checkbox("Show impulse arrows",&editor.showArrows);
+    ImGui::BeginDisabled(!dynamic || p.Validate() || E::Numeric::HasError());
+    if(ImGui::Button("Save Experiment"))SaveImpulseExperiment();
     ImGui::EndDisabled();
-    if(editor.recordCount && editor.records[editor.recordCount-1]->generation!=m_SceneGeneration)
-        ImGui::TextWrapped("Last accepted record belongs to a previous scene generation. Reset did not replay it; current velocities are below.");
-    if(!editor.diagnostic.empty())ImGui::TextWrapped("%s",editor.diagnostic.c_str());
-    if(const auto handle=m_ActiveScene->GetBodyBinding(m_HoveredEntity)) {
-        const auto motion=world.ReadImpulseMotion(*handle);
-        if(motion) {
-            ImGui::Text("Active v (m/s): %.4g, %.4g, %.4g",motion->linear.x,motion->linear.y,motion->linear.z);
-            ImGui::Text("Active w (rad/s): %.4g, %.4g, %.4g",motion->angular.x,motion->angular.y,motion->angular.z);
-        } else ImGui::TextWrapped("Velocity readback: %s",std::string(motion.error().operation).c_str());
+    ImGui::BeginDisabled(editor.savedTargets.empty());
+    if(ImGui::Button("Load Parameters")){p=editor.savedParameters;E::Numeric::Reset();}
+    if(ImGui::Button("Restore Saved Selection")) {
+        try {std::vector<E::ImpulseTarget> targets;if(ResolveImpulseTargets(true,targets)) {
+            std::vector<EntityRenderId> ids;ids.reserve(targets.size());for(const auto& t:targets)ids.push_back(t.entity);
+            if(m_EditorSelection.SelectSet(m_ActiveScene->RenderData(),ids,E::EntitySelection::SetOperation::Replace)){SynchronizeEditorSelection();m_HierarchyRevealed=m_ActiveScene->RenderData().Identify(m_HoveredEntity).value_or(EntityRenderId{});}
+        }} catch(const std::bad_alloc&){editor.diagnostic="Selection allocation failed.";}
     }
-    ImGui::TextWrapped("Impulse is a one-shot action, not a material or Transform edit. Edit/Paused stores velocity without stepping. Resume observes the motion. Undo does not rewind physics; Reset restores authored conditions.");
+    if(ImGui::Button("Apply Saved Once"))QueueImpulse(true);
+    ImGui::EndDisabled();
+    ImGui::EndDisabled();
     if(editor.recordCount && ImGui::TreeNode("Accepted experiment records")) {
         ImGui::TextWrapped("%zu records / %zu bytes (8 records / 8 MiB). Complete oldest records evicted; session-only.",editor.recordCount,editor.Bytes());
         for(std::size_t n=0;n<editor.recordCount;++n) {
@@ -198,11 +254,12 @@ void RigidBodySimulationApp::DrawImpulseProperties()
         }
         ImGui::TreePop();
     }
+    ImGui::TreePop();
 }
 
 void RigidBodySimulationApp::DrawImpulseOverlay()
 {
-    if(!m_Impulse.showArrows || !m_CameraSnapshot || !m_ActiveScene || m_Impulse.parameters.Validate())return;
+    if(m_EditorMode!=EditorMode::Simulation || !m_Impulse.showArrows || m_Impulse.parameters.magnitude==0 || !m_CameraSnapshot || !m_ActiveScene || m_Impulse.parameters.Validate())return;
     namespace E=Rbs::Editor;const auto& p=m_Impulse.parameters;
     const auto vp=m_CameraSnapshot->Projection()*m_CameraSnapshot->View();const auto lo=m_ViewportBounds[0],hi=m_ViewportBounds[1];
     auto* draw=ImGui::GetWindowDrawList();draw->PushClipRect({lo.x,lo.y},{hi.x,hi.y},true);
@@ -230,7 +287,7 @@ void RigidBodySimulationApp::DrawImpulseOverlay()
         const auto color=IM_COL32(107,204,255,235);draw->AddLine(from,to,color,E::Px(1.8f));
         draw->AddTriangleFilled(to,{to.x-unit.x*head+side.x*head*.45f,to.y-unit.y*head+side.y*head*.45f},{to.x-unit.x*head-side.x*head*.45f,to.y-unit.y*head-side.y*head*.45f},color);++arrows;
     }
-    char label[160];std::snprintf(label,sizeof(label),"Impulse preview: %zu / %zu | %.4g %s | %s | arrows show direction",arrows,m_EditorSelection.count,p.magnitude,p.mode==PhysicsImpulseMode::Impulse?"Ns":"m/s",p.local?"Local":"World");
+    char label[160];std::snprintf(label,sizeof(label),"Impulse preview: %zu / %zu | %.2f %s | %s | arrows show direction",arrows,m_EditorSelection.count,E::Numeric::DisplayValue(p.magnitude),p.mode==PhysicsImpulseMode::Impulse?"Ns":"m/s",p.local?"Local":"World");
     const float wrap=std::max(E::Px(60),hi.x-lo.x-E::Px(24));
     const auto size=ImGui::CalcTextSize(label,nullptr,false,wrap);
     const ImVec2 pos{lo.x+E::Px(12),hi.y-size.y-E::Px(10)};

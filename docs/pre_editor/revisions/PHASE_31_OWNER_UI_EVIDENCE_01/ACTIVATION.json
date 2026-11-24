@@ -1,0 +1,155 @@
+{
+  "schema": 1,
+  "workflow": "pre-editor",
+  "identity": "PHASE_31_OWNER_UI_EVIDENCE_01",
+  "status": "ACTIVE_OWNER_APPROVED_FOR_EXACT_CANDIDATE",
+  "phase": "31",
+  "candidate": "gizmo-keyboard-01",
+  "release_sha256": "9d5d56a6657cdf0bd96faf8d6854d139fc4f099443e5c67a78676253ca1b1e53",
+  "baseline": "6f83ca3f8589bdbcbc9bc892c6fac22453eeb38c",
+  "scope": [
+    "D_EDITOR",
+    "E_INTERACTION"
+  ],
+  "predecessor_policy": {
+    "path": "docs/pre_editor/active/EDITOR_COMPONENT_AUTHORING_GOVERNANCE.json",
+    "sha256": "89a1669a05780357c0f5042b3cf813d7afc514143190cbb49d6aba97c0c525da"
+  },
+  "predecessor_activation": {
+    "path": "docs/pre_editor/active/EDITOR_COMPONENT_EXPOSURE_AUTHORING_01/ACTIVATION.json",
+    "sha256": "5f863cc72e72e277af1941e56c3a1221ba8fd75f1e47cce2b29b4f2336ce77eb"
+  },
+  "owner_decision": "FINALIZE PRE_EDITOR PHASE 31 - OWNER ACCEPTANCE AND BOUNDED UI GOVERNANCE AMENDMENT. OWNER FINAL DECISION: APPROVE PHASE 31. F_OWNER is PASS.",
+  "owner_directive_excerpt": "For this phase, explicit Owner manual acceptance is sufficient for ordinary user-facing UI behavior, visual presentation and usability acceptance.",
+  "owner_technical_limit_excerpt": "This amendment is limited to Editor UI evidence requirements. It does not waive Physics correctness, numerical safety, resource lifetime or other mandatory technical safety contracts.",
+  "decision_received_via": "Direct Owner instruction in this approval operation",
+  "recorded_utc": "2026-11-24T06:28:03.584512+00:00",
+  "method": "Overlay on the immutable 518-row inventory. Reuse the existing V01 verifier for policy, assessment, predecessor READY provenance and checkpoint input bindings. Verify all remaining row IDs using this named successor.",
+  "applicability": "Only the current unsealed Phase 31 checkpoint. Other phases retain their existing routing and policy.",
+  "records": {
+    "v01": {
+      "path": "docs/pre_editor/active/EDITOR_COMPONENT_EXPOSURE_AUTHORING_01/verify.py",
+      "sha256": "92723790d850a766d3f51b4b7d9c76ef223deb7bf6693bf8c8bda7f7dd47b349"
+    },
+    "amendment": {
+      "path": "docs/pre_editor/revisions/PHASE_31_OWNER_UI_EVIDENCE_01/AMENDMENT.md",
+      "sha256": "3d6a44288d5b17f1f731aaa9deaf3146999bcf59d4eeb8ad0588ea68a8bb63ca"
+    },
+    "verifier": {
+      "path": "docs/pre_editor/revisions/PHASE_31_OWNER_UI_EVIDENCE_01/verify.py",
+      "sha256": "c464ca9a7b38d51187be1e2120dc5bf47c6a7435ba7927eee12e8d0aee1d54e0"
+    },
+    "candidate": {
+      "path": "logs/pre_editor/phase-31/approval-01/candidate-identity.json",
+      "sha256": "3e4d6c5468745596cbd87ec48085444e7f4da7010e9c6ee945df9c8b0fc9bf7d"
+    },
+    "owner": {
+      "path": "docs/pre_editor/revisions/PHASE_31_OWNER_UI_EVIDENCE_01/owner-acceptance.json",
+      "sha256": "fb3a60bf0399dae5dc86dabc2cdbfae0a93dd25c81a89d4a1c8fa2d7152ad1ba"
+    },
+    "original_owner": {
+      "path": "logs/pre_editor/phase-31/approval-01/owner-acceptance.json",
+      "sha256": "fb3a60bf0399dae5dc86dabc2cdbfae0a93dd25c81a89d4a1c8fa2d7152ad1ba"
+    },
+    "build": {
+      "path": "logs/pre_editor/phase-31/gizmo-keyboard-01/focused-Release/final-candidate.json",
+      "sha256": "c2ff1c77cbe75bc0df8d575aed3279ff162fef3396f2bfee68bd00d40b313ea4"
+    },
+    "assessment": {
+      "path": "logs/pre_editor/phase-31/gizmo-keyboard-01/component-assessment.json",
+      "sha256": "f0c01378242746d3420d25f3bd36d94d0668c6e1da4846e2b9120dfc349549be"
+    },
+    "matrix": {
+      "path": "logs/pre_editor/phase-31/gizmo-keyboard-01/component-matrix.json",
+      "sha256": "13ef890b56690e17f59b07a4e51cb26f0ff3e6629f12682917a9ae0cf34dc3e7"
+    },
+    "previous_matrix": {
+      "path": "logs/pre_editor/phase-31/technical-editor-04/component-matrix.json",
+      "sha256": "62704f41e8849519ca3e57c03d327df56e3f1da116b4545dc99116e6d87b471e"
+    },
+    "previous_ready": {
+      "path": "logs/pre_editor/phase-31/technical-editor-04/component-ready.json",
+      "sha256": "430416566835fbcab6d4358e6fcf98857e1a5417868a50834896f023a4b20263"
+    },
+    "entry": {
+      "path": "logs/pre_editor/phase-31/gizmo-keyboard-01/entry.json",
+      "sha256": "6826fb19c1e6be88cdd2f8b79108630149fd909918597345d6d6f69a0c0c149c"
+    },
+    "original_hold": {
+      "path": "logs/pre_editor/phase-31/approval-01/component-ready-result.json",
+      "sha256": "d2b42b0976547a38aec9d932ee8fa2fc882b57d15caf1dde7a8b51c5e8183537"
+    },
+    "prior_reconciliation": {
+      "path": "logs/pre_editor/phase-31/approval-01/component-reconciliation.json",
+      "sha256": "f5801e3c8526fd67bf6e417a71d5c16d7e52eb700b7d1e01b98ffa2dba83e32f"
+    },
+    "technical_gates": {
+      "path": "logs/pre_editor/phase-31/technical-editor-04/technical-gates.json",
+      "sha256": "3ee18405a302513e118ab47e4e823714751406dcbc524163550bfa90c94c5a88"
+    },
+    "native_scope": {
+      "path": "docs/pre_editor/active/PHASE_31_NATIVE_MOVERS_SCOPE_AMENDMENT_01.json",
+      "sha256": "c9f477c8a2db58d9a8b00d5540fca2a3c89b01f99bbe896a497a312226092232"
+    },
+    "gizmo_mouse": {
+      "path": "logs/pre_editor/phase-31/gizmo-numeric-01/offline-checks.json",
+      "sha256": "4863c7cc3e115b095a427920fc38a1d6c9d13d9a3e6758682b2c759037b96c61"
+    },
+    "gizmo_keyboard": {
+      "path": "logs/pre_editor/phase-31/gizmo-keyboard-01/offline-checks.json",
+      "sha256": "8eab977204e23af135b4b0d608b5f206cc4af4c8cc371820776ccf4a1296bbb4"
+    },
+    "continuous": {
+      "path": "logs/pre_editor/phase-31/continuous-edit-01/final-source-check.json",
+      "sha256": "7935c327e5d783395ee8172de8e994cf8990d356b673f0a3122043681e4a4a69"
+    },
+    "placement": {
+      "path": "logs/pre_editor/phase-31/direct-transform-01/static-validation.json",
+      "sha256": "97eff2e685579f8661e8c2c36aa12956a12de6d81c66944c6d952394bd8282cb"
+    },
+    "modes": {
+      "path": "logs/pre_editor/phase-31/edit-simulation-ux-01/source-check-01.json",
+      "sha256": "060f651660fc9b7284cf7411e680794a2c5fc7ff6813cd6534a2c0b33cf50adb"
+    },
+    "playback": {
+      "path": "logs/pre_editor/phase-31/editor-playback-precision-01/offline-checks.json",
+      "sha256": "d716741df7ac0afb057dc96169b025982eca8308284e80b5ac7888d2c260baa0"
+    },
+    "direct_observation": {
+      "path": "logs/pre_editor/phase-31/direct-transform-01/observation-direct-placement.json",
+      "sha256": "c88da1a0ac205e0f35f03c4753c4e5e43047b3685d86a5c4d499bfc0619700a0"
+    },
+    "presentation_record": {
+      "path": "logs/pre_editor/phase-31/direct-transform-01/presentation-finding.json",
+      "sha256": "dc6e6d413a123825dc21680ecf034a09720582d301fa99ad8942a03378841212"
+    },
+    "provider_readback": {
+      "path": "logs/pre_editor/phase-31/technical-editor-03/observation-provider-readback.json",
+      "sha256": "e0cb9ae873a16d922d4e6cd754bc6742fab9ae432141dea4ebe4e4360352c2b2"
+    },
+    "provider_switch": {
+      "path": "logs/pre_editor/phase-31/technical-editor-01/observation-provider-switch.json",
+      "sha256": "9e352e382e830a6927fc5b0cdadec1ad945c63da9e11fb19a1ee538bf4ce92b2"
+    },
+    "jolt_world": {
+      "path": "logs/pre_editor/phase-31/technical-editor-01/observation-jolt-world.json",
+      "sha256": "fc8804649341d6b8658a2ba8ab863fd19399bb33576c8073d51c57138726b0af"
+    },
+    "native_world": {
+      "path": "logs/pre_editor/phase-31/technical-editor-01/observation-native-world.json",
+      "sha256": "4219ea1382d70735c3169d83034dc10e45c79ce6e006d41e9a50633064d7d698"
+    },
+    "jolt_impulse": {
+      "path": "logs/pre_editor/phase-31/technical-editor-01/observation-jolt-rider-impulse.json",
+      "sha256": "12ece8c5fbc58f97e189fdce6616eb9613b1a3aee64b0a4f64685d62f5512a0e"
+    },
+    "native_impulse": {
+      "path": "logs/pre_editor/phase-31/technical-editor-01/observation-native-rider-impulse.json",
+      "sha256": "ec64da140892a38b5a025e13f3d197cf37c536fda79ef82be9df716c6aebcd1b"
+    },
+    "dispositions": {
+      "path": "docs/pre_editor/revisions/PHASE_31_OWNER_UI_EVIDENCE_01/component-dispositions.json",
+      "sha256": "fd45ceae445d964db59ddefa3fbebe96046ce9265e971de71cc123610422e193"
+    }
+  }
+}

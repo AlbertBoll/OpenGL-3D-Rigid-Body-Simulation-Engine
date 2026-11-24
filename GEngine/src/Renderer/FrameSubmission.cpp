@@ -601,15 +601,19 @@ void main() {
   float depth=1.0;
 )"+(multisample?"depth=texelFetch(sceneDepth,p,gl_SampleID).r;":"depth=texelFetch(sceneDepth,p,0).r;")+R"(
   float ring=0.0,contrast=0.0,hover=0.0;
+  float pixelDip=1.0/max(pixelsPerDip.x,pixelsPerDip.y);
   for(int y=-radius.y;y<=radius.y;++y) for(int x=-radius.x;x<=radius.x;++x) {
     float distance=length(vec2(x,y)/pixelsPerDip);
     if(distance>3.45) continue;
     vec4 c=coverage(p+ivec2(x,y));
     if((candidates&1u)!=0u && c.r>0.0 && depth+0.000002>=c.g) {
-      // Every actually visible sample seeds a full-strength silhouette. A distant
-      // 1-of-N covered pixel must not reduce the whole contour's opacity to1/N.
-      ring=max(ring,1.0-smoothstep(1.7,2.7,distance));
-      contrast=max(contrast,0.45*(1.0-smoothstep(2.45,3.45,distance)));
+      // Preserve both solid bands in DIPs. Subpixel coverage shapes only
+      // their one-DIP outer feathers, with zero displacement at each core.
+      vec2 feather=clamp(vec2(distance)-vec2(1.7,2.45),0.0,1.0);
+      float inset=(1.0-c.r)*pixelDip;
+      vec2 opacity=1.0-smoothstep(vec2(0.0),vec2(1.0),feather+inset*feather*feather*feather);
+      ring=max(ring,opacity.x);
+      contrast=max(contrast,0.45*opacity.y);
     }
     // Keep the two nearest covered depths independent: a nearer hovered
     // surface must never make an occluded selected neighbor appear visible.

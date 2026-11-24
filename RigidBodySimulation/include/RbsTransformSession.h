@@ -2,6 +2,7 @@
 #include "Scene/_Scene.h"
 #include <array>
 #include <memory>
+#include <optional>
 #include <vector>
 #include "Scene/EditorTransformBudget.h"
 
@@ -25,6 +26,16 @@ namespace Rbs::Editor
     struct TransformSession
     {
         enum class Action {None,Apply,Cancel,Undo,Redo};
+        struct GizmoNumber
+        {
+            int axis=-1; // Captured X/Y/Z (0..2), or 3 for uniform scale.
+            bool editing{}, focus{};
+            unsigned fieldId{};
+            int lastDrawFrame{};
+            std::array<char,128> text{};
+            std::optional<float> staged;
+            const char* error{};
+        } number;
         TransformBatch preview;
         TransformBatch proposal;
         GEngine::PhysicsPlacementSettings placement;
@@ -51,6 +62,6 @@ namespace Rbs::Editor
             (*history)[cursor++]=std::move(batch);size=cursor;
         }
         void Reset(std::uint64_t value)
-        {preview.Clear();proposal.Clear();if(history)for(auto& b:*history)b.reset();queryPending=invalid=resumeAfterApply=released=live=false;dirty=false;pending=Action::None;size=cursor=0;generation=value;}
+        {number={};preview.Clear();proposal.Clear();if(history)for(auto& b:*history)b.reset();queryPending=invalid=resumeAfterApply=released=live=false;dirty=false;pending=Action::None;size=cursor=0;generation=value;}
     };
 }

@@ -159,6 +159,7 @@ namespace GEngine
     void PhysicsWorld::ReleaseTerminalStorage() noexcept
     {
         m_Closed = true;
+        m_Mover.reset();
         if (m_StepError && m_Backend) m_Backend->PrepareTerminalRetirement();
         m_Backend.reset(); // Retire constraints/workers while native mirrors are alive.
         m_Joints.reset(); m_JointCount = 0;
@@ -309,6 +310,9 @@ namespace GEngine
         if (found == m_RigidBodies.end() || m_Mutating) return; // Never dereference a stale/foreign pointer.
         m_Mutating = true;
         const auto slot = body->m_Identity.GetSlot() - 1;
+        const auto handle = HandleOf(body->GetIdentity());
+        if (m_Mover && (m_Mover->sample.platform == handle || m_Mover->sample.rider == handle))
+            m_Mover.reset();
         if (m_BodyRemovalCallback) m_BodyRemovalCallback(body);
         RetireJoints(body);
         if(m_Backend)m_Backend->DestroyBody(HandleOf(body->GetIdentity()));
@@ -379,9 +383,155 @@ namespace GEngine
         if (!FiniteBounds(bounds)) return Failure(Code::NonFiniteResult, h, "GetBodyBoundsAt");
         return bounds;
     }
+    Vec3f PhysicsMoverPath::PositionAt(double seconds) const
+    {
+        const double angle = phase + 6.2831853071795864769 * frequencyHz * seconds;
+        return Vec3f(glm::dvec3(center) + glm::dvec3(direction) * (amplitude * std::sin(angle)));
+    }
+
+    PhysicsBodyResult<PhysicsMoverPath> PhysicsMoverPath::Normalized() const
+    {
+        const double length = glm::length(glm::dvec3(direction));
+        if (!Math::IsFinite(center) || !Math::IsFinite(direction) || direction.y != 0 ||
+            !std::isfinite(length) || length <= 0 || !std::isfinite(amplitude) || amplitude < 0 ||
+            amplitude > 16 || !std::isfinite(frequencyHz) || frequencyHz <= 0 ||
+            frequencyHz > MaxFrequencyHz || !std::isfinite(phase))
+            return Failure(Code::InvalidPose,{},"Invalid horizontal SineLine path");
+        auto result = *this;
+        result.direction = Vec3f(glm::dvec3(direction)/length);
+        result.phase = std::fmod(phase,6.2831853071795864769);
+        if (result.phase < 0) result.phase += 6.2831853071795864769;
+        return result;
+    }
+
+    PhysicsBodyResult<> PhysicsWorld::RegisterMover(PhysicsBodyHandle platform, PhysicsBodyHandle rider,
+        const PhysicsMoverPath& desc, double fixedSeconds)
+    {
+        constexpr auto op = "RegisterMover";
+        auto p = Resolve(platform, op, true);
+        if (!p) return std::unexpected(p.error());
+        auto r = Resolve(rider, op);
+        if (!r) return std::unexpected(r.error());
+        if (m_Mover || m_StepActive) return Failure(Code::Busy, platform, op);
+        if ((*p)->Type != BodyType::Kinematic || (*r)->Type != BodyType::Dynamic)
+            return Failure(Code::WrongBodyType, (*p)->Type != BodyType::Kinematic ? platform : rider, op);
+        if (!(*p)->m_Shape || !(*r)->m_Shape || (*p)->m_Shape->GetShapeType()!=ShapeType::Box ||
+            (*r)->m_Shape->GetShapeType()!=ShapeType::Box)
+            return Failure(Code::InvalidShape, platform, op);
+        if (!std::isfinite(fixedSeconds) || fixedSeconds <= 0 || fixedSeconds > std::numeric_limits<float>::max() ||
+            static_cast<float>(fixedSeconds) <= 0 || !std::isfinite(1.f/static_cast<float>(fixedSeconds)))
+            return Failure(Code::InvalidDuration, platform, op);
+        auto path = desc.Normalized();
+        if (!path) return std::unexpected(path.error());
+        MoverRegistration registration{};
+        auto& sample = registration.sample;
+        sample.platform = platform;
+        sample.rider = rider;
+        sample.path = *path;
+        sample.target = path->PositionAt(0);
+        sample.position = (*p)->m_Position;
+        if (!Math::IsFinite(sample.target) || sample.position != sample.target ||
+            (*p)->m_LinearVelocity != Vec3f(0) || (*p)->m_AngularVelocity != Vec3f(0))
+            return Failure(Code::InvalidPose, platform, "Mover must bind at its stationary Tick-0 target");
+        registration.fixedSeconds = fixedSeconds;
+        m_Mover = registration;
+        return {};
+    }
+
+    PhysicsBodyResult<> PhysicsWorld::QueueMoverCommand(PhysicsBodyHandle platform, MoverCommand command)
+    {
+        auto body = Resolve(platform,"QueueMoverCommand",true);
+        if (!body) return std::unexpected(body.error());
+        if (!m_Mover || m_Mover->sample.platform != platform)
+            return Failure(Code::WrongBodyType,platform,"Body has no prescribed mover");
+        if (m_StepActive) return Failure(Code::Busy,platform,"Mover command during Physics step");
+        switch (command)
+        {
+        case MoverCommand::Start: m_Mover->requestedEnabled = true; break;
+        case MoverCommand::Stop: m_Mover->requestedEnabled = false; break;
+        case MoverCommand::Reverse: m_Mover->requestedReverse = !m_Mover->requestedReverse; break;
+        default: return Failure(Code::UnsupportedFeature,platform,"Unknown mover command");
+        }
+        return {};
+    }
+
+    PhysicsBodyResult<PhysicsMoverSample> PhysicsWorld::ReadMover(PhysicsBodyHandle platform) const
+    {
+        auto body = Resolve(platform,"ReadMover");
+        if (!body) return std::unexpected(body.error());
+        if (!m_Mover || platform != m_Mover->sample.platform)
+            return Failure(Code::WrongBodyType,platform,"Body has no prescribed mover");
+        auto sample = m_Mover->sample;
+        sample.commandPending = sample.enabled != m_Mover->requestedEnabled || sample.reversed != m_Mover->requestedReverse;
+        return sample;
+    }
+
+    PhysicsBodyResult<PreparedMoverStep> PhysicsWorld::PrepareMoverStep(double duration) const
+    {
+        const auto& registration = *m_Mover;
+        const auto& sample = registration.sample;
+        auto p = Resolve(sample.platform,"Mover step platform");
+        if (!p) return std::unexpected(p.error());
+        auto r = Resolve(sample.rider,"Mover step rider");
+        if (!r) return std::unexpected(r.error());
+        if ((*p)->Type != BodyType::Kinematic || (*r)->Type != BodyType::Dynamic)
+            return Failure(Code::WrongBodyType,sample.platform,"Mover step body type");
+        if (duration != registration.fixedSeconds)
+            return Failure(Code::InvalidDuration,sample.platform,"Mover fixed step changed");
+        PreparedMoverStep step{};
+        step.platform = sample.platform;
+        step.rider = sample.rider;
+        step.enabled = registration.requestedEnabled;
+        step.reversed = registration.requestedReverse;
+        step.phaseTick = sample.phaseTick;
+        if (step.enabled)
+        {
+            if ((step.reversed && step.phaseTick == std::numeric_limits<std::int64_t>::min()) ||
+                (!step.reversed && step.phaseTick == std::numeric_limits<std::int64_t>::max()))
+                return Failure(Code::Capacity,step.platform,"Mover phase counter");
+            step.phaseTick += step.reversed ? -1 : 1;
+        }
+        step.phaseTime = static_cast<double>(step.phaseTick) * duration;
+        step.target = step.enabled ? sample.path.PositionAt(step.phaseTime) : (*p)->m_Position;
+        step.velocity = (step.target - (*p)->m_Position) / static_cast<float>(duration);
+        step.orientation = (*p)->m_Orientation;
+        if (!ValidPose(step.target,step.orientation) || !Math::IsFinite(step.velocity) || !std::isfinite(step.phaseTime))
+            return Failure(Code::NonFiniteResult,step.platform,"Mover target");
+        return step;
+    }
+
+    void PhysicsWorld::CommitMoverStep(const PreparedMoverStep& step, std::uint64_t completedTick)
+    {
+        auto& registration = *m_Mover;
+        auto& sample = registration.sample;
+        const auto& platform = *m_BodyIdentitySlots[step.platform.index].body;
+        const auto& rider = *m_BodyIdentitySlots[step.rider.index].body;
+        sample.tick = completedTick;
+        sample.phaseTick = step.phaseTick;
+        sample.phaseTime = step.phaseTime;
+        sample.enabled = step.enabled;
+        sample.reversed = step.reversed;
+        sample.target = step.target;
+        sample.position = platform.m_Position;
+        sample.velocity = platform.GetLinearVelocity();
+        sample.targetError = glm::distance(sample.position,sample.target);
+        sample.pairInContact = step.pairInContact;
+        sample.riderRelativeVelocity = rider.GetLinearVelocity() - sample.velocity;
+        Vec3f offset = rider.m_Position - sample.position;
+        offset.y = 0;
+        if (step.pairInContact && !sample.slipValid)
+        {
+            registration.firstSupportOffset = offset;
+            sample.slipValid = true;
+        }
+        if (sample.slipValid) sample.riderSlip = glm::distance(offset,registration.firstSupportOffset);
+    }
+
     PhysicsBodyResult<> PhysicsWorld::SetBodyVelocity(PhysicsBodyHandle h, const Vec3f& v, const Vec3f& w)
     {
         auto b = Resolve(h, "SetBodyVelocity", true); if (!b) return std::unexpected(b.error());
+        if (m_Mover && h == m_Mover->sample.platform)
+            return Failure(Code::UnsupportedFeature,h,"Velocity belongs to the registered mover");
         if (!Math::IsFinite(v) || !Math::IsFinite(w)) return Failure(Code::InvalidVelocity, h, "SetBodyVelocity");
         if ((*b)->m_LinearVelocity != v || (*b)->m_AngularVelocity != w) (*b)->WakeUp();
         (*b)->m_LinearVelocity = v; (*b)->m_AngularVelocity = w;
@@ -432,6 +582,9 @@ namespace GEngine
     {
         constexpr auto op = "UpdateBodyProperties";
         auto body = Resolve(h, op, true); if (!body) return std::unexpected(body.error());
+        if (m_Mover && ((h == m_Mover->sample.platform && value.type != BodyType::Kinematic) ||
+                        (h == m_Mover->sample.rider && value.type != BodyType::Dynamic)))
+            return Failure(Code::WrongBodyType,h,"A registered mover requires a kinematic platform and dynamic rider");
         if (value.type != BodyType::Static && value.type != BodyType::Kinematic && value.type != BodyType::Dynamic)
             return Failure(Code::WrongBodyType, h, op);
         if (!Math::IsFinite(value.mass) || value.mass <= 0 || !Math::IsFinite(1.f/value.mass) || 1.f/value.mass == 0)

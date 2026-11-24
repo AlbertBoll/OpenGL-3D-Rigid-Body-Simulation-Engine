@@ -1,0 +1,336 @@
+{
+  "schema": 1,
+  "phase": "31",
+  "workflow": "pre-editor",
+  "candidate": "gizmo-keyboard-01",
+  "frozen_matrix": {
+    "path": "logs/pre_editor/phase-31/gizmo-keyboard-01/component-matrix.json",
+    "sha256": "13ef890b56690e17f59b07a4e51cb26f0ff3e6629f12682917a9ae0cf34dc3e7"
+  },
+  "prior_matrix": {
+    "path": "logs/pre_editor/phase-31/technical-editor-04/component-matrix.json",
+    "sha256": "62704f41e8849519ca3e57c03d327df56e3f1da116b4545dc99116e6d87b471e"
+  },
+  "inventory_rows": 518,
+  "inherit_full_unchanged_rows": {
+    "PASS": 323,
+    "NOT_APPLICABLE": 37
+  },
+  "row_disposition": "OWNER_ACCEPTED_UI",
+  "manual_evidence_scope": "Final ordinary Release candidate and observed UX. Individual new automated interactions were not reported.",
+  "new_automated_ui_observations": 0,
+  "owner_row_by_row_screenshots_supplied": false,
+  "interpretation_previous_PASS": "Reuse each matching old row and its provider evidence only for the unchanged portion. Final changed UI uses the explicitly accepted manual method.",
+  "interpretation_added": "Use final Owner acceptance for UI behavior. Technical prerequisites are evaluated separately using the named source, mathematical, build and runtime records at their original scope.",
+  "source_and_math_checks": [
+    "gizmo_keyboard",
+    "gizmo_mouse",
+    "placement",
+    "modes",
+    "continuous",
+    "playback"
+  ],
+  "groups": {
+    "gizmo-numeric": {
+      "technical_basis": "Mouse and keyboard input share the captured axis, starting pose, preview and one commit or cancellation. The compiled input path uses the existing generation, pivot, shear and collider checks. Independent quaternion and affine examples cover signed rotation and axis scale.",
+      "technical_evidence": [
+        "gizmo_mouse",
+        "gizmo_keyboard",
+        "continuous",
+        "placement",
+        "build"
+      ],
+      "previous_PASS": [],
+      "added": [
+        "shared.transform.gizmo-numeric.axis-scale",
+        "shared.transform.gizmo-numeric.basis",
+        "shared.transform.gizmo-numeric.history",
+        "shared.transform.gizmo-numeric.keyboard-axis",
+        "shared.transform.gizmo-numeric.ownership",
+        "shared.transform.gizmo-numeric.preview",
+        "shared.transform.gizmo-numeric.rotation",
+        "shared.transform.gizmo-numeric.scale",
+        "shared.transform.gizmo-numeric.translation"
+      ]
+    },
+    "modes-runtime": {
+      "technical_basis": "Compare the prior actual Rider impulse and runtime body readbacks with the later edit lock, selected-body identity, once-only command path, explicit playback and current-world return. The phase rebase and success-only clocks have separate source or runtime evidence. Formatting changes affect presentation.",
+      "technical_evidence": [
+        "jolt_impulse",
+        "native_impulse",
+        "modes",
+        "continuous",
+        "playback",
+        "technical_gates"
+      ],
+      "previous_PASS": [
+        "Jolt.platform.effective.angularVelocity",
+        "Jolt.platform.effective.linearVelocity",
+        "Jolt.platform.effective.position",
+        "Jolt.rider.effective.angularVelocity",
+        "Jolt.rider.effective.linearVelocity",
+        "Jolt.rider.effective.position",
+        "Jolt.rider.impulse.apply",
+        "Jolt.scene.simulationControls",
+        "Native.platform.effective.angularVelocity",
+        "Native.platform.effective.linearVelocity",
+        "Native.platform.effective.position",
+        "Native.rider.effective.angularVelocity",
+        "Native.rider.effective.linearVelocity",
+        "Native.rider.effective.position",
+        "Native.rider.impulse.apply",
+        "Native.scene.simulationControls"
+      ],
+      "added": [
+        "shared.mode-interaction.advanced",
+        "shared.mode-interaction.angular",
+        "shared.mode-interaction.combined",
+        "shared.mode-interaction.edit-return",
+        "shared.mode-interaction.formatted-input",
+        "shared.mode-interaction.formatted-readback",
+        "shared.mode-interaction.keep-pose",
+        "shared.mode-interaction.linear",
+        "shared.mode-interaction.locked-position",
+        "shared.mode-interaction.locked-rotation",
+        "shared.mode-interaction.locked-scale",
+        "shared.mode-interaction.mode-only",
+        "shared.mode-interaction.paused",
+        "shared.mode-interaction.playback",
+        "shared.mode-interaction.space",
+        "shared.mode-interaction.working-reset"
+      ]
+    },
+    "mover-authoring": {
+      "technical_basis": "Retain the original provider and transaction coverage for the applicable components. Direct Transform replaces the older staged Gizmo contract. Apply the stopped-world validation, exact Jolt shape query, limited Native clearance, phase rebasing, shared preview and history checks to the current authoring behavior. Earlier direct placement was observed only on its recorded rows.",
+      "technical_evidence": [
+        "direct_observation",
+        "presentation_record",
+        "placement",
+        "continuous",
+        "gizmo_keyboard",
+        "build"
+      ],
+      "previous_PASS": [
+        "Jolt.controller.center",
+        "Jolt.platform.gizmo.transform",
+        "Jolt.platform.presentation.display-name",
+        "Jolt.platform.presentation.scene-visible",
+        "Jolt.platform.transform.rotation",
+        "Jolt.platform.transform.scale",
+        "Jolt.platform.transform.translation",
+        "Jolt.rider.gizmo.transform",
+        "Jolt.rider.presentation.display-name",
+        "Jolt.rider.presentation.scene-visible",
+        "Jolt.rider.transform.rotation",
+        "Jolt.rider.transform.scale",
+        "Jolt.rider.transform.translation",
+        "Native.controller.center",
+        "Native.platform.gizmo.transform",
+        "Native.platform.presentation.display-name",
+        "Native.platform.presentation.scene-visible",
+        "Native.platform.transform.rotation",
+        "Native.platform.transform.scale",
+        "Native.platform.transform.translation",
+        "Native.rider.gizmo.transform",
+        "Native.rider.presentation.display-name",
+        "Native.rider.presentation.scene-visible",
+        "Native.rider.transform.rotation",
+        "Native.rider.transform.scale",
+        "Native.rider.transform.translation"
+      ],
+      "added": [
+        "Jolt.transform-authoring.clearance",
+        "Jolt.transform-authoring.drop",
+        "Jolt.transform-authoring.history",
+        "Jolt.transform-authoring.surface",
+        "Native.transform-authoring.clearance",
+        "Native.transform-authoring.drop",
+        "Native.transform-authoring.history",
+        "Native.transform-authoring.surface"
+      ]
+    },
+    "world": {
+      "technical_basis": "Reuse the measured provider trajectory, fixed-step ticks, frequency, gravity and lifetime checks. The two backends share the Editor controls for scene transactions. The changes to mode admission and numeric presentation use the verified command and readback paths.",
+      "technical_evidence": [
+        "technical_gates",
+        "provider_readback",
+        "jolt_world",
+        "native_world",
+        "provider_switch",
+        "continuous",
+        "playback"
+      ],
+      "previous_PASS": [
+        "Jolt.controller.commandPending",
+        "Jolt.controller.completedTick",
+        "Jolt.controller.directionSign",
+        "Jolt.controller.enabled",
+        "Jolt.controller.frequencyHz",
+        "Jolt.controller.phaseTime",
+        "Jolt.controller.position",
+        "Jolt.controller.reverse",
+        "Jolt.controller.riderContacts",
+        "Jolt.controller.riderIdentity",
+        "Jolt.controller.riderRelativeVelocity",
+        "Jolt.controller.riderSlip",
+        "Jolt.controller.targetError",
+        "Jolt.controller.velocity",
+        "Jolt.scene.apply",
+        "Jolt.scene.backend",
+        "Jolt.scene.dirtySwitch",
+        "Jolt.scene.fixedStep",
+        "Jolt.scene.gravity",
+        "Jolt.scene.referenceRevision",
+        "Jolt.scene.reset",
+        "Jolt.scene.restoreDefaults",
+        "Jolt.scene.revert",
+        "Jolt.scene.scene",
+        "Jolt.scene.solverProfile",
+        "Native.controller.commandPending",
+        "Native.controller.completedTick",
+        "Native.controller.directionSign",
+        "Native.controller.enabled",
+        "Native.controller.frequencyHz",
+        "Native.controller.phaseTime",
+        "Native.controller.position",
+        "Native.controller.reverse",
+        "Native.controller.riderContacts",
+        "Native.controller.riderIdentity",
+        "Native.controller.riderRelativeVelocity",
+        "Native.controller.riderSlip",
+        "Native.controller.targetError",
+        "Native.controller.velocity",
+        "Native.scene.apply",
+        "Native.scene.backend",
+        "Native.scene.dirtySwitch",
+        "Native.scene.fixedStep",
+        "Native.scene.gravity",
+        "Native.scene.referenceRevision",
+        "Native.scene.reset",
+        "Native.scene.restoreDefaults",
+        "Native.scene.revert",
+        "Native.scene.scene",
+        "Native.scene.solverProfile"
+      ],
+      "added": []
+    },
+    "shared": {
+      "technical_basis": "Earlier real control evidence remains bound to each matching old row. Shared handling of pose previews, context, numeric formatting and mode restrictions is verified in the current input closure. The Owner accepted the final appearance and usability.",
+      "technical_evidence": [
+        "previous_ready",
+        "previous_matrix",
+        "gizmo_keyboard",
+        "continuous",
+        "playback",
+        "modes"
+      ],
+      "previous_PASS": [
+        "shared.camera.A.transform.rotation",
+        "shared.camera.A.transform.translation",
+        "shared.camera.B.transform.rotation",
+        "shared.camera.B.transform.translation",
+        "shared.environment.axis-runtime-layers",
+        "shared.environment.axis-runtime-visibility",
+        "shared.environment.grid",
+        "shared.environment.grid-runtime-layers",
+        "shared.environment.sky-transform-unsupported.rotation",
+        "shared.environment.sky-transform-unsupported.scale",
+        "shared.environment.sky-transform-unsupported.translation",
+        "shared.light.directional.pose",
+        "shared.light.point.pose",
+        "shared.room.floor.presentation.display-name",
+        "shared.room.floor.transform.rotation",
+        "shared.room.floor.transform.scale",
+        "shared.room.floor.transform.translation",
+        "shared.room.wall-nx.presentation.display-name",
+        "shared.room.wall-nx.transform.rotation",
+        "shared.room.wall-nx.transform.scale",
+        "shared.room.wall-nx.transform.translation",
+        "shared.room.wall-nz.presentation.display-name",
+        "shared.room.wall-nz.transform.rotation",
+        "shared.room.wall-nz.transform.scale",
+        "shared.room.wall-nz.transform.translation",
+        "shared.room.wall-px.presentation.display-name",
+        "shared.room.wall-px.transform.rotation",
+        "shared.room.wall-px.transform.scale",
+        "shared.room.wall-px.transform.translation",
+        "shared.room.wall-pz.presentation.display-name",
+        "shared.room.wall-pz.transform.rotation",
+        "shared.room.wall-pz.transform.scale",
+        "shared.room.wall-pz.transform.translation"
+      ],
+      "added": []
+    }
+  },
+  "partial_evidence": [
+    {
+      "path": "logs/pre_editor/phase-31/direct-transform-01/observation-direct-placement.json",
+      "sha256": "c88da1a0ac205e0f35f03c4753c4e5e43047b3685d86a5c4d499bfc0619700a0",
+      "kind": "ordinary_editor_interaction",
+      "rows": [
+        "Jolt.platform.transform.translation",
+        "Jolt.rider.transform.translation",
+        "Jolt.rider.transform.rotation",
+        "Jolt.rider.transform.scale",
+        "Jolt.rider.gizmo.transform",
+        "Native.platform.transform.translation",
+        "Native.rider.transform.translation",
+        "Jolt.transform-authoring.drop",
+        "Jolt.transform-authoring.surface",
+        "Jolt.transform-authoring.history",
+        "Native.transform-authoring.clearance"
+      ]
+    },
+    {
+      "path": "logs/pre_editor/phase-31/direct-transform-01/source-impact-final.json",
+      "sha256": "ad06ad7f4825d20760316e656c3c7d0bbc56b276b7ecc7724238afa817ec1c16",
+      "kind": "source_capability",
+      "rows": [
+        "Jolt.platform.transform.translation",
+        "Jolt.rider.transform.translation",
+        "Jolt.rider.transform.rotation",
+        "Jolt.rider.transform.scale",
+        "Jolt.rider.gizmo.transform",
+        "Native.platform.transform.translation",
+        "Native.rider.transform.translation",
+        "Jolt.transform-authoring.drop",
+        "Jolt.transform-authoring.surface",
+        "Jolt.transform-authoring.history",
+        "Native.transform-authoring.clearance"
+      ]
+    },
+    {
+      "path": "logs/pre_editor/phase-31/technical-editor-01/observation-common-presentation.json",
+      "sha256": "04b3e9e66d02d8a3d13d627ebfd2f288d717d68e6b441a228cd67959fa082c29",
+      "kind": "ordinary_editor_interaction",
+      "rows": [
+        "Jolt.platform.presentation.scene-visible",
+        "Jolt.rider.presentation.scene-visible",
+        "Native.platform.presentation.scene-visible",
+        "Native.rider.presentation.scene-visible"
+      ]
+    },
+    {
+      "path": "logs/pre_editor/phase-31/technical-editor-01/scope-impact.json",
+      "sha256": "ff823433d2e70d2e70bf979512bcacc16f9109204931b7199ab026928219c1b2",
+      "kind": "source_capability",
+      "rows": [
+        "Jolt.platform.presentation.scene-visible",
+        "Jolt.rider.presentation.scene-visible",
+        "Native.platform.presentation.scene-visible",
+        "Native.rider.presentation.scene-visible"
+      ]
+    },
+    {
+      "path": "logs/pre_editor/phase-31/direct-transform-01/presentation-finding.json",
+      "sha256": "dc6e6d413a123825dc21680ecf034a09720582d301fa99ad8942a03378841212",
+      "kind": "source_capability",
+      "rows": [
+        "Jolt.platform.presentation.scene-visible",
+        "Jolt.rider.presentation.scene-visible",
+        "Native.platform.presentation.scene-visible",
+        "Native.rider.presentation.scene-visible"
+      ]
+    }
+  ]
+}

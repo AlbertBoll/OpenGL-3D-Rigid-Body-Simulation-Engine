@@ -83,6 +83,7 @@
     "Images/Editor/Scenes/cv-limited.png": "GEngine/include/GEngine/Assets/Images/Editor/Scenes/cv-limited.png",
     "Images/Editor/Scenes/passive-ragdoll.png": "GEngine/include/GEngine/Assets/Images/Editor/Scenes/passive-ragdoll.png",
     "Images/Editor/Scenes/motors.png": "GEngine/include/GEngine/Assets/Images/Editor/Scenes/motors.png",
+    "Images/Editor/Scenes/movers.png": "GEngine/include/GEngine/Assets/Images/Editor/Scenes/movers.png",
     "Images/Icons/PauseButton.png": "GEngine/include/GEngine/Assets/Images/Icons/PauseButton.png",
     "Images/Icons/PlayButton.png": "GEngine/include/GEngine/Assets/Images/Icons/PlayButton.png",
     "Images/Icons/SimulateButton.png": "GEngine/include/GEngine/Assets/Images/Icons/SimulateButton.png",

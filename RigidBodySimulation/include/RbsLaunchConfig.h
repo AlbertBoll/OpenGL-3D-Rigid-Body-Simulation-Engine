@@ -2,6 +2,7 @@
 
 #include "Core/LaunchConfig.h"
 #include "Physics/PhysicsBackend.h"
+#include "Physics/PhysicsWorld.h"
 #include "Physics/Constraints/BallSocketJoint.h"
 #include "Math/Math.h"
 #include <optional>
@@ -41,7 +42,7 @@ namespace Rbs
         CvFree,
         CvLimited,
         PassiveRagdoll,
-        MotorFree, MotorContact, MotorLimit
+        MotorFree, MotorContact, MotorLimit, Movers
     };
 
     constexpr bool IsMotorScene(RbsScenePreset scene) noexcept
@@ -94,6 +95,7 @@ namespace Rbs
             case RbsScenePreset::HingeQuaternion:
             case RbsScenePreset::HingeLimited:
             case RbsScenePreset::CvFree:
+            case RbsScenePreset::Movers:
             case RbsScenePreset::MotorFree:
             case RbsScenePreset::MotorContact:
             case RbsScenePreset::MotorLimit:
@@ -113,6 +115,24 @@ namespace Rbs
 
     // Phase 28 authoring is app-owned session data, separate from the V1
     // SceneSelection drag payload and the borrowed immutable LaunchConfig.
+    struct MoverBodyPacket
+    {
+        GEngine::Math::Vec3f halfExtents{1}, linearVelocity{}, angularVelocity{};
+        GEngine::Math::Quat orientation{1,0,0,0};
+        GEngine::PhysicsBodyProperties properties;
+        friend bool operator==(const MoverBodyPacket&,const MoverBodyPacket&) = default;
+    };
+    struct MoverPacket
+    {
+        GEngine::PhysicsMoverPath path;
+        MoverBodyPacket platform, rider;
+        GEngine::Math::Vec3f riderPosition{10,6.8f,0}, gravity{0,-10,0};
+        friend bool operator==(const MoverPacket&,const MoverPacket&) = default;
+    };
+    MoverPacket ReferenceMoverPacket();
+    bool MoverBoxFitsSandbox(const MoverBodyPacket&, GEngine::Vec3f center, GEngine::Vec3f sweep);
+    std::expected<void,std::string_view> ValidateMoverPacket(const MoverPacket&);
+
     enum class AngularVariant : std::uint8_t { Air, Contact };
     enum class AngularBodyKey : std::uint8_t { Anchor, Bar, Floor, Load };
     enum class AngularJointKey : std::uint8_t { Primary };
